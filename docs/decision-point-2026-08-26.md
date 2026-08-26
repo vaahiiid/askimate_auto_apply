@@ -109,10 +109,16 @@ a medical reason for a deferred entry — an appropriate policy document may be 
 processing. This sits with the ADR-0022 lawful-basis determinations. I have flagged it rather than
 answered it.
 
-### 4.3 · Nothing else
+### 4.3 · One ordering, if you disagree with it
 
-To be explicit: I am **not** asking you to approve anything about authentication, financial evidence
-scope, the disclosure model, or the architecture. Those are settled and built.
+The authentication approaches are now ranked, and you named the first and the last: passwordless
+first, a generated ephemeral credential last. I placed two in between — *the student types their own
+password* and *the portal emails them its own* — both above the generated one, because under both we
+hold nothing at all.
+
+I am recording that as derived from your principle rather than dictated by you. If the ordering is
+wrong, [ADR-0020 §2](./decisions/0020-the-account-belongs-to-the-student.md) is the paragraph to
+argue with. Nothing else about authentication needs your approval; the rest is settled and built.
 
 ---
 
