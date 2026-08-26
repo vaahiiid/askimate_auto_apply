@@ -9,6 +9,7 @@
  *
  * It demonstrates, in order:
  *   1. a case cannot exist without evidence the student asked for it
+ *   1b. the agent interviews — the student never fills in a form
  *   2. a missing document blocks progress
  *   3. financial evidence forces human review REGARDLESS of confidence
  *   4. the student authorises exact content, captured as a hash
@@ -20,6 +21,10 @@
 import {
   askimateActor,
   caseId,
+  isConversationalAsk,
+  ownerFor,
+  proposeValue,
+  unwrapProposed,
   courseId,
   decide,
   decideReapplication,
@@ -153,6 +158,35 @@ async function main(): Promise<void> {
   note(`Submission key: ${submissionKey(opened.submissionIdentity).split(UNIT_SEPARATOR).join(" · ")}`);
   await store.claimSubmissionKey(submissionKey(opened.submissionIdentity), CASE);
   note("Submission key claimed — no other case can now submit this application.");
+
+  // ── 1b ──────────────────────────────────────────────────────────────────
+  heading("1b. The agent interviews — the student never fills in a form");
+  note("Missing information becomes a QUESTION the agent owns, not a form field.");
+
+  for (const kind of ["provide_profile_field", "provide_document", "authorise_submission"] as const) {
+    const owner = ownerFor(kind);
+    const how = isConversationalAsk(kind) ? "asks the student in conversation" : "requests it";
+    if (owner === "agent") {
+      ok(`${kind} ${DIM}→ owned by the AGENT, which ${how}${RESET}`);
+    } else {
+      blocked(`${kind} ${DIM}→ owned by the STUDENT (only §7 handoff + authorisation are)${RESET}`);
+    }
+  }
+
+  console.log();
+  note('Student says: "I finished my bachelor\'s in computer science in 2023, got 17 out of 20."');
+  const heard = proposeValue({
+    value: "BSc Computer Science",
+    origin: "conversation",
+    verbatim: "I finished my bachelor's in computer science in 2023, got 17 out of 20",
+    confidence: 0.93,
+  });
+  const read = unwrapProposed(heard);
+  blocked(`Agent understood: "${read.value}" (confidence ${String(read.confidence)})`);
+  note("This is a model INTERPRETATION, so it is not yet usable — even at high confidence.");
+  note("The agent must play it back and have the student confirm it before it is stored.");
+  refused("Submitting the agent's interpretation without confirmation");
+  note("Blocked by the compiler: ProposedValue cannot become ConfirmedValue.");
 
   // ── 2 ───────────────────────────────────────────────────────────────────
   heading("2. A missing document blocks progress");

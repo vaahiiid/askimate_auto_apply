@@ -13,14 +13,22 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { ConfirmationProvenance, ConfirmedValue, FieldResolution, ModelText } from "./values.js";
+import type {
+  ConfirmationProvenance,
+  ConfirmedValue,
+  FieldResolution,
+  ModelText,
+  ProposedValue,
+} from "./values.js";
 import {
   fieldUnavailable,
   isConfirmed,
   isFieldUnavailable,
   modelText,
+  proposeValue,
   provenanceOf,
   unwrapConfirmed,
+  unwrapProposed,
 } from "./values.js";
 
 /**
@@ -131,6 +139,106 @@ describe("the wall holds at a form-fill boundary", () => {
     // The positive case, so the test above is proving a real restriction
     // rather than a signature nothing could ever satisfy.
     expect(() => fillField("institution", mintConfirmed("Leeds", PROVENANCE))).not.toThrow();
+  });
+});
+
+describe("agent-interpreted answers cannot reach a form field either (ADR-0007)", () => {
+  function fillField(_field: string, _value: ConfirmedValue<string>): void {
+    /* no-op: the signature is the test */
+  }
+
+  /**
+   * The realistic scenario under agent-led intake. The student says something
+   * in their own words; the agent turns it into a structured field. That
+   * mapping is a model inference and must be confirmed before it is stored.
+   */
+  const heard: ProposedValue<string> = proposeValue({
+    value: "BSc Computer Science",
+    origin: "conversation",
+    verbatim: "I finished my bachelor's in computer science at Tehran Polytechnic in 2023",
+    confidence: 0.93,
+  });
+
+  it("blocks an unconfirmed interpretation from being submitted", () => {
+    // @ts-expect-error — what the agent *understood* is not what the student
+    // *confirmed*. High confidence does not change that.
+    fillField("qualification", heard);
+
+    // @ts-expect-error — nor does reaching inside for the value.
+    fillField("qualification", unwrapProposed(heard).value);
+
+    expect(true).toBe(true);
+  });
+
+  it("blocks a 100%-confidence interpretation just the same", () => {
+    // There is no threshold above which the student's confirmation is skipped.
+    const certain = proposeValue({
+      value: "BSc Computer Science",
+      origin: "conversation",
+      verbatim: "I have a BSc in Computer Science",
+      confidence: 1,
+    });
+
+    // @ts-expect-error — confidence is a layer-one escalation signal, never a
+    // promotion mechanism.
+    fillField("qualification", certain);
+    expect(true).toBe(true);
+  });
+
+  it("blocks a document extraction that has not been confirmed", () => {
+    const extracted = proposeValue({
+      value: "P1234567",
+      origin: "document",
+      verbatim: "Passport No. P1234567",
+      confidence: 0.99,
+      documentId: "doc_passport_1",
+    });
+
+    // @ts-expect-error — same rule for documents as for conversation.
+    fillField("passport_number", extracted);
+    expect(true).toBe(true);
+  });
+
+  it("keeps the three kinds of value mutually incompatible", () => {
+    const written: ModelText = modelText("something the model composed");
+
+    // @ts-expect-error — model-written text is not an interpretation of a human.
+    const asProposed: ProposedValue<string> = written;
+    expect(asProposed).toBeDefined();
+
+    // @ts-expect-error — and an interpretation is not confirmed data.
+    const asConfirmed: ConfirmedValue<string> = heard;
+    expect(asConfirmed).toBeDefined();
+  });
+
+  it("lets the agent read the interpretation back to the student", () => {
+    // Reading is exactly what the confirmation step needs: show the student
+    // what was understood, alongside what they actually said.
+    const read = unwrapProposed(heard);
+    expect(read.value).toBe("BSc Computer Science");
+    expect(read.origin).toBe("conversation");
+    expect(read.verbatim).toContain("Tehran Polytechnic");
+    expect(read.confidence).toBeCloseTo(0.93);
+  });
+
+  it("rejects a confidence outside 0-1", () => {
+    const bad = { value: "x", origin: "conversation", verbatim: "x" } as const;
+    expect(() => proposeValue({ ...bad, confidence: 1.5 })).toThrow(RangeError);
+    expect(() => proposeValue({ ...bad, confidence: -0.1 })).toThrow(RangeError);
+    expect(() => proposeValue({ ...bad, confidence: Number.NaN })).toThrow(RangeError);
+  });
+
+  it("accepts a value confirmed from conversation", () => {
+    // The positive case: once the student confirms the play-back, it is
+    // ordinary confirmed data and submits like any other.
+    const confirmed = mintConfirmed("BSc Computer Science", {
+      source: "student_stated",
+      confirmedAt: new Date("2026-08-26T12:00:00Z"),
+      sourceExcerpt: "I finished my bachelor's in computer science",
+    });
+
+    expect(() => fillField("qualification", confirmed)).not.toThrow();
+    expect(provenanceOf(confirmed).source).toBe("student_stated");
   });
 });
 

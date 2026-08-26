@@ -45,9 +45,12 @@ export {
 export type {
   ConfirmationProvenance,
   ConfirmedValue,
+  ExtractionOrigin,
   FieldResolution,
   FieldUnavailable,
   ModelText,
+  ProposedValue,
+  ProposedValueFields,
   UnavailableReason,
 } from "./values.js";
 export {
@@ -55,8 +58,10 @@ export {
   isConfirmed,
   isFieldUnavailable,
   modelText,
+  proposeValue,
   provenanceOf,
   unwrapConfirmed,
+  unwrapProposed,
 } from "./values.js";
 
 export type { CaseState, TerminalState } from "./state.js";
@@ -124,8 +129,17 @@ export type {
 } from "./events.js";
 export { isEventOfType } from "./events.js";
 
-export type { Task, TaskAssignee, TaskKind, TaskStatus } from "./tasks.js";
-export { assigneeFor, blockingTasks, blocksProgressByDefault, isUnblocked, openTasks } from "./tasks.js";
+export type { InformationSource, Task, TaskKind, TaskOwner, TaskStatus } from "./tasks.js";
+export {
+  STUDENT_OWNED_KINDS,
+  blockingTasks,
+  blocksProgressByDefault,
+  isConversationalAsk,
+  isUnblocked,
+  openTasks,
+  ownerFor,
+  sourceFor,
+} from "./tasks.js";
 
 export type { GuardContext, TransitionCheck, TransitionRefusal } from "./transitions.js";
 export { ALLOWED_TRANSITIONS, checkTransition, isTransitionAllowed, nextStates } from "./transitions.js";

@@ -44,7 +44,7 @@ student instruction.
 ```
 packages/
 ├── domain/           The domain core. Pure — zero I/O, zero dependencies.
-│   ├── values.ts       ConfirmedValue vs ModelText — the wall (ADR-0004)
+│   ├── values.ts       ConfirmedValue vs ModelText vs ProposedValue — the wall
 │   ├── state.ts        The approved case states
 │   ├── transitions.ts  The transition table and its guards
 │   ├── machine.ts      fold (derive state) + decide (propose events)
@@ -52,7 +52,7 @@ packages/
 │   ├── idempotency.ts  Submission identity — no duplicate submission
 │   ├── reapplication.ts The student's decision to re-apply (ADR-0006)
 │   ├── escalation.ts   Two-layer escalation; layer two is a hard gate
-│   ├── tasks.ts        What the case is waiting on
+│   ├── tasks.ts        What the case is waiting on, and who must obtain it
 │   └── audit.ts        What the system did, with redaction enforced
 └── case-store/       Persistence port + in-memory implementation
     └── contract.ts     The shared suite Postgres must also pass in Phase 2
@@ -94,13 +94,24 @@ failing, unverified, or awaiting a decision.
 
 **1. Navigation is separated from data.**
 The AI may reason about *how to get through a page* — which control advances, how to recover from
-a changed layout, what an unexpected validation error means. The AI is **never** the source of a
-value written into a form field. Every value originates from the student's confirmed profile or a
-confirmed document. If a required field has no confirmed source, **the system stops and asks the
-student.** It does not infer, estimate, or fill a plausible answer.
+a changed layout, what an unexpected validation error means. It may equally reason about *how to
+run the conversation* — what to ask next, when, and how to phrase it. The AI is **never** the
+source of a value written into a form field. Every value originates from the student's confirmed
+profile or a confirmed document. If a required field has no confirmed source, **the system stops
+and asks.** It does not infer, estimate, or fill a plausible answer.
 
-This is enforced by the type system, not by instruction — see
-[ADR-0004](./docs/decisions/0004-branded-types-for-confirmed-values.md).
+Enforced by the type system, not by instruction. Three kinds of value exist, and only one of them
+can reach a form field:
+
+| | | |
+|---|---|---|
+| `ModelText` | the model wrote it | ✗ cannot reach a form field |
+| `ProposedValue` | the model interpreted what a human said or a document showed | ✗ cannot reach a form field |
+| `ConfirmedValue` | a human confirmed it | ✓ the only thing that can |
+
+There is no conversion function between them. See
+[ADR-0004](./docs/decisions/0004-branded-types-for-confirmed-values.md) and
+[ADR-0007](./docs/decisions/0007-agent-led-conversational-intake.md).
 
 **2. Discovery produces a blueprint; execution runs against the blueprint.**
 The first encounter with a portal runs in discovery mode and produces a versioned, reviewable
@@ -112,6 +123,16 @@ into the orchestration engine — adding the second university is a data exercis
 
 ## Non-negotiable rules
 
+- **The student never fills in a form.** Not the university's, and not one of ours. The agent
+  interviews them conversationally, works out what is missing, asks for it progressively, requests
+  documents when needed, confirms what it understood, and completes the application itself. The
+  only two things asked of the student are a handoff (MFA, OTP, CAPTCHA, payment, a legal
+  declaration) and approving the exact content before submission — neither of which is
+  form-filling. See [ADR-0007](./docs/decisions/0007-agent-led-conversational-intake.md).
+- **Autonomy means autonomous execution, never autonomous invention.** "The student must never
+  fill in a form" does not license the agent to guess in order to avoid asking. When something is
+  genuinely unavailable, the agent still stops — it just stops by asking a question rather than by
+  presenting a form field.
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.

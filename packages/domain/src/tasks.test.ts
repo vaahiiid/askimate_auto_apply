@@ -6,12 +6,33 @@ import { describe, expect, it } from "vitest";
 
 import { taskId } from "./ids.js";
 import type { Task, TaskKind } from "./tasks.js";
-import { assigneeFor, blockingTasks, blocksProgressByDefault, isUnblocked, openTasks } from "./tasks.js";
+import {
+  STUDENT_OWNED_KINDS,
+  blockingTasks,
+  blocksProgressByDefault,
+  isConversationalAsk,
+  isUnblocked,
+  openTasks,
+  ownerFor,
+  sourceFor,
+} from "./tasks.js";
+
+const ALL_KINDS: readonly TaskKind[] = [
+  "provide_profile_field",
+  "provide_document",
+  "confirm_extracted_data",
+  "replace_expired_document",
+  "resolve_conflict",
+  "human_review",
+  "complete_handoff",
+  "authorise_submission",
+  "revalidate_requirement",
+];
 
 function task(overrides: Partial<Task> & Pick<Task, "taskId">): Task {
   return {
     kind: "provide_document",
-    assignee: "student",
+    owner: "agent",
     description: "Passport",
     blocksProgress: true,
     status: "open",
@@ -20,36 +41,84 @@ function task(overrides: Partial<Task> & Pick<Task, "taskId">): Task {
   };
 }
 
-describe("task routing", () => {
-  it("sends student-facing work to the student", () => {
-    expect(assigneeFor("provide_document")).toBe("student");
-    expect(assigneeFor("confirm_extracted_data")).toBe("student");
-    expect(assigneeFor("authorise_submission")).toBe("student");
+describe("the student never fills in a form (ADR-0007)", () => {
+  it("owns every information-gathering task with the AGENT, not the student", () => {
+    // THE rule. The agent must obtain these by interviewing the student. They
+    // are not work items handed to the student to complete.
+    expect(ownerFor("provide_profile_field")).toBe("agent");
+    expect(ownerFor("provide_document")).toBe("agent");
+    expect(ownerFor("confirm_extracted_data")).toBe("agent");
+    expect(ownerFor("replace_expired_document")).toBe("agent");
+    expect(ownerFor("resolve_conflict")).toBe("agent");
+    expect(ownerFor("revalidate_requirement")).toBe("agent");
+  });
+
+  it("allows EXACTLY two student-owned task kinds, and no more", () => {
+    // The load-bearing invariant. If a future change makes a third kind
+    // student-owned, this fails and forces the conversation — rather than the
+    // product quietly drifting back towards making students fill in forms.
+    expect([...STUDENT_OWNED_KINDS].sort()).toEqual(["authorise_submission", "complete_handoff"]);
+
+    const studentOwned = ALL_KINDS.filter((kind) => ownerFor(kind) === "student");
+    expect(studentOwned.sort()).toEqual(["authorise_submission", "complete_handoff"]);
+  });
+
+  it("keeps those two student-owned only because brief §7 requires them", () => {
+    // A handoff is an action only the student can legitimately perform (MFA,
+    // OTP, CAPTCHA, payment, a legal declaration) and must never be bypassed.
+    expect(ownerFor("complete_handoff")).toBe("student");
+    // Authorisation is REVIEWING what will be submitted, not completing it.
+    expect(ownerFor("authorise_submission")).toBe("student");
   });
 
   it("sends review work to a specialist", () => {
-    expect(assigneeFor("human_review")).toBe("specialist");
+    expect(ownerFor("human_review")).toBe("specialist");
   });
 
-  it("keeps requirement revalidation with the system", () => {
-    expect(assigneeFor("revalidate_requirement")).toBe("system");
-  });
-
-  it("routes every task kind somewhere", () => {
-    const kinds: readonly TaskKind[] = [
-      "provide_profile_field",
-      "provide_document",
-      "confirm_extracted_data",
-      "replace_expired_document",
-      "resolve_conflict",
-      "human_review",
-      "complete_handoff",
-      "authorise_submission",
-      "revalidate_requirement",
-    ];
-    for (const kind of kinds) {
-      expect(["student", "specialist", "system"]).toContain(assigneeFor(kind));
+  it("routes every task kind to an owner", () => {
+    for (const kind of ALL_KINDS) {
+      expect(["agent", "specialist", "student"]).toContain(ownerFor(kind));
     }
+  });
+});
+
+describe("where the agent obtains information", () => {
+  it("asks the student in conversation for profile facts", () => {
+    expect(sourceFor("provide_profile_field")).toBe("student_conversation");
+    expect(sourceFor("resolve_conflict")).toBe("student_conversation");
+    expect(isConversationalAsk("provide_profile_field")).toBe(true);
+  });
+
+  it("requests a document when a document is what is needed", () => {
+    expect(sourceFor("provide_document")).toBe("student_document");
+    expect(sourceFor("replace_expired_document")).toBe("student_document");
+    expect(isConversationalAsk("provide_document")).toBe(false);
+  });
+
+  it("plays extracted facts back in conversation for confirmation", () => {
+    // Extract-then-confirm happens in the interview, not on a form.
+    expect(sourceFor("confirm_extracted_data")).toBe("student_conversation");
+    expect(isConversationalAsk("confirm_extracted_data")).toBe(true);
+  });
+
+  it("looks requirement data up externally rather than asking the student", () => {
+    expect(sourceFor("revalidate_requirement")).toBe("external_source");
+  });
+
+  it("gives every agent-owned task a source to obtain it from", () => {
+    // An agent-owned task with no source would be one the agent has no defined
+    // way to close.
+    for (const kind of ALL_KINDS) {
+      if (ownerFor(kind) === "agent") {
+        expect(sourceFor(kind)).toBeDefined();
+      }
+    }
+  });
+
+  it("gives student- and specialist-owned tasks no information source", () => {
+    expect(sourceFor("complete_handoff")).toBeUndefined();
+    expect(sourceFor("authorise_submission")).toBeUndefined();
+    expect(sourceFor("human_review")).toBeUndefined();
   });
 });
 

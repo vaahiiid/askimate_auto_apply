@@ -24,7 +24,7 @@ import type { ReapplicationInstruction } from "./reapplication.js";
 import type { CaseState } from "./state.js";
 import { isTerminal } from "./state.js";
 import type { Task, TaskKind } from "./tasks.js";
-import { blockingTasks } from "./tasks.js";
+import { blockingTasks, ownerFor, sourceFor } from "./tasks.js";
 import type { GuardContext, TransitionRefusal } from "./transitions.js";
 import { checkTransition } from "./transitions.js";
 
@@ -107,17 +107,25 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         state = event.to;
         break;
 
-      case "TaskRaised":
+      case "TaskRaised": {
+        // Ownership is derived from the kind, never carried on the event.
+        // A stored owner could drift from the routing table; a derived one
+        // cannot, so ADR-0007's "the agent asks, the student never fills in a
+        // form" holds for every task in every log, including old ones.
+        const kind = event.taskKind as TaskKind;
+        const source = sourceFor(kind);
         tasks.set(event.taskId, {
           taskId: event.taskId,
-          kind: event.taskKind as TaskKind,
-          assignee: "student",
+          kind,
+          owner: ownerFor(kind),
+          ...(source !== undefined ? { source } : {}),
           description: event.description,
           blocksProgress: event.blocksProgress,
           status: "open",
           raisedAt: event.occurredAt,
         });
         break;
+      }
 
       case "TaskCompleted": {
         const existing = tasks.get(event.taskId);

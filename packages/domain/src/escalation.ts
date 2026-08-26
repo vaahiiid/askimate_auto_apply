@@ -46,7 +46,20 @@ export type DiscretionaryReviewTrigger =
   | "conflicting_information"
   | "stale_requirement_data"
   | "blueprint_drift"
-  | "unexpected_portal_behaviour";
+  | "unexpected_portal_behaviour"
+  /**
+   * The agent interviewed the student and still cannot obtain something the
+   * application requires (ADR-0007).
+   *
+   * This is the correct end of the road for agent-led intake: the agent asked,
+   * progressively and more than once, and the information genuinely is not
+   * available. A specialist looks at it.
+   *
+   * It is emphatically NOT a licence to guess. "The student must never fill in
+   * a form" does not become "so fill it in for them" — it becomes "ask, and if
+   * asking fails, escalate".
+   */
+  | "information_unobtainable";
 
 export type ReviewTrigger = MandatoryReviewTrigger | DiscretionaryReviewTrigger;
 

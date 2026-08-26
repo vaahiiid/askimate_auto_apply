@@ -49,14 +49,30 @@ export interface ConfirmationProvenance {
   /**
    * How the value reached the profile.
    *
-   *   student_entered    — the student typed it and confirmed it
+   *   student_stated     — the student said it in conversation with the agent,
+   *                        the agent interpreted it into a structured field,
+   *                        played that interpretation back, and the student
+   *                        confirmed it (ADR-0007)
+   *   student_entered    — the student typed it directly and confirmed it
    *   document_extracted — extracted from a document, then shown to the
    *                        student and confirmed by them (brief §2.3)
-   *   student_corrected  — extraction was wrong; the student fixed it
+   *   student_corrected  — extraction or interpretation was wrong; the student
+   *                        corrected it
+   *
+   * Every one of these ends in the student confirming. That is the only way a
+   * value becomes confirmed — there is no source that bypasses it.
    */
-  readonly source: "student_entered" | "document_extracted" | "student_corrected";
+  readonly source: "student_stated" | "student_entered" | "document_extracted" | "student_corrected";
   /** When the student confirmed it. */
   readonly confirmedAt: Date;
+  /**
+   * The student's own words, when the value came from conversation.
+   *
+   * Stored in the profile so a case can answer "what did the student actually
+   * say?" months later (brief §4). NOT written to the audit log, which carries
+   * IDs rather than personal data (brief §8).
+   */
+  readonly sourceExcerpt?: string;
   /**
    * The document this was extracted from, when `source` is
    * `document_extracted` or `student_corrected`. Document ID only — never
@@ -94,6 +110,103 @@ export type ModelText = Brand<string, "ModelText">;
  */
 export function modelText(raw: string): ModelText {
   return raw as ModelText;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// The third side of the wall: model INTERPRETATION of what a human said
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Where the agent's interpretation came from. */
+export type ExtractionOrigin =
+  /** Something the student said in conversation with the agent (ADR-0007). */
+  | "conversation"
+  /** Something read out of an uploaded document (brief §2.3). */
+  | "document";
+
+/**
+ * A structured value the agent has INTERPRETED but the student has NOT yet
+ * confirmed.
+ *
+ * ── Why this type exists (ADR-0007) ──────────────────────────────────────
+ *
+ * Under agent-led conversational intake, the student never fills in a form —
+ * they talk, and the agent turns what they said into structured fields:
+ *
+ *   Student: "I finished my bachelor's in computer science at Tehran
+ *             Polytechnic in 2023, got about 17 out of 20."
+ *
+ *   Agent:   { qualification: BSc, subject: "Computer Science",
+ *              completionYear: 2023, grade: "17/20", scale: iran_20_point }
+ *
+ * That mapping **is a model inference**, with exactly the failure modes
+ * document extraction has: a misheard value, the wrong grading scale, a
+ * confident reading of an ambiguous sentence. Letting it straight into the
+ * profile would make a model's interpretation into an application field —
+ * which is the thing ADR-0004 exists to prevent.
+ *
+ * So conversation goes through extract-then-confirm exactly as documents do.
+ * `ProposedValue` is what the agent produces; the student's confirmation is
+ * what turns it into a `ConfirmedValue`.
+ *
+ * As with `ModelText`, THERE IS NO CONVERSION FUNCTION. Only the profile
+ * package's confirmation step can mint a `ConfirmedValue`, and only against a
+ * stored confirmation record.
+ */
+export interface ProposedValueFields<T> {
+  readonly value: T;
+  readonly origin: ExtractionOrigin;
+  /**
+   * The student's own words, or the document excerpt, that produced this
+   * interpretation. Shown back to them so they can see what was understood
+   * from what they actually said.
+   */
+  readonly verbatim: string;
+  /**
+   * The agent's confidence, 0–1.
+   *
+   * Layer-one escalation only. It can send a low-confidence reading to a human
+   * — it can NEVER promote a high-confidence one to confirmed. No threshold
+   * exists above which the student's confirmation is skipped.
+   */
+  readonly confidence: number;
+  readonly documentId?: string;
+}
+
+export type ProposedValue<T> = Brand<ProposedValueFields<T>, "ProposedValue">;
+
+/**
+ * Mints a `ProposedValue`.
+ *
+ * Safe to export: this is the *unconfirmed* side of the wall. Anything may
+ * propose. Only the student's confirmation promotes.
+ */
+export function proposeValue<T>(input: {
+  readonly value: T;
+  readonly origin: ExtractionOrigin;
+  readonly verbatim: string;
+  readonly confidence: number;
+  readonly documentId?: string;
+}): ProposedValue<T> {
+  if (!(input.confidence >= 0 && input.confidence <= 1)) {
+    throw new RangeError(`confidence must be between 0 and 1, received: ${String(input.confidence)}`);
+  }
+  return {
+    value: input.value,
+    origin: input.origin,
+    verbatim: input.verbatim,
+    confidence: input.confidence,
+    ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),
+  } as unknown as ProposedValue<T>;
+}
+
+/**
+ * Reads a proposed value, so the agent can play it back to the student for
+ * confirmation.
+ *
+ * Reading is fine. It is *constructing a ConfirmedValue* that is restricted.
+ */
+export function unwrapProposed<T>(proposed: ProposedValue<T>): ProposedValueFields<T> {
+  return proposed;
 }
 
 /**
