@@ -22,6 +22,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 | **Tests** | 669 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
+**[Decision point](./docs/decision-point-2026-08-26.md)** — what is done, what is blocked, what needs you.
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the six remaining blockers.
 
