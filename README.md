@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 5 — Fill · validate · preview · authorise |
 | **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 546 passing · typecheck, lint and boundary checks green |
+| **Tests** | 614 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
@@ -82,6 +82,12 @@ packages/
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── account/         Whose portal account is it, and how it is handed back
+│   ├── credential.ts  A password that expires and cannot be written down
+│   └── ownership.ts   The student's email owns it; handover has no partial credit
+├── disclosure/      May this document be sent, to whom, and why?
+│   ├── lawful-basis.ts  Recorded, never assumed. Consent is not the default.
+│   └── disclosure.ts    Checked at the moment of transmission, not at intent
 ├── orchestrator/    The workflow, composed. Cannot submit.
 ├── preparation/     Validate · preview · authorise — nothing here submits
 │   ├── validate.ts    Against the portal's OWN recorded rules, never guessed ones
@@ -199,6 +205,21 @@ into the orchestration engine — adding the second university is a data exercis
   Capture is automatic; use is gated.
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
+- **The account belongs to the student.** Its email is their own confirmed address — never one of
+  ours. Any temporary password expires, redacts itself in every serialisation route, and is
+  destroyed at handover. A case **cannot finish** while an account has not been handed back, and
+  the system has no capability to read a mailbox, so verification codes and reset links reach the
+  student and are theirs alone.
+  See [ADR-0020](./docs/decisions/0020-the-account-belongs-to-the-student.md).
+- **A document in the vault is not permission to send it.** The upload path takes a
+  `DisclosureAuthorisation`, which cannot exist without the document *and its content hash*, the
+  destination, the purpose, and the authority. Consent is not encoded as the universal lawful basis
+  — a determination is recorded, by a named person, with reasoning and a review date.
+  See [ADR-0022](./docs/decisions/0022-a-document-in-the-vault-is-not-permission-to-send-it.md).
+- **A university application requirement is not a visa requirement.** Scope decides *when* a
+  requirement bites; criticality decides *how much evidence* it needs. Financial evidence stays
+  `critical` and stays out of the first UK application.
+  See [ADR-0021](./docs/decisions/0021-application-requirements-are-not-visa-requirements.md).
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.
 - **A dropdown option is never approximated.** A confirmed nationality of `Iranian` does not become
   `Iran (Islamic Republic of)` because it is close. An unmapped option blocks the case and asks. The

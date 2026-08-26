@@ -18,7 +18,9 @@ export {
 
 export type {
   ApplicationSession,
+  AuthorisedDocument,
   DocumentSource,
+  ExecutionContext,
   ExecutionOutcome,
   ExecutionReport,
 } from "./execute.js";

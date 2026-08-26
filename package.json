@@ -25,9 +25,11 @@
     "clean": "tsc --build --clean"
   },
   "devDependencies": {
+    "@askimate/aas-account": "workspace:*",
     "@askimate/aas-blueprint": "workspace:*",
     "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
+    "@askimate/aas-disclosure": "workspace:*",
     "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
     "@askimate/aas-extraction": "workspace:*",

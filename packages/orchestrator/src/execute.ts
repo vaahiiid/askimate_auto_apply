@@ -21,6 +21,8 @@
  */
 
 import type { FieldLocator } from "@askimate/aas-blueprint";
+import type { DisclosureAuthorisation, TransmissionRecord, WithdrawalRecord } from "@askimate/aas-disclosure";
+import { mayTransmit, recordTransmission } from "@askimate/aas-disclosure";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import type { FillPlan } from "@askimate/aas-mapping";
 import { textOf } from "@askimate/aas-mapping";
@@ -44,11 +46,37 @@ export interface ApplicationSession {
   currentUrl(): Promise<string>;
 }
 
-/** Supplies a document's bytes at the moment they are needed. */
-export type DocumentSource = (documentRef: string) => Promise<{
+/**
+ * Supplies a document at the moment it is needed — WITH its authorisation.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The authorisation is not optional and cannot be added later.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The obvious signature returns bytes, and every version of it is wrong in the
+ * same way: it lets a document be sent because it EXISTS, rather than because
+ * anyone decided it should be. A `DisclosureAuthorisation` cannot be built
+ * without the document, the destination, the purpose and the authority
+ * (ADR-0022), so requiring one here is what makes those four unskippable.
+ */
+export type DocumentSource = (documentRef: string) => Promise<AuthorisedDocument | null>;
+
+export interface AuthorisedDocument {
   readonly documentId: string;
   readonly contents: Uint8Array;
-} | null>;
+  /** SHA-256 of `contents`, checked against what the student authorised. */
+  readonly contentHash: string;
+  readonly authorisation: DisclosureAuthorisation;
+}
+
+/** Where this run is actually pointed, and what the student has withdrawn. */
+export interface ExecutionContext {
+  /** The host being filled. An authorisation for another portal is refused. */
+  readonly portalHost: string;
+  /** Authorisations the student has withdrawn. Checked at the moment of upload. */
+  readonly withdrawals: readonly WithdrawalRecord[];
+  readonly now: Date;
+}
 
 /** What happened to one instruction. */
 export type ExecutionOutcome =
@@ -70,6 +98,14 @@ export type ExecutionOutcome =
 
 export interface ExecutionReport {
   readonly outcomes: readonly ExecutionOutcome[];
+  /**
+   * Every document that actually left, with what it was and where it went.
+   *
+   * IDs and hashes, never contents (brief §8). This is the answer to "why did
+   * this leave our systems?", and it is produced by the act of leaving rather
+   * than reconstructed afterwards.
+   */
+  readonly transmissions: readonly TransmissionRecord[];
   /** Fields the plan reserves for the student. Not filled, by design. */
   readonly handoffs: readonly { readonly fieldRef: string; readonly reason: string }[];
   readonly completed: boolean;
@@ -87,8 +123,10 @@ export async function executePlan(
   session: ApplicationSession,
   plan: FillPlan,
   documents: DocumentSource,
+  context: ExecutionContext,
 ): Promise<ExecutionReport> {
   const outcomes: ExecutionOutcome[] = [];
+  const transmissions: TransmissionRecord[] = [];
 
   for (const instruction of plan.instructions) {
     const locator = instruction.locators[0];
@@ -99,7 +137,7 @@ export async function executePlan(
         error: "The blueprint records no locator for this field.",
         drift: true,
       });
-      return report(outcomes, plan, false);
+      return report(outcomes, plan, false, transmissions);
     }
 
     try {
@@ -123,7 +161,7 @@ export async function executePlan(
         error: error instanceof Error ? error.message : String(error),
         drift: isDrift(error),
       });
-      return report(outcomes, plan, false);
+      return report(outcomes, plan, false, transmissions);
     }
   }
 
@@ -141,11 +179,37 @@ export async function executePlan(
             : `No document was supplied for "${upload.documentRef}".`,
         drift: locator === undefined,
       });
-      return report(outcomes, plan, false);
+      return report(outcomes, plan, false, transmissions);
+    }
+
+    // ── The gate ────────────────────────────────────────────────────────
+    //
+    // Checked here, against what is ACTUALLY about to be sent, rather than
+    // against what was intended when the authorisation was captured. A
+    // student who authorised one passport scan has not authorised whatever
+    // replaced it, and a destination in the authorisation is not the same as
+    // the host this session is pointed at.
+    const permission = mayTransmit({
+      authorisation: document.authorisation,
+      documentId: document.documentId,
+      contentHash: document.contentHash,
+      toHost: context.portalHost,
+      withdrawals: context.withdrawals,
+    });
+
+    if (!permission.permitted) {
+      outcomes.push({
+        kind: "failed",
+        fieldRef: upload.fieldRef,
+        error: permission.refusal.detail,
+        drift: false,
+      });
+      return report(outcomes, plan, false, transmissions);
     }
 
     try {
       await session.attach(locator, document.documentId, document.contents);
+      transmissions.push(recordTransmission(document.authorisation, context.now, context.portalHost));
       outcomes.push({
         kind: "attached",
         fieldRef: upload.fieldRef,
@@ -158,11 +222,11 @@ export async function executePlan(
         error: error instanceof Error ? error.message : String(error),
         drift: isDrift(error),
       });
-      return report(outcomes, plan, false);
+      return report(outcomes, plan, false, transmissions);
     }
   }
 
-  return report(outcomes, plan, true);
+  return report(outcomes, plan, true, transmissions);
 }
 
 function isDrift(error: unknown): boolean {
@@ -174,9 +238,11 @@ function report(
   outcomes: readonly ExecutionOutcome[],
   plan: FillPlan,
   completed: boolean,
+  transmissions: readonly TransmissionRecord[],
 ): ExecutionReport {
   return {
     outcomes,
+    transmissions,
     handoffs: plan.handoffs.map((handoff) => ({
       fieldRef: handoff.fieldRef,
       reason: handoff.reason,

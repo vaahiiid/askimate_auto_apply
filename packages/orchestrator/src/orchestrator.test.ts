@@ -18,7 +18,14 @@ import type { PreviewDocument } from "@askimate/aas-preparation";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 
-import type { ApplicationSession } from "./execute.js";
+import {
+  DISCLOSURE_ACTIVITY,
+  authoriseDisclosure,
+  determineLawfulBasis,
+  type DisclosureAuthorisation,
+} from "@askimate/aas-disclosure";
+
+import type { ApplicationSession, DocumentSource, ExecutionContext } from "./execute.js";
 import { executePlan, failures } from "./execute.js";
 import {
   beginRun,
@@ -360,19 +367,89 @@ class RecordingSession implements ApplicationSession {
   }
 }
 
-const documentSource = (ref: string): Promise<{ documentId: string; contents: Uint8Array } | null> =>
+// ── A document, with the authority to send it ─────────────────────────────
+//
+// Built the long way round on purpose: this is the shape the real flow has to
+// produce, and a test helper that shortcut it would prove nothing.
+
+const PASSPORT_BYTES = new TextEncoder().encode("%PDF");
+const PASSPORT_HASH = "sha256:passport-v1";
+const PORTAL_HOST = "apply.example.test";
+
+const DISCLOSURE_BASIS = (() => {
+  const check = determineLawfulBasis(
+    {
+      determinationId: "lb-disclose-1",
+      activity: {
+        activity: DISCLOSURE_ACTIVITY,
+        purpose: "Send supporting documents to the university the student is applying to.",
+        documentTypes: ["passport"],
+      },
+      article6: "contract",
+      requiresStudentAuthorisation: true,
+      determinedBy: "dpo-1",
+      determinedAt: NOW,
+      reasoning:
+        "Necessary to perform the service the student asked for; specific authorisation is " +
+        "still taken because the destination is a third party.",
+      reviewBy: new Date("2027-08-26T00:00:00Z"),
+    },
+    NOW,
+  );
+  if (!check.valid) expect.unreachable("the fixture determination is valid");
+  return check.determination;
+})();
+
+function passportAuthorisation(
+  overrides: { readonly contentHash?: string; readonly portalHost?: string } = {},
+): DisclosureAuthorisation {
+  const check = authoriseDisclosure({
+    disclosureId: "disc-1",
+    subject: {
+      documentId: "doc-passport-1",
+      documentType: "passport",
+      contentHash: overrides.contentHash ?? PASSPORT_HASH,
+      caseId: "case-1",
+      requestedFor: "Identity verification",
+    },
+    destination: {
+      institutionName: "Example University",
+      portalHost: overrides.portalHost ?? PORTAL_HOST,
+    },
+    determination: DISCLOSURE_BASIS,
+    studentAuthorisation: {
+      studentRef: STUDENT,
+      presentedText:
+        "I need to send your passport to Example University for identity verification. " +
+        "Is that alright?",
+      authorisedAt: NOW,
+      method: "chat_affirmation",
+    },
+  });
+  if (!check.authorised) expect.unreachable(`expected authorised: ${check.refusal.kind}`);
+  return check.authorisation;
+}
+
+const documentSource: DocumentSource = (ref) =>
   Promise.resolve(
     ref === "passport"
-      ? { documentId: "doc-passport-1", contents: new TextEncoder().encode("%PDF") }
+      ? {
+          documentId: "doc-passport-1",
+          contents: PASSPORT_BYTES,
+          contentHash: PASSPORT_HASH,
+          authorisation: passportAuthorisation(),
+        }
       : null,
   );
+
+const CONTEXT: ExecutionContext = { portalHost: PORTAL_HOST, withdrawals: [], now: NOW };
 
 describe("executing a plan", () => {
   const plan = () => planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE);
 
   it("fills every mapped field and attaches every document", async () => {
     const session = new RecordingSession();
-    const report = await executePlan(session, plan(), documentSource);
+    const report = await executePlan(session, plan(), documentSource, CONTEXT);
 
     expect(report.completed).toBe(true);
     expect(session.filled.map((f) => f.text)).toContain("02/04/1999");
@@ -381,7 +458,7 @@ describe("executing a plan", () => {
 
   it("types a reviewed constant through its OWN method, never as confirmed data", async () => {
     const session = new RecordingSession();
-    await executePlan(session, plan(), documentSource);
+    await executePlan(session, plan(), documentSource, CONTEXT);
 
     const courseCode = session.filled.find((f) => f.text === "PG-EX-2026");
     expect(courseCode?.confirmed).toBe(false);
@@ -394,7 +471,7 @@ describe("executing a plan", () => {
 
   it("never touches a field reserved for the student", async () => {
     const session = new RecordingSession();
-    const report = await executePlan(session, plan(), documentSource);
+    const report = await executePlan(session, plan(), documentSource, CONTEXT);
 
     expect(session.filled.map((f) => f.locator.value)).not.toContain(
       "I declare that the information given is true and complete",
@@ -404,7 +481,7 @@ describe("executing a plan", () => {
 
   it("never clicks anything — advancing pages is not filling", async () => {
     const session = new RecordingSession();
-    await executePlan(session, plan(), documentSource);
+    await executePlan(session, plan(), documentSource, CONTEXT);
     expect(session.clicked).toHaveLength(0);
   });
 
@@ -414,7 +491,7 @@ describe("executing a plan", () => {
     drift.name = "LocatorNotFoundError";
     session.failOn("Date of birth", drift);
 
-    const report = await executePlan(session, plan(), documentSource);
+    const report = await executePlan(session, plan(), documentSource, CONTEXT);
 
     expect(report.completed).toBe(false);
     // Filled the two before it; did not go on to the ones after.
@@ -428,15 +505,85 @@ describe("executing a plan", () => {
     drift.name = "LocatorNotFoundError";
     session.failOn("Date of birth", drift);
 
-    const report = await executePlan(session, plan(), documentSource);
+    const report = await executePlan(session, plan(), documentSource, CONTEXT);
     expect(failures(report)[0]?.drift).toBe(true);
   });
 
   it("reports a missing document rather than filling around it", async () => {
     const session = new RecordingSession();
-    const report = await executePlan(session, plan(), () => Promise.resolve(null));
+    const report = await executePlan(session, plan(), () => Promise.resolve(null), CONTEXT);
 
     expect(report.completed).toBe(false);
     expect(failures(report)[0]?.error).toContain("No document was supplied");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The upload gate
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a document in the vault is not a reason to send it", () => {
+  const plan = () => planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE);
+
+  it("records what actually left, with IDs and hashes", async () => {
+    const session = new RecordingSession();
+    const report = await executePlan(session, plan(), documentSource, CONTEXT);
+
+    expect(report.transmissions).toHaveLength(1);
+    expect(report.transmissions[0]?.documentId).toBe("doc-passport-1");
+    expect(report.transmissions[0]?.toHost).toBe(PORTAL_HOST);
+  });
+
+  it("REFUSES to attach when the file changed since the student agreed", async () => {
+    const session = new RecordingSession();
+    const stale: DocumentSource = () =>
+      Promise.resolve({
+        documentId: "doc-passport-1",
+        contents: PASSPORT_BYTES,
+        // A different file under the same ID. The student has not seen it.
+        contentHash: "sha256:passport-v2",
+        authorisation: passportAuthorisation(),
+      });
+
+    const report = await executePlan(session, plan(), stale, CONTEXT);
+
+    expect(report.completed).toBe(false);
+    expect(session.attached).toHaveLength(0);
+    expect(failures(report)[0]?.error).toContain("contents have changed");
+  });
+
+  it("REFUSES to attach to a portal the authorisation does not cover", async () => {
+    const session = new RecordingSession();
+    const report = await executePlan(session, plan(), documentSource, {
+      ...CONTEXT,
+      portalHost: "apply.someotheruniversity.ac.uk",
+    });
+
+    expect(report.completed).toBe(false);
+    expect(session.attached).toHaveLength(0);
+    expect(failures(report)[0]?.error).toContain("not permission to send it anywhere else");
+  });
+
+  it("REFUSES once the student has withdrawn", async () => {
+    const session = new RecordingSession();
+    const report = await executePlan(session, plan(), documentSource, {
+      ...CONTEXT,
+      withdrawals: [{ disclosureId: "disc-1", withdrawnAt: NOW, reason: "Changed their mind." }],
+    });
+
+    expect(report.completed).toBe(false);
+    expect(session.attached).toHaveLength(0);
+    expect(report.transmissions).toHaveLength(0);
+  });
+
+  it("does not report an authorisation failure as blueprint drift", async () => {
+    // Different problem, different response. Drift means rediscover the
+    // portal; this means ask the student.
+    const session = new RecordingSession();
+    const report = await executePlan(session, plan(), documentSource, {
+      ...CONTEXT,
+      withdrawals: [{ disclosureId: "disc-1", withdrawnAt: NOW, reason: "Withdrew." }],
+    });
+    expect(failures(report)[0]?.drift).toBe(false);
   });
 });

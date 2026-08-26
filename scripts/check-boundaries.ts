@@ -116,6 +116,41 @@ const RULES: readonly Rule[] = [
       "spans; a browser or the case store would make it something other than a reader.",
   },
   {
+    packagePath: "packages/account",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "playwright",
+      "@askimate/aas-llm",
+      "imap",
+      "imapflow",
+      "mailparser",
+      "@aws-sdk/client-ses",
+      "googleapis",
+    ],
+    rationale:
+      "The account package must have NO capability to read a mailbox — not a disabled one, none. " +
+      "Email verification and password recovery reach the student and are theirs to act on " +
+      "(ADR-0020). A mail client here would be the mechanism for intercepting them.",
+  },
+  {
+    packagePath: "packages/disclosure",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "playwright",
+      "@askimate/aas-llm",
+    ],
+    rationale:
+      "Whether a document may be sent to a university is a legal and factual question with a " +
+      "recorded answer. A model must have no way to participate in it — not even through the " +
+      "port (ADR-0022).",
+  },
+  {
     packagePath: "packages/documents",
     forbidden: ["openai", "@anthropic-ai/sdk",
       "@anthropic-ai/bedrock-sdk", "@aws-sdk/client-bedrock-runtime"],

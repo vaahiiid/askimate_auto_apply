@@ -184,6 +184,7 @@ export type {
   Requirement,
   RequirementCriticality,
   RequirementEvidence,
+  RequirementScope,
   RequirementUnusableReason,
   RequirementUsability,
   VerificationStatus,
@@ -192,7 +193,9 @@ export type {
 export {
   DEFAULT_REVALIDATION_DAYS,
   assessUsability,
+  blocksApplication,
   channelsAgree,
+  inScope,
   officialSourceChanged,
   usableOnly,
   verificationStatusOf,

@@ -45,6 +45,14 @@ import {
   draftBlueprintFrom,
   startReplayServer,
 } from "@askimate/aas-browser-runner";
+import {
+  DISCLOSURE_ACTIVITY,
+  authoriseDisclosure,
+  determineLawfulBasis,
+  renderDisclosureRequest,
+  type DisclosureAuthorisation,
+  type LawfulBasisDetermination,
+} from "@askimate/aas-disclosure";
 import { isFieldUnavailable, studentId } from "@askimate/aas-domain";
 import {
   newInterview,
@@ -79,6 +87,67 @@ const PASSPORT: PreviewDocument = {
   filename: "passport.pdf",
   contentHash: "sha256:fixture-passport",
 };
+
+const PASSPORT_BYTES = new TextEncoder().encode("%PDF-1.4 fixture passport");
+
+/**
+ * The lawful basis for sending a document to a university.
+ *
+ * Determined by a named person, with reasoning, and due for review — because
+ * this is a determination, not a constant. Stubbed here as the specialist
+ * reviews are: it is a decision, not code.
+ */
+function disclosureBasis(): LawfulBasisDetermination {
+  const check = determineLawfulBasis(
+    {
+      determinationId: "lb-disclose-demo",
+      activity: {
+        activity: DISCLOSURE_ACTIVITY,
+        purpose: "Send supporting documents to the university the student is applying to.",
+        documentTypes: ["passport"],
+      },
+      article6: "contract",
+      requiresStudentAuthorisation: true,
+      determinedBy: "dpo-demo",
+      determinedAt: NOW,
+      reasoning:
+        "Necessary to perform the service the student asked for. Specific authorisation is " +
+        "still taken because the destination is a third party.",
+      reviewBy: new Date("2027-08-26T00:00:00Z"),
+    },
+    NOW,
+  );
+  if (!check.valid) throw new Error(`lawful basis invalid: ${check.refusal.kind}`);
+  return check.determination;
+}
+
+/** The student's specific authorisation to send this passport to this university. */
+function passportDisclosure(portalHost: string): DisclosureAuthorisation {
+  const request = {
+    disclosureId: "disc-demo-1",
+    subject: {
+      documentId: PASSPORT.documentId,
+      documentType: "passport",
+      contentHash: PASSPORT.contentHash,
+      caseId: CASE_ID,
+      requestedFor: "Identity verification",
+    },
+    destination: { institutionName: "Example University", portalHost },
+    determination: disclosureBasis(),
+  } as const;
+
+  const check = authoriseDisclosure({
+    ...request,
+    studentAuthorisation: {
+      studentRef: STUDENT,
+      presentedText: renderDisclosureRequest(request),
+      authorisedAt: NOW,
+      method: "chat_affirmation",
+    },
+  });
+  if (!check.authorised) throw new Error(`disclosure refused: ${check.refusal.kind}`);
+  return check.authorisation;
+}
 
 /** Scripted student replies. Awkward ones included, as in the interview demo. */
 const SCRIPT: Partial<Record<ProfileFieldKey, string[]>> = {
@@ -198,6 +267,7 @@ async function main(): Promise<void> {
   const replay = await startReplayServer(captureDir);
   const replayUrl = replay.addressOf(observation.url);
   if (replayUrl === null) throw new Error("the captured page has no replay address");
+  const replayHost = new URL(replayUrl).hostname;
   console.log(`  ${GREEN}✓${RESET} replaying at ${replayUrl}`);
   console.log(`  ${DIM}The live fixture is now shut down. Nothing beyond this point`);
   console.log(`  touches anything but saved HTML.${RESET}`);
@@ -385,15 +455,23 @@ async function main(): Promise<void> {
 
       try {
         await session.goto(replayUrl);
-        const execution = await executePlan(session, step.plan, (ref) =>
-          Promise.resolve(
-            ref === "passport"
-              ? {
-                  documentId: PASSPORT.documentId,
-                  contents: new TextEncoder().encode("%PDF-1.4 fixture passport"),
-                }
-              : null,
-          ),
+        const execution = await executePlan(
+          session,
+          step.plan,
+          (ref) =>
+            Promise.resolve(
+              ref === "passport"
+                ? {
+                    documentId: PASSPORT.documentId,
+                    contents: PASSPORT_BYTES,
+                    contentHash: PASSPORT.contentHash,
+                    // Not "the passport is in the vault" — the authority to
+                    // send THIS file to THIS university for THIS reason.
+                    authorisation: passportDisclosure(replayHost),
+                  }
+                : null,
+            ),
+          { portalHost: replayHost, withdrawals: [], now: NOW },
         );
 
         for (const outcome of execution.outcomes) {
@@ -408,6 +486,13 @@ async function main(): Promise<void> {
           } else {
             console.log(`  ${AMBER}✗${RESET} ${outcome.fieldRef}: ${outcome.error}`);
           }
+        }
+
+        for (const transmission of execution.transmissions) {
+          console.log(
+            `  ${DIM}sent  ${transmission.documentId} → ${transmission.institutionName} ` +
+              `(${transmission.toHost})${RESET}`,
+          );
         }
 
         for (const handoff of execution.handoffs) {

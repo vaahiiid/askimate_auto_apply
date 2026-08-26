@@ -5,6 +5,8 @@
     { "path": "./packages/case-store" },
     { "path": "./packages/profile" },
     { "path": "./packages/documents" },
+    { "path": "./packages/disclosure" },
+    { "path": "./packages/account" },
     { "path": "./packages/blueprint" },
     { "path": "./packages/llm" },
     { "path": "./packages/interview" },

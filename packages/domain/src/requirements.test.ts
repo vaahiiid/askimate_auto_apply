@@ -10,7 +10,9 @@ import { describe, expect, it } from "vitest";
 import type { CuratedEvidence, OfficialEvidence, Requirement } from "./requirements.js";
 import {
   assessUsability,
+  blocksApplication,
   channelsAgree,
+  inScope,
   officialSourceChanged,
   usableOnly,
   verificationStatusOf,
@@ -44,6 +46,9 @@ function req(overrides: Partial<Requirement> = {}): Requirement {
     requirementId: "req_001",
     key: "financial_evidence.recency_days",
     criticality: "critical",
+    // A visa rule, not a university-application rule — the very distinction
+    // ADR-0021 exists to make explicit.
+    scope: "student_visa",
     revalidateBy: FRESH,
     ...overrides,
   };
@@ -243,5 +248,62 @@ describe("provenance is preserved", () => {
     expect(r.official?.sourceUrl).toContain("gov.uk");
     expect(r.official?.retrievedAt).toEqual(new Date("2026-08-25T06:00:00Z"));
     expect(r.official?.evidenceExcerpt).toContain("31 days");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Scope — a university application requirement is not a visa requirement
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("what a requirement actually blocks", () => {
+  it("does not let a VISA requirement block a university application", () => {
+    // Financial evidence is genuinely critical — being wrong about the 31-day
+    // window costs a visa — and a UK university does not ask for it before
+    // considering an application. Blocking on it would stop a perfectly valid
+    // application for a rule that does not apply yet.
+    const financialEvidence = req({ scope: "student_visa", criticality: "critical" });
+    expect(blocksApplication(financialEvidence)).toBe(false);
+  });
+
+  it("lets an application requirement block, whatever its criticality", () => {
+    expect(blocksApplication(req({ scope: "university_application", criticality: "procedural" })))
+      .toBe(true);
+    expect(blocksApplication(req({ scope: "university_application", criticality: "critical" })))
+      .toBe(true);
+  });
+
+  it("lets an institution-compliance requirement block", () => {
+    // ATAS, right-to-study checks. The institution cannot proceed without them
+    // either, so they are not the student's problem to defer.
+    expect(blocksApplication(req({ scope: "institution_compliance" }))).toBe(true);
+  });
+
+  it("leaves the evidence bar completely untouched", () => {
+    // The whole point of separating the axes. A visa requirement is out of
+    // scope for the application AND still needs corroboration when it is in
+    // scope for the visa. Scope decides WHEN; criticality decides HOW MUCH.
+    const curatedOnly = req({
+      scope: "student_visa",
+      criticality: "critical",
+      curated: CURATED,
+    });
+
+    const usability = assessUsability(curatedOnly, NOW);
+    expect(usability.usable).toBe(false);
+    if (usability.usable) expect.unreachable("critical needs both channels");
+    expect(usability.reason).toBe("insufficient_corroboration");
+  });
+
+  it("separates the two sets", () => {
+    const requirements = [
+      req({ requirementId: "a", scope: "university_application" }),
+      req({ requirementId: "b", scope: "student_visa" }),
+      req({ requirementId: "c", scope: "university_application" }),
+    ];
+    expect(inScope(requirements, "university_application").map((r) => r.requirementId)).toEqual([
+      "a",
+      "c",
+    ]);
+    expect(inScope(requirements, "student_visa").map((r) => r.requirementId)).toEqual(["b"]);
   });
 });

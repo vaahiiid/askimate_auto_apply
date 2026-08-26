@@ -97,6 +97,68 @@ export type RequirementCriticality =
   | "procedural";
 
 // ───────────────────────────────────────────────────────────────────────────
+// Scope — which process actually asks for this
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * WHICH PROCESS requires this, as opposed to how badly being wrong would hurt.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A university application requirement is NOT a Student visa requirement.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Vahid, 2026-08-26: *"Do not make financial evidence a blocking requirement
+ * for the first end-to-end UK application demonstration… The distinction must
+ * be explicit: University application requirements ≠ Student Visa financial
+ * requirements."*
+ *
+ * The confusion is easy to make and expensive. Financial evidence is genuinely
+ * `critical` — being wrong about the 31-day window costs a visa — and it is
+ * also **not something a UK university asks for before considering an
+ * application**. Treating it as a blocker on the application would stop a
+ * perfectly valid application from being prepared, for a rule that does not
+ * apply yet and may never apply in that form to this student.
+ *
+ * So scope and criticality are SEPARATE axes, and this one decides *when* a
+ * requirement bites. Criticality is untouched: a `student_visa` requirement is
+ * still `critical`, still needs corroboration from both channels, and still
+ * escalates on conflict — at the point where it is actually required.
+ */
+export type RequirementScope =
+  /** The university asks for this to consider the application. Blocks preparation. */
+  | "university_application"
+  /**
+   * UKVI asks for this, later, and only depending on the applicant's
+   * circumstances. Does NOT block the university application.
+   */
+  | "student_visa"
+  /**
+   * The institution must satisfy this itself — ATAS, right-to-study checks,
+   * sponsorship duties. Blocks, because the institution cannot proceed without
+   * it either.
+   */
+  | "institution_compliance";
+
+/**
+ * Does this requirement block the university application?
+ *
+ * The one line that keeps the visa journey out of the application journey.
+ * Nothing about the evidence bar changes — a `student_visa` requirement that
+ * IS in scope (at the visa stage) faces exactly the same corroboration rule.
+ */
+export function blocksApplication(requirement: Requirement): boolean {
+  return requirement.scope !== "student_visa";
+}
+
+/** The requirements that apply to one process. */
+export function inScope(
+  requirements: readonly Requirement[],
+  scope: RequirementScope,
+): readonly Requirement[] {
+  return requirements.filter((requirement) => requirement.scope === scope);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // Verification status
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -120,6 +182,12 @@ export interface Requirement {
   /** What it constrains, e.g. `financial_evidence.recency_days`. */
   readonly key: string;
   readonly criticality: RequirementCriticality;
+  /**
+   * Which process asks for it. Separate from criticality on purpose — see
+   * `RequirementScope`. Required, because leaving it optional would let a visa
+   * rule default into blocking a university application.
+   */
+  readonly scope: RequirementScope;
   readonly curated?: CuratedEvidence;
   readonly official?: OfficialEvidence;
   /** After this date the requirement degrades to `stale` (brief §5). */
