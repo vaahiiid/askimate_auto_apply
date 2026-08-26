@@ -16,7 +16,9 @@
  */
 
 import { studentId, isFieldUnavailable, provenanceOf, unwrapConfirmed } from "@askimate/aas-domain";
-import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm";
+import { MeteredModelClient } from "@askimate/aas-llm";
+
+import { demoModel, usageLine } from "./model-for-demo.js";
 import { emptyProfile, resolveField, FIELD_LABELS } from "@askimate/aas-profile";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 import {
@@ -71,7 +73,12 @@ async function main(): Promise<void> {
   console.log(`${DIM}Ulster University Birmingham · MSc International Business · 2026-09${RESET}`);
   console.log(`${DIM}This is a test driver standing in for AskiMate Chat. Not a product surface.${RESET}\n`);
 
-  const model = new MeteredModelClient(new DeterministicModelClient());
+  const demo = demoModel();
+  console.log(`${demo.description}\n`);
+  // Metered even when live: the wrapper's estimates are superseded by the real
+  // client's own figures, printed at the end, but the call COUNT is right
+  // either way and it is the number that shows the loop working.
+  const model = new MeteredModelClient(demo.client);
 
   let state = newInterview({
     studentRef: "askimate:user:4812",
@@ -151,10 +158,8 @@ async function main(): Promise<void> {
     );
   }
   console.log(`\n  Documents: ${state.collectedDocuments.join(", ")}`);
-  console.log(
-    `\n${DIM}  Model calls this run: ${String(model.usage.calls)} ` +
-      `(~${String(model.usage.inputTokens + model.usage.outputTokens)} tokens est.)${RESET}`,
-  );
+  console.log(`\n${DIM}  Model calls this run: ${String(model.usage.calls)}${RESET}`);
+  console.log(`${DIM}  Usage: ${RESET}${usageLine(demo)}`);
   console.log(`${DIM}  Nothing was submitted. No portal was contacted.${RESET}\n`);
 }
 

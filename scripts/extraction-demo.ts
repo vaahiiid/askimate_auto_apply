@@ -32,7 +32,7 @@ import type {
   NotUnderstood,
   QuestionRequest,
 } from "@askimate/aas-llm";
-import { DeterministicModelClient } from "@askimate/aas-llm";
+import { demoModel, usageLine } from "./model-for-demo.js";
 import { PASSPORT_TEXT, bytesOf } from "@askimate/aas-extraction/fixtures";
 import {
   PlainTextExtractor,
@@ -100,6 +100,9 @@ function show(value: unknown): string {
 }
 
 async function main(): Promise<void> {
+  const demo = demoModel();
+  console.log(`\n${demo.description}`);
+
   const extractor = new PlainTextExtractor();
   const text = await extractor.textOf({
     documentId: DOCUMENT_ID,
@@ -119,7 +122,11 @@ async function main(): Promise<void> {
   // ── 1. An honest reader ──────────────────────────────────────────────────
   rule("1 · An honest reader");
 
-  const honest = await extractDocument(text, new DeterministicModelClient());
+  // The honest reader is whatever was asked for: the stand-in, or a real model
+  // through Bedrock. The confabulating one below is always fake, because the
+  // point is to prove the guard catches invention — and a real model that
+  // happened to be honest would prove nothing.
+  const honest = await extractDocument(text, demo.client);
   if (honest === null) throw new Error("there is a plan for passports");
 
   for (const outcome of extracted(honest)) {
@@ -162,7 +169,7 @@ async function main(): Promise<void> {
   );
 
   interview = receiveExtractedValue(interview, "identity.family_name", familyName.proposed);
-  const action = await nextAction(interview, new DeterministicModelClient());
+  const action = await nextAction(interview, demo.client);
   if (action.kind !== "confirm") throw new Error("expected a confirmation");
   console.log(`  ${BLUE}AskiMate${RESET}  ${action.say}`);
   console.log(`  ${BLUE}Student ${RESET}  Yes, that's right.\n`);
@@ -194,6 +201,8 @@ async function main(): Promise<void> {
       `${BOLD}${String(ungrounded(lying).length)}${RESET} discarded. ` +
       `${DIM}Nothing was shown to the student.${RESET}\n`,
   );
+
+  console.log(`  ${DIM}Usage: ${RESET}${usageLine(demo)}\n`);
 }
 
 await main();
