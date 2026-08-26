@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 3 — Browser runtime and discovery |
 | **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 410 passing · typecheck, lint and boundary checks green |
+| **Tests** | 433 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -30,6 +30,7 @@ pnpm install
 pnpm run verify        # typecheck · lint · boundaries · tests
 pnpm run walkthrough   # drive one case end to end and watch what happens
 pnpm run interview-demo # watch the agent interview a student conversationally
+pnpm run extraction-demo # watch a document be read — and a fabricated reading be discarded
 ```
 
 `pnpm run walkthrough` is the fastest way to see what has been built: it opens a
@@ -68,6 +69,10 @@ packages/
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── extraction/      Reading documents
+│   ├── grounding.ts   A reading that does not quote the document is discarded
+│   ├── plans.ts       What to look for on each kind of document — data, not code
+│   └── extract.ts     Run a plan; produce proposals, never confirmed values
 ├── documents/        The document vault
 │   ├── validity.ts     Deterministic validity — the 31-day window
 │   └── vault.ts        Storage port; refuses without a retention policy
@@ -81,7 +86,9 @@ apps/
 
 scripts/
 ├── check-boundaries.ts  Enforces the dependency-graph rules
-└── walkthrough.ts       End-to-end demonstration
+├── walkthrough.ts       End-to-end demonstration
+├── interview-demo.ts    The interview loop, driven by a scripted conversation
+└── extraction-demo.ts   An honest reader, and a confabulating one
 
 docs/
 ├── phase-0/          The five Phase 0 deliverables
@@ -168,6 +175,12 @@ into the orchestration engine — adding the second university is a data exercis
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.
+- **A reading must quote the document.** Extraction returns the span it read as well as the value,
+  and a span the document does not contain means the reading is **discarded** — whatever the value
+  looks like, at any confidence. A model that invents a passport number must also invent the line
+  it came from, and that is detectable where the invention itself is not: nobody reads their own
+  passport number digit by digit before saying "yes, that's right".
+  See [ADR-0016](./docs/decisions/0016-extraction-must-quote-the-document.md).
 - **Requirements carry provenance, and the evidence bar scales with consequence.** Every
   requirement records where it came from, when it was retrieved, who reviewed it, and whether it
   has been corroborated. A `critical` requirement — visa rules, financial evidence, anything

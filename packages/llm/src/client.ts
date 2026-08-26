@@ -85,11 +85,29 @@ export interface DocumentRequest {
 export interface ExtractionRequest<T> {
   readonly documentId: string;
   readonly documentType: string;
+  /** The canonical target, e.g. `identity.passport_number`. */
   readonly fieldKey: string;
   /** Text already pulled from the document (OCR or embedded text). */
   readonly documentText: string;
+  /** Where on this kind of document the value lives, in prose. */
+  readonly hint: string;
+  /**
+   * Labels this value is typically printed under, e.g. `["Surname", "Family name"]`.
+   *
+   * Label-first, for the same reason the blueprint's locator strategy is: a
+   * label is what a document actually shows a reader, and it survives a change
+   * of layout that a coordinate or an index would not.
+   */
+  readonly labels: readonly string[];
   readonly expectedShape: string;
   readonly parse: (raw: string) => T | null;
+  /**
+   * The model MUST return the span of the document it read, verbatim, in
+   * `ProposedValue.verbatim`. That span is checked against the document text
+   * before the reading is accepted — a reading that quotes text the document
+   * does not contain is discarded, however plausible its value.
+   */
+  readonly requireVerbatimSpan: true;
 }
 
 /**

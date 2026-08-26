@@ -380,6 +380,26 @@ export function receiveConfirmation(
   };
 }
 
+/**
+ * Puts a value read out of a document to the student for confirmation.
+ *
+ * Extraction produces `ProposedValue`s. This is how one enters the interview:
+ * as the pending confirmation, played back deterministically, agreed or
+ * corrected by the student — the SAME path a spoken answer takes.
+ *
+ * There is deliberately no shortcut for documents. "It came off their passport"
+ * is not confirmation: OCR misreads, a model can misread a real line, and the
+ * student is the only party who knows what their passport actually says
+ * (brief §2.3).
+ */
+export function receiveExtractedValue(
+  state: InterviewState,
+  fieldKey: ProfileFieldKey,
+  proposed: ProposedValue<unknown>,
+): InterviewState {
+  return { ...state, pending: { fieldKey, proposed } };
+}
+
 /** Records a collected document. */
 export function recordDocument(state: InterviewState, documentType: string): InterviewState {
   return { ...state, collectedDocuments: [...state.collectedDocuments, documentType] };

@@ -8,6 +8,7 @@
     { "path": "./packages/blueprint" },
     { "path": "./packages/llm" },
     { "path": "./packages/interview" },
+    { "path": "./packages/extraction" },
     { "path": "./apps/browser-runner" },
     { "path": "./tsconfig.tools.json" }
   ]

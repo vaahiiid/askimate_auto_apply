@@ -11,9 +11,15 @@ importers:
       '@askimate/aas-case-store':
         specifier: workspace:*
         version: link:packages/case-store
+      '@askimate/aas-documents':
+        specifier: workspace:*
+        version: link:packages/documents
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:packages/domain
+      '@askimate/aas-extraction':
+        specifier: workspace:*
+        version: link:packages/extraction
       '@askimate/aas-interview':
         specifier: workspace:*
         version: link:packages/interview
@@ -92,6 +98,25 @@ importers:
         version: 2.1.9(@types/node@22.20.1)
 
   packages/domain: {}
+
+  packages/extraction:
+    dependencies:
+      '@askimate/aas-documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@askimate/aas-llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@askimate/aas-profile':
+        specifier: workspace:*
+        version: link:../profile
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
 
   packages/interview:
     dependencies:

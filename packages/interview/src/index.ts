@@ -13,6 +13,7 @@ export {
   nextAction,
   receiveAnswer,
   receiveConfirmation,
+  receiveExtractedValue,
   recordDocument,
 } from "./interview.js";
 

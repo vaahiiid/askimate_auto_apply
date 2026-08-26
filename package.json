@@ -16,13 +16,16 @@
     "boundaries": "tsx scripts/check-boundaries.ts",
     "walkthrough": "tsx scripts/walkthrough.ts",
     "interview-demo": "tsx scripts/interview-demo.ts",
+    "extraction-demo": "tsx scripts/extraction-demo.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean"
   },
   "devDependencies": {
     "@askimate/aas-case-store": "workspace:*",
+    "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-extraction": "workspace:*",
     "@askimate/aas-interview": "workspace:*",
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-profile": "workspace:*",

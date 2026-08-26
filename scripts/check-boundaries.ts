@@ -55,6 +55,20 @@ const RULES: readonly Rule[] = [
       "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
   },
   {
+    packagePath: "packages/extraction",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "playwright",
+      "@askimate/aas-case-store",
+    ],
+    rationale:
+      "Extraction reads documents through @askimate/aas-llm and produces ProposedValues only. " +
+      "Its own model SDK would let a reading skip the grounding check that discards invented " +
+      "spans; a browser or the case store would make it something other than a reader.",
+  },
+  {
     packagePath: "packages/documents",
     forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime"],
     rationale:
