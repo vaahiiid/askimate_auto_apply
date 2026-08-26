@@ -27,9 +27,27 @@ Ask for all of it; expect to get some of it. Ordered by how much each one unbloc
 | # | What | Why it matters |
 |---|---|---|
 | 5 | **Whether the sandbox uses the same portal platform and version as production** | If the sandbox is an older build, the blueprint we build against it will drift from production, and we need to know that in advance rather than discover it. |
-| 6 | **How authentication works** — MFA, OTP, email verification, and whether any of it is disabled in the sandbox | We never bypass MFA or OTP; they are deliberate handoffs to the applicant. But knowing which are present tells us where the automation will pause. |
+| 6 | **How authentication works** — the eight questions below | We never bypass MFA or OTP; they are deliberate handoffs to the applicant. But four of these eight cannot be answered by looking at the portal's pages, and until they are answered the system refuses to create an account at all (ADR-0020). |
 | 7 | **Whether test data is periodically reset**, and on what cycle | Determines whether a draft survives between test runs. |
 | 8 | **A named technical contact** | So a failure has somewhere to go that is not a general enquiries inbox. |
+
+### The eight authentication questions
+
+These decide whether AskiMate ever holds a password to a student's university account, and the
+system will not create an account until all eight are answered. Four (2, 3, 7, 8) cannot be answered
+by reading the portal's pages — a sandbox is how we answer them without touching a real applicant's
+account.
+
+| # | Question | What the answer changes |
+|---|---|---|
+| 1 | Does the applicant choose their own password at account creation? | If yes and the applicant is present, they type it and we never learn it |
+| 2 | Does the portal generate a credential and email it to the applicant? | If yes we hold nothing at all — the best available outcome after passwordless |
+| 3 | Is there passwordless sign-in — a magic link or emailed code? | If yes, **no password exists** and this is what we use |
+| 4 | Must the email be verified before the form is reachable? | Decides where the run pauses for the applicant |
+| 5 | Is MFA or a one-time code required at any point? | Every one is a handoff; if one sits before the form, no run proceeds unattended |
+| 6 | Is a CAPTCHA present, and where? | Same — a handoff, never bypassed |
+| 7 | Does "Forgot password" work, and does the reset reach the account's own address? | The route by which the applicant takes control back |
+| 8 | Can control be handed back cleanly — no lingering session, no second factor bound to us? | **If no, we do not create accounts on this portal at all** |
 
 ### Useful
 
@@ -84,8 +102,11 @@ Specifically, we would need:
 It would also help to know:
 
 - whether the sandbox runs the same portal platform and version as production
-- how authentication is configured there (MFA / OTP / email verification), and whether any of it
-  differs from production
+- how authentication is configured there, and whether any of it differs from production —
+  specifically: whether the applicant chooses their own password at sign-up or the portal emails
+  one; whether passwordless sign-in (a magic link or emailed code) is available; whether email
+  verification, MFA or a one-time code is required, and where; whether a CAPTCHA appears; how
+  "Forgot password" behaves; and whether an account can be handed back to its owner cleanly
 - whether test data is reset periodically, and on what cycle
 - whether document upload is functional in that environment
 - any rate limits or acceptable-use conditions you would like us to work within

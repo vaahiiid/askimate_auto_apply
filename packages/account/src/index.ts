@@ -6,8 +6,25 @@
  * written down; and a case cannot finish while an account is outstanding.
  */
 
-export type { CredentialUnavailable } from "./credential.js";
+export type { CredentialUnavailable, PasswordPolicy } from "./credential.js";
 export { EphemeralCredential } from "./credential.js";
+
+export type {
+  AuthenticationApproach,
+  AuthenticationChoice,
+  AuthenticationPlan,
+  AuthenticationRefusal,
+  CredentialMint,
+  CredentialRefusal,
+  ObservedPortalAuthentication,
+  PortalAuthFact,
+} from "./authentication.js";
+export {
+  authenticationQuestions,
+  chooseApproach,
+  describePlan,
+  mintCredentialUnder,
+} from "./authentication.js";
 
 export type {
   AccountCreationAuthorisation,
@@ -24,6 +41,7 @@ export type {
 export {
   checkHandoverComplete,
   mayConcludeCase,
+  outstandingHandoverItems,
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,

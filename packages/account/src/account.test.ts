@@ -4,16 +4,27 @@ import { proposeValue, studentId, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import { applyConfirmation, isDeclined } from "@askimate/aas-profile";
 
+import {
+  authenticationQuestions,
+  chooseApproach,
+  describePlan,
+  mintCredentialUnder,
+  type AuthenticationPlan,
+  type ObservedPortalAuthentication,
+} from "./authentication.js";
 import { EphemeralCredential } from "./credential.js";
 import {
   checkHandoverComplete,
   mayConcludeCase,
+  outstandingHandoverItems,
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,
   type HandoverChecklist,
   type PortalAccount,
 } from "./ownership.js";
+
+
 
 const NOW = new Date("2026-08-26T10:00:00Z");
 const LATER = new Date("2026-08-26T12:00:00Z");
@@ -47,6 +58,7 @@ const AUTHORISATION = {
     institutionName: "Ulster University",
     portalHost: "apply.qahighereducation.com",
     email: "niloofar@example.com",
+    approach: "generated_ephemeral",
   }),
   authorisedAt: NOW,
 };
@@ -58,6 +70,7 @@ function creationInput(overrides: Record<string, unknown> = {}) {
     studentRef: STUDENT,
     portalHost: "apply.qahighereducation.com",
     email: confirmedEmail("niloofar@example.com"),
+    authentication: EPHEMERAL_PLAN(),
     authorisation: AUTHORISATION,
     ourDomains: OUR_DOMAINS,
     ...overrides,
@@ -65,80 +78,385 @@ function creationInput(overrides: Record<string, unknown> = {}) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Fixtures: portals, as observed
+// ───────────────────────────────────────────────────────────────────────────
+
+const PROVENANCE = {
+  portalHost: "apply.qahighereducation.com",
+  discoveryRunId: "disc-2026-08-26-1",
+  observedAt: NOW,
+} as const;
+
+/** A portal that requires a password we choose. The last-resort case. */
+const PASSWORD_PORTAL: ObservedPortalAuthentication = {
+  ...PROVENANCE,
+  applicantChoosesPassword: true,
+  portalIssuesCredential: false,
+  passwordlessAvailable: false,
+  emailVerificationRequired: true,
+  mfaOrOtpRequired: false,
+  captchaPresent: true,
+  passwordResetAvailable: true,
+  credentialsCanBeHandedBack: true,
+};
+
+/** The same portal, but it offers a magic link. */
+const PASSWORDLESS_PORTAL: ObservedPortalAuthentication = {
+  ...PASSWORD_PORTAL,
+  passwordlessAvailable: true,
+};
+
+function planFor(
+  observed: ObservedPortalAuthentication,
+  studentPresentAtCreation = false,
+): AuthenticationPlan {
+  const choice = chooseApproach({ observed, studentPresentAtCreation });
+  if (!choice.chosen) expect.unreachable(`expected a plan: ${choice.refusal.kind}`);
+  return choice.plan;
+}
+
+const EPHEMERAL_PLAN = (): AuthenticationPlan => planFor(PASSWORD_PORTAL);
+const PASSWORDLESS_PLAN = (): AuthenticationPlan => planFor(PASSWORDLESS_PORTAL);
+
+// ───────────────────────────────────────────────────────────────────────────
 // The temporary credential
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("a temporary credential", () => {
   const credential = (): EphemeralCredential =>
-    EphemeralCredential.create({
-      secret: "Tmp-9f2a!Kq",
+    EphemeralCredential.generate({
       expiresAt: LATER,
       purpose: "create the Ulster application account",
     });
 
-  it("can be read while it is alive", () => {
-    const result = credential().reveal(NOW);
-    if (!result.ok) expect.unreachable("still valid");
-    expect(result.secret).toBe("Tmp-9f2a!Kq");
+  /** Reads the secret out, which only a test has any business doing. */
+  const secretOf = (held: EphemeralCredential, at: Date = NOW): string => {
+    const used = held.useTo(at, "read it in a test", (secret) => secret);
+    if (!used.ok) expect.unreachable(`expected it to be usable: ${used.reason.kind}`);
+    return used.result;
+  };
+
+  it("is GENERATED — there is no way to supply a secret", () => {
+    // The load-bearing property, and a compile-time test rather than a runtime
+    // one. A password a person chose — typed into a config, pasted into an
+    // issue, reused from somewhere else — cannot enter the system, because no
+    // function accepts one. If a `create({ secret })` were added, the
+    // directive below would go unused and the build would fail.
+    // @ts-expect-error there is no way to supply a secret.
+    type _NoSuppliedSecret = typeof EphemeralCredential.create;
+
+    // And nothing else on the static side takes one either.
+    expect(Object.getOwnPropertyNames(EphemeralCredential)).not.toContain("create");
+  });
+
+  it("generates something long and unguessable", () => {
+    expect(secretOf(credential()).length).toBeGreaterThanOrEqual(32);
+  });
+
+  it("generates a different secret every time", () => {
+    const seen = new Set(Array.from({ length: 50 }, () => secretOf(credential())));
+    expect(seen.size).toBe(50);
+  });
+
+  it("satisfies the usual portal rules by construction, not by retrying", () => {
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      const secret = secretOf(credential());
+      expect(secret).toMatch(/[a-z]/);
+      expect(secret).toMatch(/[A-Z]/);
+      expect(secret).toMatch(/[0-9]/);
+      expect(secret).toMatch(/[^a-zA-Z0-9]/);
+    }
+  });
+
+  it("does not leave the class-per-position seeding visible", () => {
+    // Without the shuffle the first four characters would always be
+    // lower/upper/digit/symbol in that order, which is a real weakness and an
+    // easy one to ship by accident.
+    const firsts = new Set(Array.from({ length: 40 }, () => secretOf(credential()).charAt(0)));
+    expect(firsts.size).toBeGreaterThan(4);
+  });
+
+  it("can be used while it is alive", () => {
+    const held = credential();
+    const used = held.useTo(NOW, "sign in", (secret) => secret.length);
+    if (!used.ok) expect.unreachable("still valid");
+    expect(used.result).toBeGreaterThan(0);
   });
 
   it("REDACTS itself through JSON.stringify", () => {
     // The route that matters most: a credential on a case record, serialised
     // into an event or a log line, is a live password sitting somewhere
     // nobody is thinking about.
-    const serialised = JSON.stringify({ account: "acct-1", password: credential() });
-    expect(serialised).not.toContain("Tmp-9f2a");
+    const held = credential();
+    const secret = secretOf(held);
+    const serialised = JSON.stringify({ account: "acct-1", password: held });
+    expect(serialised).not.toContain(secret);
     expect(serialised).toContain("never logged");
   });
 
   it("REDACTS itself in a template literal", () => {
-    expect(`password is ${String(credential())}`).not.toContain("Tmp-9f2a");
+    const held = credential();
+    expect(`password is ${String(held)}`).not.toContain(secretOf(held));
   });
 
   it("REDACTS itself in console output", async () => {
     // Node's inspect is what console.log uses, so this is the route a
     // credential takes into a terminal, a log aggregator and a bug report.
     const { inspect } = await import("node:util");
-    expect(inspect(credential())).not.toContain("Tmp-9f2a");
+    const held = credential();
+    expect(inspect(held)).not.toContain(secretOf(held));
   });
 
-  it("refuses to be read after it expires, and destroys itself", () => {
-    const secret = credential();
-    const result = secret.reveal(new Date("2026-08-26T12:00:01Z"));
+  it("is not retrievable as a property, only through useTo", () => {
+    // An operator reading a case record, an export, or a debugger's object
+    // view finds nothing. `useTo` is the only door and its call sites are
+    // countable.
+    const held = credential();
+    expect(Object.keys(held)).toHaveLength(0);
+    expect(JSON.parse(JSON.stringify({ held }))).toEqual({
+      held: "[temporary credential — generated, never logged, never retrievable]",
+    });
+  });
 
-    if (result.ok) expect.unreachable("expired");
-    expect(result.reason.kind).toBe("expired");
+  it("refuses to be used after it expires, and destroys itself", () => {
+    const held = credential();
+    const used = held.useTo(new Date("2026-08-26T12:00:01Z"), "sign in", (secret) => secret);
+
+    if (used.ok) expect.unreachable("expired");
+    expect(used.reason.kind).toBe("expired");
     // Destroyed rather than merely refused, so a clock going backwards cannot
     // resurrect it.
-    expect(secret.destroyed).toBe(true);
+    expect(held.destroyed).toBe(true);
+  });
+
+  it("does not run the task at all once it is unusable", () => {
+    const held = credential();
+    held.destroy();
+    let ran = false;
+    held.useTo(NOW, "sign in", () => {
+      ran = true;
+      return null;
+    });
+    expect(ran).toBe(false);
   });
 
   it("cannot be recovered once destroyed", () => {
-    const secret = credential();
-    secret.destroy();
-    const result = secret.reveal(NOW);
-    if (result.ok) expect.unreachable("destroyed");
-    expect(result.reason.kind).toBe("destroyed");
+    const held = credential();
+    held.destroy();
+    const used = held.useTo(NOW, "sign in", (secret) => secret);
+    if (used.ok) expect.unreachable("destroyed");
+    expect(used.reason.kind).toBe("destroyed");
   });
 
   it("is idempotent to destroy", () => {
-    const secret = credential();
-    secret.destroy();
-    secret.destroy();
-    expect(secret.destroyed).toBe(true);
+    const held = credential();
+    held.destroy();
+    held.destroy();
+    expect(held.destroyed).toBe(true);
   });
 
-  it("counts how often it was read, as an audit signal", () => {
-    const secret = credential();
-    secret.reveal(NOW);
-    secret.reveal(NOW);
-    expect(secret.revealCount).toBe(2);
+  it("counts how often it was used, as an audit signal", () => {
+    const held = credential();
+    held.useTo(NOW, "create the account", () => null);
+    held.useTo(NOW, "sign in", () => null);
+    expect(held.useCount).toBe(2);
   });
 
-  it("refuses to exist empty", () => {
+  it("insists on a stated purpose — it is the only thing written down", () => {
+    expect(() => EphemeralCredential.generate({ expiresAt: LATER, purpose: "  " })).toThrow();
+  });
+
+  it("REFUSES a portal cap that would make it weak, rather than honouring it", () => {
+    // A portal that caps passwords at eight characters is a fact a specialist
+    // should see. Quietly generating an eight-character credential is how a
+    // weak one gets created with nobody having chosen to.
     expect(() =>
-      EphemeralCredential.create({ secret: "", expiresAt: LATER, purpose: "x" }),
-    ).toThrow();
+      EphemeralCredential.generate({
+        expiresAt: LATER,
+        purpose: "x",
+        policy: { maxLength: 8, observedFrom: "the portal's stated policy" },
+      }),
+    ).toThrow(/floor/);
+  });
+
+  it("honours a cap that is still safe", () => {
+    const held = EphemeralCredential.generate({
+      expiresAt: LATER,
+      purpose: "x",
+      policy: { maxLength: 20, observedFrom: "the portal rejected a longer one" },
+    });
+    expect(secretOf(held)).toHaveLength(20);
+  });
+
+  it("refuses a policy that excludes a whole character class", () => {
+    expect(() =>
+      EphemeralCredential.generate({
+        expiresAt: LATER,
+        purpose: "x",
+        policy: { excludedCharacters: "!#$%*+-=?@^_", observedFrom: "observed rejections" },
+      }),
+    ).toThrow(/character class/);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Which approach, and why
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("choosing an authentication approach", () => {
+  it("prefers the student typing their own password when they are there to", () => {
+    // The portal is identical. The only difference is that the student is at
+    // their keyboard — and that is the whole difference between a password we
+    // hold and one we never learn.
+    const plan = planFor(PASSWORD_PORTAL, true);
+    expect(plan.approach).toBe("student_chosen");
+    expect(plan.askimateHoldsACredential).toBe(false);
+  });
+
+  it("says so plainly when the student's absence is what put us on a password", () => {
+    const plan = EPHEMERAL_PLAN();
+    const why = plan.rejected.find((entry) => entry.approach === "student_chosen")?.because;
+    expect(why).toContain("will not be present");
+  });
+
+  it("PREFERS passwordless when the portal offers it", () => {
+    const plan = PASSWORDLESS_PLAN();
+    expect(plan.approach).toBe("passwordless");
+    expect(plan.askimateHoldsACredential).toBe(false);
+  });
+
+  it("falls to a generated credential only when the portal makes us set one", () => {
+    const plan = EPHEMERAL_PLAN();
+    expect(plan.approach).toBe("generated_ephemeral");
+    expect(plan.askimateHoldsACredential).toBe(true);
+  });
+
+  it("records why every better approach was unavailable", () => {
+    // So "why are we holding a password for this student" has an answer made
+    // of observations rather than of nobody having looked.
+    const plan = EPHEMERAL_PLAN();
+    expect(plan.rejected.map((entry) => entry.approach)).toEqual([
+      "passwordless",
+      "student_chosen",
+      "portal_issued",
+    ]);
+    expect(plan.rejected[0]?.because).toContain("no passwordless");
+  });
+
+  it("prefers the portal issuing its own credential over generating one", () => {
+    const plan = planFor({
+      ...PASSWORD_PORTAL,
+      applicantChoosesPassword: false,
+      portalIssuesCredential: true,
+    });
+    expect(plan.approach).toBe("portal_issued");
+    expect(plan.askimateHoldsACredential).toBe(false);
+    expect(plan.studentMustBePresent).toBe(true);
+  });
+
+  it("REFUSES to choose while any question is unobserved", () => {
+    // The load-bearing rule. An unobserved answer is not a "no" — treating it
+    // as one is exactly how the password path wins by default.
+    const choice = chooseApproach({
+      observed: { ...PASSWORD_PORTAL, passwordlessAvailable: "unobserved" },
+      studentPresentAtCreation: false,
+    });
+    if (choice.chosen) expect.unreachable("must refuse without observations");
+    expect(choice.refusal.kind).toBe("unobserved");
+    if (choice.refusal.kind !== "unobserved") expect.unreachable("narrowing");
+    expect(choice.refusal.questions).toEqual([
+      "Does the portal offer passwordless sign-in — a magic link, an emailed code, or similar?",
+    ]);
+  });
+
+  it("names every unobserved question at once", () => {
+    const choice = chooseApproach({
+      observed: {
+        ...PASSWORD_PORTAL,
+        passwordlessAvailable: "unobserved",
+        mfaOrOtpRequired: "unobserved",
+        passwordResetAvailable: "unobserved",
+      },
+      studentPresentAtCreation: false,
+    });
+    if (choice.chosen) expect.unreachable("must refuse");
+    if (choice.refusal.kind !== "unobserved") expect.unreachable("narrowing");
+    expect(choice.refusal.questions).toHaveLength(3);
+  });
+
+  it("STOPS before anything else if the account cannot be handed back", () => {
+    // Asked before the approach, because a portal we cannot hand back from is
+    // not one to create an account on however convenient its login is.
+    const choice = chooseApproach({
+      observed: { ...PASSWORDLESS_PORTAL, credentialsCanBeHandedBack: false },
+      studentPresentAtCreation: false,
+    });
+    if (choice.chosen) expect.unreachable("must refuse");
+    expect(choice.refusal.kind).toBe("handover_impossible");
+  });
+
+  it("refuses handover-impossible even while other questions are unobserved", () => {
+    const choice = chooseApproach({
+      observed: {
+        ...PASSWORD_PORTAL,
+        credentialsCanBeHandedBack: false,
+        passwordlessAvailable: "unobserved",
+      },
+      studentPresentAtCreation: false,
+    });
+    if (choice.chosen) expect.unreachable("must refuse");
+    expect(choice.refusal.kind).toBe("handover_impossible");
+  });
+
+  it("refuses when the applicant creates no account at all", () => {
+    const choice = chooseApproach({
+      observed: {
+        ...PASSWORD_PORTAL,
+        applicantChoosesPassword: false,
+        portalIssuesCredential: false,
+        passwordlessAvailable: false,
+      },
+      studentPresentAtCreation: true,
+    });
+    if (choice.chosen) expect.unreachable("must refuse");
+    expect(choice.refusal.kind).toBe("no_workable_approach");
+  });
+
+  it("carries the discovery run it was decided from", () => {
+    expect(EPHEMERAL_PLAN().basedOn.discoveryRunId).toBe("disc-2026-08-26-1");
+  });
+
+  it("lists the handoffs the portal forces", () => {
+    expect(EPHEMERAL_PLAN().handoffs).toEqual(["email_verification", "captcha"]);
+  });
+
+  it("describes itself, leading with whether we hold anything", () => {
+    const described = describePlan(EPHEMERAL_PLAN());
+    expect(described).toContain("AskiMate HOLDS a generated credential");
+    expect(describePlan(PASSWORDLESS_PLAN())).toContain("holds no credential");
+  });
+
+  it("publishes the questions discovery has to answer", () => {
+    expect(authenticationQuestions()).toHaveLength(8);
+  });
+});
+
+describe("minting a credential", () => {
+  it("is permitted under the approach that requires one", () => {
+    const mint = mintCredentialUnder(EPHEMERAL_PLAN(), { expiresAt: LATER, purpose: "sign in" });
+    expect(mint.minted).toBe(true);
+  });
+
+  it("is REFUSED under an approach that does not", () => {
+    // Without this gate the ranking is advice: a caller could choose
+    // passwordless, ignore it, and generate a password anyway.
+    const mint = mintCredentialUnder(PASSWORDLESS_PLAN(), {
+      expiresAt: LATER,
+      purpose: "sign in",
+    });
+    if (mint.minted) expect.unreachable("must be refused");
+    expect(mint.refusal.kind).toBe("not_permitted_by_approach");
+    expect(mint.refusal.detail).toContain("passwordless");
   });
 });
 
@@ -179,17 +497,61 @@ describe("creating an account on the student's behalf", () => {
     expect(check.refusal.kind).toBe("not_authorised");
   });
 
+  it("REFUSES without a chosen authentication approach", () => {
+    // Not a runtime check — a type one. An account cannot be prepared before
+    // the approach is settled, and the approach cannot be settled before the
+    // portal has been observed.
+    const { authentication: _none, ...withoutPlan } = creationInput();
+    // @ts-expect-error `authentication` is required, and making it optional
+    // would make this directive unused and fail the build.
+    prepareAccountCreation(withoutPlan);
+  });
+
+  it("carries the plan onto the account, with its observations", () => {
+    const check = prepareAccountCreation(creationInput());
+    if (!check.permitted) expect.unreachable("permitted");
+    expect(check.account.authentication.approach).toBe("generated_ephemeral");
+    expect(check.account.authentication.basedOn.discoveryRunId).toBe("disc-2026-08-26-1");
+  });
+
   it("tells the student the account is theirs and how they take control", () => {
     const text = renderAccountCreationRequest({
       institutionName: "Ulster University",
       portalHost: "apply.qahighereducation.com",
       email: "niloofar@example.com",
+      approach: "generated_ephemeral",
     });
 
     expect(text).toContain("your own email address");
     expect(text).toContain("Forgot password");
     expect(text).toContain("only you can get in");
     expect(text).toContain("are yours");
+  });
+
+  it("does NOT promise a temporary password where there will not be one", () => {
+    // Telling a student we will set a password when we will not is a small
+    // lie that makes the handover text later make no sense.
+    const text = renderAccountCreationRequest({
+      institutionName: "Ulster University",
+      portalHost: "apply.qahighereducation.com",
+      email: "niloofar@example.com",
+      approach: "passwordless",
+    });
+
+    expect(text).not.toContain("temporary");
+    expect(text).toContain("no password for me to set or to know");
+    expect(text).toContain("link it emails to you");
+    expect(text).toContain("are yours");
+  });
+
+  it("says plainly that the student types their own password where they do", () => {
+    const text = renderAccountCreationRequest({
+      institutionName: "Ulster University",
+      portalHost: "apply.qahighereducation.com",
+      email: "niloofar@example.com",
+      approach: "student_chosen",
+    });
+    expect(text).toContain("I never see it");
   });
 });
 
@@ -202,17 +564,32 @@ const COMPLETE: HandoverChecklist = {
   studentInformed: true,
   passwordResetCompleted: true,
   temporaryCredentialDestroyed: true,
+  askimateRetainsNoAccess: true,
   studentConfirmedAccess: true,
 };
 
-function handover(checklist: HandoverChecklist) {
+const NOTHING_DONE: HandoverChecklist = {
+  emailVerifiedByPortal: false,
+  studentInformed: false,
+  passwordResetCompleted: false,
+  temporaryCredentialDestroyed: false,
+  askimateRetainsNoAccess: false,
+  studentConfirmedAccess: false,
+};
+
+function handover(
+  checklist: HandoverChecklist,
+  approach: AuthenticationPlan["approach"] = "generated_ephemeral",
+) {
   return checkHandoverComplete({
     checklist,
+    approach,
     completedAt: LATER,
     presentedText: renderHandover({
       institutionName: "Ulster University",
       portalHost: "apply.qahighereducation.com",
       email: "niloofar@example.com",
+      approach,
     }),
   });
 }
@@ -223,7 +600,7 @@ describe("handover", () => {
   });
 
   it("gives NO partial credit", () => {
-    // Four out of five is an account the student cannot fully control, and
+    // All but one is an account the student cannot fully control, and
     // recording that as a success is exactly the outcome to prevent.
     const check = handover({ ...COMPLETE, studentConfirmedAccess: false });
     if (check.complete) expect.unreachable("incomplete");
@@ -241,16 +618,48 @@ describe("handover", () => {
     expect(check.refusal.outstanding[0]).toContain("their own password");
   });
 
+  it("will not call it done while we still have operational access", () => {
+    // A signed-in browser session is operational access whether or not a
+    // credential was involved, so this applies under every approach.
+    expect(handover({ ...COMPLETE, askimateRetainsNoAccess: false }).complete).toBe(false);
+    expect(
+      handover({ ...COMPLETE, askimateRetainsNoAccess: false }, "passwordless").complete,
+    ).toBe(false);
+  });
+
   it("lists everything outstanding at once, not one at a time", () => {
-    const check = handover({
-      emailVerifiedByPortal: false,
-      studentInformed: false,
-      passwordResetCompleted: false,
-      temporaryCredentialDestroyed: false,
-      studentConfirmedAccess: false,
-    });
+    const check = handover(NOTHING_DONE);
     if (check.complete) expect.unreachable("incomplete");
-    expect(check.refusal.outstanding).toHaveLength(5);
+    expect(check.refusal.outstanding).toHaveLength(6);
+  });
+
+  it("drops the password items only where there was never a password", () => {
+    // "Some items do not apply" is the shape of a loophole, so what matters is
+    // how it is reached: the approach comes from `chooseApproach`, which
+    // refuses without observations. You cannot CLAIM the item is
+    // inapplicable — you have to have found a portal where it is.
+    const check = handover(
+      { ...NOTHING_DONE, emailVerifiedByPortal: true, studentInformed: true },
+      "passwordless",
+    );
+    if (check.complete) expect.unreachable("incomplete");
+    expect(check.refusal.outstanding).toEqual([
+      "AskiMate retains no operational access — no live session, no stored token, no second factor",
+      "the student has confirmed they can sign in",
+    ]);
+  });
+
+  it("still requires the student to confirm access under every approach", () => {
+    for (const approach of [
+      "passwordless",
+      "student_chosen",
+      "portal_issued",
+      "generated_ephemeral",
+    ] as const) {
+      expect(handover({ ...COMPLETE, studentConfirmedAccess: false }, approach).complete).toBe(
+        false,
+      );
+    }
   });
 
   it("tells the student how to get in without us", () => {
@@ -258,12 +667,25 @@ describe("handover", () => {
       institutionName: "Ulster University",
       portalHost: "apply.qahighereducation.com",
       email: "niloofar@example.com",
+      approach: "generated_ephemeral",
     });
 
     expect(text).toContain("the account is yours");
     expect(text).toContain("Forgot password");
     expect(text).toContain("only you can read");
     expect(text).toContain("only you can get into the account");
+  });
+
+  it("does not claim to have destroyed a password it never held", () => {
+    const text = renderHandover({
+      institutionName: "Ulster University",
+      portalHost: "apply.qahighereducation.com",
+      email: "niloofar@example.com",
+      approach: "passwordless",
+    });
+
+    expect(text).toContain("never had a password for this account");
+    expect(text).toContain("closed the session");
   });
 });
 
@@ -279,6 +701,7 @@ function account(stage: PortalAccount["stage"]): PortalAccount {
     portalHost: "apply.qahighereducation.com",
     email: confirmedEmail("niloofar@example.com"),
     stage,
+    authentication: EPHEMERAL_PLAN(),
     createdBy: "askimate_on_behalf",
   };
 }
@@ -310,5 +733,27 @@ describe("finishing a case", () => {
       { ...account("handover_due"), accountId: "acct-3" },
     ]);
     expect(result.outstanding).toHaveLength(2);
+  });
+
+  it("lists what is outstanding on an account nobody has started handing back", () => {
+    expect(outstandingHandoverItems(account("handover_due"))).toHaveLength(6);
+  });
+
+  it("derives that list from the same gate that closes the case", () => {
+    // So the list a student is shown and the check that lets a case close
+    // cannot drift apart — including when the approach changes which apply.
+    const handed: PortalAccount = {
+      ...account("handover_due"),
+      authentication: PASSWORDLESS_PLAN(),
+      handover: {
+        checklist: { ...COMPLETE, askimateRetainsNoAccess: false },
+        approach: "passwordless",
+        completedAt: LATER,
+        presentedText: "",
+      },
+    };
+    expect(outstandingHandoverItems(handed)).toEqual([
+      "AskiMate retains no operational access — no live session, no stored token, no second factor",
+    ]);
   });
 });

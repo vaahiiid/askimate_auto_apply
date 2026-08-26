@@ -35,8 +35,18 @@
  * exists not to do (ADR-0007).
  */
 
-import type { PortalAccount } from "@askimate/aas-account";
-import { renderAccountCreationRequest, renderHandover } from "@askimate/aas-account";
+import type {
+  AuthenticationApproach,
+  AuthenticationPlan,
+  ObservedPortalAuthentication,
+  PortalAccount,
+} from "@askimate/aas-account";
+import {
+  chooseApproach,
+  outstandingHandoverItems,
+  renderAccountCreationRequest,
+  renderHandover,
+} from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
 import type { StudentId } from "@askimate/aas-domain";
@@ -65,6 +75,24 @@ export interface RunInputs {
   readonly blueprint: ApplicationBlueprint;
   readonly mappingSet: MappingSet;
   readonly documents: ReadonlyMap<string, PreviewDocument>;
+  /**
+   * What discovery observed about the portal's authentication.
+   *
+   * Optional here and required in practice: a portal whose blueprint says
+   * authentication is required cannot get past `accountStepFor` without it.
+   * Optional rather than required because most of a run — the interview, the
+   * mapping, the validation — has nothing to do with signing in, and a run
+   * against a portal that needs no account needs none of this.
+   */
+  readonly portalAuthentication?: ObservedPortalAuthentication;
+  /**
+   * Will the student be at their keyboard when the account is created?
+   *
+   * The only thing separating "the student types their own password" from "we
+   * generate one and hold it for a few minutes". No default — see
+   * `chooseApproach`.
+   */
+  readonly studentPresentAtCreation?: boolean;
 }
 
 /** Where a run has got to. Immutable; each step returns a new one. */
@@ -123,6 +151,14 @@ export type RunStep =
       readonly say: string;
       readonly portalHost: string;
       readonly email: string;
+      /**
+       * How we will get in, chosen from what discovery observed.
+       *
+       * On the step rather than only on the account, because it changes what
+       * the student is told and whether they need to be present — both of
+       * which the caller acts on before an account exists.
+       */
+      readonly approach: AuthenticationApproach;
     }
   /**
    * Only the student can do this: an emailed verification link, an MFA code,
@@ -341,6 +377,16 @@ function accountStepFor(state: RunState): RunStep | null {
     account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
 
   if (account === undefined || account.stage === "creation_required") {
+    // Before anything else: how do we get in, and did anyone find out?
+    //
+    // This runs ahead of the email check because an unobserved portal is a
+    // deeper problem than a missing profile field, and because the refusal
+    // names work that has to happen anyway.
+    const authentication = account?.authentication ?? planFor(state);
+    if (!("approach" in authentication)) {
+      return authentication;
+    }
+
     const email = resolveField(state.profile, "contact.email");
     if (isFieldUnavailable(email)) {
       // Cannot create an account without the address it belongs to. The
@@ -361,10 +407,12 @@ function accountStepFor(state: RunState): RunStep | null {
       kind: "create_account",
       portalHost,
       email: address,
+      approach: authentication.approach,
       say: renderAccountCreationRequest({
         institutionName: state.inputs.blueprint.institutionName,
         portalHost,
         email: address,
+        approach: authentication.approach,
       }),
     };
   }
@@ -388,6 +436,7 @@ function accountStepFor(state: RunState): RunStep | null {
         institutionName: state.inputs.blueprint.institutionName,
         portalHost: account.portalHost,
         email: unwrapConfirmed(account.email),
+        approach: account.authentication.approach,
       }),
     };
   }
@@ -395,14 +444,55 @@ function accountStepFor(state: RunState): RunStep | null {
   return null;
 }
 
-function outstandingHandoverItems(account: PortalAccount): readonly string[] {
-  const checklist = account.handover?.checklist;
-  if (checklist === undefined) {
-    return ["the handover has not been started"];
+/**
+ * Turns the observations into a plan, or into a specialist step saying what is
+ * missing.
+ *
+ * The refusals are the interesting part. A portal nobody has observed, or one
+ * that cannot give an account back, is not something to work around — and
+ * neither is something the student can answer, so both go to a specialist.
+ */
+function planFor(state: RunState): AuthenticationPlan | RunStep {
+  const observed: ObservedPortalAuthentication | undefined = state.inputs.portalAuthentication;
+  const host = hostOf(state.inputs.blueprint.authentication.loginUrl);
+
+  if (observed === undefined) {
+    return {
+      kind: "specialist",
+      reason: "portal_authentication_unobserved",
+      detail:
+        `This portal requires an account and nothing has been observed about how it ` +
+        `authenticates (${host}). We do not guess at that: the choice between passwordless ` +
+        `sign-in, the student typing their own password, and us generating one decides whether ` +
+        `AskiMate ever holds a credential to this student's university account. Run discovery ` +
+        `against the portal and record what it does.`,
+    };
   }
-  return Object.entries(checklist)
-    .filter(([, done]) => !done)
-    .map(([item]) => item);
+
+  if (state.inputs.studentPresentAtCreation === undefined) {
+    return {
+      kind: "specialist",
+      reason: "student_availability_unknown",
+      detail:
+        `Whether the student will be at their keyboard when the account is created has not been ` +
+        `stated, and it is the only thing separating "the student types their own password" from ` +
+        `"we generate one and hold it". Defaulting it would mean holding a credential because ` +
+        `nobody answered, rather than because the portal required it.`,
+    };
+  }
+
+  const choice = chooseApproach({
+    observed,
+    studentPresentAtCreation: state.inputs.studentPresentAtCreation,
+  });
+
+  if (choice.chosen) return choice.plan;
+
+  return {
+    kind: "specialist",
+    reason: `authentication_${choice.refusal.kind}`,
+    detail: choice.refusal.detail,
+  };
 }
 
 function hostOf(url: string | undefined): string {

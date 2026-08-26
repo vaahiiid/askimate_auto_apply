@@ -14,6 +14,8 @@
  *   1. What did the run actually see?          — and did the portal write?
  *   2. What does the draft blueprint say?      — pages, fields, documents
  *   3. Where does the REAL portal differ from what the replay proved?
+ *   4. Are the eight authentication questions answered? — ADR-0020
+ *   5. What must the mapping set cover?
  *
  * Question 3 is the point. Everything downstream was built and proven against
  * a fixture, and the honest question is not "does it work" but "what does this
@@ -25,6 +27,7 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import { authenticationQuestions } from "@askimate/aas-account";
 import type { ApplicationBlueprint, BlueprintField } from "@askimate/aas-blueprint";
 import { allFields, allRequiredDocuments, checkExecutable } from "@askimate/aas-blueprint";
 
@@ -262,11 +265,10 @@ async function main(): Promise<void> {
 
   if (blueprint.authentication.accountCreationRequired) {
     gaps.push(
-      `The portal requires account creation. ADR-0020's model — we create it on the student's own ` +
-        `email with a temporary password, then hand it back via the portal's own reset flow — ` +
-        `needs checking against what these pages actually do. If the portal emails its own initial ` +
-        `credential instead, account creation becomes a student handoff rather than an automated ` +
-        `step.`,
+      `The portal requires account creation, so the eight questions in section 4 have to be ` +
+        `answered before an account can be created on it. Until they are, ` +
+        `\`chooseApproach\` refuses and the orchestrator escalates to a specialist rather than ` +
+        `falling back to a password (ADR-0020).`,
     );
   }
 
@@ -311,8 +313,57 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── 4. What a mapping set must cover ───────────────────────────────────
-  heading("4", "What the mapping set must cover");
+  // ── 4. The eight authentication questions ──────────────────────────────
+  //
+  // Printed whether or not the portal appears to need an account, because
+  // "this portal needs no account" is itself one of the things a capture can
+  // be wrong about — and because the list is the same eight every time.
+  heading("4", "The eight authentication questions (ADR-0020)");
+
+  console.log(
+    `  ${DIM}Answering these decides whether AskiMate ever holds a credential to this student's\n` +
+      `  university account. An UNANSWERED question is not a "no": \`chooseApproach\` refuses\n` +
+      `  rather than falling through to the password path, which is the path that otherwise\n` +
+      `  wins by default.${RESET}\n`,
+  );
+
+  // What the pages themselves evidence. Deliberately partial: a capture can
+  // show a password field, but it cannot show whether "Forgot password" works
+  // or whether an account can be handed back — those need someone to look.
+  const hasSignal = (kind: string): boolean =>
+    observedSignals.some((signal) => signal.kind === kind) ||
+    blueprint.handoffPoints.some((point) => point.kind === kind);
+
+  const evidence: readonly (string | null)[] = [
+    hasSignal("account_creation") ? "an account-creation form with a password field was seen" : null,
+    null, // nothing on a page tells you the portal emails its own credential
+    null, // nor that a magic link exists, unless it is offered on the login page
+    hasSignal("email_verification") ? "email-verification wording was seen" : null,
+    hasSignal("mfa_or_otp") ? "a one-time-code input was seen" : null,
+    hasSignal("captcha") ? "a CAPTCHA script or frame was seen" : null,
+    null, // reset behaviour cannot be observed without triggering it
+    null, // handback cannot be observed without an account
+  ];
+
+  for (const [index, question] of authenticationQuestions().entries()) {
+    const found = evidence[index];
+    const mark = found === null ? `${AMBER}?${RESET}` : `${GREEN}~${RESET}`;
+    console.log(`  ${mark} ${String(index + 1)}. ${question}`);
+    console.log(
+      found === null
+        ? `      ${DIM}Nothing in this capture answers it. Someone has to look.${RESET}`
+        : `      ${DIM}Partial evidence: ${found}. Still yours to confirm.${RESET}`,
+    );
+  }
+
+  console.log(
+    `\n  ${DIM}A "~" is EVIDENCE, never an answer. Questions 2, 3, 7 and 8 cannot be answered\n` +
+      `  by reading pages at all — they need someone to try the flow on a portal we are\n` +
+      `  permitted to try it on. That is what the sandbox request is for.${RESET}`,
+  );
+
+  // ── 5. What a mapping set must cover ───────────────────────────────────
+  heading("5", "What the mapping set must cover");
 
   const required = fields.filter((field) => field.validations.some((v) => v.kind === "required"));
   console.log(

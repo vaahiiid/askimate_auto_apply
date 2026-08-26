@@ -25,7 +25,12 @@ import {
   type DisclosureAuthorisation,
 } from "@askimate/aas-disclosure";
 
-import type { PortalAccount } from "@askimate/aas-account";
+import type {
+  AuthenticationPlan,
+  ObservedPortalAuthentication,
+  PortalAccount,
+} from "@askimate/aas-account";
+import { chooseApproach } from "@askimate/aas-account";
 import { isFieldUnavailable } from "@askimate/aas-domain";
 import { resolveField } from "@askimate/aas-profile";
 
@@ -607,6 +612,40 @@ const NEEDS_LOGIN = {
   },
 };
 
+/**
+ * What discovery found about the example portal: it wants a password and
+ * offers nothing better.
+ */
+const OBSERVED_AUTH: ObservedPortalAuthentication = {
+  portalHost: "apply.example.test",
+  discoveryRunId: "disc-fixture-1",
+  observedAt: NOW,
+  applicantChoosesPassword: true,
+  portalIssuesCredential: false,
+  passwordlessAvailable: false,
+  emailVerificationRequired: true,
+  mfaOrOtpRequired: false,
+  captchaPresent: false,
+  passwordResetAvailable: true,
+  credentialsCanBeHandedBack: true,
+};
+
+/** The inputs a portal-with-login run needs, on top of the blueprint. */
+const WITH_LOGIN = {
+  blueprint: NEEDS_LOGIN,
+  portalAuthentication: OBSERVED_AUTH,
+  studentPresentAtCreation: false,
+} as const;
+
+function planned(): AuthenticationPlan {
+  const choice = chooseApproach({
+    observed: OBSERVED_AUTH,
+    studentPresentAtCreation: false,
+  });
+  if (!choice.chosen) expect.unreachable("the fixture portal is workable");
+  return choice.plan;
+}
+
 function accountAt(stage: PortalAccount["stage"], email: ConfirmedProfile): PortalAccount {
   const resolved = resolveField(email, "contact.email");
   if (isFieldUnavailable(resolved)) expect.unreachable("the profile has an email");
@@ -617,13 +656,14 @@ function accountAt(stage: PortalAccount["stage"], email: ConfirmedProfile): Port
     portalHost: "apply.example.test",
     email: resolved,
     stage,
+    authentication: planned(),
     createdBy: "askimate_on_behalf",
   };
 }
 
 describe("a portal that needs an account", () => {
   it("asks the student to authorise creating one, before filling anything", async () => {
-    const state = runWith(COMPLETE, { blueprint: NEEDS_LOGIN });
+    const state = runWith(COMPLETE, { ...WITH_LOGIN });
     const step = await nextStep(state, model);
 
     expect(step.kind).toBe("create_account");
@@ -660,6 +700,7 @@ describe("a portal that needs an account", () => {
     };
 
     const state = runWith(noEmail, {
+      ...WITH_LOGIN,
       blueprint: blueprintWithoutEmail,
       mappingSet: withoutEmailMapping,
     });
@@ -671,7 +712,7 @@ describe("a portal that needs an account", () => {
   });
 
   it("PAUSES for email verification rather than going to look", async () => {
-    const state = withAccount(runWith(COMPLETE, { blueprint: NEEDS_LOGIN }), {
+    const state = withAccount(runWith(COMPLETE, { ...WITH_LOGIN }), {
       ...accountAt("awaiting_email_verification", COMPLETE),
     });
 
@@ -685,7 +726,7 @@ describe("a portal that needs an account", () => {
 
   it("proceeds once the account is active", async () => {
     const state = withAccount(
-      runWith(COMPLETE, { blueprint: NEEDS_LOGIN }),
+      runWith(COMPLETE, { ...WITH_LOGIN }),
       accountAt("active", COMPLETE),
     );
     // Past the account stage, on to the ordinary flow.
@@ -694,7 +735,7 @@ describe("a portal that needs an account", () => {
 
   it("asks for the account back when handover is due", async () => {
     const state = withAccount(
-      runWith(COMPLETE, { blueprint: NEEDS_LOGIN }),
+      runWith(COMPLETE, { ...WITH_LOGIN }),
       accountAt("handover_due", COMPLETE),
     );
 
@@ -702,7 +743,12 @@ describe("a portal that needs an account", () => {
     expect(step.kind).toBe("hand_over_account");
     if (step.kind !== "hand_over_account") expect.unreachable("checked above");
     expect(step.say).toContain("the account is yours");
-    expect(step.outstanding).toContain("the handover has not been started");
+    // Every applicable item, named — not "the handover has not been started".
+    // The person acting on this needs the list, not the status.
+    expect(step.outstanding).toContain("the student has confirmed they can sign in");
+    expect(step.outstanding).toContain(
+      "AskiMate retains no operational access — no live session, no stored token, no second factor",
+    );
   });
 
   it("does not raise account steps on a portal that needs no account", async () => {

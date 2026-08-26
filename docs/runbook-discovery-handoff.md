@@ -109,11 +109,35 @@ Which reports:
 3. **Where the real portal differs from what the replay proved** — the honest question. Fields with
    no locator, unrecognised input types, dropdowns needing an option map, pages with no advance
    control, and anything recorded without first-hand observation.
-4. **What the mapping set must cover** — every required field, each needing a source a specialist
+4. **The eight authentication questions** — with what the capture evidences for each, and what it
+   cannot. See below; this is the section that decides whether AskiMate ever holds a credential.
+5. **What the mapping set must cover** — every required field, each needing a source a specialist
    decides.
 
 Then the capture becomes a local replay, and the whole chain runs against **the real portal's pages**
 with nothing live involved.
+
+---
+
+## 8. The four questions the capture cannot answer
+
+Discovery reads pages. Four of ADR-0020's eight authentication questions cannot be answered that
+way, and they are the ones that decide whether we ever hold a password to a student's university
+account:
+
+| | Question | Why a capture cannot answer it |
+|---|---|---|
+| 2 | Does the portal generate a credential and email it to the applicant? | Only visible after creating an account |
+| 3 | Is there passwordless sign-in — a magic link or emailed code? | Only visible if it is offered on the login page, and often it is not |
+| 7 | Does "Forgot password" work, and does the reset reach the account's own address? | Requires triggering it |
+| 8 | Can control be handed back cleanly — no lingering session, no second factor bound to us? | Requires an account to hand back |
+
+**Do not answer these from the capture, and do not answer them from what seems likely.** Leaving
+them unanswered is the designed state: `chooseApproach` refuses rather than falling through to the
+password path, and the orchestrator escalates to a specialist. An unanswered question is not a "no".
+
+They are answered on a portal we are permitted to try, which is what
+[the sandbox request](./qa-higher-education-sandbox-request.md) is for.
 
 ---
 

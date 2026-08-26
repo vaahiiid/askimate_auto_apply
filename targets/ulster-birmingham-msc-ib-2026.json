@@ -1,14 +1,19 @@
 {
   "$comment": [
-    "A discovery target. DATA, not code \u2014 adding a university is editing a file like this,",
-    "which is what brief \u00a73.2 requires.",
+    "A discovery target. DATA, not code — adding a university is editing a file like this,",
+    "which is what brief §3.2 requires.",
     "",
     "seedUrls are entry points only. Discovery follows in-scope links from them, bounded by",
     "allowedHosts, linkPatterns and maxPages. It is read-only throughout: the runner cannot",
     "fill, click or submit (ADR-0014).",
     "",
     "ROUTE STATUS: apply.qahighereducation.com is a HYPOTHESIS from search results, not a",
-    "verified fact. Confirming or refuting it is the first job of this run."
+    "verified fact. Confirming or refuting it is the first job of this run.",
+    "",
+    "The eight AUTH claims are the questions ADR-0020's chooseApproach refuses to run without.",
+    "They decide whether AskiMate ever holds a credential to this student's university account.",
+    "Four of them (2, 3, 7, 8) cannot be answered by reading pages — they need someone to try",
+    "the flow on a portal we are permitted to try it on, which is what the sandbox request is for."
   ],
   "targetId": "ulster-birmingham-msc-ib-2026-09",
   "institutionName": "Ulster University",
@@ -46,15 +51,19 @@
     "The portal platform is Salesforce Experience Cloud",
     "Whether an account must be created before the application form is visible",
     "IELTS 6.0 with no band below 5.5",
-    "Applicants must be 18 at course start (RELEVANT TO ADR-0011/0013 \u2014 verify before relying on it)",
+    "Applicants must be 18 at course start (RELEVANT TO ADR-0011/0013 — verify before relying on it)",
     "Required documents: transcripts, certified translations, English test certificate",
     "Whether the September 2026 intake is open and its deadline",
     "Whether the application form is reachable without an account, or hidden behind a login",
-    "Whether the portal lets an applicant choose their own password at account creation, or emails its own initial credential (this decides whether ADR-0020's model fits)",
-    "Whether email verification must be completed before the application form is reachable",
-    "Whether CAPTCHA is present, and if so on which pages",
-    "Whether MFA or a one-time code is required at any point",
     "Where the submission control is, and what endpoint it posts to",
-    "Whether any fields are conditional on earlier answers"
+    "Whether any fields are conditional on earlier answers",
+    "AUTH 1/8: Does the applicant choose their own password at account creation?",
+    "AUTH 2/8: Does the portal generate a credential and send it to the applicant?",
+    "AUTH 3/8: Does the portal offer passwordless sign-in — a magic link, an emailed code, or similar?",
+    "AUTH 4/8: Must the email address be verified before the application form is reachable?",
+    "AUTH 5/8: Is MFA or a one-time code required at any point?",
+    "AUTH 6/8: Is a CAPTCHA present, and on which pages?",
+    "AUTH 7/8: Does 'Forgot password' work, and does the reset go to the account's own address?",
+    "AUTH 8/8: Can control be handed back cleanly — no lingering session, no second factor bound to us?"
   ]
 }
