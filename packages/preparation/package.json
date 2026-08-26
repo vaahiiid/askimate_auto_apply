@@ -1,11 +1,10 @@
 {
-  "name": "@askimate/aas-mapping",
+  "name": "@askimate/aas-preparation",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures/portal.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -13,6 +12,7 @@
   "dependencies": {
     "@askimate/aas-blueprint": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-profile": "workspace:*"
   },
   "devDependencies": {

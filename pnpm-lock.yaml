@@ -29,6 +29,9 @@ importers:
       '@askimate/aas-mapping':
         specifier: workspace:*
         version: link:packages/mapping
+      '@askimate/aas-preparation':
+        specifier: workspace:*
+        version: link:packages/preparation
       '@askimate/aas-profile':
         specifier: workspace:*
         version: link:packages/profile
@@ -155,6 +158,25 @@ importers:
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain
+      '@askimate/aas-profile':
+        specifier: workspace:*
+        version: link:../profile
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/preparation:
+    dependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:../blueprint
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@askimate/aas-mapping':
+        specifier: workspace:*
+        version: link:../mapping
       '@askimate/aas-profile':
         specifier: workspace:*
         version: link:../profile

@@ -10,6 +10,7 @@
     { "path": "./packages/interview" },
     { "path": "./packages/extraction" },
     { "path": "./packages/mapping" },
+    { "path": "./packages/preparation" },
     { "path": "./apps/browser-runner" },
     { "path": "./tsconfig.tools.json" }
   ]

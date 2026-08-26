@@ -55,6 +55,20 @@ const RULES: readonly Rule[] = [
       "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
   },
   {
+    packagePath: "packages/preparation",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "playwright",
+    ],
+    rationale:
+      "The preview is what a student authorises, and it is rendered deterministically from the " +
+      "fill plan. A model anywhere near it would mean the student approving a summary of their " +
+      "application rather than the application.",
+  },
+  {
     packagePath: "packages/mapping",
     forbidden: [
       "openai",
