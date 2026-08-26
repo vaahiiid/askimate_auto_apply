@@ -5,6 +5,8 @@
     { "path": "./packages/case-store" },
     { "path": "./packages/profile" },
     { "path": "./packages/documents" },
+    { "path": "./packages/blueprint" },
+    { "path": "./apps/browser-runner" },
     { "path": "./tsconfig.tools.json" }
   ]
 }

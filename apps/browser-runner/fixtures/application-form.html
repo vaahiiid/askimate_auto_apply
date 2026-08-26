@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Postgraduate Application — Step 1 of 3</title></head>
+<body>
+<h1>Postgraduate Application</h1>
+<form action="/apply/submit" method="post" id="applicationForm">
+  <fieldset>
+    <legend>Personal details</legend>
+    <label for="givenName">First name</label>
+    <input type="text" id="givenName" name="given_name" required maxlength="50">
+
+    <label for="familyName">Last name</label>
+    <input type="text" id="familyName" name="family_name" required maxlength="50">
+
+    <label for="dob">Date of birth</label>
+    <input type="date" id="dob" name="date_of_birth" required>
+
+    <label for="email">Email address</label>
+    <input type="email" id="email" name="email" required placeholder="you@example.com">
+
+    <label for="nationality">Nationality</label>
+    <select id="nationality" name="nationality" required>
+      <option value="">Please select</option>
+      <option value="GB">United Kingdom</option>
+      <option value="IR">Iran</option>
+      <option value="IN">India</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Supporting documents</legend>
+    <label for="transcript">Academic transcript</label>
+    <input type="file" id="transcript" name="transcript" accept=".pdf,.jpg,.png" required>
+
+    <label for="passport">Passport photo page</label>
+    <input type="file" id="passport" name="passport" accept=".pdf,.jpg" required>
+
+    <label for="statement">Personal statement</label>
+    <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
+  </fieldset>
+
+  <input type="hidden" name="csrf_token" value="should-not-appear-in-blueprint">
+  <button type="submit" id="continueBtn">Save and continue</button>
+</form>
+
+<script>
+  // A portal that tries to register a partial application on page load.
+  // This is the exact behaviour the read-only guard exists to stop.
+  fetch("/apply/track", { method: "POST", body: JSON.stringify({ started: true }) })
+    .then(function () { document.title = "TRACKED"; })
+    .catch(function () { /* blocked, as intended */ });
+</script>
+</body>
+</html>

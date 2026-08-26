@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // This app is the ONE place that legitimately contains code running inside
+    // a browser page (observe-script.ts is serialised and evaluated there), so
+    // it needs DOM types. No other package gets them — a domain package
+    // reaching for `document` should not compile.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/blueprint" }]
+}

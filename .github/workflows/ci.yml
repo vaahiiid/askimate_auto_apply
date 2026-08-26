@@ -61,6 +61,12 @@ jobs:
         # (brief §8).
         run: pnpm run boundaries
 
+      - name: Install Chromium for the browser runtime
+        # apps/browser-runner tests the read-only guard against real Chromium
+        # (ADR-0014). Asserting that property in a comment is not enough — a
+        # portal's own JavaScript is what the guard exists to stop.
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Tests
         run: pnpm run test
 
