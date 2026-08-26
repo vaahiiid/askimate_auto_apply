@@ -61,6 +61,8 @@ export interface ReadOnlySession {
   goto(url: string): Promise<void>;
   /** Reads the page's structure. */
   observe(): Promise<PageObservation>;
+  /** Absolute in-page links. Reads hrefs; does not click anything. */
+  links(): Promise<readonly string[]>;
   /** Captures a screenshot into the run's trace directory. */
   screenshot(name: string): Promise<string>;
   currentUrl(): Promise<string>;

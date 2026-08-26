@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "boundaries": "tsx scripts/check-boundaries.ts",
     "walkthrough": "tsx scripts/walkthrough.ts",
+    "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean"
   },

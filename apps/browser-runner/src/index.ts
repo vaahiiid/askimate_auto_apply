@@ -36,3 +36,6 @@ export {
   validationsOf,
 } from "./discovery.js";
 export { OBSERVE_SCRIPT } from "./observe-script.js";
+
+export type { DiscoveryTarget } from "./target.js";
+export { InvalidTargetError, parseTarget, shouldFollow } from "./target.js";

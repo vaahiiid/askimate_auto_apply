@@ -18,8 +18,8 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 | | |
 |---|---|
 | **Phase** | 3 — Browser runtime and discovery |
-| **Status** | ⚠️ Runtime built and verified · **live discovery blocked by network egress** |
-| **Tests** | 375 passing · typecheck, lint and boundary checks green |
+| **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
+| **Tests** | 390 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)

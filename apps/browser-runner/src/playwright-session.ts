@@ -69,6 +69,23 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
 
     await session.#context.tracing.start({ screenshots: true, snapshots: true, sources: false });
 
+    // ── esbuild helper shim ──────────────────────────────────────────────
+    //
+    // Functions passed to page.evaluate() are serialised and re-evaluated in
+    // the browser. TypeScript runners built on esbuild (tsx, and bundlers in
+    // general) rewrite named functions to reference a `__name` helper, which
+    // exists in the Node module scope but NOT in the page — so the serialised
+    // function throws "__name is not defined" the moment it runs.
+    //
+    // Found by running the CLI, not by the tests: vitest's transform does not
+    // inject the helper, so the unit tests passed while the real entry point
+    // failed on its first page. Shimmed as a no-op rather than restructuring
+    // every in-page function into a string, which would cost all type checking
+    // inside them.
+    await session.#context.addInitScript({
+      content: "globalThis.__name = globalThis.__name || function (f) { return f; };",
+    });
+
     // ── THE GUARD ────────────────────────────────────────────────────────
     // Every request, including ones the page's own scripts initiate.
     await session.#context.route("**/*", async (route) => {
@@ -113,6 +130,14 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
       candidateAdvanceControls: observed.candidateAdvanceControls,
       observedAt: this.#now(),
     };
+  }
+
+  public async links(): Promise<readonly string[]> {
+    return this.#requirePage().evaluate(() =>
+      [...document.querySelectorAll("a[href]")]
+        .map((anchor) => (anchor as HTMLAnchorElement).href)
+        .filter((href) => href.startsWith("http")),
+    );
   }
 
   public async screenshot(name: string): Promise<string> {

@@ -1,0 +1,60 @@
+{
+  "$comment": [
+    "A discovery target. DATA, not code — adding a university is editing a file like this,",
+    "which is what brief §3.2 requires.",
+    "",
+    "seedUrls are entry points only. Discovery follows in-scope links from them, bounded by",
+    "allowedHosts, linkPatterns and maxPages. It is read-only throughout: the runner cannot",
+    "fill, click or submit (ADR-0014).",
+    "",
+    "ROUTE STATUS: apply.qahighereducation.com is a HYPOTHESIS from search results, not a",
+    "verified fact. Confirming or refuting it is the first job of this run."
+  ],
+
+  "targetId": "ulster-birmingham-msc-ib-2026-09",
+  "institutionName": "Ulster University",
+  "campus": "Birmingham",
+  "courseName": "MSc International Business",
+  "intake": "2026-09",
+  "route": "partner_portal",
+  "platformHypothesis": "salesforce_experience_cloud",
+
+  "routeNotes": [
+    "Ulster Birmingham is a branch campus: validated by Ulster University, taught by QA Higher",
+    "Education. Admissions therefore run on the teaching partner's systems, NOT on Ulster's own",
+    "Banner portal (srssb.ulster.ac.uk). Verifying this is the primary objective."
+  ],
+
+  "allowedHosts": [
+    "qahighereducation.com",
+    "ulster.ac.uk"
+  ],
+
+  "seedUrls": [
+    "https://qahighereducation.com/partner-institutions/ulster-university/",
+    "https://apply.qahighereducation.com/s/login/",
+    "https://www.ulster.ac.uk/study/postgraduate/apply"
+  ],
+
+  "linkPatterns": [
+    "appl(y|ication)",
+    "how-to-apply",
+    "entry-requirement",
+    "admission",
+    "international-business",
+    "postgraduate",
+    "birmingham"
+  ],
+
+  "maxPages": 25,
+
+  "claimsToVerify": [
+    "Applications for the Birmingham campus are handled at apply.qahighereducation.com, not by Ulster's own system",
+    "The portal platform is Salesforce Experience Cloud",
+    "Whether an account must be created before the application form is visible",
+    "IELTS 6.0 with no band below 5.5",
+    "Applicants must be 18 at course start (RELEVANT TO ADR-0011/0013 — verify before relying on it)",
+    "Required documents: transcripts, certified translations, English test certificate",
+    "Whether the September 2026 intake is open and its deadline"
+  ]
+}
