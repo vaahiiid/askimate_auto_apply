@@ -19,13 +19,18 @@ const NOW = new Date("2026-08-26T12:00:00Z");
 const BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 
 /**
- * A deliberately PARTIAL schedule: passports are configured, bank statements
- * are not. The gap is the point — it is what the refusal tests exercise.
+ * A deliberately PARTIAL schedule.
+ *
+ * Passports are configured. Bank statements are not configured at all, and
+ * academic transcripts are recorded as UNRESOLVED — someone looked and could
+ * not responsibly say. Both gaps are the point: they are what the refusal
+ * tests exercise, and they refuse for different reasons.
  */
 const SCHEDULE: RetentionSchedule = {
   version: "test-1",
   approvedAt: new Date("2026-08-01T00:00:00Z"),
   approvedBy: "data_protection_owner",
+  effectiveFrom: new Date("2026-08-01T00:00:00Z"),
   policies: [
     {
       documentType: "passport",
@@ -35,6 +40,26 @@ const SCHEDULE: RetentionSchedule = {
       action: "delete",
       erasureBehaviour: "full",
       policyReference: "AAS-RET-001",
+      basis: {
+        kind: "policy_decision",
+        statement: "Test fixture. Not a determination and not a period anyone approved.",
+        authoritativeSource: "AAS test fixture",
+        verifiedBy: "test",
+        verifiedAt: new Date("2026-08-01T00:00:00Z"),
+      },
+      reviewBy: new Date("2027-08-01T00:00:00Z"),
+    },
+  ],
+  unresolved: [
+    {
+      documentType: "academic_transcript",
+      purpose: "application_submission",
+      question: "How long after a decision must a transcript be kept?",
+      authoritativeSourceNeeded: "The university's own published records-retention requirement",
+      expectedBasisKind: "operational_requirement",
+      owner: "data_protection_owner",
+      raisedBy: "test",
+      raisedAt: new Date("2026-08-01T00:00:00Z"),
     },
   ],
 };

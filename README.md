@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 5 — Fill · validate · preview · authorise |
 | **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 620 passing · typecheck, lint and boundary checks green |
+| **Tests** | 638 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
@@ -36,6 +36,7 @@ pnpm run interview-demo # watch the agent interview a student conversationally
 pnpm run extraction-demo # watch a document be read — and a fabricated reading be discarded
 pnpm run end-to-end     # 🎯 the whole chain, against a replay of a discovered portal
 pnpm run verify-bedrock # what this AWS account can actually use — read-only, picks nothing
+pnpm run retention-status # what could be stored today, and what is waiting on whom
 pnpm run discover <target.json>          # read-only portal discovery
 pnpm run inspect-discovery <run-dir>     # read a discovery run and say what it means
 ```
@@ -242,6 +243,13 @@ into the orchestration engine — adding the second university is a data exercis
   of birth raises the question; only a document-verified one answers it. What a minor's application
   requires is *determined*, never assumed.
   See [ADR-0011](./docs/decisions/0011-minor-detection-and-the-minor-workflow.md).
+- **A retention period is determined from a source, or recorded as unresolved — never invented.**
+  Every policy carries a basis (legal requirement / operational requirement / our own policy
+  decision), a citable source, and who read it. `"TODO"` and its dozen synonyms are refused. An
+  unresolved requirement is first-class, owned by a named person, names the source that answers it,
+  and **blocks storage exactly as a missing policy does**.
+  See [ADR-0023](./docs/decisions/0023-retention-periods-are-determined-not-invented.md) and the
+  [analysis](./docs/retention-analysis.md).
 - **No document is stored without a configured retention policy.** There is no default and no
   fallback to "keep indefinitely" — an unconfigured document type fails loudly at storage time.
   See [ADR-0010](./docs/decisions/0010-policy-driven-document-retention.md).

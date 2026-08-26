@@ -44,5 +44,6 @@ ADR status uses exactly that vocabulary:
 | [0020](./0020-the-account-belongs-to-the-student.md) | The account belongs to the student, and control is handed back | Accepted |
 | [0021](./0021-application-requirements-are-not-visa-requirements.md) | University application requirements are not Student visa requirements | Accepted |
 | [0022](./0022-a-document-in-the-vault-is-not-permission-to-send-it.md) | A document in the vault is not permission to send it | Accepted |
+| [0023](./0023-retention-periods-are-determined-not-invented.md) | Retention periods are determined from a source, or recorded as unresolved | Accepted |
 
-All twenty-two are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+All twenty-three are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

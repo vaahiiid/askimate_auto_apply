@@ -1,0 +1,148 @@
+{
+  "version": "0.2026-08-26",
+  "approvedAt": "2026-08-26T00:00:00Z",
+  "approvedBy": "UNAPPROVED — this version exists to record what is open, not to permit storage",
+  "effectiveFrom": "2026-08-26T00:00:00Z",
+
+  "_note": [
+    "VERSION 0 CONFIGURES NO RETENTION PERIODS, AND THAT IS THE POINT.",
+    "",
+    "Every entry below is UNRESOLVED. Nothing can be stored under this version, which is the",
+    "correct state until someone with the relevant competence reads the named sources and",
+    "decides. See docs/retention-analysis.md for the reasoning and the framework.",
+    "",
+    "UK GDPR does not prescribe retention periods for any of these document types. Article",
+    "5(1)(e) requires that personal data be kept no longer than is necessary for the purposes,",
+    "and Article 5(2) requires the controller to be able to demonstrate that. So the period is",
+    "ours to justify — which is a heavier duty than being handed a number, not a lighter one.",
+    "",
+    "These entries were raised by Claude, which COULD NOT READ ANY OF THE NAMED SOURCES: the",
+    "build environment blocks ico.org.uk, legislation.gov.uk and gov.uk. Each 'expectedBasisKind'",
+    "is a reading of where the answer is likely to come from, and is marked as a reading."
+  ],
+
+  "policies": [],
+
+  "unresolved": [
+    {
+      "documentType": "passport",
+      "purpose": "identity_verification",
+      "question": "How long may a passport scan be kept after it has served identity verification for an application? Is there any period beyond 'until the application is decided' that we can justify, and if so on what grounds?",
+      "authoritativeSourceNeeded": "ICO Guide to UK GDPR — Principles — Storage limitation (ico.org.uk), read against our actual purpose; plus a decision on whether defending a claim under Limitation Act 1980 s.5 is a purpose we are relying on",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "national_id",
+      "purpose": "identity_verification",
+      "question": "As passport. Does a national ID carry any additional condition, for example where it reveals data that is special category in context?",
+      "authoritativeSourceNeeded": "ICO storage limitation guidance; plus DPA 2018 Schedule 1 on whether an appropriate policy document is required for the condition relied on",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "academic_transcript",
+      "purpose": "application_submission",
+      "question": "How long after a decision must a transcript be retained — by us, as distinct from by the university? Does the university or QA Higher Education require us to hold anything, or is our copy purely operational?",
+      "authoritativeSourceNeeded": "The university's / QA Higher Education's own published records-retention requirement or privacy notice, and any contractual terms between Universitio and QA HE",
+      "expectedBasisKind": "operational_requirement",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "degree_certificate",
+      "purpose": "application_submission",
+      "question": "As academic transcript.",
+      "authoritativeSourceNeeded": "The university's / QA Higher Education's published records-retention requirement or privacy notice",
+      "expectedBasisKind": "operational_requirement",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "english_test_certificate",
+      "purpose": "application_submission",
+      "question": "How long after a decision must an English test certificate be retained? Note these have their own validity windows set by the test provider, which is a different question from how long WE may keep the file.",
+      "authoritativeSourceNeeded": "The university's published requirement; and the test provider's own terms where they constrain onward handling",
+      "expectedBasisKind": "operational_requirement",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "personal_statement",
+      "purpose": "application_submission",
+      "question": "The student's own writing. How long do we keep it, and does the answer change if they may reuse it for a later application?",
+      "authoritativeSourceNeeded": "ICO storage limitation guidance, read against a product decision about reuse across applications",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "reference_letter",
+      "purpose": "application_submission",
+      "question": "A reference contains a THIRD PARTY's personal data as well as the student's. How long may it be kept, and what does the referee need to be told?",
+      "authoritativeSourceNeeded": "ICO guidance on third-party data in records and on transparency obligations to people who are not the primary data subject",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "birth_certificate",
+      "purpose": "minor_safeguarding",
+      "question": "Where an applicant is a minor, what retention applies to documents held for safeguarding — and do children's-data considerations shorten it or lengthen it?",
+      "authoritativeSourceNeeded": "ICO Age Appropriate Design Code and ICO guidance on children's personal data; plus whatever the university's own minor-applicant process requires",
+      "expectedBasisKind": "unknown",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "parental_consent",
+      "purpose": "minor_safeguarding",
+      "question": "As birth certificate. A consent record may need to outlive the processing it authorised, in order to evidence it — which points the opposite way from minimisation.",
+      "authoritativeSourceNeeded": "ICO guidance on children's personal data and on demonstrating consent under Article 7(1)",
+      "expectedBasisKind": "unknown",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "guardianship_document",
+      "purpose": "minor_safeguarding",
+      "question": "As parental consent.",
+      "authoritativeSourceNeeded": "ICO guidance on children's personal data; plus legal advice on evidencing guardianship",
+      "expectedBasisKind": "unknown",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "bank_statement",
+      "purpose": "financial_evidence",
+      "question": "OUT OF SCOPE for the first UK application (ADR-0021) — financial evidence is a Student visa requirement, not a university application requirement. Recorded here so that it blocks rather than silently missing, and so the question exists when a route does require it.",
+      "authoritativeSourceNeeded": "GOV.UK Student visa financial evidence guidance, for what the visa route requires; and ICO storage limitation guidance for how long WE may keep a copy",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    },
+    {
+      "documentType": "other",
+      "purpose": "audit_evidence",
+      "question": "Audit records reference document IDs and hashes rather than contents, so this covers only anything held AS a document for audit. How long must the audit trail's own artefacts be kept?",
+      "authoritativeSourceNeeded": "ICO guidance on accountability and records of processing (Article 30); plus our own decision on how long a submission preview must be reproducible",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    }
+  ]
+}
