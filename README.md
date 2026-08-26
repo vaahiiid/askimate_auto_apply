@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 3 — Browser runtime and discovery |
 | **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 390 passing · typecheck, lint and boundary checks green |
+| **Tests** | 410 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -29,6 +29,7 @@ and the [decision records](./docs/decisions/).
 pnpm install
 pnpm run verify        # typecheck · lint · boundaries · tests
 pnpm run walkthrough   # drive one case end to end and watch what happens
+pnpm run interview-demo # watch the agent interview a student conversationally
 ```
 
 `pnpm run walkthrough` is the fastest way to see what has been built: it opens a
@@ -65,6 +66,8 @@ packages/
 │   ├── fields.ts       The canonical field registry, typed
 │   ├── confirmation.ts THE ONLY PLACE ConfirmedValue IS MINTED
 │   └── profile.ts      Confirmed-only writes + the typed resolver
+├── llm/             The ONLY package that may call a model
+├── interview/       Application-aware questioning inside AskiMate Chat
 ├── documents/        The document vault
 │   ├── validity.ts     Deterministic validity — the 31-day window
 │   └── vault.ts        Storage port; refuses without a retention policy

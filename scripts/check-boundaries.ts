@@ -48,6 +48,13 @@ const RULES: readonly Rule[] = [
       "be able to call a model — a value it creates is by definition one a human confirmed.",
   },
   {
+    packagePath: "packages/interview",
+    forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime", "playwright", "express"],
+    rationale:
+      "The interview capability talks to a model only through @askimate/aas-llm (ADR-0004), and " +
+      "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
+  },
+  {
     packagePath: "packages/documents",
     forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime"],
     rationale:
