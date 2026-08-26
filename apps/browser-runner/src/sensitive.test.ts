@@ -262,6 +262,51 @@ describe("the sensitive context refuses tracing", () => {
     }
   }, 60_000);
 
+  it("does NOT start tracing while answering the question", async () => {
+    // ── The regression this pins ──────────────────────────────────────────
+    //
+    // `tracingIsForbidden` used to answer by CALLING `tracing.start()` and
+    // reporting whether it threw. On an ordinary context that started tracing:
+    // a function whose only job is to detect the leak mechanism was switching
+    // it on. It surfaced as an unhandled rejection — "Tracing has been already
+    // started" on the second call, which is only possible if the first one
+    // succeeded.
+    //
+    // The proof that it no longer happens: ask twice, then start tracing for
+    // real. If either question had started it, `start()` here would reject.
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const ordinary = await browser.newContext();
+      expect(tracingIsForbidden(ordinary)).toBe(false);
+      expect(tracingIsForbidden(ordinary)).toBe(false);
+
+      await expect(ordinary.tracing.start({ screenshots: false })).resolves.toBeUndefined();
+      await ordinary.tracing.stop();
+      await ordinary.close();
+    } finally {
+      await browser.close();
+    }
+  }, 60_000);
+
+  it("is not fooled by a context that merely throws from start()", async () => {
+    // The mark is a module-private symbol, so this is the closest an outsider
+    // can get to forging one: replace `start` with something that throws the
+    // right error. It is not enough, and it should not be — a context whose
+    // tracing throws is not the same as a context created without tracing, and
+    // Playwright buffers actions across a stopped trace.
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const ordinary = await browser.newContext();
+      (ordinary.tracing as unknown as Record<string, unknown>)["start"] = (): never => {
+        throw new TracingForbiddenError("start");
+      };
+      expect(tracingIsForbidden(ordinary)).toBe(false);
+      await ordinary.close();
+    } finally {
+      await browser.close();
+    }
+  }, 60_000);
+
   it("says WHY in the error, not just that it is forbidden", () => {
     const error = new TracingForbiddenError("start");
     expect(error.message).toContain("verbatim into trace.trace");

@@ -485,3 +485,90 @@ export function describePlan(plan: AuthenticationPlan): string {
 export function authenticationQuestions(): readonly string[] {
   return Object.values(QUESTIONS);
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// How the student's own password reaches the portal
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Under `student_chosen`, the route the password takes.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-26: *"Could AskiMate ask the student in the chat to
+ * enter/generate a password, and then pass that password directly to the
+ * browser automation layer as an opaque secret, without the AI model ever
+ * being able to read, interpret, store, log, or retrieve the actual
+ * password?"*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Why this is a delivery mechanism and not a fifth approach ─────────────
+ *
+ * The obvious move was to add `student_chosen_via_secure_channel` to `RANKED`
+ * between `portal_issued` and `generated_ephemeral`. It is wrong, and the
+ * reason is worth writing down because it is not obvious until you try it.
+ *
+ * `RANKED` is walked in order and the first supported approach wins. But the
+ * secure channel and bare `student_chosen` have the SAME precondition — the
+ * student is present and the portal lets an applicant choose a password — so a
+ * fifth rank below `student_chosen` could never be reached, and one above it
+ * would silently replace the safer option everywhere. The two are not two
+ * points on one scale. They are two answers to a different question: once we
+ * know the student chooses their own password, **who types it into the
+ * portal's form?**
+ *
+ *   `student_types_into_portal` — they do. They leave the conversation, open
+ *       the portal themselves, and type it there. AskiMate never holds it at
+ *       all, not for an instant. Strictly safer, and it costs a handoff:
+ *       the student has to go and drive a university website.
+ *
+ *   `askimate_secure_channel` — they type it into AskiMate Chat's secure
+ *       control; our automation types it into the portal once and destroys it.
+ *       The model never sees it. AskiMate's browser process holds it for the
+ *       duration of one `fill()`, which is more than never.
+ *
+ * ── The default, and why it is the cautious one ───────────────────────────
+ *
+ * `student_types_into_portal`. Where a student is willing to open the portal
+ * and type a password into its own form, that is better than any mechanism we
+ * could build, because the best mechanism still holds the secret for a moment
+ * and this holds it for none. The secure channel exists for the case the
+ * product is actually built around — the student stays in the conversation —
+ * and choosing it is a decision someone makes, not a default they inherit.
+ */
+export type PasswordDelivery = "student_types_into_portal" | "askimate_secure_channel";
+
+/**
+ * Whether AskiMate's automation ever holds a secret, given both decisions.
+ *
+ * `WE_HOLD_A_SECRET` above answers this for the approach alone and is still
+ * correct for the four ranks. This is the fuller answer, and the reason it is
+ * a separate function is that `student_chosen` is the one approach where the
+ * answer depends on something other than the approach.
+ */
+export function holdsASecret(
+  approach: AuthenticationApproach,
+  delivery: PasswordDelivery,
+): boolean {
+  if (approach === "student_chosen") return delivery === "askimate_secure_channel";
+  return WE_HOLD_A_SECRET[approach];
+}
+
+/**
+ * What the student is told when the secure channel will be used.
+ *
+ * Separate from `creationMiddle`'s `student_chosen` text, which promises *"You
+ * type it, not me — I never see it"*. That promise is true when they type into
+ * the portal and would be a lie here: our automation does type it. So this
+ * says what actually happens, including the part a student would want to know
+ * — that the password is theirs afterwards and we do not keep it.
+ */
+export function describeSecureChannel(portalHost: string): string {
+  return (
+    `This portal asks you to choose your own password. I will show you a password box in this ` +
+    `chat — not an ordinary message, a proper password field — and what you type there goes ` +
+    `straight to the part of me that fills in forms. It is used once, to set up your account on ` +
+    `${portalHost}, and then it is gone: it is not saved, not written to any log, and the part ` +
+    `of me you are talking to right now never gets to see it. The password stays yours, and you ` +
+    `sign in with it afterwards.`
+  );
+}

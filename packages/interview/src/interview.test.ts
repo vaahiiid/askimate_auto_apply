@@ -12,6 +12,7 @@ import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm"
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 import { emptyProfile, resolveField } from "@askimate/aas-profile";
 
+import { FIELD_SPECS } from "./field-specs.js";
 import type { InterviewState } from "./interview.js";
 import {
   MAX_ATTEMPTS_PER_FIELD,
@@ -278,5 +279,56 @@ describe("a full conversation, end to end", () => {
 
     // And the run's model cost is measured, not estimated.
     expect(metered.usage.calls).toBeGreaterThan(0);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The interview never asks for a credential
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("what the interview is not allowed to ask for", () => {
+  /**
+   * ═════════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-08-26: *"Never ask 'What is your password?' in ordinary
+   * conversational text."*
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Nobody is going to write `askStudent("what is your password?")` on
+   * purpose. What happens instead is that the password becomes ONE MORE FIELD
+   * in an interview that already asks fifteen questions, because that is the
+   * path of least resistance and the interview already works. The student
+   * types it as a chat message, it lands in the transcript, the transcript
+   * goes to the model as context on the next turn, and it is now somewhere
+   * nobody can get it out of.
+   *
+   * A password is collected through `RunStep.request_secret` and AskiMate
+   * Chat's own secure control — a different type, a different code path, and
+   * no function that converts one into the other. This test is the tripwire on
+   * the easy mistake.
+   */
+  const CREDENTIAL_WORDS = [
+    "password",
+    "passcode",
+    "credential",
+    "pin",
+    "secret",
+    "security question",
+    "security answer",
+    "one-time code",
+    "otp",
+  ];
+
+  it("has no field spec that is a credential", () => {
+    const offending = Object.entries(FIELD_SPECS).filter(([key, spec]) => {
+      const text = `${key} ${spec.rationale} ${spec.expectedShape}`.toLowerCase();
+      return CREDENTIAL_WORDS.some((word) => text.includes(word));
+    });
+    expect(offending.map(([key]) => key)).toEqual([]);
+  });
+
+  it("still asks for the things it SHOULD, so this is not passing by emptiness", () => {
+    // A tripwire over an empty list is not a tripwire.
+    expect(Object.keys(FIELD_SPECS).length).toBeGreaterThan(3);
+    expect(Object.keys(FIELD_SPECS)).toContain("identity.given_name");
   });
 });

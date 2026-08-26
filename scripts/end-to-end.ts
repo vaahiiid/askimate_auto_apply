@@ -514,6 +514,23 @@ async function main(): Promise<void> {
       continue;
     }
 
+    if (step.kind === "request_secret") {
+      // Unreachable in this demo — the fixture portal needs no account, so no
+      // password is ever asked for. Handled rather than ignored for the same
+      // reason as the account steps below: falling through to "where this
+      // stops" would report a completed application that had not happened.
+      //
+      // Note what is printed. The step carries metadata and an explanation,
+      // and there is no field on it that could hold a password even if this
+      // demo tried to print one.
+      console.log(`\n  ${AMBER}PASSWORD${RESET}  ${step.say}`);
+      console.log(
+        `  ${DIM}secure control · ${step.request.purpose} · ${step.request.target.host} · ` +
+          `single-use · ${String(step.request.ttlSeconds)}s${RESET}`,
+      );
+      return;
+    }
+
     if (step.kind === "create_account" || step.kind === "student_handoff") {
       // The fixture portal has no login, so these are unreachable here. They
       // are handled rather than ignored because the REAL portal does, and a

@@ -47,6 +47,15 @@ import type { Browser, BrowserContext } from "playwright";
 export type { RedactedValue } from "@askimate/aas-domain";
 export { redact, sameRedacted } from "@askimate/aas-domain";
 
+/**
+ * The private mark `openSensitiveContext` leaves and `tracingIsForbidden`
+ * reads.
+ *
+ * A symbol rather than a string key, and never exported, so nothing outside
+ * this module can forge it — including the tests, which is the point.
+ */
+const FORBIDDEN = Symbol("askimate.tracing.forbidden");
+
 /** Thrown when something tries to start tracing on a sensitive context. */
 export class TracingForbiddenError extends Error {
   public override readonly name = "TracingForbiddenError";
@@ -92,27 +101,61 @@ export async function openSensitiveContext(
   // Replacing the methods rather than trusting nobody calls them. A future
   // change that adds `tracing.start()` here fails loudly on the first run
   // instead of silently writing personal data to disk.
-  const tracing = context.tracing as unknown as Record<string, unknown>;
-  tracing["start"] = (): never => {
+  const tracing = context.tracing as unknown as Record<PropertyKey, unknown>;
+  const start = (): never => {
     throw new TracingForbiddenError("start");
   };
-  tracing["startChunk"] = (): never => {
+  const startChunk = (): never => {
     throw new TracingForbiddenError("startChunk");
   };
+  tracing["start"] = start;
+  tracing["startChunk"] = startChunk;
   // `stop` stays callable and does nothing, so a shared teardown path that
   // calls it does not have to know which kind of context it holds.
   tracing["stop"] = async (): Promise<void> => Promise.resolve();
   tracing["stopChunk"] = async (): Promise<void> => Promise.resolve();
 
+  // The mark `tracingIsForbidden` reads. Non-enumerable and non-writable, and
+  // keyed by a symbol that never leaves this module — so nothing outside can
+  // set it, and nothing that walks the object's keys will see it.
+  Object.defineProperty(tracing, FORBIDDEN, {
+    value: { start, startChunk },
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
   return context;
 }
 
-/** Whether a context has had its tracing disabled by `openSensitiveContext`. */
+/**
+ * Whether a context has had its tracing disabled by `openSensitiveContext`.
+ *
+ * ── This used to be a probe, and the probe was the bug ────────────────────
+ *
+ * The first version answered the question by CALLING `context.tracing.start()`
+ * and reporting whether it threw. On a sensitive context that is harmless —
+ * the replacement throws before doing anything. On an ordinary context it is
+ * the opposite of harmless: **it starts tracing.** A function whose whole job
+ * is to detect the leak mechanism was switching it on, and then returning
+ * `false` as though it had merely observed something.
+ *
+ * It was found by an unhandled rejection in the test that checks an ordinary
+ * context is refused: the second call reported "Tracing has been already
+ * started", which is only possible if the first call started it. The real
+ * `start()` is async, so the rejection also escaped the `try` entirely and the
+ * function would have returned `false` either way — right answer, wrong
+ * reason, wrong side effects.
+ *
+ * So the check reads a mark instead, and touches nothing. The mark is keyed by
+ * a module-private symbol, is non-enumerable and non-writable, and carries the
+ * identities of the two functions that were installed — so a context that was
+ * marked and then had `start` quietly restored fails the identity check rather
+ * than passing on the strength of the mark alone.
+ */
 export function tracingIsForbidden(context: BrowserContext): boolean {
-  try {
-    (context.tracing as unknown as { start: () => void }).start();
-    return false;
-  } catch (error) {
-    return error instanceof TracingForbiddenError;
-  }
+  const tracing = context.tracing as unknown as Record<PropertyKey, unknown>;
+  const mark = tracing[FORBIDDEN] as { start: unknown; startChunk: unknown } | undefined;
+  if (mark === undefined) return false;
+  return tracing["start"] === mark.start && tracing["startChunk"] === mark.startChunk;
 }

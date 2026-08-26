@@ -60,5 +60,15 @@ export { OBSERVE_SCRIPT } from "./observe-script.js";
 export type { CaptureIndex, CapturedPage, ReplayServer } from "./replay.js";
 export { startReplayServer } from "./replay.js";
 
+export type { SensitiveContextOptions } from "./sensitive.js";
+export { TracingForbiddenError, openSensitiveContext, tracingIsForbidden } from "./sensitive.js";
+
+export {
+  SecretIntoTracedContextError,
+  SecretNotAcceptedError,
+  fillSecret,
+  untracedPageConsumer,
+} from "./secret-fill.js";
+
 export type { DiscoveryTarget } from "./target.js";
 export { InvalidTargetError, parseTarget, shouldFollow } from "./target.js";

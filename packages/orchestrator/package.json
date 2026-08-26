@@ -18,7 +18,8 @@
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-preparation": "workspace:*",
-    "@askimate/aas-profile": "workspace:*"
+    "@askimate/aas-profile": "workspace:*",
+    "@askimate/aas-secrets": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^2.1.8"

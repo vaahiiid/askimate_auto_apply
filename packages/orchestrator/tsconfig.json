@@ -11,6 +11,7 @@
     { "path": "../llm" },
     { "path": "../mapping" },
     { "path": "../preparation" },
-    { "path": "../profile" }
+    { "path": "../profile" },
+    { "path": "../secrets" }
   ]
 }

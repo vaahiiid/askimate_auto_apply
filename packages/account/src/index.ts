@@ -17,12 +17,15 @@ export type {
   CredentialMint,
   CredentialRefusal,
   ObservedPortalAuthentication,
+  PasswordDelivery,
   PortalAuthFact,
 } from "./authentication.js";
 export {
   authenticationQuestions,
   chooseApproach,
   describePlan,
+  describeSecureChannel,
+  holdsASecret,
   mintCredentialUnder,
 } from "./authentication.js";
 

@@ -174,6 +174,41 @@ const RULES: readonly Rule[] = [
       "is involved (brief §2.4). It must not be able to ask a model whether a document is stale.",
   },
   {
+    packagePath: "packages/llm",
+    forbidden: [
+      "@askimate/aas-secrets",
+      "@askimate/aas-account",
+      "@askimate/aas-profile",
+      "@askimate/aas-case-store",
+      "playwright",
+    ],
+    rationale:
+      "The model package must have NO route to a student's password. Not a redacted one, not a " +
+      "handle it could resolve — none (ADR-0026). @askimate/aas-secrets holds the only plaintext " +
+      "in the system and @askimate/aas-account holds EphemeralCredential; a dependency on either " +
+      "would put a resolver inside the one package that talks to a language model.",
+  },
+  {
+    packagePath: "packages/secrets",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "@askimate/aas-profile",
+      "@askimate/aas-case-store",
+      "playwright",
+      "pg",
+      "drizzle-orm",
+    ],
+    rationale:
+      "The reverse direction of the same rule, and the more important one. The store holds live " +
+      "plaintext; a model SDK here would be a password one prompt away from a provider, a " +
+      "database driver would be a way to persist one, and @askimate/aas-profile would be a way " +
+      "for a password to become a ConfirmedValue and appear in a submission preview (ADR-0026).",
+  },
+  {
     packagePath: "apps/browser-runner",
     forbidden: [
       "@askimate/aas-case-store",
@@ -272,6 +307,70 @@ function main(): void {
     checked += 1;
   }
   console.log(`  ✓  sensitive fill path — no tracing, no video recording`);
+
+  // ── The model package cannot even NAME the secret store ────────────────
+  //
+  // The manifest rule above catches a declared dependency. This catches the
+  // other route: a deep relative import that reaches across the workspace
+  // without ever appearing in a package.json.
+  //
+  // Checked by reading every source file rather than by trusting the manifest,
+  // because `import "../../secrets/src/store.js"` resolves perfectly well and
+  // pnpm never hears about it.
+  const LLM_FORBIDDEN_IMPORTS = [
+    "aas-secrets",
+    "secrets/src",
+    "aas-account",
+    "account/src/credential",
+    "EphemeralCredential",
+    "InMemorySecretStore",
+    "useSecret",
+    "getSecret",
+  ];
+  const llmSources = existsSync("packages/llm/src")
+    ? readdirSync("packages/llm/src").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of llmSources) {
+    const source = readFileSync(join("packages/llm/src", name), "utf8");
+    for (const forbidden of LLM_FORBIDDEN_IMPORTS) {
+      if (!source.includes(forbidden)) continue;
+      violations.push(
+        `packages/llm/src/${name} mentions \`${forbidden}\`. The model package must have no ` +
+          `route to a student's password — no import, no resolver, no named reference it could ` +
+          `later call. See ADR-0026.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  packages/llm — ${String(llmSources.length)} source file(s) name nothing that resolves a secret`,
+  );
+
+  // ── There is no getter, in the package or anywhere above it ────────────
+  //
+  // `useSecret(handle, callback)` is the whole API. A `getSecret` returning a
+  // string would put a live password into a caller's scope, and from there into
+  // their closures, error objects and stack traces. This fails the build if one
+  // ever appears — including in a test, where it would be just as real.
+  const secretSources = existsSync("packages/secrets/src")
+    ? readdirSync("packages/secrets/src").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of secretSources) {
+    const source = readFileSync(join("packages/secrets/src", name), "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    if (/\bgetSecret\b|\bpeekSecret\b|\brevealSecret\b/.test(code)) {
+      violations.push(
+        `packages/secrets/src/${name} defines a secret getter. There is no getter by design: ` +
+          `\`use\` hands the plaintext to a callback and never returns it, so the set of places ` +
+          `a password can reach stays countable (ADR-0026).`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  packages/secrets — no getSecret, in any file`);
 
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 

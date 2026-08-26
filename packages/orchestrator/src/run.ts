@@ -39,10 +39,12 @@ import type {
   AuthenticationApproach,
   AuthenticationPlan,
   ObservedPortalAuthentication,
+  PasswordDelivery,
   PortalAccount,
 } from "@askimate/aas-account";
 import {
   chooseApproach,
+  describeSecureChannel,
   outstandingHandoverItems,
   renderAccountCreationRequest,
   renderHandover,
@@ -52,6 +54,12 @@ import { allFields, checkExecutable } from "@askimate/aas-blueprint";
 import type { StudentId } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
+import type {
+  SecretHandle,
+  SecretLifecycle,
+  SecretRequest,
+  SecretRequestId,
+} from "@askimate/aas-secrets";
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
 import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
@@ -93,6 +101,17 @@ export interface RunInputs {
    * `chooseApproach`.
    */
   readonly studentPresentAtCreation?: boolean;
+  /**
+   * Under `student_chosen`, how the password gets from the student to the
+   * portal.
+   *
+   * Absent means `student_types_into_portal` — the student opens the portal
+   * and types it there, and AskiMate never holds it at all. The secure channel
+   * is chosen deliberately or not at all: it is the option where our
+   * automation holds the secret for the length of one keystroke, and a default
+   * would be that happening because nobody set a field.
+   */
+  readonly passwordDelivery?: PasswordDelivery;
 }
 
 /** Where a run has got to. Immutable; each step returns a new one. */
@@ -111,6 +130,22 @@ export interface RunState {
    * blueprint says authentication is required, is itself a step.
    */
   readonly account?: PortalAccount;
+  /**
+   * Where the student's password has got to, when the secure channel is in
+   * use.
+   *
+   * Four words and a handle, and nothing else. Vahid: *"Orchestration state
+   * may contain secret_requested / secret_received / secret_consumed /
+   * secret_expired — but NEVER the password itself."* `RunState` is passed
+   * around, logged in tests, and would be the obvious place to serialise a
+   * case — so the type here is what stops a password ever being in one.
+   */
+  readonly secret?: {
+    readonly requestId: SecretRequestId;
+    readonly lifecycle: SecretLifecycle;
+    /** Opaque. Resolves to nothing outside the secret store. */
+    readonly handle?: SecretHandle;
+  };
 }
 
 /** What happens next. */
@@ -159,6 +194,23 @@ export type RunStep =
        * which the caller acts on before an account exists.
        */
       readonly approach: AuthenticationApproach;
+    }
+  /**
+   * The student must type a password into AskiMate Chat's SECURE CONTROL.
+   *
+   * Not an interview question, and deliberately a different `RunStep` kind
+   * from `interview`. A chat that treated this as a message to print would
+   * show a heading with no input under it — visibly broken rather than
+   * silently collecting a password into the transcript.
+   *
+   * The `request` carries metadata only: purpose, target, the explanation
+   * shown to the student, single-use, expiry. There is no field on it that
+   * could hold a password, in either direction.
+   */
+  | {
+      readonly kind: "request_secret";
+      readonly say: string;
+      readonly request: SecretRequest;
     }
   /**
    * Only the student can do this: an emailed verification link, an MFA code,
@@ -403,6 +455,21 @@ function accountStepFor(state: RunState): RunStep | null {
     }
 
     const address = unwrapConfirmed(email);
+
+    // ── The password, where the student is providing one through us ───────
+    //
+    // Only under `student_chosen` with the secure channel selected. Under
+    // every other approach there is no password for us to ask for: passwordless
+    // has none, `portal_issued` sends one to the student's own inbox, and
+    // `generated_ephemeral` generates its own and must never ask a student for
+    // theirs.
+    //
+    // This comes BEFORE `create_account` because the automation cannot fill
+    // the registration form without it, and asking afterwards would mean a
+    // half-created account waiting on a password box.
+    const secretStep = secretStepFor(state, authentication.approach, portalHost);
+    if (secretStep !== null) return secretStep;
+
     return {
       kind: "create_account",
       portalHost,
@@ -442,6 +509,64 @@ function accountStepFor(state: RunState): RunStep | null {
   }
 
   return null;
+}
+
+/**
+ * The password step, or `null` when there is no password for us to ask for.
+ *
+ * ── Every condition here is a refusal to ask ──────────────────────────────
+ *
+ * A student being shown a password box is a moment of trust, and the realistic
+ * damage is not a leak — it is asking for one when we did not need it. Someone
+ * who is asked for a university password by a chatbot that did not have to ask
+ * has learned that being asked is normal, which is precisely the lesson a
+ * phishing attempt relies on.
+ *
+ * So: not unless the approach is `student_chosen`, not unless the secure
+ * channel was deliberately selected, and not again once one has been asked
+ * for.
+ */
+function secretStepFor(
+  state: RunState,
+  approach: AuthenticationApproach,
+  portalHost: string,
+): RunStep | null {
+  if (approach !== "student_chosen") return null;
+  if (state.inputs.passwordDelivery !== "askimate_secure_channel") return null;
+
+  const secret = state.secret;
+  if (secret !== undefined && secret.lifecycle !== "secret_expired") {
+    // Asked already. `secret_received` means the automation has what it needs
+    // and the run should carry on to create the account; `secret_requested`
+    // means we are waiting on the student and asking twice would replace a box
+    // they may be typing into. Only an expiry re-opens it.
+    return secret.lifecycle === "secret_requested"
+      ? {
+          kind: "request_secret",
+          say: describeSecureChannel(portalHost),
+          request: secretRequestFor(state, portalHost),
+        }
+      : null;
+  }
+
+  return {
+    kind: "request_secret",
+    say: describeSecureChannel(portalHost),
+    request: secretRequestFor(state, portalHost),
+  };
+}
+
+function secretRequestFor(state: RunState, portalHost: string): SecretRequest {
+  return {
+    studentRef: state.inputs.studentRef,
+    purpose: "portal_account_creation",
+    target: { host: portalHost, caseRef: state.inputs.caseId },
+    explanation: describeSecureChannel(portalHost),
+    singleUse: true,
+    // Five minutes. Long enough to think of a password and type it twice,
+    // short enough that a student who walks away does not leave one live.
+    ttlSeconds: 5 * 60,
+  };
 }
 
 /**

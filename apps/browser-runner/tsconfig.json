@@ -10,5 +10,9 @@
     "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/blueprint" }]
+  "references": [
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/blueprint" },
+    { "path": "../../packages/secrets" }
+  ]
 }

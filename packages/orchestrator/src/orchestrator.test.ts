@@ -757,3 +757,176 @@ describe("a portal that needs an account", () => {
     expect(["create_account", "student_handoff", "hand_over_account"]).not.toContain(step.kind);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// The password, where the student provides one through us
+// ───────────────────────────────────────────────────────────────────────────
+
+/** The same portal, but with the student at their keyboard. */
+const WITH_LOGIN_PRESENT = {
+  ...WITH_LOGIN,
+  studentPresentAtCreation: true,
+} as const;
+
+describe("asking a student for a password", () => {
+  it("does NOT ask unless the secure channel was deliberately chosen", async () => {
+    // The default is `student_types_into_portal` — they open the portal and
+    // type it there, and AskiMate never holds it at all. A run that has not
+    // said otherwise must not produce a password box.
+    const step = await nextStep(runWith(COMPLETE, { ...WITH_LOGIN_PRESENT }), model);
+    expect(step.kind).toBe("create_account");
+  });
+
+  it("does NOT ask under an approach where there is no password to ask for", async () => {
+    // Passwordless: there is no password, so asking for one would be asking a
+    // student to invent a credential nothing will ever use. The realistic harm
+    // is not a leak — it is teaching them that being asked is normal.
+    const passwordless: ObservedPortalAuthentication = {
+      ...OBSERVED_AUTH,
+      passwordlessAvailable: true,
+    };
+    const step = await nextStep(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        portalAuthentication: passwordless,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+      model,
+    );
+    expect(step.kind).toBe("create_account");
+  });
+
+  it("asks through a dedicated control, before creating the account", async () => {
+    const step = await nextStep(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+      model,
+    );
+
+    expect(step.kind).toBe("request_secret");
+    if (step.kind !== "request_secret") expect.unreachable("checked above");
+
+    // Before the account, not after: the automation cannot fill the
+    // registration form without it, and asking afterwards would leave a
+    // half-created account waiting on a password box.
+    expect(step.request.purpose).toBe("portal_account_creation");
+    expect(step.request.target.host).toBe("apply.example.test");
+    expect(step.request.target.caseRef).toBe("case-1");
+    expect(step.request.singleUse).toBe(true);
+    expect(step.request.ttlSeconds).toBe(300);
+  });
+
+  it("tells the student the truth about what happens to it", async () => {
+    const step = await nextStep(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+      model,
+    );
+    if (step.kind !== "request_secret") expect.unreachable("should ask");
+
+    // Not the `student_chosen` script, which promises "You type it, not me — I
+    // never see it". That is true when they type into the portal and would be
+    // a lie here: our automation does type it.
+    expect(step.say).toContain("password box in this chat");
+    expect(step.say).toContain("used once");
+    expect(step.say).toContain("never gets to see it");
+    expect(step.say).not.toContain("You type it, not me");
+  });
+
+  it("carries no field a password could travel in", async () => {
+    const step = await nextStep(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+      model,
+    );
+    if (step.kind !== "request_secret") expect.unreachable("should ask");
+
+    // Metadata only. Every key is decided before the student types anything —
+    // there is no length, no hash, no masked preview, because each of those is
+    // a fact about the password and would travel wherever the step travels,
+    // which includes the model's context.
+    expect(Object.keys(step.request).sort()).toEqual([
+      "explanation",
+      "purpose",
+      "singleUse",
+      "studentRef",
+      "target",
+      "ttlSeconds",
+    ]);
+  });
+
+  it("does not ask a second time while the student is still typing", async () => {
+    // `secret_requested` means a box is open and they may be mid-password.
+    // Asking again would replace it under their fingers.
+    const base = runWith(COMPLETE, {
+      ...WITH_LOGIN_PRESENT,
+      passwordDelivery: "askimate_secure_channel",
+    });
+    const asked: RunState = {
+      ...base,
+      secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_requested" },
+    };
+    expect((await nextStep(asked, model)).kind).toBe("request_secret");
+  });
+
+  it("moves on once the secret has been received", async () => {
+    const base = runWith(COMPLETE, {
+      ...WITH_LOGIN_PRESENT,
+      passwordDelivery: "askimate_secure_channel",
+    });
+    const received: RunState = {
+      ...base,
+      secret: {
+        requestId: "sr_00000000000000000000000000000000" as never,
+        lifecycle: "secret_received",
+        handle: "sh_00000000000000000000000000000000" as never,
+      },
+    };
+    const step = await nextStep(received, model);
+    expect(step.kind).toBe("create_account");
+  });
+
+  it("asks again after an expiry, because there is nothing to spend", async () => {
+    const base = runWith(COMPLETE, {
+      ...WITH_LOGIN_PRESENT,
+      passwordDelivery: "askimate_secure_channel",
+    });
+    const expired: RunState = {
+      ...base,
+      secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_expired" },
+    };
+    expect((await nextStep(expired, model)).kind).toBe("request_secret");
+  });
+
+  it("keeps the password out of the run state, which is what a case record holds", () => {
+    const base = runWith(COMPLETE, {
+      ...WITH_LOGIN_PRESENT,
+      passwordDelivery: "askimate_secure_channel",
+    });
+    const received: RunState = {
+      ...base,
+      secret: {
+        requestId: "sr_00000000000000000000000000000000" as never,
+        lifecycle: "secret_received",
+        handle: "sh_abcdef0123456789abcdef0123456789" as never,
+      },
+    };
+
+    // Three keys. Vahid: *"Orchestration state may contain secret_requested /
+    // secret_received / secret_consumed / secret_expired — but NEVER the
+    // password itself."*
+    expect(Object.keys(received.secret ?? {}).sort()).toEqual([
+      "handle",
+      "lifecycle",
+      "requestId",
+    ]);
+    expect(JSON.stringify(received.secret)).toContain("sh_abcdef");
+    expect(JSON.stringify(received.secret)).toContain("secret_received");
+  });
+});
