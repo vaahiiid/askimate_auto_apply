@@ -22,7 +22,7 @@ pnpm run end-to-end
 That is Stage D from the gap analysis: the milestone I said was the real proof point, reachable
 without an account and without touching anything live. It is reached.
 
-**546 tests.** Typecheck, lint, dependency-boundary checks and CI all green.
+**620 tests.** Typecheck, lint, dependency-boundary checks and CI all green.
 
 ---
 
@@ -78,7 +78,10 @@ button and asserting the fixture server received nothing.
 | **Requirements curation** | A human specialist, through AskiMate's existing knowledge workflow ([ADR-0019](./decisions/0019-requirements-curation-ownership.md)). |
 | **Discovery** | [Runbook](./runbook-discovery-handoff.md) for running it on a machine with network access, and `pnpm run inspect-discovery` to analyse what comes back. |
 | **Account** | [QA Higher Education sandbox request](./qa-higher-education-sandbox-request.md), drafted and ready to send. |
-| **Live run** | [What a controlled live run still needs](./what-a-controlled-live-run-needs.md) — six blockers, two of which are not visible from the Stage D demo. |
+| **Live run** | [What a controlled live run still needs](./what-a-controlled-live-run-needs.md) — five blockers; four are yours. |
+| **Account ownership** | The account is the student's, on their own email, handed back before we finish ([ADR-0020](./decisions/0020-the-account-belongs-to-the-student.md)). |
+| **Uploads** | A document in the vault is not permission to send it ([ADR-0022](./decisions/0022-a-document-in-the-vault-is-not-permission-to-send-it.md)). |
+| **Scope** | Application requirements ≠ visa requirements ([ADR-0021](./decisions/0021-application-requirements-are-not-visa-requirements.md)). |
 
 ## What still needs a decision from you
 
@@ -88,23 +91,17 @@ both come out of looking at what a live run actually requires rather than what t
 shows. They are set out in full in
 [what a controlled live run needs](./what-a-controlled-live-run-needs.md):
 
-### 1. How the student authenticates to the portal
+Both questions from the earlier version are **answered and built**:
 
-The fixture has no login; the real portal does. No student portal password is ever stored and MFA is
-never bypassed, so authentication happens by **session handoff** — and nothing that pauses a browser
-session, hands it to a student, and resumes it has been built. **The run cannot get past the login
-page.**
+- **Authentication** — the account belongs to the student, uses their own confirmed email, and is
+  handed back through the portal's own password-reset flow before our involvement ends
+  ([ADR-0020](./decisions/0020-the-account-belongs-to-the-student.md)). Whether the real portal fits
+  that model is a question for discovery, and the ADR lists what each alternative would change.
+- **Financial evidence** — out of scope for the first UK application
+  ([ADR-0021](./decisions/0021-application-requirements-are-not-visa-requirements.md)), with every
+  existing safety control kept. A university application requirement is not a visa requirement.
 
-Three approaches, differing in how much they generalise. Discovery may narrow the choice. This
-changes what I build next, so I would rather ask than guess.
-
-### 2. Is financial evidence in scope for the first run?
-
-If yes, the **Requirements Service becomes a blocker** rather than a deferrable: a 31-day recency
-window is a `critical` requirement, and the evidence bar will not let a critical requirement through
-on a single source.
-
-### Also outstanding, but mechanical rather than a judgement
+### Outstanding, and mechanical rather than a judgement
 
 - **Bedrock credentials**, so `pnpm run verify-bedrock` can report what is actually available and the
   model choice can be made against stated criteria.

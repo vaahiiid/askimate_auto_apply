@@ -11,9 +11,9 @@ once, for real, safely. Written as a checklist because that is what it is.
 
 ## The short version
 
-**Six things block it. Four are yours, two are mine.**
+**Five things block it. Four are yours, one is mine.**
 
-Everything else on the list is either done or is a decision that follows from those six.
+*(Updated 2026-08-26, later: the authentication model is decided and built.)*
 
 | | Blocker | Whose |
 |---|---|---|
@@ -21,11 +21,11 @@ Everything else on the list is either done or is a decision that follows from th
 | 2 | Specialist review of the blueprint, and a reviewed mapping set | Yours (a specialist) |
 | 3 | Bedrock credentials, then model IDs chosen | Yours |
 | 4 | A sandbox account, or a consenting applicant | Yours |
-| 5 | **Portal authentication handoff** — not built | Mine |
+| 5 | ~~Portal authentication handoff~~ — **decided and built** ([ADR-0020](./decisions/0020-the-account-belongs-to-the-student.md)) | Done |
 | 6 | **A configured retention schedule** — not built, and the vault refuses without it | Yours to decide, mine to implement |
 
-Items 5 and 6 are the two I want to be loudest about, because neither is visible from the Stage D
-demonstration and both are hard stops.
+Item 6 is the one I want to be loudest about: it is not visible from the Stage D demonstration and
+it is a hard stop.
 
 ---
 
@@ -75,35 +75,21 @@ exact list of what to ask for and what to do if they decline.
 
 ---
 
-## 5 · Portal authentication handoff — **not built**
+## 5 · Portal authentication handoff — **decided and built**
 
-This is the gap that does not show up in the Stage D demonstration, because the fixture portal has
-no login.
+The model is settled ([ADR-0020](./decisions/0020-the-account-belongs-to-the-student.md)): the
+account uses the student's own confirmed email, a temporary credential may be generated, and control
+is handed back through the portal's own password-reset flow before our involvement ends.
 
-The real portal requires an account and a login, and the rules are absolute: **no student portal
-passwords are stored**, and MFA, OTP and CAPTCHA are never bypassed. So authentication happens by
-**session handoff** — the student authenticates themselves, and the run continues in the
-authenticated session.
+Built: `packages/account`, and three orchestrator steps — `create_account`, `student_handoff`,
+`hand_over_account`. A case cannot conclude while an account is outstanding, and the system has no
+capability to read a mailbox.
 
-What exists: the domain models it (`HandoffRequested`, `HandoffCompleted`, `AWAITING_HANDOFF`, and
-an `ExecutionCheckpoint` to resume from), and the fill plan reports per-field handoffs.
-
-What does not exist: **anything that actually pauses a browser session, hands it to a student, and
-resumes it.** The orchestrator has no `RunStep` for it. Concretely, the run cannot get past the
-login page.
-
-I have not built it because its shape depends on facts I do not have yet — whether the sandbox
-requires MFA at all, whether the session is cookie-based or token-based, and whether the student is
-sitting next to the specialist or somewhere else entirely. Discovery answers the first two.
-
-**This is a genuine product decision and I would rather ask than guess.** Roughly, the options are:
-
-- **Supervised, one sitting** — the student logs in on a screen the specialist can see, and the run
-  continues. Simplest, fine for one controlled run, does not generalise.
-- **Session handoff proper** — the student authenticates in their own browser and the session is
-  transferred. Generalises, and is more work.
-- **Specialist-assisted** — the specialist drives the login with the student present. Fastest to a
-  first run, and closest to the thing ADR-0008 warns about, so it needs a clear boundary.
+**It remains a model, not a certainty.** If the portal turns out to send its own initial credential
+to the applicant's email, or to require MFA from account creation, or to have the university issue
+accounts rather than applicants creating them, the flow changes. The ADR lists what each would
+change. **Discovery answers it** — and this is now the main thing discovery is for, alongside the
+blueprint.
 
 ## 6 · A retention schedule — **not built, and it is a hard stop**
 
@@ -117,8 +103,8 @@ Nothing is configured. So **the first real document upload will fail**, loudly, 
 
 What is needed is a policy decision per `(document type, purpose)`: how long, from what trigger, and
 delete or anonymise. For the first run that is at minimum passport (identity verification), academic
-transcript and English test certificate (application submission), and bank statement (financial
-evidence) if financial evidence is in scope.
+transcript and English test certificate (application submission). **Not** bank statements —
+financial evidence is out of scope for this application ([ADR-0021](./decisions/0021-application-requirements-are-not-visa-requirements.md)).
 
 Per your earlier instruction I have not invented periods. They follow from ICO guidance, the
 university's own requirements, and the application route — and they are yours to set, not mine to
@@ -128,11 +114,11 @@ assume.
 
 ## What is *not* blocking, and why
 
-Worth listing, so the six above are not lost in a longer list.
+Worth listing, so the blockers above are not lost in a longer list.
 
 | | Status | Why it does not block one controlled run |
 |---|---|---|
-| **Requirements Service** | Not built (gate is) | Only if the run touches a `critical` requirement — financial evidence, a visa rule, anything about a minor. Avoid those for the first run and it does not bite. **If financial evidence is in scope, this blocks.** |
+| **Requirements Service** | Not built (gate is) | Financial evidence is **out of scope** for the first UK application ([ADR-0021](./decisions/0021-application-requirements-are-not-visa-requirements.md)) — a university application requirement is not a visa requirement. So no `critical` requirement is in scope for this run and this does not block it. |
 | **Persistence (Postgres)** | In-memory | A supervised run in one sitting survives it. It does not survive a crash, and it does not survive the student going away for two days to find their passport — so it blocks the *second* run, not the first. |
 | **Escalation transport / specialist console** | Modelled, not built | A human is watching a controlled run, so the alert is "the person in the room notices". |
 | **Learning-loop capture** | Modelled, not wired | Nothing is lost by capturing the first run by hand. |
@@ -149,7 +135,7 @@ Worth listing, so the six above are not lost in a longer list.
 3. Specialist authors + second reviews the mapping set → **usable mapping set**
 4. Bedrock verified, models chosen, extraction spot-checked against a real document
 5. Replay the captured real portal → **run the whole chain against the real portal's pages**, offline
-6. Retention schedule configured; handoff approach decided and built
+6. Retention schedule configured
 7. Account obtained
 8. **Then** the live run — supervised, stopping before submit, with your explicit approval at that
    point
@@ -160,11 +146,16 @@ admissions system.
 
 ---
 
-## Two questions for you
+## Both earlier questions are answered
 
-1. **Which authentication handoff approach** (§5)? It changes what I build next, and I do not want to
-   guess. Discovery may narrow it — if the portal turns out not to require MFA, the answer gets
-   easier.
-2. **Is financial evidence in scope for the first run?** If yes, the Requirements Service moves from
-   "not blocking" to blocking, because a 31-day recency window is a `critical` requirement and the
-   evidence bar will not let it through on one source.
+**Authentication** — decided ([ADR-0020](./decisions/0020-the-account-belongs-to-the-student.md))
+and built. Discovery will say whether the real portal fits the model.
+
+**Financial evidence** — out of scope for the first UK application
+([ADR-0021](./decisions/0021-application-requirements-are-not-visa-requirements.md)), with every
+existing safety control kept.
+
+## What is left, in one line
+
+**A retention schedule, and the four external blockers.** Everything else that can be built without
+the real portal has been.
