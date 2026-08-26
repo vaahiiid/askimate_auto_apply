@@ -19,10 +19,11 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 5 — Fill · validate · preview · authorise |
 | **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 528 passing · typecheck, lint and boundary checks green |
+| **Tests** | 546 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
+**[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the six remaining blockers.
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
 and the [decision records](./docs/decisions/).
@@ -34,6 +35,9 @@ pnpm run walkthrough   # drive one case end to end and watch what happens
 pnpm run interview-demo # watch the agent interview a student conversationally
 pnpm run extraction-demo # watch a document be read — and a fabricated reading be discarded
 pnpm run end-to-end     # 🎯 the whole chain, against a replay of a discovered portal
+pnpm run verify-bedrock # what this AWS account can actually use — read-only, picks nothing
+pnpm run discover <target.json>          # read-only portal discovery
+pnpm run inspect-discovery <run-dir>     # read a discovery run and say what it means
 ```
 
 `pnpm run end-to-end` is the milestone: it discovers a portal read-only, captures every page,

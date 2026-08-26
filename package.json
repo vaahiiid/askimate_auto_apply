@@ -19,6 +19,7 @@
     "extraction-demo": "tsx scripts/extraction-demo.ts",
     "end-to-end": "tsx scripts/end-to-end.ts",
     "verify-bedrock": "tsx scripts/verify-bedrock.ts",
+    "inspect-discovery": "tsx scripts/inspect-discovery.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean"

@@ -22,7 +22,7 @@ pnpm run end-to-end
 That is Stage D from the gap analysis: the milestone I said was the real proof point, reachable
 without an account and without touching anything live. It is reached.
 
-**528 tests.** Typecheck, lint, dependency-boundary checks and CI all green.
+**546 tests.** Typecheck, lint, dependency-boundary checks and CI all green.
 
 ---
 
@@ -34,7 +34,7 @@ Legend: ✅ built and tested · 🟡 partial · ❌ not built
 |---|---|---|---|
 | 1 | **Discovery** | ✅ | Read-only. Now also captures each page for replay. The *live run* is still blocked on egress. |
 | 2 | **Application Blueprint** | ✅ | Draft → specialist review → executable. An unreviewed one cannot drive anything. |
-| 3 | **Requirements** | 🟡 | Model, provenance and the evidence bar are built. **The Requirements Service and its curated content are not** — see below. |
+| 3 | **Requirements** | 🟡 | Model, provenance and the evidence bar are built. **The Requirements Service and its curated content are not** — curation ownership settled in [ADR-0019](./decisions/0019-requirements-curation-ownership.md). |
 | 4 | **Conversational interview** | ✅ | A capability of AskiMate Chat (ADR-0015). No new interface, and none will be built. |
 | 5 | **Confirmed profile** | ✅ | In-memory. Postgres is deferrable and not on the critical path. |
 | 6 | **Documents** | ✅ | Vault, deterministic validity, and extraction with the grounding rule (ADR-0016). |
@@ -70,53 +70,48 @@ button and asserting the fixture server received nothing.
 
 ---
 
+## Since then (2026-08-26, later)
+
+| | |
+|---|---|
+| **Provider** | Amazon Bedrock, approved. Adapter built behind the existing port; **no model chosen** — `pnpm run verify-bedrock` reads what the account can actually use ([ADR-0018](./decisions/0018-amazon-bedrock-as-the-model-provider.md)). |
+| **Requirements curation** | A human specialist, through AskiMate's existing knowledge workflow ([ADR-0019](./decisions/0019-requirements-curation-ownership.md)). |
+| **Discovery** | [Runbook](./runbook-discovery-handoff.md) for running it on a machine with network access, and `pnpm run inspect-discovery` to analyse what comes back. |
+| **Account** | [QA Higher Education sandbox request](./qa-higher-education-sandbox-request.md), drafted and ready to send. |
+| **Live run** | [What a controlled live run still needs](./what-a-controlled-live-run-needs.md) — six blockers, two of which are not visible from the Stage D demo. |
+
 ## What still needs a decision from you
 
-Four, unchanged in substance from the gap analysis. Two of them now gate everything else.
+The four decisions from the earlier version of this document have been **made** — Bedrock, the
+discovery hand-off, requirements curation, and the account approach. Two new ones have surfaced, and
+both come out of looking at what a live run actually requires rather than what the demonstration
+shows. They are set out in full in
+[what a controlled live run needs](./what-a-controlled-live-run-needs.md):
 
-### 1. Model provider and a credential — *gates real conversation quality*
+### 1. How the student authenticates to the portal
 
-Bedrock (draws on the AWS credits) or the Anthropic API direct (cash). Everything is built against
-a port with a deterministic stand-in, so adding the real client is **one adapter and no rework
-anywhere**. Until it is wired in, the interview's phrasing is a stand-in and its quality tells you
-nothing.
+The fixture has no login; the real portal does. No student portal password is ever stored and MFA is
+never bypassed, so authentication happens by **session handoff** — and nothing that pauses a browser
+session, hands it to a student, and resumes it has been built. **The run cannot get past the login
+page.**
 
-### 2. Live portal access — *gates the real Ulster blueprint*
+Three approaches, differing in how much they generalise. Discovery may narrow the choice. This
+changes what I build next, so I would rather ask than guess.
 
-Egress for `apply.qahighereducation.com`, `qahighereducation.com`, `www.ulster.ac.uk` — **or** run
-`pnpm run discover targets/ulster-birmingham-msc-ib-2026.json` on your own machine and send back
-the output directory. Discovery now captures the pages, so what you send back is directly
-replayable and everything downstream can be built against the real portal without any further
-access.
+### 2. Is financial evidence in scope for the first run?
 
-### 3. Who curates requirements — *gates Phase 4 proper*
+If yes, the **Requirements Service becomes a blocker** rather than a deferrable: a 31-day recency
+window is a `critical` requirement, and the evidence bar will not let a critical requirement through
+on a single source.
 
-ADR-0009 requires a human-reviewed knowledge-base entry **and** an official-source check, agreeing
-and fresh, for anything `critical`. A visa rule cannot go live on one source. The gate exists and
-is enforced; what does not exist is the service that fetches, the store that holds curated entries,
-and a person who approves them.
+### Also outstanding, but mechanical rather than a judgement
 
-### 4. Account approach for the eventual live run
-
-Unchanged: ask QA Higher Education for a sandbox (A), fall back to a genuinely consenting real
-applicant (B), and **do not** create a fabricated test account in a live admissions system (C).
-I can draft the sandbox request whenever you want it.
-
----
-
-## What I would do next, in order
-
-1. **Wire the real model client** the moment a provider is chosen. One adapter; unblocks judging
-   whether the conversation is actually good.
-2. **Run discovery against Ulster Birmingham** — by egress or by you running it locally — and
-   build the real blueprint and mapping set for it, reviewed.
-3. **Re-run the end-to-end chain against a replay of the real portal.** Everything is already in
-   place for this; it becomes a data exercise rather than a code one, which is what the
-   architecture was for.
-4. **Then, and only then**, the live run stopping before submit — under option A or B, and with
-   your explicit approval at that point.
-
-Steps 1 and 2 are independent and can happen in either order.
+- **Bedrock credentials**, so `pnpm run verify-bedrock` can report what is actually available and the
+  model choice can be made against stated criteria.
+- **A retention schedule.** The vault refuses to store any document type with no configured policy —
+  no default, no fallback ([ADR-0010](./decisions/0010-policy-driven-document-retention.md)). So the
+  first real upload fails, loudly, by design. The periods follow from ICO guidance and the
+  university's requirements, and per your instruction I have not invented any.
 
 ---
 
