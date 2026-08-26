@@ -76,5 +76,24 @@
     "AUTH 6/8: Is a CAPTCHA present, and on which pages?",
     "AUTH 7/8: Does 'Forgot password' work, and does the reset go to the account's own address?",
     "AUTH 8/8: Can control be handed back cleanly — no lingering session, no second factor bound to us?"
+  ],
+  "inspectUrls": [
+    "https://apply.qahighereducation.com/s/login/SelfRegister?startURL=%2Fs%2Fproduct%2F01tTv00000F73QqIAJ",
+    "https://apply.qahighereducation.com/s/login/",
+    "https://apply.qahighereducation.com/s/login/ForgotPassword"
+  ],
+  "$inspectComment": [
+    "URLs for CONTROLLED INSPECTION mode (pnpm run inspect), not for the read-only crawl.",
+    "",
+    "The first is the exact Birmingham / September 2026 entry point, confirmed from the",
+    "course page qa.ulster.ac.uk/course/msc-international-business/ in the Phase 3 capture:",
+    "a <td>Birmingham</td> immediately followed by its <td><a href=...F73QqIAJ>. The product",
+    "ID binds the campus and intake.",
+    "",
+    "London is 01tTv00000F73QpIAJ and Manchester 01tTv00000F73QrIAJ for September 2026;",
+    "Birmingham January 2027 is 01tTv00000JNcUxIAL.",
+    "",
+    "Inspection RENDERS these pages and reads them. It does not register, sign in, type,",
+    "click, upload or submit — there is no such method on the session."
   ]
 }

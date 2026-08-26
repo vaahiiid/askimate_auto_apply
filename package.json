@@ -24,7 +24,8 @@
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean",
-    "analyse-journey": "tsx scripts/analyse-journey.ts"
+    "analyse-journey": "tsx scripts/analyse-journey.ts",
+    "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",

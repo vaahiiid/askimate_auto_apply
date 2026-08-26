@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Login Template Title</title>
+</head>
+<body>
+<!--
+  A miniature Salesforce Experience Cloud portal.
+
+  Like the real thing, the visible shell contains NOTHING. Every field is
+  drawn by posting an action batch to /s/sfsites/aura. If the guard blocks
+  that POST, this page stays exactly as empty as the real capture did.
+
+  It also tries, on load and without being asked, to do each of the things
+  the inspection mode must prohibit.
+-->
+<div id="auraAppMessage">Loading</div>
+<div id="app">Sorry to interrupt · CSS Error · Refresh</div>
+
+<script>
+const AURA = "/s/sfsites/aura";
+
+/** Posts an Aura action batch the way the real client does: form-encoded. */
+function aura(actions, tag) {
+  const body = new URLSearchParams({
+    message: JSON.stringify({ actions }),
+    "aura.context": JSON.stringify({ mode: "PROD", app: "siteforce:loginApp" }),
+    "aura.token": "undefined",
+  });
+  return fetch(AURA + "?r=" + tag, { method: "POST", body })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error("http " + r.status))))
+    .catch((e) => { window.__blocked = (window.__blocked || []); window.__blocked.push(tag); throw e; });
+}
+
+// ── 8 · The RENDERING batch. This one MUST be allowed. ───────────────────
+//
+// Descriptors taken from the real Phase 3 capture, plus a cacheable Apex
+// call — Salesforce forbids DML in @AuraEnabled(cacheable=true), which is
+// what makes it permissible.
+aura([
+  { descriptor: "serviceComponent://ui.force.components.controllers.hostConfig.HostConfigController/ACTION$getConfigData", params: {} },
+  { descriptor: "serviceComponent://ui.communities.components.aura.components.forceCommunity.richTextComponent.RichTextComponentController/ACTION$getRichText", params: {} },
+  { descriptor: "serviceComponent://applauncher.LoginFormController/ACTION$getForgotPasswordUrl", params: {} },
+  { descriptor: "aura://ApexActionController/ACTION$execute", params: { namespace: "", classname: "SelfRegPageController", method: "getFormFields", params: {}, cacheable: true, isContinuation: false } },
+], "render")
+  .then((data) => { window.__rendered = true; draw(data); })
+  .catch(() => { window.__rendered = false; });
+
+/** Draws the form the render batch returned. The interface we came to see. */
+function draw(data) {
+  const fields = (data && data.fields) || [];
+  const form = document.createElement("form");
+  form.id = "selfRegisterForm";
+  form.method = "post";
+  form.action = "/s/login/SelfRegister";
+  for (const f of fields) {
+    const label = document.createElement("label");
+    label.setAttribute("for", f.id);
+    label.textContent = f.label;
+    const input = document.createElement("input");
+    input.id = f.id;
+    input.name = f.name;
+    input.type = f.type;
+    if (f.required) input.required = true;
+    form.appendChild(label);
+    form.appendChild(input);
+  }
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.textContent = "Sign Up";
+  form.appendChild(submit);
+  document.getElementById("app").textContent = "";
+  document.getElementById("app").appendChild(form);
+  const reset = document.createElement("a");
+  reset.href = "/s/login/ForgotPassword";
+  reset.textContent = "Forgot your password?";
+  document.getElementById("app").appendChild(reset);
+}
+
+// ── 1 · Create an application record. MUST BE BLOCKED. ───────────────────
+aura([{
+  descriptor: "aura://ApexActionController/ACTION$execute",
+  params: { classname: "ApplicationController", method: "createApplication",
+            params: { productId: "01tTv00000F73QqIAJ" }, cacheable: false },
+}], "create").catch(() => {});
+
+// ── 2 · Persist applicant data. MUST BE BLOCKED. ─────────────────────────
+aura([{
+  descriptor: "aura://RecordUiController/ACTION$saveRecord",
+  params: { recordInput: { apiName: "Application__c", fields: { FirstName: "Test" } }, cacheable: false },
+}], "save").catch(() => {});
+
+// ── 6 · Non-cacheable Apex with an innocuous name. MUST BE BLOCKED. ──────
+//
+// The descriptor and method name are deliberately harmless-looking. Only the
+// cacheable flag distinguishes it, which is the rule under test.
+aura([{
+  descriptor: "aura://ApexActionController/ACTION$execute",
+  params: { classname: "PageController", method: "getSettings", params: {}, cacheable: false },
+}], "apex-noncacheable").catch(() => {});
+
+// ── 3 · Submit the application outright. MUST BE BLOCKED. ────────────────
+fetch("/services/apply/submitApplication", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ applicationId: "a0X000000000001" }),
+}).catch(() => {});
+
+// ── 4 · Upload a file. MUST BE BLOCKED. ──────────────────────────────────
+const fd = new FormData();
+fd.append("file", new Blob(["passport bytes"], { type: "application/pdf" }), "passport.pdf");
+fetch("/s/sfsites/aura/upload", { method: "POST", body: fd }).catch(() => {});
+
+// ── 7 · Other write methods. MUST BE BLOCKED. ────────────────────────────
+fetch("/services/data/v60.0/sobjects/Application__c/a0X1", { method: "PATCH", body: "{}" }).catch(() => {});
+fetch("/services/data/v60.0/sobjects/Application__c/a0X1", { method: "DELETE" }).catch(() => {});
+fetch("/services/data/v60.0/sobjects/Application__c", { method: "PUT", body: "{}" }).catch(() => {});
+
+// ── 5 · Navigate somewhere consequential, on a timer. MUST BE BLOCKED. ───
+//
+// Switchable with ?hostileNav=0, because aborting a navigation leaves
+// Chromium on its own error page and BLANKS THE DOM — so with this on, a test
+// cannot also assert what rendered. That is a real hazard, not a fixture
+// quirk: a portal that redirects itself will destroy a capture taken after it.
+// The real runner captures HTML as soon as the render settles for that reason.
+if (!location.search.includes("hostileNav=0")) {
+  setTimeout(() => { window.location.href = "/s/application/submit-confirm"; }, 400);
+}
+</script>
+</body>
+</html>
