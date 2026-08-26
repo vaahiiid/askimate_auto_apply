@@ -17,7 +17,7 @@ export type {
   PreviewResult,
   SubmissionPreview,
 } from "./preview.js";
-export { buildPreview, renderPreview } from "./preview.js";
+export { PreviewSerialisationError, buildPreview, renderPreview } from "./preview.js";
 
 export type {
   AuthorisabilityCheck,

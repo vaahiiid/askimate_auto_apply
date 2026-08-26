@@ -21,6 +21,8 @@
 
 import { createHash } from "node:crypto";
 
+import type { AuditSafeText } from "./audit.js";
+
 export interface RedactedValue {
   readonly length: number;
   /**
@@ -50,7 +52,12 @@ export function sameRedacted(left: RedactedValue, right: RedactedValue): boolean
   return left.length === right.length && left.digest === right.digest;
 }
 
-/** A one-line description for a log or a report. Never the value. */
-export function describeRedacted(value: RedactedValue): string {
-  return `[redacted · ${String(value.length)} chars · ${value.digest}]`;
+/**
+ * A one-line description for a log, a report or an audit record.
+ *
+ * Returns `AuditSafeText`: a shape is exactly what an audit record may carry,
+ * and this is the third of the three ways to produce one.
+ */
+export function describeRedacted(value: RedactedValue): AuditSafeText {
+  return `[redacted · ${String(value.length)} chars · ${value.digest}]` as AuditSafeText;
 }

@@ -100,6 +100,43 @@ export interface SubmissionPreview {
   /** `sha256:…` over the canonical content. */
   readonly contentHash: string;
   readonly hashAlgorithm: "sha256";
+
+  /**
+   * Refuses serialisation. **This is the boundary, not a decoration.**
+   *
+   * A preview holds the student's data in plain text ON PURPOSE: it exists so
+   * they can read exactly what will be sent and authorise it. Redacting it
+   * would make it useless, so the control cannot be redaction — it has to be
+   * *where the plaintext is allowed to go*.
+   *
+   * It may go to the student. It may not go to a log, an event, a trace, a
+   * telemetry payload, a diagnostic dump or an audit record — and the common
+   * route to all of those is `JSON.stringify`, whether called deliberately or
+   * by a logger three layers down.
+   *
+   * So `JSON.stringify(preview)` throws. `renderPreview(preview)` is the way
+   * to get the text, and its name says who it is for.
+   */
+  toJSON(): never;
+}
+
+/**
+ * Thrown when something tries to serialise a preview.
+ *
+ * Named and exported so a caller can catch it deliberately — a test, or a
+ * component that genuinely needs to know it hit the boundary.
+ */
+export class PreviewSerialisationError extends Error {
+  public override readonly name = "PreviewSerialisationError";
+  public constructor() {
+    super(
+      "A submission preview must not be serialised. It holds the student's data in plain text " +
+        "because it exists to be READ BY THEM before they authorise it — that is its purpose and " +
+        "it is not redacted. It must never reach a log, an event, a trace, telemetry, a " +
+        "diagnostic dump or an audit record, and JSON.stringify is the usual route to all of " +
+        "them. Use renderPreview() to show it to the student, or contentHash to reference it.",
+    );
+  }
 }
 
 /** Why a preview could not be built. */
@@ -218,6 +255,12 @@ export function buildPreview(
       handoffs,
       contentHash,
       hashAlgorithm: "sha256",
+      // Non-enumerable, so it does not show up in Object.keys or a spread and
+      // does not change the shape anyone reads — but JSON.stringify finds it,
+      // which is the point.
+      toJSON: (): never => {
+        throw new PreviewSerialisationError();
+      },
     },
   };
 }

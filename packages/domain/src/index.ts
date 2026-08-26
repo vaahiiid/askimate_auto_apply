@@ -239,8 +239,8 @@ export {
   validateSchedule,
 } from "./retention.js";
 
-export type { AuditAction, AuditEntry, AuditOutcome, RedactedDetail } from "./audit.js";
-export { AuditRedactionError, auditEntry } from "./audit.js";
+export type { AuditAction, AuditEntry, AuditOutcome, AuditSafeText, RedactedDetail } from "./audit.js";
+export { AuditRedactionError, auditEntry, auditLabel, auditRef } from "./audit.js";
 
 export type { RedactedValue } from "./redaction.js";
 export { describeRedacted, redact, sameRedacted } from "./redaction.js";

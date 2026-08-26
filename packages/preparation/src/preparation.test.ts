@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
-import { proposeValue, studentId } from "@askimate/aas-domain";
+import { auditRef, proposeValue, studentId } from "@askimate/aas-domain";
+import type { RedactedDetail } from "@askimate/aas-domain";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
@@ -14,7 +15,7 @@ import {
   stillCovers,
 } from "./authorisation.js";
 import type { AuthorisablePreview } from "./authorisation.js";
-import { buildPreview, renderPreview } from "./preview.js";
+import { PreviewSerialisationError, buildPreview, renderPreview } from "./preview.js";
 import type { PreviewDocument, SubmissionPreview } from "./preview.js";
 import { isValid, validatePlan } from "./validate.js";
 
@@ -378,5 +379,56 @@ describe("the ledger", () => {
     const voided = await ledger.void("auth-1", "student_revoked", NOW);
 
     expect(stillCovers(voided, previewFor())).toBe(false);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The preview boundary: plaintext for the student, nowhere else
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("where a submission preview is allowed to go", () => {
+  const built = (): SubmissionPreview => previewFor();
+
+  it("shows the student their own data, in full and unredacted", () => {
+    // The thing that must NOT change. A preview exists so the student can read
+    // exactly what will be sent and authorise it; a redacted one is useless.
+    const text = renderPreview(built());
+    expect(text).toContain("Niloofar");
+    expect(text).toContain("02/04/1999");
+  });
+
+  it("REFUSES JSON.stringify — the usual route into a log", () => {
+    expect(() => JSON.stringify(built())).toThrow(PreviewSerialisationError);
+  });
+
+  it("refuses it nested inside a larger payload, which is how it would happen", () => {
+    // Nobody serialises a preview on purpose. It happens because a preview is
+    // on an object that gets logged — an event, a diagnostic, an error report.
+    expect(() =>
+      JSON.stringify({ caseId: "case-1", step: "authorise", preview: built() }),
+    ).toThrow(PreviewSerialisationError);
+    expect(() => JSON.stringify([built()])).toThrow(PreviewSerialisationError);
+  });
+
+  it("cannot reach an audit record, by type", () => {
+    // Belt as well as braces: even without the throw, a preview is an object
+    // and RedactedDetail takes only AuditSafeText, numbers, booleans and null.
+    // @ts-expect-error a preview is not audit detail.
+    const detail: RedactedDetail = { preview: built() };
+    expect(detail).toBeDefined();
+  });
+
+  it("still exposes contentHash, which is how a preview IS referenced", () => {
+    // The safe reference. An audit record says which preview was authorised
+    // without carrying what was in it.
+    const preview = built();
+    expect(preview.contentHash).toMatch(/^sha256:[0-9a-f]+$/);
+    const detail: RedactedDetail = { previewHash: auditRef(preview.contentHash) };
+    expect(String(detail["previewHash"])).toBe(preview.contentHash);
+  });
+
+  it("says WHY in the error, not just that it is refused", () => {
+    expect(() => JSON.stringify(built())).toThrow(/READ BY THEM/);
+    expect(() => JSON.stringify(built())).toThrow(/renderPreview/);
   });
 });

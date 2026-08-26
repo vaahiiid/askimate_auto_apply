@@ -46,13 +46,70 @@ export type AuditAction =
 export type AuditOutcome = "success" | "failure" | "refused" | "timeout" | "retried";
 
 /**
+ * Text that has been deliberately marked safe to write into an audit record.
+ *
+ * ── Why a plain `string` is not good enough ───────────────────────────────
+ *
+ * This type used to be `string | number | boolean | null`, on the reasoning
+ * that a `ConfirmedValue` is an object and so could not satisfy it. True, and
+ * beside the point: `unwrapConfirmed(value)` is a `string`, and
+ * `{ answer: unwrapped }` type-checked perfectly. The runtime key check below
+ * catches `{ password: … }` but not `{ answer: … }`, because the KEY is
+ * innocuous and the value is somebody's passport number.
+ *
+ * So a string reaching an audit record must now be marked, and there are only
+ * three ways to mark one — none of which a personal value can pass through.
+ */
+declare const AUDIT_SAFE: unique symbol;
+export type AuditSafeText = string & { readonly [AUDIT_SAFE]: true };
+
+/**
+ * Marks a string LITERAL as audit-safe.
+ *
+ * The signature is the control. `string extends T ? never : T` accepts a
+ * literal type — `auditLabel("blueprint_not_executable")` — and rejects
+ * anything whose type has widened to `string`, which is what every runtime
+ * value is. A personal value cannot reach an audit record through here,
+ * because a personal value is never a literal in the source.
+ */
+export function auditLabel<T extends string>(literal: string extends T ? never : T): AuditSafeText {
+  return literal as unknown as AuditSafeText;
+}
+
+/**
+ * Marks an identifier as audit-safe.
+ *
+ * Brief §8: *"Audit records may reference document IDs, not document
+ * contents."* An id is a reference, which is the whole point of one. Accepts
+ * branded ids and opaque reference strings that carry a recognised prefix.
+ */
+export function auditRef(id: string): AuditSafeText {
+  const trimmed = id.trim();
+  if (trimmed.length === 0) {
+    throw new AuditRedactionError("An empty string is not a reference.");
+  }
+  if (trimmed.length > 128) {
+    throw new AuditRedactionError(
+      `A reference of ${String(trimmed.length)} characters is not an identifier — it is content. ` +
+        `Audit records reference data; they do not carry it.`,
+    );
+  }
+  if (/\s/.test(trimmed)) {
+    throw new AuditRedactionError(
+      `"${trimmed.slice(0, 24)}…" contains whitespace, so it is prose rather than an identifier. ` +
+        `Use auditLabel for a fixed phrase, or describeRedacted for a value's shape.`,
+    );
+  }
+  return trimmed as AuditSafeText;
+}
+
+/**
  * Values permitted in audit detail.
  *
- * Deliberately narrow. Note the absence of anything that could carry document
- * contents or a field value: a `ConfirmedValue` is an object and will not
- * satisfy this type, so it cannot be logged even by accident.
+ * Note what is absent: a bare `string`. A `ConfirmedValue` is an object and
+ * never satisfied this; an unwrapped one is a string and did.
  */
-export type RedactedDetail = Readonly<Record<string, string | number | boolean | null>>;
+export type RedactedDetail = Readonly<Record<string, AuditSafeText | number | boolean | null>>;
 
 export interface AuditEntry {
   readonly caseId: CaseId;
