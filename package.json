@@ -23,7 +23,8 @@
     "retention-status": "tsx scripts/retention-status.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
-    "clean": "tsc --build --clean"
+    "clean": "tsc --build --clean",
+    "analyse-journey": "tsx scripts/analyse-journey.ts"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",
