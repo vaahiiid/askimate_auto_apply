@@ -36,6 +36,8 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { chromium } from "playwright";
 
 import { OBSERVE_SCRIPT } from "./observe-script.js";
+import type { LwcObservation } from "./lwc-observe-script.js";
+import { LWC_OBSERVE_SCRIPT } from "./lwc-observe-script.js";
 import type { ActionVerdict } from "./inspection-safety.js";
 import { decideInspectionRequest } from "./inspection-safety.js";
 import { BlockedRequestLog, HostAllowList } from "./safety.js";
@@ -209,6 +211,21 @@ export class PlaywrightInspectionSession implements ReadOnlySession {
       signals: observed.signals,
       observedAt: this.#now(),
     };
+  }
+
+  /**
+   * Reads the page the way a Lightning interface actually presents itself.
+   *
+   * `observe()` is kept because plain-HTML portals still exist and it is what
+   * discovery uses. It reports nothing on an LWC page, for the reason
+   * documented in `lwc-observe-script.ts`: there is no `<form>` to hang
+   * fields off.
+   *
+   * Reads only. It does not open a combobox to see its options; it records
+   * that they are unavailable and why.
+   */
+  public async observeLwc(): Promise<LwcObservation> {
+    return await this.#requirePage().evaluate(LWC_OBSERVE_SCRIPT);
   }
 
   public async links(): Promise<readonly string[]> {

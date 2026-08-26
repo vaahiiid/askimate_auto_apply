@@ -24,6 +24,7 @@ import { dirname, resolve } from "node:path";
 import { PlaywrightInspectionSession } from "./playwright-inspection-session.js";
 import { parseTarget } from "./target.js";
 import type { PageObservation } from "./session.js";
+import type { LwcObservation } from "./lwc-observe-script.js";
 
 function repoRoot(): string {
   let dir = import.meta.dirname;
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
   });
 
   const observations: PageObservation[] = [];
+  const lwcObservations: { url: string; observation: LwcObservation }[] = [];
   const captured: { url: string; file: string }[] = [];
   const failed: { url: string; error: string }[] = [];
 
@@ -152,13 +154,29 @@ async function main(): Promise<void> {
 
         const observation = await session.observe();
         observations.push(observation);
+
+        // The one that can read a Lightning interface. `observe()` is kept
+        // because plain-HTML portals still exist, but on LWC it reports zero
+        // fields for a fully rendered page — see lwc-observe-script.ts.
+        const lwc = await session.observeLwc();
+        lwcObservations.push({ url, observation: lwc });
+
         await session.screenshot(`page-${String(index + 1)}`);
 
-        const fieldCount = observation.forms.reduce((sum, form) => sum + form.fields.length, 0);
+        const required = lwc.controls.filter((control) => control.required).length;
         process.stdout.write(
-          `     ${observation.forms.length} form(s), ${String(fieldCount)} field(s), ` +
-            `${String(observation.signals.length)} signal(s)\n`,
+          `     ${String(lwc.controls.length)} control(s) (${String(required)} required), ` +
+            `${String(lwc.buttons.length)} button(s), ${String(lwc.links.length)} link(s)\n`,
         );
+        for (const control of lwc.controls) {
+          process.stdout.write(
+            `       ${control.kind.padEnd(15)} ${control.required ? "*" : " "} ` +
+              `${control.label || "(no label)"}\n`,
+          );
+        }
+        for (const limitation of lwc.limitations) {
+          process.stdout.write(`       note: ${limitation}\n`);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         failed.push({ url, error: message });
@@ -183,6 +201,7 @@ async function main(): Promise<void> {
           captured,
           failed,
           observations,
+          lwcObservations,
           permittedActions: session.permittedActions,
           refusedActions: session.refusedActions,
           refusedNavigations: session.refusedNavigations,

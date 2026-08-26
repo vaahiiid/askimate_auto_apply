@@ -68,14 +68,14 @@
     "Whether the application form is reachable without an account, or hidden behind a login",
     "Where the submission control is, and what endpoint it posts to",
     "Whether any fields are conditional on earlier answers",
-    "AUTH 1/8: Does the applicant choose their own password at account creation?",
-    "AUTH 2/8: Does the portal generate a credential and send it to the applicant?",
-    "AUTH 3/8: Does the portal offer passwordless sign-in — a magic link, an emailed code, or similar?",
-    "AUTH 4/8: Must the email address be verified before the application form is reachable?",
-    "AUTH 5/8: Is MFA or a one-time code required at any point?",
-    "AUTH 6/8: Is a CAPTCHA present, and on which pages?",
-    "AUTH 7/8: Does 'Forgot password' work, and does the reset go to the account's own address?",
-    "AUTH 8/8: Can control be handed back cleanly — no lingering session, no second factor bound to us?"
+    "ANSWERED YES — two required password fields on the SelfRegister form (insp run 2026-08-26).",
+    "ANSWERED NO — the portal sends a WELCOME email, not a credential; the applicant sets the password.",
+    "NOT OBSERVED — none on the registration page; the login page rendered incompletely, so not ruled out.",
+    "NOT OBSERVED — a welcome email is stated; a blocking verification step is not.",
+    "NOT OBSERVED.",
+    "NOT OBSERVED on the portal itself (present on the WordPress marketing pages).",
+    "PARTIALLY ANSWERED — the page states the reset goes to the personal email on the account. Triggering it is untested.",
+    "NOT OBSERVED — needs an account."
   ],
   "inspectUrls": [
     "https://apply.qahighereducation.com/s/login/SelfRegister?startURL=%2Fs%2Fproduct%2F01tTv00000F73QqIAJ",
@@ -94,6 +94,11 @@
     "Birmingham January 2027 is 01tTv00000JNcUxIAL.",
     "",
     "Inspection RENDERS these pages and reads them. It does not register, sign in, type,",
-    "click, upload or submit — there is no such method on the session."
+    "click, upload or submit — there is no such method on the session.",
+    "",
+    "Registration form observed 2026-08-26: 10 controls, 9 required. Stable locators",
+    "are data-id: firstName, lastName, email, confirmEmail, dateOfBirth, password,",
+    "confirmPassword. The two comboboxes and the marketing checkbox group have none.",
+    "Dropdown OPTIONS are absent from the DOM until opened — still unobserved."
   ]
 }

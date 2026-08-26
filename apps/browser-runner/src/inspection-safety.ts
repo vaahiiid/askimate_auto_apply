@@ -251,28 +251,6 @@ function inspectAuraBody(
     };
   }
 
-  // The whole body, DECODED, before parsing. A consequential payload inside an
-  // innocuous-looking action is caught here regardless of structure.
-  //
-  // Decoding is load-bearing, not tidiness. An Aura body is form-encoded, so
-  // `"saveRecord"` arrives as `%22saveRecord%22` — and `\bsave` finds no word
-  // boundary after `%22`, because `2` is a word character. Scanning the raw
-  // body silently matched nothing at all, which a test caught by asserting a
-  // hidden `saveRecord` payload was refused.
-  const decoded = decodeBody(postData);
-  const bodyHit = CONSEQUENTIAL_PATTERNS.find((pattern) => pattern.test(decoded));
-  if (bodyHit !== undefined) {
-    return {
-      allowed: false,
-      method,
-      url,
-      reason:
-        `Inspection blocked a POST to the render endpoint: the body matches a consequential ` +
-        `pattern (${String(bodyHit)}). Rendering a page does not create, save, submit, register, ` +
-        `authenticate, upload or pay.`,
-    };
-  }
-
   const actions = parseAuraActions(postData);
   if (actions === null) {
     return {
@@ -295,8 +273,40 @@ function inspectAuraBody(
   }
 
   const verdicts = actions.map(judgeAction);
-  const refused = verdicts.filter((verdict) => !verdict.allowed);
 
+  // ── The consequential scan, over the ACTIONS only ───────────────────────
+  //
+  // Scanning the whole request body was wrong, and wrong in the worst
+  // direction: an Aura POST carries `aura.pageURI` — the URL of the page
+  // being rendered. On the page we most needed to inspect that is
+  // `/s/login/SelfRegister`, so `\bselfRegister\b` and `\blogin\b` matched the
+  // page's own address and refused all 17 render batches. The interface drew
+  // anyway from its bootstrap payload, which is why the mistake nearly went
+  // unnoticed — the run reported zero refusals while blocking everything.
+  //
+  // The actions are where a payload would actually live, so that is what is
+  // scanned. The hidden-payload case (a permitted descriptor carrying
+  // `saveRecord` in its params) is still caught, because params are included.
+  const scanned = actions
+    .map((action) => `${action.descriptor} ${JSON.stringify(action.params)}`)
+    .join(" ");
+
+  const bodyHit = CONSEQUENTIAL_PATTERNS.find((pattern) => pattern.test(scanned));
+  if (bodyHit !== undefined) {
+    const matched = bodyHit.exec(scanned)?.[0] ?? "";
+    return {
+      allowed: false,
+      method,
+      url,
+      actions: verdicts,
+      reason:
+        `Inspection blocked a POST to the render endpoint: an action matches a consequential ` +
+        `pattern (${String(bodyHit)} matched "${matched}"). Rendering a page does not create, ` +
+        `save, submit, register, authenticate, upload or pay.`,
+    };
+  }
+
+  const refused = verdicts.filter((verdict) => !verdict.allowed);
   if (refused.length > 0) {
     return {
       allowed: false,
@@ -409,15 +419,6 @@ function judgeAction(action: AuraAction): ActionVerdict {
       `Not on the rendering allow-list. Unknown descriptors are refused rather than assumed ` +
       `harmless — the page renders less and the report says so.`,
   };
-}
-
-/** Best-effort decode. An undecodable body is scanned as-is rather than skipped. */
-function decodeBody(postData: string): string {
-  try {
-    return decodeURIComponent(postData.replace(/\+/g, " "));
-  } catch {
-    return postData;
-  }
 }
 
 function pathOf(url: string): string | null {

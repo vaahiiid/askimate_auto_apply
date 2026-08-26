@@ -382,6 +382,51 @@ describe("the inspection decision, in isolation", () => {
     expect(decision.allowed).toBe(false);
   });
 
+  it("does NOT refuse a render because the page's own URL contains 'SelfRegister'", () => {
+    // The regression that mattered most. An Aura POST carries `aura.pageURI` —
+    // the address of the page being drawn. Scanning the whole body meant
+    // \bselfRegister\b and \blogin\b matched the URL of the very page we came
+    // to inspect, and all 17 render batches on the real portal were refused.
+    // The interface drew anyway from its bootstrap payload, so the run looked
+    // fine while blocking everything.
+    const body = new URLSearchParams({
+      message: JSON.stringify({
+        actions: [
+          { descriptor: "…hostConfig.HostConfigController/ACTION$getConfigData", params: {} },
+        ],
+      }),
+      "aura.pageURI": "/s/login/SelfRegister?startURL=%2Fs%2Fproduct%2F01tTv00000F73QqIAJ",
+      "aura.context": JSON.stringify({ app: "siteforce:loginApp" }),
+    }).toString();
+
+    const decision = decide("POST", "https://example.test/s/sfsites/aura", body);
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("still refuses when the ACTION itself is consequential, URL or no URL", () => {
+    const body = new URLSearchParams({
+      message: JSON.stringify({
+        actions: [{ descriptor: "aura://RecordUiController/ACTION$saveRecord", params: {} }],
+      }),
+      "aura.pageURI": "/s/login/SelfRegister",
+    }).toString();
+    expect(decide("POST", "https://example.test/s/sfsites/aura", body).allowed).toBe(false);
+  });
+
+  it("reports the per-action verdicts even when the batch is refused", () => {
+    // The run said "0 refused batches" while refusing 17, because a body-scan
+    // refusal returned before the actions were parsed. A refusal nobody can
+    // see is indistinguishable from no refusal.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([{ descriptor: "aura://RecordUiController/ACTION$saveRecord", params: {} }]),
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.actions).toBeDefined();
+    expect(decision.actions?.length).toBe(1);
+  });
+
   it("refuses a consequential payload hidden inside a permitted descriptor", () => {
     // The descriptor is on the allow-list. The payload is not what a render
     // carries. The body scan catches what the descriptor check would wave on.
