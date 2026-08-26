@@ -16,8 +16,9 @@
  * does not depend on where it runs.
  */
 
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
 import type { PageObservation } from "./session.js";
@@ -99,22 +100,89 @@ async function discover(target: DiscoveryTarget, outDir: string, runId: string):
   }
 }
 
+/**
+ * Finds the repository root by walking up for the workspace marker.
+ *
+ * `pnpm run discover` runs this with the cwd set to `apps/browser-runner`,
+ * not the repo root, so a path a person naturally types —
+ * `targets/ulster-....json`, because that is where the file is — resolves
+ * against the wrong directory and the run dies before it starts. That is a
+ * five-minute job turned into a support round-trip.
+ */
+function repoRoot(): string {
+  let dir = import.meta.dirname;
+  for (let up = 0; up < 8; up += 1) {
+    if (existsSync(resolve(dir, "pnpm-workspace.yaml"))) return dir;
+    dir = dirname(dir);
+  }
+  return process.cwd();
+}
+
+/**
+ * Resolves what the person typed to a target file.
+ *
+ * Accepts a path relative to the cwd, a path relative to the repo root, a bare
+ * filename in `targets/`, and a bare name with no extension — so `ulster` and
+ * `targets/ulster-birmingham-msc-ib-2026.json` both work. Guessing here is
+ * safe: it either finds the file or lists what exists.
+ */
+function resolveTargetPath(typed: string, root: string): string | null {
+  const candidates = [
+    resolve(typed),
+    resolve(root, typed),
+    resolve(root, "targets", typed),
+    resolve(root, "targets", `${typed}.json`),
+  ];
+  const exact = candidates.find((candidate) => existsSync(candidate));
+  if (exact !== undefined) return exact;
+
+  // Finally, an unambiguous prefix: `ulster` finds
+  // `ulster-birmingham-msc-ib-2026.json`. Only when exactly one matches —
+  // running discovery against the wrong university because two names shared a
+  // prefix would be a bad way to save four keystrokes.
+  const matching = listTargets(root).filter((name) => name.startsWith(typed));
+  return matching.length === 1 ? resolve(root, "targets", matching[0] as string) : null;
+}
+
 async function main(): Promise<void> {
-  const targetPath = process.argv[2];
-  if (targetPath === undefined) {
-    process.stderr.write("Usage: pnpm run discover <target.json>\n");
+  const root = repoRoot();
+  const typed = process.argv[2];
+
+  if (typed === undefined) {
+    process.stderr.write(
+      `Usage: pnpm run discover <target>\n\n` +
+        `Targets available:\n` +
+        listTargets(root)
+          .map((name) => `  ${name}\n`)
+          .join("") +
+        `\nA bare name works: pnpm run discover ulster-birmingham-msc-ib-2026\n`,
+    );
     process.exitCode = 2;
     return;
   }
 
-  const target = parseTarget(JSON.parse(await readFile(resolve(targetPath), "utf8")));
+  const targetPath = resolveTargetPath(typed, root);
+  if (targetPath === null) {
+    process.stderr.write(
+      `No target found for "${typed}".\n\nTargets available:\n` +
+        listTargets(root)
+          .map((name) => `  ${name}\n`)
+          .join(""),
+    );
+    process.exitCode = 2;
+    return;
+  }
+
+  const target = parseTarget(JSON.parse(await readFile(targetPath, "utf8")));
 
   // Deterministic where it matters, but a run needs a real timestamp. This is
   // the one sanctioned clock read in the CLI; everything downstream receives it.
   // eslint-disable-next-line no-restricted-syntax -- run boundary
   const startedAt = new Date();
   const runId = `disc-${target.targetId}-${startedAt.toISOString().replace(/[:.]/g, "-")}`;
-  const outDir = resolve("discovery-runs", runId);
+  // Always under the repo root, never under whichever directory pnpm happened
+  // to set as the cwd. One predictable place to look for the output.
+  const outDir = resolve(root, "discovery-runs", runId);
   await mkdir(resolve(outDir, "pages"), { recursive: true });
 
   process.stdout.write(`\nDiscovery — ${target.institutionName}`);
@@ -180,6 +248,14 @@ async function main(): Promise<void> {
       "No pages were reached. If every URL failed, check network access to the target hosts.\n",
     );
     process.exitCode = 1;
+  }
+}
+
+function listTargets(root: string): readonly string[] {
+  try {
+    return readdirSync(resolve(root, "targets")).filter((name) => name.endsWith(".json"));
+  } catch {
+    return [];
   }
 }
 

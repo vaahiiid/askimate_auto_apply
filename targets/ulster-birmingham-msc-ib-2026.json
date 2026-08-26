@@ -8,12 +8,17 @@
     "fill, click or submit (ADR-0014).",
     "",
     "ROUTE STATUS: apply.qahighereducation.com is a HYPOTHESIS from search results, not a",
-    "verified fact. Confirming or refuting it is the first job of this run.",
+    "verified fact. Confirming or refuting it is the first job of this run. Several seeds are",
+    "guesses and some will 404 — that is fine and cheap. run.json records which failed, and a",
+    "404 on a guessed URL is itself information about the route.",
     "",
     "The eight AUTH claims are the questions ADR-0020's chooseApproach refuses to run without.",
     "They decide whether AskiMate ever holds a credential to this student's university account.",
     "Four of them (2, 3, 7, 8) cannot be answered by reading pages — they need someone to try",
-    "the flow on a portal we are permitted to try it on, which is what the sandbox request is for."
+    "the flow on an account we are permitted to use. That does NOT block this discovery run.",
+    "",
+    "linkPatterns deliberately include login/register/forgot-password, so the crawl reaches the",
+    "pages that evidence the authentication flow. Reaching them is reading them, not using them."
   ],
   "targetId": "ulster-birmingham-msc-ib-2026-09",
   "institutionName": "Ulster University",
@@ -32,9 +37,12 @@
     "ulster.ac.uk"
   ],
   "seedUrls": [
-    "https://qahighereducation.com/partner-institutions/ulster-university/",
     "https://apply.qahighereducation.com/s/login/",
-    "https://www.ulster.ac.uk/study/postgraduate/apply"
+    "https://qahighereducation.com/partner-institutions/ulster-university/",
+    "https://www.qahighereducation.com/",
+    "https://qahighereducation.com/how-to-apply/",
+    "https://www.ulster.ac.uk/study/postgraduate/apply",
+    "https://www.ulster.ac.uk/courses"
   ],
   "linkPatterns": [
     "appl(y|ication)",
@@ -43,9 +51,12 @@
     "admission",
     "international-business",
     "postgraduate",
-    "birmingham"
+    "birmingham",
+    "login|sign-?in|register|create-?account|new-?account",
+    "forgot|reset-?password",
+    "ulster"
   ],
-  "maxPages": 25,
+  "maxPages": 45,
   "claimsToVerify": [
     "Applications for the Birmingham campus are handled at apply.qahighereducation.com, not by Ulster's own system",
     "The portal platform is Salesforce Experience Cloud",

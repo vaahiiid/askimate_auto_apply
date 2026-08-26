@@ -67,7 +67,10 @@ beforeAll(async () => {
       claimsToVerify: ["Whether an account is required"],
     }),
   );
-  runRoot = join(import.meta.dirname, "..", "discovery-runs");
+  // The repo root, not the package. The CLI writes here deliberately: `pnpm
+  // run discover` sets the cwd to the package, and output landing wherever
+  // pnpm happened to point is one more thing for someone to hunt for.
+  runRoot = join(import.meta.dirname, "..", "..", "..", "discovery-runs");
 });
 
 afterAll(async () => {
@@ -134,4 +137,70 @@ describe("the discovery CLI, run for real", () => {
 
     await rm(join(runRoot, latest), { recursive: true, force: true });
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The command in the runbook has to work
+// ───────────────────────────────────────────────────────────────────────────
+//
+// The runbook told Vahid to run `pnpm run discover targets/<name>.json`, and
+// it did not work: `pnpm run discover` sets the cwd to this package, so a path
+// relative to the repo root — which is where the file visibly is — resolved
+// against the wrong directory and the run died before it started. Five minutes
+// of his time turned into a support round-trip.
+//
+// These are cheap and they cover every form a person would reasonably type.
+
+describe("resolving what someone typed to a target file", () => {
+  const repoRoot = join(import.meta.dirname, "..", "..", "..");
+  const cli = join(import.meta.dirname, "cli.ts");
+
+  /** Runs the CLI from THIS package's directory, which is what pnpm does. */
+  async function usage(arg?: string): Promise<{ code: number; out: string }> {
+    return await new Promise((resolvePromise) => {
+      const child = spawn("npx", ["tsx", cli, ...(arg === undefined ? [] : [arg])], {
+        cwd: join(import.meta.dirname, ".."),
+        // No network, so any target that resolves will fail at navigation —
+        // which is fine. What is under test is whether it gets that far.
+        env: { ...process.env, AAS_DISCOVERY_DRY_RUN: "1" },
+      });
+      let out = "";
+      child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+      child.on("close", (code) => resolvePromise({ code: code ?? -1, out }));
+    });
+  }
+
+  it("lists the targets when given nothing, instead of an unhelpful usage line", async () => {
+    const { code, out } = await usage();
+    expect(code).toBe(2);
+    expect(out).toContain("ulster-birmingham-msc-ib-2026.json");
+  });
+
+  it("accepts the path as written in the runbook, relative to the repo root", async () => {
+    const { out } = await usage("targets/ulster-birmingham-msc-ib-2026.json");
+    // It got past resolution — it printed the target's own details.
+    expect(out).toContain("Ulster University");
+  }, 60_000);
+
+  it("accepts a bare filename", async () => {
+    const { out } = await usage("ulster-birmingham-msc-ib-2026.json");
+    expect(out).toContain("Ulster University");
+  }, 60_000);
+
+  it("accepts an unambiguous prefix", async () => {
+    const { out } = await usage("ulster");
+    expect(out).toContain("Ulster University");
+  }, 60_000);
+
+  it("refuses a name that matches nothing, and says what does exist", async () => {
+    const { code, out } = await usage("oxford");
+    expect(code).toBe(2);
+    expect(out).toContain('No target found for "oxford"');
+    expect(out).toContain("ulster-birmingham-msc-ib-2026.json");
+  });
+
+  it("writes its output under the repo root, where the runbook says to look", () => {
+    expect(runRoot).toBe(join(repoRoot, "discovery-runs"));
+  });
 });
