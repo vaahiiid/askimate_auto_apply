@@ -26,10 +26,13 @@ export const FIXTURE_BLUEPRINT: ApplicationBlueprint = {
   intake: "September 2026",
   route: "direct_portal",
   authentication: {
-    required: true,
-    loginUrl: "https://apply.example.test/login",
-    accountCreationRequired: true,
-    notes: "Applicant account with email verification.",
+    // The fixture pages carry no login, so this says so. It said the opposite
+    // until the orchestrator's account stage landed and correctly demanded an
+    // account for a portal that has none — the blueprint was describing a
+    // portal that does not exist.
+    required: false,
+    accountCreationRequired: false,
+    notes: "The fixture portal has no login. A real one almost certainly will.",
   },
   pages: [
     {

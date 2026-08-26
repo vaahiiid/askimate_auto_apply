@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 5 — Fill · validate · preview · authorise |
 | **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 614 passing · typecheck, lint and boundary checks green |
+| **Tests** | 620 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.

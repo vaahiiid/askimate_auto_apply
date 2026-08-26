@@ -25,6 +25,10 @@ import {
   type DisclosureAuthorisation,
 } from "@askimate/aas-disclosure";
 
+import type { PortalAccount } from "@askimate/aas-account";
+import { isFieldUnavailable } from "@askimate/aas-domain";
+import { resolveField } from "@askimate/aas-profile";
+
 import type { ApplicationSession, DocumentSource, ExecutionContext } from "./execute.js";
 import { executePlan, failures } from "./execute.js";
 import {
@@ -32,6 +36,7 @@ import {
   markFilled,
   nextStep,
   requiredFieldsFor,
+  withAccount,
   withAuthorisation,
   withProfile,
 } from "./run.js";
@@ -585,5 +590,124 @@ describe("a document in the vault is not a reason to send it", () => {
       withdrawals: [{ disclosureId: "disc-1", withdrawnAt: NOW, reason: "Withdrew." }],
     });
     expect(failures(report)[0]?.drift).toBe(false);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The account
+// ───────────────────────────────────────────────────────────────────────────
+
+const NEEDS_LOGIN = {
+  ...FIXTURE_BLUEPRINT,
+  authentication: {
+    required: true,
+    loginUrl: "https://apply.example.test/login",
+    accountCreationRequired: true,
+    notes: "Applicant account with email verification.",
+  },
+};
+
+function accountAt(stage: PortalAccount["stage"], email: ConfirmedProfile): PortalAccount {
+  const resolved = resolveField(email, "contact.email");
+  if (isFieldUnavailable(resolved)) expect.unreachable("the profile has an email");
+  return {
+    accountId: "acct-1",
+    caseId: "case-1",
+    studentRef: STUDENT,
+    portalHost: "apply.example.test",
+    email: resolved,
+    stage,
+    createdBy: "askimate_on_behalf",
+  };
+}
+
+describe("a portal that needs an account", () => {
+  it("asks the student to authorise creating one, before filling anything", async () => {
+    const state = runWith(COMPLETE, { blueprint: NEEDS_LOGIN });
+    const step = await nextStep(state, model);
+
+    expect(step.kind).toBe("create_account");
+    if (step.kind !== "create_account") expect.unreachable("checked above");
+    // Their own address, so the university writes to them.
+    expect(step.email).toBe("niloofar.hosseini@example.com");
+    expect(step.say).toContain("Forgot password");
+  });
+
+  it("goes to a specialist when there is no confirmed email to own the account", async () => {
+    // Not a question for the student: they were never asked for an email
+    // because the mapping does not require one, and that is a mapping problem.
+    const noEmail = withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["identity.nationality", "Iranian"],
+      ["study.personal_statement", STATEMENT],
+    ]);
+
+    const withoutEmailMapping: MappingSet = {
+      ...FIXTURE_MAPPING_SET,
+      mappings: FIXTURE_MAPPING_SET.mappings.filter((m) => m.fieldRef !== "email"),
+    };
+    const blueprintWithoutEmail = {
+      ...NEEDS_LOGIN,
+      pages: NEEDS_LOGIN.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.filter((field) => field.fieldRef !== "email"),
+        })),
+      })),
+    };
+
+    const state = runWith(noEmail, {
+      blueprint: blueprintWithoutEmail,
+      mappingSet: withoutEmailMapping,
+    });
+    const step = await nextStep(state, model);
+
+    expect(step.kind).toBe("specialist");
+    if (step.kind !== "specialist") expect.unreachable("checked above");
+    expect(step.reason).toBe("no_confirmed_email");
+  });
+
+  it("PAUSES for email verification rather than going to look", async () => {
+    const state = withAccount(runWith(COMPLETE, { blueprint: NEEDS_LOGIN }), {
+      ...accountAt("awaiting_email_verification", COMPLETE),
+    });
+
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("student_handoff");
+    if (step.kind !== "student_handoff") expect.unreachable("checked above");
+    expect(step.reason).toBe("email_verification");
+    // Says so plainly, because it is true and because it is the point.
+    expect(step.say).toContain("cannot read your email");
+  });
+
+  it("proceeds once the account is active", async () => {
+    const state = withAccount(
+      runWith(COMPLETE, { blueprint: NEEDS_LOGIN }),
+      accountAt("active", COMPLETE),
+    );
+    // Past the account stage, on to the ordinary flow.
+    expect((await nextStep(state, model)).kind).toBe("authorise");
+  });
+
+  it("asks for the account back when handover is due", async () => {
+    const state = withAccount(
+      runWith(COMPLETE, { blueprint: NEEDS_LOGIN }),
+      accountAt("handover_due", COMPLETE),
+    );
+
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("hand_over_account");
+    if (step.kind !== "hand_over_account") expect.unreachable("checked above");
+    expect(step.say).toContain("the account is yours");
+    expect(step.outstanding).toContain("the handover has not been started");
+  });
+
+  it("does not raise account steps on a portal that needs no account", async () => {
+    // The fixture has no login. Nothing about accounts should appear.
+    const step = await nextStep(runWith(COMPLETE), model);
+    expect(["create_account", "student_handoff", "hand_over_account"]).not.toContain(step.kind);
   });
 });

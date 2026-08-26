@@ -510,6 +510,21 @@ async function main(): Promise<void> {
       continue;
     }
 
+    if (step.kind === "create_account" || step.kind === "student_handoff") {
+      // The fixture portal has no login, so these are unreachable here. They
+      // are handled rather than ignored because the REAL portal does, and a
+      // demo that fell through to "where this stops" on an account step would
+      // report a success it had not achieved.
+      console.log(`\n  ${AMBER}ACCOUNT${RESET}  ${step.say}`);
+      return;
+    }
+
+    if (step.kind === "hand_over_account") {
+      console.log(`\n  ${AMBER}HANDOVER${RESET}  ${step.say}`);
+      console.log(`  ${DIM}outstanding: ${step.outstanding.join(", ")}${RESET}`);
+      return;
+    }
+
     // ── The end ───────────────────────────────────────────────────────────
     heading("8", "Where this stops");
     console.log(`  ${GREEN}✓${RESET} The application is filled and authorised.`);

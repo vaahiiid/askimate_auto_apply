@@ -35,9 +35,12 @@
  * exists not to do (ADR-0007).
  */
 
+import type { PortalAccount } from "@askimate/aas-account";
+import { renderAccountCreationRequest, renderHandover } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
 import type { StudentId } from "@askimate/aas-domain";
+import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
@@ -53,6 +56,7 @@ import type {
 } from "@askimate/aas-preparation";
 import { buildPreview, checkAuthorisable, renderPreview, stillCovers, validatePlan } from "@askimate/aas-preparation";
 import type { ConfirmedProfile, ProfileFieldKey } from "@askimate/aas-profile";
+import { resolveField } from "@askimate/aas-profile";
 
 /** Everything a run needs. */
 export interface RunInputs {
@@ -72,6 +76,13 @@ export interface RunState {
   readonly authorisation?: AuthorisationRecord;
   /** Set once the portal has actually been filled. */
   readonly filled?: boolean;
+  /**
+   * The portal account, where the portal needs one.
+   *
+   * Absent means no account has been prepared yet — which, on a portal whose
+   * blueprint says authentication is required, is itself a step.
+   */
+  readonly account?: PortalAccount;
 }
 
 /** What happens next. */
@@ -102,13 +113,48 @@ export type RunStep =
   /** Everything is approved. Fill the portal. */
   | { readonly kind: "execute"; readonly plan: FillPlan }
   /**
+   * The portal needs an account, and the student must authorise creating one.
+   *
+   * An account outlives this application, so it gets its own authorisation
+   * rather than riding along on any other (ADR-0020).
+   */
+  | {
+      readonly kind: "create_account";
+      readonly say: string;
+      readonly portalHost: string;
+      readonly email: string;
+    }
+  /**
+   * Only the student can do this: an emailed verification link, an MFA code,
+   * a CAPTCHA.
+   *
+   * The run PAUSES. It does not go and look — this system has no capability to
+   * read a mailbox, by design and by dependency-boundary rule.
+   */
+  | {
+      readonly kind: "student_handoff";
+      readonly reason: "email_verification" | "mfa" | "otp" | "captcha" | "payment";
+      readonly say: string;
+    }
+  /**
    * The application is prepared, filled and authorised.
    *
    * **This is where the system stops.** Submission is Phase 6 and requires its
    * own explicit approval — from Vahid for the first real one, and from the
    * student for every one after that.
    */
-  | { readonly kind: "ready_to_submit"; readonly contentHash: string };
+  | { readonly kind: "ready_to_submit"; readonly contentHash: string }
+  /**
+   * The application is done and the account is still ours to give back.
+   *
+   * `outstanding` is what the student still has to do before we are finished
+   * with it — and there is no partial credit (ADR-0020).
+   */
+  | {
+      readonly kind: "hand_over_account";
+      readonly say: string;
+      readonly outstanding: readonly string[];
+    };
 
 /** What a run looks like when nothing has happened yet. */
 export function beginRun(input: {
@@ -220,6 +266,14 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
     return { kind: "interview", action: await nextAction(state.interview, model) };
   }
 
+  // ── The portal needs an account before anything can be typed into it ────
+  //
+  // Placed here, after the interview has the student's confirmed email and
+  // before anything is filled: an account cannot be created without their
+  // email, and a form cannot be filled without an account.
+  const accountStep = accountStepFor(state);
+  if (accountStep !== null) return accountStep;
+
   // ── The content is complete. Would the portal take it? ──────────────────
   const validation = assessment.validation;
   /* c8 ignore next 3 -- unreachable: a complete plan is always validated */
@@ -269,6 +323,100 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
   }
 
   return { kind: "ready_to_submit", contentHash: preview.contentHash };
+}
+
+/**
+ * What the account needs next, or `null` when it needs nothing.
+ *
+ * Ordering is not arbitrary. Email verification comes before filling because
+ * many portals will not show the form until the address is verified — and
+ * because a run that fills a form it then cannot save has wasted the
+ * student's answers.
+ */
+function accountStepFor(state: RunState): RunStep | null {
+  if (!state.inputs.blueprint.authentication.required) return null;
+
+  const account = state.account;
+  const portalHost =
+    account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
+
+  if (account === undefined || account.stage === "creation_required") {
+    const email = resolveField(state.profile, "contact.email");
+    if (isFieldUnavailable(email)) {
+      // Cannot create an account without the address it belongs to. The
+      // interview will have asked; if it has not, the mapping does not
+      // require an email and a specialist should look at that.
+      return {
+        kind: "specialist",
+        reason: "no_confirmed_email",
+        detail:
+          `This portal requires an account, and the student's email is not confirmed ` +
+          `(${email.reason}). The account's address must be their own confirmed email — ` +
+          `product rule 7 — so there is nothing to create an account with.`,
+      };
+    }
+
+    const address = unwrapConfirmed(email);
+    return {
+      kind: "create_account",
+      portalHost,
+      email: address,
+      say: renderAccountCreationRequest({
+        institutionName: state.inputs.blueprint.institutionName,
+        portalHost,
+        email: address,
+      }),
+    };
+  }
+
+  if (account.stage === "awaiting_email_verification") {
+    return {
+      kind: "student_handoff",
+      reason: "email_verification",
+      say:
+        `${state.inputs.blueprint.institutionName} has emailed ` +
+        `${unwrapConfirmed(account.email)} to confirm the address. Could you open it and follow ` +
+        `the link? I cannot read your email, so I will wait until you tell me it is done.`,
+    };
+  }
+
+  if (account.stage === "handover_due") {
+    return {
+      kind: "hand_over_account",
+      outstanding: outstandingHandoverItems(account),
+      say: renderHandover({
+        institutionName: state.inputs.blueprint.institutionName,
+        portalHost: account.portalHost,
+        email: unwrapConfirmed(account.email),
+      }),
+    };
+  }
+
+  return null;
+}
+
+function outstandingHandoverItems(account: PortalAccount): readonly string[] {
+  const checklist = account.handover?.checklist;
+  if (checklist === undefined) {
+    return ["the handover has not been started"];
+  }
+  return Object.entries(checklist)
+    .filter(([, done]) => !done)
+    .map(([item]) => item);
+}
+
+function hostOf(url: string | undefined): string {
+  if (url === undefined) return "the application portal";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
+/** Records the account on the run. */
+export function withAccount(state: RunState, account: PortalAccount): RunState {
+  return { ...state, account };
 }
 
 /** Records the student's authorisation on the run. */

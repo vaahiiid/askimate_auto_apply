@@ -5,6 +5,7 @@
   "references": [
     { "path": "../domain" },
     { "path": "../disclosure" },
+    { "path": "../account" },
     { "path": "../blueprint" },
     { "path": "../interview" },
     { "path": "../llm" },

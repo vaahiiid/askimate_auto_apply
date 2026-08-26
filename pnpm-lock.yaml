@@ -218,6 +218,9 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@askimate/aas-account':
+        specifier: workspace:*
+        version: link:../account
       '@askimate/aas-blueprint':
         specifier: workspace:*
         version: link:../blueprint
