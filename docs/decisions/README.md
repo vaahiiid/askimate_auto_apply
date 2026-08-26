@@ -34,5 +34,6 @@ ADR status uses exactly that vocabulary:
 | [0010](./0010-policy-driven-document-retention.md) | Policy-driven document retention, with no default | Accepted |
 | [0011](./0011-minor-detection-and-the-minor-workflow.md) | Identity check, minor detection, and the minor workflow | Accepted |
 | [0012](./0012-aws-region-eu-west-2.md) | AWS region — eu-west-2 (London) | Accepted |
+| [0013](./0013-minor-is-not-a-blocker.md) | Minor is not a blocker; minor conditions are stage-scoped | Accepted |
 
-All twelve are **Accepted**. Reversing any of them requires a new ADR that supersedes it.
+All thirteen are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

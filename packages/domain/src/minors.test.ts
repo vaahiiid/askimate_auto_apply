@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DateOfBirthRecord, MinorCondition, MinorConditionSet } from "./minors.js";
-import { checkMinorGate, determineAge, isMinor, requiresIdentityCheck } from "./minors.js";
+import { checkMinorGate, determineAge, isMinor, requiresIdentityCheck, stageReached } from "./minors.js";
 
 const APPLICATION_DATE = new Date("2026-08-26T00:00:00Z");
 
@@ -91,12 +91,17 @@ describe("determination on verified evidence", () => {
 });
 
 describe("the minor gate — conditions determined, never assumed", () => {
-  function condition(id: string, satisfaction: MinorCondition["satisfaction"]): MinorCondition {
+  function condition(
+    id: string,
+    satisfaction: MinorCondition["satisfaction"],
+    requiredAtStage: MinorCondition["requiredAtStage"] = "submission",
+  ): MinorCondition {
     return {
       conditionId: id,
       description: "Parental consent for the application to be submitted",
       derivedFrom: "uk_data_protection",
       requirementId: "req_minor_consent",
+      requiredAtStage,
       satisfaction,
     };
   }
@@ -108,57 +113,85 @@ describe("the minor gate — conditions determined, never assumed", () => {
     verifiedAt: new Date("2026-08-26T11:00:00Z"),
   };
 
-  it("BLOCKS when the conditions could not be determined", () => {
-    // An undetermined set is not an empty set. Proceeding as though nothing
-    // applies is exactly the assumption Vahid ruled out.
+  it("MINOR IS NOT A BLOCKER — a minor's application starts and progresses normally", () => {
+    // ADR-0013, the correction. A condition the university wants at submission
+    // must not stop the application being prepared.
+    const set: MinorConditionSet = {
+      determined: true,
+      conditions: [condition("c1", { state: "outstanding" }, "submission")],
+    };
+
+    for (const stage of ["intake", "profile_collection", "document_collection", "eligibility", "preparation", "authorisation"] as const) {
+      expect(checkMinorGate(set, stage).permitted).toBe(true);
+    }
+    // And pauses only where it actually bites.
+    expect(checkMinorGate(set, "submission").permitted).toBe(false);
+  });
+
+  it("pauses at the stage a condition is actually due", () => {
+    const set: MinorConditionSet = {
+      determined: true,
+      conditions: [condition("c1", { state: "outstanding" }, "document_collection")],
+    };
+
+    expect(checkMinorGate(set, "profile_collection").permitted).toBe(true);
+    expect(checkMinorGate(set, "document_collection").permitted).toBe(false);
+    // A passed stage's requirements do not stop applying.
+    expect(checkMinorGate(set, "preparation").permitted).toBe(false);
+  });
+
+  it("continues normally when the university requires nothing extra", () => {
+    // Vahid: "If the university does not require anything additional at the
+    // current stage, allow the application workflow to continue normally."
+    const nothingExtra: MinorConditionSet = { determined: true, conditions: [], determinedAt: APPLICATION_DATE };
+    for (const stage of ["intake", "preparation", "submission"] as const) {
+      expect(checkMinorGate(nothingExtra, stage).permitted).toBe(true);
+    }
+  });
+
+  it("lets an undetermined set through the early stages", () => {
+    // Determination can still be in flight while the application progresses.
     const undetermined: MinorConditionSet = {
       determined: false,
       conditions: [],
       undeterminedReason: "The institution's policy for applicants under 18 could not be established.",
     };
 
-    const gate = checkMinorGate(undetermined);
+    for (const stage of ["intake", "profile_collection", "preparation", "authorisation"] as const) {
+      expect(checkMinorGate(undetermined, stage).permitted).toBe(true);
+    }
+  });
+
+  it("blocks SUBMISSION on an undetermined set", () => {
+    // The one point where not knowing can actually harm the student. Flagged
+    // in ADR-0013 as my reading of an undefined case.
+    const undetermined: MinorConditionSet = { determined: false, conditions: [] };
+    const gate = checkMinorGate(undetermined, "submission");
     expect(gate.permitted).toBe(false);
     if (!gate.permitted) expect(gate.reason).toBe("conditions_undetermined");
   });
 
-  it("does NOT treat an empty determined set as a blocker", () => {
-    // If it was genuinely determined that nothing extra applies, that is a
-    // legitimate answer — the distinction is determined vs undetermined.
-    const gate = checkMinorGate({ determined: true, conditions: [], determinedAt: APPLICATION_DATE });
-    expect(gate.permitted).toBe(true);
-  });
-
-  it("blocks while any condition is outstanding", () => {
-    const gate = checkMinorGate({
-      determined: true,
-      conditions: [condition("c1", VERIFIED), condition("c2", { state: "outstanding" })],
-    });
-
-    expect(gate.permitted).toBe(false);
-    if (!gate.permitted) {
-      expect(gate.reason).toBe("conditions_outstanding");
-      expect(gate.outstandingConditionIds).toEqual(["c2"]);
-    }
-  });
-
   it("treats COLLECTED as insufficient — it must be verified", () => {
-    // Something handed over but never checked does not satisfy a legal
-    // safeguard.
-    const gate = checkMinorGate({
-      determined: true,
-      conditions: [condition("c1", { state: "collected", documentId: "doc_x", collectedAt: APPLICATION_DATE })],
-    });
+    const gate = checkMinorGate(
+      {
+        determined: true,
+        conditions: [condition("c1", { state: "collected", documentId: "doc_x", collectedAt: APPLICATION_DATE })],
+      },
+      "submission",
+    );
 
     expect(gate.permitted).toBe(false);
     if (!gate.permitted) expect(gate.reason).toBe("conditions_outstanding");
   });
 
-  it("blocks and escalates when a condition failed", () => {
-    const gate = checkMinorGate({
-      determined: true,
-      conditions: [condition("c1", { state: "failed", reason: "Guardian could not be reached." })],
-    });
+  it("blocks and escalates when a due condition failed", () => {
+    const gate = checkMinorGate(
+      {
+        determined: true,
+        conditions: [condition("c1", { state: "failed", reason: "Guardian could not be reached." })],
+      },
+      "submission",
+    );
 
     expect(gate.permitted).toBe(false);
     if (!gate.permitted) {
@@ -167,12 +200,18 @@ describe("the minor gate — conditions determined, never assumed", () => {
     }
   });
 
-  it("permits only when EVERY condition is verified", () => {
-    const gate = checkMinorGate({
-      determined: true,
-      conditions: [condition("c1", VERIFIED), condition("c2", VERIFIED)],
-    });
+  it("permits once every due condition is verified", () => {
+    const gate = checkMinorGate(
+      { determined: true, conditions: [condition("c1", VERIFIED), condition("c2", VERIFIED)] },
+      "submission",
+    );
     expect(gate.permitted).toBe(true);
+  });
+
+  it("orders the stages correctly", () => {
+    expect(stageReached("submission", "intake")).toBe(true);
+    expect(stageReached("intake", "submission")).toBe(false);
+    expect(stageReached("preparation", "preparation")).toBe(true);
   });
 
   it("does not assume parental consent is the only condition", () => {
@@ -182,13 +221,13 @@ describe("the minor gate — conditions determined, never assumed", () => {
     const set: MinorConditionSet = {
       determined: true,
       conditions: [
-        { conditionId: "c1", description: "Parental consent", derivedFrom: "uk_data_protection", requirementId: "r1", satisfaction: VERIFIED },
-        { conditionId: "c2", description: "Guardianship arrangements in the UK", derivedFrom: "institution_policy", requirementId: "r2", satisfaction: { state: "outstanding" } },
-        { conditionId: "c3", description: "Parental consent for the visa route", derivedFrom: "visa_rule", requirementId: "r3", satisfaction: { state: "outstanding" } },
+        { conditionId: "c1", description: "Parental consent", derivedFrom: "uk_data_protection", requirementId: "r1", requiredAtStage: "submission", satisfaction: VERIFIED },
+        { conditionId: "c2", description: "Guardianship arrangements in the UK", derivedFrom: "institution_policy", requirementId: "r2", requiredAtStage: "submission", satisfaction: { state: "outstanding" } },
+        { conditionId: "c3", description: "Parental consent for the visa route", derivedFrom: "visa_rule", requirementId: "r3", requiredAtStage: "submission", satisfaction: { state: "outstanding" } },
       ],
     };
 
-    const gate = checkMinorGate(set);
+    const gate = checkMinorGate(set, "submission");
     expect(gate.permitted).toBe(false);
     if (!gate.permitted) expect(gate.outstandingConditionIds).toEqual(["c2", "c3"]);
   });
@@ -197,8 +236,8 @@ describe("the minor gate — conditions determined, never assumed", () => {
     // A condition nobody can trace is an assumption wearing a badge.
     const sources = new Set(
       [
-        { conditionId: "c1", description: "d", derivedFrom: "uk_data_protection" as const, requirementId: "r", satisfaction: VERIFIED },
-        { conditionId: "c2", description: "d", derivedFrom: "institution_policy" as const, requirementId: "r", satisfaction: VERIFIED },
+        { conditionId: "c1", description: "d", derivedFrom: "uk_data_protection" as const, requirementId: "r", requiredAtStage: "submission" as const, satisfaction: VERIFIED },
+        { conditionId: "c2", description: "d", derivedFrom: "institution_policy" as const, requirementId: "r", requiredAtStage: "submission" as const, satisfaction: VERIFIED },
       ].map((c) => c.derivedFrom),
     );
     expect(sources.size).toBe(2);

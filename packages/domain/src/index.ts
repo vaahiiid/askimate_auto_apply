@@ -201,6 +201,7 @@ export {
 
 export type {
   AgeDetermination,
+  ApplicationStage,
   ConditionSatisfaction,
   DateOfBirthRecord,
   DobVerificationLevel,
@@ -208,7 +209,7 @@ export type {
   MinorConditionSet,
   MinorGateResult,
 } from "./minors.js";
-export { checkMinorGate, determineAge, isMinor, requiresIdentityCheck } from "./minors.js";
+export { APPLICATION_STAGES, checkMinorGate, determineAge, isMinor, requiresIdentityCheck, stageReached } from "./minors.js";
 
 export type {
   DocumentType,

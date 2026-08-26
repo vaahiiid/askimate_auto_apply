@@ -3,6 +3,8 @@
   "references": [
     { "path": "./packages/domain" },
     { "path": "./packages/case-store" },
+    { "path": "./packages/profile" },
+    { "path": "./packages/documents" },
     { "path": "./tsconfig.tools.json" }
   ]
 }

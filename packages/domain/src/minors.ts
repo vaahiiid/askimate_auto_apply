@@ -17,12 +17,15 @@
  * knowledge base and the university's official source.
  *
  *   Identity check → minor detected → conditions determined
- *     → consent / documentation collected → verified
- *     → continue ONLY when every condition is satisfied
+ *     → asked for conversationally when a stage needs them → verified
+ *     → the application continues normally throughout
  *
- * If the conditions cannot be determined, or cannot be satisfied and verified,
- * the case STOPS AND ESCALATES. It never assumes consent and never proceeds on
- * a partially satisfied set.
+ * ── MINOR IS NOT A BLOCKER (ADR-0013) ────────────────────────────────────
+ *
+ * Universities do accept applications from under-18s. Being a minor changes
+ * what the system watches for; it does not by itself stop anything. Conditions
+ * are STAGE-SCOPED: a case proceeds normally until it reaches a stage that
+ * actually requires something outstanding, and pauses only there.
  */
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -153,6 +156,34 @@ export function isMinor(determination: AgeDetermination): boolean {
 // ───────────────────────────────────────────────────────────────────────────
 
 /**
+ * The stages an application passes through.
+ *
+ * Minor-related conditions attach to a stage, so the case proceeds normally
+ * until it reaches one that actually requires something (ADR-0013).
+ */
+export const APPLICATION_STAGES = [
+  "intake",
+  "profile_collection",
+  "document_collection",
+  "eligibility",
+  "preparation",
+  "authorisation",
+  "submission",
+] as const;
+
+export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
+
+/** Position of a stage in the sequence. */
+function stageIndex(stage: ApplicationStage): number {
+  return APPLICATION_STAGES.indexOf(stage);
+}
+
+/** True when `required` is due at or before `current`. */
+export function stageReached(current: ApplicationStage, required: ApplicationStage): boolean {
+  return stageIndex(current) >= stageIndex(required);
+}
+
+/**
  * A condition that must be satisfied because the applicant is a minor.
  *
  * Deliberately open-ended and NOT a fixed list, because Vahid's instruction is
@@ -172,6 +203,13 @@ export interface MinorCondition {
   readonly derivedFrom: "uk_data_protection" | "institution_policy" | "application_route" | "visa_rule";
   /** The verified requirement that established it (ADR-0009). */
   readonly requirementId: string;
+  /**
+   * The stage at which this becomes required (ADR-0013).
+   *
+   * Being a minor is not a blocker. A condition the university wants only at
+   * submission must not stop the application being prepared.
+   */
+  readonly requiredAtStage: ApplicationStage;
   readonly satisfaction: ConditionSatisfaction;
 }
 
@@ -215,52 +253,70 @@ export type MinorGateResult =
     };
 
 /**
- * The hard gate: may a case involving a minor proceed?
+ * May a case involving a minor advance to `currentStage`?
+ *
+ * ── MINOR IS NOT A BLOCKER (ADR-0013) ────────────────────────────────────
+ *
+ * Universities do accept applications from under-18s. Being a minor changes
+ * what the system watches for; it does not by itself stop anything. So this
+ * gate is evaluated PER STAGE: only conditions actually due at or before
+ * `currentStage` can block, and everything else waits its turn.
  *
  * Independent of, and additional to, the mandatory human review that anything
- * involving a minor already triggers (brief §2.5). Passing review does not
- * satisfy this gate, and satisfying this gate does not skip review. Both must
- * hold.
+ * involving a minor already triggers (brief §2.5). Both must hold; neither
+ * substitutes for the other.
  */
-export function checkMinorGate(conditionSet: MinorConditionSet): MinorGateResult {
-  // An undetermined set is not an empty set. If we could not work out what
-  // applies, we must not proceed as though nothing does — that would be exactly
-  // the assumption Vahid ruled out.
-  if (!conditionSet.determined) {
-    return {
-      permitted: false,
-      reason: "conditions_undetermined",
-      detail:
-        conditionSet.undeterminedReason ??
-        "The requirements that apply to a minor for this application could not be determined. " +
-          "The case cannot proceed on an assumption about what is required.",
-      outstandingConditionIds: [],
-    };
-  }
+export function checkMinorGate(
+  conditionSet: MinorConditionSet,
+  currentStage: ApplicationStage,
+): MinorGateResult {
+  // Conditions not yet due are simply not this stage's problem.
+  const due = conditionSet.conditions.filter((condition) =>
+    stageReached(currentStage, condition.requiredAtStage),
+  );
 
-  const failed = conditionSet.conditions.filter((c) => c.satisfaction.state === "failed");
+  const failed = due.filter((c) => c.satisfaction.state === "failed");
   if (failed.length > 0) {
     return {
       permitted: false,
       reason: "conditions_failed",
       detail:
-        `${String(failed.length)} condition(s) required for a minor could not be satisfied. ` +
-        `The case must be escalated rather than proceeding.`,
+        `${String(failed.length)} condition(s) required for a minor at the ${currentStage} stage ` +
+        `could not be satisfied. The case must be escalated rather than proceeding.`,
       outstandingConditionIds: failed.map((c) => c.conditionId),
     };
   }
 
   // "collected" is not "verified". Something handed over but never checked does
   // not satisfy a legal safeguard.
-  const notVerified = conditionSet.conditions.filter((c) => c.satisfaction.state !== "verified");
+  const notVerified = due.filter((c) => c.satisfaction.state !== "verified");
   if (notVerified.length > 0) {
     return {
       permitted: false,
       reason: "conditions_outstanding",
       detail:
-        `${String(notVerified.length)} condition(s) required for a minor are not yet collected and ` +
-        `verified. Every condition must be satisfied before the application proceeds.`,
+        `${String(notVerified.length)} condition(s) required for a minor at the ${currentStage} ` +
+        `stage are not yet collected and verified. The agent should ask the student for these.`,
       outstandingConditionIds: notVerified.map((c) => c.conditionId),
+    };
+  }
+
+  // An undetermined set does NOT block the early stages — the application runs
+  // normally while determination is in flight. It DOES block submission, which
+  // is the one point where not knowing whether consent was required can
+  // actually harm the student.
+  //
+  // ⚠️ This is my reading of an undefined case, flagged in ADR-0013 for
+  // confirmation. It is deliberately the only place an undetermined set bites.
+  if (!conditionSet.determined && currentStage === "submission") {
+    return {
+      permitted: false,
+      reason: "conditions_undetermined",
+      detail:
+        conditionSet.undeterminedReason ??
+        "It could not be established what this university requires for an applicant under 18. " +
+          "The application must not be submitted on that assumption; a specialist should resolve it.",
+      outstandingConditionIds: [],
     };
   }
 

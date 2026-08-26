@@ -17,9 +17,9 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | 1 — Domain core |
-| **Status** | ✅ Complete · verified · awaiting review before Phase 2 |
-| **Tests** | 295 passing · typecheck, lint and boundary checks green |
+| **Phase** | 2 — Profile and documents |
+| **Status** | ✅ Complete · verified · awaiting review before Phase 3 |
+| **Tests** | 363 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -59,8 +59,15 @@ packages/
 │   ├── learning.ts     Intervention capture + the human validation gate
 │   ├── tasks.ts        What the case is waiting on, and who must obtain it
 │   └── audit.ts        What the system did, with redaction enforced
-└── case-store/       Persistence port + in-memory implementation
-    └── contract.ts     The shared suite Postgres must also pass in Phase 2
+├── case-store/       Persistence port + in-memory implementation
+│   └── contract.ts     The shared suite Postgres must also pass
+├── profile/          The canonical student profile
+│   ├── fields.ts       The canonical field registry, typed
+│   ├── confirmation.ts THE ONLY PLACE ConfirmedValue IS MINTED
+│   └── profile.ts      Confirmed-only writes + the typed resolver
+└── documents/        The document vault
+    ├── validity.ts     Deterministic validity — the 31-day window
+    └── vault.ts        Storage port; refuses without a retention policy
 
 scripts/
 ├── check-boundaries.ts  Enforces the dependency-graph rules
@@ -83,7 +90,7 @@ No infrastructure, no AWS, no database. Phase 1 runs entirely on a laptop.
 |---|---|---|
 | **0** | Inspect existing system · integration contract · repo structure · AWS plan | ✅ Complete, approved |
 | **1** | Domain core — case model, state machine, event log, idempotency | ✅ Complete, verified |
-| **2** | Canonical profile · document vault · deterministic validity engine | Not started |
+| **2** | Canonical profile · document vault · deterministic validity engine | ✅ Complete, verified |
 | **3** | Browser runtime · discovery · first Application Blueprint | Not started |
 | **4** | Requirements with provenance · eligibility · field mapping | Not started |
 | **5** | Fill · validate · preview · capture authorisation *(stops before submit)* | Not started |
