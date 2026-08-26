@@ -1,6 +1,6 @@
 # ADR-0005 — Contract-first OpenAPI at the AskiMate↔AAS boundary
 
-**Status:** Proposed · awaiting Vahid's approval
+**Status:** **Accepted** — approved by Vahid, 2026-08-26
 **Date:** 2026-08-26
 **Detail:** [Phase 0 · Deliverable 1 §10](../phase-0/01-existing-system-inventory.md)
 

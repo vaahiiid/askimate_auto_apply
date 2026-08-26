@@ -1,6 +1,6 @@
 # ADR-0004 — Branded types make model output unable to reach a form field
 
-**Status:** Proposed · awaiting Vahid's approval
+**Status:** **Accepted** — approved by Vahid, 2026-08-26
 **Date:** 2026-08-26
 **Detail:** [Phase 0 · Deliverable 3 §3](../phase-0/03-repository-structure-proposal.md)
 

@@ -1,0 +1,14 @@
+{
+  // Covers root-level tooling files that belong to no package:
+  // vitest.config.ts, eslint.config.js, scripts/*.ts.
+  // Exists so lint runs these under the same strict settings as real code.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist-tools",
+    "composite": true,
+        "types": ["node"]
+  },
+  "include": ["*.ts", "scripts/**/*.ts"]
+}

@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SECURITY: minimum release age for npm packages (supply-chain defence)
+#
+# Carried over deliberately from the Universitio repository, where it is already
+# in force. No npm package version may be installed until it has been public for
+# at least 1 day (1440 minutes). Malicious npm releases are typically discovered
+# and pulled within hours, so this delay is a strong safety buffer.
+#
+# DO NOT DISABLE THIS. Setting it to 0 or removing it leaves the whole workspace
+# exposed to the single most common attack vector in the npm ecosystem.
+#
+# If an urgent security fix must be installed inside the window, add that one
+# package to minimumReleaseAgeExclude below, and remove it once the window has
+# passed.
+# ─────────────────────────────────────────────────────────────────────────────
+minimumReleaseAge: 1440
+
+packages:
+  - packages/*
+  - packages/adapters/*
+  - apps/*
+
+autoInstallPeers: false

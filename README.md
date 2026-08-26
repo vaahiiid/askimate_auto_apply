@@ -17,24 +17,58 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | 0 — Inspect and bootstrap |
-| **Status** | ✅ Complete · **awaiting approval before Phase 1** |
-| **Application code** | **None.** Phase 0 is inspection and proposal only. |
+| **Phase** | 1 — Domain core |
+| **Status** | ✅ Complete · verified · awaiting review before Phase 2 |
+| **Tests** | 180 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
-👉 **Start here: [`docs/phase-0/README.md`](./docs/phase-0/README.md)**
+Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
+and the [decision records](./docs/decisions/).
+
+```bash
+pnpm install
+pnpm run verify        # typecheck · lint · boundaries · tests
+pnpm run walkthrough   # drive one case end to end and watch what happens
+```
+
+`pnpm run walkthrough` is the fastest way to see what has been built: it opens a
+real case, blocks it on a missing document, forces human review of financial
+evidence, captures an authorisation, voids it when the content changes, submits
+once, refuses to submit twice, and then refuses to re-apply without an explicit
+student instruction.
 
 ---
 
 ## What is in this repository right now
 
 ```
+packages/
+├── domain/           The domain core. Pure — zero I/O, zero dependencies.
+│   ├── values.ts       ConfirmedValue vs ModelText — the wall (ADR-0004)
+│   ├── state.ts        The approved case states
+│   ├── transitions.ts  The transition table and its guards
+│   ├── machine.ts      fold (derive state) + decide (propose events)
+│   ├── events.ts       The append-only event log
+│   ├── idempotency.ts  Submission identity — no duplicate submission
+│   ├── reapplication.ts The student's decision to re-apply (ADR-0006)
+│   ├── escalation.ts   Two-layer escalation; layer two is a hard gate
+│   ├── tasks.ts        What the case is waiting on
+│   └── audit.ts        What the system did, with redaction enforced
+└── case-store/       Persistence port + in-memory implementation
+    └── contract.ts     The shared suite Postgres must also pass in Phase 2
+
+scripts/
+├── check-boundaries.ts  Enforces the dependency-graph rules
+└── walkthrough.ts       End-to-end demonstration
+
 docs/
-├── phase-0/          The five Phase 0 deliverables + an executive summary
-└── decisions/        ADRs — the decision record required by the brief (§12.8)
+├── phase-0/          The five Phase 0 deliverables
+└── decisions/        ADRs — the decision record (brief §12.8)
+
+.github/workflows/    CI — present since the first commit of code
 ```
 
-That is all. No source, no infrastructure, no dependencies — by design.
+No infrastructure, no AWS, no database. Phase 1 runs entirely on a laptop.
 
 ---
 
@@ -42,8 +76,8 @@ That is all. No source, no infrastructure, no dependencies — by design.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Inspect existing system · integration contract · repo structure · AWS plan | ✅ Complete, awaiting approval |
-| **1** | Domain core — case model, state machine, event log, idempotency | ⏸ Blocked on approval |
+| **0** | Inspect existing system · integration contract · repo structure · AWS plan | ✅ Complete, approved |
+| **1** | Domain core — case model, state machine, event log, idempotency | ✅ Complete, verified |
 | **2** | Canonical profile · document vault · deterministic validity engine | Not started |
 | **3** | Browser runtime · discovery · first Application Blueprint | Not started |
 | **4** | Requirements with provenance · eligibility · field mapping | Not started |
@@ -100,6 +134,30 @@ into the orchestration engine — adding the second university is a data exercis
 
 ## Development
 
-Nothing to run yet. Phase 1 will introduce a pnpm/TypeScript monorepo requiring only Node and
-Docker (for local Postgres) — **no AWS account and no credentials.** See
-[the structure proposal](./docs/phase-0/03-repository-structure-proposal.md).
+Requires Node (see `.nvmrc`) and pnpm. **No AWS account, no credentials, no database.**
+
+```bash
+corepack enable
+pnpm install
+
+pnpm run verify        # everything CI runs: typecheck · lint · boundaries · tests
+pnpm run test:watch    # tests on change
+pnpm run walkthrough   # drive one case end to end
+```
+
+### Why `typecheck` is part of the test suite, not just a build step
+
+The guarantee in [ADR-0004](./docs/decisions/0004-branded-types-for-confirmed-values.md) — that
+model-generated text cannot reach a university form field — is enforced by the **compiler**, not at
+runtime. `packages/domain/src/values.test.ts` contains `@ts-expect-error` assertions covering every
+route an engineer might try: passing model output directly, coercing it with `String()`, laundering
+it through a template literal or a string method, and hand-building the `ConfirmedValue` shape.
+
+If anyone ever adds a conversion path, those directives stop being errors, TypeScript reports them
+as unused, and **the build fails**. A runtime test cannot check "this code does not compile" — so
+the compiler is part of the test suite.
+
+### Structure
+
+See [the structure proposal](./docs/phase-0/03-repository-structure-proposal.md) for the full
+layout and the reasoning behind each divergence from the Universitio repository.

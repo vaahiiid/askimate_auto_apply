@@ -1,6 +1,6 @@
 # ADR-0001 — Integration via HTTPS API and signed webhooks
 
-**Status:** Proposed · awaiting Vahid's approval
+**Status:** **Accepted** — approved by Vahid, 2026-08-26
 **Date:** 2026-08-26
 **Detail:** [Phase 0 · Deliverable 2](../phase-0/02-integration-contract-proposal.md)
 

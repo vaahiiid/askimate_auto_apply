@@ -1,0 +1,99 @@
+# Continuous integration.
+#
+# Ships with the first commit of code, deliberately (docs/phase-0/03 §6).
+# The existing Universitio repository has no CI and no automated tests; adding
+# checks to an empty repository costs an hour, whereas retrofitting them onto a
+# grown codebase never gets prioritised. This system submits university
+# applications, so a regression does not show a wrong image — it submits a wrong
+# application, or submits twice.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck · Lint · Boundaries · Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        # --frozen-lockfile: CI must fail if the lockfile is stale rather than
+        # silently resolving different versions than a developer tested with.
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        # Not merely a type check. The ADR-0004 guarantee — that model-generated
+        # text cannot reach a form field — is enforced by the compiler, and the
+        # @ts-expect-error assertions in values.test.ts are compile-time tests.
+        # If someone adds a conversion path from ModelText to ConfirmedValue,
+        # those directives become unused and THIS STEP FAILS.
+        run: pnpm run typecheck
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Dependency boundaries
+        # Enforces that the domain core stays pure, and that browser-runner
+        # never gains access to the case store, profile, documents or secrets
+        # (brief §8).
+        run: pnpm run boundaries
+
+      - name: Tests
+        run: pnpm run test
+
+  # Placeholder for Phase 2 onwards. Integration tests will run against a
+  # Dockerised Postgres service here. Declared now so the shape of the pipeline
+  # is visible, and skipped until there is something to run.
+  integration:
+    name: Integration (Postgres)
+    runs-on: ubuntu-latest
+    if: false # enabled in Phase 2, when the case store gains a Postgres adapter
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aas_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ["5432:5432"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test

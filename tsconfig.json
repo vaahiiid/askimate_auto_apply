@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/case-store" },
+    { "path": "./tsconfig.tools.json" }
+  ]
+}
