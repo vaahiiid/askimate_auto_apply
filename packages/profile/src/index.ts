@@ -26,6 +26,9 @@ export type {
 } from "./confirmation.js";
 export { applyConfirmation, isDeclined, renderForConfirmation } from "./confirmation.js";
 
+export type { DatePattern, FormatRule, RenderRefusal, RenderResult } from "./format.js";
+export { isRenderRefused, renderConfirmed } from "./format.js";
+
 export type { ConfirmedProfile } from "./profile.js";
 export {
   confirmField,

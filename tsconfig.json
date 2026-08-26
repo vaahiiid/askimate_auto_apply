@@ -9,6 +9,7 @@
     { "path": "./packages/llm" },
     { "path": "./packages/interview" },
     { "path": "./packages/extraction" },
+    { "path": "./packages/mapping" },
     { "path": "./apps/browser-runner" },
     { "path": "./tsconfig.tools.json" }
   ]

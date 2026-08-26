@@ -55,6 +55,19 @@ const RULES: readonly Rule[] = [
       "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
   },
   {
+    packagePath: "packages/mapping",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "playwright",
+    ],
+    rationale:
+      "Mapping decides what student data goes in which university form field. It is reviewed " +
+      "data, never inference — so it must have no way to ask a model, not even through the port.",
+  },
+  {
     packagePath: "packages/extraction",
     forbidden: [
       "openai",

@@ -28,6 +28,7 @@
     "@askimate/aas-extraction": "workspace:*",
     "@askimate/aas-interview": "workspace:*",
     "@askimate/aas-llm": "workspace:*",
+    "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",

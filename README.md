@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 3 — Browser runtime and discovery |
 | **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 433 passing · typecheck, lint and boundary checks green |
+| **Tests** | 463 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -66,9 +66,13 @@ packages/
 ├── profile/          The canonical student profile
 │   ├── fields.ts       The canonical field registry, typed
 │   ├── confirmation.ts THE ONLY PLACE ConfirmedValue IS MINTED
+│   ├── format.ts       Confirmed value → the portal's notation. Rules are data.
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── mapping/         Canonical field → this portal's field
+│   ├── mapping.ts     Reviewed data, pinned to a blueprint version
+│   └── plan.ts        The fill plan — computed before a browser opens
 ├── extraction/      Reading documents
 │   ├── grounding.ts   A reading that does not quote the document is discarded
 │   ├── plans.ts       What to look for on each kind of document — data, not code
@@ -175,6 +179,10 @@ into the orchestration engine — adding the second university is a data exercis
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.
+- **A dropdown option is never approximated.** A confirmed nationality of `Iranian` does not become
+  `Iran (Islamic Republic of)` because it is close. An unmapped option blocks the case and asks. The
+  wrong answer here would look entirely reasonable in the preview, which is exactly why software
+  must not choose it. See [ADR-0017](./docs/decisions/0017-mapping-is-reviewed-data.md).
 - **A reading must quote the document.** Extraction returns the span it read as well as the value,
   and a span the document does not contain means the reading is **discarded** — whatever the value
   looks like, at any confidence. A model that invents a passport number must also invent the line
