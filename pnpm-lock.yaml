@@ -50,6 +50,9 @@ importers:
       '@askimate/aas-profile':
         specifier: workspace:*
         version: link:packages/profile
+      '@askimate/aas-requirements':
+        specifier: workspace:*
+        version: link:packages/requirements
       '@aws-sdk/client-bedrock':
         specifier: ^3.1118.0
         version: 3.1118.0
@@ -270,6 +273,16 @@ importers:
         version: 2.1.9(@types/node@22.20.1)
 
   packages/profile:
+    dependencies:
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/requirements:
     dependencies:
       '@askimate/aas-domain':
         specifier: workspace:*

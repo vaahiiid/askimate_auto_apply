@@ -39,6 +39,7 @@
     "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-preparation": "workspace:*",
+    "@askimate/aas-requirements": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
     "@aws-sdk/client-bedrock": "^3.1118.0",
     "@aws-sdk/client-sts": "^3.1118.0",

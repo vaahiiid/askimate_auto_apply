@@ -116,6 +116,21 @@ const RULES: readonly Rule[] = [
       "spans; a browser or the case store would make it something other than a reader.",
   },
   {
+    packagePath: "packages/requirements",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "playwright",
+    ],
+    rationale:
+      "A requirement's two channels are a human specialist and the university's own page. A model " +
+      "reading a page produces a ProposedValue, not evidence — so the service must have no way to " +
+      "ask one, and no way to become a third channel nobody approved (ADR-0009, ADR-0019).",
+  },
+  {
     packagePath: "packages/account",
     forbidden: [
       "openai",

@@ -7,6 +7,7 @@
     { "path": "./packages/documents" },
     { "path": "./packages/disclosure" },
     { "path": "./packages/account" },
+    { "path": "./packages/requirements" },
     { "path": "./packages/blueprint" },
     { "path": "./packages/llm" },
     { "path": "./packages/interview" },

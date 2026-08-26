@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 5 — Fill · validate · preview · authorise |
 | **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 638 passing · typecheck, lint and boundary checks green |
+| **Tests** | 660 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
@@ -83,6 +83,10 @@ packages/
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── requirements/    Two evidence channels feeding the gate that already existed
+│   ├── knowledge-base.ts  AskiMate's OWN kb_pending → review → kb_entries flow
+│   ├── official-source.ts The university's page, read and hashed
+│   └── service.ts         Assembles both; never resolves a conflict
 ├── account/         Whose portal account is it, and how it is handed back
 │   ├── credential.ts  A password that expires and cannot be written down
 │   └── ownership.ts   The student's email owns it; handover has no partial credit
