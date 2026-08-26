@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 1 — Domain core |
 | **Status** | ✅ Complete · verified · awaiting review before Phase 2 |
-| **Tests** | 180 passing · typecheck, lint and boundary checks green |
+| **Tests** | 295 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -52,6 +52,9 @@ packages/
 │   ├── idempotency.ts  Submission identity — no duplicate submission
 │   ├── reapplication.ts The student's decision to re-apply (ADR-0006)
 │   ├── escalation.ts   Two-layer escalation; layer two is a hard gate
+│   ├── requirements.ts Provenance, corroboration, the evidence bar
+│   ├── minors.ts       Identity check, minor detection, the conditions gate
+│   ├── retention.ts    Policy-driven retention — no default, ever
 │   ├── recovery.ts     Pause at the failure point, alert, resume from checkpoint
 │   ├── learning.ts     Intervention capture + the human validation gate
 │   ├── tasks.ts        What the case is waiting on, and who must obtain it
@@ -148,6 +151,20 @@ into the orchestration engine — adding the second university is a data exercis
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.
+- **Requirements carry provenance, and the evidence bar scales with consequence.** Every
+  requirement records where it came from, when it was retrieved, who reviewed it, and whether it
+  has been corroborated. A `critical` requirement — visa rules, financial evidence, anything
+  concerning a minor — needs **both** a human-reviewed knowledge-base entry **and** an
+  official-source check, agreeing and fresh. Where the sources conflict the system never picks one:
+  it escalates. See [ADR-0009](./docs/decisions/0009-requirements-provenance-and-verification.md).
+- **Never conclude "adult" from unverified evidence.** Under-18 status is a legal safeguard, so
+  absence of evidence that someone is a minor is not evidence that they are an adult. A stated date
+  of birth raises the question; only a document-verified one answers it. What a minor's application
+  requires is *determined*, never assumed.
+  See [ADR-0011](./docs/decisions/0011-minor-detection-and-the-minor-workflow.md).
+- **No document is stored without a configured retention policy.** There is no default and no
+  fallback to "keep indefinitely" — an unconfigured document type fails loudly at storage time.
+  See [ADR-0010](./docs/decisions/0010-policy-driven-document-retention.md).
 - **Reuse is never automatic if validity is in question.** Every document with an expiry or
   validity condition is checked by deterministic date logic **before** any AI confidence system is
   involved. Silently reusing a stale bank statement is the exact failure this system exists to

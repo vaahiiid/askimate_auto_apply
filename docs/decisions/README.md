@@ -30,5 +30,9 @@ ADR status uses exactly that vocabulary:
 | [0006](./0006-reapplication-requires-explicit-student-instruction.md) | Re-application requires an explicit student instruction | Accepted |
 | [0007](./0007-agent-led-conversational-intake.md) | Agent-led conversational intake — the student never fills in a form | Accepted |
 | [0008](./0008-recovery-first-escalation-and-the-learning-loop.md) | Recovery-first escalation, and the learning loop | Accepted |
+| [0009](./0009-requirements-provenance-and-verification.md) | Requirements provenance and multi-source verification | Accepted |
+| [0010](./0010-policy-driven-document-retention.md) | Policy-driven document retention, with no default | Accepted |
+| [0011](./0011-minor-detection-and-the-minor-workflow.md) | Identity check, minor detection, and the minor workflow | Accepted |
+| [0012](./0012-aws-region-eu-west-2.md) | AWS region — eu-west-2 (London) | Accepted |
 
-All eight are **Accepted**. Reversing any of them requires a new ADR that supersedes it.
+All twelve are **Accepted**. Reversing any of them requires a new ADR that supersedes it.

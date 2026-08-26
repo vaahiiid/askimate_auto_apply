@@ -178,5 +178,55 @@ export {
   reusableOnly,
 } from "./learning.js";
 
+export type {
+  CuratedEvidence,
+  OfficialEvidence,
+  Requirement,
+  RequirementCriticality,
+  RequirementEvidence,
+  RequirementUnusableReason,
+  RequirementUsability,
+  VerificationStatus,
+  VerifiedRequirement,
+} from "./requirements.js";
+export {
+  DEFAULT_REVALIDATION_DAYS,
+  assessUsability,
+  channelsAgree,
+  officialSourceChanged,
+  usableOnly,
+  verificationStatusOf,
+  verifiedRequirement,
+} from "./requirements.js";
+
+export type {
+  AgeDetermination,
+  ConditionSatisfaction,
+  DateOfBirthRecord,
+  DobVerificationLevel,
+  MinorCondition,
+  MinorConditionSet,
+  MinorGateResult,
+} from "./minors.js";
+export { checkMinorGate, determineAge, isMinor, requiresIdentityCheck } from "./minors.js";
+
+export type {
+  DocumentType,
+  LegalHold,
+  PostRetentionAction,
+  RetentionDecision,
+  RetentionPolicy,
+  RetentionPurpose,
+  RetentionSchedule,
+  RetentionTrigger,
+} from "./retention.js";
+export {
+  RetentionPolicyMissingError,
+  decideRetention,
+  findPolicy,
+  requirePolicy,
+  validateSchedule,
+} from "./retention.js";
+
 export type { AuditAction, AuditEntry, AuditOutcome, RedactedDetail } from "./audit.js";
 export { AuditRedactionError, auditEntry } from "./audit.js";

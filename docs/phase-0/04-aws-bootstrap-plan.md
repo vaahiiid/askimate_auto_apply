@@ -77,7 +77,7 @@ but the architectural consequences above are worth acting on now.
 
 ## 2. Region: eu-west-2 (London) — and this is a compliance decision, not a latency one
 
-**Recommendation: eu-west-2.**
+**APPROVED by Vahid, 2026-08-26: eu-west-2 (London).**
 
 The system stores **passports and bank statements** belonging to students applying to UK
 universities. Under UK GDPR this is special-category-adjacent personal data with real
@@ -92,10 +92,8 @@ eu-west-2 costs roughly 5–10% more than us-east-1. On a ~$100/month footprint 
 **That is the cheapest compliance insurance available on this project** and I would not trade it
 for the saving.
 
-⚠️ **This is a legal-adjacent decision.** Per brief §12.10 I am flagging it rather than treating
-it as a blocker: if your legal review concludes a different residency posture is required, the
-region choice is a one-line change *now* and an expensive migration *later*. Worth confirming
-early. Recorded as Open Question 6.
+✅ **Confirmed.** All AAS infrastructure is provisioned in eu-west-2. Student documents, the case
+store, the audit log and browser traces all stay in London.
 
 ---
 
@@ -281,7 +279,7 @@ console click leaves no reviewable record.
 
 ## 8. What I need from Vahid
 
-1. **Approve eu-west-2 (London)** as the region — or tell me if legal review points elsewhere.
+1. ~~Approve eu-west-2 (London) as the region.~~ ✅ **Approved 2026-08-26.**
 2. **Choose the Phase 3–4 networking posture:** public subnets without NAT (~$28/month cheaper,
    staged to private subnets at Phase 5), or private subnets with NAT from the start.
 3. **Check the credit expiry date and whether Bedrock is covered** (§6).
