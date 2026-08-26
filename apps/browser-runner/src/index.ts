@@ -27,6 +27,25 @@ export {
 } from "./safety.js";
 
 export { PlaywrightDiscoverySession } from "./playwright-session.js";
+
+export type { ClickDecision, PreparationNetworkPolicy } from "./preparation-safety.js";
+export {
+  ClickAllowList,
+  WriteLog,
+  decidePreparationRequest,
+  isStateChanging,
+  looksLikeSubmission,
+} from "./preparation-safety.js";
+
+export type { PreparationMode } from "./playwright-fill-session.js";
+export {
+  ClickRefusedError,
+  LocatorNotFoundError,
+  OptionNotAvailableError,
+  PlaywrightPreparationSession,
+  ValueNotAcceptedError,
+  toPlaywrightLocator,
+} from "./playwright-fill-session.js";
 export {
   draftBlueprintFrom,
   inputTypeOf,

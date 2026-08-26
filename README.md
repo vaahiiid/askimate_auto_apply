@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | 3 — Browser runtime and discovery |
 | **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 463 passing · typecheck, lint and boundary checks green |
+| **Tests** | 509 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -70,6 +70,10 @@ packages/
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── preparation/     Validate · preview · authorise — nothing here submits
+│   ├── validate.ts    Against the portal's OWN recorded rules, never guessed ones
+│   ├── preview.ts     Exactly what will be submitted, and its content hash
+│   └── authorisation.ts The ledger — stores the text, not only the hash
 ├── mapping/         Canonical field → this portal's field
 │   ├── mapping.ts     Reviewed data, pinned to a blueprint version
 │   └── plan.ts        The fill plan — computed before a browser opens
@@ -85,7 +89,9 @@ packages/
 apps/
 └── browser-runner/   Isolated Playwright runtime
     ├── safety.ts       The read-only guard — discovery cannot write
+    ├── preparation-safety.ts  The click guard — preparation cannot submit
     ├── session.ts      Capability levels: read-only / fillable / submittable
+    ├── playwright-fill-session.ts  Fills a real form. No submit method exists.
     └── discovery.ts    Observations → draft blueprint
 
 scripts/

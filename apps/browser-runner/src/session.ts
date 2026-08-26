@@ -83,6 +83,16 @@ export interface FillableSession extends ReadOnlySession {
   click(locator: FieldLocator): Promise<void>;
   /** Uploads a document by vault ID. The runner never sees the vault itself. */
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
+  /**
+   * Reads what a field currently holds.
+   *
+   * Not a convenience. A portal can silently truncate a value at its maxlength,
+   * strip characters it does not like, or reject input without saying so — and
+   * a personal statement quietly cut off at 4,000 characters would otherwise be
+   * submitted that way. Reading back is how the run knows what the portal
+   * actually took.
+   */
+  readValue(locator: FieldLocator): Promise<string>;
 }
 
 /**

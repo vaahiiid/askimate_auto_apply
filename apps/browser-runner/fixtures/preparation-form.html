@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Postgraduate Application — Personal details</title></head>
+<body>
+<h1>Postgraduate Application</h1>
+
+<!--
+  A fixture for preparation-mode tests.
+
+  Deliberately carries BOTH an advance control and a submission control on the
+  same page, because that is where the interesting failure lives: a run that
+  fills the form correctly and then clicks the wrong button.
+-->
+
+<form action="/apply/save" method="post" id="applicationForm">
+  <label for="givenName">First name</label>
+  <input type="text" id="givenName" name="given_name" required maxlength="50">
+
+  <label for="familyName">Last name</label>
+  <input type="text" id="familyName" name="family_name" required maxlength="50">
+
+  <label for="dob">Date of birth</label>
+  <input type="text" id="dob" name="date_of_birth" required pattern="\d{2}/\d{2}/\d{4}">
+
+  <label for="nationality">Nationality</label>
+  <select id="nationality" name="nationality" required>
+    <option value="">Please select</option>
+    <option value="GB">United Kingdom</option>
+    <option value="IR">Iran</option>
+  </select>
+
+  <label for="passport">Passport photo page</label>
+  <input type="file" id="passport" name="passport" accept=".pdf,.jpg">
+
+  <label for="declaration">I declare that the information given is true and complete</label>
+  <input type="checkbox" id="declaration" name="declaration">
+
+  <button type="button" id="continueBtn">Save and continue</button>
+  <button type="submit" id="submitBtn">Submit application</button>
+</form>
+
+<script>
+  // A portal that saves a draft as the applicant types. Preparation must
+  // permit this — blocking it would block the work — and must record it.
+  document.getElementById("continueBtn").addEventListener("click", function () {
+    fetch("/apply/save", { method: "POST", body: "{}" });
+    document.title = "SAVED";
+  });
+</script>
+</body>
+</html>
