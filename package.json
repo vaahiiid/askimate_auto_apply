@@ -18,6 +18,7 @@
     "interview-demo": "tsx scripts/interview-demo.ts",
     "extraction-demo": "tsx scripts/extraction-demo.ts",
     "end-to-end": "tsx scripts/end-to-end.ts",
+    "verify-bedrock": "tsx scripts/verify-bedrock.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean"
@@ -35,6 +36,8 @@
     "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-preparation": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
+    "@aws-sdk/client-bedrock": "^3.1118.0",
+    "@aws-sdk/client-sts": "^3.1118.0",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",
     "eslint": "^9.18.0",

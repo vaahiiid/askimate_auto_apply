@@ -42,14 +42,16 @@ const RULES: readonly Rule[] = [
   },
   {
     packagePath: "packages/profile",
-    forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime", "playwright"],
+    forbidden: ["openai", "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk", "@aws-sdk/client-bedrock-runtime", "playwright"],
     rationale:
       "The profile package is the ONLY place a ConfirmedValue is minted (ADR-0004). It must never " +
       "be able to call a model — a value it creates is by definition one a human confirmed.",
   },
   {
     packagePath: "packages/interview",
-    forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime", "playwright", "express"],
+    forbidden: ["openai", "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk", "@aws-sdk/client-bedrock-runtime", "playwright", "express"],
     rationale:
       "The interview capability talks to a model only through @askimate/aas-llm (ADR-0004), and " +
       "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
@@ -59,6 +61,7 @@ const RULES: readonly Rule[] = [
     forbidden: [
       "openai",
       "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
       "@aws-sdk/client-bedrock-runtime",
       "playwright",
       "@askimate/aas-browser-runner",
@@ -73,6 +76,7 @@ const RULES: readonly Rule[] = [
     forbidden: [
       "openai",
       "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
       "@aws-sdk/client-bedrock-runtime",
       "@askimate/aas-llm",
       "playwright",
@@ -87,6 +91,7 @@ const RULES: readonly Rule[] = [
     forbidden: [
       "openai",
       "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
       "@aws-sdk/client-bedrock-runtime",
       "@askimate/aas-llm",
       "playwright",
@@ -100,6 +105,7 @@ const RULES: readonly Rule[] = [
     forbidden: [
       "openai",
       "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
       "@aws-sdk/client-bedrock-runtime",
       "playwright",
       "@askimate/aas-case-store",
@@ -111,7 +117,8 @@ const RULES: readonly Rule[] = [
   },
   {
     packagePath: "packages/documents",
-    forbidden: ["openai", "@anthropic-ai/sdk", "@aws-sdk/client-bedrock-runtime"],
+    forbidden: ["openai", "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk", "@aws-sdk/client-bedrock-runtime"],
     rationale:
       "The validity engine is deterministic date logic and runs BEFORE any AI confidence system " +
       "is involved (brief §2.4). It must not be able to ask a model whether a document is stale.",
