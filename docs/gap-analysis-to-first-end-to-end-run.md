@@ -2,6 +2,10 @@
 
 **Date:** 2026-08-26
 **Target:** Ulster University Birmingham · MSc International Business · September 2026
+> **Superseded in part, 2026-08-26.** Stage D has been reached — see
+> [where-we-are.md](./where-we-are.md) for the current state. The §2 table below is now out of
+> date; §5 (the account question) and §6 (the risks) still stand.
+
 **Goal:** *"The student only talks to AskiMate. AskiMate asks whatever it needs, obtains confirmed
 information and documents, autonomously completes the university application, validates it, and
 prepares it for final authorisation."* — stopping immediately before submission.

@@ -22,6 +22,8 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 | **Tests** | 528 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
+**[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
+
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
 and the [decision records](./docs/decisions/).
 
