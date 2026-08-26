@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Getting Started (native shadow)</title></head>
+<body>
+<!--
+  The SAME registration structure, built with REAL open shadow roots.
+
+  The flattened fixture next door cannot catch the bug this one exists for.
+  `page.content()` flattens shadow content when it serialises, so a saved
+  capture looks like light DOM whichever mode the live page used — and the
+  observer passed against the capture while failing against the live portal.
+
+  The trace of run insp-…2026-08-26T18-10-46 records the live DOM as
+  ["template", {"__playwright_shadow_root_": "open"}, …] around every
+  lightning-input. Element.parentElement stops at that boundary, so the
+  asterisk walk could never reach the marker sitting beside the field wrapper
+  in the light DOM. Live: Date of Birth and the applicant-type combobox
+  reported not_observed against a screenshot showing both asterisked, and the
+  checkbox group came back with no label because its legend is in its own
+  shadow root.
+
+  Structure mirrors the portal exactly:
+    div.qahe-inputContainer
+      > div > p.qahe-error_text "*"        ← the marker, LIGHT dom
+      > div.qahe-reg-input
+          > lightning-input[data-id]        ← SHADOW ROOT starts here
+              #shadow-root > input          ← the control
+-->
+<div id="app"></div>
+<script>
+/** One field: light-dom marker, control inside a shadow root. */
+function field(dataId, placeholder, opts) {
+  const container = document.createElement("div");
+  container.className = "qahe-inputContainer";
+
+  if (opts.marked) {
+    const holder = document.createElement("div");
+    const star = document.createElement("p");
+    star.className = "qahe-error_text";
+    star.textContent = "*";
+    holder.appendChild(star);
+    container.appendChild(holder);
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "qahe-reg-input qahe-reg-input-width_100";
+
+  const host = document.createElement("lightning-input");
+  host.setAttribute("data-id", dataId);
+  const shadow = host.attachShadow({ mode: "open" });
+
+  // A second nesting level, as the portal has (lightning-datepicker inside
+  // lightning-input), so the walk has to cross TWO boundaries.
+  const inner = document.createElement("lightning-primitive-input-simple");
+  const innerShadow = inner.attachShadow({ mode: "open" });
+
+  const input = document.createElement("input");
+  input.type = opts.type || "text";
+  input.placeholder = placeholder;
+  input.id = "input-" + dataId;
+  if (opts.requiredAttr) input.required = true;
+  innerShadow.appendChild(input);
+
+  shadow.appendChild(inner);
+  wrapper.appendChild(host);
+  container.appendChild(wrapper);
+  return container;
+}
+
+const app = document.getElementById("app");
+
+// Carries `required` directly — no climb needed, worked even when broken.
+app.appendChild(field("firstName", "First Name", { marked: true, requiredAttr: true }));
+
+// Marked ONLY by the light-dom asterisk. This is the one that failed live.
+app.appendChild(field("dateOfBirth", "Date of Birth", { marked: true, requiredAttr: false }));
+
+// Not marked at all — must stay optional.
+app.appendChild(field("middleName", "Middle Name", { marked: false, requiredAttr: false }));
+
+// A checkbox group whose <legend> lives in its own shadow root.
+const group = document.createElement("lightning-checkbox-group");
+const groupShadow = group.attachShadow({ mode: "open" });
+const fieldset = document.createElement("fieldset");
+const legend = document.createElement("legend");
+legend.className = "slds-assistive-text";
+legend.textContent = "Would like to receive marketing content?";
+fieldset.appendChild(legend);
+groupShadow.appendChild(fieldset);
+app.appendChild(group);
+</script>
+</body>
+</html>

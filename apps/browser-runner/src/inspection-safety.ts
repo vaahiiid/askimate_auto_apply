@@ -199,6 +199,8 @@ export interface ActionVerdict {
   readonly reason: string;
   /** For Apex only: `Class.method`. Names, never parameter values. */
   readonly apex?: string;
+  /** For Apex only: the argument KEYS. Never the values. */
+  readonly argumentKeys?: readonly string[];
 }
 
 export interface InspectionDecision extends GuardDecision {
@@ -427,11 +429,25 @@ function judgeAction(action: AuraAction): ActionVerdict {
     const apexMethod = typeof action.params["method"] === "string" ? action.params["method"] : "?";
     const named = `${apexClass}.${apexMethod}`;
 
+    // The KEYS of the Apex arguments, never the values.
+    //
+    // "Does this request carry student data?" is the question a reviewer most
+    // needs answered about a refused call, and it cannot be answered from a
+    // Playwright trace — resource snapshots do not store request bodies. Keys
+    // answer it without exposing anything: a call with no arguments cannot
+    // carry data, and a key named `email` says what to worry about.
+    const inner = action.params["params"];
+    const argumentKeys =
+      typeof inner === "object" && inner !== null && !Array.isArray(inner)
+        ? Object.keys(inner).sort()
+        : [];
+
     const cacheable = action.params["cacheable"];
     if (cacheable === true) {
       return {
         descriptor,
         apex: named,
+        argumentKeys,
         allowed: true,
         reason:
           `Apex ${named} is marked cacheable. Salesforce refuses DML in an ` +
@@ -441,11 +457,13 @@ function judgeAction(action: AuraAction): ActionVerdict {
     return {
       descriptor,
       apex: named,
+      argumentKeys,
       allowed: false,
       reason:
         `Apex ${named} is not marked cacheable, so the platform permits it to write. Arbitrary ` +
-        `server-side code is exactly what this mode must not run. The class and method are named ` +
-        `here so a specialist can decide whether this specific one is safe.`,
+        `server-side code is exactly what this mode must not run. Arguments: ` +
+        `${argumentKeys.length === 0 ? "none" : argumentKeys.join(", ")}. The class, method and ` +
+        `argument names are recorded so a specialist can decide whether this specific one is safe.`,
     };
   }
 

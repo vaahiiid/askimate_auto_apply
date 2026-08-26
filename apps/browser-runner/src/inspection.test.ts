@@ -504,6 +504,55 @@ describe("the inspection decision, in isolation", () => {
     expect(decision.reason).toContain("SelfRegPageController.getConfig");
   });
 
+  it("records the Apex ARGUMENT KEYS, never their values", () => {
+    // "Does this request carry student data?" is what a reviewer needs to know
+    // about a refused call, and a Playwright trace cannot answer it — resource
+    // snapshots do not store request bodies.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor: "aura://ApexActionController/ACTION$execute",
+          params: {
+            classname: "CommunityAuthController",
+            method: "getResidenceOptions",
+            params: { emailAddress: "someone@example.test", locale: "en_GB" },
+            cacheable: false,
+          },
+        },
+      ]),
+    );
+    expect(decision.actions?.[0]?.argumentKeys).toEqual(["emailAddress", "locale"]);
+    expect(decision.reason).toContain("emailAddress");
+    // The VALUE must appear nowhere.
+    expect(JSON.stringify(decision)).not.toContain("someone@example.test");
+  });
+
+  it("keeps CommunityAuthController.getResidenceOptions blocked", () => {
+    // Named explicitly because it is the one the portal needs and the one it
+    // would be most tempting to wave through. It is custom Apex, it is not
+    // marked cacheable, and "the dropdown is empty without it" says nothing
+    // about what it does on the server.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor: "aura://ApexActionController/ACTION$execute",
+          params: {
+            classname: "CommunityAuthController",
+            method: "getResidenceOptions",
+            params: {},
+            cacheable: false,
+          },
+        },
+      ]),
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.actions?.[0]?.apex).toBe("CommunityAuthController.getResidenceOptions");
+  });
+
   it("does NOT permit non-cacheable Apex just because the login page needs it", () => {
     // Explicitly kept blocked. Without the class and method there is no way to
     // establish what it does, and "the page renders better with it" is not

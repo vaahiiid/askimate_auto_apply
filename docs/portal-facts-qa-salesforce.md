@@ -211,3 +211,99 @@ of the platform contract.
 
 The guard now records the Apex **class and method** (names only, never parameter values) in every
 verdict, so the next run will name what it refused and that refusal can actually be reviewed.
+
+
+---
+
+## 8 · Run of 2026-08-26T18:10 — login rendered, and the discrepancy explained
+
+### Login: CONFIRMED email + password
+
+The two allow-listed getters worked. The batch that failed before now returns **200**, and the page
+renders:
+
+| Control | Type | Required |
+|---|---|---|
+| Email | text | ● |
+| Password | password | ● |
+| **Log in** | button | — |
+
+Links: *"Forgot your password?"* and *"Don't have an account? Sign up here"*, both
+`href="javascript:void(0)"` — client-side routing rather than plain hrefs.
+
+**No passwordless mechanism anywhere.** With the login form now fully rendered, no magic link, no
+emailed code, no SSO and no "other ways to sign in". This is the first time that absence is
+meaningful, because previously the component had not drawn at all.
+
+### The 7-vs-9 discrepancy: native shadow DOM, and a correction to §4
+
+**9 is correct.** Replaying this run's own `pages/001.html` through the current observer gives
+**10 controls, 9 required**.
+
+The cause was not stale code — both fixes were in the branch the run used. It was this:
+
+> **The live portal uses real, open shadow roots.** Its trace records
+> `["template", {"__playwright_shadow_root_": "open"}, …]` around every `lightning-input`.
+
+An earlier note in this document said Experience Cloud ran LWC in *synthetic* shadow mode, on the
+evidence that `pages/*.html` showed the markup in the light DOM. **That was wrong, and wrong for an
+instructive reason: `page.content()` flattens shadow content when it serialises**, so a saved
+capture cannot tell you which mode the live page used. The observer therefore passed every test
+against the capture while getting the live portal wrong, and nothing in the artefacts revealed it.
+
+`Element.parentElement` stops at a shadow boundary. The required-marker is a `<p>*</p>` sitting
+beside the field's wrapper **in the light DOM**, and the control is **inside** the shadow root — so
+the walk could never reach it. Live consequences: Date of Birth and the applicant-type combobox
+reported `not_observed`, the marketing checkbox group lost its label (its `<legend>` is in its own
+shadow root), and the `data-id` locator vanished (`closest` does not cross boundaries either).
+
+Fixed by making every ancestor walk cross into the shadow host, scoping by-id lookups to the node's
+own root, and counting controls **through** shadow roots. Two further bugs surfaced only once the
+walk could cross:
+
+- `querySelectorAll` does not pierce a shadow root either, so a field container reported **zero**
+  controls — the opposite of true — and both the marker test and the climb's stop condition read it
+  as empty.
+- A field container's own `textContent` is exactly `"*"`, because inputs contribute no text. An
+  unmarked field inherited the asterisk of the field above it. A marker must now contain no controls
+  at all.
+
+A second fixture (`fixtures/lwc-shadow/`) builds the same structure with real `attachShadow`, and
+asserts the fixture actually uses shadow DOM — otherwise it would silently re-test the flattened
+case.
+
+### Still blocked: two custom Apex methods
+
+| Class.method | Verdict |
+|---|---|
+| `CommunityAuthController.getResidenceOptions` | **BLOCKED** |
+| `CommunityLoginRedirectController.getRedirectUrl` | **BLOCKED** |
+
+Taking `getResidenceOptions` on its own terms, against the seven questions asked of it:
+
+| | Question | Answer from evidence |
+|---|---|---|
+| 1 | What data does it read or return? | **Unknown.** The call was blocked, so there is no response to inspect. |
+| 2 | Does it only retrieve residence/country options? | **Unproven.** Its name says so and the applicant-type combobox is empty without it — but a name is not evidence about server behaviour, and that is the reasoning this guard exists to refuse. |
+| 3 | Does it create, update or persist anything? | **Unknown, and the platform permits it to.** Not marked `cacheable`, so Salesforce imposes no DML restriction. |
+| 4 | Does the request contain student data? | **Not yet recorded.** Playwright resource-snapshots do not store request bodies. The guard now records the Apex **argument keys** (never values), so the next run answers this. |
+| 5 | Is the response purely reference data? | **Unknown** — no response. |
+| 6 | Does Salesforce provide evidence establishing it read-only? | **No.** The two positive signals the platform offers are `cacheable: true` on the request and `storable: true` on the response. This call has neither: it is explicitly not cacheable, and it produced no response. |
+| 7 | Is it needed for the application form, or only registration/login? | **Registration only, on the evidence so far.** It fires on the SelfRegister page and populates the applicant-type (residence/fee-status) dropdown. Nothing is known about the application form. |
+
+**So it stays blocked.** The developer's choice *not* to mark it cacheable is itself weak evidence
+against it being a pure reference lookup — `cacheable=true` is the obvious annotation for one,
+because it enables client-side caching. And `CommunityAuthController` is an authentication class,
+where session-touching work would not be surprising.
+
+**What would settle it**, none of which is available from the current artefacts:
+
+1. QA Higher Education confirming the method is a read-only picklist lookup, or marking it
+   `cacheable`.
+2. The argument keys, from the next run — if it takes no arguments, it cannot carry student data,
+   which narrows the risk considerably without closing it.
+3. Observing it in a context where it is already permitted — circular here, and not a route to take.
+
+**Practical consequence:** the applicant-type dropdown's options remain unobserved. They are needed
+for the mapping set, and they are already on the list of things that require a session permitted to
+click (§4). This does not block the blueprint, the field list, or anything before account creation.

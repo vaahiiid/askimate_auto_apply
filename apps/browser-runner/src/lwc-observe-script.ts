@@ -16,13 +16,31 @@
  * page. No form ancestor, therefore no fields, therefore an empty observation
  * of a page that was fully drawn.
  *
- * It was not shadow DOM, not the accessibility tree and not a timing problem —
- * all three were checked against the capture. Experience Cloud runs LWC in
- * *synthetic* shadow mode: the markup sits in the light DOM with `lwc-*`
- * scoping attributes and `part=` names, and `page.content()` serialises it in
- * full. This observer still walks real shadow roots, because native shadow
- * mode exists and a portal may switch, but that is belt-and-braces rather than
- * the fix.
+ * It was not the accessibility tree and not a timing problem.
+ *
+ * ── A correction: this portal DOES use native shadow DOM ──────────────────
+ *
+ * An earlier version of this comment said Experience Cloud ran LWC in
+ * *synthetic* shadow mode, on the evidence that `pages/*.html` showed the
+ * markup in the light DOM with `lwc-*` scoping attributes. That was wrong, and
+ * wrong for an instructive reason: `page.content()` FLATTENS shadow content
+ * when it serialises, so a saved capture cannot tell you which mode the live
+ * page used.
+ *
+ * The run of 2026-08-26T18:10 settled it. Its Playwright trace records the
+ * live DOM as `["template", {"__playwright_shadow_root_": "open"}, …]` around
+ * every `lightning-input` — **real, open shadow roots.**
+ *
+ * That matters here because `Element.parentElement` STOPS at a shadow
+ * boundary. Walking up from an `<input>` inside `lightning-input` returns
+ * null at the top of its shadow root rather than continuing to the host, so
+ * any rule that climbs the tree silently gets a truncated one. Live, that made
+ * Date of Birth and the applicant-type combobox look optional and left the
+ * marketing checkbox group with no label — none of which reproduced against
+ * the flattened capture, because flattening had removed the boundary.
+ *
+ * So every ancestor walk in this file uses `ascend`, which crosses into the
+ * host, and every by-id lookup is scoped to the node's own root.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * ── What LWC does that a plain-HTML observer gets wrong ───────────────────
@@ -181,25 +199,77 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     return style.visibility !== "hidden" && style.display !== "none";
   };
 
+  /**
+   * One step up the tree, CROSSING shadow boundaries.
+   *
+   * `parentElement` is null at the top of a shadow root. This continues from
+   * the root's host, which is what "up" means on a page built out of
+   * components. Every ancestor walk here goes through this.
+   */
+  const ascend = (node: Element): Element | null => {
+    if (node.parentElement !== null) return node.parentElement;
+    const root = node.getRootNode();
+    return root instanceof ShadowRoot ? root.host : null;
+  };
+
+  /**
+   * Counts controls under a node, THROUGH shadow roots.
+   *
+   * `querySelectorAll` does not pierce a shadow boundary, so on the live
+   * portal a field container reported ZERO controls — its input lives in
+   * `lightning-input`'s shadow root. Both the marker test and the climb's stop
+   * condition read as "this holds nothing", which is the opposite of true.
+   */
+  const CONTROL_QUERY =
+    'input:not([type="hidden"]), textarea, select, [role="combobox"], ' +
+    "lightning-checkbox-group, lightning-radio-group";
+
+  const countControls = (node: Element | ShadowRoot): number => {
+    let total = node.querySelectorAll(CONTROL_QUERY).length;
+    for (const child of node.querySelectorAll("*")) {
+      const shadow = (child as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot;
+      if (shadow != null) total += countControls(shadow);
+    }
+    return total;
+  };
+
+  /** The document or shadow root a node belongs to, for by-id lookups. */
+  const rootOf = (node: Element): Document | ShadowRoot => {
+    const root = node.getRootNode();
+    return root instanceof ShadowRoot ? root : document;
+  };
+
+  /** Looks an id up in the node's own root first, then the document. */
+  const byId = (node: Element, id: string): Element | null =>
+    rootOf(node).querySelector(`#${CSS.escape(id)}`) ?? document.getElementById(id);
+
+  /** A label or legend inside this element, including its shadow root. */
+  const innerLabel = (element: Element): Element | null =>
+    element.querySelector("label, legend") ??
+    (element as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot?.querySelector(
+      "label, legend",
+    ) ??
+    null;
+
   /** The chain of custom elements above this node, outermost first. */
   const componentPath = (element: Element): string[] => {
     const path: string[] = [];
-    let current: Element | null = element.parentElement;
+    let current: Element | null = ascend(element);
     while (current != null) {
       const tag = current.tagName.toLowerCase();
       if (tag.includes("-")) path.unshift(tag);
-      current = current.parentElement;
+      current = ascend(current);
     }
     return path.slice(-4);
   };
 
   /** The nearest LWC component wrapping this control, for label lookup. */
   const componentHost = (element: Element): Element | null => {
-    let current: Element | null = element.parentElement;
+    let current: Element | null = ascend(element);
     while (current != null) {
       const tag = current.tagName.toLowerCase();
       if (tag.startsWith("lightning-") || tag.startsWith("c-")) return current;
-      current = current.parentElement;
+      current = ascend(current);
     }
     return null;
   };
@@ -215,7 +285,9 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
   const labelFor = (element: Element): { label: string; source: LabelSource } => {
     const id = element.getAttribute("id");
     if (id != null && id !== "") {
-      const explicit = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+      const explicit =
+        rootOf(element).querySelector(`label[for="${CSS.escape(id)}"]`) ??
+        document.querySelector(`label[for="${CSS.escape(id)}"]`);
       if (explicit != null && text(explicit) !== "") {
         return { label: stripMarker(text(explicit)), source: "label_for" };
       }
@@ -230,7 +302,7 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     if (labelledBy != null && labelledBy !== "") {
       const parts = labelledBy
         .split(/\s+/)
-        .map((token) => text(document.getElementById(token)))
+        .map((token) => text(byId(element, token)))
         .filter((value) => value !== "");
       if (parts.length > 0) return { label: stripMarker(parts.join(" ")), source: "aria_labelledby" };
     }
@@ -244,7 +316,9 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     // marketing checkbox group came back labelled "First Name".
     const ownTag = element.tagName.toLowerCase();
     if (ownTag.includes("-")) {
-      const own = element.querySelector("label, legend");
+      // Including this element's OWN shadow root — a lightning-checkbox-group
+      // keeps its <legend> in there, and plain querySelector does not look.
+      const own = innerLabel(element);
       if (own != null && text(own) !== "") {
         return { label: stripMarker(text(own)), source: "component_label" };
       }
@@ -254,7 +328,7 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     if (host != null && host.tagName.toLowerCase().startsWith("lightning-")) {
       // Only a `lightning-*` host, never a page-level `c-*` component: the
       // latter contains every label on the page.
-      const inner = host.querySelector("label, legend");
+      const inner = innerLabel(host);
       if (inner != null && text(inner) !== "") {
         return { label: stripMarker(text(inner)), source: "component_label" };
       }
@@ -296,10 +370,12 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     const id = element.getAttribute("id");
     const host = componentHost(element);
     const ownLabel =
-      (id != null && id !== "" ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null) ??
-      (element.tagName.toLowerCase().includes("-") ? element.querySelector("label, legend") : null) ??
+      (id != null && id !== ""
+        ? rootOf(element).querySelector(`label[for="${CSS.escape(id)}"]`)
+        : null) ??
+      (element.tagName.toLowerCase().includes("-") ? innerLabel(element) : null) ??
       (host != null && host.tagName.toLowerCase().startsWith("lightning-")
-        ? host.querySelector("label, legend")
+        ? innerLabel(host)
         : null);
 
     if (ownLabel?.querySelector('abbr[title="required"]') != null) {
@@ -324,10 +400,6 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     // What works is to check the siblings at EVERY level while climbing, and
     // to stop the moment an ancestor holds more than one control: such an
     // ancestor is a shared container and its siblings belong to somebody else.
-    const CONTROLS =
-      'input:not([type="hidden"]), textarea, select, [role="combobox"], ' +
-      "lightning-checkbox-group, lightning-radio-group";
-
     // Only the IMMEDIATE previous sibling. Every marker on this page sits
     // directly before its control's wrapper; looking two or three back reached
     // the previous field's marker and made the optional marketing checkbox
@@ -336,11 +408,21 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     let node: Element = element;
     for (;;) {
       const sibling = node.previousElementSibling;
-      if (sibling !== null && text(sibling) === "*") {
+      // A marker holds the asterisk and nothing else. Checking the text alone
+      // is not enough once the walk crosses shadow boundaries: a whole FIELD
+      // container's textContent is also exactly "*", because inputs
+      // contribute no text and the only text in it is its own marker. That
+      // made an unmarked field inherit the asterisk of the field above it.
+      if (sibling !== null && text(sibling) === "*" && countControls(sibling) === 0) {
         return { required: true, source: "asterisk_marker" };
       }
-      const parent = node.parentElement;
-      if (parent === null || parent.querySelectorAll(CONTROLS).length > 1) break;
+      // `ascend`, not `parentElement`. The marker sits beside the field's
+      // wrapper in the LIGHT dom, and the control is inside a shadow root, so
+      // a walk that stops at the boundary never reaches it. That is exactly
+      // what happened live: Date of Birth and the applicant-type combobox
+      // reported "not_observed" against a screenshot showing both asterisked.
+      const parent = ascend(node);
+      if (parent === null || countControls(parent) > 1) break;
       node = parent;
     }
 
@@ -352,7 +434,7 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     const describedBy = element.getAttribute("aria-describedby");
     if (describedBy != null) {
       for (const token of describedBy.split(/\s+/)) {
-        const value = text(document.getElementById(token));
+        const value = text(byId(element, token));
         if (value !== "") notes.push(value);
       }
     }
@@ -386,7 +468,15 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     // `data-id` on the enclosing component is the best locator this portal
     // offers: semantic (`firstName`, `dateOfBirth`), author-written, and not
     // regenerated the way `input-13` is. Worth preferring over everything else.
-    const dataIdHost = element.closest("[data-id]");
+    //
+    // `closest` does not cross shadow boundaries, and on the live portal the
+    // host carrying data-id is in the LIGHT dom above the control's shadow
+    // root — so the best locator silently disappeared there while still
+    // working against a flattened capture.
+    let dataIdHost: Element | null = element;
+    while (dataIdHost !== null && !dataIdHost.hasAttribute("data-id")) {
+      dataIdHost = ascend(dataIdHost);
+    }
     const dataId = dataIdHost?.getAttribute("data-id");
     if (dataId != null && dataId !== "") locators.push(`[data-id="${dataId}"]`);
 
@@ -441,7 +531,7 @@ export const LWC_OBSERVE_SCRIPT = (): LwcObservation => {
     } else if (kind === "combobox") {
       // The listbox this combobox controls, IF the portal has populated it.
       const controlsId = element.getAttribute("aria-controls");
-      const listbox = controlsId != null ? document.getElementById(controlsId) : null;
+      const listbox = controlsId != null ? byId(element, controlsId) : null;
       const items = listbox?.querySelectorAll('[role="option"]') ?? [];
       if (items.length > 0) {
         options = [...items].map((item) => ({
