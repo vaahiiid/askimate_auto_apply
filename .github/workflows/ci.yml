@@ -65,7 +65,10 @@ jobs:
         # apps/browser-runner tests the read-only guard against real Chromium
         # (ADR-0014). Asserting that property in a comment is not enough — a
         # portal's own JavaScript is what the guard exists to stop.
-        run: pnpm exec playwright install --with-deps chromium
+        # Scoped to the workspace package: playwright is a dependency of
+        # apps/browser-runner, not of the root, so `pnpm exec` from the root
+        # cannot resolve it.
+        run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
 
       - name: Tests
         run: pnpm run test
