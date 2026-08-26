@@ -53,7 +53,7 @@ import {
   type DisclosureAuthorisation,
   type LawfulBasisDetermination,
 } from "@askimate/aas-disclosure";
-import { isFieldUnavailable, studentId } from "@askimate/aas-domain";
+import { describeRedacted, isFieldUnavailable, studentId } from "@askimate/aas-domain";
 import {
   newInterview,
   receiveAnswer,
@@ -477,7 +477,11 @@ async function main(): Promise<void> {
         for (const outcome of execution.outcomes) {
           if (outcome.kind === "filled") {
             console.log(
-              `  ${GREEN}✓${RESET} ${outcome.fieldRef.padEnd(16)} ${BOLD}${outcome.stored}${RESET}`,
+              // The VALUE is never printed. This line used to print
+              // `outcome.stored` — every confirmed answer, passport number
+              // included, straight to stdout and into any CI log capturing it.
+              `  ${GREEN}✓${RESET} ${outcome.fieldRef.padEnd(16)} ` +
+                `${DIM}${describeRedacted(outcome.stored)}${RESET}`,
             );
           } else if (outcome.kind === "attached") {
             console.log(

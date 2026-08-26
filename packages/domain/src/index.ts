@@ -241,3 +241,6 @@ export {
 
 export type { AuditAction, AuditEntry, AuditOutcome, RedactedDetail } from "./audit.js";
 export { AuditRedactionError, auditEntry } from "./audit.js";
+
+export type { RedactedValue } from "./redaction.js";
+export { describeRedacted, redact, sameRedacted } from "./redaction.js";

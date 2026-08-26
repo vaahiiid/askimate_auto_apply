@@ -236,6 +236,43 @@ function main(): void {
     }
   }
 
+  // ── Tracing must not exist on the sensitive fill path ──────────────────
+  //
+  // A source-level check, because the runtime guard in sensitive.ts only fires
+  // once someone runs the code. This fails the build.
+  //
+  // Playwright writes typed values verbatim into trace.trace, and stopping
+  // tracing around the fill does not prevent it — the action is buffered and
+  // replayed into the next trace file. So the fill session must never contain
+  // `tracing.start` or `recordVideo` at all.
+  const SENSITIVE_SOURCES = [
+    "apps/browser-runner/src/playwright-fill-session.ts",
+    "apps/browser-runner/src/sensitive.ts",
+  ];
+  for (const file of SENSITIVE_SOURCES) {
+    const path = file;
+    if (!existsSync(path)) continue;
+    const source = readFileSync(path, "utf8");
+    // Strip comments and string literals so the prose explaining the rule does
+    // not trip the rule.
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+
+    for (const forbidden of ["tracing.start", "recordVideo"]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${file} contains \`${forbidden}\`. This file handles a student's passport number, date ` +
+          `of birth and personal statement, and Playwright writes typed values verbatim into ` +
+          `trace.trace. Tracing and video are not available on this path — see ADR-0025.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  sensitive fill path — no tracing, no video recording`);
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {

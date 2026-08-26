@@ -23,7 +23,8 @@
 import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { DisclosureAuthorisation, TransmissionRecord, WithdrawalRecord } from "@askimate/aas-disclosure";
 import { mayTransmit, recordTransmission } from "@askimate/aas-disclosure";
-import type { ConfirmedValue } from "@askimate/aas-domain";
+import type { ConfirmedValue, RedactedValue } from "@askimate/aas-domain";
+import { redact } from "@askimate/aas-domain";
 import type { FillPlan } from "@askimate/aas-mapping";
 import { textOf } from "@askimate/aas-mapping";
 
@@ -80,7 +81,20 @@ export interface ExecutionContext {
 
 /** What happened to one instruction. */
 export type ExecutionOutcome =
-  | { readonly kind: "filled"; readonly fieldRef: string; readonly stored: string }
+  | {
+      readonly kind: "filled";
+      readonly fieldRef: string;
+      /**
+       * What the portal stored, as a SHAPE.
+       *
+       * This was the plaintext value, and `scripts/end-to-end.ts` printed it
+       * straight to stdout — so a demo run put every confirmed answer,
+       * passport number included, into a terminal and any CI log capturing it.
+       * A length and a digest answer the question an outcome is for ("did the
+       * portal take it, unchanged?") without carrying the answer itself.
+       */
+      readonly stored: RedactedValue;
+    }
   | { readonly kind: "attached"; readonly fieldRef: string; readonly documentId: string }
   | {
       readonly kind: "failed";
@@ -152,7 +166,7 @@ export async function executePlan(
       outcomes.push({
         kind: "filled",
         fieldRef: instruction.fieldRef,
-        stored: await session.readValue(locator),
+        stored: redact(await session.readValue(locator)),
       });
     } catch (error) {
       outcomes.push({

@@ -71,8 +71,23 @@ describe("the end-to-end run, executed for real", () => {
     expect(stdout).toContain('Nationality: Iran  (sent as "IR")');
 
     // The form was filled, and the declaration was left for the student.
-    expect(stdout).toContain("given_name       Niloofar");
+    //
+    // This assertion used to require the demo to print `given_name Niloofar`
+    // — that is, it asserted the leak. `ExecutionOutcome.stored` carried the
+    // plaintext value and the demo wrote every filled answer to stdout, so a
+    // demo run put confirmed personal data into a terminal and into any CI log
+    // capturing it. Outcomes now carry a shape, and the line shows that.
+    expect(stdout).toMatch(/given_name\s+\[redacted · \d+ chars · [0-9a-f]{12}\]/);
     expect(stdout).toContain("declaration      the student");
+
+    // And the fill outcomes disclose nothing. The preview above legitimately
+    // shows the student their own data — that is what they are authorising —
+    // but the execution log is a diagnostic and must not.
+    const outcomeLines = stdout
+      .split("\n")
+      .filter((line) => /✓\s+\w+\s+\[redacted/.test(line) || /✓\s+given_name/.test(line));
+    expect(outcomeLines.length).toBeGreaterThan(0);
+    expect(outcomeLines.join("\n")).not.toContain("Niloofar");
 
     // And it stopped.
     expect(stdout).toContain("Nothing was submitted.");

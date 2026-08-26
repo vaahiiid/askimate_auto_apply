@@ -41,6 +41,8 @@ import {
   isStateChanging,
 } from "./preparation-safety.js";
 import { BlockedRequestLog } from "./safety.js";
+import type { RedactedValue } from "./sensitive.js";
+import { openSensitiveContext, redact, sameRedacted } from "./sensitive.js";
 import type { FillableSession, PageObservation, SessionMode } from "./session.js";
 
 /** How a preparation session is configured. */
@@ -68,11 +70,11 @@ export class ClickRefusedError extends Error {
  */
 export class ValueNotAcceptedError extends Error {
   public override readonly name = "ValueNotAcceptedError";
-  public constructor(
-    public readonly locator: FieldLocator,
-    public readonly intended: string,
-    public readonly stored: string,
-  ) {
+  /** Shapes, not values. An error object gets logged, serialised and reported. */
+  public readonly intended: RedactedValue;
+  public readonly stored: RedactedValue;
+
+  public constructor(locator: FieldLocator, intended: string, stored: string) {
     super(
       stored.length === 0
         ? `The portal did not accept a value for ${locator.strategy}="${locator.value}". The ` +
@@ -81,7 +83,12 @@ export class ValueNotAcceptedError extends Error {
             `${String(intended.length)} characters to ${String(stored.length)}. Submitting the ` +
             `shortened version would submit something the student did not write.`,
     );
+    this.locator = locator;
+    this.intended = redact(intended);
+    this.stored = redact(stored);
   }
+
+  public readonly locator: FieldLocator;
 }
 
 /**
@@ -94,17 +101,31 @@ export class ValueNotAcceptedError extends Error {
  */
 export class OptionNotAvailableError extends Error {
   public override readonly name = "OptionNotAvailableError";
+  public readonly locator: FieldLocator;
+  /** The student's answer, redacted. Nationality and country of birth are personal data. */
+  public readonly wanted: RedactedValue;
+  /** The portal's own list. Not the student's data, so kept in full. */
+  public readonly available: readonly { readonly value: string; readonly label: string }[];
+
   public constructor(
-    public readonly locator: FieldLocator,
-    public readonly wanted: string,
-    public readonly available: readonly { readonly value: string; readonly label: string }[],
+    locator: FieldLocator,
+    wanted: string,
+    available: readonly { readonly value: string; readonly label: string }[],
   ) {
+    // The wanted value is NOT in the message. It is the student's answer —
+    // a nationality, a country of birth — and this message goes into logs,
+    // escalations and specialist reports. The portal's own option list is the
+    // portal's, and naming it is what makes the error actionable.
     super(
-      `The portal's "${locator.value}" list does not offer "${wanted}". It offers: ` +
+      `The portal's "${locator.value}" list does not offer the confirmed value ` +
+        `(${String(wanted.length)} characters). It offers: ` +
         `${available.map((option) => `${option.value} (${option.label})`).join(", ")}. ` +
         `The mapping is out of step with the portal and a specialist must review it — the ` +
         `nearest option is not chosen.`,
     );
+    this.locator = locator;
+    this.wanted = redact(wanted);
+    this.available = available;
   }
 }
 
@@ -125,8 +146,8 @@ export class PlaywrightPreparationSession implements FillableSession {
   readonly #writes = new WriteLog();
   readonly #reformatted: {
     readonly locator: FieldLocator;
-    readonly intended: string;
-    readonly stored: string;
+    readonly intended: RedactedValue;
+    readonly stored: RedactedValue;
   }[] = [];
   readonly #blocked = new BlockedRequestLog();
   #browser: Browser | null = null;
@@ -151,16 +172,18 @@ export class PlaywrightPreparationSession implements FillableSession {
       headless: true,
       ...(executablePath !== undefined && executablePath.length > 0 ? { executablePath } : {}),
     });
-    session.#context = await session.#browser.newContext({
-      recordVideo: { dir: join(mode.traceDir, "video") },
+    // A SENSITIVE context: no video, no tracing, and tracing made unavailable
+    // rather than merely left off. This session fills passport numbers, dates
+    // of birth, addresses and personal statements, and Playwright writes typed
+    // values verbatim into trace.trace — see ./sensitive.ts for the evidence
+    // and for why stopping tracing around the fill does not help.
+    session.#context = await openSensitiveContext(session.#browser, {
       // Identifies honestly, as discovery does. A run that fills a real
       // application has even less business pretending to be something else.
       userAgent:
         "Mozilla/5.0 (compatible; AskiMate-AAS-Preparation/0.1; +https://askimate.com/bot) " +
         "application preparation — does not submit",
     });
-
-    await session.#context.tracing.start({ screenshots: true, snapshots: true, sources: false });
 
     // See PlaywrightDiscoverySession for why this shim exists: esbuild rewrites
     // named functions to reference a helper the page does not have.
@@ -232,13 +255,29 @@ export class PlaywrightPreparationSession implements FillableSession {
     return this.#requirePage().content();
   }
 
+  /**
+   * A screenshot with every input, textarea and select MASKED.
+   *
+   * The layout, the error banners and the page state are what a specialist
+   * needs from a screenshot of a part-filled form. The values are not, and an
+   * unmasked shot of this page is a picture of somebody's passport number.
+   *
+   * Masking is Playwright's own, applied at capture time, so the values never
+   * reach the PNG rather than being painted over afterwards.
+   */
   public async screenshot(name: string): Promise<string> {
     this.#shotCount += 1;
     const file = join(
       this.mode.traceDir,
       `${String(this.#shotCount).padStart(3, "0")}-${name.replace(/[^a-z0-9-]/gi, "_")}.png`,
     );
-    await this.#requirePage().screenshot({ path: file, fullPage: true });
+    const page = this.#requirePage();
+    await page.screenshot({
+      path: file,
+      fullPage: true,
+      mask: await page.locator("input, textarea, select").all(),
+      maskColor: "#334155",
+    });
     return file;
   }
 
@@ -319,8 +358,10 @@ export class PlaywrightPreparationSession implements FillableSession {
     if (stored.length < text.length && text.startsWith(stored)) {
       throw new ValueNotAcceptedError(locator, text, stored);
     }
-    if (stored !== text) {
-      this.#reformatted.push({ locator, intended: text, stored });
+    if (!sameRedacted(redact(stored), redact(text))) {
+      // Shapes, not values. A specialist needs to know THAT the portal changed
+      // something and by how much; the characters are the student's.
+      this.#reformatted.push({ locator, intended: redact(text), stored: redact(stored) });
     }
   }
 
@@ -348,8 +389,8 @@ export class PlaywrightPreparationSession implements FillableSession {
    */
   public get reformattedFields(): readonly {
     readonly locator: FieldLocator;
-    readonly intended: string;
-    readonly stored: string;
+    readonly intended: RedactedValue;
+    readonly stored: RedactedValue;
   }[] {
     return [...this.#reformatted];
   }
@@ -397,7 +438,8 @@ export class PlaywrightPreparationSession implements FillableSession {
 
   public async close(): Promise<void> {
     if (this.#context !== null) {
-      await this.#context.tracing.stop({ path: join(this.mode.traceDir, "trace.zip") });
+      // No trace to write. `stop` is a no-op on a sensitive context, and
+      // calling it would produce nothing; not calling it is clearer.
       await this.#context.close();
     }
     if (this.#browser !== null) await this.#browser.close();
