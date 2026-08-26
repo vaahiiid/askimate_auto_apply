@@ -14,15 +14,19 @@
  *   3. financial evidence forces human review REGARDLESS of confidence
  *   4. the student authorises exact content, captured as a hash
  *   5. changing the content afterwards VOIDS that authorisation
+ *   5b. a failure PAUSES and escalates — it does not restart or fail the case
  *   6. a duplicate submission is refused
  *   7. a re-application requires an explicit student instruction
  */
 
 import {
   askimateActor,
+  asReusable,
+  blueprintVersion,
   caseId,
   isConversationalAsk,
   ownerFor,
+  priorityFor,
   proposeValue,
   unwrapProposed,
   courseId,
@@ -39,6 +43,9 @@ import {
   submissionKey,
   type CaseEventPayload,
   type CaseIntent,
+  type ExecutionCheckpoint,
+  type InterventionRecord,
+  type RecoveryEscalation,
   type RequestEvidence,
   type SubmissionIdentity,
 } from "@askimate/aas-domain";
@@ -240,12 +247,6 @@ async function main(): Promise<void> {
       outcome: "approved",
     },
   });
-  await apply("Render for student authorisation", {
-    kind: "transition",
-    to: "AWAITING_STUDENT_AUTHORISATION",
-    reason: "Review cleared.",
-  });
-
   // ── 4 ───────────────────────────────────────────────────────────────────
   heading("4. The student authorises exact content");
   await apply("Student authorises", { kind: "capture_authorisation", contentHash: "sha256:content-v1" });
@@ -262,6 +263,82 @@ async function main(): Promise<void> {
     note("detail" in refusal ? refusal.detail : refusal.refusal.detail);
   }
   note("The student must be asked again. This is brief §7, enforced by the machine.");
+
+  // ── 5b ──────────────────────────────────────────────────────────────────
+  heading("5b. A failure pauses and escalates — the specialist recovers it");
+
+  const checkpoint: ExecutionCheckpoint = {
+    blueprintVersion: blueprintVersion("leeds-direct-v3"),
+    page: "funding",
+    section: "financial-evidence",
+    step: 2,
+    completedSections: ["personal-details", "previous-education", "english-language"],
+    capturedAt: new Date("2026-08-26T14:00:00Z"),
+  };
+  const escalation: RecoveryEscalation = {
+    reason: "unfamiliar_validation_error",
+    priority: priorityFor("unfamiliar_validation_error"),
+    encountered: 'Portal rejected the amount: "Value must match declared currency".',
+    expected: "Blueprint expected a plain numeric field with no currency constraint.",
+    checkpoint,
+    raisedAt: new Date("2026-08-26T14:00:00Z"),
+  };
+
+  await apply("AI hits an unfamiliar validation error", { kind: "escalate_for_recovery", escalation });
+  note(`Paused at ${checkpoint.page}/${checkpoint.section} step ${String(checkpoint.step)} — NOT failed, NOT restarted.`);
+  note(`${String(checkpoint.completedSections.length)} sections already completed are preserved: ${checkpoint.completedSections.join(", ")}`);
+  note(`Specialist alerted at priority: ${escalation.priority}`);
+
+  ok("Specialist Amara finds the currency dropdown must be set first");
+  await apply("Resolve and resume", {
+    kind: "resolve_recovery",
+    resumeTo: "AWAITING_STUDENT_AUTHORISATION",
+    resolution: {
+      specialistId: "specialist_amara",
+      actionsTaken: "Selected GBP in the currency dropdown before entering the amount.",
+      resolution: "Currency must be selected before the amount field accepts input.",
+      resolvedAt: new Date("2026-08-26T14:25:00Z"),
+      resumeFrom: checkpoint,
+      outcome: "resume",
+    },
+  });
+  note("Resumed from the checkpoint. The specialist unblocked it; they did not take over.");
+
+  const intervention: InterventionRecord = {
+    interventionId: "iv_001" as InterventionRecord["interventionId"],
+    caseId: CASE,
+    escalation,
+    resolution: {
+      specialistId: "specialist_amara",
+      actionsTaken: "Selected GBP in the currency dropdown before entering the amount.",
+      resolution: "Currency must be selected before the amount field accepts input.",
+      resolvedAt: new Date("2026-08-26T14:25:00Z"),
+      resumeFrom: checkpoint,
+      outcome: "resume",
+    },
+    context: {
+      institutionId: IDENTITY.institutionId,
+      portal: "leeds-direct",
+      courseId: IDENTITY.courseId,
+      blueprintVersion: blueprintVersion("leeds-direct-v3"),
+      page: "funding",
+      section: "financial-evidence",
+    },
+    reusability: {
+      scope: "this_institution",
+      kind: "blueprint_correction",
+      signature: "leeds-direct:funding:currency-before-amount",
+    },
+    lifecycle: "captured",
+  };
+
+  console.log();
+  ok("Intervention captured for the learning loop");
+  blocked(`lifecycle "captured" → usable by the AI? ${asReusable(intervention) === null ? "NO" : "yes"}`);
+  blocked(`lifecycle "validated" → usable by the AI? ${asReusable({ ...intervention, lifecycle: "validated" }) === null ? "NO" : "yes"}`);
+  ok(`lifecycle "published" → usable by the AI? ${asReusable({ ...intervention, lifecycle: "published" }) === null ? "no" : "YES"}`);
+  note("A human must validate AND publish before anything changes production behaviour.");
+  note("The AI never changes its own behaviour on its own. Enforced by the compiler.");
 
   // ── 6 ───────────────────────────────────────────────────────────────────
   heading("6. Submitting once — and refusing to submit twice");

@@ -29,5 +29,6 @@ ADR status uses exactly that vocabulary:
 | [0005](./0005-contract-first-openapi.md) | Contract-first OpenAPI at the AskiMate↔AAS boundary | Accepted |
 | [0006](./0006-reapplication-requires-explicit-student-instruction.md) | Re-application requires an explicit student instruction | Accepted |
 | [0007](./0007-agent-led-conversational-intake.md) | Agent-led conversational intake — the student never fills in a form | Accepted |
+| [0008](./0008-recovery-first-escalation-and-the-learning-loop.md) | Recovery-first escalation, and the learning loop | Accepted |
 
-All seven are **Accepted**. Reversing any of them requires a new ADR that supersedes it.
+All eight are **Accepted**. Reversing any of them requires a new ADR that supersedes it.

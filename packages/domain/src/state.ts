@@ -54,6 +54,21 @@ export const CASE_STATES = [
    */
   "AWAITING_HUMAN_REVIEW",
   /**
+   * The AI hit something it could not safely resolve. The case is PAUSED AT THE
+   * EXACT POINT OF FAILURE with everything already done preserved, a
+   * high-priority escalation is raised, and a specialist has been alerted
+   * (ADR-0008).
+   *
+   * Distinct from AWAITING_HUMAN_REVIEW, and the distinction drives alerting:
+   *   AWAITING_HUMAN_REVIEW      — "check my work before I proceed"
+   *   AWAITING_SPECIALIST_RECOVERY — "I am stuck and cannot proceed"
+   *
+   * The specialist unblocks the specific problem; the case then RESUMES from
+   * its checkpoint. It does not restart, and the specialist does not take over
+   * the application.
+   */
+  "AWAITING_SPECIALIST_RECOVERY",
+  /**
    * The exact content that will be submitted has been rendered and shown to
    * the student. Waiting for explicit authorisation (brief §7).
    */
@@ -82,8 +97,13 @@ export const CASE_STATES = [
 
   // ── Off-ramps ────────────────────────────────────────────────────────────
   /**
-   * An automated route failed. Handing to `AssistedManualAdapter`, which is
-   * always available and never removed (brief §6).
+   * Switching route entirely, to `AssistedManualAdapter`, which is always
+   * available and never removed (brief §6).
+   *
+   * LAST RESORT (ADR-0008). The first response to a failure is
+   * AWAITING_SPECIALIST_RECOVERY — pause, alert, unblock, resume. This state is
+   * only reached when a specialist has judged that the automated route cannot
+   * work for this case at all.
    */
   "ROUTE_FALLBACK",
   /** The student stopped it. TERMINAL. */
@@ -117,6 +137,7 @@ export const BLOCKED_STATES = [
   "DOCUMENTS_PENDING",
   "AWAITING_HANDOFF",
   "AWAITING_HUMAN_REVIEW",
+  "AWAITING_SPECIALIST_RECOVERY",
   "AWAITING_STUDENT_AUTHORISATION",
 ] as const satisfies readonly CaseState[];
 

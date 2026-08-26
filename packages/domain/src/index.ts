@@ -37,6 +37,7 @@ export {
   externalRef,
   institutionId,
   intake,
+  interventionId,
   isIntake,
   studentId,
   taskId,
@@ -102,6 +103,10 @@ export type {
 export { decideReapplication, recommendWait } from "./reapplication.js";
 
 export type {
+  InterventionCaptured,
+  InterventionLifecycleChanged,
+  RecoveryEscalationRaised,
+  RecoveryResolved,
   AuthorisationCaptured,
   AuthorisationVoided,
   BlueprintDriftDetected,
@@ -146,6 +151,32 @@ export { ALLOWED_TRANSITIONS, checkTransition, isTransitionAllowed, nextStates }
 
 export type { ApplicationCase, CaseIntent, Decision, DecisionRefusal } from "./machine.js";
 export { MalformedEventLogError, askimateActor, decide, fold, openCase, stamp } from "./machine.js";
+
+export type {
+  EscalationPriority,
+  ExecutionCheckpoint,
+  RecoveryEscalation,
+  RecoveryReason,
+  RecoveryResolution,
+} from "./recovery.js";
+export { RECOVERY_REASONS, priorityFor } from "./recovery.js";
+
+export type {
+  InterventionContext,
+  InterventionLifecycle,
+  InterventionRecord,
+  ResolutionKind,
+  ReusabilityAssessment,
+  ReusabilityScope,
+  ReusableResolution,
+} from "./learning.js";
+export {
+  NON_USABLE_LIFECYCLE_STATES,
+  asReusable,
+  canTransitionLifecycle,
+  failurePointOf,
+  reusableOnly,
+} from "./learning.js";
 
 export type { AuditAction, AuditEntry, AuditOutcome, RedactedDetail } from "./audit.js";
 export { AuditRedactionError, auditEntry } from "./audit.js";

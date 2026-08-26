@@ -52,6 +52,8 @@ packages/
 │   ├── idempotency.ts  Submission identity — no duplicate submission
 │   ├── reapplication.ts The student's decision to re-apply (ADR-0006)
 │   ├── escalation.ts   Two-layer escalation; layer two is a hard gate
+│   ├── recovery.ts     Pause at the failure point, alert, resume from checkpoint
+│   ├── learning.ts     Intervention capture + the human validation gate
 │   ├── tasks.ts        What the case is waiting on, and who must obtain it
 │   └── audit.ts        What the system did, with redaction enforced
 └── case-store/       Persistence port + in-memory implementation
@@ -133,6 +135,16 @@ into the orchestration engine — adding the second university is a data exercis
   fill in a form" does not license the agent to guess in order to avoid asking. When something is
   genuinely unavailable, the agent still stops — it just stops by asking a question rather than by
   presenting a form field.
+- **Failure pauses; it does not restart and it does not fail the case.** When the AI cannot safely
+  proceed it stops at the exact point of failure, raises a high-priority escalation, and a
+  specialist unblocks that specific problem — then the workflow resumes from its checkpoint.
+  Everything already completed stays available and auditable. The specialist is a **recovery
+  layer, not the primary operator**, and the student is never handed the form because automation
+  failed. See [ADR-0008](./docs/decisions/0008-recovery-first-escalation-and-the-learning-loop.md).
+- **The AI never changes its own production behaviour.** Every human intervention is captured —
+  what the AI met, what it expected, where it failed, what the specialist did, what worked, and
+  where. That record cannot influence anything until a human has validated *and* published it.
+  Capture is automatic; use is gated.
 - **Explicit request before consequential action.** The system may suggest applying. It may never
   begin applying because a conversation crossed a threshold. Silence is not consent.
 - **Extract, then confirm, then store.** Only confirmed information enters the profile.

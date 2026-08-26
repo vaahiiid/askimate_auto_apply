@@ -17,7 +17,9 @@
  */
 
 import type { HumanReviewRecord, ReviewTrigger } from "./escalation.js";
-import type { BlueprintVersion, CaseId, EventId, ExternalRef, TaskId } from "./ids.js";
+import type { BlueprintVersion, CaseId, EventId, ExternalRef, InterventionId, TaskId } from "./ids.js";
+import type { ReusabilityAssessment } from "./learning.js";
+import type { RecoveryEscalation, RecoveryResolution } from "./recovery.js";
 import type { ReapplicationInstruction } from "./reapplication.js";
 import type { CaseState } from "./state.js";
 import type { SubmissionIdentity } from "./idempotency.js";
@@ -211,6 +213,59 @@ export interface ReapplicationInstructed {
   readonly newAttemptOrdinal: number;
 }
 
+/**
+ * The AI could not safely proceed. The case pauses at the exact point of
+ * failure and a specialist is alerted (ADR-0008).
+ *
+ * Carries the full escalation — what was encountered, what was expected, and
+ * the checkpoint — because that is both what the specialist needs to act and
+ * what the learning loop later consumes.
+ */
+export interface RecoveryEscalationRaised {
+  readonly type: "RecoveryEscalationRaised";
+  readonly escalation: RecoveryEscalation;
+}
+
+/**
+ * A specialist unblocked the case.
+ *
+ * The case resumes from `resolution.resumeFrom` — it does not restart, and the
+ * specialist does not take over the application.
+ */
+export interface RecoveryResolved {
+  readonly type: "RecoveryResolved";
+  readonly resolution: RecoveryResolution;
+}
+
+/**
+ * The intervention was recorded for the learning loop (ADR-0008).
+ *
+ * Capture is automatic. Use is NOT: the record starts at lifecycle `captured`
+ * and cannot influence production behaviour until a human has validated and
+ * published it.
+ */
+export interface InterventionCaptured {
+  readonly type: "InterventionCaptured";
+  readonly interventionId: InterventionId;
+  readonly reusability: ReusabilityAssessment;
+}
+
+/**
+ * A human reviewed a captured intervention and moved it along its lifecycle.
+ *
+ * This is the control Vahid required: the AI never changes its own production
+ * behaviour without a human in this loop.
+ */
+export interface InterventionLifecycleChanged {
+  readonly type: "InterventionLifecycleChanged";
+  readonly interventionId: InterventionId;
+  readonly from: string;
+  readonly to: string;
+  /** The named human who made the decision. Never a shared account. */
+  readonly decidedBy: string;
+  readonly note?: string;
+}
+
 /** Execution deviated from the blueprint (brief §3.2). */
 export interface BlueprintDriftDetected {
   readonly type: "BlueprintDriftDetected";
@@ -248,6 +303,10 @@ export type CaseEventPayload =
   | SubmissionFailed
   | ConfirmationCaptured
   | ReapplicationInstructed
+  | RecoveryEscalationRaised
+  | RecoveryResolved
+  | InterventionCaptured
+  | InterventionLifecycleChanged
   | BlueprintDriftDetected
   | RouteFallbackTriggered
   | CaseCancelled;

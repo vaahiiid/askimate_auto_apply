@@ -16,6 +16,7 @@ export type EventId = Brand<string, "EventId">;
 export type InstitutionId = Brand<string, "InstitutionId">;
 export type CourseId = Brand<string, "CourseId">;
 export type BlueprintVersion = Brand<string, "BlueprintVersion">;
+export type InterventionId = Brand<string, "InterventionId">;
 
 /**
  * An external reference supplied by AskiMate, e.g. `askimate:user:4812`.
@@ -91,6 +92,11 @@ export function courseId(value: string): CourseId {
 export function blueprintVersion(value: string): BlueprintVersion {
   requireNonEmpty(value, "blueprintVersion");
   return value as BlueprintVersion;
+}
+
+export function interventionId(value: string): InterventionId {
+  requireNonEmpty(value, "interventionId");
+  return value as InterventionId;
 }
 
 export function externalRef(value: string): ExternalRef {

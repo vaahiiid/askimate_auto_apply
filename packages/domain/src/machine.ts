@@ -21,6 +21,7 @@ import type { CaseEvent, CaseEventPayload, EventActor, RequestEvidence } from ".
 import type { CaseId, ExternalRef } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
 import type { ReapplicationInstruction } from "./reapplication.js";
+import type { RecoveryEscalation, RecoveryResolution } from "./recovery.js";
 import type { CaseState } from "./state.js";
 import { isTerminal } from "./state.js";
 import type { Task, TaskKind } from "./tasks.js";
@@ -52,6 +53,14 @@ export interface ApplicationCase {
   /** True once a submission has been attempted with the current identity. */
   readonly submissionAttempted: boolean;
   readonly openHandoffToken?: string;
+  /**
+   * The unresolved recovery escalation, if the case is paused on one.
+   *
+   * Carries the checkpoint, so a restarted worker or a specialist opening the
+   * case knows exactly where the AI stopped and what it had already done
+   * (ADR-0008).
+   */
+  readonly openEscalation?: RecoveryEscalation;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
@@ -82,6 +91,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let authorisedContentHash: string | undefined;
   let preparedContentHash: string | undefined;
   let openHandoffToken: string | undefined;
+  let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
 
   const tasks = new Map<string, Task>();
@@ -161,6 +171,17 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         if (openHandoffToken === event.handoffToken) openHandoffToken = undefined;
         break;
 
+      case "RecoveryEscalationRaised":
+        openEscalation = event.escalation;
+        break;
+
+      case "RecoveryResolved":
+        // The escalation is closed. The checkpoint survives in the log, which
+        // is what makes "everything already completed remains available and
+        // auditable" true months later.
+        openEscalation = undefined;
+        break;
+
       case "AuthorisationCaptured":
         authorisedContentHash = event.contentHash;
         // What was authorised is, by definition, what was prepared.
@@ -192,6 +213,8 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
       case "SubmissionSucceeded":
       case "SubmissionFailed":
       case "ConfirmationCaptured":
+      case "InterventionCaptured":
+      case "InterventionLifecycleChanged":
       case "BlueprintDriftDetected":
       case "RouteFallbackTriggered":
       case "CaseCancelled":
@@ -224,6 +247,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     ...(authorisedContentHash !== undefined ? { authorisedContentHash } : {}),
     ...(preparedContentHash !== undefined ? { preparedContentHash } : {}),
     ...(openHandoffToken !== undefined ? { openHandoffToken } : {}),
+    ...(openEscalation !== undefined ? { openEscalation } : {}),
   };
 }
 
@@ -241,7 +265,9 @@ export type CaseIntent =
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
-  | { readonly kind: "instruct_reapplication"; readonly instruction: ReapplicationInstruction; readonly newAttemptOrdinal: number };
+  | { readonly kind: "instruct_reapplication"; readonly instruction: ReapplicationInstruction; readonly newAttemptOrdinal: number }
+  | { readonly kind: "escalate_for_recovery"; readonly escalation: RecoveryEscalation }
+  | { readonly kind: "resolve_recovery"; readonly resolution: RecoveryResolution; readonly resumeTo: CaseState };
 
 export type DecisionRefusal =
   | { readonly kind: "transition_refused"; readonly refusal: TransitionRefusal }
@@ -455,6 +481,73 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
             type: "SubmissionAttempted",
             submissionIdentity: applicationCase.submissionIdentity,
             authorisedContentHash: applicationCase.authorisedContentHash,
+          },
+        ],
+      };
+    }
+
+    case "escalate_for_recovery": {
+      // Pause at the exact point of failure (ADR-0008). The case does NOT
+      // unwind and does NOT fail — everything already done is preserved, and
+      // the checkpoint records where to resume from.
+      const check = checkTransition(applicationCase.state, "AWAITING_SPECIALIST_RECOVERY", guardContextOf(applicationCase));
+      if (!check.permitted) {
+        return { accepted: false, refusal: { kind: "transition_refused", refusal: check.refusal } };
+      }
+      return {
+        accepted: true,
+        events: [
+          { type: "RecoveryEscalationRaised", escalation: intent.escalation },
+          {
+            type: "CaseStateChanged",
+            from: applicationCase.state,
+            to: "AWAITING_SPECIALIST_RECOVERY",
+            reason:
+              `Paused at ${intent.escalation.checkpoint.page}/${intent.escalation.checkpoint.section} ` +
+              `step ${String(intent.escalation.checkpoint.step)}: ${intent.escalation.reason}. ` +
+              `Specialist alerted (${intent.escalation.priority}).`,
+          },
+        ],
+      };
+    }
+
+    case "resolve_recovery": {
+      if (applicationCase.state !== "AWAITING_SPECIALIST_RECOVERY") {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: `Recovery can only be resolved from AWAITING_SPECIALIST_RECOVERY, case is ${applicationCase.state}.`,
+          },
+        };
+      }
+      if (applicationCase.openEscalation === undefined) {
+        return {
+          accepted: false,
+          refusal: { kind: "invalid_intent", detail: "There is no open escalation to resolve." },
+        };
+      }
+
+      // The resume target still goes through the full guard check. A specialist
+      // unblocking a case cannot, for example, push it past a mandatory review
+      // that has not happened — recovery is not an override.
+      const check = checkTransition(applicationCase.state, intent.resumeTo, guardContextOf(applicationCase));
+      if (!check.permitted) {
+        return { accepted: false, refusal: { kind: "transition_refused", refusal: check.refusal } };
+      }
+
+      return {
+        accepted: true,
+        events: [
+          { type: "RecoveryResolved", resolution: intent.resolution },
+          {
+            type: "CaseStateChanged",
+            from: applicationCase.state,
+            to: intent.resumeTo,
+            reason:
+              `Resolved by ${intent.resolution.specialistId}; resuming from ` +
+              `${intent.resolution.resumeFrom.page}/${intent.resolution.resumeFrom.section} ` +
+              `step ${String(intent.resolution.resumeFrom.step)}.`,
           },
         ],
       };
