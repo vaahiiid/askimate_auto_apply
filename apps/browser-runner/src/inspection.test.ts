@@ -427,6 +427,100 @@ describe("the inspection decision, in isolation", () => {
     expect(decision.actions?.length).toBe(1);
   });
 
+  it("permits the EXACT login batch the portal sent, which was refused on 2026-08-26", () => {
+    // Recovered from that run's Playwright trace, query string verbatim:
+    //   ?r=3&applauncher.LoginForm.getForgotPasswordUrl=1
+    //       &applauncher.LoginForm.getSelfRegistrationUrl=1
+    //       &applauncher.LoginForm.getUsernamePasswordSelfRegEnabled=1
+    // Two of the three were not on the allow-list, so the whole batch died and
+    // the login page rendered with no username/password fields and no register
+    // link. Evidence for the addition is in inspection-safety.ts.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor: "apex://applauncher.LoginFormController/ACTION$getForgotPasswordUrl",
+          params: {},
+        },
+        {
+          descriptor: "apex://applauncher.LoginFormController/ACTION$getSelfRegistrationUrl",
+          params: {},
+        },
+        {
+          descriptor:
+            "apex://applauncher.LoginFormController/ACTION$getUsernamePasswordSelfRegEnabled",
+          params: {},
+        },
+      ]),
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.actions?.every((verdict) => verdict.allowed)).toBe(true);
+  });
+
+  it("still refuses an ACTION on the same controller that is not a getter", () => {
+    // The addition names three getters. It is not a namespace wildcard and not
+    // a rule about method prefixes: the controller's own sign-in action stays
+    // refused.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([{ descriptor: "apex://applauncher.LoginFormController/ACTION$login", params: {} }]),
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("permits the rich-text render call the portal batches on both pages", () => {
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor:
+            "serviceComponent://ui.communities.components.aura.components.forceCommunity." +
+            "richText.RichTextController/ACTION$getParsedRichTextValue",
+          params: {},
+        },
+      ]),
+    );
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("names the Apex class and method it refused, so a refusal can be reviewed", () => {
+    // The 2026-08-26 run refused three ApexAction.execute calls and nobody
+    // could tell afterwards what they were. Names only — never param values.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor: "aura://ApexActionController/ACTION$execute",
+          params: { classname: "SelfRegPageController", method: "getConfig", cacheable: false },
+        },
+      ]),
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.actions?.[0]?.apex).toBe("SelfRegPageController.getConfig");
+    expect(decision.reason).toContain("SelfRegPageController.getConfig");
+  });
+
+  it("does NOT permit non-cacheable Apex just because the login page needs it", () => {
+    // Explicitly kept blocked. Without the class and method there is no way to
+    // establish what it does, and "the page renders better with it" is not
+    // evidence of anything.
+    const decision = decide(
+      "POST",
+      "https://example.test/s/sfsites/aura",
+      auraBody([
+        {
+          descriptor: "aura://ApexActionController/ACTION$execute",
+          params: { classname: "LoginController", method: "doSomething", cacheable: false },
+        },
+      ]),
+    );
+    expect(decision.allowed).toBe(false);
+  });
+
   it("refuses a consequential payload hidden inside a permitted descriptor", () => {
     // The descriptor is on the allow-list. The payload is not what a render
     // carries. The body scan catches what the descriptor check would wave on.

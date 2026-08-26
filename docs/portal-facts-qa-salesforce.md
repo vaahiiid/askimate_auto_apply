@@ -116,7 +116,7 @@ component traffic. See the note below.
 
 ---
 
-## 5 · A correction to the inspection run itself
+## 6 · A correction to the inspection run itself
 
 The run reported **"0 refused batches"** while in fact refusing **all 17** Aura POSTs.
 
@@ -134,3 +134,80 @@ which discovery never did.
 Both are fixed: the scan now runs over the parsed actions rather than the raw body, and every
 refusal carries its per-action verdicts. A re-run should show permitted render traffic and a
 complete login page.
+
+
+---
+
+## 7 · Run of 2026-08-26T17:45:55Z — the three refused actions, resolved
+
+### The required-count discrepancy: **9 is correct**
+
+That run reported **7 required**; the screenshot shows **9**. The screenshot is right.
+
+The run used the observer as it stood *before* the asterisk-detection fix. Replaying the run's own
+captured `pages/001.html` through the current observer gives **10 controls, 9 required** — Date of
+Birth and the applicant-type combobox recovered, marketing correctly optional. **No code change was
+needed; the run predated the fix.** The markup in that capture is byte-identical to the committed
+fixture for the fields concerned.
+
+### Why the login page was empty
+
+The page says so itself, in an error string in `pages/002.html`:
+
+> `Callback() [Cannot read properties of undefined (reading 'isUsernamePasswordEnabled')]`
+> `Callback failed: apex://applauncher.LoginFormController/ACTION$…`
+
+The component asked whether username/password sign-in is enabled, got nothing because the guard
+refused the call, and crashed. Hence "ACCESS YOUR ACCOUNT" with no fields.
+
+### What the portal actually sent, from the run's Playwright trace
+
+| | Batch (query string, verbatim) | Outcome |
+|---|---|---|
+| r=0 | `hostConfig.HostConfig.getConfigData` | allowed |
+| r=3 | `LoginForm.getForgotPasswordUrl` + `LoginForm.getSelfRegistrationUrl` + `LoginForm.getUsernamePasswordSelfRegEnabled` | **blocked** |
+| r=5 | `LoginForm.getLoginRightFrameUrl` | allowed, **200** |
+| r=2/4 | `RichText.getParsedRichTextValue` | allowed once, blocked once |
+| r=2/4/7 | `aura.ApexAction.execute` (non-cacheable) | **blocked** |
+| r=3/6 | `aura.ApexAction.execute` (cacheable) | allowed |
+
+The three login getters arrive as **one batch**. Aura executes a batch as a unit, so refusing two
+killed the third as well — including one already on the allow-list.
+
+### The two now permitted, and the evidence
+
+`applauncher.LoginForm.getSelfRegistrationUrl` · `applauncher.LoginForm.getUsernamePasswordSelfRegEnabled`
+
+1. **The server declares the sibling read-only.** `getLoginRightFrameUrl`, same controller, was
+   permitted in the same run and answered:
+   `{"state":"SUCCESS","returnValue":null,"error":[],"storable":true}`.
+   **`storable: true`** is Aura's own marker that a response may be cached and replayed without
+   contacting the server — a property the framework applies only to side-effect-free reads. Same
+   class of guarantee as `cacheable` for Apex, and asserted by the server.
+2. **Batched with an already-permitted read** (`getForgotPasswordUrl`) as one page-configuration
+   fetch.
+3. **`applauncher` is a Salesforce-managed namespace** — the platform's own Identity login
+   component, not customer Apex.
+4. **They run at component init, before any user input exists.** There is no form yet, so nothing
+   to persist.
+5. **Behavioural match.** The UI that disappeared is exactly what these two values gate: whether
+   username/password self-registration is on, and where the self-registration page lives. The error
+   above names the first of them directly.
+
+Also added: `RichText.getParsedRichTextValue`, the rich-text render call the portal batches on both
+pages, which was inconsistently matched before.
+
+**Named individually. Not a namespace wildcard and not a rule about `get` prefixes** — a regression
+test asserts `applauncher.LoginForm.login` is still refused.
+
+### What stays blocked, and why
+
+**Non-cacheable `aura.ApexAction.execute` — three calls, still refused.**
+
+It cannot be proven safe because it cannot even be *identified*: the trace records only
+`aura.ApexAction.execute=1`, with no class or method. "The page renders better with it" is not
+evidence about what it does. Custom Apex that is not marked cacheable may perform DML by definition
+of the platform contract.
+
+The guard now records the Apex **class and method** (names only, never parameter values) in every
+verdict, so the next run will name what it refused and that refusal can actually be reviewed.

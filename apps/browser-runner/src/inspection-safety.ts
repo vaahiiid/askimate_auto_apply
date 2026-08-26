@@ -100,14 +100,46 @@ const RENDER_ACTIONS: readonly string[] = [
   "hostConfig.HostConfig.getConfigData",
   "aura.Component.reportFailedAction",   // telemetry for a component that failed
   "RichTextComponent.getRichText",
+  "RichText.getParsedRichTextValue",
   "forceCommunity.richText",
-  "applauncher.LoginForm.getLoginRightFrameUrl",
-  "applauncher.LoginForm.getForgotPasswordUrl", // asks where the reset link points
   "aura.Component.getComponent",
   "aura.Component.getComponentDef",
   "aura.Label.getLabel",
   "getPageContext",
   "bootstrap",
+
+  // ── applauncher.LoginForm — the platform's own login component ──────────
+  //
+  // Four getters on one Salesforce-managed controller, all fired at component
+  // init to decide what the login page should draw. Added on evidence from the
+  // run of 2026-08-26T17:45:55Z, which blocked the last two and rendered a
+  // login page with NO username/password fields and NO register link:
+  //
+  //  1. The batch the portal actually sent was these three together —
+  //     getForgotPasswordUrl + getSelfRegistrationUrl +
+  //     getUsernamePasswordSelfRegEnabled — one page-configuration read. An
+  //     Aura batch executes as a unit, so refusing two killed all three.
+  //  2. getLoginRightFrameUrl, from the same controller, was PERMITTED in the
+  //     same run and the server answered:
+  //       {"state":"SUCCESS","returnValue":null,"error":[],"storable":true}
+  //     `storable: true` is Aura's own marker that a response may be cached
+  //     and replayed without contacting the server — a property the framework
+  //     only applies to side-effect-free reads. That is the server asserting
+  //     read-only, the same class of guarantee `cacheable` gives for Apex.
+  //  3. `applauncher` is a Salesforce-managed namespace: this is the
+  //     platform's Identity login component, not customer Apex.
+  //  4. They run before any user input exists. There is no form yet, so there
+  //     is nothing for them to persist.
+  //  5. Behaviourally, the UI that vanished is exactly what these two values
+  //     gate: whether username/password self-registration is on, and where the
+  //     self-registration page lives.
+  //
+  // Named individually. NOT a namespace wildcard, and not a rule about
+  // getters — `applauncher.LoginForm.login` would still be refused.
+  "applauncher.LoginForm.getLoginRightFrameUrl",
+  "applauncher.LoginForm.getForgotPasswordUrl",
+  "applauncher.LoginForm.getSelfRegistrationUrl",
+  "applauncher.LoginForm.getUsernamePasswordSelfRegEnabled",
 ];
 
 /**
@@ -165,6 +197,8 @@ export interface ActionVerdict {
   readonly descriptor: string;
   readonly allowed: boolean;
   readonly reason: string;
+  /** For Apex only: `Class.method`. Names, never parameter values. */
+  readonly apex?: string;
 }
 
 export interface InspectionDecision extends GuardDecision {
@@ -385,23 +419,33 @@ function judgeAction(action: AuraAction): ActionVerdict {
   // Both forms: `aura.ApexAction.execute` in a query summary, and
   // `aura://ApexActionController/ACTION$execute` in a body.
   if (/ApexAction\.execute/i.test(normalised) || /ApexAction/i.test(descriptor)) {
+    // Name the class and method in the verdict. NOT the params — those could
+    // carry data — but a refusal that says only "some Apex" cannot be
+    // reviewed, and the 2026-08-26 run refused three Apex calls that nobody
+    // could identify afterwards.
+    const apexClass = typeof action.params["classname"] === "string" ? action.params["classname"] : "?";
+    const apexMethod = typeof action.params["method"] === "string" ? action.params["method"] : "?";
+    const named = `${apexClass}.${apexMethod}`;
+
     const cacheable = action.params["cacheable"];
     if (cacheable === true) {
       return {
         descriptor,
+        apex: named,
         allowed: true,
         reason:
-          `Apex marked cacheable. Salesforce refuses DML in an @AuraEnabled(cacheable=true) ` +
-          `method, so this cannot write.`,
+          `Apex ${named} is marked cacheable. Salesforce refuses DML in an ` +
+          `@AuraEnabled(cacheable=true) method, so this cannot write.`,
       };
     }
     return {
       descriptor,
+      apex: named,
       allowed: false,
       reason:
-        `Apex not marked cacheable, so the platform permits it to write. Arbitrary server-side ` +
-        `code is exactly what this mode must not run. Recorded so a human can decide whether the ` +
-        `specific method is safe.`,
+        `Apex ${named} is not marked cacheable, so the platform permits it to write. Arbitrary ` +
+        `server-side code is exactly what this mode must not run. The class and method are named ` +
+        `here so a specialist can decide whether this specific one is safe.`,
     };
   }
 
