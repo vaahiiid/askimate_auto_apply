@@ -54,6 +54,7 @@ export {
   sectionFrom,
   validationsOf,
 } from "./discovery.js";
+export type { FlowSignal, RawObservation } from "./observe-script.js";
 export { OBSERVE_SCRIPT } from "./observe-script.js";
 
 export type { CaptureIndex, CapturedPage, ReplayServer } from "./replay.js";

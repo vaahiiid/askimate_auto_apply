@@ -21,6 +21,7 @@ import type {
   FieldValidation,
 } from "@askimate/aas-blueprint";
 
+import type { FlowSignal } from "./observe-script.js";
 import type { ObservedField, ObservedForm, PageObservation } from "./session.js";
 
 /** Maps an observed DOM element to a blueprint input type. */
@@ -169,6 +170,11 @@ export function draftBlueprintFrom(input: {
     pageFrom(observation, `page${String(index + 1)}`),
   );
 
+  const signals = input.observations.flatMap((observation) =>
+    observation.signals.map((signal) => ({ ...signal, url: observation.url })),
+  );
+  const has = (kind: FlowSignal["kind"]): boolean => signals.some((signal) => signal.kind === kind);
+
   const blueprint: Record<string, unknown> = {
     blueprintId: input.blueprintId,
     version: "0.1.0",
@@ -178,25 +184,123 @@ export function draftBlueprintFrom(input: {
     intake: input.intake,
     route: input.route,
     authentication: {
-      required: input.authenticationRequired,
-      accountCreationRequired: input.authenticationRequired,
-      notes: input.authenticationNotes,
+      // Evidenced where the pages evidence it, and falling back to what the
+      // caller stated only where they do not. A password field is a stronger
+      // claim about authentication than anything a target file can assert.
+      required: has("login") || has("account_creation") || input.authenticationRequired,
+      accountCreationRequired: has("account_creation") || input.authenticationRequired,
+      notes: describeAuthentication(signals, input.authenticationNotes),
       ...(input.loginUrl !== undefined ? { loginUrl: input.loginUrl } : {}),
     },
     pages,
-    // Empty because discovery cannot observe a handoff without triggering it,
-    // and triggering it is exactly what discovery must not do. A specialist
-    // adds these during review.
-    handoffPoints: [],
+    // Handoff points the pages themselves EVIDENCE.
+    //
+    // Discovery still cannot observe a handoff by going through it — that is
+    // exactly what it must not do. But a reCAPTCHA script tag, a
+    // one-time-code input and a "verify your email" line are things the page
+    // shows without being touched, and recording them is the difference
+    // between a specialist reviewing evidence and a specialist guessing.
+    //
+    // Still a DRAFT. The specialist decides which are real.
+    handoffPoints: handoffPointsFrom(input.observations),
     provenance: {
       discoveryRunId: input.discoveryRunId,
       discoveredAt: input.discoveredAt,
       observedUrls: input.observations.map((observation) => observation.url),
       unobservedClaims: input.unobservedClaims,
     },
+    // Not part of the blueprint schema — carried alongside it so a reviewer
+    // sees the raw evidence next to the reading taken from it.
+    observedSignals: signals,
   };
   if (input.campus !== undefined) blueprint["campus"] = input.campus;
   if (input.platform !== undefined) blueprint["platform"] = input.platform;
 
   return blueprint as unknown as ApplicationBlueprint;
+}
+
+
+/**
+ * Turns evidenced signals into draft handoff points.
+ *
+ * Each is a point where brief §7 says only the student may act. Recorded from
+ * what a page SHOWS, never from going through it — and marked draft, because
+ * deciding a reCAPTCHA badge on the landing page means the application form
+ * has a CAPTCHA is an inference, and inferences belong to the reviewer.
+ */
+export function handoffPointsFrom(
+  observations: readonly PageObservation[],
+): readonly {
+  readonly pageRef: string;
+  readonly kind: "captcha" | "mfa" | "otp" | "payment" | "identity_verification" | "final_submission" | "legal_declaration";
+  readonly description: string;
+}[] {
+  const points: {
+    pageRef: string;
+    kind: "captcha" | "mfa" | "otp" | "payment" | "identity_verification" | "final_submission" | "legal_declaration";
+    description: string;
+  }[] = [];
+
+  for (const [index, observation] of observations.entries()) {
+    const pageRef = `page-${String(index + 1)}`;
+    for (const signal of observation.signals) {
+      const mapped = HANDOFF_KINDS[signal.kind];
+      if (mapped === undefined) continue;
+      if (points.some((point) => point.pageRef === pageRef && point.kind === mapped)) continue;
+      points.push({
+        pageRef,
+        kind: mapped,
+        // The evidence travels with it, so review is checking rather than
+        // trusting.
+        description: `Observed: ${signal.evidence}`,
+      });
+    }
+  }
+
+  return points;
+}
+
+const HANDOFF_KINDS: Readonly<
+  Partial<Record<FlowSignal["kind"], "captcha" | "mfa" | "otp" | "payment" | "final_submission">>
+> = {
+  captcha: "captcha",
+  mfa_or_otp: "mfa",
+  payment: "payment",
+  submission: "final_submission",
+};
+
+/**
+ * Describes what the pages showed about authentication.
+ *
+ * Prose for a human, assembled from evidence rather than asserted. The
+ * caller's own note is kept, because "we could not test the login" is itself
+ * worth recording.
+ */
+function describeAuthentication(
+  signals: readonly (FlowSignal & { readonly url: string })[],
+  callerNotes: string,
+): string {
+  const lines: string[] = [];
+  const kinds: readonly FlowSignal["kind"][] = [
+    "login",
+    "account_creation",
+    "email_verification",
+    "mfa_or_otp",
+    "captcha",
+  ];
+
+  for (const kind of kinds) {
+    const matching = signals.filter((signal) => signal.kind === kind);
+    if (matching.length === 0) continue;
+    lines.push(
+      `${kind}: ${String(matching.length)} signal(s) — e.g. ${matching[0]?.evidence ?? ""} ` +
+        `(${matching[0]?.url ?? ""})`,
+    );
+  }
+
+  if (lines.length === 0) {
+    lines.push("No authentication signals were observed on the pages visited.");
+  }
+
+  return `${lines.join("\n")}\n\nReviewer's note from the run: ${callerNotes}`;
 }

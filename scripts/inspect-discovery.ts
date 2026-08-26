@@ -35,6 +35,19 @@ const AMBER = "[33m";
 const RED = "[31m";
 const RESET = "[0m";
 
+/**
+ * A signal the discovery run recorded, carried alongside the blueprint.
+ *
+ * Each is a fact about what a page showed, with the evidence that produced it.
+ * "This portal uses CAPTCHA" is an inference from one of these, and the
+ * inference belongs to the specialist rather than to the run.
+ */
+interface ObservedSignal {
+  readonly kind: string;
+  readonly evidence: string;
+  readonly url: string;
+}
+
 interface RunRecord {
   readonly runId: string;
   readonly target: { readonly institutionName: string; readonly allowedHosts: readonly string[] };
@@ -60,9 +73,10 @@ async function main(): Promise<void> {
 
   const runDir = resolve(argument);
   const run = JSON.parse(await readFile(join(runDir, "run.json"), "utf8")) as RunRecord;
-  const blueprint = JSON.parse(
-    await readFile(join(runDir, "blueprint.draft.json"), "utf8"),
-  ) as ApplicationBlueprint;
+  const raw = JSON.parse(await readFile(join(runDir, "blueprint.draft.json"), "utf8")) as
+    ApplicationBlueprint & { readonly observedSignals?: readonly ObservedSignal[] };
+  const blueprint: ApplicationBlueprint = raw;
+  const observedSignals = raw.observedSignals ?? [];
 
   // ── 1. What the run saw ────────────────────────────────────────────────
   heading("1", "What the run saw");
@@ -134,6 +148,57 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── 2b. What the pages showed about the flow ───────────────────────────
+  heading("2b", "How the flow works, according to the pages themselves");
+
+  if (observedSignals.length === 0) {
+    console.log(
+      `  ${DIM}Nothing observed about login, account creation, CAPTCHA, MFA, email\n` +
+        `  verification, payment, submission or conditional logic.${RESET}\n` +
+        `  ${AMBER}That is not the same as "there are none"${RESET} — it means the pages visited\n` +
+        `  did not show them. A logged-in flow can differ entirely.`,
+    );
+  }
+
+  const byKind = new Map<string, ObservedSignal[]>();
+  for (const signal of observedSignals) {
+    byKind.set(signal.kind, [...(byKind.get(signal.kind) ?? []), signal]);
+  }
+
+  // Printed in the order these things happen in a real flow, so reading down
+  // the list is reading the applicant's journey.
+  const ORDER = [
+    "account_creation",
+    "login",
+    "email_verification",
+    "captcha",
+    "mfa_or_otp",
+    "conditional_field",
+    "payment",
+    "submission",
+  ] as const;
+
+  for (const kind of ORDER) {
+    const found = byKind.get(kind);
+    if (found === undefined) continue;
+    console.log(`  ${AMBER}${kind}${RESET} ${DIM}(${String(found.length)})${RESET}`);
+    for (const signal of found.slice(0, 6)) {
+      console.log(`    ${DIM}${signal.evidence}${RESET}`);
+    }
+    if (found.length > 6) console.log(`    ${DIM}… and ${String(found.length - 6)} more${RESET}`);
+  }
+
+  console.log(`\n  ${BOLD}Authentication, as the pages evidence it${RESET}`);
+  for (const line of blueprint.authentication.notes.split("\n")) {
+    console.log(`    ${DIM}${line}${RESET}`);
+  }
+
+  console.log(
+    `\n  ${DIM}Every line above is EVIDENCE, not a conclusion. "A reCAPTCHA script tag is\n` +
+      `  present" is a fact; "this portal uses CAPTCHA" is a very good inference from it,\n` +
+      `  and the inference belongs to you.${RESET}`,
+  );
+
   // ── 3. Where the real portal differs from the replay ───────────────────
   heading("3", "Where this differs from what the replay proved");
 
@@ -181,6 +246,27 @@ async function main(): Promise<void> {
       `${String(noAdvance.length)} page(s) have no recorded advance control ` +
         `(${noAdvance.map((p) => p.pageRef).join(", ")}). Preparation may only click controls the ` +
         `blueprint records, so with none recorded it cannot move past that page.`,
+    );
+  }
+
+  const authSignals = blueprint.handoffPoints.filter(
+    (point) => point.kind === "captcha" || point.kind === "mfa" || point.kind === "otp",
+  );
+  if (authSignals.length > 0) {
+    gaps.push(
+      `${String(authSignals.length)} CAPTCHA/MFA signal(s) were observed. Each is a point where ` +
+        `ONLY THE STUDENT can act — never bypassed, never automated — so the run pauses there. ` +
+        `If any sits before the application form, an unattended run cannot reach the form at all.`,
+    );
+  }
+
+  if (blueprint.authentication.accountCreationRequired) {
+    gaps.push(
+      `The portal requires account creation. ADR-0020's model — we create it on the student's own ` +
+        `email with a temporary password, then hand it back via the portal's own reset flow — ` +
+        `needs checking against what these pages actually do. If the portal emails its own initial ` +
+        `credential instead, account creation becomes a student handoff rather than an automated ` +
+        `step.`,
     );
   }
 

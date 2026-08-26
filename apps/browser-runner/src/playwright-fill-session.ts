@@ -215,6 +215,7 @@ export class PlaywrightPreparationSession implements FillableSession {
       title: await page.title(),
       forms: observed.forms,
       candidateAdvanceControls: observed.candidateAdvanceControls,
+      signals: observed.signals,
       observedAt: this.#now(),
     };
   }

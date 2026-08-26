@@ -128,6 +128,7 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
       title: await page.title(),
       forms: observed.forms,
       candidateAdvanceControls: observed.candidateAdvanceControls,
+      signals: observed.signals,
       observedAt: this.#now(),
     };
   }

@@ -1,7 +1,7 @@
 {
   "$comment": [
-    "A discovery target. DATA, not code — adding a university is editing a file like this,",
-    "which is what brief §3.2 requires.",
+    "A discovery target. DATA, not code \u2014 adding a university is editing a file like this,",
+    "which is what brief \u00a73.2 requires.",
     "",
     "seedUrls are entry points only. Discovery follows in-scope links from them, bounded by",
     "allowedHosts, linkPatterns and maxPages. It is read-only throughout: the runner cannot",
@@ -10,7 +10,6 @@
     "ROUTE STATUS: apply.qahighereducation.com is a HYPOTHESIS from search results, not a",
     "verified fact. Confirming or refuting it is the first job of this run."
   ],
-
   "targetId": "ulster-birmingham-msc-ib-2026-09",
   "institutionName": "Ulster University",
   "campus": "Birmingham",
@@ -18,24 +17,20 @@
   "intake": "2026-09",
   "route": "partner_portal",
   "platformHypothesis": "salesforce_experience_cloud",
-
   "routeNotes": [
     "Ulster Birmingham is a branch campus: validated by Ulster University, taught by QA Higher",
     "Education. Admissions therefore run on the teaching partner's systems, NOT on Ulster's own",
     "Banner portal (srssb.ulster.ac.uk). Verifying this is the primary objective."
   ],
-
   "allowedHosts": [
     "qahighereducation.com",
     "ulster.ac.uk"
   ],
-
   "seedUrls": [
     "https://qahighereducation.com/partner-institutions/ulster-university/",
     "https://apply.qahighereducation.com/s/login/",
     "https://www.ulster.ac.uk/study/postgraduate/apply"
   ],
-
   "linkPatterns": [
     "appl(y|ication)",
     "how-to-apply",
@@ -45,16 +40,21 @@
     "postgraduate",
     "birmingham"
   ],
-
   "maxPages": 25,
-
   "claimsToVerify": [
     "Applications for the Birmingham campus are handled at apply.qahighereducation.com, not by Ulster's own system",
     "The portal platform is Salesforce Experience Cloud",
     "Whether an account must be created before the application form is visible",
     "IELTS 6.0 with no band below 5.5",
-    "Applicants must be 18 at course start (RELEVANT TO ADR-0011/0013 — verify before relying on it)",
+    "Applicants must be 18 at course start (RELEVANT TO ADR-0011/0013 \u2014 verify before relying on it)",
     "Required documents: transcripts, certified translations, English test certificate",
-    "Whether the September 2026 intake is open and its deadline"
+    "Whether the September 2026 intake is open and its deadline",
+    "Whether the application form is reachable without an account, or hidden behind a login",
+    "Whether the portal lets an applicant choose their own password at account creation, or emails its own initial credential (this decides whether ADR-0020's model fits)",
+    "Whether email verification must be completed before the application form is reachable",
+    "Whether CAPTCHA is present, and if so on which pages",
+    "Whether MFA or a one-time code is required at any point",
+    "Where the submission control is, and what endpoint it posts to",
+    "Whether any fields are conditional on earlier answers"
   ]
 }

@@ -6,11 +6,12 @@
  */
 
 import { createServer, type Server } from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { FlowSignal } from "./observe-script.js";
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
 import { HostAllowList, decideDiscoveryRequest, decideDiscoveryRequestForHost } from "./safety.js";
 import { draftBlueprintFrom, inputTypeOf, validationsOf } from "./discovery.js";
@@ -231,5 +232,93 @@ describe("observation to blueprint conversion", () => {
     const check = checkExecutable(reviewed);
     expect(check.executable).toBe(false);
     if (!check.executable) expect(check.refusal.kind).toBe("nothing_observed");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Flow signals — the questions a real discovery run has to answer
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("what the page shows about the flow", () => {
+  let server: Server;
+  let session: PlaywrightDiscoverySession;
+  let signals: readonly FlowSignal[];
+
+  beforeAll(async () => {
+    const html = await readFile(
+      join(import.meta.dirname, "..", "fixtures", "application-form.html"),
+      "utf8",
+    );
+    server = createServer((_req, res) => {
+      res.writeHead(200, { "content-type": "text/html" }).end(html);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("no address");
+    const baseUrl = `http://127.0.0.1:${String(address.port)}`;
+
+    session = await PlaywrightDiscoverySession.open({
+      capability: "read_only",
+      allowedHosts: ["127.0.0.1"],
+      runId: "signals-test",
+      traceDir: await mkdtemp(join(tmpdir(), "aas-signals-")),
+      now: () => new Date("2026-08-26T10:00:00Z"),
+    });
+    await session.goto(`${baseUrl}/apply`);
+    signals = (await session.observe()).signals;
+  }, 60_000);
+
+  afterAll(async () => {
+    await session.close();
+    server.close();
+  });
+
+  const evidenceFor = (kind: FlowSignal["kind"]): string =>
+    signals
+      .filter((signal) => signal.kind === kind)
+      .map((signal) => signal.evidence)
+      .join(" | ");
+
+  it("detects authentication from password fields — the least ambiguous evidence there is", () => {
+    expect(evidenceFor("login")).toContain("input[type=password]");
+  });
+
+  it("distinguishes account creation from login by the confirm-password pattern", () => {
+    expect(evidenceFor("account_creation")).toContain("confirm-password pattern");
+  });
+
+  it("detects CAPTCHA by its third-party footprint, not by guessing", () => {
+    expect(evidenceFor("captcha")).toContain("recaptcha");
+  });
+
+  it("detects a one-time code input", () => {
+    expect(evidenceFor("mfa_or_otp")).toContain("one-time-code");
+  });
+
+  it("detects email verification from the portal's own wording", () => {
+    expect(evidenceFor("email_verification")).toContain("verify your email");
+  });
+
+  it("detects the submission control, so the guards have something to refuse", () => {
+    expect(evidenceFor("submission")).toContain("Submit application");
+  });
+
+  it("detects a field that is present but hidden — evidence of conditional logic", () => {
+    expect(evidenceFor("conditional_field")).toContain("sponsor_name");
+  });
+
+  it("carries EVIDENCE with every signal, never a bare conclusion", () => {
+    // "This portal uses CAPTCHA" is an inference. "There is a script tag from
+    // google.com/recaptcha" is a fact, and the inference belongs to the
+    // specialist reviewing the blueprint.
+    for (const signal of signals) {
+      expect(signal.evidence.length).toBeGreaterThan(3);
+    }
+  });
+
+  it("does not click, type or otherwise touch the page to find them", () => {
+    // The fixture POSTs on load and that is blocked. If observation had
+    // interacted with anything, this count would move.
+    expect(session.blockedRequests().length).toBeGreaterThan(0);
   });
 });

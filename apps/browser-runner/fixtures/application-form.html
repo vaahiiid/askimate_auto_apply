@@ -41,7 +41,21 @@
 
   <input type="hidden" name="csrf_token" value="should-not-appear-in-blueprint">
   <button type="submit" id="continueBtn">Save and continue</button>
+  <button type="button" id="submitBtn">Submit application</button>
 </form>
+
+<!--
+  Flow signals the discovery run should detect and record AS EVIDENCE.
+  A real portal shows these; the fixture shows them so the detector is
+  exercised against something rather than asserted about nothing.
+-->
+<p>Please verify your email — we have sent you an email with an activation link.</p>
+<p>New applicant? <a href="/register">Create an account</a></p>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+<input type="password" name="password" aria-label="Password">
+<input type="password" name="password_confirm" aria-label="Confirm password">
+<input type="text" name="otp" autocomplete="one-time-code" aria-label="Verification code">
+<input type="text" name="sponsor_name" style="display: none" aria-label="Sponsor name">
 
 <script>
   // A portal that tries to register a partial application on page load.

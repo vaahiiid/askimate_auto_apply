@@ -107,7 +107,11 @@ describe("the discovery CLI, run for real", () => {
     expect(stdout).not.toContain("/news/latest");
 
     // The portal's POST-on-load was blocked and surfaced as a finding.
-    expect(stdout).toContain("Requests blocked   1");
+    // Two: the portal's own POST-on-load, and the reCAPTCHA script the fixture
+    // loads from google.com. The second is not incidental — a real portal WILL
+    // pull CAPTCHA from a third party, and discovery is scoped to one target's
+    // hosts, so refusing it is the allow-list doing its job.
+    expect(stdout).toContain("Requests blocked   2");
     expect(stdout).toContain("attempted state-changing requests");
     expect(writesReachingServer).toBe(0);
 

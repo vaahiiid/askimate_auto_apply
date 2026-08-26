@@ -19,6 +19,8 @@
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import type { FieldLocator } from "@askimate/aas-blueprint";
 
+import type { FlowSignal } from "./observe-script.js";
+
 /** What was found on a page. The raw material of a blueprint. */
 export interface ObservedForm {
   readonly formIndex: number;
@@ -47,6 +49,14 @@ export interface PageObservation {
   readonly forms: readonly ObservedForm[];
   /** Links that look like they advance an application flow. */
   readonly candidateAdvanceControls: readonly FieldLocator[];
+  /**
+   * What the page shows about how the flow works — authentication, account
+   * creation, CAPTCHA, MFA, email verification, submission, conditional logic.
+   *
+   * Each carries the evidence that produced it, because a signal is an
+   * observation and not a conclusion. See `FlowSignal`.
+   */
+  readonly signals: readonly FlowSignal[];
   readonly observedAt: Date;
 }
 
