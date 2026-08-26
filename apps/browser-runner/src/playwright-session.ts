@@ -140,6 +140,10 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
     );
   }
 
+  public html(): Promise<string> {
+    return this.#requirePage().content();
+  }
+
   public async screenshot(name: string): Promise<string> {
     this.#shotCount += 1;
     const file = join(

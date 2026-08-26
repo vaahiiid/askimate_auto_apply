@@ -17,11 +17,14 @@
     "walkthrough": "tsx scripts/walkthrough.ts",
     "interview-demo": "tsx scripts/interview-demo.ts",
     "extraction-demo": "tsx scripts/extraction-demo.ts",
+    "end-to-end": "tsx scripts/end-to-end.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean"
   },
   "devDependencies": {
+    "@askimate/aas-blueprint": "workspace:*",
+    "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
     "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
@@ -29,6 +32,7 @@
     "@askimate/aas-interview": "workspace:*",
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",
+    "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-preparation": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
     "@eslint/js": "^9.18.0",

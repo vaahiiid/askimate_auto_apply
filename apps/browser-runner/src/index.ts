@@ -56,5 +56,8 @@ export {
 } from "./discovery.js";
 export { OBSERVE_SCRIPT } from "./observe-script.js";
 
+export type { CaptureIndex, CapturedPage, ReplayServer } from "./replay.js";
+export { startReplayServer } from "./replay.js";
+
 export type { DiscoveryTarget } from "./target.js";
 export { InvalidTargetError, parseTarget, shouldFollow } from "./target.js";

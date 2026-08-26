@@ -55,6 +55,20 @@ const RULES: readonly Rule[] = [
       "renders nothing — it is a capability of AskiMate Chat, not an interface (ADR-0015).",
   },
   {
+    packagePath: "packages/orchestrator",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "playwright",
+      "@askimate/aas-browser-runner",
+    ],
+    rationale:
+      "The orchestrator talks to a model only through the port, and to a browser only through " +
+      "its own ApplicationSession interface — so packages never depend on apps, and the " +
+      "workflow is testable with no browser at all.",
+  },
+  {
     packagePath: "packages/preparation",
     forbidden: [
       "openai",

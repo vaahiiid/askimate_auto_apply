@@ -29,6 +29,7 @@
 import { createHash } from "node:crypto";
 
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
+import { allFields } from "@askimate/aas-blueprint";
 import { provenanceOf } from "@askimate/aas-domain";
 import type { ConfirmationProvenance } from "@askimate/aas-domain";
 import type { FillPlan } from "@askimate/aas-mapping";
@@ -47,7 +48,19 @@ export interface PreviewDocument {
 export interface PreviewEntry {
   readonly fieldRef: string;
   readonly label: string;
+  /** Exactly what will be submitted. What the hash covers. */
   readonly text: string;
+  /**
+   * The same value in words the student recognises, when they differ.
+   *
+   * A nationality dropdown submits `IR`. Asking someone to approve
+   * "Nationality: IR" is asking them to approve a string they cannot check —
+   * they will say yes, and the confirmation will have done nothing. The
+   * preview shows both: what it means, and what is actually sent.
+   *
+   * Absent when the two are the same, which is most fields.
+   */
+  readonly displayText?: string;
   readonly attribution:
     | {
         readonly kind: "student_confirmed";
@@ -124,13 +137,20 @@ export function buildPreview(
     };
   }
 
-  const entries: PreviewEntry[] = plan.instructions.map((instruction) => ({
-    fieldRef: instruction.fieldRef,
-    label: instruction.label,
-    text:
+  const optionLabels = optionLabelsOf(blueprint);
+
+  const entries: PreviewEntry[] = plan.instructions.map((instruction) => {
+    const text =
       instruction.value.kind === "confirmed"
         ? unwrapText(instruction.value.value)
-        : constantText(instruction.value.constant),
+        : constantText(instruction.value.constant);
+    const readable = optionLabels.get(instruction.fieldRef)?.get(text);
+
+    return {
+    fieldRef: instruction.fieldRef,
+    label: instruction.label,
+    text,
+    ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
     attribution:
       instruction.value.kind === "confirmed"
         ? {
@@ -143,7 +163,8 @@ export function buildPreview(
             rationale: constantAttribution(instruction.value.constant).rationale,
             reviewedBy: constantAttribution(instruction.value.constant).reviewedBy,
           },
-  }));
+    };
+  });
 
   const attachments: PreviewAttachment[] = [];
   for (const upload of plan.uploads) {
@@ -242,6 +263,25 @@ function hashContent(content: {
   return `sha256:${createHash("sha256").update(lines.join("")).digest("hex")}`;
 }
 
+/**
+ * Every select/radio field's option values, mapped back to their labels.
+ *
+ * From the blueprint — the university's own words for its own options, as
+ * observed. Not a lookup table anyone here invented.
+ */
+function optionLabelsOf(
+  blueprint: ApplicationBlueprint,
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  const byField = new Map<string, Map<string, string>>();
+  for (const field of allFields(blueprint)) {
+    if (field.options === undefined) continue;
+    const labels = new Map<string, string>();
+    for (const option of field.options) labels.set(option.value, option.label);
+    byField.set(field.fieldRef, labels);
+  }
+  return byField;
+}
+
 function byFieldRef(a: { fieldRef: string }, b: { fieldRef: string }): number {
   return a.fieldRef < b.fieldRef ? -1 : a.fieldRef > b.fieldRef ? 1 : 0;
 }
@@ -262,7 +302,14 @@ export function renderPreview(preview: SubmissionPreview): string {
   ];
 
   for (const entry of preview.entries) {
-    lines.push(`${entry.label}: ${entry.text}`);
+    // What it means first, then what is actually sent — because the student
+    // must be able to check it AND must not be shown something other than the
+    // value that will reach the university.
+    lines.push(
+      entry.displayText === undefined
+        ? `${entry.label}: ${entry.text}`
+        : `${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`,
+    );
     if (entry.attribution.kind === "reviewed_constant") {
       // Marked, because it is the one thing here the student did not tell us.
       lines.push(`    (set by AskiMate: ${entry.attribution.rationale})`);

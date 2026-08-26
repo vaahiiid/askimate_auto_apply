@@ -11,6 +11,7 @@
     { "path": "./packages/extraction" },
     { "path": "./packages/mapping" },
     { "path": "./packages/preparation" },
+    { "path": "./packages/orchestrator" },
     { "path": "./apps/browser-runner" },
     { "path": "./tsconfig.tools.json" }
   ]

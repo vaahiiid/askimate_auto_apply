@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../domain" },
+    { "path": "../blueprint" },
+    { "path": "../interview" },
+    { "path": "../llm" },
+    { "path": "../mapping" },
+    { "path": "../preparation" },
+    { "path": "../profile" }
+  ]
+}

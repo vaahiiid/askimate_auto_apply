@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:packages/blueprint
+      '@askimate/aas-browser-runner':
+        specifier: workspace:*
+        version: link:apps/browser-runner
       '@askimate/aas-case-store':
         specifier: workspace:*
         version: link:packages/case-store
@@ -29,6 +35,9 @@ importers:
       '@askimate/aas-mapping':
         specifier: workspace:*
         version: link:packages/mapping
+      '@askimate/aas-orchestrator':
+        specifier: workspace:*
+        version: link:packages/orchestrator
       '@askimate/aas-preparation':
         specifier: workspace:*
         version: link:packages/preparation
@@ -158,6 +167,34 @@ importers:
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain
+      '@askimate/aas-profile':
+        specifier: workspace:*
+        version: link:../profile
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/orchestrator:
+    dependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:../blueprint
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@askimate/aas-interview':
+        specifier: workspace:*
+        version: link:../interview
+      '@askimate/aas-llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@askimate/aas-mapping':
+        specifier: workspace:*
+        version: link:../mapping
+      '@askimate/aas-preparation':
+        specifier: workspace:*
+        version: link:../preparation
       '@askimate/aas-profile':
         specifier: workspace:*
         version: link:../profile

@@ -21,25 +21,29 @@ import { resolve } from "node:path";
 
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
 import type { PageObservation } from "./session.js";
+import type { CapturedPage } from "./replay.js";
 import { draftBlueprintFrom } from "./discovery.js";
 import { parseTarget, shouldFollow, type DiscoveryTarget } from "./target.js";
 
 interface RunResult {
   readonly observations: readonly PageObservation[];
+  /** Pages saved to disk, so the run can be replayed locally afterwards. */
+  readonly captured: readonly CapturedPage[];
   readonly visited: readonly string[];
   readonly failed: readonly { readonly url: string; readonly error: string }[];
   readonly blockedRequests: readonly { readonly method: string; readonly url: string }[];
 }
 
-async function discover(target: DiscoveryTarget, traceDir: string, runId: string): Promise<RunResult> {
+async function discover(target: DiscoveryTarget, outDir: string, runId: string): Promise<RunResult> {
   const session = await PlaywrightDiscoverySession.open({
     capability: "read_only",
     allowedHosts: [...target.allowedHosts],
     runId,
-    traceDir,
+    traceDir: outDir,
   });
 
   const observations: PageObservation[] = [];
+  const captured: CapturedPage[] = [];
   const visited: string[] = [];
   const failed: { url: string; error: string }[] = [];
   const seen = new Set<string>();
@@ -62,6 +66,13 @@ async function discover(target: DiscoveryTarget, traceDir: string, runId: string
         visited.push(observation.url);
         await session.screenshot(`page-${String(visited.length)}`);
 
+        // Capture the page so the run can be REPLAYED locally. This is what
+        // lets the fill logic be built and debugged against what the portal
+        // really looks like, without a live admissions system involved.
+        const file = `pages/${String(visited.length).padStart(3, "0")}.html`;
+        await writeFile(resolve(outDir, file), await session.html());
+        captured.push({ url: observation.url, file, capturedAt: observation.observedAt.toISOString() });
+
         // Follow in-scope links. Conservative by design: only links matching
         // the target's patterns, and only within the allow-list.
         for (const link of await session.links()) {
@@ -78,6 +89,7 @@ async function discover(target: DiscoveryTarget, traceDir: string, runId: string
 
     return {
       observations,
+      captured,
       visited,
       failed,
       blockedRequests: session.blockedRequests(),
@@ -103,7 +115,7 @@ async function main(): Promise<void> {
   const startedAt = new Date();
   const runId = `disc-${target.targetId}-${startedAt.toISOString().replace(/[:.]/g, "-")}`;
   const outDir = resolve("discovery-runs", runId);
-  await mkdir(outDir, { recursive: true });
+  await mkdir(resolve(outDir, "pages"), { recursive: true });
 
   process.stdout.write(`\nDiscovery — ${target.institutionName}`);
   if (target.campus !== undefined) process.stdout.write(` (${target.campus})`);
@@ -134,6 +146,14 @@ async function main(): Promise<void> {
   });
 
   await writeFile(resolve(outDir, "blueprint.draft.json"), JSON.stringify(blueprint, null, 2) + "\n");
+  await writeFile(
+    resolve(outDir, "pages", "index.json"),
+    JSON.stringify(
+      { runId, capturedAt: startedAt.toISOString(), pages: result.captured },
+      null,
+      2,
+    ) + "\n",
+  );
   await writeFile(
     resolve(outDir, "run.json"),
     JSON.stringify(

@@ -63,6 +63,15 @@ export interface ReadOnlySession {
   observe(): Promise<PageObservation>;
   /** Absolute in-page links. Reads hrefs; does not click anything. */
   links(): Promise<readonly string[]>;
+  /**
+   * The page's rendered HTML.
+   *
+   * Captured during discovery so a run can be REPLAYED locally afterwards. A
+   * saved page is how the fill logic gets debugged against what the portal
+   * really looks like without touching a live admissions system — which is
+   * both the fastest and the safest way to build it.
+   */
+  html(): Promise<string>;
   /** Captures a screenshot into the run's trace directory. */
   screenshot(name: string): Promise<string>;
   currentUrl(): Promise<string>;
@@ -80,6 +89,22 @@ export interface ReadOnlySession {
  */
 export interface FillableSession extends ReadOnlySession {
   fill(locator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
+  /**
+   * Types a value that is NOT the student's data.
+   *
+   * Reviewed application constants only — a course code, an intake term
+   * (ADR-0017). Deliberately a SEPARATE, conspicuously-named method rather than
+   * an overload of `fill`, and deliberately not laundered through a fabricated
+   * `ConfirmedValue`: a provenance record saying a student confirmed something
+   * they have never seen would be a lie in the audit trail.
+   *
+   * This is the one way a string reaches a form field without a student's
+   * confirmation behind it. That is a real hole and it is left visible on
+   * purpose — searchable by name, used in exactly one place, and covered by the
+   * mapping set's two-person review. Nothing model-generated may pass through
+   * it.
+   */
+  fillConstant(locator: FieldLocator, text: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   /** Uploads a document by vault ID. The runner never sees the vault itself. */
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;

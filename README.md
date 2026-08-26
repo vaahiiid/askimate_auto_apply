@@ -17,9 +17,9 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | 3 — Browser runtime and discovery |
-| **Status** | ⚠️ Runner complete and verified · **awaiting network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 509 passing · typecheck, lint and boundary checks green |
+| **Phase** | 5 — Fill · validate · preview · authorise |
+| **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
+| **Tests** | 528 passing · typecheck, lint and boundary checks green |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
@@ -31,7 +31,13 @@ pnpm run verify        # typecheck · lint · boundaries · tests
 pnpm run walkthrough   # drive one case end to end and watch what happens
 pnpm run interview-demo # watch the agent interview a student conversationally
 pnpm run extraction-demo # watch a document be read — and a fabricated reading be discarded
+pnpm run end-to-end     # 🎯 the whole chain, against a replay of a discovered portal
 ```
+
+`pnpm run end-to-end` is the milestone: it discovers a portal read-only, captures every page,
+replays it locally, interviews the student in conversation, plans the fill, validates it against the
+portal's own recorded rules, shows exactly what will be submitted, captures the authorisation, fills
+the form — and **stops**.
 
 `pnpm run walkthrough` is the fastest way to see what has been built: it opens a
 real case, blocks it on a missing document, forces human review of financial
@@ -70,6 +76,7 @@ packages/
 │   └── profile.ts      Confirmed-only writes + the typed resolver
 ├── llm/             The ONLY package that may call a model
 ├── interview/       Application-aware questioning inside AskiMate Chat
+├── orchestrator/    The workflow, composed. Cannot submit.
 ├── preparation/     Validate · preview · authorise — nothing here submits
 │   ├── validate.ts    Against the portal's OWN recorded rules, never guessed ones
 │   ├── preview.ts     Exactly what will be submitted, and its content hash
@@ -92,13 +99,15 @@ apps/
     ├── preparation-safety.ts  The click guard — preparation cannot submit
     ├── session.ts      Capability levels: read-only / fillable / submittable
     ├── playwright-fill-session.ts  Fills a real form. No submit method exists.
+    ├── replay.ts       Serve a captured run locally — build against saved pages
     └── discovery.ts    Observations → draft blueprint
 
 scripts/
 ├── check-boundaries.ts  Enforces the dependency-graph rules
 ├── walkthrough.ts       End-to-end demonstration
 ├── interview-demo.ts    The interview loop, driven by a scripted conversation
-└── extraction-demo.ts   An honest reader, and a confabulating one
+├── extraction-demo.ts   An honest reader, and a confabulating one
+└── end-to-end.ts        🎯 the whole chain, stopping before submission
 
 docs/
 ├── phase-0/          The five Phase 0 deliverables
@@ -119,8 +128,8 @@ No infrastructure, no AWS, no database. Phase 1 runs entirely on a laptop.
 | **1** | Domain core — case model, state machine, event log, idempotency | ✅ Complete, verified |
 | **2** | Canonical profile · document vault · deterministic validity engine | ✅ Complete, verified |
 | **3** | Browser runtime · discovery · first Application Blueprint | ⚠️ Runtime done; live run blocked |
-| **4** | Requirements with provenance · eligibility · field mapping | Not started |
-| **5** | Fill · validate · preview · capture authorisation *(stops before submit)* | Not started |
+| **4** | Requirements with provenance · eligibility · field mapping | 🟡 Mapping done; Requirements Service outstanding |
+| **5** | Fill · validate · preview · capture authorisation *(stops before submit)* | ✅ Built, proven against a replay |
 | **6** | Submit · capture confirmation · status polling | Not started |
 | **7** | Second university — proves the abstraction holds | Not started |
 

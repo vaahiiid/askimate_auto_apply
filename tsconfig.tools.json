@@ -10,5 +10,22 @@
     "composite": true,
         "types": ["node"]
   },
-  "include": ["*.ts", "scripts/**/*.ts"]
+  "include": ["*.ts", "scripts/**/*.ts"],
+  // Referenced so scripts can import them as built projects rather than
+  // pulling their sources into this one — which would compile browser-page
+  // code without DOM types and fail confusingly.
+  "references": [
+    { "path": "./packages/domain" },
+    { "path": "./packages/blueprint" },
+    { "path": "./packages/profile" },
+    { "path": "./packages/documents" },
+    { "path": "./packages/case-store" },
+    { "path": "./packages/llm" },
+    { "path": "./packages/interview" },
+    { "path": "./packages/extraction" },
+    { "path": "./packages/mapping" },
+    { "path": "./packages/preparation" },
+    { "path": "./packages/orchestrator" },
+    { "path": "./apps/browser-runner" }
+  ]
 }

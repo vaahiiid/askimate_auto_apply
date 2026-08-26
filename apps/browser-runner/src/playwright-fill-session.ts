@@ -227,6 +227,10 @@ export class PlaywrightPreparationSession implements FillableSession {
     );
   }
 
+  public html(): Promise<string> {
+    return this.#requirePage().content();
+  }
+
   public async screenshot(name: string): Promise<string> {
     this.#shotCount += 1;
     const file = join(
@@ -260,10 +264,13 @@ export class PlaywrightPreparationSession implements FillableSession {
    * and Playwright's own `selectOption` fails rather than choosing a default.
    */
   public async fill(locator: FieldLocator, value: ConfirmedValue<string>): Promise<void> {
-    const target = await this.#resolve([locator]);
     // Unwrapped at the last possible moment. Before this line it is a
     // ConfirmedValue and nothing else could have been passed here.
-    const text = unwrapConfirmed(value);
+    await this.#type(locator, unwrapConfirmed(value));
+  }
+
+  async #type(locator: FieldLocator, text: string): Promise<void> {
+    const target = await this.#resolve([locator]);
 
     const tagName = (await target.evaluate((element) => element.tagName)).toLowerCase();
     if (tagName === "select") {
@@ -344,6 +351,16 @@ export class PlaywrightPreparationSession implements FillableSession {
     readonly stored: string;
   }[] {
     return [...this.#reformatted];
+  }
+
+  /**
+   * Types a reviewed application constant.
+   *
+   * Shares `#type` with `fill`, so a constant is subject to the same read-back
+   * verification — a truncated course code is as wrong as a truncated name.
+   */
+  public async fillConstant(locator: FieldLocator, text: string): Promise<void> {
+    await this.#type(locator, text);
   }
 
   /**

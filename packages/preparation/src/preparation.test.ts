@@ -178,7 +178,10 @@ describe("the preview", () => {
 
     expect(text).toContain("First name: Niloofar");
     expect(text).toContain("Date of birth: 02/04/1999");
-    expect(text).toContain("Nationality: IR");
+    // Shown in words the student can check, AND with what is actually sent.
+    // "Nationality: IR" alone is a string nobody can verify — they would say
+    // yes and the confirmation would have done nothing.
+    expect(text).toContain('Nationality: Iran (Islamic Republic of)  (sent as "IR")');
     expect(preview.entries).toHaveLength(planFor().instructions.length);
   });
 
