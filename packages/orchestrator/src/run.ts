@@ -51,7 +51,7 @@ import {
 } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
-import type { StudentId } from "@askimate/aas-domain";
+import type { RunId, StudentId, WorkflowCheckpoint } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
 import type {
@@ -145,6 +145,23 @@ export interface RunState {
     readonly lifecycle: SecretLifecycle;
     /** Opaque. Resolves to nothing outside the secret store. */
     readonly handle?: SecretHandle;
+  };
+  /**
+   * Where this run got to, when it is a durable one.
+   *
+   * OPTIONAL, deliberately. A run that does not need to survive a restart — a
+   * replay against a captured portal, a test — passes no store and carries no
+   * position, and every existing caller still compiles. Making it required
+   * would have been a MAJOR change for no gain.
+   *
+   * Position only: a runId, the optimistic-concurrency revision, and a
+   * checkpoint whose values are primitives by construction. No business fact
+   * can be in here — see `CheckpointValue`.
+   */
+  readonly run?: {
+    readonly runId: RunId;
+    readonly revision: number;
+    readonly checkpoint: WorkflowCheckpoint;
   };
 }
 

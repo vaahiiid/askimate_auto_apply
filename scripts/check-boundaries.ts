@@ -557,6 +557,33 @@ function main(): void {
   }
   console.log(`  ✓  workflow checkpoints — position only, no business facts`);
 
+  // ── `pg` is dev-only in the orchestrator ────────────────────────────────
+  //
+  // The orchestrator's end-to-end restart test drives the real Postgres
+  // adapter, so `pg` is a devDependency there. It must never become a runtime
+  // one: the orchestrator talks to storage through the CaseStore and
+  // WorkflowRunStore ports, and a direct driver dependency would let someone
+  // write a query in the middle of a decision function — which is exactly the
+  // purity `assess` and `nextStep` are designed to keep.
+  //
+  // The rule table above merges dependencies and devDependencies, so this
+  // distinction needs its own check.
+  const ORCHESTRATOR_MANIFEST = "packages/orchestrator/package.json";
+  if (existsSync(ORCHESTRATOR_MANIFEST)) {
+    const manifest = readManifest("packages/orchestrator");
+    for (const driver of ["pg", "drizzle-orm", "@aws-sdk/client-s3"]) {
+      if (manifest?.dependencies?.[driver] === undefined) continue;
+      violations.push(
+        `packages/orchestrator has \`${driver}\` as a RUNTIME dependency. It reaches storage only ` +
+          `through the CaseStore and WorkflowRunStore ports; a direct driver here would let a ` +
+          `query be written inside a decision function, which is the purity assess() and ` +
+          `nextStep() exist to keep. A devDependency for integration tests is fine.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  packages/orchestrator — no runtime database driver`);
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {

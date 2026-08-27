@@ -21,6 +21,61 @@ Nothing yet.
 
 ---
 
+## [0.5.0] — 2026-08-27
+
+**Phase 3 of durable execution: the orchestrator checkpoints, and `assess`/`nextStep` stay pure.**
+
+**Version bump: MINOR, not MAJOR.** `RunState.run` is **optional**, so every existing caller still
+compiles and a run that does not need to survive a restart passes no store and carries no position.
+Making it required would have been MAJOR for no gain.
+
+### Added
+
+- **`packages/orchestrator/src/durable.ts`** — `startRun`, `resumeRun`, `checkpointAfter`,
+  `deriveCheckpoint`, `phaseFor`, `mayContinue`.
+- **`RunState.run?`** — `runId`, `revision`, `checkpoint`. Position only.
+- **A genuine process-restart test against real PostgreSQL.** Process A opens a case, starts a run,
+  records an authorisation in the event log, checkpoints two filled fields, then **closes its pool
+  — every socket and server-side session gone**. Process B opens its own pool, knowing only the
+  `runId`, and resumes at exactly `filling` with both fields.
+
+### Architecture
+
+- **Persistence wraps the decision functions; it does not enter them.** `assess` and `nextStep` are
+  untouched and still pure, which is why the orchestrator's tests run without a browser or a
+  database.
+- **The event log wins every disagreement.** A checkpoint claiming the run reached `filling` with no
+  `AuthorisationCaptured` in the log describes a position that never legitimately existed — nothing
+  may be filled before the student authorises the exact content — so it is discarded and the run
+  re-derives. Same for a checkpoint written against a different blueprint revision.
+- **`deriveCheckpoint` copies nothing from a step but its kind.** A `contentHash` is tempting and is
+  a business fact that already lives in `AuthorisationCaptured`; two copies is two sources of truth.
+- **An `uncertain` or `escalated` run does not continue automatically.** A run that may have created
+  a portal account is not something to carry on with because the code path happens to be open.
+- **`pg` is a devDependency of the orchestrator and must stay one** — enforced by a new boundary
+  check. The orchestrator reaches storage only through ports; a runtime driver would let a query be
+  written inside a decision function.
+
+### Known limitations
+
+- **`RunState.profile` is still not reconstructible from the event log**, because
+  `ConfirmationCaptured` carries a reference and not a value. `resumeRun` therefore returns the run
+  and its events and does **not** rebuild `RunState`; the caller still supplies the profile. This
+  is **Phase 5 and remains explicitly open** — closing it here would have meant copying profile data
+  into either the log or a checkpoint, which the architecture forbids.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| `checkpointAfter` saves nothing | ✅ 4 tests, incl. both restart tests |
+| Reconciliation dropped — checkpoint always trusted | ✅ 2 tests |
+| Blueprint-version check dropped | ✅ 1 test |
+| `mayContinue` lets an `uncertain` run carry on | ✅ 1 test |
+| `deriveCheckpoint` copies a `contentHash` into `detail` | ✅ 1 test |
+
+---
+
 ## [0.4.0] — 2026-08-27
 
 **Phase 2 of durable execution: the `WorkflowRunStore`.**
@@ -181,7 +236,8 @@ product's contract.
 
 | Version | Tag object | On the remote? |
 |---|---|---|
-| `0.4.0` | `v0.4.0` → the `0.4.0` commit | **NO** |
+| `0.5.0` | `v0.5.0` → the `0.5.0` commit | **NO** |
+| `0.4.0` | `v0.4.0` → `441dd66` | **NO** |
 | `0.3.0` | `v0.3.0` → `c59459d` | **NO** |
 | `0.2.1` | `v0.2.1` → `fb69b68` | **NO** |
 | `0.2.0` | `v0.2.0` → `d39ddb1` | **NO** |
@@ -332,7 +388,8 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...v0.2.1

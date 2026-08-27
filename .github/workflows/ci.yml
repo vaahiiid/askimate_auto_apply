@@ -125,7 +125,7 @@ jobs:
         run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
 
       - name: Integration tests
-        run: pnpm exec vitest run apps/chat-integration packages/case-store
+        run: pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
         env:
           AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
           AAS_REQUIRE_DATABASE: "1"

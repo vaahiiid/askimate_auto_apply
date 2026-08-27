@@ -303,6 +303,9 @@ importers:
       '@askimate/aas-blueprint':
         specifier: workspace:*
         version: link:../blueprint
+      '@askimate/aas-case-store':
+        specifier: workspace:*
+        version: link:../case-store
       '@askimate/aas-disclosure':
         specifier: workspace:*
         version: link:../disclosure
@@ -328,6 +331,12 @@ importers:
         specifier: workspace:*
         version: link:../secrets
     devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.0
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)

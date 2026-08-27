@@ -4,6 +4,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../domain" },
+    { "path": "../case-store" },
     { "path": "../disclosure" },
     { "path": "../account" },
     { "path": "../blueprint" },

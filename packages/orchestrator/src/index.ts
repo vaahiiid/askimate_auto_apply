@@ -26,3 +26,19 @@ export type {
   ExecutionReport,
 } from "./execute.js";
 export { executePlan, failures } from "./execute.js";
+
+// ── Phase 3: durable execution ───────────────────────────────────────────
+//
+// Persistence WRAPS the decision functions; it does not enter them. `assess`
+// and `nextStep` remain pure, which is why the orchestrator is testable with
+// no browser and no database.
+export type { DurableStores, ResumeConcern, ResumedRun } from "./durable.js";
+export {
+  checkpointAfter,
+  deriveCheckpoint,
+  mayContinue,
+  phaseFor,
+  resumeRun,
+  startRun,
+  withCheckpoint,
+} from "./durable.js";

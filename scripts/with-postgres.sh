@@ -18,7 +18,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration packages/case-store
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
   exit $?
 fi
 
@@ -70,4 +70,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration packages/case-store
+pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
