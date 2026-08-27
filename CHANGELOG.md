@@ -21,6 +21,65 @@ Nothing yet.
 
 ---
 
+## [0.6.0] — 2026-08-27
+
+**Phase 4 of durable execution: a consequential action happens at most once — or we admit we cannot
+tell.**
+
+**Version bump: MINOR.** New capability, additive. Nothing existing changed.
+
+### Added
+
+- **`performOnce`** — the two-phase intent record. Look for an existing intent, record the new one
+  *durably before acting*, act, record the completion *durably after*. A crash between steps 2 and
+  4 is the uncertainty window, and it is detectable precisely because step 2 happened.
+- **`VerificationResult`** with three cases, not two. `unknown_still` is the honest answer when a
+  portal is down or the evidence is ambiguous, and it is **never collapsed into `did_not_happen`** —
+  that collapse is exactly what creates a second university account for a student who already has
+  one.
+- **`recordCleanFailure`** — for failures that provably never left this process. A network timeout
+  is explicitly *not* one: a request that timed out may have been received and acted upon.
+- **Two end-to-end restart tests against real PostgreSQL**: an account is created exactly once
+  across three separate processes with three separate connection pools, and an unverifiable action
+  escalates across a restart without ever running twice.
+
+### Security
+
+- **There is no code path that retries an unverifiable consequential action.** `assessIntent` has
+  no `retry` verdict and `performOnce` has no branch that reaches `perform()` from an escalation.
+  Both are tested by enumeration, because an absence needs a test or it is just a thing nobody has
+  done yet.
+- **A verifiable action with no verifier escalates** rather than assuming. An action the domain
+  says cannot be checked is not made checkable by an optimistic caller.
+- **`failed_cleanly` is not retried.** A cleanly failed action still ran; running it again is a
+  second attempt nobody decided to make.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| `unknown_still` collapsed into "did not happen" | ✅ 2 tests |
+| Intent recorded *after* the action instead of before | ✅ 1 test |
+| Unverifiable action retried instead of escalated | ✅ 2 tests |
+| `failed_cleanly` retried | ✅ 1 test |
+| Missing verifier treated as "did not happen" | ✅ 1 test + typecheck |
+
+**A test that passed for the wrong reason, found and fixed.** The "never performs twice"
+enumeration originally started from a *clean* run: perform once, then retry five times. Every retry
+hit `already_done` and returned immediately, so the verify branch was never exercised — and the
+`unknown_still` regression, which is the whole point of this phase, was caught by exactly one other
+test. It now starts from the state a crash actually leaves: an intent written, no completion. With
+that change the regression fails 2 tests instead of 1.
+
+### Known limitations
+
+- The three crash windows cannot be reduced to two. A process can always die between an external
+  success and our recording of it, and no design closes that gap — this makes it **detectable**,
+  which is the most any system can do.
+- `RunState.profile` reconstruction remains **explicitly open** (Phase 5, not implemented).
+
+---
+
 ## [0.5.0] — 2026-08-27
 
 **Phase 3 of durable execution: the orchestrator checkpoints, and `assess`/`nextStep` stay pure.**
@@ -236,7 +295,8 @@ product's contract.
 
 | Version | Tag object | On the remote? |
 |---|---|---|
-| `0.5.0` | `v0.5.0` → the `0.5.0` commit | **NO** |
+| `0.6.0` | `v0.6.0` → the `0.6.0` commit | **NO** |
+| `0.5.0` | `v0.5.0` → `6dd0500` | **NO** |
 | `0.4.0` | `v0.4.0` → `441dd66` | **NO** |
 | `0.3.0` | `v0.3.0` → `c59459d` | **NO** |
 | `0.2.1` | `v0.2.1` → `fb69b68` | **NO** |
@@ -388,7 +448,8 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...v0.3.0

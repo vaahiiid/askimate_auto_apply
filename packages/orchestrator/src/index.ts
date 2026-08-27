@@ -42,3 +42,10 @@ export {
   startRun,
   withCheckpoint,
 } from "./durable.js";
+
+// ── Phase 4: consequential-action safety ─────────────────────────────────
+//
+// There is no exported path that retries an unverifiable consequential action.
+// That absence is the safety property.
+export type { ActionOutcome, PerformOnceInput, VerificationResult, Verifier } from "./consequential.js";
+export { performOnce, recordCleanFailure } from "./consequential.js";
