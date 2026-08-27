@@ -75,6 +75,7 @@ import helmet from "helmet";
 import type { SecretStore } from "@askimate/aas-secrets";
 
 import type { SecretBindingStore } from "./bindings.js";
+import { createChatRoutes, type ChatRoutesOptions } from "./chat-routes.js";
 import { createSecretRoutes } from "./secret-routes.js";
 
 export interface ChatAppOptions {
@@ -86,6 +87,14 @@ export interface ChatAppOptions {
   readonly publicDir?: string;
   /** See `SecretRoutesOptions.submitLimit`. Omit for the production value. */
   readonly submitLimit?: number;
+  /**
+   * The ordinary message endpoint, with its fail-closed guard.
+   *
+   * Optional so the secret channel can be mounted on its own — the guard is a
+   * property of the message route, and a deployment that has not yet moved its
+   * chat route here should not silently get a half-guarded one.
+   */
+  readonly chat?: Omit<ChatRoutesOptions, "bindings" | "jwtSecret" | "now">;
 }
 
 export function createChatApp(options: ChatAppOptions): Express {
@@ -155,6 +164,18 @@ export function createChatApp(options: ChatAppOptions): Express {
       ...(options.submitLimit === undefined ? {} : { submitLimit: options.submitLimit }),
     }),
   );
+
+  if (options.chat !== undefined) {
+    app.use(
+      "/api",
+      createChatRoutes({
+        ...options.chat,
+        bindings: options.bindings,
+        jwtSecret: options.jwtSecret,
+        now: options.now,
+      }),
+    );
+  }
 
   if (options.publicDir !== undefined) {
     app.use(express.static(options.publicDir));

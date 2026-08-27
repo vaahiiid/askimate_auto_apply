@@ -124,8 +124,21 @@ jobs:
         # apps/chat-integration drives the secure control in a real browser.
         run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
 
+      # The WHOLE suite, not a list of paths.
+      #
+      # This used to name three directories. A list is a thing that goes stale:
+      # a new database-backed suite added anywhere else would never have run
+      # here, and nothing would have said so — the job would stay green while
+      # covering less and less. Running everything means there is no list to
+      # forget to update.
+      #
+      # AAS_REQUIRE_DATABASE=1 turns `announceSkip` from a warning into a
+      # throw, so a broken or missing Postgres service fails this job instead
+      # of quietly reporting green over tests that never executed.
+      # `scripts/ci-guard.test.ts` asserts both of those facts about this file,
+      # so removing them turns the default test run red.
       - name: Integration tests
-        run: pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
+        run: pnpm exec vitest run
         env:
           AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
           AAS_REQUIRE_DATABASE: "1"

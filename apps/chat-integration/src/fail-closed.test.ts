@@ -38,9 +38,13 @@ import type { SecretHandle, SecretRequestId } from "@askimate/aas-secrets";
 
 import { createChatApp } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
-import { decideRendering, chatInputEnabled } from "./render-decision.js";
+import { decideRendering, composerPolicy } from "./render-decision.js";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
+
+/** What the guarded chat route was asked to do. Empty means it refused first. */
+const chatPersisted: { conversationId: number; content: string }[] = [];
+const chatModelSaw: string[] = [];
 
 const MARKER = "SECRET-PASSWORD-DO-NOT-LEAK-123!";
 const SKIP_DESCRIPTION =
@@ -175,9 +179,13 @@ async function chatPage(id: number = userId): Promise<Page> {
     requests.push({ url: request.url(), body: request.postData() ?? "" });
   });
   await page.goto(`${BASE}/chat.html`);
-  await page.evaluate((value) => {
-    (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
-  }, tokenFor(id));
+  await page.evaluate(
+    ([value, conversation]) => {
+      (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
+      (window as unknown as Record<string, unknown>)["__askimateConversationId"] = conversation;
+    },
+    [tokenFor(id), conversationId] as [string, number],
+  );
   return page;
 }
 
@@ -274,6 +282,20 @@ beforeAll(async () => {
     // Raised above the production value of 10 so nine failure scenarios can be
     // exercised in one file. `SUBMIT_LIMIT` is asserted separately.
     submitLimit: 200,
+    // The guarded ordinary message route, so the browser can exercise the
+    // stale-client path against the real fail-closed boundary rather than a
+    // stub that always agrees with the client.
+    chat: {
+      persist: async (input) => {
+        chatPersisted.push(input);
+        await Promise.resolve();
+      },
+      askModel: async (request) => {
+        chatModelSaw.push(request.message, ...request.history.map((h) => h.content));
+        return await Promise.resolve("ok");
+      },
+      historyFor: async () => await Promise.resolve([]),
+    },
   });
   server = await new Promise<Server>((resolve) => {
     const listening = app.listen(PORT, "127.0.0.1", () => resolve(listening));
@@ -363,28 +385,151 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     void impossible;
   });
 
-  it("disables the ordinary chat input while a box is open", async () => {
-    expect(chatInputEnabled({ awaitingSecret: true })).toBe(false);
-    expect(chatInputEnabled({ awaitingSecret: false })).toBe(true);
+  // REPLACES "disables the ordinary chat input while a box is open".
+  //
+  // That test pinned the modal freeze Vahid rejected: the whole composer was
+  // `disabled`, which is the strongest client-side defence available and also
+  // stops the conversation being a conversation. It is replaced rather than
+  // deleted, because the property it protected — a keystroke cannot land in
+  // both places — still has to hold under the weaker mechanism.
+  it("keeps the composer LIVE for typing but blocks the send, losing nothing", async () => {
+    expect(composerPolicy({ awaitingSecret: true })).toEqual({
+      typing: "live",
+      send: "blocked",
+      draftPersistence: "suspended",
+    });
+    expect(composerPolicy({ awaitingSecret: false })).toEqual({
+      typing: "live",
+      send: "enabled",
+      draftPersistence: "normal",
+    });
 
     const { prompt } = await openRequest();
     const page = await chatPage();
     await deliver(page, prompt);
-    expect(await page.locator("#chat-input").isDisabled()).toBe(true);
 
-    // And typing into it does nothing — the composer's submit handler returns
-    // early while a request is open, so there is no state in which a keystroke
-    // could land in both places.
-    await page.evaluate((value) => {
-      const input = document.getElementById("chat-input") as HTMLInputElement;
-      input.disabled = false; // simulate a determined student, or a bug
-      input.value = value;
+    // Typing is live. This is the product requirement.
+    expect(await page.locator("#chat-input").isDisabled()).toBe(false);
+    // Sending is not.
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+
+    // A determined student types the password into the wrong box and submits.
+    await page.locator("#chat-input").fill(MARKER);
+    await page.evaluate(() => {
       document.getElementById("composer")?.dispatchEvent(new Event("submit"));
-    }, MARKER);
+    });
+
+    // PREVENTION: no bytes left the browser.
     const sent = (await page.evaluate(
       () => (window as unknown as Record<string, unknown>)["__askimateSent"] ?? [],
     )) as unknown[];
     expect(JSON.stringify(sent)).not.toContain(MARKER);
+
+    // And nothing was destroyed: the draft is exactly where they left it.
+    expect(await page.locator("#chat-input").inputValue()).toBe(MARKER);
+    await page.close();
+  }, 60_000);
+
+  it("does NOT auto-send the draft when the secure step finishes", async () => {
+    // The single most dangerous thing a deferred-send design can do. If the
+    // buffer were released on completion, a password typed into the composer
+    // would be transmitted the moment the secure step succeeded — converting a
+    // contained accident into a persisted one, with no human in the loop.
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    await page.locator("#chat-input").fill(MARKER);
+    await page.locator("#secure-password").fill("a-different-real-password");
+    await page.locator("#secure-confirmation").fill("a-different-real-password");
+    await page.locator("#secure-submit").click();
+    await page.locator("#secure-control").waitFor({ state: "hidden" });
+
+    // The composer is live again…
+    expect(await page.locator("#chat-send").isDisabled()).toBe(false);
+    // …the draft survived…
+    expect(await page.locator("#chat-input").inputValue()).toBe(MARKER);
+    // …and nothing was sent on its own.
+    const sent = (await page.evaluate(
+      () => (window as unknown as Record<string, unknown>)["__askimateSent"] ?? [],
+    )) as unknown[];
+    expect(JSON.stringify(sent)).not.toContain(MARKER);
+    await page.close();
+  }, 60_000);
+
+  it("restores the draft when a STALE client is refused by the server", async () => {
+    // The bypassed/stale path, end to end in a real browser.
+    //
+    // The client is loaded FIRST, while nothing is open, so it believes the
+    // composer is free. A secure request is then opened server-side without
+    // telling it — which is exactly what a stale client is. Its send therefore
+    // gets past client-side prevention and reaches the guard.
+    //
+    // Two things must hold: the server refuses (nothing persisted, nothing
+    // modelled), and the client does NOT lose what the student wrote.
+    chatPersisted.length = 0;
+    chatModelSaw.length = 0;
+
+    const page = await chatPage();
+    const { requestId } = await openRequest();
+
+    // The guard reports the NEWEST open request on the conversation, which is
+    // this one. Asserting that rather than "some request" is what caught the
+    // missing ORDER BY: earlier tests in this file leave open rows behind, and
+    // without ordering the client would be handed a superseded requestId and
+    // would render a card bound to the wrong request.
+    await page.locator("#chat-input").fill(MARKER);
+    await page.evaluate(() => {
+      document.getElementById("composer")?.dispatchEvent(new Event("submit"));
+    });
+    await page.waitForFunction(
+      () => (window as unknown as Record<string, unknown>)["__askimateChatRefusal"] !== undefined,
+      undefined,
+      { timeout: 10_000 },
+    );
+
+    // The server refused.
+    const refusal = (await page.evaluate(
+      () => (window as unknown as Record<string, unknown>)["__askimateChatRefusal"],
+    )) as { reason?: string; requestId?: string };
+    expect(refusal.reason).toBe("secret_request_open");
+    expect(refusal.requestId).toBe(requestId);
+
+    // Nothing was persisted and nothing reached the model.
+    expect(chatPersisted).toHaveLength(0);
+    expect(chatModelSaw.join(" ")).not.toContain(MARKER);
+
+    // And the draft is still there. This is the half that answers the
+    // objection: even on the abnormal path, nothing the student wrote is lost.
+    expect(await page.locator("#chat-input").inputValue()).toBe(MARKER);
+
+    // The client has caught up: it now knows a request is open.
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+
+    store.discard(requestId);
+    await bindings.record(requestId, { lifecycle: "secret_expired" });
+    await page.close();
+  }, 60_000);
+
+  it("suspends draft persistence while a request is open", async () => {
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await page.evaluate(() => {
+      window.localStorage.setItem("askimate.draft", "an earlier draft");
+    });
+    await deliver(page, prompt);
+
+    // Containment: a draft saved a moment earlier is removed, and no new one
+    // may be written while the card is open. Browser storage outlives the TTL
+    // that governs everything else in this design.
+    expect(
+      await page.evaluate(() => window.localStorage.getItem("askimate.draft")),
+    ).toBeNull();
+    expect(
+      await page.evaluate(
+        () => (window as unknown as Record<string, unknown>)["__askimateDraftPersistence"],
+      ),
+    ).toBe("suspended");
     await page.close();
   }, 60_000);
 });
@@ -716,7 +861,13 @@ describeIfDatabase("a handle belongs to one student, one conversation, one case"
 // The UI here is a deliberately provisional harness. What is being asserted is
 // STRUCTURE (containment, ordering, form separation), never appearance.
 
-describe("the secure control is inline in the conversation", () => {
+// `describeIfDatabase`, not `describe`. This file's `beforeAll` opens a
+// database connection for the whole file, so an ungated suite here forces that
+// hook to run on a machine with no PostgreSQL — where it throws ECONNREFUSED
+// and takes `afterAll` down with it on an undefined `browser`. That is exactly
+// what my first version of this block did, and it broke the default `pnpm run
+// test` path for anyone without a database running.
+describeIfDatabase("the secure control is inline in the conversation", () => {
   it("is a descendant of the transcript, not a panel beside it", async () => {
     const { prompt } = await openRequest();
     const page = await chatPage();

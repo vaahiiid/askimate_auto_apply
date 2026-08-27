@@ -146,16 +146,66 @@ export function decideRendering(input: {
 }
 
 /**
- * Whether the ordinary chat input may be used at all while a box is open.
+ * What the composer may do while a secure request is open.
  *
- * `false` while a secret is being collected. Not to force the student's hand —
- * they can always cancel — but because an enabled text box next to a password
- * prompt is an invitation to type the password into it, and a disabled one is
- * the cheapest possible guard against the single most likely leak in the whole
- * design: the student pasting it into the wrong field.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-27: *"I do not want the final product experience to silently
+ * destroy a genuine student message as the normal cost of keeping the composer
+ * available."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── What this replaces, and why ───────────────────────────────────────────
+ *
+ * `chatInputEnabled` returned a single boolean and the harness applied it to
+ * the whole composer: `input.disabled = true`. That is the safest thing a
+ * client can do — a student cannot type a password into a box that will not
+ * accept keystrokes — and it is also a modal freeze in the middle of what is
+ * meant to be one continuous conversation.
+ *
+ * The replacement separates the two things the boolean was conflating:
+ *
+ *   TYPING is always live. The student can write, edit, and leave a draft
+ *   sitting there. Nothing is destroyed and nothing is refused.
+ *
+ *   SENDING is blocked while a request is open. No bytes leave the browser.
+ *
+ * That is the whole of prevention. It is strictly stronger than the
+ * server-side quarantine it replaces as the primary mechanism, because
+ * quarantine only stops PERSISTENCE and MODEL EXPOSURE — the password has
+ * already crossed the wire and been parsed into `req.body` by the time the
+ * server refuses it. Blocking the send means it never leaves at all.
+ *
+ * ── The honest cost ───────────────────────────────────────────────────────
+ *
+ * We are giving up the strongest client-side defence there is. A disabled
+ * input cannot receive a password; a live one can. Autofocus on the secure
+ * field and an inert send button reduce the chance; neither eliminates it, and
+ * password detection is explicitly not used, because it cannot work. That
+ * residual risk is stated in `docs/composer-during-secure-turn.md` §13 and is
+ * not pretended away here.
  */
-export function chatInputEnabled(state: {
-  readonly awaitingSecret: boolean;
-}): boolean {
-  return !state.awaitingSecret;
+export interface ComposerPolicy {
+  /**
+   * Always `"live"`. Typed as a literal rather than a boolean so that
+   * "disable the composer" is not a value this function can return — the
+   * modal freeze has to be reintroduced by editing this type, in a diff a
+   * reviewer would see.
+   */
+  readonly typing: "live";
+  readonly send: "enabled" | "blocked";
+  /**
+   * Whether a draft may be written to browser storage.
+   *
+   * `"suspended"` while a request is open. Chat clients commonly persist
+   * drafts so a refresh does not lose them; doing that here would write a
+   * mistyped password into durable browser storage, where it outlives the
+   * five-minute TTL that governs everything else in this design.
+   */
+  readonly draftPersistence: "normal" | "suspended";
+}
+
+export function composerPolicy(state: { readonly awaitingSecret: boolean }): ComposerPolicy {
+  return state.awaitingSecret
+    ? { typing: "live", send: "blocked", draftPersistence: "suspended" }
+    : { typing: "live", send: "enabled", draftPersistence: "normal" };
 }

@@ -247,9 +247,22 @@ async function chatPage(): Promise<Page> {
     requests.push({ url: request.url(), method: request.method(), body: request.postData() ?? "" });
   });
   await page.goto(`${BASE}/chat.html`);
-  await page.evaluate((value) => {
-    (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
-  }, token);
+  // Both values are passed as ARGUMENTS. A `page.evaluate` callback is
+  // serialised and run inside the browser, so it closes over nothing from this
+  // file — referring to `conversationId` directly threw
+  // "conversationId is not defined" at runtime, in the page rather than here.
+  await page.evaluate(
+    ([value, conversation]) => {
+      (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
+      // The composer posts to the guarded route now, so the page needs to know
+      // which conversation it is in. This app deliberately does NOT mount that
+      // route, so a send here fails at the network — the correct outcome for a
+      // deployment that has not adopted the guard, and one the composer treats
+      // as "keep the draft" rather than "discard it".
+      (window as unknown as Record<string, unknown>)["__askimateConversationId"] = conversation;
+    },
+    [token, conversationId] as [string, number],
+  );
   return page;
 }
 
@@ -355,9 +368,12 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     // A real password input, not a text box.
     expect(await page.locator("#secure-password").getAttribute("type")).toBe("password");
     expect(await page.locator("#secure-confirmation").getAttribute("type")).toBe("password");
-    // The ordinary chat input is DISABLED while the box is open. An enabled
-    // text box beside a password prompt is the likeliest leak in the design.
-    expect(await page.locator("#chat-input").isDisabled()).toBe(true);
+    // Phase B: typing stays LIVE, only the send is inert. The composer is no
+    // longer disabled, because a frozen composer is not a conversation — see
+    // docs/composer-during-secure-turn.md §1. The property that still has to
+    // hold is that nothing can be TRANSMITTED, which the next lines check.
+    expect(await page.locator("#chat-input").isDisabled()).toBe(false);
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
 
     // ── 3. The student types it, and the confirmation ────────────────────
     await page.locator("#secure-password").fill(MARKER);
@@ -374,9 +390,11 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     expect(status.status).toBe("secret_received");
     expect(status.handle).toMatch(/^sh_[0-9a-f]{32}$/);
 
-    // The box closed and the chat came back.
+    // The box closed and the chat came back — sending included, which is the
+    // half that matters now that typing was never blocked in the first place.
     expect(await page.locator("#secure-control").isHidden()).toBe(true);
     expect(await page.locator("#chat-input").isDisabled()).toBe(false);
+    expect(await page.locator("#chat-send").isDisabled()).toBe(false);
     // And the inputs are empty — the value is not sitting in the DOM.
     expect(await page.locator("#secure-password").inputValue()).toBe("");
     expect(await page.locator("#secure-confirmation").inputValue()).toBe("");

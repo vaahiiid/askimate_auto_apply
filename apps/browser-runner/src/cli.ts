@@ -191,6 +191,31 @@ async function main(): Promise<void> {
   process.stdout.write(`READ-ONLY. Cannot fill, click or submit.\n`);
   process.stdout.write(`Hosts: ${target.allowedHosts.join(", ")}\n\n`);
 
+  // ── Resolve-only: stop here, before any browser or network exists ───────
+  //
+  // `cli.test.ts` verifies that a typed name resolves to the right target. It
+  // has always set `AAS_DISCOVERY_DRY_RUN=1` for that, with the comment "No
+  // network, so any target that resolves will fail at navigation — which is
+  // fine." **Nothing read the variable.** The comment was describing the
+  // sandboxed development environment, where egress is blocked and navigation
+  // fails in seconds.
+  //
+  // GitHub Actions has open network. So on every push, three tests launched a
+  // real browser and began crawling up to `maxPages` of qahighereducation.com
+  // and ulster.ac.uk — live university websites — until each hit its 60-second
+  // timeout. That is why the CI job has failed on every run, and it is the more
+  // serious half of the problem: the standing rule is that nothing runs against
+  // a real university site without an explicit safe target and Vahid's
+  // go-ahead, and a test suite had been doing it unattended.
+  //
+  // The flag is now real. Resolution is what those tests check, so resolution
+  // is where they stop — and the line below gives them something to assert
+  // that only holds if no page was ever fetched.
+  if (process.env["AAS_DISCOVERY_DRY_RUN"] === "1" || process.argv.includes("--resolve-only")) {
+    process.stdout.write(`Resolve-only: stopping here. No pages fetched.\n`);
+    return;
+  }
+
   const result = await discover(target, outDir, runId);
 
   const blueprint = draftBlueprintFrom({

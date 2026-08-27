@@ -19,6 +19,117 @@ not shipped artefacts.
 
 ---
 
+## [0.8.0] — 2026-08-27
+
+**Phase B: the composer stays live, nothing is destroyed, and the guard cannot fail open.**
+
+**Version bump: MINOR.** New capability and a changed public surface
+(`chatInputEnabled` → `composerPolicy`, `SecretBindingStore.find` → `findSync` + `openRequestFor`).
+Additive for behaviour the student sees; nothing existing was weakened.
+
+### Added
+
+- **`composerPolicy`** replaces `chatInputEnabled`. `typing` is the literal `"live"` rather than a
+  boolean, so "disable the composer" is not a value the function can return — reinstating the modal
+  freeze requires editing the type, in a diff a reviewer would see.
+- **`SecretBindingStore.openRequestFor`** — authoritative, asynchronous, reads the database.
+- **`createChatRoutes`** — the ordinary message endpoint with the fail-closed guard, checked
+  *before* the message is read for any purpose, so the text never enters scope on the refused path.
+- **`scripts/ci-guard.test.ts`** — see **CI** below.
+
+### Changed
+
+- **`find` → `findSync`**, and the port now names two lookups **split by what happens when they are
+  wrong**. A cache miss on the secret route means "refuse", which fails closed. The same miss in the
+  quarantine guard would mean "nothing is open", which fails **open** — the message path left
+  available at the moment a student is most likely to type a password into it. Same data, same
+  staleness, opposite consequence, so the types say so.
+- **The composer accepts typing while a secure request is open; only the send is inert.** No bytes
+  leave the browser, and the draft stays exactly where the student put it.
+- **The draft is never auto-sent.** Releasing a buffer when the card closes would transmit a
+  password typed into the wrong box, turning a contained accident into a persisted one.
+- **The composer clears on acknowledgement, never optimistically**, so a fail-closed refusal
+  restores the draft instead of destroying it.
+- **Draft persistence to browser storage is suspended** while a request is open.
+
+### Fixed
+
+- **`openRequestFor` had no `ORDER BY`** and returned an arbitrary row when a conversation had more
+  than one open request. For "is anything open?" any row would do — but the `requestId` travels back
+  to a stale client, which uses it to render the card the student is looking at. Found by a test
+  that named the request it had just opened and got a different one back.
+- **CI had never passed. Forty-seven runs, forty-seven failures.** Two independent causes, both now
+  fixed — see below.
+
+### Security
+
+- **`AAS_DISCOVERY_DRY_RUN` was set by a test and read by nothing.** The comment beside it said "no
+  network, so navigation will fail — which is fine", which was true only of the sandboxed
+  development machine. GitHub Actions has open network, so on **every push** three tests launched a
+  real browser and crawled `qahighereducation.com` and `ulster.ac.uk` — live university sites —
+  until each hit its sixty-second timeout.
+
+  This is the more serious half of the CI failure. The standing rule is that nothing runs against a
+  real university site without an explicit safe target and Vahid's go-ahead, and a test suite had
+  been doing it unattended since the workflow was added. The flag is now real: the CLI resolves the
+  target, prints its details, and stops before any browser exists. Every one of those tests now also
+  asserts `"No pages fetched."`, so a regression that re-enables the crawl fails here rather than
+  quietly reaching the internet again.
+
+### CI
+
+- **The integration job now runs the whole suite** instead of three named directories. A list goes
+  stale: a database-backed suite added anywhere else would never have run, and the job would have
+  stayed green while covering less.
+- **`scripts/ci-guard.test.ts` asserts the workflow still does its job** — from the ordinary
+  no-database test path. Delete the integration job, drop `AAS_REQUIRE_DATABASE=1`, or narrow it
+  back to a path list, and the default test run goes red.
+- The suite-level check **executes** the property rather than grepping for it: each database-backed
+  suite is run in its own subprocess against a closed port and must exit non-zero on its own.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| `openRequestFor` reads the process cache instead of the database | ✅ 3 tests |
+| Guard removed from the chat route | ✅ 4 tests |
+| Composer send not blocked | ✅ 1 test |
+| Draft auto-sent when the card closes | ✅ 1 test |
+| Draft persistence not suspended | ✅ 1 test |
+| `ORDER BY` removed from `openRequestFor` | ✅ 1 test |
+| `AAS_REQUIRE_DATABASE` dropped from CI | ✅ 1 test |
+| Integration job narrowed to a path list | ✅ 1 test |
+| Resolve-only guard removed from the CLI | ✅ 1 test |
+| A database-backed suite skips silently under `AAS_REQUIRE_DATABASE=1` | ✅ 1 test each |
+
+### Two of my own tests passed for the wrong reason
+
+Both are recorded because they are the same mistake wearing different clothes.
+
+The CI guard first asserted each database-backed file **contained the string** `"announceSkip"`. It
+went red on two files that were entirely correct, because `packages/case-store` inlines the same
+throw-if-required logic instead of importing the helper. It was checking a MECHANISM when the
+property is behavioural — and a text match would equally have passed on the word inside a comment.
+
+The replacement ran all four suites in **one** subprocess and asserted a non-zero exit. That passed
+while a suite skipped silently, because the other three still threw and the aggregate exit code hid
+it. Now one subprocess per suite, each of which must fail on its own — verified by making each
+suite skip in turn.
+
+### Still provisional
+
+All UI, copy, layout and interaction detail remains **provisional and unapproved**. The harness page
+carries a banner saying so. Every assertion added here tests structure, transport or state — never
+appearance.
+
+### Residual risk, unchanged
+
+A student can still type their password into the composer and deliberately press Send. Autofocus, an
+inert send button and the visible draft reduce the likelihood; none eliminates it, and password
+detection is explicitly not used because it cannot work.
+
+---
+
 ## [0.7.0] — 2026-08-27
 
 **Phase A of the inline secure turn: the password request takes its real place in the

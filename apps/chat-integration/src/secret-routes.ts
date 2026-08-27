@@ -182,7 +182,7 @@ export function createSecretRoutes(options: SecretRoutesOptions): Router {
           return;
         }
 
-        const binding = options.bindings.find(requestId);
+        const binding = options.bindings.findSync(requestId);
         if (binding === null) {
           res.status(404).json({ status: "secret_rejected", reason: "unknown_request" });
           return;
@@ -269,7 +269,7 @@ export function createSecretRoutes(options: SecretRoutesOptions): Router {
           res.status(404).json({ error: "Unknown request" });
           return;
         }
-        const binding = options.bindings.find(requestId);
+        const binding = options.bindings.findSync(requestId);
         if (binding === null || binding.userId !== user.id) {
           // Same answer for "does not exist" and "not yours". Distinguishing
           // them would confirm that another student had been asked for a

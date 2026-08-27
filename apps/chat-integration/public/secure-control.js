@@ -88,23 +88,101 @@
     }
   }
 
-  function setChatEnabled(enabled) {
-    el("chat-input").disabled = !enabled;
-    el("chat-send").disabled = !enabled;
+  /**
+   * Applies the composer policy. Mirrors `composerPolicy` in
+   * ../src/render-decision.ts, which is the tested authority.
+   *
+   * TYPING stays live in every state. Only SENDING is blocked. The previous
+   * version disabled the whole composer, which is safer — a disabled input
+   * cannot receive a password — and is also the modal freeze that breaks the
+   * one-continuous-conversation requirement. The trade is deliberate and the
+   * residual risk is stated in docs/composer-during-secure-turn.md §13.
+   */
+  function applyComposerPolicy(awaitingSecret) {
+    // Never disabled. The student can keep writing.
+    el("chat-input").disabled = false;
+    el("chat-send").disabled = awaitingSecret;
+    el("chat-input").dataset["send"] = awaitingSecret ? "blocked" : "enabled";
+    el("chat-input").placeholder = awaitingSecret
+      ? "You can keep typing — your password goes in the box above"
+      : "Ask AskiMate…";
   }
 
   el("composer").addEventListener("submit", (event) => {
     event.preventDefault();
-    // Reads ONLY the chat input. There is no branch here that could reach the
-    // secure inputs, and none that could be reached while one is open.
-    if (openRequest !== null) return;
+
+    // ── PREVENTION ────────────────────────────────────────────────────────
+    //
+    // While a secure request is open, this returns before anything is read or
+    // sent. NO BYTES LEAVE THE BROWSER, and — the part that answers Vahid's
+    // objection — the draft is left exactly where the student put it. Nothing
+    // is cleared, nothing is queued, nothing is destroyed.
+    //
+    // It is NOT queued for later delivery on purpose. Releasing a buffer when
+    // the card closes would transmit a password that had been typed into the
+    // wrong box, turning a contained accident into a persisted one. When the
+    // card closes the composer simply becomes live again with the draft still
+    // in it, and the student's next send is a fresh, deliberate act.
+    if (openRequest !== null) {
+      el("composer-hint").textContent =
+        "Held — finish the password step above and your message will still be here.";
+      return;
+    }
+    el("composer-hint").textContent = "";
+
     const content = el("chat-input").value;
     if (content.length === 0) return;
-    turns.push({ kind: "message", sender: "user", content });
-    el("chat-input").value = "";
-    renderTranscript();
+
+    // ── Cleared on ACKNOWLEDGEMENT, never optimistically ──────────────────
+    //
+    // Clearing the box the moment Send is pressed means a server refusal — a
+    // stale client, a guard that threw, a direct call — destroys the message.
+    // That is the exact failure this design exists to avoid, so the text stays
+    // put until the server says "accepted".
+    //
+    // The consequence is worth stating plainly: even the fail-closed path is
+    // lossless. The student sees their message still in the box, and the card
+    // they did not know about appears.
     window.__askimateSent = window.__askimateSent || [];
     window.__askimateSent.push({ path: "chat", body: { message: content } });
+
+    fetch("/api/askimate/ai", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${window.__askimateToken}`,
+      },
+      body: JSON.stringify({
+        conversationId: window.__askimateConversationId,
+        content,
+      }),
+    })
+      .then((response) => response.json().then((data) => ({ ok: response.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || data.status !== "accepted") {
+          // REFUSED. The draft stays exactly as typed. If the server named an
+          // open request, this client was stale — so show the card it did not
+          // know about rather than leaving the student to guess.
+          window.__askimateChatRefusal = data;
+          el("composer-hint").textContent =
+            data.reason === "secret_request_open"
+              ? "Held — there is a password step open above. Your message is still here."
+              : "That did not send. Your message is still here.";
+          if (data.reason === "secret_request_open" && openRequest === null) {
+            openRequest = { requestId: data.requestId, conversationId: window.__askimateConversationId };
+            applyComposerPolicy(true);
+          }
+          return;
+        }
+        el("chat-input").value = "";
+        el("composer-hint").textContent = "";
+        turns.push({ kind: "message", sender: "user", content });
+        renderTranscript();
+      })
+      .catch(() => {
+        // A dropped connection is not a reason to lose what they wrote.
+        el("composer-hint").textContent = "That did not send. Your message is still here.";
+      });
   });
 
   // ── The directive path ─────────────────────────────────────────────────
@@ -172,11 +250,22 @@
       el("refusal").dataset["reason"] = decision.reason;
       el("secure-control").hidden = true;
       openRequest = null;
-      setChatEnabled(true);
+      applyComposerPolicy(false);
       return;
     }
 
     openRequest = { requestId: prompt.requestId, conversationId: prompt.conversationId };
+    // CONTAINMENT: no draft may reach browser storage while a request is open.
+    // A chat client that persists drafts would otherwise write a mistyped
+    // password into storage that outlives the five-minute TTL governing
+    // everything else here. The key is removed as well as not written, in case
+    // a draft was saved a moment before the card opened.
+    try {
+      window.localStorage.removeItem("askimate.draft");
+    } catch {
+      // Private mode, blocked storage. Nothing to clean up is also fine.
+    }
+    window.__askimateDraftPersistence = "suspended";
     el("refusal").textContent = "";
     el("secure-title").textContent = prompt.title;
     el("secure-explanation").textContent = prompt.explanation;
@@ -197,7 +286,7 @@
     // the password field away from the message pipeline.
     el("transcript").append(el("secure-control"));
     el("secure-control").hidden = false;
-    setChatEnabled(false);
+    applyComposerPolicy(true);
     el("secure-password").focus();
   }
 
@@ -272,10 +361,11 @@
   }
 
   function closeSecureControl() {
+    window.__askimateDraftPersistence = "normal";
     clearInputs();
     el("secure-control").hidden = true;
     openRequest = null;
-    setChatEnabled(true);
+    applyComposerPolicy(false);
   }
 
   // Exposed for the test harness to inspect. Deliberately a getter over the

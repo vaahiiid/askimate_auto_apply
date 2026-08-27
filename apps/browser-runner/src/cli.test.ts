@@ -160,8 +160,16 @@ describe("resolving what someone typed to a target file", () => {
     return await new Promise((resolvePromise) => {
       const child = spawn("npx", ["tsx", cli, ...(arg === undefined ? [] : [arg])], {
         cwd: join(import.meta.dirname, ".."),
-        // No network, so any target that resolves will fail at navigation —
-        // which is fine. What is under test is whether it gets that far.
+        // Resolve-only. The CLI prints the target's details and stops BEFORE
+        // it opens a browser, so these tests cannot reach the network.
+        //
+        // This flag used to be read by nothing at all, and the comment here
+        // claimed "no network, so navigation will fail — which is fine". That
+        // was true only of the sandboxed dev machine. In CI, with open network,
+        // these three tests crawled live university sites until they timed out
+        // at sixty seconds each. Every assertion below now also checks the
+        // no-pages-fetched line, so a regression that re-enables the crawl
+        // fails here rather than quietly reaching the internet again.
         env: { ...process.env, AAS_DISCOVERY_DRY_RUN: "1" },
       });
       let out = "";
@@ -179,19 +187,22 @@ describe("resolving what someone typed to a target file", () => {
 
   it("accepts the path as written in the runbook, relative to the repo root", async () => {
     const { out } = await usage("targets/ulster-birmingham-msc-ib-2026.json");
+    expect(out).toContain("No pages fetched.");
     // It got past resolution — it printed the target's own details.
     expect(out).toContain("Ulster University");
-  }, 60_000);
+  }, 20_000);
 
   it("accepts a bare filename", async () => {
     const { out } = await usage("ulster-birmingham-msc-ib-2026.json");
+    expect(out).toContain("No pages fetched.");
     expect(out).toContain("Ulster University");
-  }, 60_000);
+  }, 20_000);
 
   it("accepts an unambiguous prefix", async () => {
     const { out } = await usage("ulster");
+    expect(out).toContain("No pages fetched.");
     expect(out).toContain("Ulster University");
-  }, 60_000);
+  }, 20_000);
 
   it("refuses a name that matches nothing, and says what does exist", async () => {
     const { code, out } = await usage("oxford");

@@ -30,6 +30,9 @@
 export type { ChatAppOptions } from "./app.js";
 export { createChatApp, scrubParseErrorBody } from "./app.js";
 
+export type { ChatRoutesOptions, ChatSendResponse } from "./chat-routes.js";
+export { createChatRoutes } from "./chat-routes.js";
+
 export type { SecretBinding, SecretBindingStore } from "./bindings.js";
 export { DatabaseSecretBindingStore } from "./bindings.js";
 
@@ -37,7 +40,8 @@ export type { ChatTurn, ModelRequest } from "./chat-transport.js";
 export { buildModelRequest, persistableContent } from "./chat-transport.js";
 
 export type { ClientCapabilities, RenderDecision } from "./render-decision.js";
-export { chatInputEnabled, decideRendering } from "./render-decision.js";
+export type { ComposerPolicy } from "./render-decision.js";
+export { composerPolicy, decideRendering } from "./render-decision.js";
 
 export type { AskimateUserPayload, SecretRoutesOptions, SecretSubmitResponse } from "./secret-routes.js";
 export { SUBMIT_LIMIT, createSecretRoutes } from "./secret-routes.js";
