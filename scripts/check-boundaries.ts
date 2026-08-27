@@ -506,6 +506,57 @@ function main(): void {
     `  ✓  ADR-0004 — ${String(scanned)} file(s) outside packages/profile cast to ConfirmedValue: none`,
   );
 
+  // ── Rule 3: a checkpoint holds POSITION, never FACTS ────────────────────
+  //
+  // `CheckpointValue` admits only primitives, which stops a business fact
+  // entering a checkpoint by assignment. It does not stop someone widening the
+  // type itself — and the lesson from ADR-0004's amendment is that a brand
+  // cannot defend itself against the code that defines it.
+  //
+  // So this checks the definition. Widening `CheckpointValue` to `unknown`,
+  // `object`, `any` or a generic would let a ConfirmedValue, a document or a
+  // profile entry into a checkpoint, and the checkpoint would become the
+  // second source of truth the architecture forbids.
+  const WORKFLOW_SOURCE = "packages/domain/src/workflow.ts";
+  if (existsSync(WORKFLOW_SOURCE)) {
+    const source = readFileSync(WORKFLOW_SOURCE, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+
+    const definition = /export\s+type\s+CheckpointValue\s*=\s*([^;]+);/.exec(code);
+    if (definition === null) {
+      violations.push(
+        `${WORKFLOW_SOURCE} no longer defines CheckpointValue. It is what stops a business fact ` +
+          `entering a checkpoint, and without it a checkpoint becomes a second source of truth ` +
+          `(approved architecture, rule 3).`,
+      );
+    } else {
+      const permitted = new Set(["string", "number", "boolean", "null"]);
+      const parts = (definition[1] ?? "").split("|").map((part) => part.trim());
+      const unexpected = parts.filter((part) => !permitted.has(part));
+      if (unexpected.length > 0) {
+        violations.push(
+          `${WORKFLOW_SOURCE} widens CheckpointValue to include: ${unexpected.join(", ")}. A ` +
+            `checkpoint may hold POSITION, never FACTS — only string, number, boolean and null. ` +
+            `Anything wider admits a ConfirmedValue, a document or a profile entry, and makes the ` +
+            `checkpoint a second competing source of truth for business facts.`,
+        );
+      }
+    }
+
+    // The same file must not reach for the things a checkpoint must not hold.
+    for (const forbidden of ["ConfirmedValue", "PreviewDocument", "SecretHandle", "ConfirmedProfile"]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${WORKFLOW_SOURCE} mentions ${forbidden}. The run model must not be able to name a ` +
+          `business fact, a document or a secret — naming one is the first step to storing it.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  workflow checkpoints — position only, no business facts`);
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {

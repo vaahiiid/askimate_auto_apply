@@ -17,25 +17,58 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-### Internal
+Nothing yet.
 
-Documentation only — no version bump under
-[ADR-0028](./docs/decisions/0028-versioning-policy.md) §3. Recorded here so it stays traceable.
+---
 
-- **Durable execution architecture report and plan** —
-  `docs/durable-execution-architecture.md`. Answers the ten architecture questions and proposes
-  five phases. **Nothing implemented; awaiting approval.**
+## [0.3.0] — 2026-08-27
 
-  Principal finding: **`ExecutionCheckpoint` already exists** in `packages/domain/src/recovery.ts`
-  with almost exactly the approved shape. What is missing is that it is reachable only *through a
-  recovery escalation*, so a healthy run never records one.
+**Phase 1 of durable execution: the run model.**
 
-  Two gaps reported rather than designed around:
-  - `ConfirmationCaptured` carries a **ref, not a value**, so `RunState.profile` is *not*
-    reconstructible from the event log. B+ does not by itself close this (Phase 5).
-  - The crash window between an external action succeeding and our recording it **cannot be
-    closed**. The two-phase intent record makes it *detectable*, not impossible; the design
-    verifies where it can and escalates where it cannot, and never blind-retries.
+**Version bump: MINOR.** New backward-compatible domain vocabulary. Nothing existing changed;
+`ExecutionCheckpoint` is reused unmodified.
+
+### Added
+
+- **`packages/domain/src/workflow.ts`** — `RunId`, `WorkflowPhase`, `WorkflowStatus`,
+  `WorkflowCheckpoint`, `WorkflowRunRecord`, `ActionIntent`, `ConsequentialAction`,
+  `IntentVerdict`, and `assessIntent`.
+- **`WorkflowCheckpoint` composes the EXISTING `ExecutionCheckpoint`** rather than replacing it.
+  The existing type models position inside the *portal*; the new one adds position inside the
+  *workflow*. Two axes, both needed to resume.
+- **`assessIntent` has no branch that means "retry".** Its absence is the safety property, and a
+  test enumerates every verdict to prove no `retry` appears.
+- **`fieldsCompleted: readonly string[]`** — field *refs*, never values. Replaces the
+  `filled?: boolean` that recorded a run dying after 40 of 60 fields identically to one dying
+  after none.
+
+### Security
+
+- **Rule 3 is enforced structurally, not by discipline.** `CheckpointValue` admits only
+  `string | number | boolean | null`, so a `ConfirmedValue`, a document, a profile entry, a secret
+  handle or a nested object cannot enter a checkpoint. Five `@ts-expect-error` tests assert each.
+- **`scripts/check-boundaries.ts` guards the definition itself.** Following the ADR-0004 lesson
+  that a type cannot defend itself against the code that defines it, the check parses
+  `CheckpointValue`'s declaration and fails if it is widened, and fails if `workflow.ts` so much as
+  *names* `ConfirmedValue`, `PreviewDocument`, `SecretHandle` or `ConfirmedProfile`.
+- **`uncertain` cannot become `completed`.** "We do not know whether the account was created"
+  cannot become "it worked" without verification (→ `running`) or a human (→ `escalated`).
+- **A checkpoint with an unrecognised schema version is discarded, never guessed at** — in either
+  direction, past or future.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| `CheckpointValue` widened to `unknown` | ✅ boundary check **and** 4 unused `@ts-expect-error` directives |
+| `assessIntent` returns `verify_first` for unverifiable actions | ✅ 2 tests |
+| `uncertain → completed` allowed | ✅ 1 test |
+| Schema-version check removed | ✅ 1 test |
+
+### Known limitations
+
+- Nothing persists a checkpoint yet. That is Phase 2.
+- `RunState.profile` reconstruction remains **explicitly open** (Phase 5, not implemented).
 
 ---
 
@@ -87,7 +120,8 @@ product's contract.
 
 | Version | Tag object | On the remote? |
 |---|---|---|
-| `0.2.1` | `v0.2.1` → the `0.2.1` commit | **NO** |
+| `0.3.0` | `v0.3.0` → the `0.3.0` commit | **NO** |
+| `0.2.1` | `v0.2.1` → `fb69b68` | **NO** |
 | `0.2.0` | `v0.2.0` → `d39ddb1` | **NO** |
 | `0.1.0` | `v0.1.0` → `11629f4` (commit `d985ec4`) | **NO** |
 
@@ -236,7 +270,8 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vaahiiid/askimate_auto_apply/releases/tag/v0.1.0

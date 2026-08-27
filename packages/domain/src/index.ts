@@ -244,3 +244,32 @@ export { AuditRedactionError, auditEntry, auditLabel, auditRef } from "./audit.j
 
 export type { RedactedValue } from "./redaction.js";
 export { describeRedacted, redact, sameRedacted } from "./redaction.js";
+
+export type {
+  ActionIntent,
+  CheckpointDetail,
+  CheckpointValue,
+  ConsequentialAction,
+  IdempotencyKey as WorkflowIdempotencyKey,
+  IntentOutcome,
+  IntentVerdict,
+  RunId,
+  WorkflowCheckpoint,
+  WorkflowPhase,
+  WorkflowRunRecord,
+  WorkflowStatus,
+} from "./workflow.js";
+export {
+  CHECKPOINT_SCHEMA_VERSION,
+  CONSEQUENTIAL_ACTIONS,
+  WORKFLOW_PHASES,
+  WORKFLOW_STATUSES,
+  assessIntent,
+  beginCheckpoint,
+  canTransitionStatus,
+  idempotencyKeyFor,
+  isReadableCheckpoint,
+  isTerminalStatus as isTerminalWorkflowStatus,
+  isVerifiable,
+  runId,
+} from "./workflow.js";
