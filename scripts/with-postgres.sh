@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 #
-# Runs the chat-integration tests against a REAL PostgreSQL.
+# Runs every database-backed test suite against a REAL PostgreSQL.
 #
-# These tests prove that a student's password does not reach the database, the
-# logs, or the model. They need an actual database, because the assertion is
-# "scan every column of every row" and a fake would make that vacuous — see
-# apps/chat-integration/src/test-database.ts.
+#   apps/chat-integration  — a student's password reaches no database column,
+#                            no log and no model prompt. The assertion is "scan
+#                            every column of every row", which a fake makes
+#                            vacuous.
+#   packages/case-store    — optimistic concurrency and duplicate-submission
+#                            prevention. Both are enforced by CONSTRAINTS
+#                            (PRIMARY KEY), so a fake would be re-implementing
+#                            the thing under test.
 #
 # If $AAS_TEST_DATABASE_URL is already set, this uses it and starts nothing.
 # Otherwise it starts a throwaway cluster on port 55432, runs the tests, and
@@ -14,7 +18,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration packages/case-store
   exit $?
 fi
 
@@ -66,4 +70,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration
+pnpm exec vitest run apps/chat-integration packages/case-store

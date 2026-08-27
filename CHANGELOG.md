@@ -17,27 +17,92 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## Release state — read before trusting a tag
+
+| Version | Tag object | On the remote? |
+|---|---|---|
+| `0.2.0` | `v0.2.0` → the commit below | **see below** |
+| `0.1.0` | `v0.1.0` → `11629f4` (commit `d985ec4`) | **NO** |
+
+`git push origin refs/tags/v0.1.0` returns **HTTP 403**: this session's
+credential can write branch refs but not tag refs. A branch push to the same
+remote succeeded seconds earlier, so this is a permission on tags specifically.
+
+**The repository therefore has no published release.** The tag objects exist
+locally and must be pushed as the *same objects* once a credential with tag
+permission is available — never re-created at a different commit, which is the
+state that produces arguments about which `v0.1.0` is real. See
+[ADR-0029 §7](./docs/decisions/0029-git-workflow.md) for the reconciliation
+order.
+
+---
+
+## [0.2.0] — 2026-08-27
+
+A case now survives the process that created it.
+
 ### Internal
 
-Per [ADR-0028](./docs/decisions/0028-versioning-policy.md), documentation and governance changes do
-not earn a version. Recorded here so they are traceable.
+Governance work that does not earn a version under
+[ADR-0028](./docs/decisions/0028-versioning-policy.md) §3, recorded here so it
+stays traceable.
 
-- **Versioning policy formalised** — ADR-0028 defines what earns a release and what is tracked by
-  commit only, including explicit rules (with exceptions) for documentation-only, test-only,
-  refactoring, research-only and tooling-only changes.
-- **Git workflow proposed** — ADR-0029. **Status: Proposed. Awaiting Vahid. Nothing has been done.**
-- **Baseline reviewed** — `docs/versioning-baseline-review.md`. `0.1.0` and the locked
-  single-version strategy both stand; five conditions named that would require independent
-  per-package versioning.
-- **Replit dependency map** — `docs/replit-dependency-map.md`. Three items are genuinely blocked by
-  the missing production access; everything else in the product continues.
+- **Versioning policy formalised** — ADR-0028 defines what earns a release and
+  what is tracked by commit only, with explicit rules and exceptions for
+  documentation-only, test-only, refactoring, research-only and tooling-only
+  changes.
+- **Git workflow proposed** — ADR-0029. **Status: Proposed. Awaiting Vahid.
+  Nothing has been done — no branch created, no default changed, no tag moved.**
+- **Baseline reviewed** — `docs/versioning-baseline-review.md`. `0.1.0` and the
+  locked single-version strategy both stand; five conditions named that would
+  require independent per-package versioning.
+- **Replit dependency map** — `docs/replit-dependency-map.md`. Three items are
+  genuinely blocked by the missing production access; everything else continues.
+- **`apps/chat-integration` relabelled** as a research build against the
+  2026-06-18 archive, in its README and its `index.ts` header.
 
-### Known
+**Version bump: MINOR.** New backward-compatible capability — a second
+implementation behind an existing port. The in-memory store is unchanged and
+still passes the same contract; no consumer must change anything.
 
-- **`v0.1.0` is tagged locally but NOT pushed.** `git push origin refs/tags/v0.1.0` returns HTTP
-  403 — this session's credential can write branch refs but not tag refs. The tag object exists at
-  `11629f4`, for commit `d985ec4`. It must be pushed as the same object rather than re-created at a
-  different commit later; see ADR-0029 §7. **The repository therefore has no published release.**
+### Added
+
+- **`PostgresCaseStore`** (`@askimate/aas-case-store/postgres`) — passes the
+  identical `runCaseStoreContract` suite as the in-memory store, which is the
+  whole reason that suite exists. The guarantees live in constraints rather
+  than in application code: `PRIMARY KEY (case_id, "sequence")` is what makes
+  two concurrent writers resolve to exactly one winner, and
+  `PRIMARY KEY (submission_key)` is the second line of defence against
+  duplicate submission. Application-level check-then-write races by
+  construction; a unique index does not.
+- **Versioned migrations** (`packages/case-store/migrations/`) with a runner —
+  forward-only, applied in order, each in its own transaction, per
+  [ADR-0003](./docs/decisions/0003-versioned-migrations-not-push-force.md). An
+  applied migration's SHA-256 is recorded, so a file edited after it ran fails
+  the next run rather than silently doing nothing in every environment where it
+  already applied.
+- **Tagged date serialisation** — an event's `Date` fields survive storage as
+  `Date`, not as strings.
+- **Integration CI job enabled.** It had been sitting behind `if: false`
+  awaiting exactly this adapter. It runs both database-backed suites with
+  `AAS_REQUIRE_DATABASE=1`, so a broken Postgres service fails the run instead
+  of reporting green while checking nothing.
+
+### Fixed
+
+- `pnpm run verify:integration` now covers `packages/case-store` as well as
+  `apps/chat-integration`.
+
+### Known limitations
+
+- The orchestrator is not yet wired to the Postgres store; it still takes a
+  `CaseStore` and is given the in-memory one by the demo scripts. Swapping it is
+  a separate change.
+- Nothing is deployed. This version marks a state of the source.
 
 ---
 
@@ -108,5 +173,6 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vaahiiid/askimate_auto_apply/releases/tag/v0.1.0

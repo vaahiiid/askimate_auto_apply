@@ -80,13 +80,22 @@ jobs:
       - name: Tests
         run: pnpm run test
 
-  # Placeholder for Phase 2 onwards. Integration tests will run against a
-  # Dockerised Postgres service here. Declared now so the shape of the pipeline
-  # is visible, and skipped until there is something to run.
+  # Enabled 2026-08-27, when the case store gained its Postgres adapter.
+  #
+  # Two suites need a real database, and both need it for the same reason: the
+  # guarantee under test is enforced by something the database does, so a fake
+  # would be re-implementing the thing being tested.
+  #
+  #   packages/case-store    optimistic concurrency and duplicate-submission
+  #                          prevention are PRIMARY KEY constraints
+  #   apps/chat-integration  "the password reaches no column of any row" is
+  #                          only meaningful against real rows
+  #
+  # AAS_REQUIRE_DATABASE=1 turns a skip into a failure. Without it, a CI run
+  # with a broken Postgres service would report green while checking nothing.
   integration:
     name: Integration (Postgres)
     runs-on: ubuntu-latest
-    if: false # enabled in Phase 2, when the case store gains a Postgres adapter
     timeout-minutes: 20
 
     services:
@@ -110,6 +119,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test:integration
+
+      - name: Install Chromium
+        # apps/chat-integration drives the secure control in a real browser.
+        run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
+
+      - name: Integration tests
+        run: pnpm exec vitest run apps/chat-integration packages/case-store
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
+          AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
+          AAS_REQUIRE_DATABASE: "1"
