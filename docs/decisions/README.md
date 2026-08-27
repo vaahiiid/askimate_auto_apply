@@ -49,5 +49,7 @@ ADR status uses exactly that vocabulary:
 | [0025](./0025-sensitive-data-never-reaches-a-trace.md) | A fill session is never traced, recorded, or asked to remember a value | Accepted |
 | [0026](./0026-a-password-the-model-can-ask-for-and-never-see.md) | A password the model can ask for and never see | Accepted |
 | [0027](./0027-one-version-for-the-whole-repository.md) | One version for the whole repository, and a changelog that does not invent history | Accepted |
+| [0028](./0028-versioning-policy.md) | Versioning policy: what counts as a release, and what does not | Accepted |
+| [0029](./0029-git-workflow.md) | Git workflow, branches and releases | **Proposed — awaiting Vahid** |
 
-All twenty-seven are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+Twenty-eight are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

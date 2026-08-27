@@ -17,7 +17,27 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-Nothing yet.
+### Internal
+
+Per [ADR-0028](./docs/decisions/0028-versioning-policy.md), documentation and governance changes do
+not earn a version. Recorded here so they are traceable.
+
+- **Versioning policy formalised** — ADR-0028 defines what earns a release and what is tracked by
+  commit only, including explicit rules (with exceptions) for documentation-only, test-only,
+  refactoring, research-only and tooling-only changes.
+- **Git workflow proposed** — ADR-0029. **Status: Proposed. Awaiting Vahid. Nothing has been done.**
+- **Baseline reviewed** — `docs/versioning-baseline-review.md`. `0.1.0` and the locked
+  single-version strategy both stand; five conditions named that would require independent
+  per-package versioning.
+- **Replit dependency map** — `docs/replit-dependency-map.md`. Three items are genuinely blocked by
+  the missing production access; everything else in the product continues.
+
+### Known
+
+- **`v0.1.0` is tagged locally but NOT pushed.** `git push origin refs/tags/v0.1.0` returns HTTP
+  403 — this session's credential can write branch refs but not tag refs. The tag object exists at
+  `11629f4`, for commit `d985ec4`. It must be pushed as the same object rather than re-created at a
+  different commit later; see ADR-0029 §7. **The repository therefore has no published release.**
 
 ---
 
