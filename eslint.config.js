@@ -107,4 +107,24 @@ export default tseslint.config(
   },
 
   { files: ["**/*.js"], extends: [tseslint.configs.disableTypeChecked] },
+
+  // ── The secure control runs in a browser, not in Node ──────────────────
+  //
+  // `apps/chat-integration/public` is served to a page. It is the only
+  // hand-written browser JavaScript in the repository, and it needs browser
+  // globals — `window`, `document`, `fetch`, `Event` — which the Node config
+  // above does not provide.
+  {
+    files: ["apps/chat-integration/public/**/*.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        fetch: "readonly",
+        Event: "readonly",
+        HTMLInputElement: "readonly",
+        console: "readonly",
+      },
+    },
+  },
 );

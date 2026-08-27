@@ -25,13 +25,15 @@
     "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
     "clean": "tsc --build --clean",
     "analyse-journey": "tsx scripts/analyse-journey.ts",
-    "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts"
+    "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",
+    "verify:integration": "bash scripts/with-postgres.sh"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",
     "@askimate/aas-blueprint": "workspace:*",
     "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
+    "@askimate/aas-chat-integration": "workspace:*",
     "@askimate/aas-disclosure": "workspace:*",
     "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",

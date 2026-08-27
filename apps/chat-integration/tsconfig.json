@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // The secure control runs inside a browser page, like the observe script in
+    // browser-runner. This app is the only other place that legitimately needs
+    // DOM types.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/secrets" }]
+}

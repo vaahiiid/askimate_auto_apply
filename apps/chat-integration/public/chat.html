@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AskiMate</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+    #transcript { border: 1px solid #cbd5e1; border-radius: .5rem; padding: 1rem; min-height: 8rem; }
+    .turn { margin: .5rem 0; }
+    .turn.user { text-align: right; color: #1e40af; }
+    #composer { display: flex; gap: .5rem; margin-top: 1rem; }
+    #chat-input { flex: 1; padding: .5rem; }
+    #chat-input:disabled { background: #f1f5f9; color: #94a3b8; }
+    #secure-control { border: 2px solid #1e40af; border-radius: .5rem; padding: 1rem; margin-top: 1rem; }
+    #secure-control[hidden] { display: none; }
+    .field { display: block; margin: .5rem 0; }
+    .error { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <h1>AskiMate</h1>
+  <div id="transcript"></div>
+
+  <!--
+    The ordinary chat composer. It is DISABLED while a password box is open —
+    see `chatInputEnabled`. An enabled text box beside a password prompt is an
+    invitation to type the password into it, and that is the single most likely
+    leak in the whole design.
+  -->
+  <form id="composer">
+    <input id="chat-input" type="text" placeholder="Ask AskiMate…" autocomplete="off">
+    <button id="chat-send" type="submit">Send</button>
+  </form>
+
+  <!--
+    The secure control. Rendered ONLY on a `request_secret` directive, and only
+    when `decideRendering` says so. Note what it is not: it is not inside
+    #composer, it does not share a form with the chat input, and its inputs
+    have no `name` that any other submit path would pick up.
+  -->
+  <section id="secure-control" hidden aria-live="polite">
+    <h2 id="secure-title"></h2>
+    <p id="secure-explanation"></p>
+    <p id="secure-host"></p>
+    <form id="secure-form" autocomplete="off">
+      <label class="field">Password
+        <input id="secure-password" type="password" autocomplete="new-password" required>
+      </label>
+      <label class="field" id="confirm-field">Confirm password
+        <input id="secure-confirmation" type="password" autocomplete="new-password">
+      </label>
+      <button id="secure-submit" type="submit">Set password</button>
+    </form>
+    <p id="secure-error" class="error" role="alert"></p>
+  </section>
+
+  <div id="refusal" class="error" role="alert"></div>
+
+  <script src="/secure-control.js"></script>
+</body>
+</html>

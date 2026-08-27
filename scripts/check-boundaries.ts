@@ -209,6 +209,34 @@ const RULES: readonly Rule[] = [
       "for a password to become a ConfirmedValue and appear in a submission preview (ADR-0026).",
   },
   {
+    packagePath: "apps/chat-integration",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "@askimate/aas-profile",
+      "morgan",
+      "pino",
+      "pino-http",
+      "winston",
+      "@sentry/node",
+      "@sentry/express",
+      "dd-trace",
+      "newrelic",
+      "@opentelemetry/sdk-node",
+      "express-winston",
+      "errorhandler",
+    ],
+    rationale:
+      "This app contains the ONE endpoint in AskiMate that receives a plaintext password. Every " +
+      "forbidden name here is a request logger, an APM agent or an error reporter — the exact " +
+      "class of middleware that serialises a caught error, and body-parser attaches the raw " +
+      "request body to a JSON parse error as `err.body` (measured: JSON.stringify(err) emits the " +
+      "password in full). A model SDK is forbidden for the same reason as everywhere else.",
+  },
+  {
     packagePath: "apps/browser-runner",
     forbidden: [
       "@askimate/aas-case-store",
@@ -371,6 +399,42 @@ function main(): void {
     checked += 1;
   }
   console.log(`  ✓  packages/secrets — no getSecret, in any file`);
+
+  // ── The secure endpoint must not interpolate the body into anything ─────
+  //
+  // A source-level check on the one file that handles plaintext. The realistic
+  // regression is not malice — it is someone adding `console.log("submit for",
+  // req.body)` while debugging a confirmation mismatch, and leaving it in.
+  //
+  // So: no `console.log`/`console.debug`/`console.info` at all in that file
+  // (the error handler in app.ts logs a type, and that is the only logging on
+  // this path), and no mention of the two identifiers a password lives in.
+  const SECRET_ROUTE = "apps/chat-integration/src/secret-routes.ts";
+  if (existsSync(SECRET_ROUTE)) {
+    const source = readFileSync(SECRET_ROUTE, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+
+    if (/console\.(log|debug|info|warn|error|trace|dir)\s*\(/.test(code)) {
+      violations.push(
+        `${SECRET_ROUTE} contains a console call. This file holds a student's plaintext password ` +
+          `for the length of one request; nothing in it may write to a log. The error handler in ` +
+          `app.ts logs an error TYPE, and that is the only logging permitted on this path ` +
+          `(ADR-0027).`,
+      );
+    }
+    for (const forbidden of ["JSON.stringify(req", "JSON.stringify(body", "inspect(body", "inspect(req"]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${SECRET_ROUTE} serialises the request body (\`${forbidden}\`). The body carries a ` +
+          `plaintext password, and a serialised copy is one assignment away from a log line, an ` +
+          `error message or a response (ADR-0027).`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the secure endpoint — no console calls, no serialised bodies`);
 
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
