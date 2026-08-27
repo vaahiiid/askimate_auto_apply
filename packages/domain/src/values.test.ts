@@ -1,14 +1,40 @@
 /**
  * Tests for the confirmed/model-text separation (ADR-0004, brief §3.1).
  *
- * The most important assertions in this file are the `@ts-expect-error` ones.
- * They are compile-time tests: if someone ever adds a conversion path from
- * `ModelText` to `ConfirmedValue`, the `@ts-expect-error` stops being an error,
- * TypeScript reports "unused @ts-expect-error directive", and the build fails.
+ * The `@ts-expect-error` assertions here are compile-time tests: they write
+ * something illegal and rely on the compiler rejecting it. If the assignment
+ * ever became legal, TypeScript would report an unused directive and the build
+ * would fail. A runtime test cannot check "this does not compile" — only the
+ * compiler can, so the compiler is part of the suite.
  *
- * That is the guarantee working. A runtime test cannot check "this code does
- * not compile" — only the compiler can, so we make the compiler part of the
- * test suite.
+ * ── CORRECTION, 2026-08-27: what these directives do NOT prove ────────────
+ *
+ * This header used to claim that *"if someone ever adds a conversion path from
+ * ModelText to ConfirmedValue… the build fails."* **That was wrong**, and it
+ * was measured: adding
+ *
+ *     export function trustTheModel<T>(t: ModelText): ConfirmedValue<T> {
+ *       return t as unknown as ConfirmedValue<T>;
+ *     }
+ *
+ * to this very package compiled cleanly and failed no test.
+ *
+ * The reason is worth understanding, because it generalises. These directives
+ * test **one specific illegal assignment**. A conversion *function* that casts
+ * through `unknown` leaves that assignment exactly as illegal as it was — the
+ * directives stay used, the build stays green, and the guarantee is gone.
+ *
+ * A brand cannot defend itself against a cast. Only a rule about *where casts
+ * may appear* can, and that rule now lives in `scripts/check-boundaries.ts`:
+ * no file outside `packages/profile` may cast to `ConfirmedValue`, in any of
+ * its plain, qualified or dynamic-import forms. `applyConfirmation` is the one
+ * sanctioned mint, because a ConfirmedValue means a human read the value back
+ * and approved it.
+ *
+ * So the guarantee has two halves, and this file is one of them:
+ *
+ *   this file                   an accidental assignment cannot compile
+ *   check-boundaries.ts         a deliberate cast cannot be added anywhere else
  */
 
 import { describe, expect, it } from "vitest";

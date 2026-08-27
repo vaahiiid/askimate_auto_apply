@@ -21,11 +21,56 @@ Nothing yet.
 
 ---
 
+## [0.2.1] — 2026-08-27
+
+**A safety claim that was wrong, and the enforcement that makes it true.**
+
+**Version bump: PATCH.** A security fix with no API change, plus the documentation correction that
+goes with it — [ADR-0028](./docs/decisions/0028-versioning-policy.md) §3 makes a doc change that
+corrects a *wrong safety claim* a PATCH rather than unversioned, because the claim was part of the
+product's contract.
+
+### Security
+
+- **ADR-0004's guarantee had a hole.** `values.test.ts` claimed that *"if someone ever adds a
+  conversion path from `ModelText` to `ConfirmedValue`… the build fails."* Measured: adding
+
+  ```ts
+  export function trustTheModel<T>(t: ModelText): ConfirmedValue<T> {
+    return t as unknown as ConfirmedValue<T>;
+  }
+  ```
+
+  to `packages/domain` **compiled cleanly and failed no test.** The `@ts-expect-error` directives
+  test one illegal *assignment*; a conversion *function* casting through `unknown` leaves that
+  assignment just as illegal, so the directives stay used and the build stays green.
+
+  **A brand cannot defend itself against a cast.** `scripts/check-boundaries.ts` now fails the
+  build if any non-test file outside `packages/profile` casts to `ConfirmedValue` — plain,
+  qualified (`Domain.ConfirmedValue`), or dynamic-import
+  (`import("@askimate/aas-domain").ConfirmedValue`). All three forms were tested against the check.
+  The first version of the rule caught only the plain form and a qualified cast walked past it.
+
+### Fixed
+
+- The header of `values.test.ts` and ADR-0004 now state what the directives actually prove, and
+  name the boundary check as the other half. Neither half is sufficient alone.
+
+### Internal
+
+- **Safety regression audit** — five core guarantees deliberately weakened to confirm the tests
+  fail. Recorded in `docs/safety-regression-audit.md`.
+- **Roadmap and priority analysis** — `docs/roadmap-and-priorities.md`. **C2 is not the next item**;
+  the recommendation and the one architectural decision it needs are in §7, awaiting Vahid.
+
+---
+
 ## Release state — read before trusting a tag
 
 | Version | Tag object | On the remote? |
 |---|---|---|
-| `0.2.0` | `v0.2.0` → the commit below | **see below** |
+| `0.2.1` | `v0.2.1` → the `0.2.1` commit | **NO** |
+| `0.2.0` | `v0.2.0` → `d39ddb1` | **NO** |
 | `0.1.0` | `v0.1.0` → `11629f4` (commit `d985ec4`) | **NO** |
 
 `git push origin refs/tags/v0.1.0` returns **HTTP 403**: this session's
@@ -173,6 +218,7 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/vaahiiid/askimate_auto_apply/releases/tag/v0.1.0

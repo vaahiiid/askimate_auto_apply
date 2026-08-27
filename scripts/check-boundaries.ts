@@ -436,6 +436,76 @@ function main(): void {
   }
   console.log(`  ✓  the secure endpoint — no console calls, no serialised bodies`);
 
+  // ── ADR-0004: a ConfirmedValue is minted in ONE place ───────────────────
+  //
+  // Found by deliberately weakening the guarantee: adding
+  //
+  //     export function trustTheModel<T>(t: ModelText): ConfirmedValue<T> {
+  //       return t as unknown as ConfirmedValue<T>;
+  //     }
+  //
+  // to packages/domain compiled cleanly and failed NO test.
+  //
+  // The `@ts-expect-error` directives in values.test.ts are real compile-time
+  // tests, but they test one thing only: that a DIRECT ASSIGNMENT from
+  // ModelText to ConfirmedValue is illegal. A conversion FUNCTION using
+  // `as unknown as` leaves that assignment just as illegal, so the directives
+  // stay used and the build stays green — while the guarantee is gone.
+  //
+  // The brand cannot defend itself against a cast; only a rule about where
+  // casts may appear can. `applyConfirmation` in packages/profile is the one
+  // sanctioned mint, and it exists because a ConfirmedValue means a human read
+  // the value back and approved it.
+  // Matches `as ConfirmedValue`, `as unknown as ConfirmedValue`, and the
+  // qualified forms — `as unknown as Domain.ConfirmedValue`, and
+  // `as unknown as import("@askimate/aas-domain").ConfirmedValue`.
+  //
+  // The qualified forms are not paranoia. The first version of this rule
+  // matched only an unqualified name, and a deliberately smuggled
+  // `x as unknown as import("@askimate/aas-domain").ConfirmedValue<string>`
+  // walked straight past it — a check that a regression can step around is not
+  // a check.
+  const CONFIRMED_CAST =
+    /\bas\s+(?:unknown\s+as\s+)?(?:(?:[A-Za-z_$][\w$]*|import\([^)]*\))\s*\.\s*)*ConfirmedValue\b/;
+  const MINT_SITES = ["packages/profile/src/"];
+
+  const sourceFiles: string[] = [];
+  const collect = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) collect(full);
+      else if (entry.name.endsWith(".ts")) sourceFiles.push(full);
+    }
+  };
+  for (const root of ["packages", "apps"]) collect(root);
+
+  let scanned = 0;
+  for (const file of sourceFiles) {
+    // Tests may cast freely: they construct fixtures, and `values.test.ts`
+    // exists precisely to write illegal things and assert they are rejected.
+    if (file.endsWith(".test.ts")) continue;
+    if (MINT_SITES.some((site) => file.replace(/\\/g, "/").includes(site))) continue;
+    scanned += 1;
+
+    const source = readFileSync(file, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+    if (!CONFIRMED_CAST.test(code)) continue;
+
+    violations.push(
+      `${file.replace(/\\/g, "/")} casts to ConfirmedValue. A ConfirmedValue means a human read ` +
+        `the value back and approved it, and it is minted in exactly one place — ` +
+        `applyConfirmation in packages/profile (ADR-0004). A cast anywhere else is a way for ` +
+        `model output, or an unreviewed string, to reach a university form field.`,
+    );
+  }
+  checked += scanned;
+  console.log(
+    `  ✓  ADR-0004 — ${String(scanned)} file(s) outside packages/profile cast to ConfirmedValue: none`,
+  );
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {
