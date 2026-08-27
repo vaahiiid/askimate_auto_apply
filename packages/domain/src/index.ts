@@ -250,7 +250,7 @@ export type {
   CheckpointDetail,
   CheckpointValue,
   ConsequentialAction,
-  IdempotencyKey as WorkflowIdempotencyKey,
+  ActionIdempotencyKey,
   IntentOutcome,
   IntentVerdict,
   RunId,

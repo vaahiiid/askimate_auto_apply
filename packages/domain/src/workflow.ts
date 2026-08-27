@@ -72,19 +72,25 @@ export function runId(value: string): RunId {
 /**
  * The key that makes a consequential action at-most-once.
  *
+ * Named `ActionIdempotencyKey`, not `IdempotencyKey`, because the domain
+ * already has an `IdempotencyKey` in ./idempotency.ts for SUBMISSIONS. They
+ * are different concepts at different layers — one prevents applying twice,
+ * one prevents acting twice while recovering — and two things sharing a name
+ * is how someone eventually passes the wrong one.
+ *
  * Derived by the caller from the action and its target — never random, because
  * a random key regenerated after a restart would not match the intent record
  * written before the crash, which is the whole mechanism.
  */
-export type IdempotencyKey = Brand<string, "WorkflowIdempotencyKey">;
+export type ActionIdempotencyKey = Brand<string, "ActionIdempotencyKey">;
 
 export function idempotencyKeyFor(input: {
   readonly runId: RunId;
   readonly action: ConsequentialAction;
   /** What it acts on: a portal host, a field ref, a document id. */
   readonly target: string;
-}): IdempotencyKey {
-  return `${input.runId}:${input.action}:${input.target}` as IdempotencyKey;
+}): ActionIdempotencyKey {
+  return `${input.runId}:${input.action}:${input.target}` as ActionIdempotencyKey;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -307,7 +313,7 @@ export function isVerifiable(action: ConsequentialAction): boolean {
  * always die between an external success and our recording of it.
  */
 export interface ActionIntent {
-  readonly idempotencyKey: IdempotencyKey;
+  readonly idempotencyKey: ActionIdempotencyKey;
   readonly action: ConsequentialAction;
   /** What it acts on. A host, a field ref, a document id. Never a value. */
   readonly target: string;

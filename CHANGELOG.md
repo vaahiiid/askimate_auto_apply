@@ -21,6 +21,67 @@ Nothing yet.
 
 ---
 
+## [0.4.0] — 2026-08-27
+
+**Phase 2 of durable execution: the `WorkflowRunStore`.**
+
+**Version bump: MINOR.** A new port with two implementations, additive. `CaseStore` is untouched —
+its append-only guarantees are neither weakened nor extended.
+
+### Added
+
+- **`WorkflowRunStore`** — a **separate** port from `CaseStore`, as approved. `CaseStore` is
+  append-only and holds business truth; a checkpoint is mutable and disposable. Forcing one into
+  the other would mean either putting execution detail into the business record, or adding an
+  update path to an append-only log.
+- **`InMemoryWorkflowRunStore`** and **`PostgresWorkflowRunStore`**, both passing the same
+  `runWorkflowStoreContract` suite.
+- **Migration `0002_workflow_runs.sql`** — `workflow_runs`, `workflow_action_intents`. The
+  guarantees are constraints: `PRIMARY KEY (run_id)`,
+  `PRIMARY KEY (run_id, idempotency_key)`, a conditional revision UPDATE, and
+  `CHECK ((outcome IS NULL) = (completed_at IS NULL))` so a half-written completion cannot exist.
+- **`discardCheckpoints`** — the only destructive operation, and the one the contract uses to prove
+  rule 3.
+
+### Fixed
+
+- **A corrupt checkpoint crashed `load()` instead of being discarded.** `decodeEvent` is built for
+  events, which are always objects, and calls `JSON.parse` on a string input; a JSONB column
+  holding the scalar `"a string"` comes back from `pg` as a JS string and parsing it throws.
+  Found by the corrupt-checkpoint test, which is why it exists. `decodeEvent` still throws — an
+  unreadable *event* means business truth is corrupt and a crash is right — and the workflow store
+  absorbs it, because an unreadable *checkpoint* is routine.
+- **`ActionIdempotencyKey`** renamed from `IdempotencyKey`. The domain already had an
+  `IdempotencyKey` for submissions; two concepts sharing a name is how someone eventually passes
+  the wrong one.
+
+### Security
+
+- **Losing every checkpoint loses no business fact** — the executable form of rule 3, in the shared
+  contract. After `discardCheckpoints`, the run still knows its case, its student and when it
+  started; only position is gone, and position is re-derivable.
+- **Intents are NOT discarded with checkpoints.** They are evidence that a consequential action may
+  have happened; throwing one away turns a detectable uncertainty into a silent repeat.
+- **Every loser of a concurrent resume gets `RunConcurrencyError`**, not a raw driver error — the
+  C1 lesson, where a transient-looking error invited exactly the retry that must not happen. Tested
+  with eight concurrent resumes, because two can pass by luck.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| Revision check dropped — two resumes both win | ✅ 3 tests |
+| `discardCheckpoints` also deletes intents | ✅ 1 test |
+| Unreadable checkpoint trusted instead of discarded | ✅ 2 tests |
+| The completion `CHECK` constraint removed | ✅ 1 test |
+
+### Known limitations
+
+- The orchestrator does not use this yet. That is Phase 3.
+- `RunState.profile` reconstruction remains **explicitly open** (Phase 5, not implemented).
+
+---
+
 ## [0.3.0] — 2026-08-27
 
 **Phase 1 of durable execution: the run model.**
@@ -120,7 +181,8 @@ product's contract.
 
 | Version | Tag object | On the remote? |
 |---|---|---|
-| `0.3.0` | `v0.3.0` → the `0.3.0` commit | **NO** |
+| `0.4.0` | `v0.4.0` → the `0.4.0` commit | **NO** |
+| `0.3.0` | `v0.3.0` → `c59459d` | **NO** |
 | `0.2.1` | `v0.2.1` → `fb69b68` | **NO** |
 | `0.2.0` | `v0.2.0` → `d39ddb1` | **NO** |
 | `0.1.0` | `v0.1.0` → `11629f4` (commit `d985ec4`) | **NO** |
@@ -270,7 +332,8 @@ The state this version names, all of which predates the mechanism:
 - The default password delivery remains `student_types_into_portal`, where AskiMate holds no
   secret at all.
 
-[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vaahiiid/askimate_auto_apply/compare/v0.1.0...v0.2.0
