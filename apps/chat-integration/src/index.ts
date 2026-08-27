@@ -3,6 +3,18 @@
  * password.
  *
  * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠  RESEARCH BUILD — NOT THE PRODUCTION INTEGRATION.
+ *
+ * Built against the ARCHIVED AskiMate codebase (`archive/askimate/` in
+ * vaahiiid/Universitio), which is AskiMate as of 2026-06-18. The current
+ * production source for askimate.com is NOT accessible from this session —
+ * see docs/production-repository-audit.md and this app's README.
+ *
+ * Nothing here supports a claim that production is secure, that the production
+ * integration is complete, or that anything is ready for deployment.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
  * NOTE ON WHAT IS DELIBERATELY NOT EXPORTED:
  *
  *   Nothing here returns, holds, or can be asked for a plaintext password. The

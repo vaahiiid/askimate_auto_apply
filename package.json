@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,11 +22,14 @@
     "inspect-discovery": "tsx scripts/inspect-discovery.ts",
     "retention-status": "tsx scripts/retention-status.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
-    "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run test",
+    "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run version:check && pnpm run test",
     "clean": "tsc --build --clean",
     "analyse-journey": "tsx scripts/analyse-journey.ts",
     "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",
-    "verify:integration": "bash scripts/with-postgres.sh"
+    "verify:integration": "bash scripts/with-postgres.sh",
+    "version:check": "tsx scripts/version.ts check",
+    "version:set": "tsx scripts/version.ts set",
+    "version:bump": "tsx scripts/version.ts bump"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",
