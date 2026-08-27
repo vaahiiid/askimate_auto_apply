@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,7 +22,7 @@
     "inspect-discovery": "tsx scripts/inspect-discovery.ts",
     "retention-status": "tsx scripts/retention-status.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
-    "verify": "pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run version:check && pnpm run test",
+    "verify": "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run version:check && pnpm run test",
     "clean": "tsc --build --clean",
     "analyse-journey": "tsx scripts/analyse-journey.ts",
     "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",
@@ -53,7 +53,9 @@
     "@aws-sdk/client-sts": "^3.1118.0",
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",
+    "@types/semver": "^7.8.0",
     "eslint": "^9.18.0",
+    "semver": "^7.8.5",
     "tsx": "^4.19.2",
     "typescript": "~5.7.3",
     "typescript-eslint": "^8.20.0",

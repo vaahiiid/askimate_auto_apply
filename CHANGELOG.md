@@ -19,6 +19,54 @@ not shipped artefacts.
 
 ---
 
+## [0.9.1] — 2026-08-27
+
+**A green local run, a red CI: a constraint checked against the wrong Node version.**
+
+**Version bump: PATCH.** A dependency pin and a new check. No behaviour changed.
+
+### Fixed
+
+- **`jsdom` pinned to `^28`.** `jsdom@30` declares
+  `engines.node: "^22.22.2 || ^24.15.0 || >=26.0.0"`, and `.nvmrc` pins `22.20.0`. CI installs the
+  `.nvmrc` version, so `pnpm install --frozen-lockfile` refused with `ERR_PNPM_UNSUPPORTED_ENGINE`
+  and **both jobs died before a single test ran** — on the commit whose local verification was fully
+  green: 56 files, 1108 tests, lint, typecheck and boundaries all passing.
+
+  It passed locally because this development sandbox happens to run Node **22.22.2** — the exact
+  minimum jsdom wanted. `engine-strict` is on, so the check did run. It ran against a version the
+  project does not target.
+
+  Nothing was skipped and nothing was vacuous. The signal was simply measured against the wrong
+  number, which is a failure mode worth naming separately from the others.
+
+### Added
+
+- **`scripts/check-engines.test.ts`** — reads `.nvmrc` and asserts every declared dependency's
+  installed `engines.node` accepts it. Checking against the pinned version rather than the running
+  one makes the answer the same on every machine, which is exactly what was missing.
+
+  Verified by reinstalling `jsdom@30` and watching it fail with the precise reason.
+
+  It carries three controls, because a checker that silently checks nothing is the failure this
+  repository keeps rediscovering:
+  1. `.nvmrc` must parse as a version — an empty file would otherwise pass everything.
+  2. The workspace walk must find more than fifteen packages — a broken glob would otherwise check
+     none.
+  3. Fewer than a quarter of dependencies may be unresolvable — the per-package check *skips* what
+     it cannot resolve, and a skip reports as a pass.
+
+  Each control was verified by breaking the thing it guards.
+
+### Also
+
+- `semver` and `@types/semver` added as root devDependencies, for the range comparison above.
+- `apps/chat-integration/package.json` restored to the repository's compact one-line style for
+  `exports` and `scripts`, which `pnpm add` had expanded, and the React specs normalised to caret
+  ranges matching every other entry in the file.
+
+---
+
 ## [0.9.0] — 2026-08-27
 
 **Phase B continued: the React secure control, transport separation, and four of my own tests that
