@@ -17,7 +17,25 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-Nothing yet.
+### Internal
+
+Documentation only — no version bump under
+[ADR-0028](./docs/decisions/0028-versioning-policy.md) §3. Recorded here so it stays traceable.
+
+- **Durable execution architecture report and plan** —
+  `docs/durable-execution-architecture.md`. Answers the ten architecture questions and proposes
+  five phases. **Nothing implemented; awaiting approval.**
+
+  Principal finding: **`ExecutionCheckpoint` already exists** in `packages/domain/src/recovery.ts`
+  with almost exactly the approved shape. What is missing is that it is reachable only *through a
+  recovery escalation*, so a healthy run never records one.
+
+  Two gaps reported rather than designed around:
+  - `ConfirmationCaptured` carries a **ref, not a value**, so `RunState.profile` is *not*
+    reconstructible from the event log. B+ does not by itself close this (Phase 5).
+  - The crash window between an external action succeeding and our recording it **cannot be
+    closed**. The two-phase intent record makes it *detectable*, not impossible; the design
+    verifies where it can and escalates where it cannot, and never blind-retries.
 
 ---
 
