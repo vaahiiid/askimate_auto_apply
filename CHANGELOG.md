@@ -17,10 +17,91 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-### Internal
+---
 
-Documentation only — no version bump under
-[ADR-0028](./docs/decisions/0028-versioning-policy.md) §3.
+## [0.7.0] — 2026-08-27
+
+**Phase A of the inline secure turn: the password request takes its real place in the
+conversation.**
+
+**Version bump: MINOR.** New capability, additive. The security model is unchanged — no boundary
+moved, no new data path opened.
+
+### Added
+
+- **`projectTranscript`** (`apps/chat-integration/src/transcript.ts`) — turns the `ChatTurn` list
+  into an ordered list of things to draw, **dropping nothing**. The absence of a `continue` in that
+  function is the entire fix: the prototype rendered `if (turn.kind !== "message") continue`, which
+  removed the secure request from the conversation and pushed it into a detached panel below the
+  composer.
+- **`openSecureRequest`** — whether a request is open, *derived from the transcript* rather than
+  tracked separately. A tracked boolean is a second source of truth, and the thing it gates is the
+  composer, where drifting *open* means an enabled send button beside a password box. This is the
+  client's view of what to draw; it is **not** a security control, and the server does not trust it.
+- **`NO_FREE_TEXT_OUTSIDE_MESSAGES`** — a compile-time assertion that no transcript item except a
+  message may carry free text.
+
+### Changed
+
+- The provisional harness renders directives and statuses **inline, in sequence**, and the secure
+  card is *moved into* the transcript rather than living beside it.
+- Rendering is now **append-only**. The previous implementation began every render with
+  `innerHTML = ""`, which — once the card lives inside the transcript — would tear it out of the DOM
+  whenever any unrelated turn arrived, discarding whatever the student had typed.
+
+### Fixed
+
+- **The browser-driven tests had silently stopped testing anything.** `NOW` was the literal
+  `2026-08-27T10:00:00Z` while the browser reads its own clock (`secure-control.js` must, since a
+  page has no clock to inject). With a 300-second TTL, every prompt was judged expired from
+  10:05 UTC onwards and the control refused to render. **Seven tests — including "runs all ten
+  steps and leaks the marker nowhere" and "survives a page refresh" — failed for that one reason**,
+  reported as six unrelated-looking 30-second `locator.fill` timeouts naming an invisible element
+  rather than why it was invisible.
+
+  The clock is now anchored to the real one, and `deliver()` carries a guard that turns a refusal
+  under full capabilities into an immediate, named harness fault. These tests are not in the default
+  `pnpm run test` path — they need PostgreSQL — so nothing went red until the suite was run against
+  a real database.
+
+### Correction to the previous entry
+
+The audit said the secret channel is *"wired to nothing"*. That was too strong. The **orchestrator
+already emits `RunStep { kind: "request_secret" }` deterministically** — the decision logic is
+integrated. What is missing is the store instantiation, the transport and the UI.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| Reinstate the `continue` that skipped non-message turns | ✅ 8 tests |
+| Append controls at the end instead of in place | ✅ 3 tests |
+| Interpolate the portal host into the model's directive sentence | ✅ 1 test |
+| `content` field on `secure_control` only | ✅ typecheck + 1 test |
+| `content` field on `secret_status` only | ✅ typecheck |
+| `openSecureRequest` stops closing on a status | ✅ 1 test |
+| Revert to `innerHTML = ""` rendering | ✅ 1 test |
+| Stop moving the card into the transcript | ✅ 2 tests |
+| Password input inside the composer's form | ✅ 1 test |
+| `name` attribute on the password input | ✅ 1 test |
+
+The first attempt at the type-level guard was **vacuous**: an `@ts-expect-error` on `item.content`
+over the narrowed union only trips if *every* non-message variant grows a free-text field at once,
+because `keyof` over a union is the intersection of its members' keys. The realistic mistake is one
+variant, in one commit. Replaced with a distributive `ContentBearing<T>` and an `AssertNever`, which
+catches either variant alone.
+
+### Not done, deliberately
+
+The composer is still hard-disabled while a card is open. Replacing that with the approved
+prevention/containment/fail-closed model is Phase B. **All UI, copy and layout in the harness is
+provisional** and carries a banner saying so.
+
+### Internal — documentation carried into this release
+
+These landed as documentation-only commits before 0.7.0 and were correctly not versioned at the
+time under [ADR-0028](./docs/decisions/0028-versioning-policy.md) §3. They are recorded here
+because 0.7.0 is the first release that follows them.
 
 - **Password flow audit and plan** — `docs/password-flow-audit.md`. **Nothing implemented.**
 
@@ -32,6 +113,14 @@ Documentation only — no version bump under
   appears once, as a leak-scan test artefact), and **the model cannot request a credential** — the
   orchestrator decides deterministically, which is stronger than the stated requirement and is
   flagged for a decision rather than changed.
+
+- **The inline secure turn** — `docs/inline-secure-turn-architecture.md`. The finding that
+  `ChatTurn` already separates the conversational layer from the secure interaction layer, and that
+  the prototype re-joined them at render time.
+
+- **The composer during a secure turn** — `docs/composer-during-secure-turn.md`. Prevention,
+  containment and fail-closed as three layers, with server-side quarantine demoted from primary
+  mechanism to last line.
 
 ---
 

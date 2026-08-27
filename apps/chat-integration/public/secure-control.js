@@ -40,14 +40,51 @@
 
   // ── The ordinary chat path ─────────────────────────────────────────────
 
+  /**
+   * How many turns have been drawn. The list only grows, so rendering is
+   * APPEND-ONLY.
+   *
+   * This is not an optimisation. The secure card lives inside the transcript
+   * now, and the previous implementation began with `innerHTML = ""` — which
+   * would tear the card out of the DOM every time any turn arrived, mid-typing,
+   * discarding whatever the student had entered. Appending only what is new
+   * means the card is never touched by an unrelated message.
+   */
+  let rendered = 0;
+
+  /**
+   * Draws the turns that have not been drawn yet, IN ORDER.
+   *
+   * Note the absence of a `continue`. The previous version skipped every turn
+   * that was not a message, which is what removed the secure request from the
+   * conversation and pushed it into a detached panel below the composer. Each
+   * turn now produces exactly one thing in its real position — mirroring
+   * `projectTranscript` in ../src/transcript.ts, which is the tested authority.
+   */
   function renderTranscript() {
-    el("transcript").innerHTML = "";
-    for (const turn of turns) {
-      if (turn.kind !== "message") continue;
-      const div = document.createElement("div");
-      div.className = `turn ${turn.sender}`;
-      div.textContent = turn.content;
-      el("transcript").append(div);
+    for (; rendered < turns.length; rendered += 1) {
+      const turn = turns[rendered];
+      if (turn.kind === "message") {
+        const div = document.createElement("div");
+        div.className = `turn ${turn.sender}`;
+        div.textContent = turn.content;
+        el("transcript").append(div);
+      } else if (turn.kind === "secret_status") {
+        // A settled secure step, shown in place so the conversation reads as
+        // one sequence. The lifecycle word and the opaque handle only — there
+        // is nothing else on the turn to show.
+        const div = document.createElement("div");
+        div.className = "turn status";
+        div.dataset["lifecycle"] = turn.lifecycle;
+        div.textContent =
+          turn.lifecycle === "secret_received"
+            ? "Password received securely. I never saw it."
+            : `Secure step: ${turn.lifecycle}`;
+        el("transcript").append(div);
+      }
+      // A `directive` draws nothing here: `showSecureControl` has already moved
+      // the card into this position in the transcript. Counting it keeps the
+      // ordinals aligned with the turn list.
     }
   }
 
@@ -147,6 +184,18 @@
     el("confirm-field").hidden = !prompt.requiresConfirmation;
     el("secure-confirmation").required = prompt.requiresConfirmation;
     el("secure-error").textContent = "";
+    // ── Into the conversation, not beside it ────────────────────────────
+    //
+    // The card is MOVED rather than recreated, so the element keeps its
+    // identity and its input values across every re-render. Appending it at
+    // the end of the transcript places it exactly where the directive turn
+    // sits in the sequence, which is what "inline" means in the DOM.
+    //
+    // It stays a separate <form> with its own submit handler while it is
+    // there. Nesting a form inside a transcript container does not join it to
+    // the composer's form, and that separation is what keeps a stray Enter in
+    // the password field away from the message pipeline.
+    el("transcript").append(el("secure-control"));
     el("secure-control").hidden = false;
     setChatEnabled(false);
     el("secure-password").focus();

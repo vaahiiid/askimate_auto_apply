@@ -48,7 +48,29 @@ const SKIP_DESCRIPTION =
 const PORT = 4713;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const JWT_SECRET = "test-jwt-secret-not-a-real-one";
-const NOW = new Date("2026-08-27T10:00:00Z");
+/**
+ * The clock, anchored to the REAL one — deliberately, and this must not become
+ * a literal again.
+ *
+ * These tests drive a real browser, and the browser reads its own clock:
+ * `secure-control.js` calls `decideRendering(prompt, capabilities, Date.now())`
+ * because a page has no clock to inject. The server's clock, by contrast, IS
+ * injected — every store and binding call below takes `NOW`.
+ *
+ * So a literal here creates two clocks that disagree by however long it has
+ * been since the literal. It was `new Date("2026-08-27T10:00:00Z")` with a
+ * 300-second TTL, which meant the browser judged every prompt expired and
+ * refused to render the control from 10:05 UTC onwards. The suite passed on
+ * the morning it was written and has been failing silently since — as six
+ * thirty-second `locator.fill` timeouts that named an invisible element rather
+ * than the reason it was invisible.
+ *
+ * Every use below is relative (`NOW.getTime() ± delta`) or is the injected
+ * server clock, so anchoring it costs nothing and removes the divergence.
+ * `assertRendered` in `deliver` is the second half of the fix: it turns a
+ * refusal into an immediate, named failure instead of a timeout.
+ */
+const NOW = new Date();
 const CASE_REF = "case-1";
 const PORTAL_HOST = "apply.example.ac.uk";
 
@@ -179,6 +201,29 @@ async function deliver(
     },
     [prompt, capabilities] as [unknown, unknown],
   );
+
+  // ── The guard that names the failure ──────────────────────────────────
+  //
+  // When all three capabilities are true and the prompt is unexpired, the
+  // control MUST render. If it refused, the harness is misconfigured — not the
+  // code under test — and the difference matters enormously to whoever reads
+  // the failure.
+  //
+  // Without this, a refusal surfaced thirty seconds later as
+  // `locator.fill: Timeout — element is not visible`, which names the symptom
+  // and hides the cause. That is how a clock divergence went unnoticed: six
+  // tests failed for one reason and reported six unrelated-looking timeouts.
+  if (capabilities["supportsSecureControl"] === true && capabilities["secureContext"] === true &&
+      capabilities["endpointReachable"] === true) {
+    const refused = await page.locator("#refusal").getAttribute("data-reason");
+    if (refused !== null && refused !== "") {
+      throw new Error(
+        `The secure control refused to render with reason "${refused}" even though every ` +
+          `capability was true. This is a HARNESS fault, not a failure of the code under test. ` +
+          `"prompt_expired" here means the test clock and the browser clock have diverged again.`,
+      );
+    }
+  }
 }
 
 /** The three assertions every failure path must satisfy. */
@@ -654,5 +699,123 @@ describeIfDatabase("a handle belongs to one student, one conversation, one case"
     });
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "EMAIL_NOT_VERIFIED" });
+  }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The secure request occupies its real position in the conversation
+// ───────────────────────────────────────────────────────────────────────────
+//
+// `transcript.test.ts` proves the PROJECTION keeps a directive in sequence.
+// That is the tested authority, but it is a pure function over a turn list and
+// it cannot see the DOM. These tests check the property that actually reaches
+// the student: the card is inside the transcript, after the message that
+// preceded it — and, critically, that being inside the transcript has not
+// joined it to the composer's form.
+//
+// The UI here is a deliberately provisional harness. What is being asserted is
+// STRUCTURE (containment, ordering, form separation), never appearance.
+
+describe("the secure control is inline in the conversation", () => {
+  it("is a descendant of the transcript, not a panel beside it", async () => {
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    const inside = await page.evaluate(() =>
+      document.getElementById("transcript")?.contains(document.getElementById("secure-control")),
+    );
+    expect(inside).toBe(true);
+    await page.close();
+  }, 60_000);
+
+  it("sits AFTER the message that preceded it, in conversation order", async () => {
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+
+    await page.evaluate(() => {
+      (window as unknown as { __askimateReceive: (turn: unknown) => void }).__askimateReceive({
+        kind: "message",
+        sender: "ai",
+        content: "I can create your account now.",
+      });
+    });
+    await deliver(page, prompt);
+
+    // Compared by DOM position rather than by presence. A harness that appended
+    // every card at the end of the page would pass a "contains" check and would
+    // be exactly the detached panel this change removes.
+    const order = await page.evaluate(() => {
+      const transcript = document.getElementById("transcript");
+      const card = document.getElementById("secure-control");
+      if (!transcript || !card) return null;
+      return Array.from(transcript.children).indexOf(card);
+    });
+    expect(order).toBe(1);
+    await page.close();
+  }, 60_000);
+
+  it("stays in its OWN form after the move — the separation survives", async () => {
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    // The single most important structural property in the whole design. If
+    // the password input's nearest form were the composer's, a stray Enter
+    // would post a password through the message pipeline.
+    const separation = await page.evaluate(() => {
+      const password = document.getElementById("secure-password");
+      const chatInput = document.getElementById("chat-input");
+      return {
+        passwordForm: password?.closest("form")?.id ?? null,
+        chatForm: chatInput?.closest("form")?.id ?? null,
+        passwordHasName: password?.hasAttribute("name") ?? true,
+      };
+    });
+    expect(separation.passwordForm).toBe("secure-form");
+    expect(separation.chatForm).toBe("composer");
+    expect(separation.passwordForm).not.toBe(separation.chatForm);
+    // No `name` means no submit path anywhere could pick the field up.
+    expect(separation.passwordHasName).toBe(false);
+    await page.close();
+  }, 60_000);
+
+  it("survives an unrelated message arriving mid-typing, without losing the value", async () => {
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+    await page.locator("#secure-password").fill("half-typed-so-far");
+
+    // The hazard the append-only renderer exists to remove: the previous
+    // implementation began every render with `innerHTML = ""`, so any turn
+    // arriving while the student typed would tear the card out of the DOM and
+    // discard the value. A student would watch their password vanish.
+    await page.evaluate(() => {
+      (window as unknown as { __askimateReceive: (turn: unknown) => void }).__askimateReceive({
+        kind: "message",
+        sender: "ai",
+        content: "Still here — take your time.",
+      });
+    });
+
+    expect(await page.locator("#secure-password").inputValue()).toBe("half-typed-so-far");
+    expect(await page.locator("#secure-control").isHidden()).toBe(false);
+    await page.close();
+  }, 60_000);
+
+  it("shows a settled secure step in place, with the lifecycle word only", async () => {
+    const page = await chatPage();
+    await page.evaluate(() => {
+      (window as unknown as { __askimateReceive: (turn: unknown) => void }).__askimateReceive({
+        kind: "secret_status",
+        lifecycle: "secret_received",
+        handle: "sh_00000000000000000000000000000000",
+      });
+    });
+
+    const status = page.locator("#transcript .turn.status");
+    expect(await status.count()).toBe(1);
+    expect(await status.getAttribute("data-lifecycle")).toBe("secret_received");
+    await page.close();
   }, 60_000);
 });

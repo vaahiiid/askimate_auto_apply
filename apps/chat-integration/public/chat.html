@@ -1,4 +1,23 @@
 <!doctype html>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  PROVISIONAL TEST HARNESS — NOT A DESIGN, NOT AN AskiMate INTERFACE.
+
+  Vahid, 2026-08-27: "do not finalise, lock in, or treat the UI/UX design as
+  approved without coordinating with me first… If a temporary UI is needed to
+  test the architecture, make that explicit and keep it clearly provisional."
+
+  This page exists to drive the SECURITY ARCHITECTURE in a real browser:
+  that the secure request renders inline in the transcript, that its data
+  never touches the message pipeline, and that every failure path fails
+  closed. Nothing here is a proposal about how AskiMate should look.
+
+  Deliberately plain: unstyled, unbranded, no layout work, no copy review.
+  If it looks like a placeholder, that is the intent — it is one. The visual
+  design, layout, interaction detail and wording are Vahid's to decide, and
+  none of them should be inferred from this file.
+  ═══════════════════════════════════════════════════════════════════════════
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -8,6 +27,7 @@
     #transcript { border: 1px solid #cbd5e1; border-radius: .5rem; padding: 1rem; min-height: 8rem; }
     .turn { margin: .5rem 0; }
     .turn.user { text-align: right; color: #1e40af; }
+    .turn.status { color: #047857; font-size: .85rem; font-style: italic; }
     #composer { display: flex; gap: .5rem; margin-top: 1rem; }
     #chat-input { flex: 1; padding: .5rem; }
     #chat-input:disabled { background: #f1f5f9; color: #94a3b8; }
@@ -19,6 +39,10 @@
 </head>
 <body>
   <h1>AskiMate</h1>
+  <p style="background:#fef3c7;border:1px solid #d97706;padding:.5rem;border-radius:.25rem;font-size:.85rem">
+    <strong>Provisional test harness.</strong> Deliberately unstyled. This is not the AskiMate
+    interface and no visual or UX decision should be read from it.
+  </p>
   <div id="transcript"></div>
 
   <!--
@@ -34,9 +58,18 @@
 
   <!--
     The secure control. Rendered ONLY on a `request_secret` directive, and only
-    when `decideRendering` says so. Note what it is not: it is not inside
+    when `decideRendering` says so.
+
+    It is declared here and MOVED into #transcript by `showSecureControl`, so
+    it occupies the directive's real position in the conversation. Declaring it
+    once and moving it — rather than building it on demand — means the element
+    keeps its identity and its input values across every re-render, so an
+    unrelated message arriving cannot discard what the student is typing.
+
+    Note what it is not, and what stays true after the move: it is not inside
     #composer, it does not share a form with the chat input, and its inputs
-    have no `name` that any other submit path would pick up.
+    have no `name` that any other submit path would pick up. A <form> nested
+    inside the transcript is still a separate form.
   -->
   <section id="secure-control" hidden aria-live="polite">
     <h2 id="secure-title"></h2>

@@ -66,7 +66,29 @@ const SKIP_DESCRIPTION =
 const PORT = 4711;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const JWT_SECRET = "test-jwt-secret-not-a-real-one";
-const NOW = new Date("2026-08-27T10:00:00Z");
+/**
+ * The clock, anchored to the REAL one — deliberately, and this must not become
+ * a literal again.
+ *
+ * These tests drive a real browser, and the browser reads its own clock:
+ * `secure-control.js` calls `decideRendering(prompt, capabilities, Date.now())`
+ * because a page has no clock to inject. The server's clock, by contrast, IS
+ * injected — every store and binding call below takes `NOW`.
+ *
+ * So a literal here creates two clocks that disagree by however long it has
+ * been since the literal. It was `new Date("2026-08-27T10:00:00Z")` with a
+ * 300-second TTL, which meant the browser judged every prompt expired and
+ * refused to render the control from 10:05 UTC onwards. The suite passed on
+ * the morning it was written and has been failing silently since — as six
+ * thirty-second `locator.fill` timeouts that named an invisible element rather
+ * than the reason it was invisible.
+ *
+ * Every use below is relative (`NOW.getTime() ± delta`) or is the injected
+ * server clock, so anchoring it costs nothing and removes the divergence.
+ * `assertRendered` in `deliver` is the second half of the fix: it turns a
+ * refusal into an immediate, named failure instead of a timeout.
+ */
+const NOW = new Date();
 const CASE_REF = "case-1";
 const PORTAL_HOST = "apply.example.ac.uk";
 
@@ -249,6 +271,29 @@ async function deliver(
     },
     [prompt, capabilities] as [unknown, unknown],
   );
+
+  // ── The guard that names the failure ──────────────────────────────────
+  //
+  // When all three capabilities are true and the prompt is unexpired, the
+  // control MUST render. If it refused, the harness is misconfigured — not the
+  // code under test — and the difference matters enormously to whoever reads
+  // the failure.
+  //
+  // Without this, a refusal surfaced thirty seconds later as
+  // `locator.fill: Timeout — element is not visible`, which names the symptom
+  // and hides the cause. That is how a clock divergence went unnoticed: six
+  // tests failed for one reason and reported six unrelated-looking timeouts.
+  if (capabilities["supportsSecureControl"] === true && capabilities["secureContext"] === true &&
+      capabilities["endpointReachable"] === true) {
+    const refused = await page.locator("#refusal").getAttribute("data-reason");
+    if (refused !== null && refused !== "") {
+      throw new Error(
+        `The secure control refused to render with reason "${refused}" even though every ` +
+          `capability was true. This is a HARNESS fault, not a failure of the code under test. ` +
+          `"prompt_expired" here means the test clock and the browser clock have diverged again.`,
+      );
+    }
+  }
 }
 
 beforeAll(async () => {
