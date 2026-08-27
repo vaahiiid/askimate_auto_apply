@@ -55,7 +55,7 @@ export default tseslint.config(
     // Only packages/llm may import a model SDK. Everywhere else, model output
     // has no legitimate way to enter, which is what keeps ModelText confined
     // to the one package that produces it.
-    files: ["packages/**/*.ts", "apps/**/*.ts"],
+    files: ["packages/**/*.ts", "packages/**/*.tsx", "apps/**/*.ts", "apps/**/*.tsx"],
     ignores: ["packages/llm/**"],
     rules: {
       "no-restricted-imports": [
@@ -77,7 +77,7 @@ export default tseslint.config(
   {
     // The domain core is pure. No I/O of any kind — that is what makes Phase 1
     // verifiable with no external systems (brief §11).
-    files: ["packages/domain/**/*.ts"],
+    files: ["packages/domain/**/*.ts", "packages/domain/**/*.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -97,7 +97,7 @@ export default tseslint.config(
   },
 
   {
-    files: ["**/*.test.ts"],
+    files: ["**/*.test.ts", "**/*.test.tsx"],
     rules: {
       // Tests deliberately construct branded values and fixture dates.
       "@typescript-eslint/no-unsafe-assignment": "off",

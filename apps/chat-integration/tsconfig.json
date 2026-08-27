@@ -6,8 +6,11 @@
     // The secure control runs inside a browser page, like the observe script in
     // browser-runner. This app is the only other place that legitimately needs
     // DOM types.
-    "lib": ["es2023", "dom", "dom.iterable"]
+    "lib": ["es2023", "dom", "dom.iterable"],
+    // The secure control is a React component. `react-jsx` rather than
+    // `react` so no import of React itself is required in each file.
+    "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "references": [{ "path": "../../packages/domain" }, { "path": "../../packages/secrets" }]
 }

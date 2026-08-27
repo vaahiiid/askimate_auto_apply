@@ -19,6 +19,99 @@ not shipped artefacts.
 
 ---
 
+## [0.9.0] — 2026-08-27
+
+**Phase B continued: the React secure control, transport separation, and four of my own tests that
+proved nothing.**
+
+**Version bump: MINOR.** New capability (`SecureControl`), additive. No security boundary moved.
+
+### Added
+
+- **`SecureControl.tsx`** — the secure password control as a React component, **uncontrolled by
+  construction**. The inputs own their values; a ref reads them at submit; the two locals in the
+  submit handler are the entire lifetime of the password inside the component.
+- **`SecureControl.test.tsx`** — walks the React fibre tree (`__reactFiber$…`, hook `memoizedState`,
+  `memoizedProps`) for the typed value, deliberately excluding the DOM element's own `value` so it
+  can tell "in the DOM" from "in React". Also asserts an error boundary catching a crash captures
+  nothing of the password.
+- **A boundary rule** in `scripts/check-boundaries.ts`: `useState`/`useReducer`, a `value=` prop, or
+  a secret-bearing top-level prop in that file **fails the build**. Tests can be deleted by the same
+  commit that breaks the rule; a build rule has to be argued with.
+- **Transport-separation tests**: the chat route will not accept a secret submission, the secret
+  route will not accept an ordinary message, and neither is reachable at the other's path.
+- **A log/telemetry scan** for the guarded chat route, with a **canary test proving the capture
+  instrument works** — because a scan over an empty string passes for the wrong reason.
+
+### Fixed
+
+- **ESLint never covered `.tsx`.** Every `files` pattern was `**/*.ts`, which does not match `.tsx`,
+  so the new component and its test were outside every rule in the repository — including the
+  ambient-clock ban. Widened; linting then found four real problems in the new test.
+
+### Four of my own tests that passed for the wrong reason
+
+Each was found by trying to break it, not by reading it.
+
+1. **`requires authentication before it decides anything`** — sent unauthenticated with *no* open
+   request, so the guard was a no-op and the 401 came out either way. **All eight tests passed with
+   authentication moved after the guard.** Now opens a request first: auth-first gives 401,
+   guard-first would give 409 and tell an unauthenticated caller that a password step is open on
+   someone else's conversation.
+2. **`has no prop through which a secret could enter or escape`** — used `@ts-expect-error` over
+   `void { ...props, password: X }`. Spreading into a discarded object literal gets no
+   excess-property check, so all four directives came back **unused**. Replaced with a distributive
+   type assertion plus a runtime mirror.
+3. **Conversation scoping and expiry** were asserted against the store, not the route. A handler
+   that looked up a hardcoded conversation, or passed no clock, would have passed both. Now checked
+   through HTTP, both ways.
+4. **The guard's placement before the body is read** was a claim in a comment with nothing observing
+   it. Now: an open request plus a body with **no** `content` field must still answer 409, not 400.
+
+### The boundary rule was wrong twice before it was right
+
+Worth recording, because a rule that rejects correct code is worse than no rule — it teaches
+whoever hits it to weaken the rule rather than the code.
+
+- First version matched file-wide and fired on the **doc comment that explains the hazard**, which
+  shows `useState` and `value={…}` as the thing to avoid. Now strips comments before matching.
+- Second version matched anywhere inside `SecureControlProps` and fired on the `submit` callback's
+  own parameter type, which legitimately carries a password — that function is how the value
+  reaches the endpoint. Now anchored to top-level props only.
+- It also fails loudly if the interface is renamed, rather than going quietly inert.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| Password input made controlled (`useState` + `value`) | ✅ 3 tests + build rule |
+| A `password` prop added to `SecureControlProps` | ✅ typecheck + build rule |
+| `value=` prop on the input | ✅ build rule |
+| `SecureControlProps` renamed, rule goes inert | ✅ build rule |
+| Guard moved after authentication | ✅ 1 test |
+| Route ignores `conversationId` | ✅ 1 test |
+| Route ignores expiry | ✅ 1 test |
+| Content validated before the guard | ✅ 1 test |
+| Chat route falls back to reading `password` as content | ✅ 1 test |
+| Refusal echoes the request body | ✅ 4 tests |
+| Route logs the refused message | ✅ 1 test |
+| Client clears the composer optimistically | ✅ 1 test |
+
+### Dependencies
+
+React 19, react-dom, @testing-library/react, @testing-library/dom and jsdom, all as
+**devDependencies of `apps/chat-integration` only**. The component is a research prototype for a
+client this repository cannot reach; nothing in the runtime path depends on React.
+
+### Still provisional
+
+The component's markup and copy are **placeholders and not approved**. What is proposed is the data
+shape and the state discipline — where the value lives, what leaves the component, and what cannot.
+A visual redesign should be able to replace every element in the returned tree without touching any
+of it.
+
+---
+
 ## [0.8.0] — 2026-08-27
 
 **Phase B: the composer stays live, nothing is destroyed, and the guard cannot fail open.**

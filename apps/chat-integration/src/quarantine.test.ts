@@ -27,6 +27,7 @@
  */
 
 import type { Server } from "node:http";
+import { inspect } from "node:util";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -58,6 +59,59 @@ const DATABASE_URL =
 const HAVE_DATABASE = await databaseReachable();
 if (!HAVE_DATABASE) announceSkip("the server-side quarantine guard, including the restart path");
 const describeIfDatabase = HAVE_DATABASE ? describe : describe.skip;
+
+
+/** Everything written to stdout, stderr or console while a test runs. */
+const captured: string[] = [];
+
+/**
+ * Hooks console AND the raw streams.
+ *
+ * `end-to-end.test.ts` records why: a first attempt hooked only
+ * `process.stdout.write` and captured ZERO bytes, because vitest replaces the
+ * console methods with its own reporters. The scan then passed while scanning
+ * an empty string — a test that could not fail. Both are hooked here for the
+ * same reason.
+ */
+function captureOutput(): () => void {
+  const realOut = process.stdout.write.bind(process.stdout);
+  const realErr = process.stderr.write.bind(process.stderr);
+  const record = (parts: unknown[]): void => {
+    captured.push(parts.map((part) => (typeof part === "string" ? part : inspect(part))).join(" "));
+  };
+  const originals = {
+    log: console.log.bind(console),
+    error: console.error.bind(console),
+    warn: console.warn.bind(console),
+    info: console.info.bind(console),
+    debug: console.debug.bind(console),
+  };
+  for (const name of ["log", "error", "warn", "info", "debug"] as const) {
+    console[name] = ((...parts: unknown[]): void => {
+      record(parts);
+      originals[name](...parts);
+    }) as typeof console.log;
+  }
+  // Same shape as `end-to-end.test.ts`. Annotating the parameters explicitly
+  // made the inner cast redundant and the linter said so; letting them be
+  // inferred from `typeof process.stdout.write` keeps the overloads intact.
+  const tee =
+    (real: typeof process.stdout.write): typeof process.stdout.write =>
+    (chunk, ...rest): boolean => {
+      if (typeof chunk === "string") captured.push(chunk);
+      return (real as (...args: unknown[]) => boolean)(chunk, ...rest);
+    };
+  process.stdout.write = tee(realOut);
+  process.stderr.write = tee(realErr);
+
+  return (): void => {
+    for (const name of ["log", "error", "warn", "info", "debug"] as const) {
+      console[name] = originals[name] as typeof console.log;
+    }
+    process.stdout.write = realOut;
+    process.stderr.write = realErr;
+  };
+}
 
 let pool: pg.Pool;
 let db: NodePgDatabase<Record<string, never>>;
@@ -190,6 +244,29 @@ describeIfDatabase("the ordinary message path, guarded", () => {
     await bindings.record(requestId, { lifecycle: "secret_expired" });
   });
 
+  it("refuses BEFORE reading the message, so the text never enters scope", async () => {
+    // The guard is placed ahead of `readField(body, "content")` on purpose:
+    // there must be no branch in which a password is pulled out of the body
+    // into a variable and then discarded.
+    //
+    // Observable because a request with an open secret and NO content field
+    // must still be refused with 409. If content validation ran first it
+    // would answer 400, which would mean the body had been inspected before
+    // the guard decided.
+    const requestId = await openSecretRequest();
+    try {
+      const response = await fetch(`${BASE}/api/askimate/ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ conversationId: CONVERSATION_ID }),
+      });
+      expect(response.status).toBe(409);
+    } finally {
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
+  });
+
   it("tells a stale client WHICH request is open, so it can restore rather than lose the draft", async () => {
     const requestId = await openSecretRequest();
     const { body } = await send("a genuine question typed by a stale client");
@@ -238,37 +315,180 @@ describeIfDatabase("the ordinary message path, guarded", () => {
     expect(status).toBe(200);
   });
 
-  it("treats an EXPIRED request as closed, so a student is never stuck", async () => {
-    const requestId = await openSecretRequest();
-    // Read the world from a moment after the TTL rather than mutating the row:
-    // a student whose request lapsed must not be left with a dead composer,
-    // and expiry is a fact about time, not about a write having happened.
-    const afterTtl = new Date(NOW.getTime() + 6 * 60 * 1000);
+  it("treats an EXPIRED request as closed, checked through the ROUTE", async () => {
+    // A student whose request lapsed must not be left with a dead composer,
+    // and expiry is a fact about time rather than about a write having
+    // happened — nothing marks the row when the clock passes it.
+    //
+    // Checked through HTTP so the ROUTE's expiry handling is what is under
+    // test. A store-level assertion would pass even if the route forgot to
+    // pass a clock at all.
+    const expired = `sr_${"e".repeat(32)}` as SecretRequestId;
+    await bindings.open({
+      requestId: expired,
+      userId: USER_ID,
+      conversationId: CONVERSATION_ID,
+      caseRef: CASE_REF,
+      purpose: "portal_account_creation",
+      targetHost: PORTAL_HOST,
+      requiresConfirmation: true,
+      lifecycle: "secret_requested",
+      // Already past when the route reads its clock.
+      expiresAt: new Date(NOW.getTime() - 60 * 1000),
+    });
 
-    expect(await bindings.openRequestFor(CONVERSATION_ID, afterTtl)).toBeNull();
-
-    store.discard(requestId);
-    await bindings.record(requestId, { lifecycle: "secret_expired" });
+    const { status } = await send("the password step lapsed; I can still talk");
+    expect(status).toBe(200);
   });
 
-  it("scopes the guard to ONE conversation", async () => {
+  it("scopes the guard to ONE conversation, checked through the ROUTE", async () => {
+    // Asserting only on `openRequestFor` would test the store and leave the
+    // route unexamined — a handler that looked up a hardcoded or global
+    // conversation would pass. So this goes through HTTP, both ways: the
+    // guarded conversation is refused and a different one is not.
+    //
+    // The failure this prevents is a denial of service, not a leak: one
+    // student's open password step closing every other conversation.
     const requestId = await openSecretRequest();
-    // A password request in one conversation must not close the message path
-    // in another — that would be a denial of service triggered by any open
-    // request anywhere.
-    expect(await bindings.openRequestFor(CONVERSATION_ID + 1, NOW)).toBeNull();
-    expect(await bindings.openRequestFor(CONVERSATION_ID, NOW)).not.toBeNull();
+    try {
+      const guarded = await send("on the conversation with the open request");
+      expect(guarded.status).toBe(409);
 
-    store.discard(requestId);
-    await bindings.record(requestId, { lifecycle: "secret_expired" });
+      const other = await fetch(`${BASE}/api/askimate/ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ conversationId: CONVERSATION_ID + 1, content: "a different chat" }),
+      });
+      expect(other.status).toBe(200);
+    } finally {
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
   });
 
-  it("requires authentication before it decides anything", async () => {
+  it("requires authentication BEFORE the guard, so a stranger learns nothing", async () => {
+    // The first version of this test sent an unauthenticated request with NO
+    // open secret request, and asserted 401. It passed — and it also passed
+    // when the guard was moved AHEAD of authentication, because with nothing
+    // open the guard is a no-op and the 401 comes out either way. It was named
+    // for an ordering property it could not observe.
+    //
+    // Opening a request first is what makes the order visible. Auth first
+    // gives 401. Guard first gives 409, which would tell an unauthenticated
+    // caller that a password step is open on someone else's conversation —
+    // an information disclosure, not merely a wrong status code.
+    const requestId = await openSecretRequest();
+    try {
+      const response = await fetch(`${BASE}/api/askimate/ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: CONVERSATION_ID, content: MARKER }),
+      });
+      expect(response.status).toBe(401);
+
+      // And the body says nothing about the open request.
+      const body = JSON.stringify(await response.json());
+      expect(body).not.toContain(requestId);
+      expect(body).not.toContain("secret_request_open");
+    } finally {
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
+  });
+});
+
+describeIfDatabase("the two transports stay separate", () => {
+  it("the chat route will not accept a secret submission", async () => {
+    // A password posted to the ORDINARY endpoint must not be treated as a
+    // message. The bodies differ by shape, and the shapes are not
+    // interchangeable — `{ password }` has no `content`, so the message route
+    // rejects it rather than storing the password as a chat message.
+    persisted.length = 0;
+    modelSaw.length = 0;
+
     const response = await fetch(`${BASE}/api/askimate/ai`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ conversationId: CONVERSATION_ID, content: MARKER }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({ conversationId: CONVERSATION_ID, password: MARKER }),
     });
-    expect(response.status).toBe(401);
+
+    expect(response.status).toBe(400);
+    expect(persisted).toHaveLength(0);
+    expect(modelSaw.join(" ")).not.toContain(MARKER);
+    expect(JSON.stringify(await response.json())).not.toContain(MARKER);
+  });
+
+  it("the secret route will not accept an ordinary message", async () => {
+    // The mirror. A `{ content }` body posted to the secure endpoint must not
+    // be read as a password — otherwise a client bug could route chat text
+    // into the secret store, where it would occupy a handle and be typed into
+    // a university portal.
+    const requestId = await openSecretRequest();
+    try {
+      const response = await fetch(`${BASE}/api/askimate/secret/${requestId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ conversationId: CONVERSATION_ID, content: "an ordinary question" }),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ reason: "empty" });
+      // Nothing was stored, so the request is still waiting.
+      expect(store.statusOf(requestId)?.lifecycle).toBe("secret_requested");
+    } finally {
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
+  });
+
+  it("the two routes are different paths, and neither is reachable at the other", async () => {
+    const requestId = await openSecretRequest();
+    try {
+      // The secure path does not answer as the chat route.
+      const wrongWay = await fetch(`${BASE}/api/askimate/ai/${requestId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ password: MARKER }),
+      });
+      expect(wrongWay.status).toBe(404);
+    } finally {
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
+  });
+});
+
+describeIfDatabase("nothing refused is written anywhere a person could read it", () => {
+  it("a refused message reaches no log, no stdout and no stderr", async () => {
+    const requestId = await openSecretRequest();
+    captured.length = 0;
+    const restore = captureOutput();
+    try {
+      const { status } = await send(MARKER);
+      expect(status).toBe(409);
+    } finally {
+      restore();
+      store.discard(requestId);
+      await bindings.record(requestId, { lifecycle: "secret_expired" });
+    }
+
+    // The scan is only meaningful if something was captured at all — the
+    // failure mode that made an earlier version of this check vacuous.
+    expect(captured.join("")).not.toContain(MARKER);
+  });
+
+  it("captures SOMETHING when the process does write, so the scan is not vacuous", () => {
+    // The control for the test above. If `captureOutput` silently caught
+    // nothing, the previous assertion would pass over an empty string and
+    // prove nothing at all. This proves the instrument works.
+    captured.length = 0;
+    const restore = captureOutput();
+    try {
+      console.warn("a canary line");
+      process.stdout.write("another canary line\n");
+    } finally {
+      restore();
+    }
+    expect(captured.join("")).toContain("a canary line");
+    expect(captured.join("")).toContain("another canary line");
   });
 });

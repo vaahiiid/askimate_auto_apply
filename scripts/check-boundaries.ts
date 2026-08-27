@@ -584,6 +584,83 @@ function main(): void {
   }
   console.log(`  ✓  packages/orchestrator — no runtime database driver`);
 
+  // ── The React secure control must stay UNCONTROLLED ─────────────────────
+  //
+  // Vahid, 2026-08-27: *"the secret input must remain outside React
+  // application state; the React secure control must use an uncontrolled
+  // input."*
+  //
+  // The idiomatic React input is controlled — `useState` plus `value` and
+  // `onChange` — and that is precisely what must not happen here, because it
+  // puts the password in component state where React DevTools, an error
+  // boundary serialising the tree, and any error reporter that snapshots state
+  // can all reach it. The plain-DOM prototype does not have that hazard; the
+  // move to React introduces it.
+  //
+  // There are tests for this (`SecureControl.test.tsx` walks the fibre tree
+  // for the typed value), but a test can be deleted by the same commit that
+  // breaks the rule. This makes it fail the BUILD, where the diff has to
+  // explain itself.
+  const SECURE_CONTROL = "apps/chat-integration/src/SecureControl.tsx";
+  if (existsSync(SECURE_CONTROL)) {
+    const raw = readFileSync(SECURE_CONTROL, "utf8");
+
+    // Comments are stripped before matching. The first version of this rule
+    // did not do that, and it fired on the doc comment that EXPLAINS the
+    // hazard — the block showing `useState` and `value={…}` as the thing to
+    // avoid. A rule that rejects correct code is worse than no rule: it
+    // teaches whoever hits it to weaken the rule rather than the code.
+    const source = raw
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+    if (/\buseState\b/.test(source) || /\buseReducer\b/.test(source)) {
+      violations.push(
+        `${SECURE_CONTROL} uses React state. The secure control must be UNCONTROLLED: the ` +
+          `password lives in the input element and is read through a ref at submit. React state ` +
+          `is visible to DevTools, to an error boundary that serialises the tree, and to any ` +
+          `error reporter that snapshots component state.`,
+      );
+    }
+    if (/\n\s*(value|defaultValue)=\{/.test(source)) {
+      violations.push(
+        `${SECURE_CONTROL} sets a \`value\` or \`defaultValue\` prop, which makes the input ` +
+          `controlled — the one thing this component may not be.`,
+      );
+    }
+
+    // Scoped to the PROPS interface, not the whole file. `submit` legitimately
+    // takes a `password` in its own parameter type — that function is how the
+    // value reaches the endpoint. Matching file-wide flagged that too, which is
+    // the same mistake in a different place: a rule has to name the thing it
+    // actually forbids, which here is a prop on the component.
+    const props = /export interface SecureControlProps \{([\s\S]*?)\n\}/.exec(source);
+    if (props === null) {
+      violations.push(
+        `${SECURE_CONTROL} has no \`SecureControlProps\` interface, so the prop rule below ` +
+          `cannot be enforced. If the component was renamed, update this check rather than ` +
+          `leaving it silently inert.`,
+      );
+    } else {
+      for (const forbidden of ["password", "secret", "plaintext", "value", "defaultValue"]) {
+        // Anchored to TOP-LEVEL props: two spaces of indentation, start of
+        // line. The `submit` callback's own parameter type declares a
+        // `password` at four spaces, and must — that function is how the value
+        // reaches the endpoint. Matching anywhere inside the interface flagged
+        // it, which would have made the rule reject the correct component for
+        // the third time.
+        if (new RegExp(`^  readonly ${forbidden}\\??:`, "m").test(props[1] ?? "")) {
+          violations.push(
+            `${SECURE_CONTROL} declares a prop \`${forbidden}\`. No prop may carry a secret in ` +
+              `either direction — \`onSubmitted\` receives an opaque handle, not a value.`,
+          );
+        }
+      }
+    }
+    checked += 1;
+    console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
+  }
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {
