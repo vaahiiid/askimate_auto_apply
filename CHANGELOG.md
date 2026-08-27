@@ -17,7 +17,21 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-Nothing yet.
+### Internal
+
+Documentation only — no version bump under
+[ADR-0028](./docs/decisions/0028-versioning-policy.md) §3.
+
+- **Password flow audit and plan** — `docs/password-flow-audit.md`. **Nothing implemented.**
+
+  Principal finding: every secret-channel component exists and is well tested in isolation, and
+  **none of them is wired to anything**. The store is instantiated in no product code; `fillSecret`
+  is called only by its own test; `ApplicationSession` has no secret capability.
+
+  Two corrections to the working assumptions: **`storageState` session handoff does not exist** (it
+  appears once, as a leak-scan test artefact), and **the model cannot request a credential** — the
+  orchestrator decides deterministically, which is stronger than the stated requirement and is
+  flagged for a decision rather than changed.
 
 ---
 
