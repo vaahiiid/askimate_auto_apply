@@ -11,6 +11,13 @@
  *   projectTranscript    what is drawn, and in what order?
  *   buildModelRequest    what reaches the model?
  *
+ * A sixth thing lives here too, and it is not a decision but a STRUCTURE: the
+ * client's `ConversationLog`, which separates events the server placed from
+ * entries the browser is merely drawing. It is here rather than in a client
+ * because "a rendering position is not a durable ordinal" is a rule every
+ * client must obey, and a rule kept in one client is a rule the next one
+ * reinvents wrongly.
+ *
  * Both services and both browser bundles consume THIS implementation. The
  * client and the server cannot disagree about whether a request is open,
  * because there is one function that answers it — which is the structural fix
@@ -35,8 +42,24 @@ export type {
 } from "./rendering.js";
 export { decideRendering, refusalText } from "./rendering.js";
 
-export type { TranscriptItem } from "./transcript.js";
-export { projectTranscript } from "./transcript.js";
+export type { Position, TranscriptItem } from "./transcript.js";
+export { durableAt, projectEvent, projectTranscript, provisionalAt, renderKey }
+  from "./transcript.js";
+
+export type { Unpositioned, UnpositionedEvent } from "./unpositioned.js";
+
+export type { ConversationLog, ProvisionalEntry } from "./log.js";
+export {
+  EMPTY_LOG,
+  addProvisional,
+  admitAllDurable,
+  admitDurable,
+  describesSame,
+  durableEvents,
+  openSecretRequestInLog,
+  projectLog,
+  retireProvisional,
+} from "./log.js";
 
 export type { ModelRequest } from "./model-context.js";
 export { SECURE_STEP_SENTENCE, buildModelRequest, persistableContent } from "./model-context.js";

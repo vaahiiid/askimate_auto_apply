@@ -1,0 +1,391 @@
+/**
+ * The Conversation Service's HTTP surface.
+ *
+ * Implements `packages/contracts/openapi/conversation.v1.yaml`. The contract is
+ * the source of the shape (ADR-0005); this file is what answers.
+ *
+ * ── The guard, and where it sits ──────────────────────────────────────────
+ *
+ * `POST /messages` checks for an open secure step BEFORE the body is read for
+ * any purpose. There is deliberately no branch in which the text is pulled out
+ * of the body, held in a variable and then discarded — on the refused path the
+ * value never enters scope at all. A refusal names the OPEN REQUEST and never
+ * anything from the body, because an echo is how a refused password reaches a
+ * log.
+ *
+ * ── Where ordinals come from ──────────────────────────────────────────────
+ *
+ * Here, and only here. No route accepts one, `AppendableEvent` has no field for
+ * one, and the accepted response returns the EVENT the server wrote — so a
+ * client learns its position rather than proposing it.
+ */
+
+import type { NextFunction, Request, Response, Router } from "express";
+import { Router as makeRouter } from "express";
+import { createHash } from "node:crypto";
+
+import type { ConversationEvent, ProblemCode } from "@askimate/aas-contracts";
+import {
+  PROBLEM_STATUS,
+  PROBLEM_TITLES,
+  SSE_HEARTBEAT_LINE,
+  SSE_RESPONSE_HEADERS,
+  parseLastEventId,
+  parseRejectionReason,
+  problemTypeFor,
+  renderSseFrame,
+  renderSseResumeFrame,
+} from "@askimate/aas-contracts";
+
+import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
+import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
+
+/** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
+export interface Caller {
+  readonly studentId: string;
+}
+
+export interface ConversationRoutesOptions {
+  readonly store: ConversationEventStore;
+  /** Reads the `__Host-` session cookie. Null when there is no valid session. */
+  readonly authenticate: (req: Request) => Promise<Caller | null> | Caller | null;
+  /** True when this student may read and write this conversation. */
+  readonly authorise: (caller: Caller, conversationId: string) => Promise<boolean>;
+  /** True when the caller presented a permitted service certificate (mTLS). */
+  readonly authoriseService?: (req: Request) => boolean;
+  readonly now: () => Date;
+  /** Answers a message. Replies arrive as events on the stream, not inline. */
+  readonly answer?: (input: {
+    readonly conversationId: string;
+    readonly event: ConversationEvent;
+  }) => Promise<void>;
+  /** How often the stream re-reads the log to catch another instance's writes. */
+  readonly pollIntervalMs?: number;
+  readonly heartbeatIntervalMs?: number;
+}
+
+const DEFAULT_POLL_MS = 1_000;
+const DEFAULT_HEARTBEAT_MS = 15_000;
+
+function problem(res: Response, code: ProblemCode, extra: Record<string, unknown> = {}): void {
+  res
+    .status(PROBLEM_STATUS[code])
+    .type("application/problem+json")
+    .json({
+      type: problemTypeFor(code),
+      title: PROBLEM_TITLES[code],
+      status: PROBLEM_STATUS[code],
+      code,
+      instance: String(res.getHeader("x-request-id") ?? "unknown"),
+      ...extra,
+    });
+}
+
+function readString(body: unknown, key: string): string | null {
+  if (typeof body !== "object" || body === null) return null;
+  const value = (body as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}
+
+/**
+ * Turns an internal append request into an appendable event, or refuses it.
+ *
+ * Everything is parsed against a closed set. Deliberately absent from every
+ * branch: any field the caller might have sent for `ordinal`, `createdAt` or
+ * `id`. They are not read, so they cannot become authoritative.
+ */
+function parseSecureAppend(body: unknown): AppendableEvent | null {
+  const kind = readString(body, "kind");
+  const requestId = readString(body, "requestId");
+  if (kind === null || requestId === null) return null;
+
+  switch (kind) {
+    case "secret_requested": {
+      const expiresAt = readString(body, "expiresAt");
+      const channel = readString(body, "channel");
+      if (expiresAt === null || channel !== "secure_control") return null;
+      return { kind, requestId, channel: "secure_control", expiresAt };
+    }
+    case "secret_received": {
+      const handle = readString(body, "handle");
+      return handle === null ? null : { kind, requestId, handle };
+    }
+    case "secret_rejected": {
+      const reason = parseRejectionReason((body as Record<string, unknown>)["reason"]);
+      return reason === null ? null : { kind, requestId, reason };
+    }
+    case "secret_consumed":
+    case "secret_expired":
+    case "secret_cancelled":
+      return { kind, requestId };
+    default:
+      return null;
+  }
+}
+
+export function createConversationRoutes(options: ConversationRoutesOptions): Router {
+  const router = makeRouter();
+  const pollMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
+  const heartbeatMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_MS;
+
+  /** Authenticates, then authorises. Returns null having already answered. */
+  async function caller(req: Request, res: Response, conversationId: string): Promise<Caller | null> {
+    const authenticated = await options.authenticate(req);
+    if (authenticated === null) {
+      problem(res, "unauthenticated");
+      return null;
+    }
+    if (!(await options.authorise(authenticated, conversationId))) {
+      // 404, never 403. A 403 confirms the conversation exists, which is a
+      // fact about another student.
+      problem(res, "not_found");
+      return null;
+    }
+    return authenticated;
+  }
+
+  // ── POST /v1/conversations/:id/messages ─────────────────────────────────
+  router.post(
+    "/v1/conversations/:conversationId/messages",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        const key = req.header("Idempotency-Key");
+        if (key === undefined || key.length < 16 || key.length > 128) {
+          problem(res, "validation_failed", { pointers: ["/headers/Idempotency-Key"] });
+          return;
+        }
+
+        // ── THE GUARD ───────────────────────────────────────────────────
+        //
+        // Ahead of reading `content`. The refused path never has the text in
+        // scope, so there is no variable holding a mistyped password to be
+        // logged, echoed or serialised into an error.
+        const open = await options.store.openSecretRequest(conversationId, options.now());
+        if (open !== null) {
+          // ── problem+json, because the CONTRACT says so ─────────────────
+          //
+          // This route used to answer a 409 with its own envelope —
+          // `{ status: "refused", … }` as `application/json` — while
+          // `conversation.v1.yaml` declared `SecretRequestOpenProblem` as
+          // `application/problem+json`. Two artefacts in `packages/contracts`
+          // describing one endpoint two ways, with nothing comparing them: the
+          // OpenAPI tests check the two DOCUMENTS against each other and
+          // against the vocabulary, and no test compared either with what the
+          // service actually sends. See the note in `routes.test.ts`.
+          //
+          // The contract wins (ADR-0005 is contract-first), and it is also the
+          // better answer: every other failure on this service is RFC 9457, and
+          // one endpoint with a bespoke error envelope is a client that needs
+          // two error paths. The extension members are the ones the contract
+          // names — the open request and its expiry, and nothing from the body.
+          problem(res, "secret_request_open", {
+            requestId: open.requestId,
+            expiresAt: open.expiresAt,
+          });
+          return;
+        }
+
+        const content = readString(req.body, "content");
+        if (content === null || content.length === 0 || content.length > 8000) {
+          problem(res, "validation_failed", { pointers: ["/content"] });
+          return;
+        }
+
+        try {
+          const written = await options.store.append({
+            conversationId,
+            event: { kind: "message", actor: "student", content },
+            idempotency: {
+              key,
+              studentId: who.studentId,
+              // Covers a body already held in plaintext in `message_bodies`,
+              // so it reveals nothing the database does not already hold. And
+              // it is only ever computed on the ACCEPTED path — the guard above
+              // returns before there is a body to digest.
+              digest: createHash("sha256").update(content).digest("hex"),
+            },
+          });
+
+          // The EVENT, bare, exactly as `conversation.v1.yaml` declares it.
+          // 201 the first time; 200 when an idempotent retry replayed a write
+          // that already happened. Either way the body is the same event at the
+          // same ordinal, which is what makes the retry safe to repeat.
+          res.status(written.replayed ? 200 : 201).json(written.event);
+
+          if (!written.replayed && options.answer !== undefined) {
+            await options.answer({ conversationId, event: written.event });
+          }
+        } catch (error) {
+          if (error instanceof IdempotencyConflictError) {
+            problem(res, "idempotency_key_conflict");
+            return;
+          }
+          if (error instanceof UnknownConversationError) {
+            problem(res, "not_found");
+            return;
+          }
+          throw error;
+        }
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations/:id/events ────────────────────────────────────
+  router.get(
+    "/v1/conversations/:conversationId/events",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+
+        const after = Number(req.query["after"] ?? 0);
+        if (!Number.isSafeInteger(after) || after < 0) {
+          problem(res, "validation_failed", { pointers: ["/after"] });
+          return;
+        }
+        const limit = Math.min(Number(req.query["limit"] ?? 200) || 200, 500);
+        const events = await options.store.since(conversationId, after, limit + 1);
+        res.status(200).json({
+          events: events.slice(0, limit),
+          hasMore: events.length > limit,
+        });
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations/:id/stream ────────────────────────────────────
+  router.get(
+    "/v1/conversations/:conversationId/stream",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+
+        // ── Resumption ───────────────────────────────────────────────────
+        //
+        // `Last-Event-ID` is the browser's own header, sent automatically on
+        // reconnect, carrying the last `id:` it saw. Because the log is
+        // append-only with DENSE ordinals, it maps onto the query with nothing
+        // in between: `WHERE ordinal > $cursor`. No cursor table, no opaque
+        // token, nothing that can disagree with the log.
+        //
+        // Client-supplied and therefore untrusted: parsed strictly, and used
+        // ONLY as a lower bound inside a conversation already authorised above.
+        // A hostile value cannot widen the query.
+        const resumeFrom = parseLastEventId(req.header("Last-Event-ID")) ?? 0;
+
+        for (const [header, value] of Object.entries(SSE_RESPONSE_HEADERS)) {
+          res.setHeader(header, value);
+        }
+        res.flushHeaders();
+        res.write(renderSseResumeFrame({ resumingAfter: resumeFrom }));
+
+        // The cursor is the highest ordinal SENT. Everything below advances it
+        // and nothing else does, so no event can be delivered twice: a reconnect
+        // starts from the client's cursor and the tail starts from ours.
+        let cursor = resumeFrom;
+        let closed = false;
+
+        const send = (event: ConversationEvent): void => {
+          if (closed || event.ordinal <= cursor) return;
+          cursor = event.ordinal;
+          res.write(renderSseFrame(event));
+        };
+
+        const drain = async (): Promise<void> => {
+          if (closed) return;
+          for (const event of await options.store.since(conversationId, cursor)) send(event);
+        };
+
+        // Backfill first, THEN subscribe — and the `ordinal <= cursor` guard in
+        // `send` is what makes the overlap safe. Subscribing first would risk a
+        // live event arriving before the backfill that precedes it, and
+        // ordering is the one thing this stream must not get wrong.
+        await drain();
+        const unsubscribe = options.store.subscribe(conversationId, (event) => {
+          // A live event out of order still cannot skip the queue: it is only
+          // sent when it is the next one, and the poll fills any gap.
+          if (event.ordinal === cursor + 1) send(event);
+        });
+
+        const poll = setInterval(() => void drain(), pollMs);
+        const heartbeat = setInterval(() => {
+          if (!closed) res.write(`${SSE_HEARTBEAT_LINE}\n\n`);
+        }, heartbeatMs);
+
+        const stop = (): void => {
+          closed = true;
+          clearInterval(poll);
+          clearInterval(heartbeat);
+          unsubscribe();
+        };
+        req.on("close", stop);
+        res.on("close", stop);
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/conversations/:id/events ──────────────────────────
+  //
+  // The Secure Interaction Service records a lifecycle transition. Behind
+  // mutual TLS on a private subnet: with separate databases (ADR-0037) the
+  // conversation service cannot read `secret_requests`, so the guard reads its
+  // OWN log and the secure service keeps that log truthful.
+  router.post(
+    "/internal/v1/conversations/:conversationId/events",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        const conversationId = String(req.params["conversationId"]);
+        const event = parseSecureAppend(req.body);
+        if (event === null) {
+          problem(res, "validation_failed", { pointers: ["/kind", "/requestId"] });
+          return;
+        }
+
+        try {
+          // Idempotent on (conversation, request, kind): the secure service may
+          // retry, and a retried transition must not appear twice in a
+          // transcript. Keyed on the transition itself rather than on a
+          // client-generated key, because the secure service has no reason to
+          // invent one and the transition is already unique.
+          // `event` is narrowed to the secure kinds by `parseSecureAppend`,
+          // but TypeScript keeps the whole union here — and `message` has no
+          // `requestId`. Reading it off a narrowed local rather than casting:
+          // a cast would also silence a genuine mistake later.
+          const requestId = event.kind === "message" ? null : event.requestId;
+          const already =
+            requestId === null
+              ? undefined
+              : (await options.store.since(conversationId, 0)).find(
+                  (candidate) =>
+                    candidate.kind === event.kind &&
+                    "requestId" in candidate &&
+                    candidate.requestId === requestId,
+                );
+          if (already !== undefined) {
+            res.status(200).json(already);
+            return;
+          }
+          const written = await options.store.append({ conversationId, event });
+          res.status(201).json(written.event);
+        } catch (error) {
+          if (error instanceof UnknownConversationError) {
+            problem(res, "not_found");
+            return;
+          }
+          throw error;
+        }
+      })().catch(next);
+    },
+  );
+
+  return router;
+}

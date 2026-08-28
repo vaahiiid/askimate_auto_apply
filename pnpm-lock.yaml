@@ -226,13 +226,22 @@ importers:
       '@askimate/aas-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@askimate/aas-conversation':
+        specifier: workspace:*
+        version: link:../../packages/conversation
       '@askimate/aas-migrate':
         specifier: workspace:*
         version: link:../../packages/migrate
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
       pg:
         specifier: ^8.20.0
         version: 8.23.0
     devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1

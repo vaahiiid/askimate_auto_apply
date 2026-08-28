@@ -98,7 +98,15 @@ describe("the transcript drops nothing and reorders nothing", () => {
     const events = [MESSAGE, REQUESTED, RECEIVED];
     const items = projectTranscript(events);
     expect(items).toHaveLength(events.length);
-    expect(items.map((item) => item.position)).toEqual([1, 2, 3]);
+    // Every position is DURABLE and carries the server's ordinal. The shape is
+    // the point: a bare `1` would be indistinguishable from a number a client
+    // computed, and that indistinguishability is what let the React container
+    // pass off `previous.length + 1` as a log position for a whole phase.
+    expect(items.map((item) => item.position)).toEqual([
+      { placement: "durable", ordinal: 1 },
+      { placement: "durable", ordinal: 2 },
+      { placement: "durable", ordinal: 3 },
+    ]);
     expect(items.map((item) => item.render)).toEqual([
       "message", "secure_control", "secret_status",
     ]);

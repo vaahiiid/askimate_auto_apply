@@ -19,6 +19,117 @@ not shipped artefacts.
 
 ---
 
+## [0.14.0] — 2026-08-28
+
+**The Conversation Service exists, and it is the only thing in the system that may say where an
+event sits. The client had been inventing that answer for a whole phase, and nothing objected
+because a rendering position and a durable ordinal were both `number`.**
+
+**Version bump: MINOR.** A new service, additive in capability. Two wire shapes changed and one
+divergence between two contract artefacts was resolved; both are described below. No security
+property is weakened.
+
+### The bug this removes
+
+```ts
+// superseded — apps/chat-integration/src/useSecureTurn.ts
+{ ...event, ordinal: previous.length + 1, createdAt: now().toISOString() }
+```
+
+That is a plausible number and a false claim. An ordinal is dense, unique per conversation, assigned
+by the database inside the insert's transaction — and it is also the SSE event id a reconnect
+resumes from. Two tabs would produce different "ordinal 4"s for different events, and a reconnect
+carrying a locally-computed `Last-Event-ID` would skip or repeat real events. The value looked like a
+resume cursor and was not one.
+
+It is now impossible to write. A `Position` is either the server's ordinal or a client-local id, and
+they share no field; an `UnpositionedEvent` has no `ordinal` and no `createdAt` to put one in.
+`createdAt` travels with `ordinal` for the same reason — the contract already said a client's clock
+is never trusted for it, and a shape permitting "the server said where but not when" invites
+`new Date()` onto a durable event.
+
+### Added — `apps/conversation-service`
+
+- **`event-store.ts`** — the ordinal authority. A position is claimed by
+  `UPDATE conversations SET last_ordinal = last_ordinal + 1 WHERE id = $1 RETURNING last_ordinal`:
+  one statement that claims, locks and advances, in the same transaction as the insert. Not a
+  sequence — sequences are non-transactional, so a rolled-back insert would leave a gap, and ordinals
+  must be dense because the ordinal *is* the SSE event id.
+- **`routes.ts`** — messages (with the fail-closed guard ahead of reading the body), paged event
+  reads, a resumable SSE stream, and the internal append the Secure Interaction Service uses.
+  `Last-Event-ID` maps to `WHERE ordinal > $cursor`: no cursor table, no opaque token.
+- **33 tests against real PostgreSQL and a real listening server** — twenty simultaneous writers,
+  cross-conversation independence, reconnect without duplication, two readers converging on one
+  ordering, a hostile `Last-Event-ID`.
+
+### Added — `packages/conversation`
+
+- **`log.ts`** — the client's `ConversationLog`, which separates events the server placed from
+  entries the browser is merely drawing. `admitDurable` deduplicates by ordinal, orders by ordinal,
+  and retires the local echo the arriving event supersedes. It lives in the domain authority rather
+  than in a client because "a rendering position is not a durable ordinal" is a rule every client
+  must obey, and a rule kept in one client is a rule the next one reinvents wrongly.
+- **`unpositioned.ts`** — `UnpositionedEvent`, and the compile-time constraint that it names no
+  position. `openSecretRequest`, `persistableContent` and `buildModelRequest` now take it: each reads
+  `kind`, `requestId`, `actor` or `content` and never a position, so requiring an ordinal was forcing
+  callers to invent one merely to ask a question.
+- **`Position`** — `{ placement: "durable", ordinal }` or `{ placement: "provisional", localId }`,
+  with `renderKey` the only thing that flattens them, into a prefixed string that is never an
+  ordinal. A shared key space would let React reuse a settled secure step's DOM node for a live
+  control.
+
+### Changed — two wire shapes
+
+- **`ChatSendResponse` moved to `packages/contracts`** and its accepted branch now carries
+  `events: readonly ConversationEvent[]` rather than `reply: string`. A single request can cause the
+  server to append more than one durable event — the student's message and, on a synchronous
+  endpoint, the assistant's answer — and a client told about only the first would have to place the
+  second itself.
+- **`ChatRoutesOptions.persist` became `append`**, which returns the event at the position the server
+  gave it. `persist` returned `void`, which is why the route was left fabricating `ordinal: 1`.
+
+### Fixed — a contradiction between two artefacts in `packages/contracts`
+
+`conversation.v1.yaml` declared `POST /messages`'s 409 as `application/problem+json` carrying
+`SecretRequestOpenProblem`. The service was sending `application/json` carrying a bespoke
+`{ status: "refused" }` envelope, and its 201 returned an envelope where the contract named a bare
+`MessageEvent`. The OpenAPI tests compare the two *documents* against each other and against the
+vocabulary; nothing compared either with what the service actually sends.
+
+The contract wins — ADR-0005 is contract-first, and RFC 9457 for every failure is the better answer
+than one endpoint with its own error envelope. The service now sends problem+json, returns the bare
+event, and `routes.test.ts` asserts the media type as well as the body. The document gained the
+`200`-on-idempotent-replay response it was already returning. `ChatSendResponse` remains the shape of
+the *provisional* `POST /api/askimate/ai`, which has no OpenAPI document and answers inline because
+it has no stream.
+
+### Added — a boundary rule for wire types
+
+`scripts/check-boundaries.ts` now fails if a browser file imports from a server route module, or
+names a type such a module declares. The declared names are read out of the server modules rather
+than listed, so a wire type added to a route tomorrow is covered without anyone remembering.
+
+### Verification
+
+All ten named properties were confirmed by deliberate regression — each guarantee broken in turn,
+with the failing test recorded. Two of those runs are worth keeping:
+
+- **A regression that silently did not apply.** My first attempt to break the atomic claim used a
+  patch string that did not match the source, and `str.replace` made it a no-op. The suite passed and
+  briefly looked like proof that the concurrency tests were vacuous. Every later regression asserted
+  that it had applied before the tests ran.
+- **A regression aimed at the wrong line.** Swapping the `ROLLBACK` in `append`'s catch clause for a
+  `COMMIT` does not break anything: PostgreSQL aborts a transaction as soon as a statement in it
+  fails, and `COMMIT` on an aborted transaction rolls back. What actually carries "a failed
+  transaction cannot leave `last_ordinal` advanced" is that the claim and the insert share ONE
+  transaction — and committing the claim separately does break the test. Recorded in
+  `event-store.test.ts`.
+
+`apps/conversation-service` was added to `scripts/ci-guard.test.ts`, so CI fails rather than skips if
+its database is missing.
+
+---
+
 ## [0.13.0] — 2026-08-28
 
 **`packages/conversation` is now the single domain authority. The duplication it removes was not

@@ -48,6 +48,14 @@ const DATABASE_BACKED = [
   "apps/chat-integration/src/end-to-end.test.ts",
   "packages/case-store/src/postgres.test.ts",
   "packages/case-store/src/workflow.test.ts",
+  // The ordinal authority. Its guarantees — a UNIQUE constraint resolving two
+  // racing writers to one, a counter that cannot outrun its log, a transaction
+  // that takes both back together — are properties of PostgreSQL, and a fake
+  // proving them would be a fake re-implementing the thing under test.
+  "apps/conversation-service/src/event-store.test.ts",
+  // And the HTTP surface over it: resumable SSE, the fail-closed guard, and the
+  // internal append, all over a listening server against a real log.
+  "apps/conversation-service/src/routes.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

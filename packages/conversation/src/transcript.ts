@@ -7,7 +7,7 @@
  * used a loop with a `continue` that skipped every non-message turn, which is
  * what pushed the secure request out of the conversation and into a detached
  * panel below the composer. A `map` cannot skip: the array it returns is the
- * same length as the array it was given, and every item carries the ordinal it
+ * same length as the array it was given, and every item carries the position it
  * came from.
  *
  * ── Where free text is, and is not ────────────────────────────────────────
@@ -17,6 +17,25 @@
  * `CHECK ((kind = 'message') = (body_id IS NOT NULL))`. The property holds at
  * three layers because it is expressed at three layers, not because one layer
  * is trusted.
+ *
+ * ── A rendering position is not a durable ordinal ─────────────────────────
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-28: *"The client must never create a durable ordinal… remove
+ * the assumption that `previous.length + 1` represents a durable position."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The client used to number its own turns `previous.length + 1` and hand the
+ * result to this function as an `Ordinal`. It rendered correctly and it was
+ * wrong: an ordinal is the server's answer to "where in the log is this", it is
+ * also the SSE event id, and a client that invents one has invented a durable
+ * fact. Nothing in the type system objected, because a rendering position and a
+ * durable ordinal were both `number`.
+ *
+ * They are now different types. A `Position` is either the server's ordinal or
+ * a client-local id, and the two cannot be confused, compared or swapped —
+ * `renderKey` is the only thing that flattens them, and it flattens them into a
+ * string that is never an ordinal.
  */
 
 import type {
@@ -27,24 +46,58 @@ import type {
   SecretLifecycleWord,
 } from "@askimate/aas-contracts";
 
+import type { UnpositionedEvent } from "./unpositioned.js";
+
+/**
+ * Where an item sits, and on whose authority.
+ *
+ * `durable` carries the ordinal the Conversation Service assigned inside the
+ * same transaction as the insert. `provisional` carries a client-local id and
+ * NO ordinal: there is no field on it a caller could put a position into, so
+ * the "just number it locally" shortcut is not available to write.
+ */
+export type Position =
+  | { readonly placement: "durable"; readonly ordinal: Ordinal }
+  | { readonly placement: "provisional"; readonly localId: string };
+
+export function durableAt(ordinal: Ordinal): Position {
+  return { placement: "durable", ordinal };
+}
+
+export function provisionalAt(localId: string): Position {
+  return { placement: "provisional", localId };
+}
+
+/**
+ * A React key, or any other opaque identity.
+ *
+ * Prefixed, so a durable ordinal `1` and a provisional entry that happens to be
+ * called `1` cannot collide — a collision would make React reuse one item's DOM
+ * node for the other, which is how a settled secure step can end up wearing a
+ * live control's element.
+ */
+export function renderKey(position: Position): string {
+  return position.placement === "durable" ? `d:${position.ordinal}` : `p:${position.localId}`;
+}
+
 export type TranscriptItem =
   | {
       readonly render: "message";
-      readonly position: Ordinal;
+      readonly position: Position;
       readonly actor: "student" | "assistant" | "mentor" | "system";
       /** The ONLY free text in this union. `null` when redacted. */
       readonly content: string | null;
     }
   | {
       readonly render: "secure_control";
-      readonly position: Ordinal;
+      readonly position: Position;
       readonly requestId: string;
       readonly channel: SecretChannel;
       readonly expiresAt: string;
     }
   | {
       readonly render: "secret_status";
-      readonly position: Ordinal;
+      readonly position: Position;
       readonly lifecycle: SecretLifecycleWord;
       readonly requestId: string;
       /** Opaque. Resolves to nothing outside a live vault. */
@@ -52,7 +105,7 @@ export type TranscriptItem =
     }
   | {
       readonly render: "secret_rejected";
-      readonly position: Ordinal;
+      readonly position: Position;
       readonly requestId: string;
       /**
        * A CODE. The sentence a student reads is chosen at render time from a
@@ -63,52 +116,57 @@ export type TranscriptItem =
       readonly reason: RejectionReason;
     };
 
+/**
+ * The one mapping from event to item, used for both placements.
+ *
+ * Shared on purpose: a provisional student message and the durable one the
+ * server writes back must render identically, or the transcript would visibly
+ * flicker between two shapes at the moment the ordinal arrives. The only thing
+ * that differs between them is the position, and it is the parameter.
+ */
+export function projectEvent(event: UnpositionedEvent, position: Position): TranscriptItem {
+  switch (event.kind) {
+    case "message":
+      return { render: "message", position, actor: event.actor, content: event.content };
+    case "secret_requested":
+      return {
+        render: "secure_control",
+        position,
+        requestId: event.requestId,
+        channel: event.channel,
+        expiresAt: event.expiresAt,
+      };
+    case "secret_received":
+      return {
+        render: "secret_status",
+        position,
+        lifecycle: "secret_received",
+        requestId: event.requestId,
+        handle: event.handle,
+      };
+    case "secret_consumed":
+    case "secret_expired":
+    case "secret_cancelled":
+      return {
+        render: "secret_status",
+        position,
+        lifecycle: event.kind,
+        requestId: event.requestId,
+      };
+    case "secret_rejected":
+      return {
+        render: "secret_rejected",
+        position,
+        requestId: event.requestId,
+        reason: event.reason,
+      };
+  }
+}
+
 export function projectTranscript(
   events: readonly ConversationEvent[],
 ): readonly TranscriptItem[] {
-  return events.map((event): TranscriptItem => {
-    switch (event.kind) {
-      case "message":
-        return {
-          render: "message",
-          position: event.ordinal,
-          actor: event.actor,
-          content: event.content,
-        };
-      case "secret_requested":
-        return {
-          render: "secure_control",
-          position: event.ordinal,
-          requestId: event.requestId,
-          channel: event.channel,
-          expiresAt: event.expiresAt,
-        };
-      case "secret_received":
-        return {
-          render: "secret_status",
-          position: event.ordinal,
-          lifecycle: "secret_received",
-          requestId: event.requestId,
-          handle: event.handle,
-        };
-      case "secret_consumed":
-      case "secret_expired":
-      case "secret_cancelled":
-        return {
-          render: "secret_status",
-          position: event.ordinal,
-          lifecycle: event.kind,
-          requestId: event.requestId,
-        };
-      case "secret_rejected":
-        return {
-          render: "secret_rejected",
-          position: event.ordinal,
-          requestId: event.requestId,
-          reason: event.reason,
-        };
-    }
-  });
+  return events.map((event) => projectEvent(event, durableAt(event.ordinal)));
 }
 
 /**
@@ -130,3 +188,20 @@ type AssertTrue<T extends true> = T;
 export type ONLY_MESSAGE_ITEMS_CARRY_CONTENT = AssertTrue<
   Exactly<ContentBearing<TranscriptItem>, MessageItem>
 >;
+
+/**
+ * COMPILE-TIME: a provisional position has no ordinal.
+ *
+ * If a later edit added one — the obvious way to "fix" a sort, or to make a
+ * provisional item comparable with a durable one — this stops compiling.
+ * Written as a constraint for the reason above. Its companion, that an
+ * unpositioned EVENT names no position either, lives in `unpositioned.ts`.
+ */
+type Provisional = Extract<Position, { placement: "provisional" }>;
+type NamesAPosition<T> = T extends unknown
+  ? Extract<keyof T, "ordinal" | "createdAt"> extends never
+    ? never
+    : T
+  : never;
+type AssertNever<T extends never> = T;
+export type A_PROVISIONAL_POSITION_HAS_NO_ORDINAL = AssertNever<NamesAPosition<Provisional>>;

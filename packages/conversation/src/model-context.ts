@@ -15,7 +15,7 @@
  * it — which is the decision, and it should not have a default.
  */
 
-import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { UnpositionedEvent } from "./unpositioned.js";
 
 /** Exactly what a chat completion endpoint is given. */
 export interface ModelRequest {
@@ -40,9 +40,17 @@ const UTTERANCE_MAX_CHARS = HISTORY_ENTRY_MAX_CHARS * 4;
  */
 export const SECURE_STEP_SENTENCE = "[A secure password box was shown to the student.]";
 
+/**
+ * Takes UNPOSITIONED events, like `persistableContent` and `openSecretRequest`.
+ *
+ * What reaches the model is decided from `kind`, `actor`, `content`, `handle`
+ * and `reason` — never from where an event sits. Requiring an ordinal would
+ * have meant a caller holding a locally-drawn entry had to invent one to ask
+ * what the model should see, which is the invention `log.ts` exists to remove.
+ */
 export function buildModelRequest(input: {
   readonly utterance: string;
-  readonly events: readonly ConversationEvent[];
+  readonly events: readonly UnpositionedEvent[];
 }): ModelRequest {
   const history: { role: "user" | "assistant"; content: string }[] = [];
 
@@ -93,7 +101,11 @@ export function buildModelRequest(input: {
  * A message contributes its text. Nothing else contributes anything, because
  * nothing else has anything to contribute — and the database says the same
  * thing with `CHECK ((kind = 'message') = (body_id IS NOT NULL))`.
+ *
+ * Takes an UNPOSITIONED event, so it can be asked BEFORE the server has placed
+ * the event. A caller holding an event on its way to the log should not have to
+ * invent an ordinal in order to ask what of it may be stored.
  */
-export function persistableContent(event: ConversationEvent): string | null {
+export function persistableContent(event: UnpositionedEvent): string | null {
   return event.kind === "message" ? event.content : null;
 }

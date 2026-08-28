@@ -35,26 +35,53 @@
  *     state-serialising reporter can read. Uncontrolled, it is a DOM value that
  *     nothing snapshots.
  *
+ * ── Durable events come from the server. Nothing else does ────────────────
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-28: *"The client must never create a durable ordinal… The
+ * browser may temporarily use local rendering state, but every durable event
+ * must ultimately come from the server with its server-assigned ordinal."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * This hook used to append with `ordinal: previous.length + 1`. It now holds a
+ * `ConversationLog` from `@askimate/aas-conversation`, which keeps the two
+ * kinds of thing apart by type: durable events, which arrived from the server
+ * with the server's ordinal, and provisional entries, which have a client-local
+ * id and no position at all. There is no expression in this file that produces
+ * an ordinal, because there is no shape here with a field to put one in.
+ *
  * ── PROVISIONAL ───────────────────────────────────────────────────────────
  *
  * Nothing here is a UI decision. This file contains no markup, no copy and no
  * styling; it is the state machine that a real AskiMate interface would drive.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 
-import type { ChatSendResponse } from "./chat-routes.js";
-import type { ConversationEvent, RejectionReason } from "@askimate/aas-contracts";
+import type {
+  ChatSendResponse,
+  ConversationEvent,
+  Ordinal,
+  RejectionReason,
+} from "@askimate/aas-contracts";
 import { SECRET_LIFECYCLES, parseRejectionReason } from "@askimate/aas-contracts";
 import {
+  EMPTY_LOG,
+  addProvisional,
+  admitAllDurable,
+  admitDurable,
   composerPolicy,
   decideRendering,
-  openSecretRequest,
-  projectTranscript,
+  durableEvents,
+  openSecretRequestInLog,
+  projectLog,
+  retireProvisional,
   type ClientCapabilities,
   type ComposerPolicy,
+  type ConversationLog,
   type TranscriptItem,
+  type UnpositionedEvent,
 } from "@askimate/aas-conversation";
 
 /**
@@ -65,7 +92,26 @@ import {
  * fact. Typing the incoming turn as a `ChatTurn` here would assert that claim
  * before anything had checked it.
  */
-export type ReceivedTurn =
+export type ReceivedTurn = {
+  /**
+   * Where the server put it, and when the server says it happened.
+   *
+   * OPTIONAL, and its absence is not an error. A turn that arrives placed is a
+   * durable event and is admitted at that position. A turn that arrives
+   * unplaced is something we can draw but cannot cite, so it is drawn
+   * PROVISIONALLY and superseded the moment the placed version arrives.
+   *
+   * ONE field carrying BOTH, deliberately. The ordinal and the timestamp are
+   * the same fact from the same authority; a shape with two optional fields
+   * would permit "the server said where but not when", and the obvious way to
+   * fill that gap is `new Date()` — a client clock stamped onto a durable
+   * event. There is no such state to be in.
+   *
+   * The one thing that never happens is the client supplying the number
+   * itself. A missing position is a missing fact, not a gap to fill in.
+   */
+  readonly placed?: { readonly ordinal: Ordinal; readonly createdAt: string };
+} & (
   | { readonly kind: "message"; readonly actor: "student" | "assistant" | "mentor" | "system";
       readonly content: string | null }
   | { readonly kind: "secret_status"; readonly requestId: string;
@@ -76,7 +122,8 @@ export type ReceivedTurn =
       readonly kind: "directive";
       readonly directive: "request_secret";
       readonly prompt: UncheckedIncomingPrompt;
-    };
+    }
+);
 
 /**
  * A prompt as it arrives, with the channel still a claim rather than a fact.
@@ -87,18 +134,6 @@ export type ReceivedTurn =
  * them itself, so it keeps them here — in a client-side map, deliberately not
  * on any event, so nothing a model wrote about a password reaches the log.
  */
-/**
- * An event before the log has given it a position.
- *
- * `Omit<ConversationEvent, …>` does NOT work here: `Omit` over a union
- * collapses it to the intersection of its members' keys, so every kind-specific
- * field disappears and the result accepts nothing. The conditional distributes
- * over the members and omits from each separately — the same distributive
- * lesson as the `ContentBearing` guard in the contract package.
- */
-type Unpositioned<T> = T extends unknown ? Omit<T, "ordinal" | "createdAt"> : never;
-export type UnpositionedEvent = Unpositioned<ConversationEvent>;
-
 export interface UncheckedIncomingPrompt {
   readonly requestId: string;
   readonly channel: string;
@@ -159,8 +194,19 @@ export interface SecureTurnInput {
 }
 
 export interface SecureTurnState {
+  /**
+   * The DURABLE events, in ordinal order. Every one came from the server.
+   *
+   * Deliberately not "everything on screen": a caller that wants what the
+   * student can see wants `items`. This list is the one that may be used as a
+   * position — to resume a stream, to page, to compare with another client —
+   * and it contains nothing this browser made up.
+   */
   readonly events: readonly ConversationEvent[];
+  /** Everything drawn: the durable events, then whatever we are drawing. */
   readonly items: readonly TranscriptItem[];
+  /** The whole log, for a caller that needs to tell the two apart. */
+  readonly log: ConversationLog;
   /** The prompt to draw, or null when nothing is open. From `openSecretRequest`. */
   readonly openPrompt: UncheckedIncomingPrompt | null;
   /** Fixed refusal text from `decideRendering`. Never assembled from input. */
@@ -174,7 +220,7 @@ export interface SecureTurnState {
 }
 
 export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
-  const [events, setEvents] = useState<readonly ConversationEvent[]>([]);
+  const [log, setLog] = useState<ConversationLog>(EMPTY_LOG);
   /**
    * Prompt text, keyed by request, held OUTSIDE the event list.
    *
@@ -201,11 +247,12 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   const { conversationId, capabilities, transport } = input;
   const now = input.now;
 
-  const items = useMemo(() => projectTranscript(events), [events]);
+  const items = useMemo(() => projectLog(log), [log]);
+  const events = useMemo(() => durableEvents(log), [log]);
   // The ONE authority. Both this client and the server call the same function
   // over the same event shape, which is why they cannot disagree about whether
   // a step is open — the class of bug Phase D found twice by hand.
-  const openRequestId = useMemo(() => openSecretRequest(events), [events]);
+  const openRequestId = useMemo(() => openSecretRequestInLog(log), [log]);
   const openPrompt = openRequestId === null ? null : (prompts.get(openRequestId) ?? null);
 
   // The only composition of the two sources of "is a request open". Both are
@@ -215,38 +262,74 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   });
 
   /**
-   * Appends, assigning the ordinal and the timestamp.
+   * Draws something the server has not placed, and returns its local id.
    *
-   * Both are the SERVER's to assign in the real architecture — the ordinal
-   * comes from `conversations.last_ordinal` in the same transaction as the
-   * insert, under a UNIQUE constraint that makes two racing writers resolve to
-   * one. This provisional client numbers its own so the shared decisions can
-   * run over the same shape; a client-assigned ordinal is a rendering position,
-   * never a durable fact.
+   * The id is for RETIREMENT, not for position: it is how this hook says "the
+   * echo I drew a moment ago is now the real event" or "that never happened".
+   * It is generated from a counter rather than a clock or a random source
+   * because it must be unique within this mount and must not be mistaken for
+   * anything durable — and because a `crypto.randomUUID` here would be a second
+   * ambient-source read in a file where the lint rule already caught the first.
    */
-  const append = useCallback((event: UnpositionedEvent): void => {
-    setEvents((previous) => [
-      ...previous,
-      { ...event, ordinal: previous.length + 1, createdAt: now().toISOString() },
-    ]);
-  }, [now]);
+  const nextLocalId = useRef(0);
+  const draw = useCallback((event: UnpositionedEvent): string => {
+    nextLocalId.current += 1;
+    const localId = `local-${String(nextLocalId.current)}`;
+    setLog((previous) => addProvisional(previous, { localId, event }));
+    return localId;
+  }, []);
+
+  /**
+   * Takes an event the SERVER placed, at the position the SERVER gave it.
+   *
+   * `admitDurable` is what deduplicates by ordinal, orders by ordinal, and
+   * retires the local echo the event supersedes. None of those three rules is
+   * restated here, for the same reason none of the five decisions is.
+   */
+  const admit = useCallback((event: ConversationEvent): void => {
+    setLog((previous) => admitDurable(previous, event));
+  }, []);
+
+  /**
+   * Draws it durably when the server placed it, provisionally when it did not.
+   *
+   * Two branches, and neither computes a position. No cast is needed and none
+   * is written: spreading an unpositioned member and adding exactly the two
+   * fields it is missing reconstitutes the `ConversationEvent` member, and the
+   * compiler agrees — the lint rule that forbids a redundant assertion is what
+   * proved it, after I wrote one out of caution.
+   */
+  const record = useCallback(
+    (event: UnpositionedEvent, placed: ReceivedTurn["placed"]): void => {
+      if (placed === undefined) {
+        draw(event);
+        return;
+      }
+      admit({ ...event, ordinal: placed.ordinal, createdAt: placed.createdAt });
+    },
+    [admit, draw],
+  );
 
   const receive = useCallback(
     (turn: ReceivedTurn): void => {
       if (turn.kind === "message") {
-        append({ kind: "message", actor: turn.actor, content: turn.content });
+        record({ kind: "message", actor: turn.actor, content: turn.content }, turn.placed);
         return;
       }
       if (turn.kind === "secret_rejected") {
-        append({ kind: "secret_rejected", requestId: turn.requestId, reason: turn.reason });
+        record(
+          { kind: "secret_rejected", requestId: turn.requestId, reason: turn.reason },
+          turn.placed,
+        );
         return;
       }
       if (turn.kind === "secret_status") {
         if (turn.lifecycle === "secret_requested") return;
-        append(
+        record(
           turn.lifecycle === "secret_received"
             ? { kind: "secret_received", requestId: turn.requestId, handle: turn.handle ?? "" }
             : { kind: turn.lifecycle, requestId: turn.requestId },
+          turn.placed,
         );
         return;
       }
@@ -270,19 +353,25 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
         // request that no client can service would block this conversation's
         // composer for the whole TTL and produce nothing but 409s.
         setRefusal({ reason: decision.reason, say: decision.say });
-        append({
+        // DRAWN, not admitted — even though this turn may have arrived placed.
+        // The refusal is this client's own conclusion about its own
+        // capabilities; the server has not been told and has written nothing.
+        // Admitting it at the directive's ordinal would put a different event
+        // at a position the log has already given to the directive, which is
+        // the client and the server disagreeing about the log's contents.
+        draw({
           kind: "secret_rejected",
           requestId: turn.prompt.requestId,
           reason: decision.reason,
         });
         void transport.cancel(turn.prompt.requestId).then((cancelled) => {
-          // Only on a confirmed 200. Appending the status turn on a failed
+          // Only on a confirmed 200. Drawing the status turn on a failed
           // delete would tell the transcript a request was closed that is still
           // open on the server, which is the divergence this whole phase is
           // about. If the delete failed, the TTL closes it and the composer
           // stays guarded by the server's 409 until then.
           if (cancelled) {
-            append({ kind: "secret_cancelled", requestId: turn.prompt.requestId });
+            draw({ kind: "secret_cancelled", requestId: turn.prompt.requestId });
           }
         });
         return;
@@ -293,14 +382,17 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // request, the channel and the expiry — which is exactly what the real
       // conversation plane will ever have.
       setPrompts((previous) => new Map(previous).set(turn.prompt.requestId, turn.prompt));
-      append({
-        kind: "secret_requested",
-        requestId: turn.prompt.requestId,
-        channel: decision.step.channel,
-        expiresAt: decision.step.expiresAt.toISOString(),
-      });
+      record(
+        {
+          kind: "secret_requested",
+          requestId: turn.prompt.requestId,
+          channel: decision.step.channel,
+          expiresAt: decision.step.expiresAt.toISOString(),
+        },
+        turn.placed,
+      );
     },
-    [append, capabilities, now, transport],
+    [capabilities, draw, now, record, transport],
   );
 
   const submitted = useCallback(
@@ -308,10 +400,15 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // A lifecycle transition, which is the only thing `openSecureRequest`
       // accepts as closing a request. The handle is opaque and safe to hold.
       if (openRequestId === null) return;
-      append({ kind: "secret_received", requestId: openRequestId, handle });
+      // Drawn. The submission went to the Secure Interaction Service, which
+      // writes the durable `secret_received` on its own plane and delivers it
+      // through the internal contract; this browser learns its ordinal when the
+      // event comes back, and `describesSame` retires this echo then. Nothing
+      // here guesses where it landed.
+      draw({ kind: "secret_received", requestId: openRequestId, handle });
       setServerOpenRequestId(null);
     },
-    [append, openRequestId],
+    [draw, openRequestId],
   );
 
   const rejected = useCallback(
@@ -323,9 +420,9 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // but a mismatch, which released the composer while the server still had
       // the request open — see docs/composer-during-secure-turn.md.
       if (openRequestId === null) return;
-      append({ kind: "secret_rejected", requestId: openRequestId, reason });
+      draw({ kind: "secret_rejected", requestId: openRequestId, reason });
     },
-    [append, openRequestId],
+    [draw, openRequestId],
   );
 
   const cancel = useCallback((): void => {
@@ -340,15 +437,15 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
         // ADR-0032: cancellation is its own word. It behaves identically to
         // expiry for every guard — both terminal, both release the composer —
         // and it reads differently to the model, the student and analytics.
-        append({ kind: "secret_cancelled", requestId });
+        draw({ kind: "secret_cancelled", requestId });
         setServerOpenRequestId(null);
         return;
       }
       // The request is still open. Say so as a rejection, which by design does
       // not close it — the card stays and the student can still finish.
-      append({ kind: "secret_rejected", requestId, reason: "endpoint_unreachable" });
+      draw({ kind: "secret_rejected", requestId, reason: "endpoint_unreachable" });
     });
-  }, [append, openRequestId, serverOpenRequestId, transport]);
+  }, [draw, openRequestId, serverOpenRequestId, transport]);
 
   const send = useCallback(
     async (content: string): Promise<SendOutcome> => {
@@ -356,23 +453,48 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // above has already set to "blocked"; a second rule here would be a
       // second place for the answer to be wrong. The authority that actually
       // matters is the server's, and it is consulted below.
+      //
+      // ── The echo goes up BEFORE the round trip ────────────────────────
+      //
+      // So the student sees their message immediately, on a slow connection.
+      // It is provisional: no ordinal, no timestamp, and it is retired either
+      // by the durable event that supersedes it or by the failure that means it
+      // never happened. What it is NOT is the transcript's idea of position —
+      // an echo drawn at `previous.length + 1` would have claimed a slot that
+      // a concurrently-arriving server event also claims.
+      const echo = draw({ kind: "message", actor: "student", content });
       const { ok, body } = await transport.send({ conversationId, content });
       const response = body as Partial<ChatSendResponse> | null;
 
       if (ok && response?.status === "accepted") {
-        append({ kind: "message", actor: "student", content });
-        const reply = (response as Extract<ChatSendResponse, { status: "accepted" }>).reply;
-        if (typeof reply === "string" && reply.length > 0) {
-          append({ kind: "message", actor: "assistant", content: reply });
-        }
+        // EVERY event the server wrote, each at the position the server gave
+        // it. The student's message comes back placed and retires the echo by
+        // `describesSame`; the assistant's answer arrives placed in the same
+        // list rather than being appended after a locally-computed number.
+        const written = (response as Extract<ChatSendResponse, { status: "accepted" }>).events;
+        setLog((previous) =>
+          // `retireProvisional` as well as the admission, because the server is
+          // free to normalise what it stored — trimming, truncating, redacting.
+          // A normalised body would not match the echo, and the echo would
+          // linger next to the real message. Retiring by the id we minted is
+          // the only reconciliation that cannot miss.
+          retireProvisional(
+            admitAllDurable(previous, Array.isArray(written) ? written : []),
+            echo,
+          ),
+        );
         setServerOpenRequestId(null);
         return { outcome: "accepted" };
       }
 
+      // Refused or failed: the echo is retired, because the message did not
+      // happen. The TEXT is untouched — it is still in the composer's DOM
+      // value, which nothing here has ever read from or written to.
+      setLog((previous) => retireProvisional(previous, echo));
+
       if (response?.status === "refused" && response.reason === "secret_request_open") {
         // This client was stale. The message is NOT appended, NOT retried and
-        // NOT queued — the caller still holds it in the composer's DOM value,
-        // which nothing here has touched.
+        // NOT queued.
         const requestId = (response as Extract<ChatSendResponse, { status: "refused" }>).requestId;
         setServerOpenRequestId(requestId);
         return { outcome: "held", requestId };
@@ -380,10 +502,13 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
 
       return { outcome: "failed" };
     },
-    [append, conversationId, transport],
+    [conversationId, draw, transport],
   );
 
-  return { events, items, openPrompt, refusal, composer, receive, submitted, rejected, cancel, send };
+  return {
+    events, items, log, openPrompt, refusal, composer,
+    receive, submitted, rejected, cancel, send,
+  };
 }
 
 /** The real transport, for a page talking to a real server. */
@@ -423,6 +548,7 @@ export function browserTransport(authToken: string): SecureTurnTransport {
 export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
   if (typeof raw !== "object" || raw === null) return null;
   const turn = raw as Record<string, unknown>;
+  const placed = readPlacement(turn);
 
   switch (turn["kind"]) {
     case "message": {
@@ -440,7 +566,7 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
       ) {
         return null;
       }
-      return { kind: "message", actor: normalised, content };
+      return { ...placed, kind: "message", actor: normalised, content };
     }
     case "directive": {
       if (turn["directive"] !== "request_secret") return null;
@@ -458,6 +584,7 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
       const requestId = fields["requestId"];
       if (typeof requestId !== "string" || requestId.length === 0) return null;
       return {
+        ...placed,
         kind: "directive",
         directive: "request_secret",
         // `channel` stays whatever the server said it was. `decideRendering`
@@ -487,6 +614,7 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
       const handle = turn["handle"];
       const statusRequest = turn["requestId"];
       return {
+        ...placed,
         kind: "secret_status",
         requestId: typeof statusRequest === "string" ? statusRequest : "",
         lifecycle: lifecycle as (typeof SECRET_LIFECYCLES)[number],
@@ -498,6 +626,7 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
       if (reason === null) return null;
       const rejectedRequest = turn["requestId"];
       return {
+        ...placed,
         kind: "secret_rejected",
         requestId: typeof rejectedRequest === "string" ? rejectedRequest : "",
         reason,
@@ -506,4 +635,33 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
     default:
       return null;
   }
+}
+
+/**
+ * The position the server gave this turn, or nothing.
+ *
+ * Both fields or neither — a turn that names an ordinal without a timestamp, or
+ * a timestamp without an ordinal, is treated as UNPLACED and drawn
+ * provisionally. Half a placement is not a placement, and completing it here
+ * would mean this file writing one of the two values the server owns.
+ *
+ * The ordinal is validated the same way `parseConversationEvent` validates one:
+ * an integer, at least 1. Ordinals are dense and 1-based, so `0`, `-3` and
+ * `2.5` are not positions that could have come out of the log — accepting one
+ * would put an event in an order nothing agrees with, and, if it ever reached a
+ * `Last-Event-ID`, resume a stream from a place that does not exist.
+ */
+function readPlacement(turn: Record<string, unknown>): Pick<ReceivedTurn, "placed"> {
+  const ordinal = turn["ordinal"];
+  const createdAt = turn["createdAt"];
+  if (
+    typeof ordinal !== "number" ||
+    !Number.isInteger(ordinal) ||
+    ordinal < 1 ||
+    typeof createdAt !== "string" ||
+    createdAt.length === 0
+  ) {
+    return {};
+  }
+  return { placed: { ordinal, createdAt } };
 }

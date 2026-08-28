@@ -46,7 +46,10 @@ declare global {
       secureContext?: boolean;
       endpointReachable?: boolean;
     };
+    /** Everything the client holds, drawn order: durable then provisional. */
     __askimateTurns?: () => unknown;
+    /** ONLY the events the server placed, in ordinal order. */
+    __askimateDurable?: () => unknown;
     __askimateOpenRequest?: () => unknown;
   }
 }
@@ -87,7 +90,20 @@ function App(): JSX.Element {
     const turn: ReceivedTurn | null = parseIncomingTurn(raw);
     if (turn !== null) state.receive(turn);
   };
-  window.__askimateTurns = () => JSON.parse(JSON.stringify(state.events)) as unknown;
+  // Everything the client holds — durable events AND what it is merely
+  // drawing. A leak-scanning test must see both: a marker sitting in a
+  // provisional entry is just as leaked as one in a placed event, and a seam
+  // that showed only the durable list would quietly stop looking at half the
+  // state the moment the client started drawing anything.
+  window.__askimateTurns = () =>
+    JSON.parse(
+      JSON.stringify([
+        ...state.log.durable,
+        ...state.log.provisional.map((entry) => entry.event),
+      ]),
+    ) as unknown;
+  // The durable half on its own, for the assertions that are ABOUT position.
+  window.__askimateDurable = () => JSON.parse(JSON.stringify(state.log.durable)) as unknown;
   window.__askimateOpenRequest = () =>
     state.openPrompt === null ? null : { requestId: state.openPrompt.requestId };
 

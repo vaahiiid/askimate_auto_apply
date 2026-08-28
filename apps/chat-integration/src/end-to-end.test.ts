@@ -739,16 +739,16 @@ describeIfDatabase("the model funnel", () => {
     // write, and rendering one into text would invent the very content this
     // design exists to avoid.
     expect(
+      // Asked of an UNPOSITIONED event, which is when a route actually asks
+      // it: before the log has placed the event, and therefore before there is
+      // an ordinal for the literal to carry.
       persistableContent({
-        kind: "secret_received", ordinal: 1, createdAt: NOW.toISOString(),
+        kind: "secret_received",
         requestId: "sr_00000000000000000000000000000000", handle: "sh_00000000000000000000000000000000",
       }),
     ).toBeNull();
     expect(
-      persistableContent({
-        kind: "message", ordinal: 2, createdAt: NOW.toISOString(),
-        actor: "student", content: "hello",
-      }),
+      persistableContent({ kind: "message", actor: "student", content: "hello" }),
     ).toBe("hello");
   });
 });

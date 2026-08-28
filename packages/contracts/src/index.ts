@@ -68,6 +68,8 @@ export type {
 // what may appear on the wire, and whether these bytes are an instance of it.
 export { eventCarriesContent, parseConversationEvent } from "./events.js";
 
+export type { ChatSendResponse } from "./chat.js";
+
 export type {
   PlainProblem,
   Problem,

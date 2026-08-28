@@ -833,6 +833,105 @@ function main(): void {
     );
   }
 
+  // ── Browser code imports no wire type from a server route module ─────────
+  //
+  // Vahid, 2026-08-28: *"move `ChatSendResponse` out of `chat-routes.ts` into
+  // `packages/contracts`, so browser code no longer imports a wire type from a
+  // server module."*
+  //
+  // `ChatSendResponse` was declared in `chat-routes.ts`, a module that also
+  // imports `express` and `jsonwebtoken`, and the React client imported it from
+  // there. `import type` erases at compile time, so nothing shipped — but the
+  // dependency was real, and one edit turning it into a value import (an enum,
+  // a `const` of default values, a parser) would pull a server framework toward
+  // the page. A wire type belongs where the wire is described.
+  //
+  // Two halves, because either alone can go inert:
+  //
+  //   1. No browser file may import from a server module, type-only or not.
+  //   2. No browser file may NAME a type a server module declares. This is the
+  //      half that keeps itself current: the declared names are read out of the
+  //      server modules rather than listed here, so a wire type added to a route
+  //      tomorrow is covered without anyone remembering to add it.
+  const SERVER_MODULES = ["chat-routes", "secret-routes", "app", "bindings", "schema"];
+  const BROWSER_FILES = [
+    "apps/chat-integration/src/useSecureTurn.ts",
+    "apps/chat-integration/src/ChatView.tsx",
+    "apps/chat-integration/src/SecureControl.tsx",
+    "apps/chat-integration/src/browser-entry.tsx",
+  ];
+  const presentBrowserFiles = BROWSER_FILES.filter((file) => existsSync(file));
+  if (presentBrowserFiles.length !== BROWSER_FILES.length) {
+    violations.push(
+      `Not every browser file this rule names still exists (${String(presentBrowserFiles.length)} ` +
+        `of ${String(BROWSER_FILES.length)}). A renamed client silently narrows the rule, so ` +
+        `update the list rather than leaving it looking at fewer files than it claims.`,
+    );
+  }
+
+  // What each server module declares. Read, not listed.
+  const serverDeclared = new Map<string, string>();
+  for (const module of SERVER_MODULES) {
+    const path = `apps/chat-integration/src/${module}.ts`;
+    if (!existsSync(path)) continue;
+    const source = readFileSync(path, "utf8");
+    for (const match of source.matchAll(/^export\s+(?:type|interface)\s+([A-Za-z0-9_$]+)/gm)) {
+      const name = match[1];
+      if (name !== undefined) serverDeclared.set(name, path);
+    }
+  }
+  if (serverDeclared.size === 0) {
+    violations.push(
+      `No server module under apps/chat-integration/src declares an exported type. This rule ` +
+        `compares browser files against that set, so an empty set means it is checking nothing.`,
+    );
+  }
+
+  for (const file of presentBrowserFiles) {
+    const source = readFileSync(file, "utf8");
+    for (const module of SERVER_MODULES) {
+      if (new RegExp(`from\\s+["'](?:\\./)?${module}\\.js["']`).test(source)) {
+        violations.push(
+          `${file} imports from ./${module}.js. That module is server-side — it reaches express, ` +
+            `jsonwebtoken or a database driver — and browser code must take its wire types from ` +
+            `@askimate/aas-contracts instead.`,
+        );
+      }
+    }
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    for (const [name, path] of serverDeclared) {
+      if (new RegExp(`\\b${name}\\b`).test(code)) {
+        violations.push(
+          `${file} names \`${name}\`, which ${path} declares. A type a browser file uses must not ` +
+            `live in a server route module: move it to packages/contracts.`,
+        );
+      }
+    }
+  }
+
+  // And the named regression, stated directly: the type the browser DOES use
+  // must not come back to the module it was moved out of.
+  const CHAT_ROUTES = "apps/chat-integration/src/chat-routes.ts";
+  if (existsSync(CHAT_ROUTES)) {
+    const source = readFileSync(CHAT_ROUTES, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    if (/export\s+type\s+ChatSendResponse\s*=/.test(source)) {
+      violations.push(
+        `${CHAT_ROUTES} declares ChatSendResponse again. It was moved to packages/contracts ` +
+          `precisely so the browser stops importing a wire type from an express module.`,
+      );
+    }
+  }
+
+  checked += 1;
+  console.log(
+    `  ✓  ${String(presentBrowserFiles.length)} browser file(s) — no import from, and no type ` +
+      `declared by, a server route module (${String(serverDeclared.size)} name(s) compared)`,
+  );
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {

@@ -46,36 +46,41 @@ import { Router as makeRouter } from "express";
 import jwt from "jsonwebtoken";
 
 import type { SecretBindingStore } from "./bindings.js";
-import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { ChatSendResponse, ConversationEvent } from "@askimate/aas-contracts";
+import type { UnpositionedEvent } from "@askimate/aas-conversation";
 import { buildModelRequest, persistableContent } from "@askimate/aas-conversation";
 import type { AskimateUserPayload } from "./secret-routes.js";
 
-/**
- * What the client gets back.
- *
- * A closed union. The refusal carries the open `requestId` and its expiry so a
- * stale client can re-synchronise and re-render the card — and so it knows to
- * KEEP the draft rather than clear it. A client that clears optimistically
- * would destroy the very message this design exists to preserve.
- */
-export type ChatSendResponse =
-  | { readonly status: "accepted"; readonly reply: string }
-  | {
-      readonly status: "refused";
-      readonly reason: "secret_request_open";
-      readonly requestId: string;
-      readonly expiresAt: string;
-    };
+// `ChatSendResponse` is imported, not declared. It used to be declared HERE,
+// in a module that also imports `express` and `jsonwebtoken`, and the browser
+// imported it from here — a client bundle depending on a bundler's
+// tree-shaking to keep a server framework out of the page. A wire type belongs
+// where the wire is described, so it lives in `@askimate/aas-contracts` now.
+// `scripts/check-boundaries.ts` fails the build if it comes back.
 
 export interface ChatRoutesOptions {
   readonly bindings: SecretBindingStore;
   readonly jwtSecret: string;
   readonly now: () => Date;
-  /** Persists an accepted turn. Never called for a refused one. */
-  readonly persist: (input: {
+  /**
+   * Appends a durable event and returns it AT THE POSITION THE SERVER GAVE IT.
+   *
+   * This replaced `persist`, which returned `void` and left the route to make
+   * up `ordinal: 1` for the response — a number that looked like a log position
+   * and was not one. The route cannot know where an event lands; only whatever
+   * owns the log does, so it is what answers.
+   *
+   * `body` is handed over rather than dug out: it is `persistableContent` of
+   * the event, which is the text of a message and `null` for everything else.
+   * An adapter is therefore never in a position to write a body for an event
+   * that must not have one — the same property the database states as
+   * `CHECK ((kind = 'message') = (body_id IS NOT NULL))`.
+   */
+  readonly append: (input: {
     readonly conversationId: number;
-    readonly content: string;
-  }) => Promise<void>;
+    readonly event: UnpositionedEvent;
+    readonly body: string | null;
+  }) => Promise<ConversationEvent>;
   /** Where an accepted turn would go to the model. Never called for a refusal. */
   readonly askModel: (request: ReturnType<typeof buildModelRequest>) => Promise<string>;
   /** Prior turns, for history. */
@@ -139,28 +144,40 @@ export function createChatRoutes(options: ChatRoutesOptions): Router {
         return;
       }
 
-      // Ordinal and timestamp are the SERVER's to assign. This provisional
-      // route has no log to append to yet, so it names position 1; the real
-      // conversation service takes it from `conversations.last_ordinal` in the
-      // same transaction as the insert.
-      const event: ConversationEvent = {
-        kind: "message",
-        ordinal: 1,
-        createdAt: options.now().toISOString(),
-        actor: "student",
-        content,
-      };
-      const storable = persistableContent(event);
-      if (storable !== null) {
-        await options.persist({ conversationId, content: storable });
-      }
+      // ── The server places it. The route does not ────────────────────────
+      //
+      // The event is built WITHOUT an ordinal and without a timestamp — the
+      // type has no field for either — and `append` returns it placed. What
+      // comes back is the only version of this event anyone is told about.
+      const utterance: UnpositionedEvent = { kind: "message", actor: "student", content };
+      const written: ConversationEvent[] = [
+        await options.append({
+          conversationId,
+          event: utterance,
+          body: persistableContent(utterance),
+        }),
+      ];
 
       const history = await options.historyFor(conversationId);
       const reply = await options.askModel(
         buildModelRequest({ utterance: content, events: history }),
       );
 
-      const accepted: ChatSendResponse = { status: "accepted", reply };
+      // The answer is a durable event too, and the client is told where it
+      // went. Returning only the text would have left the client to place it,
+      // which is the invention this whole change removes.
+      if (reply.length > 0) {
+        const answer: UnpositionedEvent = { kind: "message", actor: "assistant", content: reply };
+        written.push(
+          await options.append({
+            conversationId,
+            event: answer,
+            body: persistableContent(answer),
+          }),
+        );
+      }
+
+      const accepted: ChatSendResponse = { status: "accepted", events: written };
       res.status(200).json(accepted);
     })().catch(next);
   });

@@ -42,12 +42,15 @@ import type { SecretHandle, SecretRequestId } from "@askimate/aas-secrets";
 import { createChatApp } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
 import { composerPolicy, decideRendering } from "@askimate/aas-conversation";
+import type { ConversationEvent } from "@askimate/aas-contracts";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
 import { buildChatClient } from "./build-client.js";
 
 /** What the guarded chat route was asked to do. Empty means it refused first. */
 const chatPersisted: { conversationId: number; content: string }[] = [];
+/** The stand-in log's `last_ordinal`, one per conversation. */
+const chatOrdinals = new Map<number, number>();
 const chatModelSaw: string[] = [];
 
 const MARKER = "SECRET-PASSWORD-DO-NOT-LEAK-123!";
@@ -333,9 +336,19 @@ beforeAll(async () => {
     // stale-client path against the real fail-closed boundary rather than a
     // stub that always agrees with the client.
     chat: {
-      persist: async (input) => {
-        chatPersisted.push(input);
-        await Promise.resolve();
+      // A stand-in log. `append` is what places an event, so the stand-in is
+      // what counts — the route no longer has an ordinal of its own to offer.
+      // Positions are dense and 1-based per conversation, exactly as
+      // `conversations.last_ordinal` makes them in the real service.
+      append: async (input) => {
+        chatPersisted.push({ conversationId: input.conversationId, content: input.body ?? "" });
+        const ordinal = (chatOrdinals.get(input.conversationId) ?? 0) + 1;
+        chatOrdinals.set(input.conversationId, ordinal);
+        return await Promise.resolve({
+          ...input.event,
+          ordinal,
+          createdAt: NOW.toISOString(),
+        } as ConversationEvent);
       },
       askModel: async (request) => {
         chatModelSaw.push(request.message, ...request.history.map((h) => h.content));

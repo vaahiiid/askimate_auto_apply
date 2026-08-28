@@ -175,6 +175,12 @@ paths:
 
         The reply is not in this response. The model answers asynchronously and
         its message arrives as an event on the stream.
+
+        The response is the EVENT the server wrote, at the ordinal the server
+        assigned inside the same transaction as the insert. There is no field
+        through which a client could propose a position and none through which
+        one is echoed back: a client learns where its message went, it does not
+        say.
       parameters: [{ $ref: "#/components/parameters/IdempotencyKeyRequired" }]
       requestBody:
         required: true
@@ -182,6 +188,14 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/SendMessageRequest" }
       responses:
+        "200":
+          description: >-
+            An idempotent retry. The write already happened; this is the same
+            event at the same ordinal, which is what makes the retry safe to
+            repeat. A retry must not append a second copy, so it cannot be a
+            201 — the status is how a client tells the two apart.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/MessageEvent" } }
         "201":
           description: Accepted and appended. The event, as it was written.
           content:

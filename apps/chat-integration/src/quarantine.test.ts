@@ -122,6 +122,8 @@ let server: Server;
 
 /** What the route was asked to do. Empty means the guard refused first. */
 const persisted: { conversationId: number; content: string }[] = [];
+/** The stand-in log's `last_ordinal`, one per conversation. */
+const ordinals = new Map<number, number>();
 const modelSaw: string[] = [];
 
 function token(): string {
@@ -192,9 +194,19 @@ beforeAll(async () => {
     jwtSecret: JWT_SECRET,
     now: () => NOW,
     chat: {
-      persist: async (input) => {
-        persisted.push(input);
-        await Promise.resolve();
+      // A stand-in log. `append` is what places an event, so the stand-in is
+      // what counts — the route no longer has an ordinal of its own to offer.
+      // Positions are dense and 1-based per conversation, exactly as
+      // `conversations.last_ordinal` makes them in the real service.
+      append: async (input) => {
+        persisted.push({ conversationId: input.conversationId, content: input.body ?? "" });
+        const ordinal = (ordinals.get(input.conversationId) ?? 0) + 1;
+        ordinals.set(input.conversationId, ordinal);
+        return await Promise.resolve({
+          ...input.event,
+          ordinal,
+          createdAt: NOW.toISOString(),
+        } as ConversationEvent);
       },
       askModel: async (request) => {
         modelSaw.push(request.message, ...request.history.map((h) => h.content));
@@ -222,7 +234,19 @@ describeIfDatabase("the ordinary message path, guarded", () => {
 
     expect(status).toBe(200);
     expect(body).toMatchObject({ status: "accepted" });
-    expect(persisted).toHaveLength(1);
+    // TWO appends: the student's message and the assistant's answer. Both are
+    // durable events now, and the client is told where BOTH went — the reply
+    // used to come back as a bare string the client had to place itself.
+    expect(persisted).toHaveLength(2);
+    expect(persisted.map((entry) => entry.content)).toEqual([
+      "What documents do I need?",
+      "ok",
+    ]);
+    // Dense, 1-based, and the server's: the response carries the positions, and
+    // nothing in the request proposed them.
+    expect(
+      (body as { events: { ordinal: number }[] }).events.map((event) => event.ordinal),
+    ).toEqual([1, 2]);
     expect(modelSaw.join(" ")).toContain("What documents do I need?");
   });
 
@@ -351,7 +375,8 @@ describeIfDatabase("the ordinary message path, guarded", () => {
     expect(await bindings.openRequestFor(CONVERSATION_ID, NOW)).toBeNull();
     const { status } = await send("now I can carry on talking");
     expect(status).toBe(200);
-    expect(persisted).toHaveLength(1);
+    // The student's message and the assistant's answer, both placed.
+    expect(persisted).toHaveLength(2);
 
     // Nothing consumed it. The row still says `secret_received`, and the
     // composer is free anyway — which is the whole point.

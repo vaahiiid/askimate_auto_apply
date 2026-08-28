@@ -29,6 +29,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { FormEvent, JSX } from "react";
 
+import { renderKey } from "@askimate/aas-conversation";
+
 import { SecureControl } from "./SecureControl.js";
 import type { SecureTurnState } from "./useSecureTurn.js";
 
@@ -132,11 +134,18 @@ export function ChatView(props: ChatViewProps): JSX.Element {
       </p>
 
       <div id="transcript" data-testid="transcript">
+        {/*
+          `renderKey`, not the position itself. A position is now either a
+          server ordinal or a client-local id, and the two share no number
+          space — the prefix is what stops durable ordinal 1 and a provisional
+          entry colliding on a key, which would make React reuse one item's DOM
+          node for the other.
+        */}
         {state.items.map((item) => {
           switch (item.render) {
             case "message":
               return (
-                <div key={item.position} className={`turn ${item.actor}`} data-testid="turn">
+                <div key={renderKey(item.position)} className={`turn ${item.actor}`} data-testid="turn">
                   {item.content}
                 </div>
               );
@@ -154,7 +163,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
               // decided it; this only compares ids.
               return state.openPrompt?.requestId === item.requestId ? (
                 <SecureControl
-                  key={item.position}
+                  key={renderKey(item.position)}
                   prompt={state.openPrompt}
                   conversationId={props.conversationId}
                   authToken={props.authToken}
@@ -165,14 +174,14 @@ export function ChatView(props: ChatViewProps): JSX.Element {
               ) : (
                 // One item, one thing rendered — the transcript still drops
                 // nothing. Content-free: the position and the fact, no more.
-                <div key={item.position} className="turn status" data-testid="secure-step-settled">
+                <div key={renderKey(item.position)} className="turn status" data-testid="secure-step-settled">
                   Secure password step.
                 </div>
               );
             case "secret_status":
               return (
                 <div
-                  key={item.position}
+                  key={renderKey(item.position)}
                   className="turn status"
                   data-lifecycle={item.lifecycle}
                   data-testid="status"
@@ -188,7 +197,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
               // turn is a field somebody eventually assembles from input.
               return (
                 <div
-                  key={item.position}
+                  key={renderKey(item.position)}
                   className="turn status"
                   data-rejected={item.reason}
                   data-testid="rejection"

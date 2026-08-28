@@ -24,10 +24,18 @@
  * than lifting the old code: the old shape had no field to make the rule with.
  */
 
-import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { UnpositionedEvent } from "./unpositioned.js";
 
-/** The request id of the open step, or null when the conversation is free. */
-export function openSecretRequest(events: readonly ConversationEvent[]): string | null {
+/**
+ * The request id of the open step, or null when the conversation is free.
+ *
+ * Takes UNPOSITIONED events on purpose. This decision reads `kind` and
+ * `requestId` and nothing else, so requiring an ordinal would have forced every
+ * caller holding a locally-drawn entry to invent one just to ask the question —
+ * which is exactly the invention `log.ts` exists to remove. A
+ * `ConversationEvent` is assignable here, so the server side is unchanged.
+ */
+export function openSecretRequest(events: readonly UnpositionedEvent[]): string | null {
   let open: string | null = null;
   for (const event of events) {
     switch (event.kind) {

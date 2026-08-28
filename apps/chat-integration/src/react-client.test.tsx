@@ -28,6 +28,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import type { SecretPrompt, SecretRequestId } from "@askimate/aas-secrets";
+import type { ConversationEvent } from "@askimate/aas-contracts";
 
 import { ChatView, DRAFT_KEY } from "./ChatView.js";
 import { parseIncomingTurn, useSecureTurn, type SecureTurnTransport } from "./useSecureTurn.js";
@@ -75,14 +76,47 @@ function mount(
   readonly cancelled: string[];
   readonly receive: (turn: unknown) => void;
   readonly turns: () => readonly unknown[];
+  /** Only what the server placed. Positions are legitimate to read from here. */
+  readonly durable: () => readonly ConversationEvent[];
+  /** Only what the client is drawing. Nothing here has a position. */
+  readonly drawn: () => readonly unknown[];
+  readonly send: (content: string) => Promise<unknown>;
 } {
   const sent: { conversationId: number; content: string }[] = [];
   const cancelled: string[] = [];
+  /** The stand-in server's `last_ordinal`, advanced two per accepted send. */
+  let sentOrdinal = 1;
 
   const transport: SecureTurnTransport = {
     send: async (input) => {
       sent.push({ ...input });
-      return await Promise.resolve({ ok: true, body: { status: "accepted", reply: "noted" } });
+      // A stand-in server that PLACES what it wrote. `reply: "noted"` was the
+      // old shape: a bare string the client had to find a position for, which
+      // is what it used to do with `previous.length + 1`.
+      const base = sentOrdinal;
+      sentOrdinal += 2;
+      return await Promise.resolve({
+        ok: true,
+        body: {
+          status: "accepted",
+          events: [
+            {
+              kind: "message",
+              ordinal: base,
+              createdAt: NOW.toISOString(),
+              actor: "student",
+              content: input.content,
+            },
+            {
+              kind: "message",
+              ordinal: base + 1,
+              createdAt: NOW.toISOString(),
+              actor: "assistant",
+              content: "noted",
+            },
+          ],
+        },
+      });
     },
     cancel: async (requestId) => {
       cancelled.push(requestId);
@@ -93,6 +127,9 @@ function mount(
 
   let receive: (turn: unknown) => void = () => undefined;
   let turns: readonly unknown[] = [];
+  let durable: readonly ConversationEvent[] = [];
+  let drawn: readonly unknown[] = [];
+  let send: (content: string) => Promise<unknown> = async () => Promise.resolve(undefined);
 
   function Harness(): React.JSX.Element {
     const state = useSecureTurn({
@@ -106,6 +143,9 @@ function mount(
       if (parsed !== null) state.receive(parsed);
     };
     turns = state.events;
+    durable = state.log.durable;
+    drawn = state.log.provisional.map((entry) => entry.event);
+    send = state.send;
     return <ChatView state={state} conversationId={CONVERSATION_ID} authToken="a-token" />;
   }
 
@@ -119,6 +159,15 @@ function mount(
       });
     },
     turns: () => turns,
+    durable: () => durable,
+    drawn: () => drawn,
+    send: async (content: string) => {
+      let outcome: unknown;
+      await act(async () => {
+        outcome = await send(content);
+      });
+      return outcome;
+    },
   };
 }
 
@@ -529,3 +578,161 @@ describe("parsing a turn off the wire", () => {
 // A named export so the file is not mistaken for dead weight if the suite is
 // filtered. `vi` is imported for parity with the sibling test file's style.
 export const REACT_CLIENT_TESTS_PRESENT = typeof vi === "object";
+
+// ───────────────────────────────────────────────────────────────────────────
+// Property 8: the client no longer places anything itself
+//
+// Vahid, 2026-08-28: *"The client no longer depends on `previous.length + 1`
+// for durable event identity."* `packages/conversation/src/log.test.ts` proves
+// the rule; these prove the REAL hook obeys it, through the real view.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("who places a durable event", () => {
+  it("adopts the server's ordinals for both events it wrote", async () => {
+    const client = mount();
+    await client.send("when does term start?");
+
+    // The stand-in server placed them at 1 and 2. A client computing its own
+    // would have produced the same two numbers here — which is exactly why the
+    // next test matters more than this one.
+    expect(client.durable().map((event) => event.ordinal)).toEqual([1, 2]);
+    expect(client.durable().map((event) => (event.kind === "message" ? event.content : null)))
+      .toEqual(["when does term start?", "noted"]);
+    // The echo is gone: one message on screen, not two.
+    expect(client.drawn()).toEqual([]);
+    expect(screen.getAllByTestId("turn")).toHaveLength(2);
+  });
+
+  it("takes the server's positions even when they are nothing like a count", async () => {
+    // The discriminating case. This conversation is being resumed: the log
+    // already holds hundreds of events, so the next message lands at 412, not
+    // at 1. `previous.length + 1` would have said 1 — a number that looks like
+    // a position, is not one, and would resume a stream from the beginning if
+    // it ever reached a `Last-Event-ID`.
+    const client = mount({
+      send: async () =>
+        await Promise.resolve({
+          ok: true,
+          body: {
+            status: "accepted",
+            events: [
+              {
+                kind: "message", ordinal: 412, createdAt: NOW.toISOString(),
+                actor: "student", content: "carrying on",
+              },
+            ],
+          },
+        }),
+    });
+    await client.send("carrying on");
+
+    expect(client.durable().map((event) => event.ordinal)).toEqual([412]);
+  });
+
+  it("gives a locally-drawn turn no ordinal at all", () => {
+    // A directive arrives the way the harness sends one: with no position,
+    // because the provisional transport has none to give. It is drawn, and it
+    // has no `ordinal` key — not one holding `undefined`, none.
+    const client = mount();
+    client.receive(DIRECTIVE);
+
+    expect(client.durable()).toEqual([]);
+    expect(client.drawn()).toHaveLength(1);
+    for (const entry of client.drawn()) {
+      expect(Object.keys(entry as object)).not.toContain("ordinal");
+      expect(Object.keys(entry as object)).not.toContain("createdAt");
+    }
+  });
+
+  it("admits a turn that DOES arrive placed, at the position it names", () => {
+    const client = mount();
+    client.receive({
+      kind: "message",
+      actor: "assistant",
+      content: "placed",
+      ordinal: 7,
+      createdAt: NOW.toISOString(),
+    });
+
+    expect(client.durable().map((event) => event.ordinal)).toEqual([7]);
+    expect(client.drawn()).toEqual([]);
+  });
+
+  it("draws — never places — a turn whose position is only half given", () => {
+    // An ordinal without a timestamp. Accepting it would leave the client to
+    // supply the missing half, and the obvious way to do that is `new Date()`:
+    // a browser clock stamped onto a durable event. `placed` carries both or
+    // neither precisely so that state cannot be reached.
+    const client = mount();
+    client.receive({ kind: "message", actor: "assistant", content: "half", ordinal: 7 });
+
+    expect(client.durable()).toEqual([]);
+    expect(client.drawn()).toHaveLength(1);
+  });
+
+  it("refuses an ordinal that could not have come out of the log", () => {
+    // Ordinals are dense and 1-based. `0` is not a position; nor is `-3`, nor
+    // `2.5`. Admitting one would order the transcript against something nothing
+    // agrees with — and, through `Last-Event-ID`, resume from a place that does
+    // not exist.
+    for (const ordinal of [0, -3, 2.5]) {
+      const client = mount();
+      client.receive({
+        kind: "message", actor: "assistant", content: "bogus",
+        ordinal, createdAt: NOW.toISOString(),
+      });
+      expect(client.durable(), `ordinal ${String(ordinal)}`).toEqual([]);
+      expect(client.drawn()).toHaveLength(1);
+      cleanup();
+    }
+  });
+
+  it("does not duplicate a durable event a reconnect re-delivers", () => {
+    // Property 6, through the real hook: the service backfills from
+    // `Last-Event-ID` and then subscribes, and the two can overlap by a frame.
+    const client = mount();
+    const frame = {
+      kind: "message", actor: "assistant", content: "once",
+      ordinal: 3, createdAt: NOW.toISOString(),
+    };
+    client.receive(frame);
+    client.receive(frame);
+
+    expect(client.durable()).toHaveLength(1);
+    expect(screen.getAllByTestId("turn")).toHaveLength(1);
+  });
+
+  it("keeps nothing on screen for a message the server refused", async () => {
+    // The echo is retired, because the message did not happen. What survives is
+    // the TEXT, and it survives in the composer's DOM value — which this hook
+    // has never read from or written to.
+    const client = mount({
+      send: async () =>
+        await Promise.resolve({
+          ok: false,
+          body: {
+            status: "refused",
+            reason: "secret_request_open",
+            requestId: "sr_00000000000000000000000000000001",
+            expiresAt: NOW.toISOString(),
+          },
+        }),
+    });
+    const outcome = await client.send("held back");
+
+    expect(outcome).toMatchObject({ outcome: "held" });
+    expect(client.durable()).toEqual([]);
+    expect(client.drawn()).toEqual([]);
+    expect(screen.queryAllByTestId("turn")).toHaveLength(0);
+  });
+
+  it("keeps nothing on screen when the send fails outright", async () => {
+    const client = mount({
+      send: async () => await Promise.resolve({ ok: false, body: null }),
+    });
+    const outcome = await client.send("never arrived");
+
+    expect(outcome).toMatchObject({ outcome: "failed" });
+    expect(client.turns()).toEqual([]);
+  });
+});

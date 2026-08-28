@@ -33,7 +33,7 @@ export { createChatApp, scrubParseErrorBody } from "./app.js";
 export type { ConversationEventStore, StoredSecureRecord } from "./conversation-events.js";
 export { DatabaseConversationEventStore, replayEvents } from "./conversation-events.js";
 
-export type { ChatRoutesOptions, ChatSendResponse } from "./chat-routes.js";
+export type { ChatRoutesOptions } from "./chat-routes.js";
 export { createChatRoutes } from "./chat-routes.js";
 
 export type { SecretBinding, SecretBindingStore } from "./bindings.js";
@@ -42,18 +42,34 @@ export { DatabaseSecretBindingStore } from "./bindings.js";
 // The decisions moved to @askimate/aas-conversation and the wire model to
 // @askimate/aas-contracts during the Phase-E extraction. Re-exported here so
 // this app's consumers keep one import site while it is retired.
-export type { ConversationEvent, RejectionReason } from "@askimate/aas-contracts";
+// `ChatSendResponse` is re-exported from the CONTRACT package, not from the
+// route module that used to declare it. See the note in `chat-routes.ts`.
+export type { ChatSendResponse, ConversationEvent, RejectionReason }
+  from "@askimate/aas-contracts";
 export { REJECTION_REASONS, parseConversationEvent, parseRejectionReason }
   from "@askimate/aas-contracts";
-export type { ClientCapabilities, ComposerPolicy, ModelRequest, RenderDecision, TranscriptItem }
-  from "@askimate/aas-conversation";
+export type {
+  ClientCapabilities,
+  ComposerPolicy,
+  ConversationLog,
+  ModelRequest,
+  Position,
+  RenderDecision,
+  TranscriptItem,
+  UnpositionedEvent,
+} from "@askimate/aas-conversation";
 export {
+  EMPTY_LOG,
+  admitDurable,
   buildModelRequest,
   composerPolicy,
   decideRendering,
   openSecretRequest,
+  openSecretRequestInLog,
   persistableContent,
+  projectLog,
   projectTranscript,
+  renderKey,
 } from "@askimate/aas-conversation";
 
 
