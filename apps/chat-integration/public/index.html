@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  PROVISIONAL TEST SURFACE — NOT A DESIGN, NOT AN AskiMate INTERFACE.
+
+  Vahid, 2026-08-28: "Keep the UI deliberately provisional and clearly marked
+  as such. Do not make unrelated visual, copy, or interaction redesign
+  decisions."
+
+  This page exists to drive the SECURITY ARCHITECTURE in a real browser: that
+  the secure request renders inline in the transcript, that its data never
+  touches the message pipeline, that cancellation and rejection move the
+  conversation through real lifecycle states, and that every failure path
+  fails closed without destroying what a student typed.
+
+  Deliberately plain: unstyled, unbranded, no layout work, no copy review.
+  The visual design, layout, interaction detail and wording are Vahid's to
+  decide, and none of them should be inferred from this file.
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AskiMate</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+    #transcript { border: 1px solid #cbd5e1; border-radius: .5rem; padding: 1rem; min-height: 8rem; }
+    .turn { margin: .5rem 0; }
+    .turn.user { text-align: right; color: #1e40af; }
+    .turn.status { color: #047857; font-size: .85rem; font-style: italic; }
+    #composer { display: flex; gap: .5rem; margin-top: 1rem; }
+    #chat-input { flex: 1; padding: .5rem; }
+    #chat-input:disabled { background: #f1f5f9; color: #94a3b8; }
+    #chat-send:disabled { opacity: .5; }
+    .hint { color: #64748b; font-size: .8rem; margin: .25rem 0 0; }
+    .secure-control { border: 2px solid #1e40af; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+    .error { color: #b91c1c; }
+    .provisional { background: #fef3c7; border: 1px solid #d97706; padding: .5rem;
+                   border-radius: .25rem; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/chat-client.js"></script>
+</body>
+</html>

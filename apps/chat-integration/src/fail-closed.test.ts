@@ -27,6 +27,9 @@
 import type { Server } from "node:http";
 import { join } from "node:path";
 
+import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
 import jwt from "jsonwebtoken";
@@ -41,6 +44,7 @@ import { DatabaseSecretBindingStore } from "./bindings.js";
 import { decideRendering, composerPolicy } from "./render-decision.js";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
+import { buildChatClient } from "./build-client.js";
 
 /** What the guarded chat route was asked to do. Empty means it refused first. */
 const chatPersisted: { conversationId: number; content: string }[] = [];
@@ -57,7 +61,7 @@ const JWT_SECRET = "test-jwt-secret-not-a-real-one";
  * a literal again.
  *
  * These tests drive a real browser, and the browser reads its own clock:
- * `secure-control.js` calls `decideRendering(prompt, capabilities, Date.now())`
+ * `browser-entry.tsx` calls `decideRendering(prompt, capabilities, new Date())`
  * because a page has no clock to inject. The server's clock, by contrast, IS
  * injected — every store and binding call below takes `NOW`.
  *
@@ -173,19 +177,43 @@ async function openRequest(
   };
 }
 
+/**
+ * Loads the React chat client.
+ *
+ * `addInitScript` rather than `evaluate` after `goto`: React reads the token and
+ * the conversation during its first render, so a value assigned afterwards
+ * arrives too late. It also survives the reload in the refresh test, which
+ * `evaluate` would not.
+ */
+/**
+ * What each page sent, kept per page.
+ *
+ * The shared `requests` array accumulates across every test in the file, and
+ * one of them — the stale-client test — legitimately transmits the marker to
+ * the chat route, because that is the whole point of a stale client. A
+ * "nothing was sent" assertion scanning the shared list therefore failed on
+ * traffic from a different test that was supposed to happen.
+ */
+const perPage = new Map<Page, { url: string; body: string }[]>();
+
 async function chatPage(id: number = userId): Promise<Page> {
   const page = await browser.newPage();
+  const mine: { url: string; body: string }[] = [];
+  perPage.set(page, mine);
   page.on("request", (request) => {
-    requests.push({ url: request.url(), body: request.postData() ?? "" });
+    const entry = { url: request.url(), body: request.postData() ?? "" };
+    requests.push(entry);
+    mine.push(entry);
   });
-  await page.goto(`${BASE}/chat.html`);
-  await page.evaluate(
+  await page.addInitScript(
     ([value, conversation]) => {
       (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
       (window as unknown as Record<string, unknown>)["__askimateConversationId"] = conversation;
     },
     [tokenFor(id), conversationId] as [string, number],
   );
+  await page.goto(`${BASE}/index.html`);
+  await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
   return page;
 }
 
@@ -198,13 +226,17 @@ async function deliver(
     endpointReachable: true,
   },
 ): Promise<void> {
+  // The capabilities belong to the CLIENT, not to the turn. The harness put
+  // them on the directive, which was always a fiction — a server cannot tell a
+  // browser what that browser is capable of. The React client reads its own,
+  // and a test overrides them on the page before delivering.
   await page.evaluate(
     ([sent, caps]) => {
+      (window as unknown as Record<string, unknown>)["__askimateCapabilities"] = caps;
       (window as unknown as { __askimateReceive: (turn: unknown) => void }).__askimateReceive({
         kind: "directive",
         directive: "request_secret",
         prompt: sent,
-        capabilities: caps,
       });
     },
     [prompt, capabilities] as [unknown, unknown],
@@ -234,23 +266,37 @@ async function deliver(
   }
 }
 
-/** The three assertions every failure path must satisfy. */
+/**
+ * The three assertions every failure path must satisfy.
+ *
+ * The middle one used to read `window.__askimateSent`, a list the harness
+ * appended to itself — so it proved what the page BELIEVED it had sent. It now
+ * reads what Playwright saw leave the browser, which is the actual property and
+ * cannot be satisfied by a page that forgets to record something.
+ */
 async function assertNoFallbackToChat(page: Page): Promise<void> {
   const turns = await page.evaluate(
     () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
   );
   expect(JSON.stringify(turns)).not.toContain(MARKER);
 
-  const sent = (await page.evaluate(
-    () => (window as unknown as Record<string, unknown>)["__askimateSent"] ?? [],
-  )) as unknown[];
-  expect(JSON.stringify(sent)).not.toContain(MARKER);
+  const toChat = (perPage.get(page) ?? []).filter((request) =>
+    request.url.includes("/api/askimate/ai"),
+  );
+  expect(JSON.stringify(toChat)).not.toContain(MARKER);
 
   // And the chat input itself is not holding it.
   expect(await page.locator("#chat-input").inputValue()).not.toContain(MARKER);
 }
 
+/** Static root: the built React client plus its page. */
+let clientDir: string;
+
 beforeAll(async () => {
+  clientDir = await mkdtemp(join(tmpdir(), "aas-client-fc-"));
+  await cp(join(import.meta.dirname, "..", "public", "index.html"), join(clientDir, "index.html"));
+  await buildChatClient(join(clientDir, "chat-client.js"));
+
   pool = await ownDatabase("aas_chat_fail_closed");
   db = drizzle(pool);
   await pool.query(SCHEMA_DDL);
@@ -278,7 +324,8 @@ beforeAll(async () => {
     bindings,
     jwtSecret: JWT_SECRET,
     now: () => NOW,
-    publicDir: join(import.meta.dirname, "..", "public"),
+    // The React client, built from the tree on every run. Never committed.
+    publicDir: clientDir,
     // Raised above the production value of 10 so nine failure scenarios can be
     // exercised in one file. `SUBMIT_LIMIT` is asserted separately.
     submitLimit: 200,
@@ -307,6 +354,7 @@ afterAll(async () => {
   await browser.close();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await pool.end();
+  await rm(clientDir, { recursive: true, force: true });
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -323,7 +371,7 @@ describeIfDatabase("when the secure control cannot be shown", () => {
       endpointReachable: true,
     });
 
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
+    expect(await page.locator('[data-testid="secure-control"]').isHidden()).toBe(true);
     expect(await page.locator("#refusal").getAttribute("data-reason")).toBe(
       "client_does_not_support_secure_control",
     );
@@ -416,14 +464,20 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     // A determined student types the password into the wrong box and submits.
     await page.locator("#chat-input").fill(MARKER);
     await page.evaluate(() => {
-      document.getElementById("composer")?.dispatchEvent(new Event("submit"));
+      // `bubbles: true` matters now. React attaches its listeners at the root
+      // container rather than on the form, so a non-bubbling submit event —
+      // which is what `new Event("submit")` is by default — never reaches the
+      // handler at all, and the test would "pass" having triggered nothing.
+      document
+        .getElementById("composer")
+        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
-    // PREVENTION: no bytes left the browser.
-    const sent = (await page.evaluate(
-      () => (window as unknown as Record<string, unknown>)["__askimateSent"] ?? [],
-    )) as unknown[];
-    expect(JSON.stringify(sent)).not.toContain(MARKER);
+    // PREVENTION: no bytes left the browser. Read from Playwright's record of
+    // real network traffic rather than from a list the page kept about itself.
+    expect(
+      JSON.stringify((perPage.get(page) ?? []).filter((r) => r.url.includes("/api/askimate/ai"))),
+    ).not.toContain(MARKER);
 
     // And nothing was destroyed: the draft is exactly where they left it.
     expect(await page.locator("#chat-input").inputValue()).toBe(MARKER);
@@ -440,20 +494,19 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     await deliver(page, prompt);
 
     await page.locator("#chat-input").fill(MARKER);
-    await page.locator("#secure-password").fill("a-different-real-password");
-    await page.locator("#secure-confirmation").fill("a-different-real-password");
-    await page.locator("#secure-submit").click();
-    await page.locator("#secure-control").waitFor({ state: "hidden" });
+    await page.locator('[data-testid="secure-password"]').fill("a-different-real-password");
+    await page.locator('[data-testid="secure-confirmation"]').fill("a-different-real-password");
+    await page.locator('[data-testid="secure-submit"]').click();
+    await page.locator('[data-testid="secure-control"]').waitFor({ state: "hidden" });
 
     // The composer is live again…
     expect(await page.locator("#chat-send").isDisabled()).toBe(false);
     // …the draft survived…
     expect(await page.locator("#chat-input").inputValue()).toBe(MARKER);
     // …and nothing was sent on its own.
-    const sent = (await page.evaluate(
-      () => (window as unknown as Record<string, unknown>)["__askimateSent"] ?? [],
-    )) as unknown[];
-    expect(JSON.stringify(sent)).not.toContain(MARKER);
+    expect(
+      JSON.stringify((perPage.get(page) ?? []).filter((r) => r.url.includes("/api/askimate/ai"))),
+    ).not.toContain(MARKER);
     await page.close();
   }, 60_000);
 
@@ -479,19 +532,26 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     // without ordering the client would be handed a superseded requestId and
     // would render a card bound to the wrong request.
     await page.locator("#chat-input").fill(MARKER);
-    await page.evaluate(() => {
-      document.getElementById("composer")?.dispatchEvent(new Event("submit"));
-    });
-    await page.waitForFunction(
-      () => (window as unknown as Record<string, unknown>)["__askimateChatRefusal"] !== undefined,
-      undefined,
+    // The response itself, not a global the page wrote about it. `__askimateChatRefusal`
+    // was the harness's own note-to-self; this is the wire.
+    const refused = page.waitForResponse(
+      (response) => response.url().includes("/api/askimate/ai"),
       { timeout: 10_000 },
     );
+    await page.evaluate(() => {
+      // `bubbles: true` matters now. React attaches its listeners at the root
+      // container rather than on the form, so a non-bubbling submit event —
+      // which is what `new Event("submit")` is by default — never reaches the
+      // handler at all, and the test would "pass" having triggered nothing.
+      document
+        .getElementById("composer")
+        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    const response = await refused;
 
     // The server refused.
-    const refusal = (await page.evaluate(
-      () => (window as unknown as Record<string, unknown>)["__askimateChatRefusal"],
-    )) as { reason?: string; requestId?: string };
+    expect(response.status()).toBe(409);
+    const refusal = (await response.json()) as { reason?: string; requestId?: string };
     expect(refusal.reason).toBe("secret_request_open");
     expect(refusal.requestId).toBe(requestId);
 
@@ -525,11 +585,14 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     expect(
       await page.evaluate(() => window.localStorage.getItem("askimate.draft")),
     ).toBeNull();
+    // And typing into the composer writes nothing while the card is open. The
+    // harness exposed a `__askimateDraftPersistence` flag; this asserts the
+    // behaviour the flag was standing in for, which a flag set to the right
+    // word by a client that still wrote would not.
+    await page.locator("#chat-input").fill("typed while the card was open");
     expect(
-      await page.evaluate(
-        () => (window as unknown as Record<string, unknown>)["__askimateDraftPersistence"],
-      ),
-    ).toBe("suspended");
+      await page.evaluate(() => window.localStorage.getItem("askimate.draft")),
+    ).toBeNull();
     await page.close();
   }, 60_000);
 });
@@ -564,42 +627,64 @@ describeIfDatabase("when the submission fails", () => {
     const { prompt } = await openRequest();
     const page = await chatPage();
     await deliver(page, prompt);
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(`${MARKER}-typo`);
-    await page.locator("#secure-submit").click();
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(`${MARKER}-typo`);
+    await page.locator('[data-testid="secure-submit"]').click();
 
-    await page.locator("#secure-error").waitFor({ state: "visible" });
-    expect(await page.locator("#secure-error").textContent()).toContain("did not match");
+    await page.locator('[data-testid="secure-error"]').waitFor({ state: "visible" });
+    expect(await page.locator('[data-testid="secure-error"]').textContent()).toContain("did not match");
     // Open, so they can retry — but empty, so a screenshot or a shoulder does
     // not show the first attempt.
-    expect(await page.locator("#secure-control").isHidden()).toBe(false);
-    expect(await page.locator("#secure-password").inputValue()).toBe("");
-    expect(await page.locator("#secure-confirmation").inputValue()).toBe("");
+    expect(await page.locator('[data-testid="secure-control"]').isHidden()).toBe(false);
+    expect(await page.locator('[data-testid="secure-password"]').inputValue()).toBe("");
+    expect(await page.locator('[data-testid="secure-confirmation"]').inputValue()).toBe("");
     await assertNoFallbackToChat(page);
     await page.close();
   }, 60_000);
 
-  it("closes and warns when the connection is interrupted mid-submission", async () => {
+  it("warns, keeps the box, and stays guarded when the connection is interrupted", async () => {
+    // ── This expectation CHANGED in Phase D, deliberately ────────────────
+    //
+    // It used to assert the box CLOSED here. That was the harness's behaviour
+    // and it was wrong: a submission that never reached the server leaves the
+    // request at `secret_requested`, so closing the card released the client's
+    // composer while the server still had the request open — and every
+    // subsequent message came back 409 with no box on screen to explain why.
+    //
+    // Vahid, 2026-08-28: *"a rejection must remain a rejection turn and must
+    // not close an open request."* So the card stays, the student can retry
+    // when the connection returns, and the two ends agree.
     const { prompt } = await openRequest();
     const page = await chatPage();
     // Kill the request in flight — a dropped connection, a proxy timeout, a
     // tunnel closing. The page must not decide to "try the other way".
     await page.route("**/api/askimate/secret/**", (route) => route.abort("connectionreset"));
     await deliver(page, prompt);
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(MARKER);
-    await page.locator("#secure-submit").click();
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(MARKER);
+    await page.locator('[data-testid="secure-submit"]').click();
 
-    await page.waitForFunction(
-      () => (window as unknown as Record<string, unknown>)["__askimateStatus"] !== undefined,
+    await page.locator("#transcript [data-rejected]").first().waitFor({ timeout: 10_000 });
+    expect(
+      await page.locator("#transcript [data-rejected]").first().getAttribute("data-rejected"),
+    ).toBe("endpoint_unreachable");
+    // The box is still there, and empty — the student may try again.
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(1);
+    expect(await page.locator('[data-testid="secure-password"]').inputValue()).toBe("");
+    expect(await page.locator('[data-testid="secure-error"]').textContent()).toContain(
+      "Do not type it into the chat",
     );
-    expect(await page.locator("#refusal").getAttribute("data-reason")).toBe("endpoint_unreachable");
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
+    // And the composer is still guarded, because the request is still open.
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
     await assertNoFallbackToChat(page);
     await page.close();
   }, 60_000);
 
-  it("closes the box when the endpoint returns an error", async () => {
+  it("keeps the box and narrows an unrecognised reason when the endpoint errors", async () => {
+    // Also changed in Phase D: the box no longer closes. `server_error` is not
+    // a member of `SecretRejectionReason`, so the client narrows it — and
+    // because the response DID name something, it is narrowed to "this client
+    // is older than that server" rather than to "unreachable".
     const { prompt } = await openRequest();
     const page = await chatPage();
     await page.route("**/api/askimate/secret/**", (route) =>
@@ -610,15 +695,23 @@ describeIfDatabase("when the submission fails", () => {
       }),
     );
     await deliver(page, prompt);
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(MARKER);
-    await page.locator("#secure-submit").click();
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(MARKER);
+    await page.locator('[data-testid="secure-submit"]').click();
 
-    await page.waitForFunction(
-      () => (window as unknown as Record<string, unknown>)["__askimateStatus"] !== undefined,
+    await page.locator("#transcript [data-rejected]").first().waitFor({ timeout: 10_000 });
+    expect(
+      await page.locator("#transcript [data-rejected]").first().getAttribute("data-rejected"),
+    ).toBe("client_does_not_support_secure_control");
+    // `server_error` never reached the turn list, and so can never reach the
+    // model: the closed set is closed at the parse, not at the render.
+    const turns = await page.evaluate(
+      () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
     );
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
-    expect(await page.locator("#secure-error").textContent()).toContain(
+    expect(JSON.stringify(turns)).not.toContain("server_error");
+
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(1);
+    expect(await page.locator('[data-testid="secure-error"]').textContent()).toContain(
       "Do not type it into the chat",
     );
     await assertNoFallbackToChat(page);
@@ -635,12 +728,17 @@ describeIfDatabase("when the request is no longer live", () => {
     const { requestId, prompt } = await openRequest();
     const page = await chatPage();
     await deliver(page, prompt);
-    await page.locator("#secure-password").fill(MARKER);
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
 
     // Refresh mid-password. The DOM is gone; the binding is in the database.
     await page.reload();
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
-    expect(await page.locator("#secure-password").inputValue()).toBe("");
+    await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
+    // Stronger than the harness could assert: the harness kept a hidden field
+    // in the page and checked it was empty. React unmounts, so there is no
+    // password field in the document at all for anything to have survived in.
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="secure-password"]').count()).toBe(0);
+    expect(await page.content()).not.toContain(MARKER);
 
     // The server still knows what was asked, and says so without saying
     // anything about what was typed.
@@ -867,6 +965,139 @@ describeIfDatabase("a handle belongs to one student, one conversation, one case"
 // and takes `afterAll` down with it on an undefined `browser`. That is exactly
 // what my first version of this block did, and it broke the default `pnpm run
 // test` path for anyone without a database running.
+/**
+ * Expires every request still open on the conversation.
+ *
+ * Most tests in this file deliberately leave one behind — that is what they are
+ * testing. The two below assert that the conversation becomes FREE, which no
+ * amount of correct behaviour can achieve while a previous test's request is
+ * still open on the same row set. Without this both failed on leftovers rather
+ * than on the property, which is a test failing for the wrong reason.
+ */
+async function closeAnyOpenRequests(): Promise<void> {
+  await pool.query(
+    `UPDATE askimate_secret_requests SET lifecycle = 'secret_expired'
+     WHERE conversation_id = $1 AND lifecycle <> 'secret_expired'`,
+    [conversationId],
+  );
+}
+
+describeIfDatabase("client and server agree about when the conversation is free", () => {
+  it("lets the student send a real message the moment the password is accepted", async () => {
+    // ── The F1 divergence, from the student's side ───────────────────────
+    //
+    // Two separate things had to be true and were not: the SERVER had to stop
+    // counting `secret_received` as open (it counted it until the TTL, because
+    // nothing ever wrote `secret_consumed`), and the CLIENT had to release the
+    // composer on the status turn (it did). The result was a live Send button
+    // and a 409 on every press.
+    //
+    // This asserts the pair, through a real browser and the real guarded route.
+    chatPersisted.length = 0;
+    await closeAnyOpenRequests();
+    const { prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    await page.locator('[data-testid="secure-password"]').fill("a-real-password");
+    await page.locator('[data-testid="secure-confirmation"]').fill("a-real-password");
+    await page.locator('[data-testid="secure-submit"]').click();
+    await page.locator('[data-testid="status"]').waitFor({ timeout: 10_000 });
+
+    expect(await page.locator("#chat-send").isDisabled()).toBe(false);
+
+    await page.locator("#chat-input").fill("thanks — what happens next?");
+    await page.locator("#chat-send").click();
+
+    // Accepted by the server, and the composer cleared on the acknowledgement.
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 10_000 })
+      .toBe("");
+    expect(chatPersisted.map((entry) => entry.content)).toContain(
+      "thanks — what happens next?",
+    );
+    await page.close();
+  }, 60_000);
+
+  it("frees both ends when the student abandons the step", async () => {
+    // Cancellation, through the real DELETE endpoint rather than a client-side
+    // decision to stop showing the card. Before Phase D nothing called it: the
+    // route existed with no consumer, and a student who changed their mind was
+    // send-blocked for the whole five-minute TTL with no way to say so.
+    chatPersisted.length = 0;
+    await closeAnyOpenRequests();
+    const { requestId, prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    // A draft the student had already written. It must survive the cancel.
+    await page.locator("#chat-input").fill("meanwhile, about my deadline");
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+
+    const deleted = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/api/askimate/secret/${requestId}`) &&
+        response.request().method() === "DELETE",
+      { timeout: 10_000 },
+    );
+    await page.locator('[data-testid="secure-cancel"]').click();
+    expect((await deleted).status()).toBe(200);
+
+    // Closed through a LIFECYCLE transition — the only closure the transcript
+    // accepts — and the card is gone.
+    await page.locator('[data-testid="status"]').waitFor({ timeout: 10_000 });
+    expect(
+      await page.locator('[data-testid="status"]').first().getAttribute("data-lifecycle"),
+    ).toBe("secret_expired");
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(0);
+
+    // The server agrees: the row is terminal and an ordinary message goes
+    // through. And the draft is exactly where it was left.
+    expect(await bindings.openRequestFor(conversationId, NOW)).toBeNull();
+    expect(await page.locator("#chat-input").inputValue()).toBe("meanwhile, about my deadline");
+    await page.locator("#chat-send").click();
+    await expect
+      .poll(() => chatPersisted.map((entry) => entry.content), { timeout: 10_000 })
+      .toContain("meanwhile, about my deadline");
+    await page.close();
+  }, 60_000);
+});
+
+describeIfDatabase("what ships to the browser", () => {
+  it("contains no secret store, and no way to reach one", async () => {
+    // ── Found by the build, kept by this test ────────────────────────────
+    //
+    // `useSecureTurn.ts` briefly imported `SECRET_LIFECYCLE` as a VALUE from
+    // `@askimate/aas-secrets`, whose entry point re-exports `store.ts`. esbuild
+    // refused — `Could not resolve "node:crypto"` — which was the bundler
+    // noticing that a value import of one constant drags `InMemorySecretStore`,
+    // the object that actually holds plaintext, toward the browser.
+    //
+    // A future import could pull it in through a dependency that DOES resolve
+    // in a browser, and then nothing would fail. So the property is asserted
+    // against the built artefact rather than left to the bundler's luck.
+    const bundle = await readFile(join(clientDir, "chat-client.js"), "utf8");
+
+    for (const forbidden of [
+      "InMemorySecretStore",
+      "liveSecretCount",
+      "node:crypto",
+      // The store's own submit/consume vocabulary. Present in the bundle would
+      // mean the secret lifecycle machinery had been shipped, not just its
+      // four words.
+      "confirmNoDiagnosticCapture",
+    ]) {
+      expect(bundle, `the browser bundle must not contain ${forbidden}`).not.toContain(forbidden);
+    }
+
+    // And it is a real bundle, not an empty file that trivially contains none
+    // of the above.
+    expect(bundle.length).toBeGreaterThan(50_000);
+    expect(bundle).toContain("secure-control");
+    expect(bundle).toContain("secret_requested");
+  }, 60_000);
+});
+
 describeIfDatabase("the secure control is inline in the conversation", () => {
   it("is a descendant of the transcript, not a panel beside it", async () => {
     const { prompt } = await openRequest();
@@ -874,7 +1105,9 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
     await deliver(page, prompt);
 
     const inside = await page.evaluate(() =>
-      document.getElementById("transcript")?.contains(document.getElementById("secure-control")),
+      document
+        .getElementById("transcript")
+        ?.contains(document.querySelector('[data-testid="secure-control"]')),
     );
     expect(inside).toBe(true);
     await page.close();
@@ -898,7 +1131,7 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
     // be exactly the detached panel this change removes.
     const order = await page.evaluate(() => {
       const transcript = document.getElementById("transcript");
-      const card = document.getElementById("secure-control");
+      const card = document.querySelector('[data-testid="secure-control"]');
       if (!transcript || !card) return null;
       return Array.from(transcript.children).indexOf(card);
     });
@@ -915,17 +1148,22 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
     // the password input's nearest form were the composer's, a stray Enter
     // would post a password through the message pipeline.
     const separation = await page.evaluate(() => {
-      const password = document.getElementById("secure-password");
+      const password = document.querySelector('[data-testid="secure-password"]');
       const chatInput = document.getElementById("chat-input");
+      const passwordForm = password?.closest("form") ?? null;
+      const chatForm = chatInput?.closest("form") ?? null;
       return {
-        passwordForm: password?.closest("form")?.id ?? null,
-        chatForm: chatInput?.closest("form")?.id ?? null,
+        passwordForm: passwordForm?.getAttribute("data-testid") ?? null,
+        chatForm: chatForm?.getAttribute("data-testid") ?? null,
+        // Compared by IDENTITY, not by id. Two forms could share an id by
+        // accident; they cannot be the same element by accident.
+        sameElement: passwordForm !== null && passwordForm === chatForm,
         passwordHasName: password?.hasAttribute("name") ?? true,
       };
     });
     expect(separation.passwordForm).toBe("secure-form");
     expect(separation.chatForm).toBe("composer");
-    expect(separation.passwordForm).not.toBe(separation.chatForm);
+    expect(separation.sameElement).toBe(false);
     // No `name` means no submit path anywhere could pick the field up.
     expect(separation.passwordHasName).toBe(false);
     await page.close();
@@ -935,7 +1173,7 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
     const { prompt } = await openRequest();
     const page = await chatPage();
     await deliver(page, prompt);
-    await page.locator("#secure-password").fill("half-typed-so-far");
+    await page.locator('[data-testid="secure-password"]').fill("half-typed-so-far");
 
     // The hazard the append-only renderer exists to remove: the previous
     // implementation began every render with `innerHTML = ""`, so any turn
@@ -949,8 +1187,8 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
       });
     });
 
-    expect(await page.locator("#secure-password").inputValue()).toBe("half-typed-so-far");
-    expect(await page.locator("#secure-control").isHidden()).toBe(false);
+    expect(await page.locator('[data-testid="secure-password"]').inputValue()).toBe("half-typed-so-far");
+    expect(await page.locator('[data-testid="secure-control"]').isHidden()).toBe(false);
     await page.close();
   }, 60_000);
 
@@ -1001,14 +1239,12 @@ describeIfDatabase("a refused attempt keeps the conversation going", () => {
     });
     expect(first.status).toBe(200);
 
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(MARKER);
-    await page.locator("#secure-submit").click();
-    await page.waitForFunction(
-      () => (window as unknown as Record<string, unknown>)["__askimateStatus"] !== undefined,
-      undefined,
-      { timeout: 10_000 },
-    );
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(MARKER);
+    await page.locator('[data-testid="secure-submit"]').click();
+    // The rejection turn itself is the signal — a real, rendered consequence
+    // rather than a debug variable the page set for the test's benefit.
+    await page.locator("#transcript [data-rejected]").first().waitFor({ timeout: 10_000 });
 
     const turns = (await page.evaluate(
       () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
@@ -1022,7 +1258,7 @@ describeIfDatabase("a refused attempt keeps the conversation going", () => {
     await page.close();
   }, 60_000);
 
-  it("shows the refusal IN the conversation, and closes a non-retryable box", async () => {
+  it("shows the refusal IN the conversation, and leaves the request open", async () => {
     const { requestId, prompt } = await openRequest();
     const page = await chatPage();
     await deliver(page, prompt);
@@ -1033,9 +1269,9 @@ describeIfDatabase("a refused attempt keeps the conversation going", () => {
       body: JSON.stringify({ password: "spent", confirmation: "spent", conversationId }),
     });
 
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(MARKER);
-    await page.locator("#secure-submit").click();
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(MARKER);
+    await page.locator('[data-testid="secure-submit"]').click();
     await page.locator("#transcript [data-rejected]").first().waitFor({ timeout: 10_000 });
 
     const note = page.locator("#transcript [data-rejected]");
@@ -1043,9 +1279,17 @@ describeIfDatabase("a refused attempt keeps the conversation going", () => {
     expect(await note.getAttribute("data-rejected")).toBe("already_submitted");
     expect(await note.textContent()).not.toContain(MARKER);
 
-    // Not retryable: the box closes and the inputs are empty.
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
-    expect(await page.locator("#secure-password").inputValue()).toBe("");
+    // ── Also changed in Phase D ──────────────────────────────────────────
+    //
+    // This used to assert the box closed. `already_submitted` leaves the row at
+    // `secret_requested` on the server (see secret-routes.ts — the failure path
+    // records `secret_requested`, not a terminal state), so closing here
+    // released the composer against a request the server still considered open.
+    // The box stays, the inputs are empty, and the model has been told — which
+    // is what lets the run open a fresh request rather than stall.
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(1);
+    expect(await page.locator('[data-testid="secure-password"]').inputValue()).toBe("");
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
     await page.close();
   }, 60_000);
 });
@@ -1057,7 +1301,7 @@ describeIfDatabase("a refresh restores the step, and nothing that was typed", ()
     await deliver(page, prompt);
 
     // Half-typed password, and a composer draft.
-    await page.locator("#secure-password").fill(MARKER);
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
     await page.locator("#chat-input").fill("a question I was writing");
 
     await page.reload();
@@ -1082,7 +1326,7 @@ describeIfDatabase("a refresh restores the step, and nothing that was typed", ()
 
     // The page recovered nothing: not the password, not the draft.
     await deliver(page, prompt);
-    expect(await page.locator("#secure-password").inputValue()).toBe("");
+    expect(await page.locator('[data-testid="secure-password"]').inputValue()).toBe("");
     expect(await page.locator("#chat-input").inputValue()).toBe("");
     await page.close();
   }, 60_000);

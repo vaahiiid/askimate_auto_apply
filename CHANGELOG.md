@@ -19,6 +19,140 @@ not shipped artefacts.
 
 ---
 
+## [0.11.0] — 2026-08-28
+
+**Phase D: one client, and it is the React one — plus the client/server divergence that had been
+trapping every student who successfully set a password.**
+
+**Version bump: MINOR.** New capability (the integrated React client), additive. One security
+boundary was deliberately NARROWED and one client behaviour deliberately CHANGED; both are
+described below, and neither weakens a property — they remove disagreements between two halves of
+the system that each believed the other agreed with it.
+
+### Fixed — the two divergences
+
+- **A successful secure step no longer traps the student.** `openRequestFor` counted a row as open
+  while its lifecycle was `secret_requested` **or** `secret_received`, released only by
+  `secret_consumed` or `secret_expired`. Nothing in this application ever writes `secret_consumed`
+  — `store.use()` moves the in-memory entry, not the database row, because the consumer is the
+  orchestrator and it does not reach this table. So the only thing that ever released the guard was
+  the five-minute TTL, while the client released its composer immediately on the status turn. A
+  student who successfully set a password saw a live Send button and collected `409
+  secret_request_open` on every message until the request lapsed. "Open" is now exactly
+  `secret_requested`, unexpired — the state in which a password box is on screen, which is the only
+  state in which an ordinary message risks being a password in the wrong field.
+
+  Why no test caught it: the release path was only ever exercised through `secret_expired`, and the
+  browser lifecycle test asserted the Send button was enabled without ever pressing it against the
+  guarded route. Two correct halves, and nothing standing on the seam. There are now three tests on
+  that seam, one of which asserts the row is *still* `secret_received` when the message goes
+  through — so a fix that worked by writing a consumption record would not satisfy it.
+
+- **A rejection no longer closes an open request (F3).** The vanilla harness closed the card for
+  every rejection except `confirmation_mismatch`, which released the composer while the server still
+  held the request at `secret_requested` — the exact divergence the fail-closed guard exists to
+  catch. `openSecureRequest` had always said a rejection closes nothing; the client had simply not
+  been asking it. Three browser tests that encoded the old behaviour were rewritten, and say so in
+  place.
+
+### Added
+
+- **`useSecureTurn.ts`** — the headless container. Owns the turn list and the three lifecycle
+  network calls, and **decides nothing itself**: rendering goes to `decideRendering`, ordering to
+  `projectTranscript`, openness to `openSecureRequest`, the composer to `composerPolicy`. The
+  harness had hand-copied all four into browser JavaScript, and one of the copies had drifted.
+- **`ChatView.tsx`** — the provisional React surface. Composer is **uncontrolled**, for the same
+  reason the password field is: a student who mistypes a password into the ordinary box has made a
+  mistake, and a controlled input turns that mistake into React state an error boundary can
+  serialise. Not a UI/UX proposal; banner-marked in the page.
+- **`browser-entry.tsx`, `public/index.html`, `build-client.ts`** — the mount, the page, and an
+  esbuild bundle built from the tree on every test run. The bundle is never committed: a checked-in
+  build is a second copy of the client, which is what this release removes.
+- **Cancellation actually cancels.** `DELETE /api/askimate/secret/:requestId` shipped in 0.10.0 with
+  **no client at all**; `SecureControl`'s `onCancelled` cleared the inputs and told nobody. It now
+  issues the delete and, only on a confirmed 200, appends a `secret_status · secret_expired` turn —
+  a real lifecycle transition, the only closure `openSecureRequest` accepts. A failed delete appends
+  a rejection instead, which by design leaves the request open, because it *is* still open.
+- **`SECRET_REJECTION_REASONS`** — the closed set is now a runtime array with the union **derived
+  from it**, so the two cannot drift; plus `parseRejectionReason`, through which every reason off
+  the wire is narrowed before it can reach a turn, the transcript, or the model.
+- **`SECRET_LIFECYCLE_WORDS`** — the client's own copy of the four lifecycle words, with a
+  compile-time assertion in both directions against `SecretLifecycle`. Not an import, deliberately:
+  see the bundle note below.
+- **A boundary rule over every client `.tsx`**, not one hardcoded path. Exactly one file may render
+  `<input type="password">`, and no file may bind a password-ish name in `useState`/`useReducer`. A
+  parent holding the secret in state is as fatal as the control doing it, and was unenforced.
+- **A test on the built browser bundle.** It must contain no `InMemorySecretStore`, no
+  `node:crypto`, and no consumption vocabulary — and must be a real bundle, so an empty file cannot
+  pass by containing none of them.
+
+### Changed
+
+- **`onRejected` is `(reason: SecretRejectionReason) => void`**, not `(reason: string)`. It feeds a
+  turn whose `reason` is the closed union, so a `string` meant the narrowing happened elsewhere, or
+  nowhere. An unrecognised reason is now narrowed by *how* it failed: a response that named
+  something unknown is a newer server (`client_does_not_support_secure_control`); a response that
+  named nothing usable — a 500, a proxy page, an unparseable body — is
+  `endpoint_unreachable`.
+- **Capabilities are read from the client, at the moment a directive arrives** — a function, like
+  `now`, rather than a value fixed at mount. The harness carried them on the directive turn, which
+  was always a fiction: a server cannot tell a browser what that browser can do.
+- **The browser suites now drive the React client** and read real signals instead of debug globals:
+  Playwright's record of network traffic replaced `window.__askimateSent` (which proved only what
+  the page *believed* it had sent), the 409 response itself replaced `__askimateChatRefusal`, and
+  the rendered rejection replaced `__askimateStatus`.
+
+### Removed
+
+- **`public/chat.html` and `public/secure-control.js` — the vanilla harness, retired.** Kept until
+  the React path had full browser-level coverage, then deleted. Two clients implementing the same
+  security rules is how F3 happened.
+
+### Fixed — found on the way
+
+- **A flaky assertion in `packages/secrets/src/adversarial.test.ts`.** The clean baseline for this
+  phase came up red: `expected 'sh_27c123ffea…' not to contain '123'`. A handle is 32 hex
+  characters, and "123" occurs in one somewhere in **0.70%** of draws (measured over 200 000
+  samples), so the assertion failed about one run in a hundred and forty on entirely correct code.
+  It was also proving nothing — a handle derived by hashing the password would contain "123" no more
+  often than a random one — so it was replaced by the property it was groping at: derivation is a
+  *function*, so fifty draws for the same password must give fifty distinct handles, and the handle's
+  shape must not vary with the password's length.
+- **`chat.html`'s composer comment (F9)** claimed the composer was disabled while a password box was
+  open and pointed at `chatInputEnabled`, deleted in Phase B. Corrected, then removed with the file.
+- **A React state update that was not being flushed.** `react-client.test.tsx` imported `act` from
+  React rather than from Testing Library, leaving `IS_REACT_ACT_ENVIRONMENT` unset; every delivery
+  printed a warning and the wrapper was doing nothing. The assertions passed anyway, because
+  `fireEvent` flushed them a moment later — a green test whose synchronisation is inert.
+
+### Verification
+
+| Deliberate regression | Caught by |
+| --- | --- |
+| `secret_received` counts as open again | ✅ quarantine |
+| The guard matches nothing that is open | ✅ quarantine |
+| A rejection closes the request | ✅ react-client + fail-closed |
+| The server's reason passes through unnarrowed | ✅ fail-closed |
+| The secure control becomes controlled | ✅ build rule |
+| A parent holds the password in React state | ✅ build rule |
+| A second password input appears in the view | ✅ build rule |
+| The composer clears optimistically on send | ✅ react-client + fail-closed |
+| Drafts keep reaching storage while a request is open | ✅ react-client + fail-closed |
+| The secret store is imported into the client | ✅ fail-closed (bundle) |
+| Cancel closes the card without the DELETE | ✅ react-client + fail-closed |
+| A settled request still renders a live card | ✅ react-client + end-to-end |
+| A refused directive still draws a card | ✅ react-client + fail-closed |
+| Any string is accepted as a lifecycle word | ✅ react-client |
+| A refused message is appended to history anyway | ✅ react-client |
+
+### Still out of scope, deliberately
+
+No request producer, no directive delivery route, and no conversation-event read/write routes.
+`replayEvents` still has no caller in application code. Those are Phase E, and Phase E is blocked on
+access to the production AskiMate client — a fact about access, not about the design.
+
+---
+
 ## [0.10.0] — 2026-08-28
 
 **Phase C: a refused attempt no longer stalls the conversation, and a refresh no longer leaves a

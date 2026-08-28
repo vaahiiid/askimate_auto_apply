@@ -316,6 +316,68 @@ describeIfDatabase("the ordinary message path, guarded", () => {
     expect(status).toBe(200);
   });
 
+  it("releases the composer once the secret is RECEIVED, without any consumption write", async () => {
+    // ── The F1 fix, asserted end to end through the route ────────────────
+    //
+    // Vahid, 2026-08-28: *"`secret_received` must not count as an open request
+    // for the server-side composer guard."*
+    //
+    // `openRequestFor` used to match `secret_requested` OR `secret_received`,
+    // released only by `secret_consumed` or `secret_expired`. Nothing in this
+    // application ever writes `secret_consumed` — `store.use()` moves the
+    // in-memory entry, not the row — so a student who successfully set a
+    // password collected a 409 on every message for the rest of the TTL while
+    // their client showed a live Send button.
+    //
+    // The assertion that matters is the last one: the row is still
+    // `secret_received` when the message goes through. Releasing only after a
+    // consumption write would pass a test that first wrote one, and would still
+    // trap every real student.
+    persisted.length = 0;
+    const requestId = await openSecretRequest();
+    expect((await send("blocked while the box is open")).status).toBe(409);
+
+    const submitted = await fetch(`${BASE}/api/askimate/secret/${requestId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+      body: JSON.stringify({
+        password: "a-real-password",
+        confirmation: "a-real-password",
+        conversationId: CONVERSATION_ID,
+      }),
+    });
+    expect(submitted.status).toBe(200);
+
+    expect(await bindings.openRequestFor(CONVERSATION_ID, NOW)).toBeNull();
+    const { status } = await send("now I can carry on talking");
+    expect(status).toBe(200);
+    expect(persisted).toHaveLength(1);
+
+    // Nothing consumed it. The row still says `secret_received`, and the
+    // composer is free anyway — which is the whole point.
+    const row = await pool.query<{ lifecycle: string }>(
+      "SELECT lifecycle FROM askimate_secret_requests WHERE request_id = $1",
+      [requestId],
+    );
+    expect(row.rows[0]?.lifecycle).toBe("secret_received");
+
+    store.discard(requestId);
+    await bindings.record(requestId, { lifecycle: "secret_expired" });
+  });
+
+  it("still refuses while the request is merely REQUESTED, which is the state that matters", async () => {
+    // The other half of the same change: narrowing "open" to `secret_requested`
+    // must not have narrowed it to nothing. A test that only proved release
+    // would pass against a guard that had been deleted.
+    const requestId = await openSecretRequest();
+    const before = await bindings.openRequestFor(CONVERSATION_ID, NOW);
+    expect(before?.requestId).toBe(requestId);
+    expect((await send("still blocked")).status).toBe(409);
+
+    store.discard(requestId);
+    await bindings.record(requestId, { lifecycle: "secret_expired" });
+  });
+
   it("treats an EXPIRED request as closed, checked through the ROUTE", async () => {
     // A student whose request lapsed must not be left with a dead composer,
     // and expiry is a fact about time rather than about a write having

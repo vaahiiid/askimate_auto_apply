@@ -27,7 +27,7 @@
  */
 
 import type { Server } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { inspect } from "node:util";
 import { join } from "node:path";
@@ -47,6 +47,7 @@ import { DatabaseSecretBindingStore } from "./bindings.js";
 import { buildModelRequest, persistableContent, type ChatTurn } from "./chat-transport.js";
 import { FREE_TEXT_COLUMNS, SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
+import { buildChatClient } from "./build-client.js";
 
 /**
  * `JSON.stringify` is typed as returning `string` but returns `undefined` for
@@ -71,7 +72,7 @@ const JWT_SECRET = "test-jwt-secret-not-a-real-one";
  * a literal again.
  *
  * These tests drive a real browser, and the browser reads its own clock:
- * `secure-control.js` calls `decideRendering(prompt, capabilities, Date.now())`
+ * `browser-entry.tsx` calls `decideRendering(prompt, capabilities, new Date())`
  * because a page has no clock to inject. The server's clock, by contrast, IS
  * injected — every store and binding call below takes `NOW`.
  *
@@ -113,6 +114,8 @@ let db: NodePgDatabase<Record<string, never>>;
 let store: InMemorySecretStore;
 let bindings: DatabaseSecretBindingStore;
 let runDir: string;
+/** Static root: the built React client plus its page. */
+let clientDir: string;
 
 /** Everything written to stdout/stderr while the run is in flight. */
 const captured: string[] = [];
@@ -236,7 +239,19 @@ async function openRequest(): Promise<{ requestId: SecretRequestId; prompt: unkn
   };
 }
 
-/** Loads the chat page with a real signed token. */
+/**
+ * Loads the React chat client with a real signed token.
+ *
+ * ── `addInitScript`, not `evaluate` after the load ────────────────────────
+ *
+ * The vanilla harness read `window.__askimateToken` lazily, at the moment it
+ * built a request, so setting it after `goto` was fine. React reads it during
+ * its FIRST RENDER — the mount is the point at which the container is
+ * constructed — so a value assigned afterwards arrives too late and the page
+ * comes up with an empty token and conversation 0. `addInitScript` runs before
+ * any page script on every navigation, including the reload in the refresh
+ * test, which is the behaviour this actually needs.
+ */
 async function chatPage(): Promise<Page> {
   const page = await browser.newPage();
   const token = jwt.sign(
@@ -246,15 +261,14 @@ async function chatPage(): Promise<Page> {
   page.on("request", (request) => {
     requests.push({ url: request.url(), method: request.method(), body: request.postData() ?? "" });
   });
-  await page.goto(`${BASE}/chat.html`);
-  // Both values are passed as ARGUMENTS. A `page.evaluate` callback is
-  // serialised and run inside the browser, so it closes over nothing from this
-  // file — referring to `conversationId` directly threw
-  // "conversationId is not defined" at runtime, in the page rather than here.
-  await page.evaluate(
+  // Both values are passed as ARGUMENTS. The callback is serialised and run
+  // inside the browser, so it closes over nothing from this file — referring to
+  // `conversationId` directly threw "conversationId is not defined" at runtime,
+  // in the page rather than here.
+  await page.addInitScript(
     ([value, conversation]) => {
       (window as unknown as Record<string, unknown>)["__askimateToken"] = value;
-      // The composer posts to the guarded route now, so the page needs to know
+      // The composer posts to the guarded route, so the page needs to know
       // which conversation it is in. This app deliberately does NOT mount that
       // route, so a send here fails at the network — the correct outcome for a
       // deployment that has not adopted the guard, and one the composer treats
@@ -263,6 +277,9 @@ async function chatPage(): Promise<Page> {
     },
     [token, conversationId] as [string, number],
   );
+  await page.goto(`${BASE}/index.html`);
+  // React has to have mounted before anything is delivered to it.
+  await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
   return page;
 }
 
@@ -312,6 +329,12 @@ async function deliver(
 beforeAll(async () => {
   restoreConsole = captureOutput();
   runDir = await mkdtemp(join(tmpdir(), "aas-chat-"));
+  clientDir = await mkdtemp(join(tmpdir(), "aas-client-"));
+  await cp(
+    join(import.meta.dirname, "..", "public", "index.html"),
+    join(clientDir, "index.html"),
+  );
+  await buildChatClient(join(clientDir, "chat-client.js"));
 
   pool = await ownDatabase("aas_chat_e2e");
   db = drizzle(pool);
@@ -336,7 +359,11 @@ beforeAll(async () => {
     bindings,
     jwtSecret: JWT_SECRET,
     now: () => NOW,
-    publicDir: join(import.meta.dirname, "..", "public"),
+    // The React client, built from the sources in the tree on every run. The
+    // bundle is never committed: a checked-in build is a second copy of the
+    // client that can go stale, and having two clients is the thing this phase
+    // removed.
+    publicDir: clientDir,
   });
   server = await new Promise<Server>((resolve) => {
     const listening = app.listen(PORT, "127.0.0.1", () => resolve(listening));
@@ -350,6 +377,7 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await pool.end();
   await rm(runDir, { recursive: true, force: true });
+  await rm(clientDir, { recursive: true, force: true });
   restoreConsole?.();
 });
 
@@ -364,10 +392,10 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
 
     // ── 1–2. The model requests; the chat renders a DEDICATED control ────
     await deliver(page, prompt);
-    await page.locator("#secure-control").waitFor({ state: "visible" });
+    await page.locator('[data-testid="secure-control"]').waitFor({ state: "visible" });
     // A real password input, not a text box.
-    expect(await page.locator("#secure-password").getAttribute("type")).toBe("password");
-    expect(await page.locator("#secure-confirmation").getAttribute("type")).toBe("password");
+    expect(await page.locator('[data-testid="secure-password"]').getAttribute("type")).toBe("password");
+    expect(await page.locator('[data-testid="secure-confirmation"]').getAttribute("type")).toBe("password");
     // Phase B: typing stays LIVE, only the send is inert. The composer is no
     // longer disabled, because a frozen composer is not a conversation — see
     // docs/composer-during-secure-turn.md §1. The property that still has to
@@ -376,28 +404,36 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     expect(await page.locator("#chat-send").isDisabled()).toBe(true);
 
     // ── 3. The student types it, and the confirmation ────────────────────
-    await page.locator("#secure-password").fill(MARKER);
-    await page.locator("#secure-confirmation").fill(MARKER);
-    await page.locator("#secure-submit").click();
+    await page.locator('[data-testid="secure-password"]').fill(MARKER);
+    await page.locator('[data-testid="secure-confirmation"]').fill(MARKER);
+    await page.locator('[data-testid="secure-submit"]').click();
 
     // ── 5–6. The endpoint mints a handle; the client learns only that ────
-    await page.waitForFunction(
-      () => (window as unknown as Record<string, unknown>)["__askimateStatus"] !== undefined,
-    );
-    const status = (await page.evaluate(
-      () => (window as unknown as Record<string, unknown>)["__askimateStatus"],
-    )) as { status: string; handle?: string };
-    expect(status.status).toBe("secret_received");
+    //
+    // Read from the TURN LIST rather than from a debug global. The harness set
+    // `window.__askimateStatus`; the React client has no such variable, and
+    // reading the turns is closer to the property anyway — what the model will
+    // be given is built from exactly this list.
+    await page.locator('[data-testid="status"]').waitFor({ state: "visible" });
+    const settled = (await page.evaluate(
+      () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
+    )) as ChatTurn[];
+    const status = settled.find((turn) => turn.kind === "secret_status");
+    if (status?.kind !== "secret_status") {
+      expect.unreachable("a secret_status turn should exist by now");
+      return;
+    }
+    expect(status.lifecycle).toBe("secret_received");
     expect(status.handle).toMatch(/^sh_[0-9a-f]{32}$/);
+    const handle = status.handle;
 
-    // The box closed and the chat came back — sending included, which is the
-    // half that matters now that typing was never blocked in the first place.
-    expect(await page.locator("#secure-control").isHidden()).toBe(true);
+    // The card is GONE — unmounted, not merely hidden, which is stronger than
+    // the harness could manage: there is no element left holding a value.
+    expect(await page.locator('[data-testid="secure-control"]').count()).toBe(0);
     expect(await page.locator("#chat-input").isDisabled()).toBe(false);
     expect(await page.locator("#chat-send").isDisabled()).toBe(false);
-    // And the inputs are empty — the value is not sitting in the DOM.
-    expect(await page.locator("#secure-password").inputValue()).toBe("");
-    expect(await page.locator("#secure-confirmation").inputValue()).toBe("");
+    // Nothing anywhere in the live document holds what was typed.
+    expect(await page.content()).not.toContain(MARKER);
 
     // ── 4. It never entered the model message stream ─────────────────────
     const turns = (await page.evaluate(
@@ -410,7 +446,7 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     // And it does carry the word and the handle, so this is not passing by
     // sending the model nothing at all.
     expect(JSON.stringify(modelRequest)).toContain("secret_received");
-    expect(JSON.stringify(modelRequest)).toContain(status.handle);
+    expect(JSON.stringify(modelRequest)).toContain(handle);
 
     // ── Nothing the page sent, except the one secure POST, carried it ────
     const carrying = requests.filter((request) => request.body.includes(MARKER));
@@ -422,7 +458,7 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     // ── 7–8. Spent through the sensitive capability, then destroyed ──────
     const consumed = await store.use(
       {
-        handle: status.handle as SecretHandle,
+        handle: handle as SecretHandle,
         studentRef: `student-${String(userId)}` as never,
         purpose: "portal_account_creation",
         target: { host: PORTAL_HOST, caseRef: CASE_REF },
@@ -441,7 +477,7 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     // ── 9. The handle cannot be reused ───────────────────────────────────
     const again = await store.use(
       {
-        handle: status.handle as SecretHandle,
+        handle: handle as SecretHandle,
         studentRef: `student-${String(userId)}` as never,
         purpose: "portal_account_creation",
         target: { host: PORTAL_HOST, caseRef: CASE_REF },

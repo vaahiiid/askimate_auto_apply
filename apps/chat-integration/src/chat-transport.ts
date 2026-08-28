@@ -94,21 +94,94 @@ export type ChatTurn =
  * below is a fixed code decided before the student typed anything, so there is
  * nothing for a password to ride in on.
  */
-export type SecretRejectionReason =
+export const SECRET_REJECTION_REASONS = [
   // Returned by the secure endpoint.
-  | "confirmation_mismatch"
-  | "empty"
-  | "unknown_request"
-  | "expired"
-  | "already_submitted"
-  | "not_your_request"
-  | "wrong_conversation"
+  "confirmation_mismatch",
+  "empty",
+  "unknown_request",
+  "expired",
+  "already_submitted",
+  "not_your_request",
+  "wrong_conversation",
   // Decided by the client, when the control could not even be used.
-  | "endpoint_unreachable"
-  | "prompt_expired"
-  | "client_does_not_support_secure_control"
-  | "insecure_context"
-  | "unknown_channel";
+  "endpoint_unreachable",
+  "prompt_expired",
+  "client_does_not_support_secure_control",
+  "insecure_context",
+  "unknown_channel",
+] as const;
+
+/**
+ * The closed set, derived FROM the array rather than declared beside it.
+ *
+ * Written as two independent declarations — a union and a runtime array — these
+ * drift the moment someone adds a member to one. Deriving the type from the
+ * array makes that impossible: there is one list, and the checker and the
+ * runtime read the same one. `secret-routes.ts` then asserts, at compile time,
+ * that every reason the SERVER can return is a member of it.
+ */
+export type SecretRejectionReason = (typeof SECRET_REJECTION_REASONS)[number];
+
+/**
+ * Narrows an untrusted string to the closed set.
+ *
+ * The reason arrives as JSON from the network, so its type is a promise rather
+ * than a fact. Every client path that turns a server response into a
+ * `secret_rejected` turn goes through here, so a value that is not a member
+ * cannot reach the turn list, the transcript, or the model.
+ *
+ * A miss is not an error — it is what a client older than the server sees, and
+ * the caller decides what to do about it. There is deliberately no fallback
+ * built in here: a default chosen inside a parser is a default nobody reads.
+ */
+export function parseRejectionReason(value: unknown): SecretRejectionReason | null {
+  if (typeof value !== "string") return null;
+  return (SECRET_REJECTION_REASONS as readonly string[]).includes(value)
+    ? (value as SecretRejectionReason)
+    : null;
+}
+
+/**
+ * The lifecycle words, as a list this client can carry on its own.
+ *
+ * ── Why this is not `SECRET_LIFECYCLE` from the secrets package ───────────
+ *
+ * It was, for about ten minutes. `useSecureTurn.ts` imported the array as a
+ * VALUE to narrow an incoming lifecycle, and the browser bundle promptly failed
+ * to build: `Could not resolve "node:crypto"`. The package's entry point
+ * re-exports `store.ts`, so a value import of one constant drags
+ * `InMemorySecretStore` — the thing that actually holds plaintext — toward the
+ * browser. It would not have worked there, and it must never be asked to.
+ *
+ * So the client keeps its own list, and the type below asserts at compile time
+ * that the two are the same set. A type-only import is erased; a value import
+ * is a dependency.
+ */
+export const SECRET_LIFECYCLE_WORDS = [
+  "secret_requested",
+  "secret_received",
+  "secret_consumed",
+  "secret_expired",
+] as const;
+
+/**
+ * Both directions, so neither list can gain a member the other lacks.
+ *
+ * The same shape as the assertion in `secret-routes.ts`, for the same reason:
+ * two lists in two files drift silently, and the drift here would mean the
+ * client dropping a lifecycle word the store had started using.
+ */
+// Two declarations rather than one union of two `Exclude`s: when both sides
+// match, that union is `never | never`, and the linter — correctly — reports a
+// union whose constituents are redundant and duplicated. Split, each side reads
+// as what it is, and each names its own direction when it fails.
+type AssertNever<T extends never> = T;
+export type NO_CLIENT_WORD_THE_STORE_LACKS = AssertNever<
+  Exclude<(typeof SECRET_LIFECYCLE_WORDS)[number], SecretLifecycle>
+>;
+export type NO_STORE_WORD_THE_CLIENT_LACKS = AssertNever<
+  Exclude<SecretLifecycle, (typeof SECRET_LIFECYCLE_WORDS)[number]>
+>;
 
 /** Exactly what `POST /api/askimate/ai` accepts. Transcribed. */
 export interface ModelRequest {

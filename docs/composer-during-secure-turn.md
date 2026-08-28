@@ -519,7 +519,7 @@ Not "read the code and agree it looks separate". Executable:
 | `schema.ts` | new `askimate_conversation_events` table | additive |
 | `secret-routes.ts` | new `DELETE /askimate/secret/:requestId` | additive |
 | ordinary chat route | new fail-closed guard using `openRequestFor` | **security** |
-| `public/chat.html`, `secure-control.js` | inline rendering; provisional harness only | **provisional UI** |
+| `src/ChatView.tsx`, `public/index.html` | inline rendering; provisional surface only | **provisional UI** |
 | `packages/secrets` | **no change** | — |
 
 ---

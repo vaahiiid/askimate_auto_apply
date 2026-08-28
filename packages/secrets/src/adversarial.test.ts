@@ -62,10 +62,13 @@ const SAFE: SecretConsumer = {
   confirmNoDiagnosticCapture: () => true,
 };
 
-function armed(store: InMemorySecretStore): { claim: SecretClaim; requestId: string } {
+function armed(
+  store: InMemorySecretStore,
+  password: string = MARKER,
+): { claim: SecretClaim; requestId: string } {
   const opened = store.request(REQUEST, NOW);
   if (!opened.ok) expect.unreachable("should open");
-  const submitted = store.submit(opened.prompt.requestId, MARKER, NOW);
+  const submitted = store.submit(opened.prompt.requestId, password, NOW);
   if (!submitted.ok) expect.unreachable("should accept");
   return {
     claim: {
@@ -119,26 +122,60 @@ function assertClean(label: string, value: unknown): void {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("the handle, which the model is allowed to see", () => {
-  it("contains nothing of the secret — not the value, not a prefix, not a hash", () => {
+  it("contains nothing of the secret — not the value, not a prefix", () => {
     const store = new InMemorySecretStore();
     const { claim } = armed(store);
 
+    // Both needles are long and distinctive, so a hit is a real finding rather
+    // than a coincidence. See the note on the removed third needle below.
     expect(claim.handle).not.toContain(MARKER);
     expect(claim.handle).not.toContain("SECRET");
-    expect(claim.handle).not.toContain("123");
-    // 32 hex characters of randomness. Nothing derived from the input, so two
-    // students choosing the same password get unrelated handles.
     expect(claim.handle).toMatch(/^sh_[0-9a-f]{32}$/);
     expect(isSecretHandle(claim.handle)).toBe(true);
   });
 
-  it("gives different handles to the same password", () => {
-    // A handle derived from the value — even hashed — would let anyone holding
-    // two handles tell whether two students chose the same password.
+  /**
+   * ── A needle short enough to occur by chance is not an assertion ─────────
+   *
+   * This test used to also assert `not.toContain("123")` — the digits from the
+   * tail of MARKER. A handle is 32 hex characters, and "123" occurs somewhere
+   * in a random 32-hex string in about **0.7% of draws** (measured over 200 000
+   * samples). So the assertion failed roughly one run in a hundred and forty on
+   * completely correct code, which is how it turned up: a clean baseline went
+   * red with `expected 'sh_27c123ffea…' not to contain '123'`.
+   *
+   * It was also proving nothing. The property being claimed is that the handle
+   * is not DERIVED from the password, and a derived handle — a SHA-256 rendered
+   * as hex, say — would contain "123" no more often than a random one does. A
+   * needle that is 0.7% likely to fire on correct code and no more likely to
+   * fire on broken code carries no information in either direction.
+   *
+   * What actually distinguishes derived from random is that derivation is a
+   * FUNCTION: the same input must give the same output. The two tests below
+   * check that, and they cannot pass for a derived handle.
+   */
+  it("gives a different handle every time, so it is not a function of the value", () => {
+    // A handle derived from the value — even hashed — would repeat here, and
+    // would let anyone holding two handles tell whether two students chose the
+    // same password. Fifty draws rather than two: one repeat is enough to fail,
+    // and a derivation would produce fifty identical strings.
     const store = new InMemorySecretStore();
-    const first = armed(store).claim.handle;
-    const second = armed(store).claim.handle;
-    expect(first).not.toBe(second);
+    const handles = new Set<string>();
+    for (let draw = 0; draw < 50; draw += 1) handles.add(armed(store).claim.handle);
+    expect(handles.size).toBe(50);
+  });
+
+  it("has the same shape whatever the password, so it carries no length either", () => {
+    // The other half of "nothing derived": an encoding that carried any
+    // property of the input — its length most obviously — would show up as a
+    // different handle shape for a one-character password and a long one.
+    const store = new InMemorySecretStore();
+    const short = armed(store, "a").claim.handle;
+    const long = armed(store, "x".repeat(4096)).claim.handle;
+
+    expect(short).toMatch(/^sh_[0-9a-f]{32}$/);
+    expect(long).toMatch(/^sh_[0-9a-f]{32}$/);
+    expect(long.length).toBe(short.length);
   });
 
   it("cannot be spent twice, however it is copied around", async () => {

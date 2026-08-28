@@ -43,7 +43,7 @@ interaction layer are already distinct *types in one sequence*.
 The prototype then throws that away at render time:
 
 ```js
-// public/secure-control.js
+// public/secure-control.js  (RETIRED in Phase D — see src/ChatView.tsx)
 function renderTranscript() {
   for (const turn of turns) {
     if (turn.kind !== "message") continue;   // ← the directive vanishes
@@ -53,7 +53,7 @@ function renderTranscript() {
 ```
 
 ```html
-<!-- public/chat.html -->
+<!-- public/chat.html  (RETIRED in Phase D — see public/index.html) -->
 <div id="transcript"></div>
 <form id="composer">…</form>
 <section id="secure-control" hidden>…</section>   <!-- ← below the composer, outside the conversation -->
@@ -349,9 +349,15 @@ open reaches neither `askimate_messages` nor the model, **including after a simu
 `secret_rejected` as a status turn with a reason code. The content-free persisted directive
 record. Test that a refresh mid-flow shows the request in place and recovers nothing typed.
 
-**Phase D — the React control**
+**Phase D — the React control** *(done, 0.11.0)*
 Uncontrolled input, ref-read at submit. A test that fails if the input is made controlled. Verify
 no password reaches component state, an error boundary, or a serialised error.
+
+Extended in delivery to the INTEGRATION the control had been missing: a headless container
+(`useSecureTurn`) that delegates every decision to `decideRendering`, `projectTranscript`,
+`openSecureRequest` and `composerPolicy` rather than re-implementing them; cancellation wired to
+the real `DELETE`; the rejection contract corrected so a refusal no longer closes an open request;
+and the vanilla harness retired, so there is one client rather than two copies of the same rules.
 
 **Phase E — wiring** *(partly blocked)*
 Instantiate the store; connect orchestrator → chat → runner. **The production AskiMate client is

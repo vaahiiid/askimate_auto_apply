@@ -661,6 +661,86 @@ function main(): void {
     console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
   }
 
+  // ── Exactly one password input exists, and it is the uncontrolled one ────
+  //
+  // Vahid, 2026-08-28: *"Extend the boundary protection to every relevant
+  // `.tsx` file under the integration area, not just SecureControl.tsx."*
+  //
+  // The rule above hardcodes one path, which was right when one path was all
+  // there was. Now the client is React: a container, a view, and whatever comes
+  // next. The rule it enforces — the password lives in an uncontrolled DOM
+  // element and nowhere else — is not a property of that one file. It is a
+  // property of the client, and it fails just as completely if a PARENT renders
+  // its own `<input type="password">` with a `useState` behind it.
+  //
+  // So two things are checked across every non-test `.tsx` in the app:
+  //
+  //   1. Only `SecureControl.tsx` may render `type="password"`. One password
+  //      field, in the file whose discipline is enforced.
+  //   2. No `useState`/`useReducer` anywhere may BIND a name that suggests it
+  //      holds one. A blanket ban on state would be wrong — a chat view needs
+  //      state for its turn list — so the rule names what may not be in it.
+  const CLIENT_DIR = "apps/chat-integration/src";
+  if (existsSync(CLIENT_DIR)) {
+    const clientFiles = readdirSync(CLIENT_DIR)
+      .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
+      .sort();
+
+    if (clientFiles.length === 0) {
+      violations.push(
+        `${CLIENT_DIR} contains no .tsx files, so the client rules below are inert. If the React ` +
+          `client moved, update this check rather than leaving it silently passing.`,
+      );
+    }
+
+    let passwordInputs = 0;
+    for (const name of clientFiles) {
+      const source = readFileSync(join(CLIENT_DIR, name), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+
+      if (/type=["']password["']/.test(source)) {
+        passwordInputs += 1;
+        if (name !== "SecureControl.tsx") {
+          violations.push(
+            `${CLIENT_DIR}/${name} renders an <input type="password">. Only SecureControl.tsx ` +
+              `may — it is the one file whose uncontrolled discipline is enforced above, and a ` +
+              `password field anywhere else is a field nothing stops from being controlled.`,
+          );
+        }
+      }
+
+      // `const [password, setPassword] = useState(…)` and its relatives.
+      const stateBindings = source.matchAll(
+        /const\s*\[\s*([A-Za-z0-9_$]+)[^\]]*\]\s*=\s*(useState|useReducer)\b/g,
+      );
+      for (const match of stateBindings) {
+        const bound = match[1] ?? "";
+        if (/pass|secret|plain|credential|pwd/i.test(bound)) {
+          violations.push(
+            `${CLIENT_DIR}/${name} holds \`${bound}\` in React state via ${match[2] ?? "useState"}. ` +
+              `A secret in component state is readable from DevTools, from an error boundary that ` +
+              `serialises the tree, and from any reporter that snapshots state.`,
+          );
+        }
+      }
+    }
+
+    if (passwordInputs === 0) {
+      violations.push(
+        `No file in ${CLIENT_DIR} renders an <input type="password">. The rule above counts them ` +
+          `to prove it is looking at something; zero means the control was renamed or moved and ` +
+          `the check has gone inert.`,
+      );
+    }
+
+    checked += 1;
+    console.log(
+      `  ✓  ${CLIENT_DIR}/*.tsx — ${String(clientFiles.length)} file(s), one password input, ` +
+        `no secret in React state`,
+    );
+  }
+
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 
   if (violations.length > 0) {

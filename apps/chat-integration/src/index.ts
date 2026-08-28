@@ -40,7 +40,32 @@ export type { SecretBinding, SecretBindingStore } from "./bindings.js";
 export { DatabaseSecretBindingStore } from "./bindings.js";
 
 export type { ChatTurn, ModelRequest, SecretRejectionReason } from "./chat-transport.js";
-export { buildModelRequest, persistableContent } from "./chat-transport.js";
+export {
+  SECRET_REJECTION_REASONS,
+  buildModelRequest,
+  parseRejectionReason,
+  persistableContent,
+} from "./chat-transport.js";
+
+export type { TranscriptItem } from "./transcript.js";
+export { openSecureRequest, projectTranscript } from "./transcript.js";
+
+// ── The React client ──────────────────────────────────────────────────────
+//
+// Exported so the browser tests build the same modules the page builds, and so
+// there is one client rather than the two that let a rule drift.
+export type { SecureControlProps } from "./SecureControl.js";
+export { SecureControl } from "./SecureControl.js";
+export type { ChatViewProps } from "./ChatView.js";
+export { ChatView, DRAFT_KEY } from "./ChatView.js";
+export type {
+  ReceivedTurn,
+  SecureTurnInput,
+  SecureTurnState,
+  SecureTurnTransport,
+  SendOutcome,
+} from "./useSecureTurn.js";
+export { browserTransport, parseIncomingTurn, useSecureTurn } from "./useSecureTurn.js";
 
 export type { ClientCapabilities, RenderDecision } from "./render-decision.js";
 export type { ComposerPolicy } from "./render-decision.js";

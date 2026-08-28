@@ -127,7 +127,7 @@ it, and the dependency-boundary check forbids every logger and APM package in th
 | Session binding | `src/bindings.ts`, `src/schema.ts` | `askimate_secret_requests`. **No plaintext column, no encrypted one, no hash, no length.** |
 | Model funnel | `src/chat-transport.ts` | `buildModelRequest` — the only path to the model; can only read `content`, and only `message` turns have one |
 | Render decision | `src/render-decision.ts` | `secure_control | refuse`. **No `chat_message` member.** |
-| The control | `public/chat.html`, `public/secure-control.js` | Real password inputs, own `<form>` outside the composer, chat input disabled while open |
+| The control | `src/SecureControl.tsx`, `src/ChatView.tsx`, `public/index.html` | Real password inputs, own `<form>` outside the composer, composer send blocked while open (typing stays live) |
 
 ### Three structural choices worth naming
 

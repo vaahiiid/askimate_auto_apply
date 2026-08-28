@@ -53,6 +53,8 @@ import type { FormEvent, JSX } from "react";
 
 import type { SecretPrompt } from "@askimate/aas-secrets";
 
+import { parseRejectionReason, type SecretRejectionReason } from "./chat-transport.js";
+
 /**
  * What the component is given, and what it hands back.
  *
@@ -68,8 +70,26 @@ export interface SecureControlProps {
   /** Bearer token for the secure endpoint. Not a secret of the student's. */
   readonly authToken: string;
   readonly onSubmitted: (handle: string) => void;
-  readonly onRejected: (reason: string) => void;
-  /** Called when the student abandons the step. */
+  /**
+   * A member of the closed set, never a bare string.
+   *
+   * This was `(reason: string) => void`, which is weaker than the transport it
+   * feeds: the parent turns this value into a `secret_rejected` turn, and that
+   * turn's `reason` is `SecretRejectionReason`. A `string` here meant the
+   * narrowing happened somewhere else, or nowhere. It happens below, once, in
+   * `report`.
+   */
+  readonly onRejected: (reason: SecretRejectionReason) => void;
+  /**
+   * Called when the student abandons the step.
+   *
+   * Deliberately a bare callback rather than a request. Cancelling is a
+   * LIFECYCLE transition — `DELETE /api/askimate/secret/:id`, then a
+   * `secret_status` turn — and lifecycle belongs to whoever owns the turn list.
+   * This component owns exactly one piece of transport, the one that carries a
+   * password, and adding a second would blur the line that makes the first one
+   * auditable.
+   */
   readonly onCancelled?: () => void;
   /** Injected so a test can observe the request without a live server. */
   readonly submit?: (input: {
@@ -78,7 +98,13 @@ export interface SecureControlProps {
     readonly confirmation: string;
     readonly conversationId: number;
     readonly authToken: string;
-  }) => Promise<{ readonly status: string; readonly handle?: string; readonly reason?: string }>;
+  }) => Promise<{
+    readonly status: string;
+    readonly handle?: string;
+    readonly reason?: string;
+    /** The HTTP response's `ok`. See the narrowing note in `onSubmit`. */
+    readonly ok?: boolean;
+  }>;
 }
 
 async function postSecret(input: {
@@ -87,7 +113,7 @@ async function postSecret(input: {
   readonly confirmation: string;
   readonly conversationId: number;
   readonly authToken: string;
-}): Promise<{ status: string; handle?: string; reason?: string }> {
+}): Promise<{ status: string; handle?: string; reason?: string; ok: boolean }> {
   const response = await fetch(`/api/askimate/secret/${input.requestId}`, {
     method: "POST",
     headers: {
@@ -101,7 +127,16 @@ async function postSecret(input: {
       conversationId: input.conversationId,
     }),
   });
-  return (await response.json()) as { status: string; handle?: string; reason?: string };
+  const body = (await response.json().catch(() => ({}))) as {
+    status?: string;
+    handle?: string;
+    reason?: string;
+  };
+  // `ok` travels with the body because the two together say something neither
+  // says alone: a 500 carrying no recognisable reason is a broken endpoint,
+  // while a 400 carrying an unrecognised one is a server this client is older
+  // than. The narrowing below needs to tell those apart.
+  return { ...body, status: body.status ?? "", ok: response.ok };
 }
 
 export function SecureControl(props: SecureControlProps): JSX.Element {
@@ -160,7 +195,27 @@ export function SecureControl(props: SecureControlProps): JSX.Element {
             props.onSubmitted(result.handle);
             return;
           }
-          if (result.reason === "confirmation_mismatch") {
+
+          // ── The one narrowing point ─────────────────────────────────────
+          //
+          // `result.reason` came off the wire, so it is a string that hopes to
+          // be a reason. `secret-routes.ts` asserts at compile time that every
+          // reason the endpoint returns is a member of the closed set, so a
+          // value outside it did not come from a build matching this one — and
+          // the two ways that happens want different codes:
+          //
+          //   - a response that named SOMETHING unrecognised is a server
+          //     speaking a protocol this client does not know;
+          //   - a response that named nothing usable — a 500, a proxy error
+          //     page, a body that would not parse — is an endpoint that did not
+          //     answer, which is what `endpoint_unreachable` already means.
+          const reason =
+            parseRejectionReason(result.reason) ??
+            (typeof result.reason === "string" && result.reason.length > 0
+              ? "client_does_not_support_secure_control"
+              : "endpoint_unreachable");
+
+          if (reason === "confirmation_mismatch") {
             say("The two passwords did not match. Please try again.");
           } else {
             say(
@@ -168,7 +223,7 @@ export function SecureControl(props: SecureControlProps): JSX.Element {
                 "Do not type it into the chat.",
             );
           }
-          props.onRejected(result.reason ?? "unknown");
+          props.onRejected(reason);
         })
         .catch(() => {
           // A dropped connection mid-submission. Clear, say nothing about what

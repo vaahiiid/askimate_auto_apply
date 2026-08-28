@@ -28,7 +28,7 @@
  * A student in that position is asked again, which is the honest response.
  */
 
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, gt } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { SecretHandle, SecretLifecycle, SecretPurpose, SecretRequestId } from "@askimate/aas-secrets";
@@ -162,10 +162,36 @@ export class DatabaseSecretBindingStore implements SecretBindingStore {
    * satisfied by a stale cache, and the whole reason this method exists is
    * that the cache is empty after a restart.
    *
-   * "Open" is defined here rather than by the caller: a row whose lifecycle is
-   * still `secret_requested` or `secret_received` and whose expiry has not
-   * passed. Terminal states (`secret_consumed`, `secret_expired`) are not open,
-   * which is what makes cancellation and expiry release the composer.
+   * ── What "open" means, and the version of it that trapped the student ───
+   *
+   * Vahid, 2026-08-28: *"`secret_received` must not count as an open request
+   * for the server-side composer guard. After successful secure submission,
+   * the student must not be trapped behind `409 secret_request_open` while the
+   * client shows the composer as available."*
+   *
+   * This used to read `secret_requested` OR `secret_received`, on the reasoning
+   * that the step is not finished until the handle has been spent. The
+   * reasoning was sound and the consequence was not: **nothing in this
+   * application ever writes `secret_consumed` to the row.** `store.use()` moves
+   * the in-memory entry to `secret_consumed` (packages/secrets/src/store.ts);
+   * the database row stays `secret_received`, because the consumer is the
+   * orchestrator and it does not reach this table. So the only thing that ever
+   * released the guard was the five-minute TTL.
+   *
+   * Meanwhile the client releases its composer the moment a `secret_status`
+   * turn arrives — `openSecureRequest` in ./transcript.ts closes on any status,
+   * which is correct. The two disagreed for the whole window: the student saw a
+   * live Send button and every message came back 409.
+   *
+   * So "open" is now exactly `secret_requested`, unexpired. That is the state
+   * in which a password box is on screen, which is the only state in which an
+   * ordinary message risks being a password typed into the wrong field. Once
+   * the secret is received the box is gone and there is nothing left to mistype
+   * — and client and server now agree, which matters more than either answer
+   * taken alone.
+   *
+   * Terminal states (`secret_consumed`, `secret_expired`) were never open, which
+   * is what makes cancellation and expiry release the composer.
    */
   public async openRequestFor(
     conversationId: number,
@@ -177,7 +203,9 @@ export class DatabaseSecretBindingStore implements SecretBindingStore {
       .where(
         and(
           eq(askimateSecretRequests.conversationId, conversationId),
-          inArray(askimateSecretRequests.lifecycle, ["secret_requested", "secret_received"]),
+          // One value, not a set. See the note above: `secret_received` was in
+          // this list and is deliberately no longer.
+          eq(askimateSecretRequests.lifecycle, "secret_requested"),
           gt(askimateSecretRequests.expiresAt, now),
         ),
       )
