@@ -39,6 +39,7 @@ import type { SecretRequestId } from "@askimate/aas-secrets";
 
 import { createChatApp } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
+import { DatabaseConversationEventStore } from "./conversation-events.js";
 import type { ChatTurn } from "./chat-transport.js";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
@@ -490,5 +491,136 @@ describeIfDatabase("nothing refused is written anywhere a person could read it",
     }
     expect(captured.join("")).toContain("a canary line");
     expect(captured.join("")).toContain("another canary line");
+  });
+});
+
+describeIfDatabase("the conversation-events table cannot hold what a student typed", () => {
+  it("REFUSES a free-text kind — the closed set is enforced by the DATABASE", async () => {
+    // Not a convention, not a code review rule: an INSERT of anything outside
+    // the set fails at the database. "Just put the message in there" is not
+    // available to a future caller.
+    await expect(
+      pool.query(
+        `INSERT INTO askimate_conversation_events
+           (conversation_id, ordinal, kind, request_id) VALUES ($1,$2,$3,$4)`,
+        [CONVERSATION_ID, 900, MARKER, "sr_" + "a".repeat(32)],
+      ),
+    ).rejects.toThrow(/violates check constraint/);
+  });
+
+  it("REFUSES a free-text reason code", async () => {
+    await expect(
+      pool.query(
+        `INSERT INTO askimate_conversation_events
+           (conversation_id, ordinal, kind, request_id, reason_code) VALUES ($1,$2,$3,$4,$5)`,
+        [CONVERSATION_ID, 901, "secret_rejected", "sr_" + "a".repeat(32), MARKER],
+      ),
+    ).rejects.toThrow(/violates check constraint/);
+  });
+
+  it("REFUSES a free-text lifecycle", async () => {
+    await expect(
+      pool.query(
+        `INSERT INTO askimate_conversation_events
+           (conversation_id, ordinal, kind, request_id, lifecycle) VALUES ($1,$2,$3,$4,$5)`,
+        [CONVERSATION_ID, 902, "secret_status", "sr_" + "a".repeat(32), MARKER],
+      ),
+    ).rejects.toThrow(/violates check constraint/);
+  });
+
+  it("has no column a free-text value could reach", async () => {
+    // The catalogue, not a list someone maintains. Every text column on the
+    // table must be one of the four constrained ones.
+    const cols = await pool.query<{ column_name: string; data_type: string }>(
+      `SELECT column_name, data_type FROM information_schema.columns
+        WHERE table_name = 'askimate_conversation_events'
+          AND data_type IN ('text','character varying','json','jsonb')`,
+    );
+    expect(cols.rows.map((r) => r.column_name).sort()).toEqual(
+      ["kind", "lifecycle", "reason_code", "request_id"],
+    );
+  });
+
+  it("round-trips events and keeps them in transcript order", async () => {
+    const events = new DatabaseConversationEventStore(db);
+    const rid = await openSecretRequest();
+    try {
+      await events.record({ conversationId: 4242, ordinal: 2, kind: "secret_rejected",
+                            requestId: rid, reasonCode: "confirmation_mismatch" });
+      await events.record({ conversationId: 4242, ordinal: 1, kind: "directive", requestId: rid });
+      const back = await events.eventsFor(4242);
+      expect(back.map((e) => e.ordinal)).toEqual([1, 2]);
+      expect(back.map((e) => e.kind)).toEqual(["directive", "secret_rejected"]);
+      expect(JSON.stringify(back)).not.toContain(MARKER);
+    } finally {
+      store.discard(rid);
+      await bindings.record(rid, { lifecycle: "secret_expired" });
+    }
+  });
+
+  it("a replayed write does not duplicate an item in the transcript", async () => {
+    const events = new DatabaseConversationEventStore(db);
+    const rid = await openSecretRequest();
+    try {
+      const e = { conversationId: 4343, ordinal: 1, kind: "directive" as const, requestId: rid };
+      await events.record(e);
+      await events.record(e);
+      expect(await events.eventsFor(4343)).toHaveLength(1);
+    } finally {
+      store.discard(rid);
+      await bindings.record(rid, { lifecycle: "secret_expired" });
+    }
+  });
+});
+
+describeIfDatabase("cancelling a secure step releases the conversation", () => {
+  it("DELETE marks it expired and reopens the ordinary message path", async () => {
+    const rid = await openSecretRequest();
+    // While open, the guard refuses.
+    expect((await send("blocked while the step is open")).status).toBe(409);
+
+    const response = await fetch(`${BASE}/api/askimate/secret/${rid}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token()}` },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ lifecycle: "secret_expired" });
+
+    // The store destroyed the entry…
+    expect(store.statusOf(rid)?.lifecycle).toBe("secret_expired");
+    // …and the student can talk again.
+    expect((await send("I changed my mind, let us carry on")).status).toBe(200);
+  });
+
+  it("refuses to cancel someone else's request, and says nothing about it", async () => {
+    const rid = await openSecretRequest();
+    try {
+      const other = jwt.sign(
+        { id: USER_ID + 99, email: "other@example.test", emailVerified: true }, JWT_SECRET);
+      const response = await fetch(`${BASE}/api/askimate/secret/${rid}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${other}` },
+      });
+      expect(response.status).toBe(404);
+      // Same answer as "does not exist" — a different code would confirm that
+      // another student had been asked for a password.
+      expect(await response.json()).toEqual({ error: "Unknown request" });
+      // And it really did not cancel it.
+      expect(store.statusOf(rid)?.lifecycle).toBe("secret_requested");
+    } finally {
+      store.discard(rid);
+      await bindings.record(rid, { lifecycle: "secret_expired" });
+    }
+  });
+
+  it("requires authentication", async () => {
+    const rid = await openSecretRequest();
+    try {
+      const response = await fetch(`${BASE}/api/askimate/secret/${rid}`, { method: "DELETE" });
+      expect(response.status).toBe(401);
+      expect(store.statusOf(rid)?.lifecycle).toBe("secret_requested");
+    } finally {
+      store.discard(rid);
+      await bindings.record(rid, { lifecycle: "secret_expired" });
+    }
   });
 });

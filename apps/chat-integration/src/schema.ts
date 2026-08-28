@@ -179,6 +179,29 @@ CREATE TABLE IF NOT EXISTS askimate_secret_requests (
   created_at      timestamp NOT NULL DEFAULT now(),
   updated_at      timestamp NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS askimate_conversation_events (
+  id              serial PRIMARY KEY,
+  conversation_id integer NOT NULL,
+  ordinal         integer NOT NULL,
+  -- Closed sets, enforced by the DATABASE. A free-text value cannot be
+  -- smuggled into any of these columns, which is what makes "this table
+  -- cannot hold what a student typed" a fact rather than a convention.
+  kind            text NOT NULL CHECK (kind IN ('directive','secret_status','secret_rejected')),
+  request_id      text NOT NULL,
+  lifecycle       text CHECK (lifecycle IS NULL OR lifecycle IN
+                    ('secret_requested','secret_received','secret_consumed','secret_expired')),
+  reason_code     text CHECK (reason_code IS NULL OR reason_code IN
+                    ('confirmation_mismatch','empty','unknown_request','expired',
+                     'already_submitted','not_your_request','wrong_conversation',
+                     'endpoint_unreachable','prompt_expired',
+                     'client_does_not_support_secure_control','insecure_context',
+                     'unknown_channel')),
+  created_at      timestamp NOT NULL DEFAULT now(),
+  -- One row per position per conversation: a replayed insert cannot duplicate
+  -- an item in the transcript.
+  UNIQUE (conversation_id, ordinal)
+);
 `;
 
 /**
@@ -188,6 +211,51 @@ CREATE TABLE IF NOT EXISTS askimate_secret_requests (
  * that adding a text column without thinking about it makes the scan wider
  * rather than leaving a blind spot.
  */
+/**
+ * Where a secure step SAT in the conversation — and nothing about what was
+ * typed into it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-27: *"Persisting enough directive state to survive refresh
+ * without ever persisting secret content."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── The problem ───────────────────────────────────────────────────────────
+ *
+ * `askimate_messages` stores only `kind: "message"` turns, because everything
+ * in it is replayed to the model. That is right, and it means a directive and
+ * its outcome are stored nowhere. A student who refreshes mid-flow gets a
+ * conversation with a hole in it: the assistant's message, then nothing, then
+ * a box that appears from somewhere with no explanation of why.
+ *
+ * ── Why this table cannot leak ────────────────────────────────────────────
+ *
+ * There is NO text column that anything typed could reach. `kind` and
+ * `reason_code` are text, but both are constrained by CHECK to closed sets
+ * the database itself enforces — so "just put the message in reason_code"
+ * fails at the INSERT rather than at review. `request_id` is an identifier
+ * minted before the student typed anything.
+ *
+ * Display text is reconstructed at read time from `askimate_secret_requests`
+ * plus a fixed table of sentences. Nothing renderable is stored twice, and
+ * nothing renderable is stored here at all.
+ */
+export const askimateConversationEvents = pgTable("askimate_conversation_events", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull(),
+  /** Position in the transcript, so the item is redrawn where it happened. */
+  ordinal: integer("ordinal").notNull(),
+  /** `directive` | `secret_status` | `secret_rejected`. CHECK-constrained. */
+  kind: text("kind").notNull(),
+  /** Which request this concerns. An id, not content. */
+  requestId: text("request_id").notNull(),
+  /** Lifecycle word for a status; null otherwise. CHECK-constrained. */
+  lifecycle: text("lifecycle"),
+  /** Rejection code; null otherwise. CHECK-constrained. */
+  reasonCode: text("reason_code"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const FREE_TEXT_COLUMNS: readonly { table: string; column: string }[] = [
   { table: "askimate_messages", column: "content" },
   { table: "askimate_messages", column: "metadata" },
@@ -201,4 +269,8 @@ export const FREE_TEXT_COLUMNS: readonly { table: string; column: string }[] = [
   { table: "askimate_secret_requests", column: "case_ref" },
   { table: "askimate_secret_requests", column: "purpose" },
   { table: "askimate_secret_requests", column: "target_host" },
+  { table: "askimate_conversation_events", column: "kind" },
+  { table: "askimate_conversation_events", column: "request_id" },
+  { table: "askimate_conversation_events", column: "lifecycle" },
+  { table: "askimate_conversation_events", column: "reason_code" },
 ];

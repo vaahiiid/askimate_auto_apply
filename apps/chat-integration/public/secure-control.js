@@ -69,6 +69,18 @@
         div.className = `turn ${turn.sender}`;
         div.textContent = turn.content;
         el("transcript").append(div);
+      } else if (turn.kind === "secret_rejected") {
+        // Rendered in place, from a FIXED table keyed by the code. Provisional
+        // wording — the mechanism is that the sentence is chosen here and
+        // never carried on the turn.
+        const div = document.createElement("div");
+        div.className = "turn status";
+        div.dataset["rejected"] = turn.reason;
+        div.textContent =
+          turn.reason === "confirmation_mismatch"
+            ? "Those did not match — you can try again above."
+            : "That password step did not complete. I will ask again.";
+        el("transcript").append(div);
       } else if (turn.kind === "secret_status") {
         // A settled secure step, shown in place so the conversation reads as
         // one sequence. The lifecycle word and the opaque handle only — there
@@ -336,6 +348,20 @@
             : "I could not accept that password. I will ask you again in a moment. " +
               "Do not type it into the chat.";
           if (!retryable) closeSecureControl();
+
+          // A TURN, not just a window variable.
+          //
+          // The previous version set `__askimateStatus` and pushed nothing, so
+          // the model never learned the attempt had failed. It had no reason
+          // to offer another, and the conversation simply stopped with the
+          // student looking at a box that had refused them.
+          //
+          // The reason is a CODE from a closed set. The sentence above is
+          // chosen from a fixed table and stays in the DOM; it is not carried
+          // on the turn, because a display string on a turn is a field someone
+          // eventually assembles from input.
+          turns.push({ kind: "secret_rejected", reason: data.reason });
+          renderTranscript();
           window.__askimateStatus = { status: "secret_rejected", reason: data.reason };
           return;
         }
@@ -351,6 +377,11 @@
         closeSecureControl();
         el("refusal").textContent = REFUSAL_TEXT.endpoint_unreachable;
         el("refusal").dataset["reason"] = "endpoint_unreachable";
+        // Same reasoning as above: a dropped connection must still tell the
+        // model the attempt failed, or the run waits for something that will
+        // never arrive.
+        turns.push({ kind: "secret_rejected", reason: "endpoint_unreachable" });
+        renderTranscript();
         window.__askimateStatus = { status: "secret_rejected", reason: "endpoint_unreachable" };
       });
   });

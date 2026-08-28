@@ -62,7 +62,53 @@ export type ChatTurn =
       readonly lifecycle: SecretLifecycle;
       /** Opaque, and safe to show the model. Resolves to nothing outside the store. */
       readonly handle?: string;
+    }
+  | {
+      readonly kind: "secret_rejected";
+      readonly reason: SecretRejectionReason;
     };
+
+/**
+ * Why an attempt failed. A CODE from a closed set — never assembled text.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The gap this closes: the client used to set a `window` variable on rejection
+ * and push NO turn at all. The model therefore never learned the attempt had
+ * failed, so it had no reason to try again and the conversation simply stopped
+ * — a student left staring at a box that had refused them, with an assistant
+ * that believed it was still waiting.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Why a separate turn kind, and not another `secret_status` ─────────────
+ *
+ * `SecretLifecycle` has four words that are load-bearing elsewhere, and a
+ * rejection is NOT a lifecycle transition: after a confirmation mismatch the
+ * request is still `secret_requested`, waiting for another attempt. Folding
+ * rejections into the lifecycle would either invent a fifth word or lie about
+ * the state of the request.
+ *
+ * ── Why a union of literals rather than a string ──────────────────────────
+ *
+ * A `string` here is a place where someone eventually writes
+ * `` `did not match: ${typed}` `` because it would be helpful. Every value
+ * below is a fixed code decided before the student typed anything, so there is
+ * nothing for a password to ride in on.
+ */
+export type SecretRejectionReason =
+  // Returned by the secure endpoint.
+  | "confirmation_mismatch"
+  | "empty"
+  | "unknown_request"
+  | "expired"
+  | "already_submitted"
+  | "not_your_request"
+  | "wrong_conversation"
+  // Decided by the client, when the control could not even be used.
+  | "endpoint_unreachable"
+  | "prompt_expired"
+  | "client_does_not_support_secure_control"
+  | "insecure_context"
+  | "unknown_channel";
 
 /** Exactly what `POST /api/askimate/ai` accepts. Transcribed. */
 export interface ModelRequest {
@@ -108,6 +154,15 @@ export function buildModelRequest(input: {
           role: "assistant",
           content: "[A secure password box was shown to the student.]",
         });
+        break;
+      }
+      case "secret_rejected": {
+        // A code and nothing else. Deliberately NOT a template: a template is
+        // where a field that turns out to carry a value gets interpolated
+        // later. The model needs to know the attempt failed so it can offer to
+        // try again; it does not need to know what was typed, and there is
+        // nothing on this turn that could tell it.
+        history.push({ role: "assistant", content: `[secret_rejected · ${turn.reason}]` });
         break;
       }
       case "secret_status": {

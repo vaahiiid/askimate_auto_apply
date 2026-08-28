@@ -50,6 +50,7 @@ import type { SecretHandle, SecretStore } from "@askimate/aas-secrets";
 import { parseSecretRequestId } from "@askimate/aas-secrets";
 
 import type { SecretBindingStore } from "./bindings.js";
+import type { SecretRejectionReason } from "./chat-transport.js";
 
 /** What AskiMate's JWT carries. Transcribed from the real route. */
 export interface AskimateUserPayload {
@@ -78,6 +79,25 @@ export type SecretSubmitResponse =
         | "not_your_request"
         | "wrong_conversation";
     };
+
+/**
+ * COMPILE-TIME ASSERTION: the endpoint's rejection reasons and the turn's
+ * rejection reasons must stay the same set.
+ *
+ * These are two unions in two files, and they will drift the moment someone
+ * adds a reason to the route without adding it to the transport. The drift is
+ * silent — the route returns a code the client cannot represent, so the client
+ * falls back to "unknown" and the model is told something vaguer than what
+ * actually happened.
+ *
+ * `Exclude` in both directions turns that into a build failure naming the
+ * missing member.
+ */
+type ServerReason = Extract<SecretSubmitResponse, { status: "secret_rejected" }>["reason"];
+type AssertNever<T extends never> = T;
+export type SERVER_REASONS_ALL_REPRESENTABLE = AssertNever<
+  Exclude<ServerReason, SecretRejectionReason>
+>;
 
 export interface SecretRoutesOptions {
   readonly store: SecretStore;
@@ -246,6 +266,47 @@ export function createSecretRoutes(options: SecretRoutesOptions): Router {
           handle: submitted.handle,
         };
         res.status(200).json(response);
+      })().catch(next);
+    },
+  );
+
+  // ── DELETE /askimate/secret/:requestId ──────────────────────────────────
+  //
+  // The student abandons the step. Without this, a request stays open until
+  // its TTL expires — and while it is open the composer's send is blocked and
+  // the server refuses ordinary messages. A student who changes their mind
+  // would be locked out of their own conversation for up to five minutes with
+  // no way to say so.
+  //
+  // No new lifecycle word is needed. `discard` destroys the entry and marks it
+  // `secret_expired`, whose meaning already reads "the TTL passed, OR the
+  // student abandoned it".
+  router.delete(
+    "/askimate/secret/:requestId",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const user = getUser(req, options.jwtSecret);
+        if (user === null) {
+          res.status(401).json({ error: "Authentication required" });
+          return;
+        }
+        const requestId = parseSecretRequestId(oneParam(req.params["requestId"]));
+        if (requestId === null) {
+          res.status(404).json({ error: "Unknown request" });
+          return;
+        }
+        const binding = options.bindings.findSync(requestId);
+        // Same answer for "does not exist" and "not yours", as the GET does:
+        // distinguishing them would confirm that another student had been
+        // asked for a password.
+        if (binding === null || binding.userId !== user.id) {
+          res.status(404).json({ error: "Unknown request" });
+          return;
+        }
+
+        options.store.discard(requestId);
+        await options.bindings.record(requestId, { lifecycle: "secret_expired" });
+        res.status(200).json({ status: "secret_cancelled", lifecycle: "secret_expired" });
       })().catch(next);
     },
   );

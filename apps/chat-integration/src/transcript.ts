@@ -53,7 +53,7 @@
 
 import type { SecretPrompt } from "@askimate/aas-secrets";
 
-import type { ChatTurn } from "./chat-transport.js";
+import type { ChatTurn, SecretRejectionReason } from "./chat-transport.js";
 
 /**
  * One thing to draw, in transcript order.
@@ -92,6 +92,17 @@ export type TranscriptItem =
       readonly lifecycle: string;
       /** Opaque. Resolves to nothing outside the store. */
       readonly handle?: string;
+    }
+  | {
+      readonly render: "secret_rejected";
+      readonly position: number;
+      /**
+       * A code from a closed set. The student-facing sentence is chosen from a
+       * fixed table at render time — it is deliberately NOT carried here,
+       * because a display string on a turn is a field someone eventually
+       * assembles from input.
+       */
+      readonly reason: SecretRejectionReason;
     };
 
 /**
@@ -121,6 +132,8 @@ export function projectTranscript(turns: readonly ChatTurn[]): readonly Transcri
           lifecycle: turn.lifecycle,
           ...(turn.handle === undefined ? {} : { handle: turn.handle }),
         };
+      case "secret_rejected":
+        return { render: "secret_rejected", position, reason: turn.reason };
     }
   });
 }
@@ -145,6 +158,16 @@ export function openSecureRequest(items: readonly TranscriptItem[]): SecretPromp
   for (const item of items) {
     if (item.render === "secure_control") open = item.prompt;
     else if (item.render === "secret_status") open = null;
+    // A REJECTION DOES NOT CLOSE THE REQUEST. This is the subtle one.
+    //
+    // A confirmation mismatch leaves the request in `secret_requested`,
+    // waiting for another attempt — the student mistyped, and the box should
+    // still be there. Treating a rejection as closure would release the
+    // composer while a live request is still open on the server, which is
+    // precisely the divergence the fail-closed guard exists to catch.
+    //
+    // What closes a request is a lifecycle transition, and only the store can
+    // make one of those.
   }
   return open;
 }

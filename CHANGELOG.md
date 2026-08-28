@@ -19,6 +19,101 @@ not shipped artefacts.
 
 ---
 
+## [0.10.0] — 2026-08-28
+
+**Phase C: a refused attempt no longer stalls the conversation, and a refresh no longer leaves a
+hole in it.**
+
+**Version bump: MINOR.** New capability, additive. No security boundary moved, no behaviour
+weakened.
+
+### Added
+
+- **`secret_rejected` as its own turn kind**, carrying a `SecretRejectionReason` — a code from a
+  closed union of twelve literals, never assembled text. The client previously recorded a rejection
+  only on a `window` variable and pushed no turn at all, so **the model never learned an attempt had
+  failed**: it had no reason to offer another and the run waited for a secret that was never coming.
+
+  A separate kind rather than another `secret_status` because a rejection is **not** a lifecycle
+  transition — after a mismatch the request is still `secret_requested`, waiting.
+
+- **A compile-time assertion that the two rejection unions cannot drift.** The endpoint's reasons
+  and the transport's reasons live in different files and would silently diverge the first time
+  someone added one to the route alone. `Exclude<ServerReason, SecretRejectionReason>` must be
+  `never`, so a new server reason fails the build naming itself.
+
+- **`askimate_conversation_events`** — the content-free record that lets a refresh redraw a secure
+  step *in its original position*. Stores an ordinal, a kind, a request id, and a lifecycle word or
+  reason code. **Nothing renderable is stored**: the prompt is reconstructed at read time from
+  `askimate_secret_requests`.
+
+  `kind`, `lifecycle` and `reason_code` are text columns constrained by **database CHECK
+  constraints** to their closed sets, so "just put the message in `reason_code`" fails at the
+  `INSERT` rather than at review. `UNIQUE (conversation_id, ordinal)` makes a replayed write a
+  no-op rather than a duplicated item.
+
+- **`DELETE /api/askimate/secret/:requestId`** — cancellation. Without it, a student who changes
+  their mind is locked out of their own conversation until the TTL expires, because the composer's
+  send is blocked and the server refuses ordinary messages while a request is open. No new lifecycle
+  word was needed: `secret_expired` already reads *"the TTL passed, **or the student abandoned
+  it**"*.
+
+- **`replayEvents`** — rebuilds non-message turns from those rows. Deliberately does **not** restore
+  a handle: one from before a restart resolves to nothing, and replaying it would tell the model a
+  secret is available when it is not. An event whose request is no longer resolvable is **dropped**
+  rather than rendered from a placeholder.
+
+### Changed
+
+- A rejection **does not close the open request**. A mismatch leaves it `secret_requested` on the
+  server; treating the rejection as closure would release the composer while a live request is still
+  open — exactly the client/server divergence the fail-closed guard exists to catch.
+
+### Deliberate regressions, and whether they were caught
+
+| Regression | Caught |
+|---|---|
+| Rejection rendered as a fixed sentence instead of the code | ✅ 2 tests |
+| Rejection swallowed — no model turn at all (the original stall) | ✅ 2 tests |
+| A rejection wrongly closes the open request | ✅ 1 test |
+| Replay restores a stale handle | ✅ 1 test |
+| Replay invents a prompt instead of dropping the event | ✅ 1 test |
+| CHECK constraints dropped from the events table | ✅ 2 tests |
+| Cancellation does not discard the secret | ✅ 1 test |
+| Cancellation skips the ownership check | ✅ 1 test |
+| Client swallows the rejection again | ✅ 2 tests |
+| The typed value put on the rejection turn | ✅ 2 tests |
+| The rendered note built from the typed value | ✅ 2 tests |
+| A new server reason the transport cannot represent | ✅ typecheck |
+| Refresh restores the composer draft from browser storage | ✅ 1 test |
+
+### One of my regressions did not fire, and why that mattered
+
+The first attempt at "the note must not carry the typed value" set the note text from
+`el("secure-password").value` — and the tests stayed green. Not because they were wrong, but because
+the inputs are cleared *before* the note renders, so the value was already gone. The regression was
+unfaithful, not the test.
+
+Re-run at points where the value genuinely **is** in scope — put on the turn, and captured in a
+closure before clearing — both were caught. Recorded because "the regression passed" is only
+evidence when the regression was actually possible.
+
+### A behaviour deliberately left alone
+
+A confirmation mismatch is caught **client-side, before any request is sent**: the box clears, says
+so, and stays open. No turn is pushed, and no rejection reaches the model. That is correct — a typo
+is not a stall, the student simply retries, and reporting every mistyped character would be noise
+the model cannot act on. The stall this phase removes is the **server** rejection, where the box
+closes and the attempt is over.
+
+### Still provisional
+
+All UI, copy, layout and interaction detail remains **provisional and unapproved**, including the
+wording of the inline rejection note. What is proposed is the mechanism: the sentence is chosen at
+render time from a fixed table keyed by the code, and is never carried on the turn.
+
+---
+
 ## [0.9.1] — 2026-08-27
 
 **A green local run, a red CI: a constraint checked against the wrong Node version.**

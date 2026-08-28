@@ -970,3 +970,120 @@ describeIfDatabase("the secure control is inline in the conversation", () => {
     await page.close();
   }, 60_000);
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Phase C — the conversation cannot stall, and a refresh leaves no hole
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a refused attempt keeps the conversation going", () => {
+  // NOTE on what is NOT tested here, deliberately.
+  //
+  // A confirmation mismatch is caught CLIENT-SIDE, before any request is sent:
+  // the box clears, says so, and stays open. No turn is pushed, and that is
+  // correct — a typo is not a stall, the student simply retries, and telling
+  // the model about every mistyped character would be noise it cannot act on.
+  //
+  // The stall this phase removes is the SERVER rejection: the box closes, the
+  // attempt is over, and without a turn the run waits for a secret that is
+  // never coming. That is what these tests exercise.
+
+  it("pushes a secret_rejected TURN when the SERVER refuses", async () => {
+    const { requestId, prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    // Spend the request first, so the second attempt is refused by the server
+    // with `already_submitted` — a real rejection, not a client-side check.
+    const first = await fetch(`${BASE}/api/askimate/secret/${requestId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenFor(userId)}` },
+      body: JSON.stringify({ password: "first-value", confirmation: "first-value", conversationId }),
+    });
+    expect(first.status).toBe(200);
+
+    await page.locator("#secure-password").fill(MARKER);
+    await page.locator("#secure-confirmation").fill(MARKER);
+    await page.locator("#secure-submit").click();
+    await page.waitForFunction(
+      () => (window as unknown as Record<string, unknown>)["__askimateStatus"] !== undefined,
+      undefined,
+      { timeout: 10_000 },
+    );
+
+    const turns = (await page.evaluate(
+      () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
+    )) as { kind: string; reason?: string }[];
+    const rejected = turns.filter((t) => t.kind === "secret_rejected");
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBe("already_submitted");
+
+    // A code, never the value.
+    expect(JSON.stringify(turns)).not.toContain(MARKER);
+    await page.close();
+  }, 60_000);
+
+  it("shows the refusal IN the conversation, and closes a non-retryable box", async () => {
+    const { requestId, prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    await fetch(`${BASE}/api/askimate/secret/${requestId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenFor(userId)}` },
+      body: JSON.stringify({ password: "spent", confirmation: "spent", conversationId }),
+    });
+
+    await page.locator("#secure-password").fill(MARKER);
+    await page.locator("#secure-confirmation").fill(MARKER);
+    await page.locator("#secure-submit").click();
+    await page.locator("#transcript [data-rejected]").first().waitFor({ timeout: 10_000 });
+
+    const note = page.locator("#transcript [data-rejected]");
+    expect(await note.count()).toBe(1);
+    expect(await note.getAttribute("data-rejected")).toBe("already_submitted");
+    expect(await note.textContent()).not.toContain(MARKER);
+
+    // Not retryable: the box closes and the inputs are empty.
+    expect(await page.locator("#secure-control").isHidden()).toBe(true);
+    expect(await page.locator("#secure-password").inputValue()).toBe("");
+    await page.close();
+  }, 60_000);
+});
+
+describeIfDatabase("a refresh restores the step, and nothing that was typed", () => {
+  it("re-opens the request from the server and recovers no input", async () => {
+    const { requestId, prompt } = await openRequest();
+    const page = await chatPage();
+    await deliver(page, prompt);
+
+    // Half-typed password, and a composer draft.
+    await page.locator("#secure-password").fill(MARKER);
+    await page.locator("#chat-input").fill("a question I was writing");
+
+    await page.reload();
+    await page.evaluate(
+      ([t, c]) => {
+        (window as unknown as Record<string, unknown>)["__askimateToken"] = t;
+        (window as unknown as Record<string, unknown>)["__askimateConversationId"] = c;
+      },
+      [tokenFor(userId), conversationId] as [string, number],
+    );
+
+    // The server still knows the request is open — that is what survives.
+    const status = await fetch(`${BASE}/api/askimate/secret/${requestId}`, {
+      headers: { Authorization: `Bearer ${tokenFor(userId)}` },
+    });
+    expect(status.status).toBe(200);
+    const body = (await status.json()) as { lifecycle: string; conversationId: number };
+    expect(body.lifecycle).toBe("secret_requested");
+    expect(body.conversationId).toBe(conversationId);
+    // And it says nothing about what was typed into it.
+    expect(JSON.stringify(body)).not.toContain(MARKER);
+
+    // The page recovered nothing: not the password, not the draft.
+    await deliver(page, prompt);
+    expect(await page.locator("#secure-password").inputValue()).toBe("");
+    expect(await page.locator("#chat-input").inputValue()).toBe("");
+    await page.close();
+  }, 60_000);
+});
