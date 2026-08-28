@@ -1,13 +1,9 @@
 /**
  * @askimate/aas-secure-service — Plane B.
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * ⚠  MIGRATIONS ONLY, so far. See the conversation service's note.
- *
  * The thing to know about this schema: it has no column that can hold a
- * secret, and `secret-schema.test.ts` proves it by reading
- * `information_schema` after the migration runs.
- * ═══════════════════════════════════════════════════════════════════════════
+ * secret, and `schema.test.ts` proves it by reading `information_schema` after
+ * the migrations run — including the lifecycle outbox added in 0002.
  */
 
 import { join } from "node:path";
@@ -35,3 +31,19 @@ export const USE_REFUSAL_CODES = [
   "wrong_target",
   "diagnostic_capture_not_confirmed",
 ] as const;
+
+
+// ── The lifecycle push ────────────────────────────────────────────────────
+
+export type {
+  DeliverTransition,
+  DeliveryOutcome,
+  LifecycleTransition,
+  OutboxRow,
+  PermanentCode,
+  RetryableCode,
+} from "./lifecycle-outbox.js";
+export { LifecycleOutbox, backoffSeconds } from "./lifecycle-outbox.js";
+
+export type { InternalAppendOptions } from "./internal-append.js";
+export { internalAppend } from "./internal-append.js";

@@ -56,7 +56,7 @@
  * styling; it is the state machine that a real AskiMate interface would drive.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 
 import type {
@@ -66,6 +66,7 @@ import type {
   RejectionReason,
 } from "@askimate/aas-contracts";
 import { SECRET_LIFECYCLES, parseRejectionReason } from "@askimate/aas-contracts";
+import type { ConversationTransport, SendResult } from "./conversation-client.js";
 import {
   EMPTY_LOG,
   addProvisional,
@@ -160,7 +161,13 @@ export type SendOutcome =
  * anything but a message id, a message body and a delete.
  */
 export interface SecureTurnTransport {
-  /** `POST /api/askimate/ai`. */
+  /**
+   * `POST /api/askimate/ai` — the PROVISIONAL app's synchronous message route.
+   *
+   * Superseded by `SecureTurnInput.conversation`, which posts to the real
+   * Conversation Service. Kept while the legacy harness still has coverage the
+   * React path has not replaced; see `docs/harness-coverage-mapping.md`.
+   */
   readonly send: (input: {
     readonly conversationId: number;
     readonly content: string;
@@ -182,6 +189,27 @@ export interface SecureTurnInput {
    */
   readonly capabilities: () => ClientCapabilities;
   readonly transport: SecureTurnTransport;
+  /**
+   * The real Conversation Service, when there is one.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-08-28: *"Replace the provisional application's durable
+   * conversation path with the actual Conversation Service."*
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * When supplied, the DURABLE path is entirely the service's: the transcript
+   * is loaded from it, messages are posted to it, and every durable event
+   * arrives over its stream carrying the ordinal it was written at. The hook
+   * still draws provisional entries — that is what makes the UI feel immediate
+   * — but it places none of them.
+   *
+   * Optional only because the provisional app still mounts the hook without
+   * one while its harness coverage is being replaced. It is not a fallback
+   * mode with different rules: `send` behaves identically on both paths,
+   * because both produce the same `SendResult` and the hook has one branch for
+   * it rather than two.
+   */
+  readonly conversation?: ConversationTransport;
   /**
    * The clock, injected — required, not defaulted.
    *
@@ -217,6 +245,15 @@ export interface SecureTurnState {
   readonly rejected: (reason: RejectionReason) => void;
   readonly cancel: () => void;
   readonly send: (content: string) => Promise<SendOutcome>;
+  /**
+   * True once the durable transcript has been loaded from the service.
+   *
+   * A page that has not loaded yet and a conversation that is genuinely empty
+   * look identical in `events`, and they are not the same thing: the first must
+   * not let a student send into a conversation whose open secure step it has
+   * not seen. Distinguished here rather than inferred from an empty list.
+   */
+  readonly loaded: boolean;
 }
 
 export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
@@ -245,7 +282,11 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   const [serverOpenRequestId, setServerOpenRequestId] = useState<string | null>(null);
 
   const { conversationId, capabilities, transport } = input;
+  const conversation = input.conversation;
   const now = input.now;
+  // No service means nothing to load: the provisional path's transcript is
+  // whatever arrives through `receive`, and it is ready at once.
+  const [loaded, setLoaded] = useState(conversation === undefined);
 
   const items = useMemo(() => projectLog(log), [log]);
   const events = useMemo(() => durableEvents(log), [log]);
@@ -463,25 +504,36 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // an echo drawn at `previous.length + 1` would have claimed a slot that
       // a concurrently-arriving server event also claims.
       const echo = draw({ kind: "message", actor: "student", content });
-      const { ok, body } = await transport.send({ conversationId, content });
-      const response = body as Partial<ChatSendResponse> | null;
 
-      if (ok && response?.status === "accepted") {
+      // ── ONE send path, two transports ────────────────────────────────
+      //
+      // The real service and the provisional route produce the same
+      // `SendResult`, so everything below this line is identical on both. A
+      // branch here would be a second place for "what does accepted mean" to
+      // be answered, and the whole reason this phase exists is that answers
+      // kept in two places drift.
+      const result =
+        conversation !== undefined
+          ? await conversation.send(content)
+          : await legacySend(transport, conversationId, content);
+
+      if (result.outcome === "accepted") {
         // EVERY event the server wrote, each at the position the server gave
         // it. The student's message comes back placed and retires the echo by
-        // `describesSame`; the assistant's answer arrives placed in the same
-        // list rather than being appended after a locally-computed number.
-        const written = (response as Extract<ChatSendResponse, { status: "accepted" }>).events;
+        // `describesSame`; anything else the server wrote arrives placed in the
+        // same list rather than after a locally-computed number.
+        //
+        // The SAME event usually also arrives on the stream a moment later, and
+        // that is not a problem to solve here: `admitDurable` ignores an
+        // ordinal it already holds, so response-then-stream and
+        // stream-then-response both end with one copy.
         setLog((previous) =>
           // `retireProvisional` as well as the admission, because the server is
           // free to normalise what it stored — trimming, truncating, redacting.
           // A normalised body would not match the echo, and the echo would
           // linger next to the real message. Retiring by the id we minted is
           // the only reconciliation that cannot miss.
-          retireProvisional(
-            admitAllDurable(previous, Array.isArray(written) ? written : []),
-            echo,
-          ),
+          retireProvisional(admitAllDurable(previous, result.events), echo),
         );
         setServerOpenRequestId(null);
         return { outcome: "accepted" };
@@ -492,23 +544,134 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       // value, which nothing here has ever read from or written to.
       setLog((previous) => retireProvisional(previous, echo));
 
-      if (response?.status === "refused" && response.reason === "secret_request_open") {
+      if (result.outcome === "held") {
         // This client was stale. The message is NOT appended, NOT retried and
         // NOT queued.
-        const requestId = (response as Extract<ChatSendResponse, { status: "refused" }>).requestId;
-        setServerOpenRequestId(requestId);
-        return { outcome: "held", requestId };
+        setServerOpenRequestId(result.requestId);
+        return { outcome: "held", requestId: result.requestId };
       }
 
       return { outcome: "failed" };
     },
-    [conversationId, draw, transport],
+    [conversation, conversationId, draw, transport],
   );
 
+  // ── The durable path: load, then stream ──────────────────────────────────
+  //
+  //   load  → the transcript the service holds, with its ordinals
+  //   stream → everything after, each frame carrying `id: <ordinal>`
+  //
+  // In that order, and the order is load-bearing. Opening the stream first and
+  // loading after would race: a live event could be admitted before the
+  // backfill that precedes it, and while `admitDurable` sorts by ordinal so
+  // the RESULT would still be right, the window in between would render a
+  // conversation with a hole in it.
+  //
+  // ── The resume point is a LOCAL, not a ref off the state ─────────────────
+  //
+  // It was a ref assigned during render, and that was wrong in a way the
+  // browser caught and no adapter test could have. `backfill` calls `setLog`;
+  // React applies that on a later render; the stream is opened in the SAME
+  // microtask, before any render has happened. So the ref still read 0, the
+  // page opened every stream from the beginning, and a refresh re-sent the
+  // whole conversation — correct on screen, because `admitDurable` deduplicates
+  // by ordinal, and wrong on the wire, which is where it costs.
+  //
+  // The watermark below is advanced by the code that learns the ordinals, at
+  // the moment it learns them, with no render in between.
+  useEffect(() => {
+    if (conversation === undefined) return undefined;
+
+    // ── An AbortController, not a `let live = true` ────────────────────
+    //
+    // Two reasons, and the second is the real one. First, the compiler cannot
+    // see that a plain boolean is ever reassigned from inside a callback, so it
+    // narrows it and the lint rule correctly reports every later check as
+    // always-true — a flag whose checks are provably dead is not a flag.
+    // Second and better: the signal actually CANCELS the in-flight load. A
+    // student who navigates away mid-page should stop the request, not have it
+    // run to completion and resolve into a component that is gone.
+    const controller = new AbortController();
+    const closers: (() => void)[] = [];
+
+    // The highest DURABLE ordinal this connection knows about. Advanced only
+    // by events the server placed, so it is always a real log position and
+    // never something this browser computed.
+    let watermark = 0;
+    const observe = (ordinal: number): void => {
+      if (ordinal > watermark) watermark = ordinal;
+    };
+
+    const backfill = async (after: number): Promise<void> => {
+      const durable = await conversation.load(after, controller.signal);
+      if (controller.signal.aborted) return;
+      for (const event of durable) observe(event.ordinal);
+      setLog((previous) => admitAllDurable(previous, durable));
+    };
+
+    void (async () => {
+      await backfill(0);
+      if (controller.signal.aborted) return;
+      setLoaded(true);
+      closers.push(conversation.stream(watermark, {
+        onEvent: (event) => {
+          if (controller.signal.aborted) return;
+          observe(event.ordinal);
+          admit(event);
+        },
+        onResume: (resumingAfter) => {
+          // The stream has told us where it is starting. If that is AHEAD of
+          // what we hold, the events in between will never arrive on this
+          // connection and the transcript would silently be missing them —
+          // so they are fetched over the paged endpoint instead. This is the
+          // one thing `conversation.resume` exists for.
+          if (!controller.signal.aborted && resumingAfter > watermark) {
+            void backfill(watermark);
+          }
+        },
+      }));
+    })();
+
+    return () => {
+      controller.abort();
+      for (const close of closers) close();
+    };
+    // `conversation` and `admit` only. Deliberately NOT `events` or `log`:
+    // this effect owns a long-lived connection, and re-running it on every
+    // event is how a stream becomes a reconnect loop.
+  }, [admit, conversation]);
+
   return {
-    events, items, log, openPrompt, refusal, composer,
+    events, items, log, loaded, openPrompt, refusal, composer,
     receive, submitted, rejected, cancel, send,
   };
+}
+
+/**
+ * The PROVISIONAL route, expressed as the same result the real service gives.
+ *
+ * Here rather than inside the hook so there is exactly one place that knows
+ * what `ChatSendResponse` means, and so the hook's `send` has no branch whose
+ * two halves could answer "was this accepted" differently. Deleted with the
+ * legacy route.
+ */
+async function legacySend(
+  transport: SecureTurnTransport,
+  conversationId: number,
+  content: string,
+): Promise<SendResult> {
+  const { ok, body } = await transport.send({ conversationId, content });
+  const response = body as Partial<ChatSendResponse> | null;
+
+  if (ok && response?.status === "accepted") {
+    const written = (response as Extract<ChatSendResponse, { status: "accepted" }>).events;
+    return { outcome: "accepted", events: Array.isArray(written) ? written : [] };
+  }
+  if (response?.status === "refused" && response.reason === "secret_request_open") {
+    const requestId = (response as Extract<ChatSendResponse, { status: "refused" }>).requestId;
+    return { outcome: "held", requestId };
+  }
+  return { outcome: "failed" };
 }
 
 /** The real transport, for a page talking to a real server. */

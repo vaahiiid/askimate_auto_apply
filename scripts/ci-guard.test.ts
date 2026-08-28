@@ -56,6 +56,14 @@ const DATABASE_BACKED = [
   // And the HTTP surface over it: resumable SSE, the fail-closed guard, and the
   // internal append, all over a listening server against a real log.
   "apps/conversation-service/src/routes.test.ts",
+  // The conversation plane's deployment: the __Host- session and the handler
+  // that scrubs a raw body off a parse error before anything can log it.
+  "apps/conversation-service/src/app.test.ts",
+  // The React client against the real service, in a real browser: server
+  // ordinals, resumable SSE, two clients converging, the fail-closed guard.
+  "apps/chat-integration/src/conversation-service.test.ts",
+  // The lifecycle push across the plane boundary, against two real databases.
+  "apps/secure-service/src/lifecycle.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

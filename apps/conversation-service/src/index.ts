@@ -1,14 +1,8 @@
 /**
  * @askimate/aas-conversation-service — Plane A.
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * ⚠  MIGRATIONS ONLY, so far.
- *
- * The schema exists and its constraints are verified against a real
- * PostgreSQL. The service — routes, SSE, the model funnel — is the next step
- * and is deliberately not here yet: ADR-0003 and ADR-0039 put versioned
- * migrations before any data exists, and this is that.
- * ═══════════════════════════════════════════════════════════════════════════
+ * The event log, its ordinals, its HTTP surface, and the origin the
+ * conversation UI is served from.
  */
 
 import { join } from "node:path";
@@ -43,3 +37,21 @@ export const SETTLING_KINDS = [
   "secret_expired",
   "secret_cancelled",
 ] as const;
+
+
+// ── The service ───────────────────────────────────────────────────────────
+
+export type { AppendableEvent, AppendResult } from "./event-store.js";
+export {
+  ConversationEventStore,
+  IdempotencyConflictError,
+  UnknownConversationError,
+} from "./event-store.js";
+
+export type { Caller, ConversationRoutesOptions } from "./routes.js";
+export { createConversationRoutes } from "./routes.js";
+
+export { SESSION_COOKIE, issueSession, readSession, setSession } from "./session.js";
+
+export type { ConversationAppOptions } from "./app.js";
+export { createConversationApp } from "./app.js";

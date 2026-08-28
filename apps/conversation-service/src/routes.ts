@@ -62,10 +62,37 @@ export interface ConversationRoutesOptions {
   /** How often the stream re-reads the log to catch another instance's writes. */
   readonly pollIntervalMs?: number;
   readonly heartbeatIntervalMs?: number;
+  /**
+   * How long one stream connection may live before the server closes it.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-08-28 (contract phase): *"Assume multiple service instances
+   * and rolling deployments."*
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * An SSE connection is open indefinitely by design, and that is exactly what
+   * stops an instance from draining: a rolling deployment cannot retire a pod
+   * that is holding streams no one will ever close. Load balancers cap
+   * connection age for the same reason, and a connection the balancer cuts is
+   * indistinguishable to the client from one this closes.
+   *
+   * So the server closes them itself, on a schedule it controls, and the
+   * browser reconnects with `Last-Event-ID`. Nothing is lost, because the
+   * ordinal the client last saw is exactly where the next connection resumes —
+   * which is the property ADR-0035 exists to provide, and this is what makes it
+   * a routine event rather than an exceptional one.
+   */
+  readonly maxStreamMs?: number;
 }
 
 const DEFAULT_POLL_MS = 1_000;
 const DEFAULT_HEARTBEAT_MS = 15_000;
+/**
+ * Five minutes. Long enough that a reconnect is rare, short enough that a
+ * rolling deployment drains an instance in a bounded time rather than waiting
+ * on whichever client happens to close last.
+ */
+const DEFAULT_MAX_STREAM_MS = 300_000;
 
 function problem(res: Response, code: ProblemCode, extra: Record<string, unknown> = {}): void {
   res
@@ -127,6 +154,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
   const router = makeRouter();
   const pollMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
   const heartbeatMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_MS;
+  const maxStreamMs = options.maxStreamMs ?? DEFAULT_MAX_STREAM_MS;
 
   /** Authenticates, then authorises. Returns null having already answered. */
   async function caller(req: Request, res: Response, conversationId: string): Promise<Caller | null> {
@@ -276,7 +304,23 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         // Client-supplied and therefore untrusted: parsed strictly, and used
         // ONLY as a lower bound inside a conversation already authorised above.
         // A hostile value cannot widen the query.
-        const resumeFrom = parseLastEventId(req.header("Last-Event-ID")) ?? 0;
+        // Header first, query second. The header is the browser's own account
+        // of what THIS connection received and is sent automatically on an
+        // EventSource reconnect; the query parameter is the only way a FRESH
+        // EventSource — one made after a page refresh — can say where it got
+        // to, because the browser API accepts no request headers. Preferring
+        // the header means a live reconnect is never overridden by a stale
+        // value the page computed before the connection existed.
+        //
+        // Both are client-supplied and both go through the same strict parse,
+        // and both are used only as a lower bound inside a conversation
+        // authorised above, so neither can widen the query.
+        const resumeFrom =
+          parseLastEventId(req.header("Last-Event-ID")) ??
+          parseLastEventId(typeof req.query["lastEventId"] === "string"
+            ? req.query["lastEventId"]
+            : undefined) ??
+          0;
 
         for (const [header, value] of Object.entries(SSE_RESPONSE_HEADERS)) {
           res.setHeader(header, value);
@@ -313,6 +357,15 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         });
 
         const poll = setInterval(() => void drain(), pollMs);
+        // The drain, then the close. Ending the response with events still
+        // unsent would make a client wait for the reconnect to see them, and a
+        // scheduled close must not cost latency it did not have to.
+        const lifetime = setTimeout(() => {
+          void drain().then(() => {
+            stop();
+            res.end();
+          });
+        }, maxStreamMs);
         const heartbeat = setInterval(() => {
           if (!closed) res.write(`${SSE_HEARTBEAT_LINE}\n\n`);
         }, heartbeatMs);
@@ -321,6 +374,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           closed = true;
           clearInterval(poll);
           clearInterval(heartbeat);
+          clearTimeout(lifetime);
           unsubscribe();
         };
         req.on("close", stop);

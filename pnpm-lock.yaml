@@ -172,6 +172,9 @@ importers:
         specifier: ^8.20.0
         version: 8.23.0
     devDependencies:
+      '@askimate/aas-conversation-service':
+        specifier: workspace:*
+        version: link:../conversation-service
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -261,9 +264,18 @@ importers:
         specifier: ^8.20.0
         version: 8.23.0
     devDependencies:
+      '@askimate/aas-conversation-service':
+        specifier: workspace:*
+        version: link:../conversation-service
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)

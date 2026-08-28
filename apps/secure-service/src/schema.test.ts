@@ -75,7 +75,11 @@ beforeAll(async () => {
   if (!HAVE_DATABASE) return;
   pool = await ownDatabase("aas_secure_schema");
   const applied = await migrate(pool, MIGRATIONS_DIR);
-  expect(applied).toEqual(["0001_secret_requests"]);
+  // Every migration, named. A list rather than a count, so a file added
+  // without being considered here fails rather than sliding in — and so the
+  // "no column can hold a secret" scan below is known to be looking at the
+  // whole schema, not at whatever happened to be migrated.
+  expect(applied).toEqual(["0001_secret_requests", "0002_lifecycle_outbox"]);
 }, 120_000);
 
 afterAll(async () => {
@@ -132,12 +136,18 @@ describeIfDatabase("this database cannot hold a secret", () => {
         ORDER BY table_name`,
     );
     expect(tables.rows.map((row) => row.table_name)).toEqual([
+      // The outbox that carries a lifecycle transition to the conversation
+      // log. It holds a request id, a kind, an opaque handle and a reason code
+      // — no payload column, deliberately, because a generic `payload jsonb`
+      // is where a password would eventually be put by accident. The
+      // column-by-column scan above covers it like every other table.
+      "lifecycle_outbox",
       "frame_tokens",
       "schema_migrations",
       "secret_requests",
       "secret_uses",
       "secure_sessions",
-    ]);
+    ].sort());
   });
 });
 

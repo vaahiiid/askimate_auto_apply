@@ -12,5 +12,5 @@
     "jsx": "react-jsx"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/conversation" }, { "path": "../../packages/domain" }, { "path": "../../packages/secrets" }]
+  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/conversation" }, { "path": "../../packages/domain" }, { "path": "../../packages/secrets" }, { "path": "../conversation-service" }]
 }

@@ -19,6 +19,144 @@ not shipped artefacts.
 
 ---
 
+## [0.15.0] — 2026-08-28
+
+**The browser now talks to the real Conversation Service, and the Secure
+Interaction Service pushes lifecycle transitions into the real event log. The
+architecture that existed as separated pieces in 0.14.0 is connected and proven
+end to end in real browsers, across two services and two databases.**
+
+**Version bump: MINOR.** Two services gained real surfaces and the client moved
+onto them; additive in capability. One contract gained a parameter, described
+below. No security property is weakened; three are newly proven in a browser.
+
+### Phase 1 — the React client on the real service
+
+```
+Browser → Conversation Service → PostgreSQL → server-assigned ordinal
+        → SSE → ConversationLog → React UI
+```
+
+- **`apps/conversation-service/src/app.ts`** — the conversation plane as ONE
+  origin: the API and the client it serves. ADR-0030 already said so; this makes
+  the session cookie simply attach, `EventSource` work without `withCredentials`,
+  and leaves no cross-origin preflight in front of the fail-closed guard.
+- **`apps/conversation-service/src/session.ts`** — the `__Host-` HttpOnly cookie
+  of ADR-0033. The stream is what turned the approved model into the *only*
+  workable one: `EventSource` takes no request headers, so a bearer token could
+  only ride in the URL — where it reaches the access log, the `Referer`, the
+  proxy and the browser history.
+- **`apps/chat-integration/src/conversation-client.ts`** — `load`, `send`,
+  `stream`. Relative URLs, no base to configure, and the browser's own
+  `EventSource` so its automatic reconnect and `Last-Event-ID` handling are the
+  ones ADR-0035 depends on rather than a reimplementation.
+
+### Phase 3 — the lifecycle push, as a transactional outbox
+
+```
+Secure Interaction Service → authenticated internal append
+        → Conversation Service → durable event log → SSE → browser
+```
+
+- **`0002_lifecycle_outbox.sql`** — the transition and the intent to publish it
+  commit in ONE transaction, in the secure plane's own database. Separate
+  databases mean the two planes cannot share a transaction, so the choice was
+  where the failure lands: pushing inside the request loses a student's
+  submission when another service blinks; pushing and forgetting loses the
+  transition. The outbox loses neither.
+- **Fail-closed follows the DIRECTION of the error.** An undelivered row means
+  the conversation log still shows the request open, so the guard there refuses
+  messages. The failure mode is a composer that stays shut — never one that
+  opens early — and that is a property of the arrangement rather than a rule
+  someone has to remember.
+- **Two idempotency layers**, because a duplicate enqueue and a duplicate
+  delivery have different causes: `UNIQUE (request_id, kind)` here, and the
+  internal route's existing idempotency on (conversation, request, kind) there.
+- **`FOR UPDATE SKIP LOCKED`**, because several instances run the publisher.
+
+### Changed — the stream contract gained a resume parameter
+
+A browser's `EventSource` sends `Last-Event-ID` **automatically, and only on its
+own reconnects**. A page that has just loaded cannot send it: the API accepts no
+request headers. So a client holding events up to ordinal 41 had no way to say
+so on a fresh connection, and every refresh re-sent the whole conversation while
+announcing `resumingAfter: 0`.
+
+`conversation.v1.yaml` now documents a `lastEventId` query parameter alongside
+the header, parsed and constrained identically — a strict non-negative integer,
+used only as a lower bound inside a conversation already authorised. **The
+header wins when both are present:** it is the browser's account of what this
+connection received, whereas the query parameter is what the page believed
+before the connection existed.
+
+### Added — a bounded stream lifetime
+
+`maxStreamMs`, five minutes by default. An SSE connection is open indefinitely
+by design, and that is exactly what stops an instance draining: a rolling
+deployment cannot retire a pod holding streams nobody will close. The server
+closes them on a schedule it controls and the browser reconnects by ordinal, so
+a routine deployment costs nothing. This is also what let the browser test prove
+reconnection — see below.
+
+### Findings
+
+**Three tests that would have passed while proving nothing.** Each was caught by
+asserting that the thing under test actually happened:
+
+- **The stream never dropped.** The reconnect test registered a Playwright route
+  to abort the stream — but routing only affects requests a page has yet to
+  make, and the `EventSource` was already open, so the pattern matched nothing
+  and the test asserted that an *uninterrupted* stream delivers events.
+  `context.setOffline(true)` did not sever the established loopback connection
+  either. Closing it server-side does, and is the realistic case.
+- **The client never resumed by ordinal.** The resume point was a ref assigned
+  during render; `backfill` calls `setLog`, React applies that on a later
+  render, and the stream opened in the same microtask — so the ref still read 0.
+  Correct on screen, because `admitDurable` deduplicates, and wrong on the wire.
+  The watermark is now a local advanced by the code that learns the ordinals.
+- **A client-created ordinal was invisible end to end.** Overwriting the send
+  response's ordinal with `1` failed *none* of the fourteen browser tests: the
+  stream delivers the same event at its real ordinal moments later and repairs
+  it. The durable path is defended twice, which is good — but a suite that
+  cannot distinguish "correct" from "repaired" would let the response path rot.
+  `conversation-client.test.ts` now drives the transport with an injected
+  `fetch` and `EventSource` so each path is observable alone.
+
+**An ambient clock in a column default.** `lifecycle_outbox.next_attempt_at`
+defaulted to `now()`, the database's clock — a second clock, and it disagreed
+with the injected one the moment a test used a fixed time. Every row was queued
+in the database's present and asked for in the caller's past, so nothing was
+ever due: a publisher that silently delivered nothing, which has the shape of an
+outage rather than a bug. `enqueue` now takes the caller's clock.
+
+**Two schema guards did their job.** Adding the outbox failed the migration-list
+assertion and the "names every table it has, so a new one cannot arrive
+unnoticed" test, which is exactly what they are for — the column-by-column
+"no column can hold a secret" scan now covers the new table because it was
+registered rather than because anyone remembered.
+
+### Verification
+
+- **1422 tests, 71 files**, `pnpm run verify` green.
+- **405 tests against real PostgreSQL**, `scripts/with-postgres.sh`, none skipped.
+- **14 real-Chromium tests** against the real service: server ordinals, two
+  clients converging, refresh, reconnect, and the fail-closed guard.
+- **8 cross-service tests** across two databases: delivery, retry, permanent
+  failure, duplicate retry, and both services restarting.
+- **All ten required regressions** confirmed, each verifying it applied first.
+- `app.test.ts`, `conversation-service.test.ts` and `lifecycle.test.ts` added to
+  `scripts/ci-guard.test.ts`, so CI fails rather than skips without a database.
+
+### Not done, deliberately
+
+`docs/harness-coverage-mapping.md` maps every legacy property to its
+replacement — and names the ones that have none. **The legacy harness stays.**
+The Secure Interaction Service has no HTTP surface yet, so nothing in the new
+architecture accepts a password, and the suites that prove what happens when one
+is typed are still the only proof of it.
+
+---
+
 ## [0.14.0] — 2026-08-28
 
 **The Conversation Service exists, and it is the only thing in the system that may say where an

@@ -145,6 +145,31 @@ paths:
             The last ordinal the client received. Client-supplied and therefore
             untrusted: parsed as a strict non-negative integer and used only as
             a lower bound within a conversation already authorised.
+
+            Sent by the browser AUTOMATICALLY, and only on a reconnect of an
+            EventSource that has already received a frame. A page that has just
+            loaded cannot send it: EventSource takes no headers.
+          schema: { type: string, pattern: "^[0-9]+$" }
+        - name: lastEventId
+          in: query
+          required: false
+          description: >-
+            The same lower bound, for the case the header cannot cover: a FRESH
+            EventSource after a page refresh. The browser API sets no request
+            headers, so a client that already holds events up to ordinal 41 has
+            no way to say so on its first connection — and a stream that
+            restarted from 0 on every refresh would re-send the whole
+            conversation, and would announce `resumingAfter: 0`, which is not
+            what the client needs resuming after.
+
+            The header WINS when both are present: it is the browser's own
+            account of what it actually received on this connection, whereas the
+            query parameter is what the page believed before the connection
+            existed.
+
+            Parsed and constrained identically — a strict non-negative integer,
+            used only as a lower bound inside a conversation already authorised,
+            so it can no more widen a query than the header can.
           schema: { type: string, pattern: "^[0-9]+$" }
       responses:
         "200":

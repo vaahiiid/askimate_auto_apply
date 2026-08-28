@@ -15,11 +15,12 @@
  * visible rather than hidden, so nobody mistakes it for a delivery mechanism.
  */
 
-import { StrictMode } from "react";
+import { StrictMode, useMemo } from "react";
 import type { JSX } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ChatView } from "./ChatView.js";
+import { conversationTransport } from "./conversation-client.js";
 import {
   browserTransport,
   parseIncomingTurn,
@@ -31,6 +32,16 @@ declare global {
   interface Window {
     __askimateToken?: string;
     __askimateConversationId?: number;
+    /**
+     * The Conversation Service's id for this conversation, when the page is
+     * served by it.
+     *
+     * A UUID, and a DIFFERENT identifier from `__askimateConversationId`, which
+     * is the provisional app's integer. Deliberately not reused: they name
+     * conversations in two different databases, and a page that conflated them
+     * would send a message to one service about a conversation in the other.
+     */
+    __askimateDurableConversationId?: string;
     __askimateReceive?: (turn: unknown) => void;
     /**
      * Capability overrides, for the browser tests.
@@ -51,6 +62,7 @@ declare global {
     /** ONLY the events the server placed, in ordinal order. */
     __askimateDurable?: () => unknown;
     __askimateOpenRequest?: () => unknown;
+    __askimateLoaded?: () => boolean;
   }
 }
 
@@ -58,8 +70,26 @@ function App(): JSX.Element {
   const authToken = window.__askimateToken ?? "";
   const conversationId = window.__askimateConversationId ?? 0;
 
+  // The real durable path, when this page is served by the Conversation
+  // Service. `useMemo` because the transport owns an EventSource: rebuilding it
+  // on every render would tear the stream down and reconnect on every keystroke.
+  const durableId = window.__askimateDurableConversationId;
+  const conversation = useMemo(
+    () =>
+      durableId === undefined
+        ? undefined
+        : conversationTransport({
+            conversationId: durableId,
+            // The one ambient read, at the mount, where reading one is
+            // legitimate and visible — the same place the clock is read.
+            newIdempotencyKey: () => window.crypto.randomUUID(),
+          }),
+    [durableId],
+  );
+
   const state = useSecureTurn({
     conversationId,
+    ...(conversation === undefined ? {} : { conversation }),
     // Reported by the page about itself, not assumed. `isSecureContext` is the
     // browser's own answer to "is this page allowed to hold a credential", and
     // it is false on plain http, which is exactly when the control must refuse.
@@ -106,6 +136,10 @@ function App(): JSX.Element {
   window.__askimateDurable = () => JSON.parse(JSON.stringify(state.log.durable)) as unknown;
   window.__askimateOpenRequest = () =>
     state.openPrompt === null ? null : { requestId: state.openPrompt.requestId };
+  // Whether the durable transcript has arrived. A test that asserted on an
+  // empty transcript without waiting for this would be asserting about a page
+  // that had not finished loading, and would pass for the wrong reason.
+  window.__askimateLoaded = () => state.loaded;
 
   return <ChatView state={state} conversationId={conversationId} authToken={authToken} />;
 }
