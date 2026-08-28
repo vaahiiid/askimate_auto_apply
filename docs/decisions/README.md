@@ -51,5 +51,15 @@ ADR status uses exactly that vocabulary:
 | [0027](./0027-one-version-for-the-whole-repository.md) | One version for the whole repository, and a changelog that does not invent history | Accepted |
 | [0028](./0028-versioning-policy.md) | Versioning policy: what counts as a release, and what does not | Accepted |
 | [0029](./0029-git-workflow.md) | Git workflow, branches and releases | **Proposed — awaiting Vahid** |
+| [0030](./0030-the-secure-control-runs-on-its-own-origin.md) | The secure control runs on its own origin | Accepted |
+| [0031](./0031-one-conversation-event-log.md) | One append-only conversation event log | Accepted |
+| [0032](./0032-cancellation-is-its-own-lifecycle.md) | Cancellation is its own lifecycle | Accepted |
+| [0033](./0033-sessions-are-httponly-cookies.md) | Sessions are `HttpOnly` cookies | Accepted |
+| [0034](./0034-the-vault-is-ephemeral.md) | The vault is ephemeral, encrypted, shared by ciphertext | Accepted |
+| [0035](./0035-event-delivery-is-resumable-sse.md) | Event delivery is resumable SSE over the log | Accepted |
+| [0036](./0036-no-third-party-scripts-on-authenticated-surfaces.md) | No third-party scripts on authenticated surfaces | Accepted |
+| [0037](./0037-service-topology-and-deployment.md) | Service topology, network boundaries, deployment | Accepted |
+| [0038](./0038-identity-is-delegated-to-a-managed-oidc-provider.md) | Identity is delegated to a managed OIDC provider | Accepted |
+| [0039](./0039-repository-structure-for-the-independent-product.md) | Repository structure for the independent product | Accepted |
 
 Twenty-eight are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

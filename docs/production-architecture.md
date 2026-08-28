@@ -1,7 +1,16 @@
 # The independent production architecture
 
-**Date:** 2026-08-28 · **Repository version:** 0.11.0 · **Status:** proposal, awaiting decisions
+**Date:** 2026-08-28 · **Repository version:** 0.11.0 · **Status:** **decided** — see §8
 **Scope:** design only. No implementation, no Phase E, no changes to any other application.
+
+**Update, 2026-08-28.** The ten decisions in §8 were open when this was written. Vahid then delegated
+technical authority: *"use the approach that experienced professional teams would use… do not keep
+asking me to choose between technical options where there is a clear professional best practice…
+Only stop and ask me when a decision genuinely depends on business, product, legal, cost or
+user-experience priorities that only I can determine."* They are now settled as
+[ADR-0030](./decisions/0030-the-secure-control-runs-on-its-own-origin.md) through
+[ADR-0039](./decisions/0039-repository-structure-for-the-independent-product.md). §8 records what was
+decided, what changed on further analysis, and the three things that genuinely remain Vahid's.
 
 **Premise, per Vahid, 2026-08-28:** *"This is an independent product. Assume the existing production
 source does not exist… If the current architecture or data model cannot safely support the secure
@@ -314,11 +323,16 @@ no inbound channel that could be used to inject.
 
 ### 5.4 Why the secret is not encrypted at rest instead
 
-Encryption at rest would let a secret be written to a durable store, which sounds stronger and is
-weaker: it creates backups, replicas, WAL segments, snapshots and a key-management problem, all
-holding something whose entire required lifetime is under five minutes. The stronger property is
-**that there is nothing to find**. The cost is that a Plane B restart loses in-flight secrets, which
-is a real availability trade — see §8, decision 5.
+A **durable** store would create backups, replicas, WAL segments, snapshots and a key-management
+problem, all holding something whose entire required lifetime is under five minutes. The stronger
+property is **that there is nothing to find**.
+
+Process memory alone, however, does not survive horizontal scaling: the instance that receives the
+submission and the instance that later spends the handle are different processes.
+[ADR-0034](./decisions/0034-the-vault-is-ephemeral.md) resolves this — the secret is envelope-
+encrypted with a KMS data key and the **ciphertext** is held in a cache with all persistence disabled
+and a TTL equal to the request's. Nothing durable, nothing in a backup, and two independent
+compromises now required rather than one.
 
 ---
 
@@ -423,24 +437,47 @@ portal account.
 
 ---
 
-## 8. Decisions that must be made before implementation
+## 8. Decisions taken
 
-Each has a recommendation. None should be treated as settled without your word.
+All ten were settled under delegated technical authority and written up as ADRs. Three changed on
+further analysis and say so.
 
-| # | Decision | Options | Recommendation |
+| # | Decision | Outcome | ADR |
 |---|---|---|---|
-| 1 | **Isolation model** | (a) Cross-origin iframe on `secure.askimate.com`; (b) same origin with a stricter route CSP | **(a).** It is the only option that makes the guarantee structural. §2 states the costs honestly |
-| 2 | **Conversation model** | (a) One event log + `message_bodies`; (b) keep messages and events as two tables | **(a).** The `CHECK` in §3 is not expressible under (b) |
-| 3 | **`secret_cancelled` as a distinct lifecycle** | (a) Add it; (b) keep folding cancellation into `secret_expired` | **(a).** Changes an approved Phase C/D decision, which is why it is here |
-| 4 | **Session token storage** | (a) `httpOnly` cookie; (b) `localStorage` | **(a).** Under (b) any script on Plane A — including a tag — can read the credential |
-| 5 | **Vault durability** | (a) Process memory only, secrets lost on restart; (b) durable encrypted store | **(a),** with a health-check-gated deploy so restarts do not land mid-flow. (b) creates backups of the thing we promised not to keep |
-| 6 | **Transcript transport** | (a) SSE from the event log; (b) polling | **(a),** with polling as the documented fallback. Polling is simpler and it is what a 2-second interval costs at scale |
-| 7 | **Analytics on Plane A** | (a) A tag manager under the controls in §9; (b) first-party, server-side events only | **(b) for the secure flow at minimum.** Plane A's marketing pages are a separate question and yours to weigh |
-| 8 | **Repository structure** | (a) Split `apps/chat-integration` into `apps/chat-service` and `apps/secure-service`; (b) keep one app | **(a).** See §10 |
-| 9 | **Guest conversations** | (a) Allowed, but a secure turn requires an authenticated, email-verified student; (b) authentication required throughout | **(a).** Guests are a product decision; the secure gate is not |
-| 10 | **Identity** | (a) Build an auth service; (b) adopt a managed identity provider | Genuinely yours. The repository currently **verifies** JWTs and issues none, so something must fill this either way |
+| 1 | Isolation model | **Cross-origin frame** on `secure.askimate.com`. The established pattern for this exact problem — Stripe Elements, Braintree Hosted Fields, Adyen Secured Fields all solve it the same way, and PCI-DSS reduces scope for it because the host page cannot touch the data | [0030](./decisions/0030-the-secure-control-runs-on-its-own-origin.md) |
+| 2 | Conversation model | **One append-only log**, message bodies by reference, with the `CHECK` that makes "a secure event cannot hold free text" a database fact | [0031](./decisions/0031-one-conversation-event-log.md) |
+| 3 | Cancellation | **`secret_cancelled` is its own lifecycle.** Identical to the guard, different to the model, the student and analytics | [0032](./decisions/0032-cancellation-is-its-own-lifecycle.md) |
+| 4 | Session storage | **`__Host-` `HttpOnly` cookies**, one per plane. The secure plane mints its own through a one-time token exchange over `postMessage`, so no capability ever appears in a URL, a history entry, a `Referer` or an access log | [0033](./decisions/0033-sessions-are-httponly-cookies.md) |
+| 5 | Vault durability | **Changed.** Not process memory — envelope-encrypted ciphertext in a non-persistent cache. Memory-only was right about durability and wrong about availability: it cannot survive horizontal scaling or a rolling deploy | [0034](./decisions/0034-the-vault-is-ephemeral.md) |
+| 6 | Transport | **Resumable SSE** over the log, with `Last-Event-ID` mapping onto the ordinal. Polling remains as first-load and fallback | [0035](./decisions/0035-event-delivery-is-resumable-sse.md) |
+| 7 | Analytics | **Three tiers by origin.** Marketing may load tags; the authenticated app loads none and emits events server-side; the secure origin has nowhere to send anything | [0036](./decisions/0036-no-third-party-scripts-on-authenticated-surfaces.md) |
+| 8 | Deployment topology | **Three deployables, two databases with separate credentials, one ephemeral cache, internal API not routable from the internet, mTLS to the runner**, ECS Fargate in eu-west-2, three AWS accounts | [0037](./decisions/0037-service-topology-and-deployment.md) |
+| 9 | Guest conversations | **Security half settled**: a secure step requires an authenticated, email-verified student, checked server-side. Whether guest chat exists at all stays a product question and blocks nothing | [0038](./decisions/0038-identity-is-delegated-to-a-managed-oidc-provider.md) |
+| 10 | Identity | **Adopt, do not build.** Managed OIDC, standards only — Authorization Code + PKCE, `sub` as the only persisted identifier, provider tokens exchanged server-side for our cookie and never reaching the browser | [0038](./decisions/0038-identity-is-delegated-to-a-managed-oidc-provider.md) |
 
----
+### What changed from the first draft, and why
+
+- **Decision 5 (vault).** The first recommendation — process memory only — had the right security
+  property and an availability flaw that would have surfaced the first time a second instance was
+  added. Envelope encryption into a non-persistence cache keeps "nothing durable, nothing in a
+  backup" while surviving scaling, and it now takes *two* independent compromises (the cache and KMS)
+  where memory-only took one.
+- **Decision 4 (sessions).** The first draft said "`HttpOnly` cookie" and stopped there. Under
+  ADR-0030 the two planes are different origins, so a `__Host-` cookie cannot be shared, and the
+  secure plane needs an authenticated session of its own. Handing it one through a URL would put a
+  capability in a `Referer` header and a browser history entry. Hence the token exchange.
+- **Decision 8 (topology).** Widened from "split the repository" to the full deployment picture,
+  because the isolation in ADR-0030 is only as good as the network and credential boundaries under it.
+
+### What genuinely remains Vahid's
+
+Three, and none of them blocks implementation:
+
+1. **Identity vendor and tier** — a cost and vendor-relationship question. The standards-only
+   constraint makes it swappable in a sprint, so work proceeds against OIDC.
+2. **Whether unauthenticated guest conversations exist** — product and growth. The secure gate is
+   settled regardless.
+3. **MFA policy** — offered, encouraged, or required. A UX and support-cost judgement.
 
 ## 9. Google Tag Manager — the four questions
 
@@ -572,6 +609,12 @@ no longer load-bearing for the secret.
 The valuable work is the decision modules and they are done. The missing work is a **product
 skeleton**: a schema, migrations, a contract, an identity story, and a second deployable. That is
 ordinary engineering, and it is a larger body of work than Phase D was.
+
+The restructure is specified in
+[ADR-0039](./decisions/0039-repository-structure-for-the-independent-product.md), which also names the
+two ADRs this repository accepted and has not yet honoured — versioned migrations (ADR-0003) and a
+contract-first OpenAPI document (ADR-0005) — so that they are closed deliberately rather than
+discovered during implementation.
 
 ---
 
