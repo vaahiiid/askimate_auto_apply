@@ -32,7 +32,8 @@ import type { CaseEvent, RequestEvidence, SubmissionIdentity } from "@askimate/a
 import { InMemoryCaseStore, InMemoryWorkflowRunStore } from "@askimate/aas-case-store";
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
-import { migrate } from "@askimate/aas-case-store/migrate";
+import { migrate } from "@askimate/aas-migrate";
+import { MIGRATIONS_DIR } from "@askimate/aas-case-store";
 
 import {
   checkpointAfter,
@@ -305,7 +306,7 @@ beforeAll(async () => {
   const url = new URL(DATABASE_URL);
   url.pathname = "/aas_durable_run";
   admin = new pg.Pool({ connectionString: url.toString() });
-  await migrate(admin);
+  await migrate(admin, MIGRATIONS_DIR);
 }, 120_000);
 
 afterAll(async () => {

@@ -7,6 +7,11 @@
  * any environment."*
  * ═══════════════════════════════════════════════════════════════════════════
  *
+ * Shared by every service that owns a schema. Each passes its OWN migrations
+ * directory — there is deliberately no default, because a runner with a default
+ * directory is one that silently migrates the wrong database when a caller
+ * forgets the argument.
+ *
  * Deliberately about a hundred lines rather than a dependency. What a
  * migration tool has to do here is: read numbered files, apply the ones not yet
  * applied, in order, each in a transaction, and record it. Everything beyond
@@ -30,8 +35,6 @@ import { join } from "node:path";
 
 import type { Pool } from "pg";
 
-/** Where the numbered `.sql` files live. */
-export const MIGRATIONS_DIR = join(import.meta.dirname, "..", "migrations");
 
 const REGISTRY = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -60,7 +63,7 @@ export class MigrationChangedError extends Error {
   }
 }
 
-export function loadMigrations(directory: string = MIGRATIONS_DIR): readonly Migration[] {
+export function loadMigrations(directory: string): readonly Migration[] {
   return readdirSync(directory)
     .filter((name) => name.endsWith(".sql"))
     // Lexicographic order over zero-padded numeric prefixes. `0002` sorts after
@@ -83,10 +86,7 @@ export function loadMigrations(directory: string = MIGRATIONS_DIR): readonly Mig
  * Returns the versions applied by THIS call, so a caller can log what it did
  * rather than reporting "migrations complete" whether or not anything ran.
  */
-export async function migrate(
-  pool: Pool,
-  directory: string = MIGRATIONS_DIR,
-): Promise<readonly string[]> {
+export async function migrate(pool: Pool, directory: string): Promise<readonly string[]> {
   await pool.query(REGISTRY);
 
   const applied = new Map<string, string>();

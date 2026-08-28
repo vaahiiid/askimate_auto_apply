@@ -194,6 +194,58 @@ paths:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /internal/v1/conversations/{conversationId}/events:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: appendSecureEvent
+      tags: [events]
+      security: [{ serviceMutualTls: [] }]
+      summary: The Secure Interaction Service records a lifecycle transition.
+      description: >-
+        ADDED AFTER THE MIGRATIONS, because writing the schema made the gap
+        visible. ADR-0037 gives the two planes separate databases with separate
+        credentials, so the conversation service CANNOT read `secret_requests`
+        to decide whether a secure step is open — which is what the previous
+        design's fail-closed guard did when both tables shared a database.
+
+        Three ways out were considered. Deriving openness from the client's
+        postMessage would make a security guard depend on a browser's word.
+        Asking the secure service synchronously on every message would put a
+        cross-service call in the hot path and turn its outage into a total
+        conversation outage. So the secure service PUSHES each transition here,
+        server to server, and the guard reads the conversation's own log —
+        which is also the log the transcript, the model context and the
+        post-refresh replay are all projections of.
+
+        The student's browser still receives the transition by postMessage for
+        immediate feedback. That path is a UX accelerator; this one is the
+        authority.
+
+        IDEMPOTENT on (conversationId, requestId, kind): the secure service may
+        retry, and a retried transition must not appear twice in a transcript.
+        A repeat returns 200 with the event already written; a first write
+        returns 201.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppendSecureEventRequest" }
+      responses:
+        "201":
+          description: Appended.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationEvent" } }
+        "200":
+          description: Already recorded. The event as it was first written.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationEvent" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     conversationSession:
@@ -209,6 +261,12 @@ components:
         Unreadable by JavaScript. Issued by the conversation service after an
         OIDC authorization-code exchange (ADR-0038); the provider's own tokens
         never reach the browser.
+    serviceMutualTls:
+      type: mutualTLS
+      description: >-
+        Service-to-service, on a private subnet with no public route. Only the
+        Secure Interaction Service's client certificate is permitted, and only
+        for the internal append endpoint.
 
   parameters:
     ConversationId:
@@ -366,6 +424,31 @@ components:
         createdAt: { type: string, format: date-time }
         requestId: { $ref: "#/components/schemas/SecretRequestId" }
         reason: { $ref: "#/components/schemas/RejectionReason" }
+
+    AppendSecureEventRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, requestId]
+      description: >-
+        A secure lifecycle transition. There is deliberately no `content`,
+        `actor`, `title` or `explanation` member: `kind` is restricted to the
+        secure kinds, and the conversation database's CHECK constraints refuse
+        a body or an actor on any of them regardless of what is sent.
+      properties:
+        kind:
+          type: string
+          enum:
+            - secret_requested
+            - secret_received
+            - secret_consumed
+            - secret_expired
+            - secret_cancelled
+            - secret_rejected
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        handle: { $ref: "#/components/schemas/SecretHandle" }
+        reason: { $ref: "#/components/schemas/RejectionReason" }
+        channel: { type: string, enum: [secure_control] }
+        expiresAt: { type: string, format: date-time }
 
     EventPage:
       type: object

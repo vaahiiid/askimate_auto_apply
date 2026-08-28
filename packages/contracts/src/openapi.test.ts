@@ -374,13 +374,44 @@ describe("authentication is declared on every endpoint that needs it", () => {
     }
   });
 
-  it("authenticates the conversation service with a __Host- cookie and nothing else", () => {
+  it("authenticates every STUDENT-facing conversation endpoint with a __Host- cookie", () => {
+    // The first version of this asserted the conversation service had exactly
+    // one security scheme, and broke the moment the internal append endpoint
+    // arrived — correctly. What matters is not how many schemes exist but that
+    // each surface uses the right one: a cookie for the student, mutual TLS
+    // for a service, and never the reverse.
     const schemes = (CONVERSATION["components"] as Json)["securitySchemes"] as Json;
-    expect(Object.keys(schemes)).toEqual(["conversationSession"]);
     const scheme = schemes["conversationSession"] as Json;
     expect(scheme["type"]).toBe("apiKey");
     expect(scheme["in"]).toBe("cookie");
     expect(scheme["name"]).toMatch(/^__Host-/);
+
+    const OPEN = new Set(["/health"]);
+    for (const { specName, path, method, operation } of operations()) {
+      if (specName !== "conversation.v1.yaml") continue;
+      if (OPEN.has(path)) continue;
+      const declared = JSON.stringify(operation["security"] ?? "inherits the document default");
+      if (path.startsWith("/internal/")) {
+        expect(declared, `${method} ${path}`).toContain("serviceMutualTls");
+        expect(declared, `${method} ${path}`).not.toContain("conversationSession");
+      } else {
+        // No per-operation override means it inherits the document-level
+        // `security: [{ conversationSession: [] }]`.
+        expect(declared, `${method} ${path}`).toBe('"inherits the document default"');
+      }
+    }
+  });
+
+  it("never lets a student-facing endpoint be reachable by a service certificate", () => {
+    // The reverse of the rule above, asserted separately so it cannot be
+    // satisfied by the same evidence: mutual TLS appears only under /internal/.
+    for (const { specName, path, operation } of operations()) {
+      if (path.startsWith("/internal/")) continue;
+      expect(
+        JSON.stringify(operation["security"] ?? null),
+        `${specName} ${path}`,
+      ).not.toContain("serviceMutualTls");
+    }
   });
 
   it("gives the secure plane its OWN cookie, which cannot be the same one", () => {

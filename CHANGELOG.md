@@ -19,6 +19,93 @@ not shipped artefacts.
 
 ---
 
+## [0.12.1] — 2026-08-28
+
+**Migrations: the first implementation step of the independent product. The security guarantees
+move from the application into `CHECK` constraints, verified against a real PostgreSQL.**
+
+**Version bump: PATCH.** Two new schemas that nothing runs against yet, plus an extracted runner.
+No behaviour changed and no boundary moved.
+
+### Added — two schemas, two databases
+
+Per ADR-0037 the planes hold **separate databases with separate credentials**, so these are two
+migration sets, not one.
+
+- **`apps/conversation-service/migrations/0001_conversation_log.sql`** — students (keyed by the
+  OIDC `sub` and nothing else), conversations, `message_bodies`, `conversation_events`, idempotency
+  keys, and the `open_secret_requests` view.
+- **`apps/secure-service/migrations/0001_secret_requests.sql`** — requests, hashed single-use frame
+  tokens, hashed sessions, and the use audit. **No column can hold a secret.**
+
+### The guarantees, as constraints rather than as code
+
+| Property | Enforced by |
+| --- | --- |
+| A secure event cannot hold what a student typed | `CHECK ((kind = 'message') = (body_id IS NOT NULL))` |
+| …and a message cannot lose its text | the same constraint, read the other way |
+| A secure event names its request; a message never does | `CHECK ((kind = 'message') = (request_id IS NULL))` |
+| A handle exists exactly on a receipt | `CHECK ((kind = 'secret_received') = (handle IS NOT NULL))` |
+| A reason exists exactly on a rejection | `CHECK ((kind = 'secret_rejected') = (reason_code IS NOT NULL))` |
+| Closed vocabularies | `CHECK (… IN (…))` on kind, actor, reason, channel, lifecycle, purpose, refusal code |
+| One event per position | `UNIQUE (conversation_id, ordinal)` — two racing writers, one gets 23505 |
+| Redaction is not deletion | `ON DELETE RESTRICT` on `body_id` |
+| The secure database holds no secret | asserted from `information_schema` after migrating |
+
+`open_secret_requests` deliberately contains **no `now()`**: a clock inside a view is an ambient
+read no test can move, and every clock in this repository is injected. The caller supplies the
+instant. A rejection is deliberately absent from the settling kinds, so a mistyped confirmation
+leaves the step open — the divergence Phase D removed, now expressed in SQL.
+
+### Added — `packages/aas-migrate`
+
+The runner extracted from `packages/case-store`, which now passes its own directory like everyone
+else. **There is no default directory**: a runner with one silently migrates the wrong database
+when a caller forgets the argument. `@askimate/aas-migrate/testing` also holds the shared
+database-availability helper — three copies of `announceSkip` would be three chances for one of
+them to forget that `AAS_REQUIRE_DATABASE=1` must turn a skip into a failure.
+
+### Added — the internal append endpoint, found by writing the schema
+
+`POST /internal/v1/conversations/{id}/events`, behind mutual TLS. See the architectural note in the
+report: with separate databases the conversation service **cannot** read `secret_requests` to run
+its fail-closed guard, which is what the previous design did when both tables shared a database.
+The secure service now pushes each transition server-to-server and the guard reads the
+conversation's own log.
+
+### Changed — three corrections to ADR-0031's sketch, found by implementing it
+
+1. **`ON DELETE SET NULL` → `ON DELETE RESTRICT`** on `body_id`. `SET NULL` would have silently
+   violated `only_messages_have_bodies` the first time anybody deleted a body.
+2. **`actor` is nullable and message-only.** The sketch had it `NOT NULL` on every event; the
+   shipped contract puts it on `MessageEvent` alone, and a lifecycle transition is not "from"
+   anybody.
+3. **`content` is nullable with a paired `redacted_at`**, not `NOT NULL`. Redaction has to leave the
+   row so the event pointing at it survives; `CHECK ((content IS NULL) = (redacted_at IS NOT NULL))`
+   makes it symmetric.
+
+### Verification
+
+**64 files, 1317 tests, 0 failures, 0 skipped**, with PostgreSQL up and `AAS_REQUIRE_DATABASE=1`.
+45 of those are new schema tests, every one of which writes a row the design forbids and asserts the
+database refuses it by SQLSTATE and constraint name.
+
+| Deliberate regression | Caught by |
+| --- | --- |
+| `only_messages_have_bodies` dropped | ✅ both directions |
+| `body_id` becomes `ON DELETE SET NULL` | ✅ redaction tests |
+| The event-kind vocabulary is opened up | ✅ closed-set tests |
+| A rejection closes the request in the view | ✅ guard tests |
+| A secret column appears in the secure DB | ✅ `information_schema` scan |
+| A `bytea` blob appears instead | ✅ `information_schema` scan |
+| Ordinal uniqueness dropped | ✅ position tests |
+| `now()` creeps into the guard view | ✅ view-definition test |
+| A handle allowed on an unanswered request | ✅ lifecycle tests |
+| The frame token stored raw | ✅ token tests |
+| An audit row may free-text its refusal | ✅ audit tests |
+
+---
+
 ## [0.12.0] — 2026-08-28
 
 **The contract-first phase: both services' APIs are specified, checked against the code, and proved

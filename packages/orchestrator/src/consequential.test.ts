@@ -18,7 +18,8 @@ import type { ActionIntent, RunId } from "@askimate/aas-domain";
 import { InMemoryWorkflowRunStore } from "@askimate/aas-case-store";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
-import { migrate } from "@askimate/aas-case-store/migrate";
+import { migrate } from "@askimate/aas-migrate";
+import { MIGRATIONS_DIR } from "@askimate/aas-case-store";
 
 import { performOnce, recordCleanFailure } from "./consequential.js";
 import type { VerificationResult } from "./consequential.js";
@@ -427,7 +428,7 @@ beforeAll(async () => {
   const url = new URL(DATABASE_URL);
   url.pathname = "/aas_consequential";
   admin = new pg.Pool({ connectionString: url.toString() });
-  await migrate(admin);
+  await migrate(admin, MIGRATIONS_DIR);
 }, 120_000);
 
 afterAll(async () => {

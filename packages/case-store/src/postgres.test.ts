@@ -37,7 +37,8 @@ import type { CaseEvent, RequestEvidence, SubmissionIdentity } from "@askimate/a
 import { runCaseStoreContract } from "./contract.js";
 import { DuplicateSubmissionError } from "./store.js";
 import { decodeEvent, encodeEvent } from "./serialisation.js";
-import { MigrationChangedError, loadMigrations, migrate } from "./migrate.js";
+import { MigrationChangedError, loadMigrations, migrate } from "@askimate/aas-migrate";
+import { MIGRATIONS_DIR } from "./migrations-dir.js";
 import { PostgresCaseStore } from "./postgres.js";
 
 const DATABASE_URL =
@@ -101,7 +102,7 @@ async function ownDatabase(name: string): Promise<pg.Pool> {
 beforeAll(async () => {
   if (!HAVE_DATABASE) return;
   pool = await ownDatabase("aas_case_store");
-  await migrate(pool);
+  await migrate(pool, MIGRATIONS_DIR);
 }, 120_000);
 
 afterAll(async () => {
@@ -246,7 +247,7 @@ describe("an event survives the round trip with its Dates intact", () => {
 
 describe("the migration runner", () => {
   it("loads the numbered migrations in order", () => {
-    const migrations = loadMigrations();
+    const migrations = loadMigrations(MIGRATIONS_DIR);
     expect(migrations.length).toBeGreaterThan(0);
     expect(migrations[0]?.version).toBe("0001_case_events");
     expect([...migrations].map((m) => m.version)).toEqual(
@@ -255,7 +256,7 @@ describe("the migration runner", () => {
   });
 
   it("gives every migration a checksum of its contents", () => {
-    const [first] = loadMigrations();
+    const [first] = loadMigrations(MIGRATIONS_DIR);
     expect(first?.checksum).toMatch(/^[0-9a-f]{64}$/);
   });
 });
@@ -264,13 +265,13 @@ describeIfDatabase("the migration runner, against a real database", () => {
   it("applies migrations once, and is idempotent", async () => {
     const fresh = await ownDatabase("aas_migrate_once");
     try {
-      const first = await migrate(fresh);
+      const first = await migrate(fresh, MIGRATIONS_DIR);
       expect(first).toContain("0001_case_events");
 
       // Running again applies nothing. A runner that re-ran migrations would
       // fail on the second CREATE TABLE, or worse, succeed because of
       // IF NOT EXISTS and hide that it had no idea what was applied.
-      const second = await migrate(fresh);
+      const second = await migrate(fresh, MIGRATIONS_DIR);
       expect(second).toEqual([]);
     } finally {
       await fresh.end();
@@ -283,9 +284,9 @@ describeIfDatabase("the migration runner, against a real database", () => {
     // in every environment where 0001 already ran.
     const fresh = await ownDatabase("aas_migrate_edited");
     try {
-      await migrate(fresh);
+      await migrate(fresh, MIGRATIONS_DIR);
       await fresh.query("UPDATE schema_migrations SET checksum = 'tampered'");
-      await expect(migrate(fresh)).rejects.toThrow(MigrationChangedError);
+      await expect(migrate(fresh, MIGRATIONS_DIR)).rejects.toThrow(MigrationChangedError);
     } finally {
       await fresh.end();
     }

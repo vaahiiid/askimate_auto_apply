@@ -14,8 +14,7 @@ export { InMemoryCaseStore } from "./in-memory.js";
 // pull `pg` — and its TCP sockets, and its DNS resolution — into a process that
 // has no database. `apps/browser-runner` is exactly such a consumer, and its
 // dependency-boundary rule forbids `pg`.
-export type { Migration } from "./migrate.js";
-export { MIGRATIONS_DIR, MigrationChangedError, loadMigrations, migrate } from "./migrate.js";
+export { MIGRATIONS_DIR } from "./migrations-dir.js";
 export { decodeEvent, encodeEvent } from "./serialisation.js";
 
 // NOTE: `runCaseStoreContract` is deliberately NOT exported here. It imports

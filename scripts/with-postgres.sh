@@ -6,6 +6,11 @@
 #                            no log and no model prompt. The assertion is "scan
 #                            every column of every row", which a fake makes
 #                            vacuous.
+#   apps/conversation-service — the CHECK constraints that make a secure event
+#                            unable to hold what a student typed. A fake would
+#                            be re-implementing the thing under test.
+#   apps/secure-service    — that no column in that schema can hold a secret,
+#                            read from information_schema after migrating.
 #   packages/case-store    — optimistic concurrency and duplicate-submission
 #                            prevention. Both are enforced by CONSTRAINTS
 #                            (PRIMARY KEY), so a fake would be re-implementing
@@ -18,7 +23,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service packages/case-store packages/orchestrator
   exit $?
 fi
 
@@ -70,4 +75,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration packages/case-store packages/orchestrator
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service packages/case-store packages/orchestrator

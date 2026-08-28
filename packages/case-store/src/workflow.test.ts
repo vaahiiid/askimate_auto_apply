@@ -21,7 +21,8 @@ import type { WorkflowRunRecord } from "@askimate/aas-domain";
 
 import { InMemoryWorkflowRunStore } from "./in-memory-workflow.js";
 import { PostgresWorkflowRunStore } from "./postgres-workflow.js";
-import { migrate } from "./migrate.js";
+import { migrate } from "@askimate/aas-migrate";
+import { MIGRATIONS_DIR } from "./migrations-dir.js";
 import { runWorkflowStoreContract } from "./workflow-contract.js";
 import { RunConcurrencyError } from "./workflow-store.js";
 
@@ -82,7 +83,7 @@ async function ownDatabase(name: string): Promise<pg.Pool> {
 beforeAll(async () => {
   if (!HAVE_DATABASE) return;
   pool = await ownDatabase("aas_workflow_store");
-  await migrate(pool);
+  await migrate(pool, MIGRATIONS_DIR);
 }, 120_000);
 
 afterAll(async () => {

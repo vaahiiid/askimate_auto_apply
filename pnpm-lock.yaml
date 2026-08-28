@@ -26,6 +26,9 @@ importers:
       '@askimate/aas-contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@askimate/aas-conversation-service':
+        specifier: workspace:*
+        version: link:apps/conversation-service
       '@askimate/aas-disclosure':
         specifier: workspace:*
         version: link:packages/disclosure
@@ -47,6 +50,9 @@ importers:
       '@askimate/aas-mapping':
         specifier: workspace:*
         version: link:packages/mapping
+      '@askimate/aas-migrate':
+        specifier: workspace:*
+        version: link:packages/migrate
       '@askimate/aas-orchestrator':
         specifier: workspace:*
         version: link:packages/orchestrator
@@ -62,6 +68,9 @@ importers:
       '@askimate/aas-secrets':
         specifier: workspace:*
         version: link:packages/secrets
+      '@askimate/aas-secure-service':
+        specifier: workspace:*
+        version: link:apps/secure-service
       '@aws-sdk/client-bedrock':
         specifier: ^3.1118.0
         version: 3.1118.0
@@ -203,6 +212,44 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
 
+  apps/conversation-service:
+    dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  apps/secure-service:
+    dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
   packages/account:
     dependencies:
       '@askimate/aas-domain':
@@ -231,6 +278,9 @@ importers:
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain
+      '@askimate/aas-migrate':
+        specifier: workspace:*
+        version: link:../migrate
       pg:
         specifier: ^8.20.0
         version: 8.23.0
@@ -343,6 +393,19 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
 
+  packages/migrate:
+    dependencies:
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
   packages/orchestrator:
     dependencies:
       '@askimate/aas-account':
@@ -369,6 +432,9 @@ importers:
       '@askimate/aas-mapping':
         specifier: workspace:*
         version: link:../mapping
+      '@askimate/aas-migrate':
+        specifier: workspace:*
+        version: link:../migrate
       '@askimate/aas-preparation':
         specifier: workspace:*
         version: link:../preparation
