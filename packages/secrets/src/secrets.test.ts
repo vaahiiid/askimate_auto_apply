@@ -461,25 +461,37 @@ describe("expiry and disposal", () => {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("what may be said about a secret", () => {
-  it("has exactly four words, and two of them are terminal", () => {
+  it("has exactly five words, and three of them are terminal", () => {
     expect([...SECRET_LIFECYCLE]).toEqual([
       "secret_requested",
       "secret_received",
       "secret_consumed",
       "secret_expired",
+      "secret_cancelled",
     ]);
-    expect(isTerminalLifecycle("secret_consumed")).toBe(true);
-    expect(isTerminalLifecycle("secret_expired")).toBe(true);
-    // Nothing leads out of either. That is what "single-use" and "expires"
-    // mean when written as data rather than as a comment.
-    expect(canTransition("secret_consumed", "secret_received")).toBe(false);
-    expect(canTransition("secret_expired", "secret_received")).toBe(false);
+    for (const terminal of ["secret_consumed", "secret_expired", "secret_cancelled"] as const) {
+      expect(isTerminalLifecycle(terminal), terminal).toBe(true);
+      // Nothing leads out of any of them. That is what "single-use",
+      // "expires" and "abandoned" mean when written as data.
+      expect(canTransition(terminal, "secret_received"), terminal).toBe(false);
+    }
   });
 
   it("walks requested → received → consumed and no other way", () => {
     expect(canTransition("secret_requested", "secret_received")).toBe(true);
     expect(canTransition("secret_received", "secret_consumed")).toBe(true);
     expect(canTransition("secret_requested", "secret_consumed")).toBe(false);
+  });
+
+  it("lets a student abandon a request but not a secret they already gave", () => {
+    // ADR-0032. Cancellation is a decision, and once a handle exists the
+    // automation may already be spending it — a cancellation racing a
+    // consumption would be a lie in one direction or the other. Expiry still
+    // applies to both, because time is not a decision anyone makes.
+    expect(canTransition("secret_requested", "secret_cancelled")).toBe(true);
+    expect(canTransition("secret_received", "secret_cancelled")).toBe(false);
+    expect(canTransition("secret_requested", "secret_expired")).toBe(true);
+    expect(canTransition("secret_received", "secret_expired")).toBe(true);
   });
 
   it("moves through the lifecycle as the secret is used", async () => {

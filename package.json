@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -37,6 +37,7 @@
     "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
     "@askimate/aas-chat-integration": "workspace:*",
+    "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-disclosure": "workspace:*",
     "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",

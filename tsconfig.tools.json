@@ -16,6 +16,8 @@
   // code without DOM types and fail confusingly.
   "references": [
     { "path": "./packages/domain" },
+    { "path": "./packages/contracts" },
+    { "path": "./packages/secrets" },
     { "path": "./packages/blueprint" },
     { "path": "./packages/profile" },
     { "path": "./packages/documents" },

@@ -1,0 +1,601 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# The Secure Interaction Service — Plane B.
+#
+# ADR-0026 (a password the model can ask for and never see), ADR-0030 (its own
+# origin), ADR-0032 (cancellation), ADR-0033 (cookies and the bootstrap),
+# ADR-0034 (the ephemeral vault), ADR-0037 (topology).
+#
+# THE PROPERTIES THIS DOCUMENT EXISTS TO MAKE CHECKABLE:
+#
+#   1. EXACTLY ONE operation in this file accepts a secret value:
+#      POST /secret-requests/{requestId}/secret. `openapi.test.ts` walks every
+#      schema in both documents and fails if a second appears, or if any
+#      RESPONSE anywhere can carry one.
+#
+#   2. NO response returns the submitted secret. There is no read path. The
+#      vault has no getter: `use()` takes a callback and returns the callback's
+#      result, so the plaintext is handed to the automation and never to a
+#      caller.
+#
+#   3. NO capability appears in a URL. The request id in the path is an
+#      identifier that authenticates nobody; the bootstrap token arrives by
+#      postMessage and is exchanged for a __Host- cookie.
+# ═══════════════════════════════════════════════════════════════════════════
+openapi: 3.1.0
+info:
+  title: AskiMate Secure Interaction Service
+  version: "1.0.0"
+  description: >-
+    The secure plane. Serves the password control as its own document on its own
+    origin, receives the one request in the system that carries a secret, mints
+    opaque single-use handles, and spends them on behalf of the automation. It
+    loads no third-party script and its CSP has connect-src 'self', so there is
+    nowhere for an injected script to send anything.
+  license: { name: UNLICENSED }
+
+servers:
+  - url: https://secure.askimate.com
+    description: Production — student-facing
+  - url: http://secure-internal.askimate.internal
+    description: >-
+      Internal only. A private subnet with no public route: not an
+      authenticated public route, not a firewalled one — not routable.
+
+tags:
+  - name: frame
+  - name: secret
+  - name: internal
+
+paths:
+  /control/{requestId}:
+    parameters: [{ $ref: "#/components/parameters/RequestId" }]
+    get:
+      operationId: getControlDocument
+      tags: [frame]
+      summary: The secure control, as a document.
+      security: []
+      description: >-
+        Rendered by THIS service, on THIS origin, and embedded by the
+        conversation page as a cross-origin iframe. The conversation origin
+        cannot read this document's DOM, its storage, or its JavaScript heap —
+        which is what makes "no script on the chat page can read the password" a
+        property the browser enforces rather than one our code promises.
+
+        Unauthenticated: the document itself reveals nothing. The prompt text it
+        displays is fetched only after the bootstrap exchange below establishes
+        who is asking.
+      responses:
+        "200":
+          description: The control document.
+          headers:
+            Content-Security-Policy:
+              description: >-
+                default-src 'none'; script-src 'self'; style-src 'self';
+                img-src 'self' data:; connect-src 'self'; form-action 'self';
+                base-uri 'none'; frame-ancestors https://app.askimate.com
+              schema: { type: string }
+            Cross-Origin-Opener-Policy: { schema: { type: string, const: same-origin } }
+            Cross-Origin-Resource-Policy: { schema: { type: string, const: same-origin } }
+            Referrer-Policy: { schema: { type: string, const: no-referrer } }
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            text/html: { schema: { type: string } }
+        "404":
+          description: >-
+            Unknown request. The same answer as "not yours" and "already
+            settled" — distinguishing them would confirm that some other student
+            had been asked for a password.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/frame-sessions:
+    post:
+      operationId: exchangeFrameToken
+      tags: [frame]
+      summary: Exchange the one-time bootstrap token for a session cookie.
+      security: []
+      description: >-
+        Step 5 of the bootstrap. The token arrived by postMessage — never a URL —
+        so it appears in no Referer header, no browser history entry, no access
+        log and no shared screenshot. It is single-use and short-lived, and this
+        endpoint consumes it.
+
+        Requires Origin and Sec-Fetch-Site to indicate a same-origin request, so
+        the exchange cannot be driven from another page.
+      parameters:
+        - { $ref: "#/components/parameters/OriginHeader" }
+        - { $ref: "#/components/parameters/SecFetchSite" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId, frameToken]
+              properties:
+                requestId: { $ref: "#/components/schemas/SecretRequestId" }
+                frameToken:
+                  type: string
+                  minLength: 43
+                  maxLength: 128
+                  description: >-
+                    Single-use, seconds-lived, bound to this request. Minted by
+                    the internal API and delivered by postMessage.
+      responses:
+        "204":
+          description: >-
+            Session established. Sets __Host-secure_session; the body is empty
+            because there is nothing to say that the cookie does not say.
+          headers:
+            Set-Cookie:
+              description: __Host-secure_session=…; HttpOnly; Secure; SameSite=Lax; Path=/
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Token unknown, already used, expired, or a cross-origin attempt.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/secret-requests/{requestId}:
+    parameters: [{ $ref: "#/components/parameters/RequestId" }]
+    get:
+      operationId: getSecretRequest
+      tags: [secret]
+      summary: The lifecycle of a request. Never anything derived from the value.
+      description: >-
+        What a refreshed frame asks. Returns the lifecycle word, the expiry, and
+        whether a confirmation field is required — nothing derived from the
+        secret, because nothing derived from the secret exists.
+      responses:
+        "200":
+          description: The request's state.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/SecretRequestState" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: cancelSecretRequest
+      tags: [secret]
+      summary: The student abandons the step.
+      description: >-
+        ADR-0032. Destroys the vault entry and moves the request to
+        `secret_cancelled` — a terminal state distinct from `secret_expired`.
+        Identical to every guard; different to the model, the student and
+        analytics.
+
+        Idempotent: cancelling an already-cancelled request returns 200 with the
+        same body. Cancelling one that has already been RECEIVED is refused —
+        the automation may already be spending the handle, and a cancellation
+        racing a consumption would be a lie in one direction or the other.
+      responses:
+        "200":
+          description: Cancelled, or already cancelled.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/SecretRequestState" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Already received. Cancellation is no longer available.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/secret-requests/{requestId}/secret:
+    parameters: [{ $ref: "#/components/parameters/RequestId" }]
+    post:
+      operationId: submitSecret
+      tags: [secret]
+      summary: >-
+        THE ONE OPERATION IN THE SYSTEM THAT ACCEPTS A SECRET.
+      description: >-
+        Everything about this endpoint is arranged so the plaintext dies in the
+        handler. It is read from the body, envelope-encrypted with a KMS data
+        key, and the ciphertext is placed in a cache with all persistence
+        disabled and a TTL equal to the request's (ADR-0034). It is never
+        assigned to anything that outlives the call, never written to a database
+        column, never logged, and never returned.
+
+        The response carries an opaque handle. It does not carry, echo, hash,
+        summarise, measure the length of, or otherwise describe what was sent.
+
+        Ownership is checked here AND again when the handle is spent, because
+        the two failures are different: this one is someone answering a prompt
+        that was not theirs, and that one is a handle being spent somewhere it
+        should not be.
+      parameters:
+        - { $ref: "#/components/parameters/OriginHeader" }
+        - { $ref: "#/components/parameters/SecFetchSite" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitSecretRequest" }
+      responses:
+        "200":
+          description: Accepted. A handle, and nothing else.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/SecretAccepted" } }
+        "400":
+          description: >-
+            Refused. A CODE from the closed set — never a message naming or
+            quoting either value.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/SecretRejectedProblem" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: Not the caller's request, or the wrong conversation.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/SecretRejectedProblem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Already submitted, or the request has expired.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/SecretRejectedProblem" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /internal/v1/secret-requests:
+    post:
+      operationId: openSecretRequest
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: Open a request. Called by the conversation service. No secret exists yet.
+      description: >-
+        Returns the request id, the expiry, and the ONE-TIME frame token. The
+        prompt's title, explanation and portal host are stored HERE and are not
+        returned — the conversation plane never receives text a model wrote
+        about a password, so its event log has nothing to hold and its schema
+        needs no exception.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OpenSecretRequest" }
+      responses:
+        "201":
+          description: Opened.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/OpenedSecretRequest" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/secret-uses:
+    post:
+      operationId: useSecret
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: Spend a handle. Called by the automation runner.
+      description: >-
+        The binding is re-checked here — student, case, purpose and target host
+        must all match what the request was opened for. On success the entry is
+        destroyed, so a second call fails.
+
+        The response reports WHETHER the use succeeded. It never contains the
+        secret: the vault hands the plaintext to the automation's callback and
+        returns the callback's result, so there is no shape in which a value
+        could travel back over this boundary.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UseSecretRequest" }
+      responses:
+        "200":
+          description: Spent. The entry is destroyed and the handle is now dead.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/SecretUseResult" } }
+        "403":
+          description: >-
+            The binding did not match, or diagnostic capture was not confirmed
+            disabled (ADR-0025). Fail closed.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Already spent, expired, or cancelled.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+components:
+  securitySchemes:
+    secureSession:
+      type: apiKey
+      in: cookie
+      name: __Host-secure_session
+      description: >-
+        This plane's OWN session, established by the bootstrap exchange. A
+        __Host- cookie cannot carry a Domain attribute, so it is bound to this
+        host alone and no sibling subdomain can set or read it. The conversation
+        plane holds a different cookie; they are deliberately not shared.
+    serviceMutualTls:
+      type: mutualTLS
+      description: >-
+        Service-to-service, on a private subnet with no public route. A
+        per-service client certificate; the conversation service and the runner
+        have different ones and different permitted operations.
+
+  security:
+    - secureSession: []
+
+  parameters:
+    RequestId:
+      name: requestId
+      in: path
+      required: true
+      description: >-
+        An identifier, not a capability. Knowing it authenticates nobody — which
+        is exactly why the bootstrap token exists and why it is not in this URL.
+      schema: { $ref: "#/components/schemas/SecretRequestId" }
+    OriginHeader:
+      name: Origin
+      in: header
+      required: true
+      description: Checked against this service's own origin. CSRF defence in depth.
+      schema: { type: string }
+    SecFetchSite:
+      name: Sec-Fetch-Site
+      in: header
+      required: true
+      description: Must be same-origin. The submit path is not reachable cross-site.
+      schema: { type: string, const: same-origin }
+
+  schemas:
+    SecretRequestId:
+      type: string
+      pattern: "^sr_[0-9a-f]{32}$"
+
+    SecretHandle:
+      type: string
+      pattern: "^sh_[0-9a-f]{32}$"
+      description: >-
+        Random rather than derived, single-use, bound to student, case, purpose
+        and target. Two students choosing the same password get unrelated
+        handles, so a handle reveals nothing about the value.
+
+    SecretLifecycle:
+      type: string
+      enum:
+        - secret_requested
+        - secret_received
+        - secret_consumed
+        - secret_expired
+        - secret_cancelled
+
+    RejectionReason:
+      type: string
+      enum:
+        - confirmation_mismatch
+        - empty
+        - unknown_request
+        - expired
+        - already_submitted
+        - not_your_request
+        - wrong_conversation
+        - endpoint_unreachable
+        - prompt_expired
+        - client_does_not_support_secure_control
+        - insecure_context
+        - unknown_channel
+
+    SubmitSecretRequest:
+      type: object
+      additionalProperties: false
+      required: [secret, conversationId]
+      description: >-
+        THE ONLY REQUEST BODY IN EITHER SERVICE THAT CARRIES A SECRET VALUE.
+        Both fields die with the handler.
+      properties:
+        secret:
+          type: string
+          minLength: 1
+          maxLength: 512
+          writeOnly: true
+          description: >-
+            The plaintext. `writeOnly` is not decoration: it declares in the
+            contract that this value never appears in any response, and a
+            generator that produced a response type containing it would be
+            wrong against this document.
+        confirmation:
+          type: string
+          maxLength: 512
+          writeOnly: true
+          description: >-
+            Compared with `secret` HERE, on the server. A browser-side
+            comparison alone would mean the server accepting whatever single
+            value the page chose to send, and "the UI checked it" is not a
+            property the server has.
+        conversationId:
+          type: string
+          description: Must match the conversation the request was opened for.
+
+    SecretAccepted:
+      type: object
+      additionalProperties: false
+      required: [status, handle, lifecycle]
+      description: >-
+        What comes back. A handle and a word. Deliberately absent: any echo,
+        any hash, any length, any strength score — a length is a fact about the
+        password and a strength score is a fact derived from it.
+      properties:
+        status: { type: string, const: accepted }
+        handle: { $ref: "#/components/schemas/SecretHandle" }
+        lifecycle: { type: string, const: secret_received }
+
+    SecretRequestState:
+      type: object
+      additionalProperties: false
+      required: [requestId, lifecycle, expiresAt, requiresConfirmation]
+      properties:
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        lifecycle: { $ref: "#/components/schemas/SecretLifecycle" }
+        expiresAt: { type: string, format: date-time }
+        requiresConfirmation: { type: boolean }
+
+    OpenSecretRequest:
+      type: object
+      additionalProperties: false
+      required: [studentRef, conversationId, caseRef, purpose, targetHost, ttlSeconds]
+      properties:
+        studentRef: { type: string, maxLength: 128 }
+        conversationId: { type: string, maxLength: 128 }
+        caseRef: { type: string, maxLength: 128 }
+        purpose:
+          type: string
+          enum: [portal_account_creation, portal_password_reset]
+          description: >-
+            A closed set, and it comes from the case and the blueprint — never
+            from model output. A prompt-injected model can ask for *a* password;
+            it cannot choose whose, or for which portal.
+        targetHost:
+          type: string
+          maxLength: 253
+          description: Also from the case, never from model output. See `purpose`.
+        title: { type: string, maxLength: 200 }
+        explanation:
+          type: string
+          maxLength: 1000
+          description: >-
+            Shown to the student INSIDE the frame. Stored by this service and
+            never returned to the conversation plane, so a model's words about a
+            password never reach the conversation log.
+        requiresConfirmation: { type: boolean, default: true }
+        ttlSeconds: { type: integer, minimum: 60, maximum: 300 }
+
+    OpenedSecretRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, expiresAt, frameToken, requiresConfirmation]
+      properties:
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        expiresAt: { type: string, format: date-time }
+        frameToken:
+          type: string
+          writeOnly: true
+          description: >-
+            One-time, seconds-lived. Delivered to the frame by postMessage and
+            never placed in a URL. `writeOnly` marks it as a credential that must
+            not be echoed into any log or stored response.
+        requiresConfirmation: { type: boolean }
+
+    UseSecretRequest:
+      type: object
+      additionalProperties: false
+      required: [handle, studentRef, caseRef, purpose, targetHost, consumer, noDiagnosticCapture]
+      properties:
+        handle: { $ref: "#/components/schemas/SecretHandle" }
+        studentRef: { type: string }
+        caseRef: { type: string }
+        purpose: { type: string, enum: [portal_account_creation, portal_password_reset] }
+        targetHost: { type: string }
+        consumer:
+          type: string
+          description: An audit label for the capability spending it.
+        noDiagnosticCapture:
+          type: boolean
+          const: true
+          description: >-
+            ADR-0025. The caller asserts that screenshots, video and tracing are
+            disabled for this step. A false value is refused rather than warned
+            about — fail closed.
+
+    SecretUseResult:
+      type: object
+      additionalProperties: false
+      required: [status, lifecycle]
+      description: >-
+        Whether it worked. There is deliberately no field here that could carry
+        the value: the vault hands plaintext to the automation's callback and
+        returns the callback's result, so nothing shaped like a secret can
+        travel back over this boundary.
+      properties:
+        status: { type: string, enum: [used, refused] }
+        lifecycle: { type: string, const: secret_consumed }
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, instance]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { $ref: "#/components/schemas/ProblemCode" }
+        instance: { type: string }
+
+    SecretRejectedProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [reason]
+          description: >-
+            The refusal, as a code. Neither value is named, quoted, or
+            described — a "did you mean …?" here would be a password in an HTTP
+            response body.
+          properties:
+            reason: { $ref: "#/components/schemas/RejectionReason" }
+
+    ValidationProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [pointers]
+          properties:
+            pointers: { type: array, items: { type: string, pattern: "^/" } }
+
+    RateLimitedProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [retryAfterSeconds]
+          properties:
+            retryAfterSeconds: { type: integer, minimum: 0 }
+
+    ProblemCode:
+      type: string
+      enum:
+        - unauthenticated
+        - forbidden
+        - not_found
+        - validation_failed
+        - unsupported_media_type
+        - payload_too_large
+        - idempotency_key_conflict
+        - secret_request_open
+        - rate_limited
+        - internal_error
+        - service_unavailable
+
+  responses:
+    Unauthenticated:
+      description: No valid secure-plane session cookie.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    NotFound:
+      description: >-
+        Unknown, or not the caller's. The same answer for both, always.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    ValidationFailed:
+      description: The request did not satisfy the schema.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/ValidationProblem" } }
+    PayloadTooLarge:
+      description: >-
+        Above the 4 kB limit on this route — tighter than the conversation
+        service's, because a password is a few hundred bytes at most and
+        refusing early means the parser never holds a large buffer a heap dump
+        could find.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    RateLimited:
+      description: Too many submissions.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/RateLimitedProblem" } }

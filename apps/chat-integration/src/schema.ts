@@ -190,7 +190,8 @@ CREATE TABLE IF NOT EXISTS askimate_conversation_events (
   kind            text NOT NULL CHECK (kind IN ('directive','secret_status','secret_rejected')),
   request_id      text NOT NULL,
   lifecycle       text CHECK (lifecycle IS NULL OR lifecycle IN
-                    ('secret_requested','secret_received','secret_consumed','secret_expired')),
+                    ('secret_requested','secret_received','secret_consumed',
+                     'secret_expired','secret_cancelled')),
   reason_code     text CHECK (reason_code IS NULL OR reason_code IN
                     ('confirmation_mismatch','empty','unknown_request','expired',
                      'already_submitted','not_your_request','wrong_conversation',

@@ -1048,7 +1048,7 @@ describeIfDatabase("client and server agree about when the conversation is free"
     await page.locator('[data-testid="status"]').waitFor({ timeout: 10_000 });
     expect(
       await page.locator('[data-testid="status"]').first().getAttribute("data-lifecycle"),
-    ).toBe("secret_expired");
+    ).toBe("secret_cancelled");
     expect(await page.locator('[data-testid="secure-control"]').count()).toBe(0);
 
     // The server agrees: the row is terminal and an ordinary message goes

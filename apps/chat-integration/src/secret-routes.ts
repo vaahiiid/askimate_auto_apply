@@ -278,9 +278,10 @@ export function createSecretRoutes(options: SecretRoutesOptions): Router {
   // would be locked out of their own conversation for up to five minutes with
   // no way to say so.
   //
-  // No new lifecycle word is needed. `discard` destroys the entry and marks it
-  // `secret_expired`, whose meaning already reads "the TTL passed, OR the
-  // student abandoned it".
+  // ADR-0032: `discard` destroys the entry and the row is marked
+  // `secret_cancelled` — a terminal state distinct from `secret_expired`.
+  // Every guard treats the two identically; everyone who reads the log does
+  // not.
   router.delete(
     "/askimate/secret/:requestId",
     (req: Request, res: Response, next: NextFunction): void => {
@@ -304,9 +305,9 @@ export function createSecretRoutes(options: SecretRoutesOptions): Router {
           return;
         }
 
-        options.store.discard(requestId);
-        await options.bindings.record(requestId, { lifecycle: "secret_expired" });
-        res.status(200).json({ status: "secret_cancelled", lifecycle: "secret_expired" });
+        options.store.cancel(requestId);
+        await options.bindings.record(requestId, { lifecycle: "secret_cancelled" });
+        res.status(200).json({ status: "secret_cancelled", lifecycle: "secret_cancelled" });
       })().catch(next);
     },
   );

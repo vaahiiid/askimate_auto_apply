@@ -636,7 +636,7 @@ describeIfDatabase("the conversation-events table cannot hold what a student typ
 });
 
 describeIfDatabase("cancelling a secure step releases the conversation", () => {
-  it("DELETE marks it expired and reopens the ordinary message path", async () => {
+  it("DELETE marks it CANCELLED and reopens the ordinary message path", async () => {
     const rid = await openSecretRequest();
     // While open, the guard refuses.
     expect((await send("blocked while the step is open")).status).toBe(409);
@@ -646,10 +646,11 @@ describeIfDatabase("cancelling a secure step releases the conversation", () => {
       headers: { Authorization: `Bearer ${token()}` },
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ lifecycle: "secret_expired" });
+    expect(await response.json()).toMatchObject({ lifecycle: "secret_cancelled" });
 
-    // The store destroyed the entry…
-    expect(store.statusOf(rid)?.lifecycle).toBe("secret_expired");
+    // The store destroyed the entry, and recorded WHICH terminal state it is.
+    // `discard` would have left it `secret_expired`; the route calls `cancel`.
+    expect(store.statusOf(rid)?.lifecycle).toBe("secret_cancelled");
     // …and the student can talk again.
     expect((await send("I changed my mind, let us carry on")).status).toBe(200);
   });

@@ -189,8 +189,29 @@ export interface SecretStore {
   /** Destroys everything past its TTL. Idempotent; returns how many went. */
   sweep(now: Date): number;
 
-  /** Destroys one, unspent. What "the student changed their mind" looks like. */
+  /**
+   * Destroys one, unspent, because its time ran out or it is being cleaned up.
+   * Leaves it `secret_expired`.
+   */
   discard(requestId: SecretRequestId): void;
+
+  /**
+   * Destroys one because the student abandoned the step. Leaves it
+   * `secret_cancelled`.
+   *
+   * ── Two named operations rather than one with a reason parameter ────────
+   *
+   * `discard(id, "cancelled")` would work and would be worse. A reason
+   * parameter needs a default, and a default is how the wrong word gets
+   * recorded silently by a caller who did not think about it. Two verbs make
+   * the caller name what happened, and a call site that says `cancel` cannot
+   * accidentally mean `expire`.
+   *
+   * ADR-0032: the two are identical to every guard — both terminal, both
+   * release the composer — and different to the model, the student and
+   * analytics.
+   */
+  cancel(requestId: SecretRequestId): void;
 }
 
 export type SubmitRefusal =
@@ -258,6 +279,11 @@ class SecretEntry {
   public expire(): void {
     this.#secret = null;
     this.#lifecycle = "secret_expired";
+  }
+
+  public cancel(): void {
+    this.#secret = null;
+    this.#lifecycle = "secret_cancelled";
   }
 
   public toJSON(): string {
@@ -500,6 +526,15 @@ export class InMemorySecretStore implements SecretStore {
   public discard(requestId: SecretRequestId): void {
     const entry = this.#entries.get(requestId);
     if (entry !== undefined) this.#destroy(entry);
+  }
+
+  public cancel(requestId: SecretRequestId): void {
+    const entry = this.#entries.get(requestId);
+    if (entry === undefined) return;
+    // Destroy first, then record why. The plaintext is gone either way; the
+    // word only decides how the conversation reads afterwards.
+    this.#destroy(entry);
+    entry.cancel();
   }
 
   /** How many entries still hold plaintext. For tests and for a health check. */

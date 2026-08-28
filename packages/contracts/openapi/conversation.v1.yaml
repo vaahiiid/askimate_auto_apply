@@ -1,0 +1,515 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# The Conversation Service — Plane A.
+#
+# ADR-0005 (contract first), ADR-0030 (origins), ADR-0031 (the event log),
+# ADR-0033 (cookies), ADR-0035 (SSE), ADR-0036 (no third-party scripts).
+#
+# THE PROPERTY THIS DOCUMENT EXISTS TO MAKE CHECKABLE:
+#   No schema in this file has a field that can hold a secret. Not the request
+#   bodies, not the responses, not the events, not the errors. A password
+#   cannot reach this service, because there is no endpoint that accepts one
+#   and no field that could carry one. `openapi.test.ts` asserts it by walking
+#   every schema in this document rather than by trusting this comment.
+# ═══════════════════════════════════════════════════════════════════════════
+openapi: 3.1.0
+info:
+  title: AskiMate Conversation Service
+  version: "1.0.0"
+  description: >-
+    The conversation plane. Owns students, conversations, the append-only event
+    log and message bodies. Never receives, stores, forwards or logs a secret
+    value; the only thing it learns about a secure step is which request it was,
+    what lifecycle it reached, and an opaque single-use handle.
+  license: { name: UNLICENSED }
+
+servers:
+  - url: https://app.askimate.com/v1
+    description: Production
+  - url: https://app.staging.askimate.com/v1
+    description: Staging
+
+security:
+  - conversationSession: []
+
+tags:
+  - name: conversations
+  - name: events
+  - name: messages
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [conversations]
+      summary: Liveness. The only unauthenticated endpoint.
+      security: []
+      responses:
+        "200":
+          description: The service is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+
+  /conversations:
+    post:
+      operationId: createConversation
+      tags: [conversations]
+      summary: Start a conversation.
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Conversation" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "409": { $ref: "#/components/responses/IdempotencyKeyConflict" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: The caller's conversations, newest first.
+      parameters:
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+        - { name: limit, in: query, required: false,
+            schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+      responses:
+        "200":
+          description: A page.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationPage" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /conversations/{conversationId}:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    get:
+      operationId: getConversation
+      tags: [conversations]
+      responses:
+        "200":
+          description: The conversation.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Conversation" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        # Deliberately 404 and not 403 for a conversation belonging to someone
+        # else. A 403 confirms the conversation exists, which is a fact about
+        # another student.
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /conversations/{conversationId}/events:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    get:
+      operationId: listConversationEvents
+      tags: [events]
+      summary: The transcript, from an ordinal. First load and backfill.
+      description: >-
+        Returns events with `ordinal > after`, ascending. The same projection the
+        SSE stream sends, so there is one correctness argument rather than two.
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: Exclusive lower bound. Omit for the whole conversation.
+          schema: { type: integer, minimum: 0 }
+        - { name: limit, in: query, required: false,
+            schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+      responses:
+        "200":
+          description: A page of events in ordinal order.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/EventPage" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /conversations/{conversationId}/stream:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    get:
+      operationId: streamConversationEvents
+      tags: [events]
+      summary: Server-Sent Events, resumable by ordinal.
+      description: >-
+        Each frame carries `id: <ordinal>`, so a dropped connection resumes with
+        the browser's own `Last-Event-ID` header and the server continues from
+        that ordinal. A `conversation.resume` frame is sent first, naming the
+        ordinal the stream is resuming after, so a client can detect a gap and
+        backfill over /events rather than render a conversation with a hole.
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          required: false
+          description: >-
+            The last ordinal the client received. Client-supplied and therefore
+            untrusted: parsed as a strict non-negative integer and used only as
+            a lower bound within a conversation already authorised.
+          schema: { type: string, pattern: "^[0-9]+$" }
+      responses:
+        "200":
+          description: An event stream.
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+            X-Accel-Buffering:
+              description: Disables proxy buffering, which would batch a live stream.
+              schema: { type: string, const: "no" }
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /conversations/{conversationId}/messages:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send an ordinary message. Fail-closed while a secure step is open.
+      description: >-
+        The guard runs BEFORE the body is read for any purpose. There is
+        deliberately no branch in which the text is pulled out of the body, held
+        in a variable and then discarded: on the refused path the value never
+        enters scope. A refusal names the OPEN REQUEST and never anything from
+        the body, because an echo is how a refused password reaches a log.
+
+        The reply is not in this response. The model answers asynchronously and
+        its message arrives as an event on the stream.
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKeyRequired" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendMessageRequest" }
+      responses:
+        "201":
+          description: Accepted and appended. The event, as it was written.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/MessageEvent" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/SecretRequestOpen" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+components:
+  securitySchemes:
+    conversationSession:
+      type: apiKey
+      in: cookie
+      # ADR-0033. HttpOnly, Secure, SameSite=Lax, __Host- prefixed — so it is
+      # bound to exactly this host and no sibling subdomain can set or read it,
+      # and no script can read it at all. The secure plane holds a SEPARATE
+      # cookie; a __Host- cookie cannot be shared, which is the point.
+      name: __Host-conversation_session
+      description: >-
+        Session cookie. HttpOnly, Secure, SameSite=Lax, Path=/, no Domain.
+        Unreadable by JavaScript. Issued by the conversation service after an
+        OIDC authorization-code exchange (ADR-0038); the provider's own tokens
+        never reach the browser.
+
+  parameters:
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }
+      description: A ULID. Sortable by creation time and not guessable in sequence.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 16, maxLength: 128 }
+    IdempotencyKeyRequired:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated, unique per logical send. A retry after a timeout
+        returns the original result rather than appending a second copy of a
+        student's message. Reuse with a DIFFERENT body is a conflict, not a
+        replay — silently returning the first result would hide a client bug.
+      schema: { type: string, minLength: 16, maxLength: 128 }
+
+  schemas:
+    Conversation:
+      type: object
+      additionalProperties: false
+      required: [id, createdAt, lastOrdinal]
+      properties:
+        id: { type: string, pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }
+        title:
+          type: [string, "null"]
+          maxLength: 200
+          description: Student- or model-chosen. Ordinary free text; never a secret.
+        createdAt: { type: string, format: date-time }
+        lastOrdinal:
+          type: integer
+          minimum: 0
+          description: The highest ordinal written. 0 for an empty conversation.
+
+    ConversationPage:
+      type: object
+      additionalProperties: false
+      required: [conversations, hasMore]
+      properties:
+        conversations: { type: array, items: { $ref: "#/components/schemas/Conversation" } }
+        nextCursor: { type: [string, "null"] }
+        hasMore: { type: boolean }
+
+    SendMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 8000
+          description: >-
+            What the student typed. The ONLY free-text input this service
+            accepts. It is a message; it must never be a password, and the
+            fail-closed guard exists because a student may type one anyway.
+
+    # ── Events ──────────────────────────────────────────────────────────
+    # A closed oneOf discriminated by `kind`. Exactly one member has a
+    # `content` field. The others do not have it set to null or made optional —
+    # `additionalProperties: false` means the field cannot be present at all.
+    ConversationEvent:
+      oneOf:
+        - { $ref: "#/components/schemas/MessageEvent" }
+        - { $ref: "#/components/schemas/SecretRequestedEvent" }
+        - { $ref: "#/components/schemas/SecretReceivedEvent" }
+        - { $ref: "#/components/schemas/SecretSettledEvent" }
+        - { $ref: "#/components/schemas/SecretRejectedEvent" }
+      discriminator:
+        propertyName: kind
+        mapping:
+          message: "#/components/schemas/MessageEvent"
+          secret_requested: "#/components/schemas/SecretRequestedEvent"
+          secret_received: "#/components/schemas/SecretReceivedEvent"
+          secret_consumed: "#/components/schemas/SecretSettledEvent"
+          secret_expired: "#/components/schemas/SecretSettledEvent"
+          secret_cancelled: "#/components/schemas/SecretSettledEvent"
+          secret_rejected: "#/components/schemas/SecretRejectedEvent"
+
+    MessageEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, actor, content]
+      properties:
+        kind: { type: string, const: message }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        actor: { type: string, enum: [student, assistant, mentor, system] }
+        content:
+          type: [string, "null"]
+          maxLength: 8000
+          description: >-
+            null when the body has been redacted by an erasure request or the
+            retention policy. The event survives so ordinals stay dense and the
+            transcript keeps its shape (ADR-0031).
+        redactedAt: { type: string, format: date-time }
+
+    SecretRequestedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, requestId, channel, expiresAt]
+      description: >-
+        The model asked for a secret. Content-free by construction. The prompt's
+        title, explanation and portal host are NOT here: the Secure Interaction
+        Service holds them and renders them inside its own document on its own
+        origin, so this plane never receives text a model wrote about a password.
+      properties:
+        kind: { type: string, const: secret_requested }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        channel: { type: string, enum: [secure_control] }
+        expiresAt: { type: string, format: date-time }
+
+    SecretReceivedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, requestId, handle]
+      properties:
+        kind: { type: string, const: secret_received }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        handle:
+          $ref: "#/components/schemas/SecretHandle"
+
+    SecretSettledEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, requestId]
+      description: A terminal transition. Which request, and nothing else.
+      properties:
+        kind: { type: string, enum: [secret_consumed, secret_expired, secret_cancelled] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+
+    SecretRejectedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, requestId, reason]
+      description: >-
+        An attempt failed. A rejection does NOT close the request: the step stays
+        open so the student can retry, and only a lifecycle transition closes it.
+      properties:
+        kind: { type: string, const: secret_rejected }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        requestId: { $ref: "#/components/schemas/SecretRequestId" }
+        reason: { $ref: "#/components/schemas/RejectionReason" }
+
+    EventPage:
+      type: object
+      additionalProperties: false
+      required: [events, hasMore]
+      properties:
+        events: { type: array, items: { $ref: "#/components/schemas/ConversationEvent" } }
+        hasMore: { type: boolean }
+
+    SecretRequestId:
+      type: string
+      pattern: "^sr_[0-9a-f]{32}$"
+      description: An identifier, not a capability. On its own it authenticates nobody.
+
+    SecretHandle:
+      type: string
+      pattern: "^sh_[0-9a-f]{32}$"
+      description: >-
+        Opaque, random rather than derived, single-use, and bound to student,
+        case, purpose and target — re-checked when it is spent. The only
+        capability permitted to cross into this plane. It resolves to nothing
+        outside a live vault, so a handle in a transcript is inert.
+
+    RejectionReason:
+      type: string
+      description: A code, never a sentence. Wording is chosen at render time.
+      enum:
+        - confirmation_mismatch
+        - empty
+        - unknown_request
+        - expired
+        - already_submitted
+        - not_your_request
+        - wrong_conversation
+        - endpoint_unreachable
+        - prompt_expired
+        - client_does_not_support_secure_control
+        - insecure_context
+        - unknown_channel
+
+    # ── Errors ──────────────────────────────────────────────────────────
+    # RFC 9457 problem+json, MINUS `detail`. See src/problems.ts for why: a
+    # per-occurrence human-readable string is the field into which a helpful
+    # handler interpolates the thing that was wrong, and on a password
+    # endpoint the thing that was wrong is the password.
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, instance]
+      properties:
+        type: { type: string, format: uri }
+        title:
+          type: string
+          description: A FIXED string per code. Never derived from the request.
+        status: { type: integer }
+        code: { $ref: "#/components/schemas/ProblemCode" }
+        instance:
+          type: string
+          description: The request id, for correlating with logs.
+
+    ValidationProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [pointers]
+          properties:
+            pointers:
+              type: array
+              description: >-
+                JSON Pointers to the fields that failed. Locations, never values —
+                a message would eventually contain what was found there.
+              items: { type: string, pattern: "^/" }
+
+    SecretRequestOpenProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [requestId, expiresAt]
+          properties:
+            requestId: { $ref: "#/components/schemas/SecretRequestId" }
+            expiresAt: { type: string, format: date-time }
+
+    RateLimitedProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [retryAfterSeconds]
+          properties:
+            retryAfterSeconds: { type: integer, minimum: 0 }
+
+    ProblemCode:
+      type: string
+      enum:
+        - unauthenticated
+        - forbidden
+        - not_found
+        - validation_failed
+        - unsupported_media_type
+        - payload_too_large
+        - idempotency_key_conflict
+        - secret_request_open
+        - rate_limited
+        - internal_error
+        - service_unavailable
+
+  responses:
+    Unauthenticated:
+      description: No valid session cookie.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    NotFound:
+      description: >-
+        Not found, or not the caller's. The same answer for both: distinguishing
+        them would confirm the existence of another student's conversation.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    ValidationFailed:
+      description: The request did not satisfy the schema.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ValidationProblem" }
+    SecretRequestOpen:
+      description: >-
+        A secure step is open on this conversation. Nothing was persisted,
+        nothing reached the model, and nothing from the body is echoed here.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/SecretRequestOpenProblem" }
+    IdempotencyKeyConflict:
+      description: The key was already used with a different request body.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    PayloadTooLarge:
+      description: Body above the route's limit.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    UnsupportedMediaType:
+      description: Not application/json.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    RateLimited:
+      description: Too many requests.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/RateLimitedProblem" }

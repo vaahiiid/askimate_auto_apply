@@ -167,28 +167,49 @@ export type SecretLifecycle =
   | "secret_received"
   /** The automation spent it. The plaintext is gone. */
   | "secret_consumed"
-  /** The TTL passed, or the student abandoned it. The plaintext is gone. */
-  | "secret_expired";
+  /** The TTL passed. The plaintext is gone. */
+  | "secret_expired"
+  /**
+   * The student abandoned the step. The plaintext is gone.
+   *
+   * Distinct from `secret_expired` by ADR-0032. Identical to every guard —
+   * both are terminal and both release the composer — and different to
+   * everyone else who reads the log. The model should say "no problem, shall
+   * we try another way?" to one and "that timed out, let me ask again" to the
+   * other; product analytics should be able to tell an abandonment from a
+   * latency problem; an incident review should not have to guess. Collapsing
+   * them destroys the distinction at the only point where it is still
+   * recoverable, which is the point of writing.
+   */
+  | "secret_cancelled";
 
 export const SECRET_LIFECYCLE: readonly SecretLifecycle[] = [
   "secret_requested",
   "secret_received",
   "secret_consumed",
   "secret_expired",
+  "secret_cancelled",
 ];
 
 /**
  * Which lifecycle moves are possible.
  *
- * Note what is absent: nothing leads OUT of `secret_consumed` or
- * `secret_expired`. Both are terminal, and that is what "single-use" and
- * "expires" mean when written as data rather than as a comment.
+ * Note what is absent: nothing leads OUT of `secret_consumed`, `secret_expired`
+ * or `secret_cancelled`. All three are terminal, and that is what "single-use",
+ * "expires" and "abandoned" mean when written as data rather than as a comment.
+ *
+ * Note also what is absent from `secret_received`: a student cannot cancel a
+ * step they have already completed. Once a handle exists the automation may
+ * already be spending it, and a cancellation that raced a consumption would be
+ * a lie in one direction or the other. Expiry still applies, because time is
+ * not a decision anyone makes.
  */
 const NEXT: Readonly<Record<SecretLifecycle, readonly SecretLifecycle[]>> = {
-  secret_requested: ["secret_received", "secret_expired"],
+  secret_requested: ["secret_received", "secret_expired", "secret_cancelled"],
   secret_received: ["secret_consumed", "secret_expired"],
   secret_consumed: [],
   secret_expired: [],
+  secret_cancelled: [],
 };
 
 export function canTransition(from: SecretLifecycle, to: SecretLifecycle): boolean {

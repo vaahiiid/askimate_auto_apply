@@ -228,7 +228,9 @@ describe("abandoning the step", () => {
       expect(client.cancelled).toEqual([REQUEST_ID]);
     });
     await waitFor(() => {
-      expect(screen.getByTestId("status").getAttribute("data-lifecycle")).toBe("secret_expired");
+      expect(screen.getByTestId("status").getAttribute("data-lifecycle")).toBe(
+        "secret_cancelled",
+      );
     });
     // Released — and released the only way `openSecureRequest` allows, which is
     // a status turn. Nothing here decides on its own that a request is closed.

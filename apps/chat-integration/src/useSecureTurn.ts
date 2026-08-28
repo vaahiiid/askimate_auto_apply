@@ -201,7 +201,7 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
           // open on the server, which is the divergence this whole phase is
           // about. If the delete failed, the TTL closes it and the composer
           // stays guarded by the server's 409 until then.
-          if (cancelled) append({ kind: "secret_status", lifecycle: "secret_expired" });
+          if (cancelled) append({ kind: "secret_status", lifecycle: "secret_cancelled" });
         });
         return;
       }
@@ -244,10 +244,10 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
 
     void transport.cancel(requestId).then((cancelled) => {
       if (cancelled) {
-        // `secret_expired` covers both "the TTL passed" and "the student
-        // abandoned it" — the lifecycle word already means that, so cancelling
-        // needed no new state and no new closing rule.
-        append({ kind: "secret_status", lifecycle: "secret_expired" });
+        // ADR-0032: cancellation is its own word. It behaves identically to
+        // expiry for every guard — both terminal, both release the composer —
+        // and it reads differently to the model, the student and analytics.
+        append({ kind: "secret_status", lifecycle: "secret_cancelled" });
         setServerOpenRequestId(null);
         return;
       }

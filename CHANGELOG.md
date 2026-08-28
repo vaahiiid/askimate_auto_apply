@@ -19,6 +19,95 @@ not shipped artefacts.
 
 ---
 
+## [0.12.0] — 2026-08-28
+
+**The contract-first phase: both services' APIs are specified, checked against the code, and proved
+unable to carry a secret outside the one endpoint that takes one.**
+
+**Version bump: MINOR.** A new package and a new lifecycle member, both additive. One security
+boundary was strengthened and one of my own compile-time assertions turned out to be vacuous; both
+are described below.
+
+### Added — `packages/contracts`
+
+The wire contract, as its own dependency-free package ([ADR-0040](./docs/decisions/0040-the-wire-contract-is-its-own-package.md)).
+
+- **`openapi/conversation.v1.yaml`** — the Conversation Service. Six paths, eighteen schemas.
+  Sessions are a `__Host-` `HttpOnly` cookie; every endpoint but `/health` requires one.
+- **`openapi/secure.v1.yaml`** — the Secure Interaction Service. Six paths, sixteen schemas, split
+  into a student-facing surface and an internal API behind mutual TLS on a subnet with no public
+  route.
+- **`vocabulary.ts`** — every closed set declared exactly once, with the union **derived from** the
+  runtime array so the two cannot drift, and a fail-closed parser for each.
+- **`events.ts`** — the conversation event model. Exactly one member has a `content` field; the
+  others do not have it optional or nullable, they do not have it.
+- **`problems.ts`** — RFC 9457 `problem+json` **minus `detail`**. That member is "a human-readable
+  explanation specific to this occurrence", which is precisely the field a helpful handler
+  interpolates the failing value into — and on the one endpoint that receives a password, the
+  failing value is the password. Wording is chosen client-side from a table keyed by code.
+- **`frame.ts`** — the cross-origin protocol. A closed union in both directions, content-free, with
+  four checks on every receipt: exact origin equality, the specific `contentWindow`, the request id,
+  and every enum member parsed against its set.
+- **`sse.ts`** — the ordinal **is** the SSE event id, so `Last-Event-ID` maps onto the log with
+  nothing in between.
+- **`versioning.ts`** — adding an enum member is explicitly non-breaking, because every client is
+  contractually required to fail closed on unknown values. The security requirement buys
+  evolvability as a side effect.
+
+### Changed — `secret_cancelled` reaches the domain (ADR-0032)
+
+- `SecretLifecycle` gains `secret_cancelled`; three terminal states now, not two.
+- **`SecretStore.cancel()`** joins `discard()`. Two verbs rather than one with a reason parameter: a
+  reason parameter needs a default, and a default is how the wrong word gets recorded silently.
+- Cancellation is reachable **only from `secret_requested`**. Once a handle exists the automation may
+  already be spending it, and a cancellation racing a consumption would be a lie in one direction.
+- The Phase D compile-time drift assertion caught the change the moment the domain gained the member,
+  naming it exactly. Three browser and unit tests asserted the old collapsed word and were updated.
+
+### Fixed — an assertion of mine that was proving nothing
+
+`ONLY_MESSAGES_CARRY_CONTENT` in `events.ts` was written as a conditional type that **computed**
+`never` when the claim was false. `never` is a legal type, so the declaration succeeded and nothing
+errored: adding `content?: string` to a secure event compiled cleanly. Regression **C4b** found it —
+an *optional* field, so no consequential parser error masked the silence.
+
+The distinction that matters: `AssertNever<T extends never>` fails because a **constraint** is
+violated. A conditional type that merely evaluates to `never` fails at nothing. Rewritten as
+`AssertTrue<Exactly<…>>`, and both directions now caught.
+
+Also fixed: the new package was added without a project reference, so `pnpm run typecheck` passed
+having never compiled it. Proved by introducing a deliberate type error and confirming it was
+*missed*, then confirming it was caught after the reference was added.
+
+### Verification
+
+| Deliberate regression | Caught by |
+| --- | --- |
+| A conversation endpoint accepts a password | ✅ contract structure |
+| A response hands the submitted secret back | ✅ contract structure |
+| A secure event gains `content` in the YAML | ✅ contract structure |
+| A secure event gains `content` in TypeScript | ✅ typecheck |
+| A secure event gains an **optional** `content` | ✅ typecheck (after the fix above) |
+| `MessageEvent` loses its `content` | ✅ typecheck |
+| A frame message gains a `password` field | ✅ typecheck |
+| A problem gains RFC 9457's `detail` | ✅ typecheck |
+| The YAML gains a reason the code lacks | ✅ drift |
+| TypeScript gains a reason the YAML lacks | ✅ drift |
+| Frame origin check becomes `startsWith` | ✅ frame tests |
+| Frame stops checking which window sent it | ✅ frame tests |
+| A rejection closes the open request | ✅ openness tests |
+| `Last-Event-ID` parsed with `parseInt` | ✅ SSE tests |
+| The contract package takes a dependency | ✅ build rule |
+| An internal endpoint loses mutual TLS | ✅ contract structure |
+| The message endpoint becomes public | ✅ contract structure |
+
+### Still out of scope, deliberately
+
+No migrations, no service implementation, no `packages/conversation`. The contract-first phase
+specifies; it does not build.
+
+---
+
 ## [0.11.0] — 2026-08-28
 
 **Phase D: one client, and it is the React one — plus the client/server divergence that had been

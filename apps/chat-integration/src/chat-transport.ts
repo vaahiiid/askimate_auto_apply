@@ -162,6 +162,7 @@ export const SECRET_LIFECYCLE_WORDS = [
   "secret_received",
   "secret_consumed",
   "secret_expired",
+  "secret_cancelled",
 ] as const;
 
 /**

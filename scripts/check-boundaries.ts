@@ -661,6 +661,45 @@ function main(): void {
     console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
   }
 
+  // ── The contract package stays dependency-free ──────────────────────────
+  //
+  // `@askimate/aas-contracts` is consumed by two services and two browser
+  // bundles, and one of those four is the secure control — the file whose
+  // supply chain has to stay inspectable by reading it. A dependency added
+  // here is a dependency in all four, arriving without anyone deciding that.
+  //
+  // It must also hold no behaviour. Deciding what to render, what to send the
+  // model, or whether the composer may send belongs to `packages/conversation`
+  // (ADR-0039); this package answers only "what may appear on the wire".
+  const CONTRACTS = "packages/contracts/package.json";
+  if (existsSync(CONTRACTS)) {
+    const manifest = JSON.parse(readFileSync(CONTRACTS, "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const runtime = Object.keys(manifest.dependencies ?? {});
+    if (runtime.length > 0) {
+      violations.push(
+        `packages/contracts declares runtime dependencies (${runtime.join(", ")}). The wire ` +
+          `contract is consumed by both services and both browser bundles, including the secure ` +
+          `control. A dependency here is a dependency in all four.`,
+      );
+    }
+    // A test-only dependency is fine; a workspace one is not, because it would
+    // let behaviour in through the side door.
+    for (const dev of Object.keys(manifest.devDependencies ?? {})) {
+      if (dev.startsWith("@askimate/")) {
+        violations.push(
+          `packages/contracts devDepends on ${dev}. The contract package must not depend on any ` +
+            `workspace package, even for tests — that is how behaviour arrives in a package that ` +
+            `is meant to describe the wire and nothing else.`,
+        );
+      }
+    }
+    checked += 1;
+    console.log(`  ✓  packages/contracts — no runtime dependencies, no workspace dependencies`);
+  }
+
   // ── Exactly one password input exists, and it is the uncontrolled one ────
   //
   // Vahid, 2026-08-28: *"Extend the boundary protection to every relevant
