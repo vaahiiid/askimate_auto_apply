@@ -62,5 +62,6 @@ ADR status uses exactly that vocabulary:
 | [0038](./0038-identity-is-delegated-to-a-managed-oidc-provider.md) | Identity is delegated to a managed OIDC provider | Accepted |
 | [0039](./0039-repository-structure-for-the-independent-product.md) | Repository structure for the independent product | Accepted |
 | [0040](./0040-the-wire-contract-is-its-own-package.md) | The wire contract is its own package | Accepted |
+| [0041](./0041-one-implementation-of-each-conversation-decision.md) | One implementation of each conversation decision | Accepted |
 
 Twenty-eight are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

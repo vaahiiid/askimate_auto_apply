@@ -39,8 +39,8 @@ import type { SecretRequestId } from "@askimate/aas-secrets";
 
 import { createChatApp } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
+import type { ConversationEvent } from "@askimate/aas-contracts";
 import { DatabaseConversationEventStore } from "./conversation-events.js";
-import type { ChatTurn } from "./chat-transport.js";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
 
@@ -200,7 +200,7 @@ beforeAll(async () => {
         modelSaw.push(request.message, ...request.history.map((h) => h.content));
         return await Promise.resolve("ok");
       },
-      historyFor: async () => await Promise.resolve([] as readonly ChatTurn[]),
+      historyFor: async () => await Promise.resolve([] as readonly ConversationEvent[]),
     },
   });
   server = app.listen(PORT);

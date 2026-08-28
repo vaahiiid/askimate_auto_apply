@@ -30,7 +30,7 @@
 export type { ChatAppOptions } from "./app.js";
 export { createChatApp, scrubParseErrorBody } from "./app.js";
 
-export type { ConversationEvent, ConversationEventStore } from "./conversation-events.js";
+export type { ConversationEventStore, StoredSecureRecord } from "./conversation-events.js";
 export { DatabaseConversationEventStore, replayEvents } from "./conversation-events.js";
 
 export type { ChatRoutesOptions, ChatSendResponse } from "./chat-routes.js";
@@ -39,16 +39,23 @@ export { createChatRoutes } from "./chat-routes.js";
 export type { SecretBinding, SecretBindingStore } from "./bindings.js";
 export { DatabaseSecretBindingStore } from "./bindings.js";
 
-export type { ChatTurn, ModelRequest, SecretRejectionReason } from "./chat-transport.js";
+// The decisions moved to @askimate/aas-conversation and the wire model to
+// @askimate/aas-contracts during the Phase-E extraction. Re-exported here so
+// this app's consumers keep one import site while it is retired.
+export type { ConversationEvent, RejectionReason } from "@askimate/aas-contracts";
+export { REJECTION_REASONS, parseConversationEvent, parseRejectionReason }
+  from "@askimate/aas-contracts";
+export type { ClientCapabilities, ComposerPolicy, ModelRequest, RenderDecision, TranscriptItem }
+  from "@askimate/aas-conversation";
 export {
-  SECRET_REJECTION_REASONS,
   buildModelRequest,
-  parseRejectionReason,
+  composerPolicy,
+  decideRendering,
+  openSecretRequest,
   persistableContent,
-} from "./chat-transport.js";
+  projectTranscript,
+} from "@askimate/aas-conversation";
 
-export type { TranscriptItem } from "./transcript.js";
-export { openSecureRequest, projectTranscript } from "./transcript.js";
 
 // ── The React client ──────────────────────────────────────────────────────
 //
@@ -67,9 +74,6 @@ export type {
 } from "./useSecureTurn.js";
 export { browserTransport, parseIncomingTurn, useSecureTurn } from "./useSecureTurn.js";
 
-export type { ClientCapabilities, RenderDecision } from "./render-decision.js";
-export type { ComposerPolicy } from "./render-decision.js";
-export { composerPolicy, decideRendering } from "./render-decision.js";
 
 export type { AskimateUserPayload, SecretRoutesOptions, SecretSubmitResponse } from "./secret-routes.js";
 export { SUBMIT_LIMIT, createSecretRoutes } from "./secret-routes.js";

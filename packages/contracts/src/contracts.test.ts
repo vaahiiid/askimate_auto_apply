@@ -16,9 +16,7 @@ import { describe, expect, it } from "vitest";
 import type { ConversationEvent } from "./events.js";
 import {
   eventCarriesContent,
-  openSecretRequest,
   parseConversationEvent,
-  persistableContent,
 } from "./events.js";
 import { PROBLEM_STATUS, PROBLEM_TITLES, parseProblem, problemTypeFor } from "./problems.js";
 import { parseFrameInbound, parseFrameOutbound } from "./frame.js";
@@ -78,10 +76,10 @@ describe("only a message can carry what a student typed", () => {
     }
   });
 
-  it("refuses to persist anything that is not a message", () => {
-    expect(persistableContent(MESSAGE)).toBe("when does term start?");
-    expect(persistableContent(REQUESTED)).toBeNull();
-    expect(persistableContent(RECEIVED)).toBeNull();
+  it("reports content-bearing for a message and for nothing else", () => {
+    expect(eventCarriesContent(MESSAGE)).toBe(true);
+    expect(eventCarriesContent(REQUESTED)).toBe(false);
+    expect(eventCarriesContent(RECEIVED)).toBe(false);
   });
 
   it("strips a content field smuggled onto a secure event", () => {
@@ -99,7 +97,7 @@ describe("only a message can carry what a student typed", () => {
     });
     expect(smuggled).not.toBeNull();
     expect(JSON.stringify(smuggled)).not.toContain(MARKER);
-    expect(persistableContent(smuggled!)).toBeNull();
+    expect(eventCarriesContent(smuggled!)).toBe(false);
   });
 
   it("keeps a redacted body as null rather than dropping the event", () => {
@@ -114,7 +112,7 @@ describe("only a message can carry what a student typed", () => {
       redactedAt: AT,
     });
     expect(redacted?.kind).toBe("message");
-    expect(persistableContent(redacted!)).toBeNull();
+    expect(redacted?.kind === "message" ? redacted.content : "x").toBeNull();
   });
 });
 
@@ -191,55 +189,6 @@ describe("an unknown value is refused, never guessed at", () => {
   });
 });
 
-// ───────────────────────────────────────────────────────────────────────────
-// Openness — the rule the previous client got wrong
-// ───────────────────────────────────────────────────────────────────────────
-
-describe("whether a secure step is open", () => {
-  it("is open once requested and nothing has settled it", () => {
-    expect(openSecretRequest([MESSAGE, REQUESTED])).toBe(REQUEST_ID);
-  });
-
-  it("is NOT closed by a rejection", () => {
-    // The subtle one. A mismatch leaves the request at `secret_requested` on the
-    // server; a client that closed here would release its composer against a
-    // request the server still holds open, and collect a 409 on the student's
-    // next message. Phase D found exactly that bug in the previous client.
-    const rejected: ConversationEvent = {
-      kind: "secret_rejected", ordinal: 3, createdAt: AT,
-      requestId: REQUEST_ID, reason: "confirmation_mismatch",
-    };
-    expect(openSecretRequest([REQUESTED, rejected])).toBe(REQUEST_ID);
-  });
-
-  it("is closed by every terminal transition, and by receipt", () => {
-    for (const kind of ["secret_received", "secret_consumed", "secret_expired", "secret_cancelled"] as const) {
-      const settling =
-        kind === "secret_received"
-          ? RECEIVED
-          : ({ kind, ordinal: 3, createdAt: AT, requestId: REQUEST_ID } as ConversationEvent);
-      expect(openSecretRequest([REQUESTED, settling]), kind).toBeNull();
-    }
-  });
-
-  it("ignores a settlement naming a DIFFERENT request", () => {
-    // Two requests can exist in one conversation. Closing on any settlement
-    // would let a stale one release the live one's guard.
-    const other: ConversationEvent = {
-      kind: "secret_expired", ordinal: 3, createdAt: AT, requestId: `sr_${"c".repeat(32)}`,
-    };
-    expect(openSecretRequest([REQUESTED, other])).toBe(REQUEST_ID);
-  });
-
-  it("tracks the LATER request when one supersedes a settled one", () => {
-    const later: ConversationEvent = { ...REQUESTED, ordinal: 5, requestId: `sr_${"d".repeat(32)}` };
-    expect(openSecretRequest([REQUESTED, RECEIVED, later])).toBe(later.requestId);
-  });
-
-  it("is closed in an ordinary conversation with no secure step at all", () => {
-    expect(openSecretRequest([MESSAGE])).toBeNull();
-  });
-});
 
 // ───────────────────────────────────────────────────────────────────────────
 // Problems

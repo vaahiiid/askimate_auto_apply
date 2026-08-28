@@ -18,6 +18,7 @@
     { "path": "./packages/secrets" },
     { "path": "./packages/contracts" },
     { "path": "./packages/migrate" },
+    { "path": "./packages/conversation" },
     { "path": "./apps/conversation-service" },
     { "path": "./apps/secure-service" },
     { "path": "./apps/browser-runner" },

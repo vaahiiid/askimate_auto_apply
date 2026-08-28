@@ -105,7 +105,7 @@ function mount(
       const parsed = parseIncomingTurn(raw);
       if (parsed !== null) state.receive(parsed);
     };
-    turns = state.turns;
+    turns = state.events;
     return <ChatView state={state} conversationId={CONVERSATION_ID} authToken="a-token" />;
   }
 
@@ -129,9 +129,9 @@ function mount(
 describe("the secure request takes its place in the conversation", () => {
   it("renders the control BETWEEN the messages around it, not beside them", () => {
     const client = mount();
-    client.receive({ kind: "message", sender: "ai", content: "before" });
+    client.receive({ kind: "message", actor: "assistant", content: "before" });
     client.receive(DIRECTIVE);
-    client.receive({ kind: "message", sender: "ai", content: "after" });
+    client.receive({ kind: "message", actor: "assistant", content: "after" });
 
     const transcript = screen.getByTestId("transcript");
     const order = Array.from(transcript.children).map((child) =>
@@ -153,7 +153,10 @@ describe("the secure request takes its place in the conversation", () => {
   it("releases sending once the secret is received", async () => {
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_status", lifecycle: "secret_received", handle: "sh_x" });
+    client.receive({
+      kind: "secret_status", requestId: REQUEST_ID,
+      lifecycle: "secret_received", handle: "sh_x",
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId<HTMLButtonElement>("chat-send").disabled).toBe(false);
@@ -170,7 +173,7 @@ describe("a rejection is a turn, and closes nothing", () => {
   it("leaves the card and the block in place after a mismatch", () => {
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_rejected", reason: "confirmation_mismatch" });
+    client.receive({ kind: "secret_rejected", requestId: REQUEST_ID, reason: "confirmation_mismatch" });
 
     // The card is still there — the student mistyped, and retrying is the point.
     expect(screen.getByTestId("secure-control")).toBeTruthy();
@@ -188,7 +191,7 @@ describe("a rejection is a turn, and closes nothing", () => {
     // composer and then collect a 409 on the student's next message.
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_rejected", reason: "already_submitted" });
+    client.receive({ kind: "secret_rejected", requestId: REQUEST_ID, reason: "already_submitted" });
 
     expect(screen.getByTestId("secure-control")).toBeTruthy();
     expect(screen.getByTestId<HTMLButtonElement>("chat-send").disabled).toBe(true);
@@ -197,7 +200,7 @@ describe("a rejection is a turn, and closes nothing", () => {
   it("carries a code, never a sentence — the wording is chosen in the view", () => {
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_rejected", reason: "confirmation_mismatch" });
+    client.receive({ kind: "secret_rejected", requestId: REQUEST_ID, reason: "confirmation_mismatch" });
 
     expect(JSON.stringify(client.turns())).not.toContain("did not match");
     expect(screen.getByTestId("rejection").textContent ?? "").toContain("did not match");
@@ -206,7 +209,7 @@ describe("a rejection is a turn, and closes nothing", () => {
   it("drops a reason that is not in the closed set rather than passing it on", () => {
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_rejected", reason: "because-i-said-so" });
+    client.receive({ kind: "secret_rejected", requestId: REQUEST_ID, reason: "because-i-said-so" });
 
     expect(screen.queryByTestId("rejection")).toBeNull();
     expect(JSON.stringify(client.turns())).not.toContain("because-i-said-so");
@@ -424,7 +427,10 @@ describe("no draft reaches browser storage while a request is open", () => {
   it("persists again once the step has settled, so the feature is not simply broken", async () => {
     const client = mount();
     client.receive(DIRECTIVE);
-    client.receive({ kind: "secret_status", lifecycle: "secret_received", handle: "sh_x" });
+    client.receive({
+      kind: "secret_status", requestId: REQUEST_ID,
+      lifecycle: "secret_received", handle: "sh_x",
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId<HTMLButtonElement>("chat-send").disabled).toBe(false);
@@ -476,7 +482,7 @@ describe("parsing a turn off the wire", () => {
     }
   });
 
-  it("does NOT read conversationId off the prompt, which never had one", () => {
+  it("keeps NOTHING off the prompt but the fields it names", () => {
     // The vanilla harness did, and the field only existed because a test spread
     // it in. `SecretPrompt` has no such member.
     const parsed = parseIncomingTurn({
@@ -487,9 +493,15 @@ describe("parsing a turn off the wire", () => {
     if (parsed?.kind !== "directive") expect.unreachable("should parse");
     else {
       const asRecord = parsed.prompt as unknown as Record<string, unknown>;
-      // It survives the spread — but nothing reads it, and the conversation the
-      // container uses is the one it was constructed with.
-      expect(asRecord["conversationId"]).toBe(999);
+      // STRONGER than before the extraction. The parser used to SPREAD the
+      // incoming prompt, so an unexpected field rode along unread. It now
+      // constructs the prompt field by field, so `conversationId` — and
+      // anything else a server invents — simply is not there.
+      expect(asRecord["conversationId"]).toBeUndefined();
+      expect(Object.keys(asRecord).sort()).toEqual([
+        "channel", "expiresAt", "explanation", "portalHost",
+        "requiresConfirmation", "requestId", "title",
+      ].sort());
     }
   });
 

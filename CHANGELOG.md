@@ -19,6 +19,104 @@ not shipped artefacts.
 
 ---
 
+## [0.13.0] — 2026-08-28
+
+**`packages/conversation` is now the single domain authority. The duplication it removes was not
+redundancy — one of the two copies was wrong, and nothing could have told them apart.**
+
+**Version bump: MINOR.** A new package and a client migrated onto it, additive in capability. Every
+security property is preserved or strengthened; two are strengthened, described below.
+
+### The bug the duplication was hiding
+
+Two generations of the same five decisions coexisted: the turn model in `apps/chat-integration` and
+the wire model in `packages/contracts`. They had drifted:
+
+```ts
+// superseded — closes the open step on ANY status
+else if (item.render === "secret_status") open = null;
+
+// authority — closes only the request it NAMES
+if (open === event.requestId) open = null;
+```
+
+`ChatTurn`'s `secret_status` variant carried no `requestId`, so **the old model could not express the
+correct rule.** Two requests in one conversation — a lapsed one and a live one — and the lapsed one's
+settlement released the live one's composer guard, letting an ordinary message through while a
+password box was on screen. That is why this was a migration to the wire model rather than a lift of
+the existing code.
+
+### Added — `packages/conversation`
+
+Five decisions, one implementation each, consumed by both the server routes and the browser client:
+
+| Decision | Question |
+| --- | --- |
+| `openSecretRequest` | Is a secure step open? |
+| `composerPolicy` | What may the composer do about it? |
+| `decideRendering` | Can this client show the step at all? |
+| `projectTranscript` | What is drawn, and in what order? |
+| `buildModelRequest` | What reaches the model? |
+
+**`check-boundaries.ts` now fails the build if any file outside that package DEFINES one of those
+names.** Importing is what they are for; a second implementation is how the client and the server
+come to disagree.
+
+### Removed — four files of duplicated decisions
+
+`chat-transport.ts`, `render-decision.ts`, `transcript.ts` and `transcript.test.ts` are gone from
+`apps/chat-integration`, which now imports the authority. `continuity.test.ts` keeps only its unique
+coverage — `replayEvents` over the legacy table — because its other assertions were about decisions,
+and the decisions moved.
+
+### Changed — two narrowings, both improvements
+
+- **`decideRendering` takes the channel and the expiry**, not a whole `SecretPrompt`. Under ADR-0030
+  the conversation plane never has the title, the explanation or the portal host. A decision that
+  cannot reach the prompt cannot leak it.
+- **`SecureControl` takes only the five fields it renders**, and no longer imports
+  `@askimate/aas-secrets` at all — so the package holding the secret store is one step further from
+  any browser bundle. Neither does `useSecureTurn`.
+
+### Strengthened
+
+- **The wire parser no longer spreads.** It used to `{ ...fields }` an incoming prompt, so an
+  unexpected server field rode along unread. It now constructs field by field, and the test that
+  asserted `conversationId` *survived* the spread now asserts it is **absent**, along with the exact
+  key set.
+- **A replayed receipt replays as `secret_expired`, not `secret_received`.** A handle nobody can
+  spend is not an available secret, and `secret_received` without a handle is unrepresentable in the
+  wire model — which is what the database's `a_handle_means_receipt` CHECK says too.
+
+### Also moved — ADR-0040's own boundary
+
+`openSecretRequest` and `persistableContent` were in `packages/contracts`. They are **decisions**, so
+they moved. `contracts` keeps the model, its parser, and `eventCarriesContent` — a fact about the
+shape rather than a choice about it. Recorded as an addendum to ADR-0040 and in
+[ADR-0041](./docs/decisions/0041-one-implementation-of-each-conversation-decision.md).
+
+### Verification
+
+**64 files, 1317 tests, 0 failures, 0 skipped** — identical totals to before the extraction, with the
+coverage relocated rather than lost: `transcript.test.ts` (17) and part of `continuity.test.ts` and
+`contracts.test.ts` became `conversation.test.ts` (27). **All browser coverage preserved**:
+`fail-closed.test.ts` (33), `end-to-end.test.ts` (12), `react-client.test.tsx` (25) all run against
+the extracted implementation.
+
+| Deliberate regression | Caught by |
+| --- | --- |
+| A second `composerPolicy` appears in the app | ✅ build rule |
+| Openness closes on ANY settlement | ✅ package tests |
+| A rejection closes the request | ✅ package **and** browser tests |
+| The composer becomes disable-able | ✅ package tests |
+| `decideRendering` stops checking the channel first | ✅ package tests |
+| The model funnel serialises the whole event | ✅ package **and** e2e tests |
+
+Two of those fired in both the package's own suite and the app's — which is the evidence that both
+consumers really do run the same implementation.
+
+---
+
 ## [0.12.1] — 2026-08-28
 
 **Migrations: the first implementation step of the independent product. The security guarantees

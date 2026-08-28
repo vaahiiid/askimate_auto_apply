@@ -661,6 +661,59 @@ function main(): void {
     console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
   }
 
+  // ── The five decisions have exactly one implementation ──────────────────
+  //
+  // Vahid, 2026-08-28: *"Treat it as the single domain authority for
+  // conversation decisions… remove duplicated decision logic."*
+  //
+  // The duplication this replaces was not sloppiness — it was two generations
+  // of the same idea, and they had already drifted. The superseded
+  // `openSecureRequest` closed the open step on ANY status, because the turn
+  // model's status variant had no `requestId` to compare. Two requests in one
+  // conversation and a lapsed one released the live one's guard.
+  //
+  // A comment cannot stop that coming back. This can: outside
+  // `packages/conversation`, these names may be IMPORTED but not DEFINED.
+  const DECISIONS = [
+    "openSecretRequest",
+    "composerPolicy",
+    "decideRendering",
+    "projectTranscript",
+    "buildModelRequest",
+  ];
+  const AUTHORITY = "packages/conversation";
+  for (const area of ["apps", "packages"]) {
+    if (!existsSync(area)) continue;
+    for (const entry of readdirSync(area)) {
+      const root = join(area, entry, "src");
+      if (!existsSync(root) || join(area, entry) === AUTHORITY) continue;
+      for (const file of readdirSync(root)) {
+        if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
+        if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
+        const source = readFileSync(join(root, file), "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^\s*\/\/.*$/gm, "");
+        for (const decision of DECISIONS) {
+          // `export function X(` or `const X = (` — a definition, not a
+          // re-export and not a call.
+          const defines = new RegExp(
+            `(export\\s+)?function\\s+${decision}\\s*[(<]|` +
+              `(const|let|var)\\s+${decision}\\s*(:[^=]+)?=\\s*(\\(|function|async)`,
+          );
+          if (defines.test(source)) {
+            violations.push(
+              `${join(root, file)} defines \`${decision}\`. That decision belongs to ` +
+                `@askimate/aas-conversation and nowhere else — a second implementation is how ` +
+                `the client and the server come to disagree about whether a secure step is open.`,
+            );
+          }
+        }
+      }
+    }
+  }
+  checked += 1;
+  console.log(`  ✓  ${String(DECISIONS.length)} conversation decision(s) — one implementation each`);
+
   // ── The contract package stays dependency-free ──────────────────────────
   //
   // `@askimate/aas-contracts` is consumed by two services and two browser

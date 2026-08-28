@@ -41,7 +41,7 @@ import type { SecretHandle, SecretRequestId } from "@askimate/aas-secrets";
 
 import { createChatApp } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
-import { decideRendering, composerPolicy } from "./render-decision.js";
+import { composerPolicy, decideRendering } from "@askimate/aas-conversation";
 import { SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
 import { buildChatClient } from "./build-client.js";
@@ -413,16 +413,11 @@ describeIfDatabase("when the secure control cannot be shown", () => {
     // worried about is not a branch someone forgot to remove; it is a value
     // that does not exist.
     const decision = decideRendering({
-      prompt: {
-        requestId: "sr_00000000000000000000000000000000" as SecretRequestId,
-        channel: "secure_control",
-        title: "t",
-        explanation: "e",
-        requiresConfirmation: true,
-        portalHost: PORTAL_HOST,
-        expiresAt: new Date(NOW.getTime() + 60_000),
-        observedRules: [],
-      },
+      // Narrowed during the extraction: the decision takes the CHANNEL and the
+      // EXPIRY, and nothing else about the request. Under ADR-0030 the
+      // conversation plane never has the title, the explanation or the portal
+      // host — so a decision that cannot reach them cannot leak them.
+      step: { channel: "secure_control", expiresAt: new Date(NOW.getTime() + 60_000) },
       capabilities: { supportsSecureControl: false, secureContext: true, endpointReachable: true },
       now: NOW,
     });

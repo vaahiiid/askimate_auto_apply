@@ -87,7 +87,7 @@ function App(): JSX.Element {
     const turn: ReceivedTurn | null = parseIncomingTurn(raw);
     if (turn !== null) state.receive(turn);
   };
-  window.__askimateTurns = () => JSON.parse(JSON.stringify(state.turns)) as unknown;
+  window.__askimateTurns = () => JSON.parse(JSON.stringify(state.events)) as unknown;
   window.__askimateOpenRequest = () =>
     state.openPrompt === null ? null : { requestId: state.openPrompt.requestId };
 

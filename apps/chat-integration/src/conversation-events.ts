@@ -34,17 +34,24 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { SecretLifecycle, SecretPrompt, SecretRequestId } from "@askimate/aas-secrets";
 
-import type { ChatTurn, SecretRejectionReason } from "./chat-transport.js";
+import type { ConversationEvent, RejectionReason } from "@askimate/aas-contracts";
 import { askimateConversationEvents } from "./schema.js";
 
-/** One persisted, content-free record of a secure step. */
-export interface ConversationEvent {
+/**
+ * One persisted, content-free ROW of a secure step, in the legacy schema.
+ *
+ * Deliberately not called `ConversationEvent` any more: that name now belongs
+ * to the wire model in `@askimate/aas-contracts`, and having two things share
+ * it was half the reason the same decision existed twice. This is the stored
+ * shape; `replayEvents` turns it into the wire shape.
+ */
+export interface StoredSecureRecord {
   readonly conversationId: number;
   readonly ordinal: number;
   readonly kind: "directive" | "secret_status" | "secret_rejected";
   readonly requestId: SecretRequestId;
   readonly lifecycle?: SecretLifecycle;
-  readonly reasonCode?: SecretRejectionReason;
+  readonly reasonCode?: RejectionReason;
 }
 
 /**
@@ -55,14 +62,14 @@ export interface ConversationEvent {
  * changing this interface in a diff a reviewer sees.
  */
 export interface ConversationEventStore {
-  record(event: ConversationEvent): Promise<void>;
-  eventsFor(conversationId: number): Promise<readonly ConversationEvent[]>;
+  record(event: StoredSecureRecord): Promise<void>;
+  eventsFor(conversationId: number): Promise<readonly StoredSecureRecord[]>;
 }
 
 export class DatabaseConversationEventStore implements ConversationEventStore {
   public constructor(private readonly db: NodePgDatabase<Record<string, never>>) {}
 
-  public async record(event: ConversationEvent): Promise<void> {
+  public async record(event: StoredSecureRecord): Promise<void> {
     await this.db
       .insert(askimateConversationEvents)
       .values({
@@ -79,7 +86,7 @@ export class DatabaseConversationEventStore implements ConversationEventStore {
       .onConflictDoNothing();
   }
 
-  public async eventsFor(conversationId: number): Promise<readonly ConversationEvent[]> {
+  public async eventsFor(conversationId: number): Promise<readonly StoredSecureRecord[]> {
     const rows = await this.db
       .select()
       .from(askimateConversationEvents)
@@ -89,12 +96,12 @@ export class DatabaseConversationEventStore implements ConversationEventStore {
     return rows.map((row) => ({
       conversationId: row.conversationId,
       ordinal: row.ordinal,
-      kind: row.kind as ConversationEvent["kind"],
+      kind: row.kind as StoredSecureRecord["kind"],
       requestId: row.requestId as SecretRequestId,
       ...(row.lifecycle === null ? {} : { lifecycle: row.lifecycle as SecretLifecycle }),
       ...(row.reasonCode === null
         ? {}
-        : { reasonCode: row.reasonCode as SecretRejectionReason }),
+        : { reasonCode: row.reasonCode as RejectionReason }),
     }));
   }
 }
@@ -109,38 +116,60 @@ export class DatabaseConversationEventStore implements ConversationEventStore {
  * cannot describe would be worse than showing nothing.
  */
 export function replayEvents(input: {
-  readonly events: readonly ConversationEvent[];
+  readonly events: readonly StoredSecureRecord[];
   readonly prompts: ReadonlyMap<SecretRequestId, SecretPrompt>;
-}): readonly { readonly ordinal: number; readonly turn: ChatTurn }[] {
-  const out: { ordinal: number; turn: ChatTurn }[] = [];
-  for (const event of input.events) {
-    switch (event.kind) {
+}): readonly { readonly ordinal: number; readonly event: ConversationEvent }[] {
+  const out: { ordinal: number; event: ConversationEvent }[] = [];
+  for (const record of input.events) {
+    const createdAt = new Date(0).toISOString();
+    switch (record.kind) {
       case "directive": {
-        const prompt = input.prompts.get(event.requestId);
+        const prompt = input.prompts.get(record.requestId);
+        // A directive whose prompt is unresolvable is DROPPED, not invented.
         if (prompt === undefined) break;
         out.push({
-          ordinal: event.ordinal,
-          turn: { kind: "directive", directive: "request_secret", prompt },
+          ordinal: record.ordinal,
+          event: {
+            kind: "secret_requested",
+            ordinal: record.ordinal,
+            createdAt,
+            requestId: record.requestId,
+            channel: "secure_control",
+            expiresAt: prompt.expiresAt.toISOString(),
+          },
         });
         break;
       }
       case "secret_status": {
-        if (event.lifecycle === undefined) break;
+        if (record.lifecycle === undefined) break;
         // Note what is NOT restored: the handle. It resolves only inside a
-        // live store, and a handle from before a restart resolves to nothing.
+        // live vault, and a handle from before a restart resolves to nothing.
         // Replaying one would tell the model a secret is available when it is
-        // not.
+        // not — so `secret_received` replays as an expiry, which is what a
+        // handle nobody can spend actually means.
+        if (record.lifecycle === "secret_requested") break;
         out.push({
-          ordinal: event.ordinal,
-          turn: { kind: "secret_status", lifecycle: event.lifecycle },
+          ordinal: record.ordinal,
+          event: {
+            kind: record.lifecycle === "secret_received" ? "secret_expired" : record.lifecycle,
+            ordinal: record.ordinal,
+            createdAt,
+            requestId: record.requestId,
+          },
         });
         break;
       }
       case "secret_rejected": {
-        if (event.reasonCode === undefined) break;
+        if (record.reasonCode === undefined) break;
         out.push({
-          ordinal: event.ordinal,
-          turn: { kind: "secret_rejected", reason: event.reasonCode },
+          ordinal: record.ordinal,
+          event: {
+            kind: "secret_rejected",
+            ordinal: record.ordinal,
+            createdAt,
+            requestId: record.requestId,
+            reason: record.reasonCode,
+          },
         });
         break;
       }

@@ -136,7 +136,7 @@ export function ChatView(props: ChatViewProps): JSX.Element {
           switch (item.render) {
             case "message":
               return (
-                <div key={item.position} className={`turn ${item.sender}`} data-testid="turn">
+                <div key={item.position} className={`turn ${item.actor}`} data-testid="turn">
                   {item.content}
                 </div>
               );
@@ -152,10 +152,10 @@ export function ChatView(props: ChatViewProps): JSX.Element {
               //
               // Which request is open is not decided here. `openSecureRequest`
               // decided it; this only compares ids.
-              return state.openPrompt?.requestId === item.prompt.requestId ? (
+              return state.openPrompt?.requestId === item.requestId ? (
                 <SecureControl
                   key={item.position}
-                  prompt={item.prompt}
+                  prompt={state.openPrompt}
                   conversationId={props.conversationId}
                   authToken={props.authToken}
                   onSubmitted={state.submitted}

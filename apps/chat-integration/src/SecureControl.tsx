@@ -51,9 +51,7 @@
 import { useCallback, useRef } from "react";
 import type { FormEvent, JSX } from "react";
 
-import type { SecretPrompt } from "@askimate/aas-secrets";
-
-import { parseRejectionReason, type SecretRejectionReason } from "./chat-transport.js";
+import { parseRejectionReason, type RejectionReason } from "@askimate/aas-contracts";
 
 /**
  * What the component is given, and what it hands back.
@@ -65,7 +63,21 @@ import { parseRejectionReason, type SecretRejectionReason } from "./chat-transpo
  * secret store — and `onRejected` receives a code from a closed set.
  */
 export interface SecureControlProps {
-  readonly prompt: SecretPrompt;
+  /**
+   * Only the fields this control renders.
+   *
+   * Narrowed from `SecretPrompt` during the extraction: it never needed the
+   * channel, the expiry or the observed rules — those are inputs to
+   * `decideRendering`, which runs before this component exists. A component
+   * that cannot see a field cannot leak it.
+   */
+  readonly prompt: {
+    readonly requestId: string;
+    readonly title: string;
+    readonly explanation: string;
+    readonly portalHost: string;
+    readonly requiresConfirmation: boolean;
+  };
   readonly conversationId: number;
   /** Bearer token for the secure endpoint. Not a secret of the student's. */
   readonly authToken: string;
@@ -79,7 +91,7 @@ export interface SecureControlProps {
    * narrowing happened somewhere else, or nowhere. It happens below, once, in
    * `report`.
    */
-  readonly onRejected: (reason: SecretRejectionReason) => void;
+  readonly onRejected: (reason: RejectionReason) => void;
   /**
    * Called when the student abandons the step.
    *

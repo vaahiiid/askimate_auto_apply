@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-chat-integration",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,6 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@askimate/aas-contracts": "workspace:*",
+    "@askimate/aas-conversation": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
     "@askimate/aas-secrets": "workspace:*",
     "compression": "^1.8.1",

@@ -62,12 +62,11 @@ export type {
   SecretRequestedEvent,
   SecretSettledEvent,
 } from "./events.js";
-export {
-  eventCarriesContent,
-  openSecretRequest,
-  parseConversationEvent,
-  persistableContent,
-} from "./events.js";
+// `openSecretRequest` and `persistableContent` used to be here. They are
+// DECISIONS — is the step open, what do we store — and ADR-0040 puts decisions
+// in `@askimate/aas-conversation`. What stays is the model and its parser:
+// what may appear on the wire, and whether these bytes are an instance of it.
+export { eventCarriesContent, parseConversationEvent } from "./events.js";
 
 export type {
   PlainProblem,

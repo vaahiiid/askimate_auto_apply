@@ -46,7 +46,8 @@ import { Router as makeRouter } from "express";
 import jwt from "jsonwebtoken";
 
 import type { SecretBindingStore } from "./bindings.js";
-import { buildModelRequest, persistableContent, type ChatTurn } from "./chat-transport.js";
+import type { ConversationEvent } from "@askimate/aas-contracts";
+import { buildModelRequest, persistableContent } from "@askimate/aas-conversation";
 import type { AskimateUserPayload } from "./secret-routes.js";
 
 /**
@@ -78,7 +79,7 @@ export interface ChatRoutesOptions {
   /** Where an accepted turn would go to the model. Never called for a refusal. */
   readonly askModel: (request: ReturnType<typeof buildModelRequest>) => Promise<string>;
   /** Prior turns, for history. */
-  readonly historyFor: (conversationId: number) => Promise<readonly ChatTurn[]>;
+  readonly historyFor: (conversationId: number) => Promise<readonly ConversationEvent[]>;
 }
 
 function getUser(req: Request, jwtSecret: string): AskimateUserPayload | null {
@@ -138,15 +139,25 @@ export function createChatRoutes(options: ChatRoutesOptions): Router {
         return;
       }
 
-      const turn: ChatTurn = { kind: "message", sender: "user", content };
-      const storable = persistableContent(turn);
+      // Ordinal and timestamp are the SERVER's to assign. This provisional
+      // route has no log to append to yet, so it names position 1; the real
+      // conversation service takes it from `conversations.last_ordinal` in the
+      // same transaction as the insert.
+      const event: ConversationEvent = {
+        kind: "message",
+        ordinal: 1,
+        createdAt: options.now().toISOString(),
+        actor: "student",
+        content,
+      };
+      const storable = persistableContent(event);
       if (storable !== null) {
         await options.persist({ conversationId, content: storable });
       }
 
       const history = await options.historyFor(conversationId);
       const reply = await options.askModel(
-        buildModelRequest({ utterance: content, turns: history }),
+        buildModelRequest({ utterance: content, events: history }),
       );
 
       const accepted: ChatSendResponse = { status: "accepted", reply };

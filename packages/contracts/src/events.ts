@@ -158,16 +158,6 @@ export function eventCarriesContent(event: ConversationEvent): boolean {
   return event.kind === "message";
 }
 
-/**
- * Everything of an event that may be shown, stored, or sent onward.
- *
- * A message contributes its body. Nothing else contributes anything, because
- * nothing else has anything to contribute.
- */
-export function persistableContent(event: ConversationEvent): string | null {
-  return event.kind === "message" ? event.content : null;
-}
-
 // ───────────────────────────────────────────────────────────────────────────
 // The parser — fail closed, no exceptions
 // ───────────────────────────────────────────────────────────────────────────
@@ -250,40 +240,4 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
     default:
       return null;
   }
-}
-
-/**
- * Whether a secure request is open, derived from the event list.
- *
- * ── A rejection does NOT close a request. This is the subtle one ──────────
- *
- * A confirmation mismatch leaves the request at `secret_requested` on the
- * server, waiting for another attempt — the student mistyped, and the box
- * should still be there. Treating a rejection as closure would release the
- * composer while a live request is still open, which is precisely the
- * client/server divergence the fail-closed guard exists to catch. Phase D found
- * that exact bug in the previous client.
- *
- * What closes a request is a lifecycle transition, and only the Secure
- * Interaction Service can make one of those.
- */
-export function openSecretRequest(events: readonly ConversationEvent[]): string | null {
-  let open: string | null = null;
-  for (const event of events) {
-    switch (event.kind) {
-      case "secret_requested":
-        open = event.requestId;
-        break;
-      case "secret_received":
-      case "secret_consumed":
-      case "secret_expired":
-      case "secret_cancelled":
-        if (open === event.requestId) open = null;
-        break;
-      case "message":
-      case "secret_rejected":
-        break;
-    }
-  }
-  return open;
 }

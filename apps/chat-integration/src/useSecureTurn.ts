@@ -43,19 +43,19 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import type { SecretLifecycle, SecretPrompt } from "@askimate/aas-secrets";
 
 import type { ChatSendResponse } from "./chat-routes.js";
-import type { ChatTurn, SecretRejectionReason } from "./chat-transport.js";
-import { SECRET_LIFECYCLE_WORDS, parseRejectionReason } from "./chat-transport.js";
+import type { ConversationEvent, RejectionReason } from "@askimate/aas-contracts";
+import { SECRET_LIFECYCLES, parseRejectionReason } from "@askimate/aas-contracts";
 import {
   composerPolicy,
   decideRendering,
+  openSecretRequest,
+  projectTranscript,
   type ClientCapabilities,
   type ComposerPolicy,
-  type UncheckedSecretPrompt,
-} from "./render-decision.js";
-import { openSecureRequest, projectTranscript, type TranscriptItem } from "./transcript.js";
+  type TranscriptItem,
+} from "@askimate/aas-conversation";
 
 /**
  * A turn as it arrives, with the prompt still unchecked.
@@ -66,12 +66,48 @@ import { openSecureRequest, projectTranscript, type TranscriptItem } from "./tra
  * before anything had checked it.
  */
 export type ReceivedTurn =
-  | Extract<ChatTurn, { kind: "message" | "secret_status" | "secret_rejected" }>
+  | { readonly kind: "message"; readonly actor: "student" | "assistant" | "mentor" | "system";
+      readonly content: string | null }
+  | { readonly kind: "secret_status"; readonly requestId: string;
+      readonly lifecycle: (typeof SECRET_LIFECYCLES)[number]; readonly handle?: string }
+  | { readonly kind: "secret_rejected"; readonly requestId: string;
+      readonly reason: RejectionReason }
   | {
       readonly kind: "directive";
       readonly directive: "request_secret";
-      readonly prompt: UncheckedSecretPrompt;
+      readonly prompt: UncheckedIncomingPrompt;
     };
+
+/**
+ * A prompt as it arrives, with the channel still a claim rather than a fact.
+ *
+ * Under ADR-0030 the real client never receives the title, explanation or
+ * portal host: the Secure Interaction Service holds them and renders them
+ * inside its own document. This PROVISIONAL same-origin client still shows
+ * them itself, so it keeps them here — in a client-side map, deliberately not
+ * on any event, so nothing a model wrote about a password reaches the log.
+ */
+/**
+ * An event before the log has given it a position.
+ *
+ * `Omit<ConversationEvent, …>` does NOT work here: `Omit` over a union
+ * collapses it to the intersection of its members' keys, so every kind-specific
+ * field disappears and the result accepts nothing. The conditional distributes
+ * over the members and omits from each separately — the same distributive
+ * lesson as the `ContentBearing` guard in the contract package.
+ */
+type Unpositioned<T> = T extends unknown ? Omit<T, "ordinal" | "createdAt"> : never;
+export type UnpositionedEvent = Unpositioned<ConversationEvent>;
+
+export interface UncheckedIncomingPrompt {
+  readonly requestId: string;
+  readonly channel: string;
+  readonly expiresAt: Date;
+  readonly title: string;
+  readonly explanation: string;
+  readonly portalHost: string;
+  readonly requiresConfirmation: boolean;
+}
 
 /** The result of trying to send an ordinary message. */
 export type SendOutcome =
@@ -123,22 +159,32 @@ export interface SecureTurnInput {
 }
 
 export interface SecureTurnState {
-  readonly turns: readonly ChatTurn[];
+  readonly events: readonly ConversationEvent[];
   readonly items: readonly TranscriptItem[];
-  /** The control to draw, from `openSecureRequest`. Null when nothing is open. */
-  readonly openPrompt: SecretPrompt | null;
+  /** The prompt to draw, or null when nothing is open. From `openSecretRequest`. */
+  readonly openPrompt: UncheckedIncomingPrompt | null;
   /** Fixed refusal text from `decideRendering`. Never assembled from input. */
-  readonly refusal: { readonly reason: SecretRejectionReason; readonly say: string } | null;
+  readonly refusal: { readonly reason: RejectionReason; readonly say: string } | null;
   readonly composer: ComposerPolicy;
   readonly receive: (turn: ReceivedTurn) => void;
   readonly submitted: (handle: string) => void;
-  readonly rejected: (reason: SecretRejectionReason) => void;
+  readonly rejected: (reason: RejectionReason) => void;
   readonly cancel: () => void;
   readonly send: (content: string) => Promise<SendOutcome>;
 }
 
 export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
-  const [turns, setTurns] = useState<readonly ChatTurn[]>([]);
+  const [events, setEvents] = useState<readonly ConversationEvent[]>([]);
+  /**
+   * Prompt text, keyed by request, held OUTSIDE the event list.
+   *
+   * The provisional control renders the title and explanation itself, and they
+   * are free text a model wrote. Putting them on an event would be exactly the
+   * thing `CHECK ((kind = \'message\') = (body_id IS NOT NULL))` forbids in the
+   * database, so they live here instead — and disappear entirely when the
+   * secure origin takes over rendering.
+   */
+  const [prompts, setPrompts] = useState<ReadonlyMap<string, UncheckedIncomingPrompt>>(new Map());
   const [refusal, setRefusal] = useState<SecureTurnState["refusal"]>(null);
   /**
    * The request the SERVER says is open, learned from a 409.
@@ -155,28 +201,58 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   const { conversationId, capabilities, transport } = input;
   const now = input.now;
 
-  const items = useMemo(() => projectTranscript(turns), [turns]);
-  const openPrompt = useMemo(() => openSecureRequest(items), [items]);
+  const items = useMemo(() => projectTranscript(events), [events]);
+  // The ONE authority. Both this client and the server call the same function
+  // over the same event shape, which is why they cannot disagree about whether
+  // a step is open — the class of bug Phase D found twice by hand.
+  const openRequestId = useMemo(() => openSecretRequest(events), [events]);
+  const openPrompt = openRequestId === null ? null : (prompts.get(openRequestId) ?? null);
 
   // The only composition of the two sources of "is a request open". Both are
   // asked; either one blocks. `composerPolicy` decides what blocking MEANS.
   const composer = composerPolicy({
-    awaitingSecret: openPrompt !== null || serverOpenRequestId !== null,
+    awaitingSecret: openRequestId !== null || serverOpenRequestId !== null,
   });
 
-  const append = useCallback((turn: ChatTurn): void => {
-    setTurns((previous) => [...previous, turn]);
-  }, []);
+  /**
+   * Appends, assigning the ordinal and the timestamp.
+   *
+   * Both are the SERVER's to assign in the real architecture — the ordinal
+   * comes from `conversations.last_ordinal` in the same transaction as the
+   * insert, under a UNIQUE constraint that makes two racing writers resolve to
+   * one. This provisional client numbers its own so the shared decisions can
+   * run over the same shape; a client-assigned ordinal is a rendering position,
+   * never a durable fact.
+   */
+  const append = useCallback((event: UnpositionedEvent): void => {
+    setEvents((previous) => [
+      ...previous,
+      { ...event, ordinal: previous.length + 1, createdAt: now().toISOString() },
+    ]);
+  }, [now]);
 
   const receive = useCallback(
     (turn: ReceivedTurn): void => {
-      if (turn.kind !== "directive") {
-        append(turn);
+      if (turn.kind === "message") {
+        append({ kind: "message", actor: turn.actor, content: turn.content });
+        return;
+      }
+      if (turn.kind === "secret_rejected") {
+        append({ kind: "secret_rejected", requestId: turn.requestId, reason: turn.reason });
+        return;
+      }
+      if (turn.kind === "secret_status") {
+        if (turn.lifecycle === "secret_requested") return;
+        append(
+          turn.lifecycle === "secret_received"
+            ? { kind: "secret_received", requestId: turn.requestId, handle: turn.handle ?? "" }
+            : { kind: turn.lifecycle, requestId: turn.requestId },
+        );
         return;
       }
 
       const decision = decideRendering({
-        prompt: turn.prompt,
+        step: { channel: turn.prompt.channel, expiresAt: turn.prompt.expiresAt },
         capabilities: capabilities(),
         now: now(),
       });
@@ -194,20 +270,35 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
         // request that no client can service would block this conversation's
         // composer for the whole TTL and produce nothing but 409s.
         setRefusal({ reason: decision.reason, say: decision.say });
-        append({ kind: "secret_rejected", reason: decision.reason });
+        append({
+          kind: "secret_rejected",
+          requestId: turn.prompt.requestId,
+          reason: decision.reason,
+        });
         void transport.cancel(turn.prompt.requestId).then((cancelled) => {
           // Only on a confirmed 200. Appending the status turn on a failed
           // delete would tell the transcript a request was closed that is still
           // open on the server, which is the divergence this whole phase is
           // about. If the delete failed, the TTL closes it and the composer
           // stays guarded by the server's 409 until then.
-          if (cancelled) append({ kind: "secret_status", lifecycle: "secret_cancelled" });
+          if (cancelled) {
+            append({ kind: "secret_cancelled", requestId: turn.prompt.requestId });
+          }
         });
         return;
       }
 
       setRefusal(null);
-      append({ kind: "directive", directive: "request_secret", prompt: decision.prompt });
+      // The prompt TEXT goes in the side map; the EVENT carries only the
+      // request, the channel and the expiry — which is exactly what the real
+      // conversation plane will ever have.
+      setPrompts((previous) => new Map(previous).set(turn.prompt.requestId, turn.prompt));
+      append({
+        kind: "secret_requested",
+        requestId: turn.prompt.requestId,
+        channel: decision.step.channel,
+        expiresAt: decision.step.expiresAt.toISOString(),
+      });
     },
     [append, capabilities, now, transport],
   );
@@ -216,30 +307,32 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
     (handle: string): void => {
       // A lifecycle transition, which is the only thing `openSecureRequest`
       // accepts as closing a request. The handle is opaque and safe to hold.
-      append({ kind: "secret_status", lifecycle: "secret_received", handle });
+      if (openRequestId === null) return;
+      append({ kind: "secret_received", requestId: openRequestId, handle });
       setServerOpenRequestId(null);
     },
-    [append],
+    [append, openRequestId],
   );
 
   const rejected = useCallback(
-    (reason: SecretRejectionReason): void => {
+    (reason: RejectionReason): void => {
       // Appended, and NOTHING ELSE. In particular the request is not closed:
       // `openSecureRequest` deliberately ignores a rejection, so a mistyped
       // confirmation leaves the card exactly where it was and the student
       // simply tries again. The harness closed the card here for every reason
       // but a mismatch, which released the composer while the server still had
       // the request open — see docs/composer-during-secure-turn.md.
-      append({ kind: "secret_rejected", reason });
+      if (openRequestId === null) return;
+      append({ kind: "secret_rejected", requestId: openRequestId, reason });
     },
-    [append],
+    [append, openRequestId],
   );
 
   const cancel = useCallback((): void => {
     // `??` rather than a second null test afterwards: the linter pointed out
     // that once both have been ruled out the result cannot be null, so the
     // extra guard was unreachable code pretending to be caution.
-    const requestId = openPrompt?.requestId ?? serverOpenRequestId;
+    const requestId = openRequestId ?? serverOpenRequestId;
     if (requestId === null) return;
 
     void transport.cancel(requestId).then((cancelled) => {
@@ -247,15 +340,15 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
         // ADR-0032: cancellation is its own word. It behaves identically to
         // expiry for every guard — both terminal, both release the composer —
         // and it reads differently to the model, the student and analytics.
-        append({ kind: "secret_status", lifecycle: "secret_cancelled" });
+        append({ kind: "secret_cancelled", requestId });
         setServerOpenRequestId(null);
         return;
       }
       // The request is still open. Say so as a rejection, which by design does
       // not close it — the card stays and the student can still finish.
-      append({ kind: "secret_rejected", reason: "endpoint_unreachable" });
+      append({ kind: "secret_rejected", requestId, reason: "endpoint_unreachable" });
     });
-  }, [append, openPrompt, serverOpenRequestId, transport]);
+  }, [append, openRequestId, serverOpenRequestId, transport]);
 
   const send = useCallback(
     async (content: string): Promise<SendOutcome> => {
@@ -267,10 +360,10 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
       const response = body as Partial<ChatSendResponse> | null;
 
       if (ok && response?.status === "accepted") {
-        append({ kind: "message", sender: "user", content });
+        append({ kind: "message", actor: "student", content });
         const reply = (response as Extract<ChatSendResponse, { status: "accepted" }>).reply;
         if (typeof reply === "string" && reply.length > 0) {
-          append({ kind: "message", sender: "ai", content: reply });
+          append({ kind: "message", actor: "assistant", content: reply });
         }
         setServerOpenRequestId(null);
         return { outcome: "accepted" };
@@ -290,7 +383,7 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
     [append, conversationId, transport],
   );
 
-  return { turns, items, openPrompt, refusal, composer, receive, submitted, rejected, cancel, send };
+  return { events, items, openPrompt, refusal, composer, receive, submitted, rejected, cancel, send };
 }
 
 /** The real transport, for a page talking to a real server. */
@@ -333,13 +426,21 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
 
   switch (turn["kind"]) {
     case "message": {
-      const sender = turn["sender"];
+      // `actor`, not `sender`: the wire model names a ROLE IN THE CONVERSATION,
+      // and "user"/"ai" were a client's words for the same two roles. `student`
+      // and `assistant` are the log's, so the client speaks the log's.
+      const actor = turn["actor"] ?? turn["sender"];
       const content = turn["content"];
-      if (typeof content !== "string") return null;
-      if (sender !== "user" && sender !== "ai" && sender !== "mentor" && sender !== "system") {
+      if (content !== null && typeof content !== "string") return null;
+      const normalised =
+        actor === "user" ? "student" : actor === "ai" ? "assistant" : actor;
+      if (
+        normalised !== "student" && normalised !== "assistant" &&
+        normalised !== "mentor" && normalised !== "system"
+      ) {
         return null;
       }
-      return { kind: "message", sender, content };
+      return { kind: "message", actor: normalised, content };
     }
     case "directive": {
       if (turn["directive"] !== "request_secret") return null;
@@ -354,12 +455,22 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
             ? new Date(expiresAt)
             : null;
       if (parsed === null || Number.isNaN(parsed.getTime())) return null;
+      const requestId = fields["requestId"];
+      if (typeof requestId !== "string" || requestId.length === 0) return null;
       return {
         kind: "directive",
         directive: "request_secret",
         // `channel` stays whatever the server said it was. `decideRendering`
         // is what checks it, and it checks it first.
-        prompt: { ...(fields as unknown as UncheckedSecretPrompt), expiresAt: parsed },
+        prompt: {
+          requestId,
+          channel: typeof fields["channel"] === "string" ? fields["channel"] : "",
+          expiresAt: parsed,
+          title: typeof fields["title"] === "string" ? fields["title"] : "",
+          explanation: typeof fields["explanation"] === "string" ? fields["explanation"] : "",
+          portalHost: typeof fields["portalHost"] === "string" ? fields["portalHost"] : "",
+          requiresConfirmation: fields["requiresConfirmation"] !== false,
+        },
       };
     }
     case "secret_status": {
@@ -369,20 +480,28 @@ export function parseIncomingTurn(raw: unknown): ReceivedTurn | null {
       // an unrecognised one would reach it unchecked.
       if (
         typeof lifecycle !== "string" ||
-        !(SECRET_LIFECYCLE_WORDS as readonly string[]).includes(lifecycle)
+        !(SECRET_LIFECYCLES as readonly string[]).includes(lifecycle)
       ) {
         return null;
       }
       const handle = turn["handle"];
+      const statusRequest = turn["requestId"];
       return {
         kind: "secret_status",
-        lifecycle: lifecycle as SecretLifecycle,
+        requestId: typeof statusRequest === "string" ? statusRequest : "",
+        lifecycle: lifecycle as (typeof SECRET_LIFECYCLES)[number],
         ...(typeof handle === "string" ? { handle } : {}),
       };
     }
     case "secret_rejected": {
       const reason = parseRejectionReason(turn["reason"]);
-      return reason === null ? null : { kind: "secret_rejected", reason };
+      if (reason === null) return null;
+      const rejectedRequest = turn["requestId"];
+      return {
+        kind: "secret_rejected",
+        requestId: typeof rejectedRequest === "string" ? rejectedRequest : "",
+        reason,
+      };
     }
     default:
       return null;

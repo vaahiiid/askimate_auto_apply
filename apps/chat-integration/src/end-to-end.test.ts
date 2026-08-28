@@ -44,7 +44,8 @@ import type { SecretHandle, SecretRequestId } from "@askimate/aas-secrets";
 
 import { createChatApp, scrubParseErrorBody } from "./app.js";
 import { DatabaseSecretBindingStore } from "./bindings.js";
-import { buildModelRequest, persistableContent, type ChatTurn } from "./chat-transport.js";
+import type { ConversationEvent } from "@askimate/aas-contracts";
+import { buildModelRequest, persistableContent } from "@askimate/aas-conversation";
 import { FREE_TEXT_COLUMNS, SCHEMA_DDL } from "./schema.js";
 import { announceSkip, databaseReachable } from "./test-database.js";
 import { buildChatClient } from "./build-client.js";
@@ -417,13 +418,16 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     await page.locator('[data-testid="status"]').waitFor({ state: "visible" });
     const settled = (await page.evaluate(
       () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
-    )) as ChatTurn[];
-    const status = settled.find((turn) => turn.kind === "secret_status");
-    if (status?.kind !== "secret_status") {
-      expect.unreachable("a secret_status turn should exist by now");
+    )) as ConversationEvent[];
+    // The wire model splits what the turn model collapsed: `secret_received`
+    // is a KIND now, not a lifecycle field on a shared `secret_status` turn.
+    // That split is what lets the log's CHECK constraint say "a handle exists
+    // exactly on a receipt".
+    const status = settled.find((event) => event.kind === "secret_received");
+    if (status?.kind !== "secret_received") {
+      expect.unreachable("a secret_received event should exist by now");
       return;
     }
-    expect(status.lifecycle).toBe("secret_received");
     expect(status.handle).toMatch(/^sh_[0-9a-f]{32}$/);
     const handle = status.handle;
 
@@ -438,10 +442,10 @@ describeIfDatabase("the complete lifecycle, through a real browser", () => {
     // ── 4. It never entered the model message stream ─────────────────────
     const turns = (await page.evaluate(
       () => (window as unknown as { __askimateTurns: () => unknown[] }).__askimateTurns(),
-    )) as ChatTurn[];
+    )) as ConversationEvent[];
     expect(JSON.stringify(turns)).not.toContain(MARKER);
     // What the model actually gets, built by the one funnel.
-    const modelRequest = buildModelRequest({ utterance: "ok, done", turns });
+    const modelRequest = buildModelRequest({ utterance: "ok, done", events: turns });
     expect(JSON.stringify(modelRequest)).not.toContain(MARKER);
     // And it does carry the word and the handle, so this is not passing by
     // sending the model nothing at all.
@@ -699,29 +703,33 @@ describeIfDatabase("what reached stdout and stderr", () => {
 
 describeIfDatabase("the model funnel", () => {
   it("cannot copy a directive's contents into the prompt, because it has none", () => {
-    const turns: ChatTurn[] = [
-      { kind: "message", sender: "user", content: "I want to apply to Ulster" },
+    const turns: ConversationEvent[] = [
       {
-        kind: "directive",
-        directive: "request_secret",
-        prompt: {
-          requestId: "sr_00000000000000000000000000000000" as SecretRequestId,
-          channel: "secure_control",
-          title: "Create a password for your university application",
-          explanation: "…",
-          requiresConfirmation: true,
-          portalHost: PORTAL_HOST,
-          expiresAt: NOW,
-          observedRules: [],
-        },
+        kind: "message", ordinal: 1, createdAt: NOW.toISOString(),
+        actor: "student", content: "I want to apply to Ulster",
       },
-      { kind: "secret_status", lifecycle: "secret_received", handle: "sh_abc" },
+      {
+        // The wire event carries the request, the channel and the expiry —
+        // and NOT the title, the explanation or the portal host. Those are
+        // text a model wrote about a password, and under ADR-0030 they never
+        // reach this plane at all: the secure origin holds them and renders
+        // them itself. There is nothing here to copy into a prompt.
+        kind: "secret_requested", ordinal: 2, createdAt: NOW.toISOString(),
+        requestId: "sr_00000000000000000000000000000000",
+        channel: "secure_control",
+        expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
+      },
+      {
+        kind: "secret_received", ordinal: 3, createdAt: NOW.toISOString(),
+        requestId: "sr_00000000000000000000000000000000",
+        handle: "sh_00000000000000000000000000000abc",
+      },
     ];
-    const built = buildModelRequest({ utterance: "next", turns });
+    const built = buildModelRequest({ utterance: "next", events: turns });
     expect(built.history.map((entry) => entry.content)).toEqual([
       "I want to apply to Ulster",
       "[A secure password box was shown to the student.]",
-      "[secret_received · sh_abc]",
+      "[secret_received · sh_00000000000000000000000000000abc]",
     ]);
   });
 
@@ -731,10 +739,16 @@ describeIfDatabase("the model funnel", () => {
     // write, and rendering one into text would invent the very content this
     // design exists to avoid.
     expect(
-      persistableContent({ kind: "secret_status", lifecycle: "secret_received" }),
+      persistableContent({
+        kind: "secret_received", ordinal: 1, createdAt: NOW.toISOString(),
+        requestId: "sr_00000000000000000000000000000000", handle: "sh_00000000000000000000000000000000",
+      }),
     ).toBeNull();
     expect(
-      persistableContent({ kind: "message", sender: "user", content: "hello" }),
+      persistableContent({
+        kind: "message", ordinal: 2, createdAt: NOW.toISOString(),
+        actor: "student", content: "hello",
+      }),
     ).toBe("hello");
   });
 });

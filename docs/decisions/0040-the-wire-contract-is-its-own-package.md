@@ -63,3 +63,18 @@ is a credential.
 The build now enforces three things about this package that a reviewer would otherwise have to
 remember: no runtime dependency, no workspace dependency, and — through the drift and structure tests
 — that the published document and the code cannot disagree.
+
+## Addendum, 2026-08-28 — `packages/conversation` now exists, and the boundary moved
+
+This ADR said `contracts` answers *"what may appear on the wire"* and `conversation` answers *"what
+do we decide about it"*. When `conversation` was actually built, two functions turned out to be on
+the wrong side of that line and were moved:
+
+- **`openSecretRequest`** — is a secure step open? A decision, and the one the composer guard trusts.
+- **`persistableContent`** — what do we store? A decision.
+
+Both now live in `@askimate/aas-conversation`. `contracts` keeps the model, its parser, and
+`eventCarriesContent`, which is a fact about the shape rather than a choice about it.
+
+A build rule now enforces the other direction too: outside `packages/conversation`, the five
+decisions may be **imported but not defined**. See ADR-0041.

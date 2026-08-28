@@ -50,7 +50,7 @@ import type { SecretHandle, SecretStore } from "@askimate/aas-secrets";
 import { parseSecretRequestId } from "@askimate/aas-secrets";
 
 import type { SecretBindingStore } from "./bindings.js";
-import type { SecretRejectionReason } from "./chat-transport.js";
+import type { RejectionReason } from "@askimate/aas-contracts";
 
 /** What AskiMate's JWT carries. Transcribed from the real route. */
 export interface AskimateUserPayload {
@@ -96,7 +96,7 @@ export type SecretSubmitResponse =
 type ServerReason = Extract<SecretSubmitResponse, { status: "secret_rejected" }>["reason"];
 type AssertNever<T extends never> = T;
 export type SERVER_REASONS_ALL_REPRESENTABLE = AssertNever<
-  Exclude<ServerReason, SecretRejectionReason>
+  Exclude<ServerReason, RejectionReason>
 >;
 
 export interface SecretRoutesOptions {

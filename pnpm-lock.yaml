@@ -26,6 +26,9 @@ importers:
       '@askimate/aas-contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@askimate/aas-conversation':
+        specifier: workspace:*
+        version: link:packages/conversation
       '@askimate/aas-conversation-service':
         specifier: workspace:*
         version: link:apps/conversation-service
@@ -129,6 +132,12 @@ importers:
 
   apps/chat-integration:
     dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-conversation':
+        specifier: workspace:*
+        version: link:../../packages/conversation
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -302,6 +311,16 @@ importers:
         version: 4.3.1
       vitest:
         specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  packages/conversation:
+    dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
 
   packages/disclosure:
