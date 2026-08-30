@@ -184,6 +184,26 @@ function merged(log: ConversationLog): readonly UnpositionedEvent[] {
   return [...log.durable, ...log.provisional.map((entry) => entry.event)];
 }
 
+/**
+ * The DURABLE `secret_requested` event for an open request, or null.
+ *
+ * Durable only, deliberately. This is what a client reads to decide whether it
+ * can render the step — its channel and its expiry — and both must come from
+ * the log rather than from anything the browser drew for itself. A provisional
+ * entry has neither field with any authority behind it.
+ */
+export function durableSecretRequest(
+  log: ConversationLog,
+  requestId: string,
+): { readonly channel: string; readonly expiresAt: string } | null {
+  for (const event of log.durable) {
+    if (event.kind === "secret_requested" && event.requestId === requestId) {
+      return { channel: event.channel, expiresAt: event.expiresAt };
+    }
+  }
+  return null;
+}
+
 /** The events the model may be told about: the durable ones, in order. */
 export function durableEvents(log: ConversationLog): readonly ConversationEvent[] {
   return log.durable;

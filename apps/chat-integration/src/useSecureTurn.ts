@@ -75,6 +75,8 @@ import {
   composerPolicy,
   decideRendering,
   durableEvents,
+  durableSecretRequest,
+  openSecretRequest,
   openSecretRequestInLog,
   projectLog,
   retireProvisional,
@@ -323,10 +325,38 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   const openRequestId = useMemo(() => openSecretRequestInLog(log), [log]);
   const openPrompt = openRequestId === null ? null : (prompts.get(openRequestId) ?? null);
 
-  // The only composition of the two sources of "is a request open". Both are
-  // asked; either one blocks. `composerPolicy` decides what blocking MEANS.
+  // ── RENDERING openness vs AUTHORITATIVE openness ─────────────────────────
+  //
+  // `openRequestId` above merges durable events with what this browser is
+  // drawing, and that is right for RENDERING: the secure frame should close the
+  // instant the student succeeds, not a round trip later.
+  //
+  // It is WRONG for the composer, and this was a real defect. A provisional
+  // `secret_received` — drawn from the frame's own postMessage — made
+  // `openRequestId` null, so the composer reopened on the browser's word before
+  // the Secure Interaction Service had published anything. The server refused
+  // the resulting message with a 409, so nothing unsafe was ever accepted; but
+  // the student saw a live composer for a step the log still showed open, and
+  // "provisional UI must never override server authority" is the rule.
+  //
+  // So the gate reads the DURABLE log only. A step is open until an
+  // authoritative transition says otherwise — Secure Service → outbox →
+  // Conversation Service → log → SSE — and `serverOpenRequestId`, learned from
+  // a 409, blocks in addition. Either one blocks; neither can unblock the
+  // other.
+  //
+  // ── And why the PROVISIONAL path is different ────────────────────────────
+  //
+  // Only when a Conversation Service is present. The provisional app has no
+  // durable log — its turns arrive through `receive` without ordinals and are
+  // all drawn provisionally — so a durable-only gate would never block there at
+  // all. On that path `receive` IS how the server speaks to the client, so the
+  // merged view is the authoritative one available; on the real path it is
+  // not, and the distinction is which of the two is the server's word.
+  const durablyOpen = useMemo(() => openSecretRequest(log.durable), [log]);
+  const authoritativelyOpen = conversation === undefined ? openRequestId : durablyOpen;
   const composer = composerPolicy({
-    awaitingSecret: openRequestId !== null || serverOpenRequestId !== null,
+    awaitingSecret: authoritativelyOpen !== null || serverOpenRequestId !== null,
   });
 
   /**
@@ -695,12 +725,88 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
   // capability, so it is held for as short a time as the UI allows: in state
   // for the life of one open step, never in storage, never in a URL, and never
   // written to anything that outlives the mount.
+  // ── The open step's channel and expiry, as PRIMITIVES ────────────────────
+  //
+  // Extracted here so the effect below can depend on two strings rather than on
+  // the whole log. Depending on `log` re-ran the effect on EVERY event — which
+  // minted a fresh one-time frame token each time, replaced the `Bootstrap`
+  // object, and remounted the iframe underneath a student who was typing. The
+  // browser tests caught it: the form never stabilised long enough to fill.
+  const openStep = useMemo(
+    () => (openRequestId === null ? null : durableSecretRequest(log, openRequestId)),
+    [log, openRequestId],
+  );
+  const openChannel = openStep?.channel ?? null;
+  const openExpiresAt = openStep?.expiresAt ?? null;
+
+  // ── The environment readers, in refs ─────────────────────────────────────
+  //
+  // `capabilities` and `now` are functions the MOUNT supplies, and the mount
+  // writes them inline — so a new function identity arrives on every render.
+  // Listing them in the effect's dependencies re-ran the effect every render,
+  // which called `setBootstrap`, which caused a render. React reported
+  // "Maximum update depth exceeded" and the iframe never mounted.
+  //
+  // They are read through refs instead. That is correct as well as convenient:
+  // both are meant to be read AT THE MOMENT OF THE DECISION, not captured when
+  // the container was built, and a ref gives exactly that without making the
+  // decision's identity part of the effect's.
+  const capabilitiesRef = useRef(capabilities);
+  capabilitiesRef.current = capabilities;
+  const nowRef = useRef(now);
+  nowRef.current = now;
+
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   useEffect(() => {
     if (conversation === undefined || openRequestId === null) {
       setBootstrap(null);
+      setRefusal(null);
       return undefined;
     }
+
+    // ── CAN this client show the step at all? Asked BEFORE anything else ──
+    //
+    // ═════════════════════════════════════════════════════════════════════
+    // `decideRendering` was written for exactly this architecture — its own
+    // comment says the signature is "the widest one the architecture permits"
+    // under ADR-0030 — and the real path was not calling it. The provisional
+    // path did; the cross-origin path went straight to fetching a capability.
+    // That is how three refusal reasons ended up with no coverage: nothing
+    // consulted them.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Asked before the bootstrap is fetched, so a client that cannot render the
+    // step never obtains a capability it has no use for. A one-time token
+    // minted for a frame that will never mount is a token sitting unspent.
+    const decision =
+      openChannel === null || openExpiresAt === null
+        ? null
+        : decideRendering({
+            step: { channel: openChannel, expiresAt: new Date(openExpiresAt) },
+            capabilities: capabilitiesRef.current(),
+            now: nowRef.current(),
+          });
+
+    if (decision !== null && decision.render === "refuse") {
+      // ── FAIL CLOSED, and DO NOT cancel ────────────────────────────────
+      //
+      // The provisional path cancelled the request here, because it held a
+      // token that let it. This client cannot: cancellation requires a secure
+      // session, which requires the bootstrap, which is precisely what it has
+      // just declined to obtain. And it should not be able to — the
+      // authoritative lifecycle belongs to the Secure Interaction Service.
+      //
+      // So the request stays OPEN in the conversation log, the composer stays
+      // BLOCKED, and the TTL settles it. That is a deliberate change from the
+      // legacy behaviour and it is the safer of the two: a client that cannot
+      // show a password box also cannot be trusted to decide that nobody
+      // should be asked for the password.
+      setRefusal({ reason: decision.reason, say: decision.say });
+      setBootstrap(null);
+      return undefined;
+    }
+
+    setRefusal(null);
     let live = true;
     void conversation.bootstrap(openRequestId).then((capability) => {
       if (live) setBootstrap(capability);
@@ -708,7 +814,10 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
     return () => {
       live = false;
     };
-  }, [conversation, openRequestId]);
+    // PRIMITIVES only. `openChannel` and `openExpiresAt` change when the step
+    // does and not when any other event arrives, so exactly one bootstrap is
+    // fetched per step.
+  }, [conversation, openChannel, openExpiresAt, openRequestId]);
 
   return {
     events, items, log, loaded, bootstrap, openPrompt, refusal, composer,

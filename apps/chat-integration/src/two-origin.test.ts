@@ -59,7 +59,34 @@ const CHAT = `http://127.0.0.1:${String(CHAT_PORT)}`;
 const SECURE = `http://localhost:${String(SECURE_PORT)}`;
 const SESSION_SECRET = "two-origin-session-secret";
 const CERT = "conversation-service";
-const NOW = new Date("2026-08-28T10:00:00Z");
+/**
+ * The REAL clock, for both services and the browser.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * This was a frozen `new Date("2026-08-28T10:00:00Z")`, and it was a latent
+ * flaw that only surfaced when `decideRendering` was wired into the real path.
+ *
+ * The servers minted `expiresAt` from the frozen clock; the BROWSER compares it
+ * with `Date.now()`. Two days later every secure step the tests opened was
+ * already expired as far as the page was concerned — so the frame was refused
+ * with `prompt_expired` and never mounted. Before the expiry check existed
+ * nothing looked, and the tests passed while the timestamps were nonsense.
+ *
+ * Production has one real clock on both sides. So does this file now. Tests
+ * that need a deterministic instant take one as an argument; nothing here needs
+ * the whole world frozen.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const clock = (): Date => new Date();
+
+/**
+ * A conversation used only by tests that talk to the services directly.
+ *
+ * It never gets a page, so it needs no row in the conversation plane — the
+ * secure plane stores the id as an opaque string and cannot read that database
+ * anyway, which is the separation ADR-0037 requires.
+ */
+const CONVERSATION_FOR_DIRECT_TESTS = "01JBXQ8Z9WKTQ6M4H2NPT99999";
 /** The credential a real browser types into the Secure Plane. */
 const PASSWORD = "Tr0ub4dor-and-3-HORSE-battery!";
 
@@ -165,11 +192,63 @@ async function chatPage(
 }
 
 /** Drains the outbox, which is what a background publisher does in production. */
-async function publish(now: Date = NOW): Promise<{ delivered: number; failed: number }> {
+async function publish(now: Date = clock()): Promise<{ delivered: number; failed: number }> {
   return await outbox.publish(
     internalAppend({ baseUrl: CHAT, serviceCertificate: "secure-service" }),
     { now },
   );
+}
+
+/** Opens a secure request WITHOUT recording it in the conversation log. */
+async function openSecureRequest(
+  conversationId: string = CONVERSATION_FOR_DIRECT_TESTS,
+): Promise<{ requestId: string; frameToken: string }> {
+  const response = await fetch(`${SECURE}/internal/v1/secret-requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-service-cert": CERT },
+    body: JSON.stringify({
+      studentRef: studentId,
+      conversationId,
+      caseRef: "case-1",
+      purpose: "portal_account_creation",
+      targetHost: "portal.example.ac.uk",
+      ttlSeconds: 300,
+    }),
+  });
+  const text = await response.text();
+  expect(response.status, text).toBe(201);
+  return JSON.parse(text) as { requestId: string; frameToken: string };
+}
+
+/** This plane's session cookie, as a `Cookie` header value. */
+async function secureSessionCookie(requestId: string, frameToken: string): Promise<string> {
+  const response = await fetch(`${SECURE}/v1/frame-sessions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: SECURE, "Sec-Fetch-Site": "same-origin" },
+    body: JSON.stringify({ requestId, frameToken }),
+  });
+  expect(response.status).toBe(204);
+  const value = /__Host-secure_session=([^;]+)/.exec(response.headers.get("set-cookie") ?? "")?.[1];
+  expect(value, "no secure session cookie was set").toBeDefined();
+  return `__Host-secure_session=${String(value)}`;
+}
+
+/** The conversation plane's session cookie, as a `Cookie` header value. */
+async function chatSessionCookie(): Promise<string> {
+  const response = await fetch(`${CHAT}/dev/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subject: studentId }),
+  });
+  expect(response.status).toBe(204);
+  const value = /__Host-aas-session=([^;]+)/.exec(response.headers.get("set-cookie") ?? "")?.[1];
+  expect(value, "no conversation session cookie was set").toBeDefined();
+  return `__Host-aas-session=${String(value)}`;
+}
+
+async function sendFromComposer(page: Page, text: string): Promise<void> {
+  await page.locator("#chat-input").fill(text);
+  await page.locator("#chat-send").click();
 }
 
 async function durableKinds(conversationId: string): Promise<string[]> {
@@ -204,7 +283,7 @@ beforeAll(async () => {
     store: secureStore,
     vault,
     outbox,
-    now: () => NOW,
+    now: clock,
     selfOrigin: SECURE,
     // The ONE origin permitted to embed the control document.
     parentOrigin: CHAT,
@@ -226,7 +305,7 @@ beforeAll(async () => {
       );
       return owned.rowCount === 1;
     },
-    now: () => NOW,
+    now: clock,
     publicDir: clientDir,
     pollIntervalMs: 150,
     heartbeatIntervalMs: 5_000,
@@ -235,7 +314,7 @@ beforeAll(async () => {
     authoriseService: (req) => req.header("x-service-cert") === "secure-service",
     // The conversation plane asks the secure plane for a bootstrap capability
     // over the internal API, and hands it straight to the page. It stores none.
-    mintFrameToken: async (requestId) => await secureStore.mintFrameToken(requestId, NOW),
+    mintFrameToken: async (requestId) => await secureStore.mintFrameToken(requestId, clock()),
     issueSessionFor: (req) => {
       const subject = (req.body as { subject?: unknown } | undefined)?.subject;
       return typeof subject === "string" ? subject : null;
@@ -615,4 +694,793 @@ describeIfDatabase("a student gives a password to the Secure Plane", () => {
     await author.close();
     await observer.close();
   }, 180_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Composer and draft, on the real architecture
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// These replace four properties that only `fail-closed.test.ts` proved, and
+// they prove them against the REAL planes: a durable `secret_requested` event
+// in the conversation log, a cross-origin frame, and an authoritative
+// lifecycle that arrives over SSE after the outbox publishes.
+//
+// The legacy versions drove the provisional same-origin control and a
+// same-origin chat route. Where the semantics have changed, the change is
+// named rather than quietly preserved.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describeIfDatabase("what the composer does around a secure step", () => {
+  it("types freely and sends freely while nothing is open — Q1", async () => {
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+
+    expect(await page.locator("#chat-input").isDisabled()).toBe(false);
+    expect(await page.locator("#chat-send").isDisabled()).toBe(false);
+    await sendFromComposer(page, "an ordinary question");
+    await expect
+      .poll(async () => (await durableKinds(conversation)).length, { timeout: 15_000 })
+      .toBe(1);
+    // Cleared on ACKNOWLEDGEMENT — the box empties because the server accepted,
+    // not because Send was pressed. Polled, because the durable event can
+    // arrive on the stream a render before the response resolves, and reading
+    // once made this assertion depend on which won.
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 10_000 })
+      .toBe("");
+    await page.close();
+  }, 90_000);
+
+  it("keeps typing live and blocks the send when a step opens mid-sentence — Q2", async () => {
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+
+    // The student is already mid-sentence when the step arrives.
+    await page.locator("#chat-input").fill("I was in the middle of this");
+    await openSecureStep(conversation);
+
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(true);
+    // Typing is NEVER blocked. `ComposerPolicy.typing` is the literal "live",
+    // so "disable the composer" is not a value the policy can return — a modal
+    // freeze is what breaks the one-continuous-conversation requirement.
+    expect(await page.locator("#chat-input").isDisabled()).toBe(false);
+    // Q3: the draft is untouched. Nothing cleared it, nothing queued it.
+    expect(await page.locator("#chat-input").inputValue()).toBe("I was in the middle of this");
+    await page.locator("#chat-input").fill("and I can still type more");
+    expect(await page.locator("#chat-input").inputValue()).toBe("and I can still type more");
+    await page.close();
+  }, 90_000);
+
+  it("cannot submit a stale draft while the step is open, and loses nothing — Q4", async () => {
+    // The dangerous case: a student types their password into the WRONG box and
+    // presses Enter. No bytes may leave, and the text must survive.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+    const sent: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/messages")) sent.push(request.postData() ?? "");
+    });
+    await openSecureStep(conversation);
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(true);
+
+    await page.locator("#chat-input").fill(PASSWORD);
+    // A real submit event, bubbling. React attaches its listeners at the root
+    // container, so a non-bubbling `new Event("submit")` never reaches the
+    // handler and the test would pass having triggered nothing.
+    await page.evaluate(() => {
+      document
+        .getElementById("composer")
+        ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await page.waitForTimeout(500);
+
+    // PREVENTION: nothing left the browser, read from Playwright's record of
+    // real traffic rather than from anything the page said about itself.
+    expect(sent.join("\n"), "the composer sent a message while blocked").not.toContain(PASSWORD);
+    expect(sent).toHaveLength(0);
+    // And the text is exactly where the student left it.
+    expect(await page.locator("#chat-input").inputValue()).toBe(PASSWORD);
+    expect(await page.locator('[data-testid="hint"]').textContent()).toContain("Held");
+    // Nothing reached the log or the database either.
+    expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+    const bodies = await chatPool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM message_bodies WHERE content LIKE $1",
+      [`%${PASSWORD}%`],
+    );
+    expect(Number(bodies.rows[0]!.n)).toBe(0);
+    await page.close();
+  }, 90_000);
+
+  it("does NOT auto-send the draft when the step finishes — Q4, the release case", async () => {
+    // The single most dangerous thing a deferred-send design can do. If the
+    // held draft were released on completion, a password typed into the wrong
+    // box would be transmitted the moment the secure step succeeded — turning a
+    // contained accident into a persisted one with no human in the loop.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+    const sent: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/messages")) sent.push(request.postData() ?? "");
+    });
+    await openSecureStep(conversation);
+
+    const frame = page.frameLocator('[data-testid="secure-iframe"]');
+    await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
+    // The password goes in the WRONG box as well as the right one.
+    await page.locator("#chat-input").fill(PASSWORD);
+    await frame.locator('[data-testid="secure-password"]').fill("a-different-real-password");
+    await frame.locator('[data-testid="secure-confirmation"]').fill("a-different-real-password");
+    await frame.locator('[data-testid="secure-submit"]').click();
+
+    await expect
+      .poll(async () => await page.locator('[data-testid="secure-iframe"]').count(), {
+        timeout: 20_000,
+      })
+      .toBe(0);
+    await expect
+      .poll(
+        async () =>
+          (
+            await securePool.query(
+              "SELECT 1 FROM lifecycle_outbox WHERE conversation_id = $1 AND kind = 'secret_received'",
+              [conversation],
+            )
+          ).rowCount,
+        { timeout: 20_000 },
+      )
+      .toBe(1);
+    await publish();
+
+    // ── Wait for the RELEASE, or for something to be sent ────────────────
+    //
+    // Polling only for "the composer reopened" made a released-buffer bug show
+    // up as a TIMEOUT: the auto-sent message is refused with a 409 while the
+    // log is still settling, the client latches the server's open request, and
+    // the composer never reopens at all. A timeout is not proof of the property
+    // this test is about, so the poll ends on EITHER outcome and the assertion
+    // that follows names which one happened.
+    await expect
+      .poll(
+        async () => sent.length > 0 || !(await page.locator("#chat-send").isDisabled()),
+        { timeout: 25_000 },
+      )
+      .toBe(true);
+    expect(sent.join("\n"), "the held draft was auto-sent on completion").not.toContain(PASSWORD);
+    expect(sent, "something was sent that nobody asked to send").toHaveLength(0);
+
+    // The composer is live again and the draft survived.
+    expect(await page.locator("#chat-send").isDisabled()).toBe(false);
+    expect(await page.locator("#chat-input").inputValue()).toBe(PASSWORD);
+    await page.close();
+  }, 120_000);
+
+  it("suspends draft persistence while a step is open, and clears an earlier one", async () => {
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+
+    // A draft saved a moment BEFORE the step opened. Browser storage outlives
+    // the five-minute TTL that governs everything else here, so a draft written
+    // before the request must be removed as well as not added to.
+    await page.evaluate(() => {
+      window.localStorage.setItem("askimate.draft", "an earlier draft");
+    });
+    await openSecureStep(conversation);
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(true);
+
+    expect(await page.evaluate(() => window.localStorage.getItem("askimate.draft"))).toBeNull();
+    // And typing writes nothing while the step is open. Asserting the BEHAVIOUR
+    // rather than a flag: a flag set to the right word by a client that still
+    // wrote would pass a flag assertion.
+    await page.locator("#chat-input").fill("typed while the step was open");
+    expect(await page.evaluate(() => window.localStorage.getItem("askimate.draft"))).toBeNull();
+    await page.close();
+  }, 90_000);
+
+  it("restores the correct BLOCKED state after a refresh — Q5", async () => {
+    const conversation = await newConversation();
+    // Opened BEFORE the page loads, so the transcript arrives already holding
+    // it — `chatPage` waits for `__askimateLoaded`, so this is an assertion
+    // rather than a race.
+    await openSecureStep(conversation);
+    const page = await chatPage(conversation);
+    expect(
+      await page.locator("#chat-send").isDisabled(),
+      "the composer was not blocked by a step already in the transcript",
+    ).toBe(true);
+
+    await page.reload();
+    await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
+    // Wait for the durable transcript to ARRIVE, then assert directly. Polling
+    // for "disabled" would report a lost restore as a timeout, and a timeout is
+    // not proof of this property — the assertion has to be the thing that
+    // fails, naming what it found.
+    await page.waitForFunction(
+      () => (window as unknown as { __askimateLoaded?: () => boolean }).__askimateLoaded?.() === true,
+      undefined,
+      { timeout: 20_000 },
+    );
+    expect(
+      await page.locator("#chat-send").isDisabled(),
+      "the composer came back UNBLOCKED for a step the log still holds open",
+    ).toBe(true);
+    // The frame came back too.
+    await page
+      .frameLocator('[data-testid="secure-iframe"]')
+      .locator('[data-testid="secure-form"]')
+      .waitFor({ timeout: 20_000 });
+    // Nothing typed survived the reload — there is nowhere it could have been
+    // kept, and the previous document is gone.
+    expect(await page.locator("#chat-input").inputValue()).toBe("");
+    await page.close();
+  }, 120_000);
+
+  it("reopens on cancellation ONLY after the authoritative event lands — Q6", async () => {
+    const conversation = await newConversation();
+    const requestId = await openSecureStep(conversation);
+    const page = await chatPage(conversation);
+    const frame = page.frameLocator('[data-testid="secure-iframe"]');
+    await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
+
+    await frame.locator('[data-testid="secure-cancel"]').click();
+    await expect
+      .poll(
+        async () =>
+          (
+            await securePool.query(
+              "SELECT 1 FROM lifecycle_outbox WHERE request_id = $1 AND kind = 'secret_cancelled'",
+              [requestId],
+            )
+          ).rowCount,
+        { timeout: 20_000 },
+      )
+      .toBe(1);
+
+    // ── The frame has closed, and the SERVER has not been told ──────────
+    //
+    // The transition is written in the secure plane and queued, and the
+    // conversation log still shows the step open. A direct POST is refused —
+    // which is the whole distinction between what the browser SHOWS and what
+    // the server ALLOWS.
+    expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+    const refusedBeforePublish = await page.evaluate(async (id) => {
+      const response = await fetch(`/v1/conversations/${id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "before-publish-key-1" },
+        body: JSON.stringify({ content: "may I speak?" }),
+      });
+      return response.status;
+    }, conversation);
+    expect(refusedBeforePublish, "the guard released before the transition landed").toBe(409);
+
+    await publish();
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(false);
+    await page.close();
+  }, 120_000);
+
+  it("reopens on EXPIRY only through the authoritative path — Q7", async () => {
+    // Expiry is the Secure Service's to declare, exactly like cancellation:
+    // it settles the request in its own database and publishes the transition.
+    // The conversation plane learns it from the log, never from a clock the
+    // browser read.
+    const conversation = await newConversation();
+    const requestId = await openSecureStep(conversation);
+    const page = await chatPage(conversation);
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(true);
+
+    await secureStore.withTransaction(async (client) => {
+      const now = clock();
+      await secureStore.settle(client, requestId, "secret_expired", now);
+      await outbox.enqueue(client, {
+        requestId,
+        conversationId: conversation,
+        transition: { kind: "secret_expired" },
+        now,
+      });
+    });
+    // Still blocked: the transition exists in the secure plane and has not
+    // been published.
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+
+    await publish();
+    expect(await durableKinds(conversation)).toEqual(["secret_requested", "secret_expired"]);
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(false);
+    await page.close();
+  }, 120_000);
+
+  it("keeps the step OPEN after a rejection, per the lifecycle rules — Q8", async () => {
+    // `openSecretRequest` deliberately ignores a rejection: a mistyped
+    // confirmation leaves the request open so the student can retry. Treating
+    // it as closure would release the composer while the server still holds
+    // the request.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+    await openSecureStep(conversation);
+    const frame = page.frameLocator('[data-testid="secure-iframe"]');
+    await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
+
+    await frame.locator('[data-testid="secure-password"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-confirmation"]').fill(`${PASSWORD}-typo`);
+    await frame.locator('[data-testid="secure-submit"]').click();
+    await expect
+      .poll(async () => await frame.locator('[data-testid="secure-error"]').textContent(), {
+        timeout: 20_000,
+      })
+      .toContain("did not match");
+
+    // The step is still open, the frame is still there to retry in, and the
+    // composer is still blocked.
+    expect(await page.locator('[data-testid="secure-iframe"]').count()).toBe(1);
+    expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+    expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+
+    // And the retry succeeds, which is what leaving it open is FOR.
+    await frame.locator('[data-testid="secure-password"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-confirmation"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-submit"]').click();
+    await expect
+      .poll(async () => await page.locator('[data-testid="secure-iframe"]').count(), {
+        timeout: 20_000,
+      })
+      .toBe(0);
+    await page.close();
+  }, 120_000);
+
+  it("converges two browsers on the SAME composer state — Q9", async () => {
+    const conversation = await newConversation();
+    const first = await chatPage(conversation);
+    const second = await chatPage(conversation);
+
+    // Both free.
+    expect(await first.locator("#chat-send").isDisabled()).toBe(false);
+    expect(await second.locator("#chat-send").isDisabled()).toBe(false);
+
+    const requestId = await openSecureStep(conversation);
+    // Both blocked, from the same durable event over their own streams.
+    for (const page of [first, second]) {
+      await expect
+        .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+        .toBe(true);
+    }
+
+    // One browser finishes the step. The OTHER must not release until the
+    // authoritative transition reaches the log.
+    const frame = first.frameLocator('[data-testid="secure-iframe"]');
+    await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
+    await frame.locator('[data-testid="secure-password"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-confirmation"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-submit"]').click();
+    await expect
+      .poll(
+        async () =>
+          (
+            await securePool.query(
+              "SELECT 1 FROM lifecycle_outbox WHERE request_id = $1 AND kind = 'secret_received'",
+              [requestId],
+            )
+          ).rowCount,
+        { timeout: 20_000 },
+      )
+      .toBe(1);
+
+    // ── BOTH browsers are still blocked, including the one that submitted ──
+    //
+    // The second saw no postMessage at all — it is not embedding that frame.
+    // The FIRST saw one, drew a provisional `secret_received`, and closed its
+    // card; its composer must nevertheless stay shut, because the conversation
+    // log has not settled the step. This is the assertion that pins
+    // "provisional UI must never override server authority", and it FAILED
+    // before the composer gate was changed to read the durable log only.
+    expect(
+      await second.locator("#chat-send").isDisabled(),
+      "a browser released on another browser's UX event",
+    ).toBe(true);
+    expect(
+      await first.locator("#chat-send").isDisabled(),
+      "the submitting browser released on its own postMessage, before the log settled",
+    ).toBe(true);
+    // Its card HAS closed, which is the UX accelerator doing its job.
+    expect(await first.locator('[data-testid="secure-iframe"]').count()).toBe(0);
+    expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+
+    await publish();
+    for (const page of [first, second]) {
+      await expect
+        .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+        .toBe(false);
+    }
+    await first.close();
+    await second.close();
+  }, 180_000);
+
+  it("cannot be unblocked by a stale stream or a delayed event — Q10", async () => {
+    // The window this asks about: a page whose stream dropped while a step was
+    // opening. It must not be free merely because it has not heard yet.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+
+    // Sever the stream, THEN open the step. The page cannot learn about it.
+    await page.route("**/stream*", (route) => route.abort());
+    await openSecureStep(conversation);
+    await page.waitForTimeout(1_000);
+
+    // The page may still SHOW an enabled composer — it knows nothing. What
+    // matters is that the SERVER refuses, which is why the guard exists at all.
+    const refused = await page.evaluate(async (id) => {
+      const response = await fetch(`/v1/conversations/${id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "stale-stream-key-77" },
+        body: JSON.stringify({ content: "sent by a page that never heard" }),
+      });
+      return response.status;
+    }, conversation);
+    expect(refused, "a stale client's message was accepted").toBe(409);
+    expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+
+    // And when the stream comes back, the page converges on blocked.
+    await page.unroute("**/stream*");
+    await page.reload();
+    await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
+    await expect
+      .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
+      .toBe(true);
+    await page.close();
+  }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The capability refusals, on the real path
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// `decideRendering` was written for THIS architecture and the real path was
+// not calling it. These are the three refusals that had no browser coverage.
+//
+// The semantics changed in one respect, deliberately: the provisional path
+// CANCELLED the request on a refusal, because it held a token that let it.
+// This client cannot — cancellation needs a secure session, which needs the
+// bootstrap it has just declined to fetch — and it should not be able to. So
+// the request stays open, the composer stays BLOCKED, and the TTL settles it.
+// A client that cannot show a password box is not a client that should decide
+// nobody will be asked for the password.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describeIfDatabase("when this client cannot show the step", () => {
+  /** A page whose reported capabilities are overridden before it loads. */
+  async function pageWith(
+    conversationId: string,
+    capabilities: Record<string, boolean>,
+  ): Promise<Page> {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const response = await page.request.post(`${CHAT}/dev/session`, {
+      data: { subject: studentId },
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(response.status()).toBe(204);
+    await page.addInitScript(
+      ([id, caps]) => {
+        const w = window as unknown as Record<string, unknown>;
+        w["__askimateDurableConversationId"] = id;
+        w["__askimateCapabilities"] = caps;
+      },
+      [conversationId, capabilities] as [string, Record<string, boolean>],
+    );
+    await page.goto(`${CHAT}/index.html`);
+    await page.locator('[data-testid="composer"]').waitFor({ state: "visible" });
+    return page;
+  }
+
+  const CASES = [
+    { override: { supportsSecureControl: false }, reason: "client_does_not_support_secure_control" },
+    { override: { secureContext: false }, reason: "insecure_context" },
+    { override: { endpointReachable: false }, reason: "endpoint_unreachable" },
+  ] as const;
+
+  for (const { override, reason } of CASES) {
+    it(`refuses with ${reason}, mounts NO frame, and stays blocked`, async () => {
+      const conversation = await newConversation();
+      await openSecureStep(conversation);
+      const page = await pageWith(conversation, override);
+
+      // Wait for the transcript to arrive, then ASSERT. Polling for the
+      // refusal would report "the client rendered the step anyway" as a
+      // timeout, and a timeout is not proof of this property.
+      await page.waitForFunction(
+        () =>
+          (window as unknown as { __askimateLoaded?: () => boolean }).__askimateLoaded?.() === true,
+        undefined,
+        { timeout: 20_000 },
+      );
+      // The refusal is on screen, with its CODE. The sentence comes from a
+      // fixed table keyed by that code — never assembled from anything.
+      expect(
+        await page.locator('[data-testid="refusal"]').getAttribute("data-reason"),
+        "this client rendered a step it reported it cannot show",
+      ).toBe(reason);
+      expect(await page.locator('[data-testid="refusal"]').textContent()).not.toBe("");
+
+      // NO iframe was mounted, so no password box exists anywhere.
+      expect(await page.locator('[data-testid="secure-iframe"]').count()).toBe(0);
+      expect(await page.content()).not.toContain("type=\"password\"");
+
+      // FAIL CLOSED: the composer stays blocked, because the log still shows
+      // the step open. The client did not cancel it and cannot.
+      expect(await page.locator("#chat-send").isDisabled()).toBe(true);
+      expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
+
+      // And a direct POST is refused too, so nothing depends on the UI.
+      const refused = await page.evaluate(async (id) => {
+        const response = await fetch(`/v1/conversations/${id}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": "cannot-render-key-1" },
+          body: JSON.stringify({ content: "can I type it here instead?" }),
+        });
+        return response.status;
+      }, conversation);
+      expect(refused).toBe(409);
+      await page.close();
+    }, 120_000);
+  }
+
+  it("NEVER fetches a bootstrap capability it cannot use", async () => {
+    // A one-time token minted for a frame that will never mount is a token
+    // sitting unspent. The check runs BEFORE the fetch for exactly this reason.
+    const conversation = await newConversation();
+    const requestId = await openSecureStep(conversation);
+    const before = (
+      await securePool.query("SELECT 1 FROM frame_tokens WHERE request_id = $1", [requestId])
+    ).rowCount;
+
+    const page = await pageWith(conversation, { secureContext: false });
+    await expect
+      .poll(
+        async () => await page.locator('[data-testid="refusal"]').getAttribute("data-reason"),
+        { timeout: 20_000 },
+      )
+      .toBe("insecure_context");
+    await page.waitForTimeout(500);
+
+    const after = (
+      await securePool.query("SELECT 1 FROM frame_tokens WHERE request_id = $1", [requestId])
+    ).rowCount;
+    expect(after, "a capability was minted for a frame that never mounted").toBe(before);
+    await page.close();
+  }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The two planes are different services, and neither answers for the other
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("plane separation", () => {
+  it("the Conversation Service has NO route that accepts a secret", async () => {
+    const conversation = await newConversation();
+    const cookie = await chatSessionCookie();
+
+    // Every shape the secure endpoint accepts, offered to the conversation
+    // plane at the secure plane's paths. All 404: the routes do not exist here.
+    for (const path of [
+      `/v1/secret-requests/sr_${"a".repeat(32)}/secret`,
+      "/v1/frame-sessions",
+      `/control/sr_${"a".repeat(32)}`,
+    ]) {
+      const response = await fetch(`${CHAT}${path}`, {
+        method: path.startsWith("/control") ? "GET" : "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        ...(path.startsWith("/control")
+          ? {}
+          : { body: JSON.stringify({ secret: PASSWORD, conversationId: conversation }) }),
+      });
+      expect(response.status, `${path} answered ${String(response.status)}`).toBe(404);
+      expect(await response.text()).not.toContain(PASSWORD);
+    }
+
+    // And the ONE route it does have refuses a body with a `secret` field: the
+    // schema is closed, so the field is simply not read. What is stored is the
+    // `content`, and nothing else in the body reaches a column.
+    const smuggled = await fetch(`${CHAT}/v1/conversations/${conversation}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": "smuggling-a-secret-field-01",
+        Cookie: cookie,
+      },
+      body: JSON.stringify({ content: "an ordinary message", secret: PASSWORD }),
+    });
+    expect(smuggled.status).toBe(201);
+    expect(await smuggled.text()).not.toContain(PASSWORD);
+
+    const columns = await chatPool.query<{ table_name: string; column_name: string }>(
+      `SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND data_type IN ('text','character varying','character','json','jsonb')`,
+    );
+    expect(columns.rowCount).toBeGreaterThan(5);
+    for (const { table_name, column_name } of columns.rows) {
+      const hits = await chatPool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM "${table_name}" WHERE "${column_name}"::text LIKE $1`,
+        [`%${PASSWORD}%`],
+      );
+      expect(Number(hits.rows[0]!.n), `${table_name}.${column_name}`).toBe(0);
+    }
+  }, 60_000);
+
+  it("the Secure Service has NO route that accepts an ordinary message", async () => {
+    const conversation = await newConversation();
+    for (const path of [
+      `/v1/conversations/${conversation}/messages`,
+      `/v1/conversations/${conversation}/events`,
+      `/v1/conversations/${conversation}/stream`,
+    ]) {
+      const response = await fetch(`${SECURE}${path}`, {
+        method: path.endsWith("/messages") ? "POST" : "GET",
+        headers: { "Content-Type": "application/json" },
+        ...(path.endsWith("/messages")
+          ? { body: JSON.stringify({ content: "an ordinary message" }) }
+          : {}),
+      });
+      expect(response.status, `${path} answered ${String(response.status)}`).toBe(404);
+    }
+  }, 60_000);
+
+  it("keeps the two sessions apart: neither cookie works on the other plane", async () => {
+    // Both are named `__Host-…` and both are HttpOnly, and they are DIFFERENT
+    // cookies on different origins. A browser will not send one to the other,
+    // and neither service would accept it if it did.
+    const { requestId, frameToken } = await openSecureRequest();
+    const secureCookie = await secureSessionCookie(requestId, frameToken);
+    const conversation = await newConversation();
+
+    const withSecureCookie = await fetch(
+      `${CHAT}/v1/conversations/${conversation}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "wrong-plane-cookie-key-1",
+          Cookie: secureCookie,
+        },
+        body: JSON.stringify({ content: "using the wrong plane's session" }),
+      },
+    );
+    expect(withSecureCookie.status).toBe(401);
+
+    const chatCookie = await chatSessionCookie();
+    const withChatCookie = await fetch(`${SECURE}/v1/secret-requests/${requestId}`, {
+      headers: { Cookie: chatCookie },
+    });
+    expect(withChatCookie.status).toBe(401);
+  }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The automation spends the handle
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("spending a handle through the internal API", () => {
+  it("hands the plaintext to the caller's callback and destroys the entry", async () => {
+    // The last leg of the journey: a browser gave a password, the vault holds
+    // ciphertext, and the automation spends it. What the runner receives is
+    // the CALLBACK'S RESULT — the vault has no accessor that returns a value,
+    // so there is no shape in which the plaintext travels back over the wire.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+    await openSecureStep(conversation);
+    const frame = page.frameLocator('[data-testid="secure-iframe"]');
+    await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
+    await frame.locator('[data-testid="secure-password"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-confirmation"]').fill(PASSWORD);
+    await frame.locator('[data-testid="secure-submit"]').click();
+    await expect
+      .poll(async () => await page.locator('[data-testid="secure-iframe"]').count(), {
+        timeout: 20_000,
+      })
+      .toBe(0);
+    await page.close();
+
+    const handleRow = await securePool.query<{ handle: string }>(
+      "SELECT handle FROM secret_requests WHERE conversation_id = $1 AND handle IS NOT NULL",
+      [conversation],
+    );
+    const handle = handleRow.rows[0]?.handle;
+    expect(handle, "no handle was recorded").toMatch(/^sh_[0-9a-f]{32}$/);
+
+    const spend = async (): Promise<{ status: number; text: string }> => {
+      const response = await fetch(`${SECURE}/internal/v1/secret-uses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-service-cert": CERT },
+        body: JSON.stringify({
+          handle,
+          studentRef: studentId,
+          caseRef: "case-1",
+          purpose: "portal_account_creation",
+          targetHost: "portal.example.ac.uk",
+          consumer: "browser-runner",
+          noDiagnosticCapture: true,
+        }),
+      });
+      return { status: response.status, text: await response.text() };
+    };
+
+    const used = await spend();
+    expect(used.status).toBe(200);
+    expect(used.text).toContain("secret_consumed");
+    // The response reports WHETHER it worked. It cannot carry the value.
+    expect(used.text).not.toContain(PASSWORD);
+
+    // SINGLE USE: the entry is destroyed, so a second spend fails.
+    expect((await spend()).status).toBe(409);
+
+    // The audit row names the consumer and the outcome, and no value.
+    const audit = await securePool.query<{ consumer: string; outcome: string }>(
+      "SELECT consumer, outcome FROM secret_uses WHERE handle = $1 ORDER BY id",
+      [handle],
+    );
+    expect(audit.rows.map((row) => row.outcome)).toEqual(["used", "refused"]);
+    expect(JSON.stringify(audit.rows)).not.toContain(PASSWORD);
+
+    // And the consumption reaches the conversation log through the outbox.
+    await publish();
+    expect(await durableKinds(conversation)).toContain("secret_consumed");
+  }, 180_000);
+
+  it("refuses a handle whose binding does not match, and fails closed on capture", async () => {
+    const conversation = await newConversation();
+    const { requestId, frameToken } = await openSecureRequest(conversation);
+    const cookie = await secureSessionCookie(requestId, frameToken);
+    const submitted = await fetch(`${SECURE}/v1/secret-requests/${requestId}/secret`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: SECURE,
+        "Sec-Fetch-Site": "same-origin",
+        Cookie: cookie,
+      },
+      body: JSON.stringify({ secret: PASSWORD, confirmation: PASSWORD, conversationId: conversation }),
+    });
+    expect(submitted.status).toBe(200);
+    const { handle } = (await submitted.json()) as { handle: string };
+
+    const spendWith = async (body: Record<string, unknown>): Promise<number> =>
+      (
+        await fetch(`${SECURE}/internal/v1/secret-uses`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-service-cert": CERT },
+          body: JSON.stringify({
+            handle,
+            studentRef: studentId,
+            caseRef: "case-1",
+            purpose: "portal_account_creation",
+            targetHost: "portal.example.ac.uk",
+            consumer: "browser-runner",
+            noDiagnosticCapture: true,
+            ...body,
+          }),
+        })
+      ).status;
+
+    // The binding is re-checked at the moment of spending: student, case,
+    // purpose and target must all match what the request was opened FOR.
+    expect(await spendWith({ studentRef: "someone-else" })).toBe(403);
+    expect(await spendWith({ caseRef: "another-case" })).toBe(403);
+    expect(await spendWith({ purpose: "portal_password_reset" })).toBe(403);
+    expect(await spendWith({ targetHost: "attacker.example" })).toBe(403);
+    // ADR-0025: a false or absent assertion that diagnostic capture is off is
+    // REFUSED rather than warned about.
+    expect(await spendWith({ noDiagnosticCapture: false })).toBe(403);
+    // And with everything correct it still works, so the refusals above are
+    // about the binding rather than about the handle being dead already.
+    expect(await spendWith({})).toBe(200);
+  }, 120_000);
 });

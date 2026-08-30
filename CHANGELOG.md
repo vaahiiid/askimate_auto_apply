@@ -19,6 +19,115 @@ not shipped artefacts.
 
 ---
 
+## [0.17.0] — 2026-08-30
+
+**The seven coverage gaps are closed, and closing them found two real defects:
+the composer reopened on the browser's own word, and the client never asked
+whether it could show the step at all.**
+
+**Version bump: MINOR.** New coverage, two behavioural corrections, one contract
+alignment, and the first staged deletion from the legacy harness.
+
+### Fixed — the composer gate read provisional state
+
+`useSecureTurn` computed `awaitingSecret` from the MERGED view: durable events
+plus whatever the browser was drawing. So when the secure frame posted
+`secret_received`, the client drew a provisional entry, the merged view went
+empty, and **the composer reopened before the Secure Interaction Service had
+published anything**. Nothing unsafe was ever accepted — the Conversation
+Service refused the resulting message with a 409 — but the student saw a live
+composer for a step the log still held open, and "provisional UI must never
+override server authority" is the rule.
+
+The gate now reads `openSecretRequest(log.durable)`. Rendering still uses the
+merged view, because the card *should* close the instant the student succeeds.
+The two are different questions and now have different answers.
+
+On the provisional app there is no durable log — its turns arrive through
+`receive` without ordinals — so there the merged view IS the server's word, and
+the gate says so explicitly.
+
+### Fixed — the real path never asked whether it could render
+
+`decideRendering` was written for this architecture; its own comment cites
+ADR-0030. The cross-origin path went straight to fetching a bootstrap
+capability without consulting it, which is why three refusal reasons had no
+coverage: nothing called them. It is now asked BEFORE the capability is
+fetched, so a client that cannot show the step never obtains a one-time token
+it has no use for.
+
+**One legacy behaviour is deliberately not preserved.** The provisional path
+cancelled the request on a refusal. The real path cannot — cancellation needs a
+secure session, which needs the bootstrap it has just declined — and should
+not: a client that reports it cannot display a password box is not a client
+that should decide nobody will be asked. The request stays open, the composer
+stays blocked, and the TTL settles it.
+
+### Fixed — a contract divergence on the internal API
+
+`secure.v1.yaml` distinguishes 409 (already spent) from 404 (unknown) on
+`POST /internal/v1/secret-uses`. The implementation collapsed both to 404,
+because `settle` nulls the handle. It now consults the audit table, answers 409
+for a handle that was spent, and records the refused attempt — a second attempt
+on a dead handle is either a retry that should stop or a capability being used
+where it should not be, and both deserve a row.
+
+Note the deliberate asymmetry: on the STUDENT-facing surface one answer still
+covers unknown, spent and expired, because telling them apart would confirm that
+some handle had once been real. The internal caller is our own runner behind
+mutual TLS, where "do not retry" and "wrong id" are different instructions.
+
+### Fixed — a frozen clock in the two-origin browser suite
+
+The servers minted `expiresAt` from a hard-coded `2026-08-28T10:00:00Z` while
+the browser compared it with `Date.now()`. Two days later every secure step the
+tests opened was already expired as far as the page was concerned. Nothing
+looked before, because nothing checked the expiry; wiring `decideRendering` in
+exposed it immediately — every frame refused with `prompt_expired`. Production
+has one real clock on both sides, and so does the suite now.
+
+### Added — 21 tests against the real architecture
+
+Ten composer/draft questions answered on the two-origin stack, three capability
+refusals, three plane-separation tests, two handle-spend tests, and a
+"never fetches a capability it cannot use" test.
+
+### Findings
+
+**Two properties are defended twice over, which two regressions revealed.**
+Filtering `secret_requested` out of the paged read did not break the
+refresh-restore test, because the SSE backfill still delivered it; the
+regression had to break the single source both paths use. And bypassing the
+vault did not produce a double-spend, because `settle` nulls the handle
+independently. Both are good news, and both mean a single-mutation regression
+proves less than it appears to.
+
+**Three regressions were caught only by a timeout at first**, which is not proof.
+Each test was restructured so the assertion fails and names what it found: Q5
+waits for the transcript then asserts, Q7's capability tests do the same, and
+Q4's release case polls for "released OR something was sent" so a released
+buffer fails on the assertion rather than on a composer that never reopens.
+
+### Harness retirement — the first deletion
+
+**Seven `it` blocks deleted from `fail-closed.test.ts`** (33 → 26), each after a
+regression proved its replacement fails. Nothing else was removed:
+`quarantine.test.ts`, `end-to-end.test.ts`, `continuity.test.ts` and the
+provisional app all stay. **One property still has no replacement** —
+`refuses an unverified email` — because ADR-0038's identity delegation is not
+implemented and there is no claim for a test to assert on.
+
+`docs/harness-coverage-mapping.md` carries the full decision matrix.
+
+### Verification
+
+- **1490 tests, 75 files**, `pnpm run verify` green.
+- **445 tests against real PostgreSQL**, none skipped.
+- **27 two-origin Chromium tests**.
+- **Nine deliberate regressions**, each verifying it applied first.
+
+---
+
 ## [0.16.0] — 2026-08-28
 
 **A real browser now types a real credential into a real cross-origin Secure

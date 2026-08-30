@@ -529,7 +529,30 @@ export function createSecureRoutes(options: SecureRoutesOptions): Router {
 
         const row = await options.store.findByHandle(handle);
         if (row === null) {
-          problem(res, 404, "not_found");
+          // 409 for a handle that WAS spent, 404 for one that never existed.
+          // The contract distinguishes them on this internal API and the
+          // implementation collapsed both to 404 — caught by a test that
+          // expected the contract's answer. "Already spent, do not retry" and
+          // "you have the wrong id" are different instructions to a runner.
+          const spentFor = await options.store.wasSpent(handle);
+          if (spentFor === null) {
+            problem(res, 404, "not_found");
+            return;
+          }
+          // Audited as well as refused. A second attempt on a dead handle is
+          // either a retry that should stop or a capability being used
+          // somewhere it should not be, and both are worth a row.
+          await options.store.withTransaction(async (client) => {
+            await options.store.recordUse(client, {
+              requestId: spentFor,
+              handle,
+              consumer: typeof body["consumer"] === "string" ? body["consumer"] : "unknown",
+              outcome: "refused",
+              refusalCode: "already_spent",
+            });
+          });
+          options.logger.log({ event: "secret_use_refused", requestId: spentFor });
+          problem(res, 409, "forbidden");
           return;
         }
         // The binding, re-checked: student, case, purpose and target must all

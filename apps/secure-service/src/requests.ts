@@ -265,6 +265,30 @@ export class SecureRequestStore {
     return updated.rowCount === 1;
   }
 
+  /**
+   * Was this handle ever spent?
+   *
+   * The audit table is the only record: `settle` nulls `secret_requests.handle`,
+   * so a spent handle resolves to nothing there. `secure.v1.yaml` distinguishes
+   * "already spent" (409) from "unknown" (404) on the INTERNAL API, and this is
+   * how the two are told apart.
+   *
+   * Note the asymmetry with the student-facing surface, and it is deliberate:
+   * there, one answer covers unknown, spent and expired, because telling them
+   * apart would confirm that some handle had once been real. Here the caller is
+   * our own automation runner behind mutual TLS, and "this is spent, do not
+   * retry" is operationally different from "you have the wrong id".
+   */
+  public async wasSpent(handle: string): Promise<string | null> {
+    const found = await this.#pool.query<{ request_id: string }>(
+      "SELECT request_id FROM secret_uses WHERE handle = $1 AND outcome = 'used' LIMIT 1",
+      [handle],
+    );
+    // The request id, not a boolean: a second attempt on a dead handle is
+    // itself worth auditing, and an audit row needs the request it belongs to.
+    return found.rows[0]?.request_id ?? null;
+  }
+
   public async findByHandle(handle: string): Promise<SecretRequestRow | null> {
     const found = await this.#pool.query<{ request_id: string }>(
       "SELECT request_id FROM secret_requests WHERE handle = $1",

@@ -56,6 +56,7 @@ export {
   admitDurable,
   describesSame,
   durableEvents,
+  durableSecretRequest,
   openSecretRequestInLog,
   projectLog,
   retireProvisional,
