@@ -31,6 +31,8 @@ import { unwrapConfirmed } from "@askimate/aas-domain";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
 import { chromium } from "playwright";
 
+import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
+
 import { OBSERVE_SCRIPT } from "./observe-script.js";
 import type { ClickDecision } from "./preparation-safety.js";
 import {
@@ -482,36 +484,8 @@ export class PlaywrightPreparationSession implements FillableSession {
   }
 }
 
-/**
- * Translates a blueprint locator into a Playwright one.
- *
- * `role` is encoded as `role:name` in the blueprint (e.g. `button:Continue`),
- * because a role on its own rarely identifies one control.
- */
-export function toPlaywrightLocator(page: Page, locator: FieldLocator): Locator | null {
-  switch (locator.strategy) {
-    case "label":
-      return page.getByLabel(locator.value, { exact: false });
-    case "placeholder":
-      return page.getByPlaceholder(locator.value, { exact: false });
-    case "name":
-      return page.locator(`[name=${JSON.stringify(locator.value)}]`);
-    case "id":
-      return page.locator(`#${cssEscape(locator.value)}`);
-    case "css":
-      return page.locator(locator.value);
-    case "role": {
-      const [role, ...rest] = locator.value.split(":");
-      const name = rest.join(":");
-      if (role === undefined || role.length === 0) return null;
-      return name.length > 0
-        ? page.getByRole(role as Parameters<Page["getByRole"]>[0], { name })
-        : page.getByRole(role as Parameters<Page["getByRole"]>[0]);
-    }
-  }
-}
-
-/** Escapes an id for use in a CSS selector. */
-function cssEscape(value: string): string {
-  return value.replace(/([^\w-])/g, "\\$1");
-}
+// `toPlaywrightLocator` used to live here. ADR-0042 moved it to
+// @askimate/aas-browser-fill, because the Secure Plane's fill agent resolves
+// the same blueprint locators from a different process and two copies of that
+// logic would eventually disagree about which element a blueprint meant.
+export { toPlaywrightLocator } from "@askimate/aas-browser-fill";

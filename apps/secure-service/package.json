@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-secure-service",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,14 +14,17 @@
     "@askimate/aas-migrate": "workspace:*",
     "pg": "^8.20.0",
     "@askimate/aas-secrets": "workspace:*",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "@askimate/aas-secure-logging": "workspace:*"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.10",
-    "vitest": "^2.1.8",
+    "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-conversation-service": "workspace:*",
+    "@askimate/aas-secure-filler": "workspace:*",
     "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.10",
     "esbuild": "^0.21.5",
-    "playwright": "^1.49.1"
+    "playwright": "^1.49.1",
+    "vitest": "^2.1.8"
   }
 }

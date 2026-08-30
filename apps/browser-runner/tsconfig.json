@@ -13,6 +13,7 @@
   "references": [
     { "path": "../../packages/domain" },
     { "path": "../../packages/blueprint" },
-    { "path": "../../packages/secrets" }
+    { "path": "../../packages/browser-fill" },
+    { "path": "../../packages/contracts" }
   ]
 }

@@ -1,5 +1,5 @@
 /**
- * The only way this service writes a line. A closed set of fields, by type.
+ * The only way a Secure Plane process writes a line. A closed set of fields, by type.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * Vahid, 2026-08-28: *"A logger API that accepts arbitrary objects is not
@@ -51,7 +51,7 @@ export interface LogFields {
   /** A ULID naming a conversation. Meaningless outside our database. */
   readonly conversationId?: string;
   /** A lifecycle word or a rejection reason — both closed sets. */
-  readonly code?: RejectionReason | LifecycleWord | ProblemWord;
+  readonly code?: RejectionReason | LifecycleWord | ProblemWord | FillRefusal;
   /** HTTP status. A number. */
   readonly status?: number;
   /** The CLASS of a thrown value. Never its message. */
@@ -72,6 +72,13 @@ export const LOG_EVENTS = [
   "secret_refused",
   "secret_spent",
   "secret_use_refused",
+  // ── The fill agent's events (ADR-0042) ────────────────────────────────
+  //
+  // The agent is a Secure Plane process and writes through this same closed
+  // set rather than a logger of its own, so there is one list to review.
+  "secret_filled",
+  "secret_fill_refused",
+  "fill_target_refused",
   "request_cancelled",
   "request_expired",
   "lifecycle_published",
@@ -86,6 +93,23 @@ type LifecycleWord =
   | "secret_consumed"
   | "secret_expired"
   | "secret_cancelled";
+/**
+ * Why the fill agent refused. A closed set, and deliberately none of these
+ * names a value: "the field was not a masked password input" is a fact about
+ * the PAGE, and "the page host did not match" is a fact about the URL.
+ */
+export const FILL_REFUSALS = [
+  "no_such_field",
+  "field_not_masked",
+  "host_mismatch",
+  "diagnostic_capture_detected",
+  "browser_unreachable",
+  "not_authorised",
+  "secret_unavailable",
+  "not_accepted",
+] as const;
+export type FillRefusal = (typeof FILL_REFUSALS)[number];
+
 type ProblemWord =
   | "unauthenticated"
   | "forbidden"

@@ -63,12 +63,13 @@ export { startReplayServer } from "./replay.js";
 export type { SensitiveContextOptions } from "./sensitive.js";
 export { TracingForbiddenError, openSensitiveContext, tracingIsForbidden } from "./sensitive.js";
 
-export {
-  SecretIntoTracedContextError,
-  SecretNotAcceptedError,
-  fillSecret,
-  untracedPageConsumer,
-} from "./secret-fill.js";
+export type { SecretFillClaim, SecretFillOutcome } from "./secret-fill.js";
+export { SecretIntoTracedContextError, fillSecret } from "./secret-fill.js";
+// `SecretNotAcceptedError` and `untracedPageConsumer` are gone from this app.
+// ADR-0042: the first moved to @askimate/aas-browser-fill with the keystroke
+// that raises it, and the second described a capability this process no longer
+// has — there is nothing here for a secret to be consumed BY.
+export { SecretNotAcceptedError } from "@askimate/aas-browser-fill";
 
 export type { DiscoveryTarget } from "./target.js";
 export { InvalidTargetError, parseTarget, shouldFollow } from "./target.js";

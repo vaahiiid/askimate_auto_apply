@@ -10,7 +10,12 @@
 #                            unable to hold what a student typed. A fake would
 #                            be re-implementing the thing under test.
 #   apps/secure-service    — that no column in that schema can hold a secret,
-#                            read from information_schema after migrating.
+#                            read from information_schema after migrating; and
+#                            (ADR-0042) the whole path from the student's
+#                            submission through the fill agent to a real field,
+#                            with every HTTP body on every wire scanned.
+#   apps/secure-filler     — the fill agent against a real Chromium reached over
+#                            real CDP. No database of its own, deliberately.
 #   packages/case-store    — optimistic concurrency and duplicate-submission
 #                            prevention. Both are enforced by CONSTRAINTS
 #                            (PRIMARY KEY), so a fake would be re-implementing
@@ -23,7 +28,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service packages/case-store packages/orchestrator
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator
   exit $?
 fi
 
@@ -75,4 +80,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service packages/case-store packages/orchestrator
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator

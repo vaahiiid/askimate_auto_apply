@@ -30,7 +30,7 @@ import {
 import { MIGRATIONS_DIR } from "./index.js";
 import { SecureRequestStore } from "./requests.js";
 import { LifecycleOutbox } from "./lifecycle-outbox.js";
-import { SecureLogger } from "./logger.js";
+import { SecureLogger } from "@askimate/aas-secure-logging";
 import { createSecureApp } from "./app.js";
 import { SECURE_SESSION_COOKIE } from "./routes.js";
 

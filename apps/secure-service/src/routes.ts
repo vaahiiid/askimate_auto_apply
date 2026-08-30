@@ -35,7 +35,7 @@ import { confirmationMatches } from "@askimate/aas-secrets";
 
 import { controlDocument } from "./control-document.js";
 import type { LifecycleOutbox } from "./lifecycle-outbox.js";
-import type { SecureLogger } from "./logger.js";
+import type { SecureLogger } from "@askimate/aas-secure-logging";
 import type { SecretRequestRow, SecureRequestStore, SubmitRefusalCode } from "./requests.js";
 import { newHandle } from "./requests.js";
 
@@ -569,25 +569,26 @@ export function createSecureRoutes(options: SecureRoutesOptions): Router {
         }
 
         const now = options.now();
-        // The vault hands the plaintext to a callback and returns the CALLBACK's
-        // result. There is no shape in which the value travels back over this
-        // boundary — the callback here returns `true`, and that is what the
-        // response carries.
-        const used = await options.vault.use(handle, () => true, now);
         const consumer = typeof body["consumer"] === "string" ? body["consumer"] : "unknown";
-        if (!used.ok) {
-          await options.store.withTransaction(async (client) => {
-            await options.store.recordUse(client, {
-              requestId: row.requestId,
-              handle,
-              consumer,
-              outcome: "refused",
-              refusalCode: "unknown_handle",
-            });
-          });
-          problem(res, 409, "forbidden");
-          return;
-        }
+
+        // ── This endpoint grants AUTHORITY. It does not take the ciphertext ──
+        //
+        // It used to call `vault.use(handle, () => true, now)` — spending the
+        // entry with a callback that discarded the plaintext, because there was
+        // no consumer on this side to hand it to. ADR-0042 gave it one: the
+        // Secure Plane's fill agent, which holds its own vault over the SAME
+        // envelope cache and the same KMS key, and which decrypts in its own
+        // process. If this route still took the entry, the agent would find
+        // nothing to type.
+        //
+        // Single-use is not weakened by the move; it is enforced in two places
+        // that are now on either side of it. Here: `settle` and `recordUse`
+        // below make a second call answer 409 through `wasSpent` above. There:
+        // `EnvelopeCache.take` is atomic and removes the entry before the
+        // callback runs, so two concurrent consumptions cannot both succeed.
+        //
+        // The plaintext never crosses this boundary in either direction, and
+        // `SecretUseResult` still has no field that could carry one.
 
         await options.store.withTransaction(async (client) => {
           await options.store.settle(client, row.requestId, "secret_consumed", now);

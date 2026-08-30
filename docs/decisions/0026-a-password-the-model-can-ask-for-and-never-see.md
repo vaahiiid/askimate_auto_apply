@@ -30,6 +30,13 @@ A password reaches exactly one place: a callback inside an ephemeral in-memory s
 browser context that has proved it captures no diagnostics. Everything else in the system sees an
 opaque handle.
 
+> **Amended by [ADR-0042](./0042-the-credential-is-consumed-inside-the-secure-plane.md), 2026-08-30.**
+> The callback model is unchanged and so is the absence of a getter. What changed is WHICH PROCESS
+> calls `use`: the Secure Plane's fill agent, not the automation runner. The store became the
+> envelope vault (ADR-0034), and the browser context is now reached over CDP — so the consumer's
+> assertion that it captures no diagnostics is joined by a check the agent makes against the live
+> page, which is stronger, because the component performing it is the one holding the plaintext.
+
 ### 1. The handle contains nothing
 
 `SecretHandle` is `sh_` plus 32 hex characters of randomness. Not a hash of the secret, not a

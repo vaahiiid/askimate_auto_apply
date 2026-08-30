@@ -22,7 +22,7 @@ import type { EnvelopeVault } from "@askimate/aas-secrets";
 
 import { controlHeaders } from "./control-document.js";
 import type { LifecycleOutbox } from "./lifecycle-outbox.js";
-import { SecureLogger } from "./logger.js";
+import { SecureLogger } from "@askimate/aas-secure-logging";
 import type { SecureRequestStore } from "./requests.js";
 import { createSecureRoutes } from "./routes.js";
 

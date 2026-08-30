@@ -14,6 +14,9 @@ importers:
       '@askimate/aas-blueprint':
         specifier: workspace:*
         version: link:packages/blueprint
+      '@askimate/aas-browser-fill':
+        specifier: workspace:*
+        version: link:packages/browser-fill
       '@askimate/aas-browser-runner':
         specifier: workspace:*
         version: link:apps/browser-runner
@@ -71,6 +74,12 @@ importers:
       '@askimate/aas-secrets':
         specifier: workspace:*
         version: link:packages/secrets
+      '@askimate/aas-secure-filler':
+        specifier: workspace:*
+        version: link:apps/secure-filler
+      '@askimate/aas-secure-logging':
+        specifier: workspace:*
+        version: link:packages/secure-logging
       '@askimate/aas-secure-service':
         specifier: workspace:*
         version: link:apps/secure-service
@@ -116,12 +125,15 @@ importers:
       '@askimate/aas-blueprint':
         specifier: workspace:*
         version: link:../../packages/blueprint
+      '@askimate/aas-browser-fill':
+        specifier: workspace:*
+        version: link:../../packages/browser-fill
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@askimate/aas-secrets':
-        specifier: workspace:*
-        version: link:../../packages/secrets
       playwright:
         specifier: ^1.49.1
         version: 1.62.1
@@ -255,6 +267,37 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
 
+  apps/secure-filler:
+    dependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:../../packages/blueprint
+      '@askimate/aas-browser-fill':
+        specifier: workspace:*
+        version: link:../../packages/browser-fill
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-secrets':
+        specifier: workspace:*
+        version: link:../../packages/secrets
+      '@askimate/aas-secure-logging':
+        specifier: workspace:*
+        version: link:../../packages/secure-logging
+      express:
+        specifier: ^5.1.0
+        version: 5.2.1
+      playwright:
+        specifier: ^1.49.1
+        version: 1.62.1
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.0
+        version: 5.0.6
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
   apps/secure-service:
     dependencies:
       '@askimate/aas-contracts':
@@ -266,6 +309,9 @@ importers:
       '@askimate/aas-secrets':
         specifier: workspace:*
         version: link:../../packages/secrets
+      '@askimate/aas-secure-logging':
+        specifier: workspace:*
+        version: link:../../packages/secure-logging
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -273,9 +319,15 @@ importers:
         specifier: ^8.20.0
         version: 8.23.0
     devDependencies:
+      '@askimate/aas-browser-runner':
+        specifier: workspace:*
+        version: link:../browser-runner
       '@askimate/aas-conversation-service':
         specifier: workspace:*
         version: link:../conversation-service
+      '@askimate/aas-secure-filler':
+        specifier: workspace:*
+        version: link:../secure-filler
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
@@ -310,6 +362,19 @@ importers:
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  packages/browser-fill:
+    dependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:../blueprint
+      playwright:
+        specifier: ^1.49.1
+        version: 1.62.1
     devDependencies:
       vitest:
         specifier: ^2.1.8
@@ -554,6 +619,16 @@ importers:
       '@aws-sdk/client-kms':
         specifier: ^3.1121.0
         version: 3.1121.0
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  packages/secure-logging:
+    dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       vitest:
         specifier: ^2.1.8

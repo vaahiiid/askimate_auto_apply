@@ -30,6 +30,16 @@ interface Rule {
   readonly packagePath: string;
   /** Dependency names this package must never have. */
   readonly forbidden: readonly string[];
+  /**
+   * Names forbidden as a PRODUCTION dependency but permitted as a dev one.
+   *
+   * Used for exactly one thing: `playwright` in `apps/secure-service`. That
+   * service's tests drive a real browser and legitimately need it; the shipped
+   * service must not carry a browser automation library in its dependency tree,
+   * because it is the process that receives the password and every package in
+   * its tree is a supply-chain path to that process (ADR-0042).
+   */
+  readonly forbiddenInProduction?: readonly string[];
   readonly rationale: string;
 }
 
@@ -230,12 +240,49 @@ const RULES: readonly Rule[] = [
       "body-parser-xml",
       "connect-logger",
     ],
+    forbiddenInProduction: ["playwright"],
     rationale:
       "This service contains THE ONE ENDPOINT IN ASKIMATE THAT RECEIVES A PASSWORD. Every " +
       "forbidden name is a request logger, an APM agent or an error reporter — the class of " +
       "middleware that serialises a caught error, and body-parser attaches the raw request body " +
-      "to a JSON parse error as `err.body`. `logger.ts` exists precisely because a logger that " +
-      "accepts an arbitrary object is not sufficient here.",
+      "to a JSON parse error as `err.body`. @askimate/aas-secure-logging exists precisely because " +
+      "a logger that accepts an arbitrary object is not sufficient here. Playwright is a " +
+      "production forbidden name for a different reason: ADR-0042 put browser automation in the " +
+      "fill agent so this service would not have to grow it.",
+  },
+  {
+    packagePath: "apps/secure-filler",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "@askimate/aas-profile",
+      "@askimate/aas-case-store",
+      "@askimate/aas-documents",
+      "pg",
+      "drizzle-orm",
+      "morgan",
+      "pino",
+      "pino-http",
+      "winston",
+      "express-winston",
+      "@sentry/node",
+      "@sentry/express",
+      "dd-trace",
+      "newrelic",
+      "@opentelemetry/sdk-node",
+      "errorhandler",
+      "body-parser-xml",
+      "connect-logger",
+    ],
+    rationale:
+      "The fill agent is a Secure Plane process: it holds a KMS grant, reads the vault's cache, " +
+      "and holds a plaintext password for one stack frame per request (ADR-0042). Every logging " +
+      "and APM name forbidden in the secure service is forbidden here for the same reason. It " +
+      "additionally has no database and no case store: it settles a lifecycle by ASKING the " +
+      "secure service, so a driver here would be a way to write to a plane it does not own.",
   },
   {
     packagePath: "apps/chat-integration",
@@ -271,13 +318,18 @@ const RULES: readonly Rule[] = [
       "@askimate/aas-case-store",
       "@askimate/aas-profile",
       "@askimate/aas-documents",
+      "@askimate/aas-secrets",
+      "@aws-sdk/client-kms",
       "pg",
       "drizzle-orm",
       "@aws-sdk/client-secrets-manager",
     ],
     rationale:
       "Browser automation executes untrusted page content and must have no access to application " +
-      "secrets or the primary database (brief §8).",
+      "secrets or the primary database (brief §8). @askimate/aas-secrets is the newest and the " +
+      "most important name on this list: ADR-0042 moved credential consumption into the Secure " +
+      "Plane, and this rule is what stops it coming back. The runner asks the fill agent to type " +
+      "a secret; it holds no vault, and @aws-sdk/client-kms is forbidden so it cannot grow one.",
   },
 ];
 
@@ -318,10 +370,14 @@ function main(): void {
     checked += 1;
     const deps = { ...manifest.dependencies, ...manifest.devDependencies };
     const breached = rule.forbidden.filter((name) => name in deps);
+    const breachedInProduction = (rule.forbiddenInProduction ?? []).filter(
+      (name) => name in (manifest.dependencies ?? {}),
+    );
 
-    if (breached.length > 0) {
+    if (breached.length > 0 || breachedInProduction.length > 0) {
       violations.push(
-        `${rule.packagePath} must not depend on: ${breached.join(", ")}\n    ${rule.rationale}`,
+        `${rule.packagePath} must not depend on: ${[...breached, ...breachedInProduction].join(", ")}` +
+          `\n    ${rule.rationale}`,
       );
     } else {
       console.log(`  ✓  ${rule.packagePath} — ${rule.forbidden.length} forbidden dependencies absent`);
@@ -402,6 +458,86 @@ function main(): void {
   console.log(
     `  ✓  packages/llm — ${String(llmSources.length)} source file(s) name nothing that resolves a secret`,
   );
+
+  // ── ADR-0042: the runner cannot NAME anything that resolves a secret ───
+  //
+  // The manifest rule above catches a declared dependency. This catches the
+  // other route, the one the llm rule already guards against: a deep relative
+  // import that reaches across the workspace without ever appearing in a
+  // package.json. `import "../../../packages/secrets/src/store.js"` resolves
+  // perfectly well and pnpm never hears about it.
+  //
+  // The whole of ADR-0042 is that the runner's PROCESS does not hold plaintext.
+  // A single import undoes it, so the import is what is checked — in tests too,
+  // because a test that constructs an in-process vault in the runner is a
+  // template for production code that does the same.
+  const RUNNER_FORBIDDEN_IMPORTS = [
+    "aas-secrets",
+    "secrets/src",
+    "InMemorySecretStore",
+    "EnvelopeVault",
+    "LocalDataKeyProvider",
+    "getSecret",
+    "useSecret",
+  ];
+  const runnerSources = existsSync("apps/browser-runner/src")
+    ? readdirSync("apps/browser-runner/src").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of runnerSources) {
+    const source = readFileSync(join("apps/browser-runner/src", name), "utf8");
+    // Comments may explain the rule; code may not break it.
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+    for (const forbidden of RUNNER_FORBIDDEN_IMPORTS) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `apps/browser-runner/src/${name} mentions \`${forbidden}\`. The runner consumes no ` +
+          `credential: it asks the Secure Plane's fill agent to type one and learns only whether ` +
+          `the field was filled. A vault, a store or a resolver in this process is the ` +
+          `architecture ADR-0042 replaced.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  apps/browser-runner — ${String(runnerSources.length)} source file(s) name no vault, no store, no resolver`,
+  );
+
+  // ── The fill agent holds plaintext, and must leak nothing while it does ─
+  //
+  // The same source-level rules the secure endpoint has, applied to the other
+  // process that holds a password. The realistic regression is identical:
+  // someone adds `console.log("filling", request)` while debugging a locator
+  // that will not match, and leaves it in.
+  const FILLER_SOURCES = ["apps/secure-filler/src/fill.ts", "apps/secure-filler/src/app.ts"];
+  for (const file of FILLER_SOURCES) {
+    if (!existsSync(file)) continue;
+    const source = readFileSync(file, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+
+    if (/console\.(log|debug|info|warn|error|trace|dir)\s*\(/.test(code)) {
+      violations.push(
+        `${file} contains a console call. This process holds a plaintext password for the length ` +
+          `of one callback. Nothing in it may write to a log except SecureLogger, whose fields ` +
+          `are a closed set of scalars (ADR-0042).`,
+      );
+    }
+    for (const forbidden of ["tracing.start", "recordVideo", "JSON.stringify(secret", "inputValue()"]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${file} contains \`${forbidden}\`. The agent types a secret into a page it does not own; ` +
+          `it must not record what it typed, and it must not read a value back outside the one ` +
+          `shape-only comparison in @askimate/aas-browser-fill (ADR-0025, ADR-0042).`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the fill agent — no console calls, no tracing, no read-back`);
 
   // ── There is no getter, in the package or anywhere above it ────────────
   //

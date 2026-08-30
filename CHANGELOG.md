@@ -19,6 +19,118 @@ not shipped artefacts.
 
 ---
 
+## [0.18.0] — 2026-08-30
+
+**The runner no longer holds a password. The component that consumes a credential
+moved inside the Secure Plane's trust boundary, and the plaintext still never
+becomes service-to-service response data.**
+
+**Version bump: MINOR.** A new deployable, two extractions, one contract
+operation added, and one internal operation whose meaning changed without its
+shape changing. No approved security boundary moved.
+
+### Added — `apps/secure-filler`, the Secure Plane's fill agent
+
+The vault hands plaintext to a **callback**, and a closure cannot cross mTLS. So
+the callback moved to where the vault can reach it: a fourth deployable that
+constructs its **own** `EnvelopeVault` over the **same** envelope cache and the
+**same** KMS key as the secure service, obtains the ciphertext locally, decrypts
+it in its own process, and types it into the runner's browser over the Chrome
+DevTools Protocol.
+
+Vahid, 2026-08-30: *"Sending the plaintext back in an HTTP response, even over
+mTLS and a private subnet, weakens one of the strongest guarantees we have
+deliberately established."* Nothing sends the agent a secret. `SecretUseResult`
+is unchanged and still has no field that could carry one — and the contract's
+sentence about the vault handing plaintext to a callback is now literally true
+for the first time.
+
+### Added — three checks the agent makes against the live page
+
+`confirmNoDiagnosticCapture()` reads a private symbol on a `BrowserContext`
+object, and the agent holds a different object for the same underlying context.
+Rather than take the runner's word for it, three experiments were run against
+real Chromium with the fill performed by a second process:
+
+| Runner-side state | Value in `trace.trace` | Detectable from the page |
+| --- | --- | --- |
+| tracing, `snapshots: true` | **yes, verbatim** | **yes** |
+| tracing, `snapshots: false` | no | no |
+| no tracing | no | no |
+
+The first row is the finding: a value typed by *another process* still lands in
+the runner's trace, because the leak is the DOM snapshot rather than the action.
+The third column makes it fixable — Playwright's snapshotter installs a `window`
+property beginning `__playwright_snapshot_streamer_`, present in exactly the
+configuration that leaks. So the agent **verifies** rather than trusts, which is
+stronger than what it replaces: a check performed by the component being checked
+guards against accident, and this one is performed by the component holding the
+plaintext.
+
+Two more, neither of which existed before: the page's host must equal the bound
+target host (checked against the document, not against metadata), and the field
+must be an input the browser renders **masked** — which is what closes video, the
+one capture route the agent cannot detect remotely.
+
+### Changed — `/internal/v1/secret-uses` grants authority, and no longer takes the ciphertext
+
+It used to call `vault.use(handle, () => true, now)`: spending the entry with a
+callback that discarded the plaintext, because there was nothing on that side to
+hand it to. Now it re-checks the binding, settles `secret_consumed`, records the
+use and enqueues the outbox row — and the agent takes the ciphertext.
+
+Single use is enforced twice, now on either side of the boundary: `settle` and
+`recordUse` make a second call answer 409, and `EnvelopeCache.take` is atomic and
+removes the entry before the callback runs. The authority is obtained **before**
+any plaintext exists, so a failure after that point is a spent password — the
+same semantic ADR-0026 §3 already establishes for a callback that throws, and the
+failure direction that leaves a record.
+
+### Changed — the runner is a client, and cannot become anything else
+
+`fillSecret` posts to the agent and reads back one of two words. The runner
+declares no `@askimate/aas-secrets`, no `@aws-sdk/client-kms`, and none of its
+source files may so much as name `EnvelopeVault`, `InMemorySecretStore`,
+`useSecret` or `getSecret` — checked in the manifest AND in the source, because
+a deep relative import resolves perfectly well and pnpm never hears about it.
+
+`apps/secure-service` may not declare Playwright as a production dependency: the
+browser automation went to the agent precisely so that service would not grow
+one.
+
+### Added — two extractions, so nothing is duplicated across a trust boundary
+
+`@askimate/aas-secure-logging` (the field-allowlist logger, now used by both
+Secure Plane processes) and `@askimate/aas-browser-fill` (locator resolution, the
+keystroke, and the page guards, used by the runner and the agent). Two copies of
+"which element does this blueprint mean" would eventually disagree, and on the
+agent's side that disagreement is a password typed somewhere it should not be.
+
+### Added — the whole path, end to end, with every byte on every wire scanned
+
+`fill-agent-e2e.test.ts`: a real PostgreSQL, the real secure service reached
+through the real frame bootstrap, the real agent over real HTTP, a real Chromium
+over real CDP, and the real runner client. It records the body of every HTTP
+message between the three processes and asserts the password appears in
+**exactly one** — the student's own submission. "Exactly one" rather than "none"
+because a scan finding zero would mean the recording was broken.
+
+### Verified — ten deliberate regressions
+
+Recorded in `docs/adr-0042-regression-audit.md`, each proved to have applied by
+reading the file back from disk before its suite was read.
+
+### Documented — the residual, rather than glossed over
+
+The runner still **owns** the browser the agent types into, so a runner that has
+been actively compromised can read the field afterwards. ADR-0042 records this
+deliberately. What the change protects is the password's existence outside the
+browser — in a heap, a log, an error object, a crash dump, a KMS grant — not the
+live page. A password is reused across sites and a portal session is not, which
+is why that is the trade worth making.
+
+---
+
 ## [0.17.0] — 2026-08-30
 
 **The seven coverage gaps are closed, and closing them found two real defects:

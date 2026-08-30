@@ -69,6 +69,12 @@ const DATABASE_BACKED = [
   "apps/secure-service/src/secure-routes.test.ts",
   // A real browser typing a real credential into the cross-origin Secure Plane.
   "apps/chat-integration/src/two-origin.test.ts",
+  // ADR-0042: the whole credential path across three processes — the student's
+  // submission, the fill agent's local decryption, a real field in a real
+  // browser — plus the scan of every HTTP body exchanged between them. Its
+  // strongest assertions read the secure plane's own tables, so a run without a
+  // database would report green while checking nothing.
+  "apps/secure-service/src/fill-agent-e2e.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

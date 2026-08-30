@@ -9,5 +9,5 @@
     "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../../packages/secrets" }, { "path": "../conversation-service" }, { "path": "../../packages/contracts" }, { "path": "../../packages/migrate" }]
+  "references": [{ "path": "../../packages/secrets" }, { "path": "../conversation-service" }, { "path": "../../packages/contracts" }, { "path": "../../packages/secure-logging" }, { "path": "../../packages/migrate" }, { "path": "../secure-filler" }, { "path": "../browser-runner" }]
 }

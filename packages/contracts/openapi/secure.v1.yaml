@@ -287,16 +287,25 @@ paths:
       operationId: useSecret
       tags: [internal]
       security: [{ serviceMutualTls: [] }]
-      summary: Spend a handle. Called by the automation runner.
+      summary: Authorise and settle a use. Called by the Secure Plane's fill agent.
       description: >-
         The binding is re-checked here — student, case, purpose and target host
-        must all match what the request was opened for. On success the entry is
-        destroyed, so a second call fails.
+        must all match what the request was opened for. On success the request is
+        settled as `secret_consumed` and the use is recorded, so a second call
+        fails with 409.
 
-        The response reports WHETHER the use succeeded. It never contains the
-        secret: the vault hands the plaintext to the automation's callback and
-        returns the callback's result, so there is no shape in which a value
-        could travel back over this boundary.
+        ADR-0042: this operation grants the AUTHORITY to spend. The ciphertext
+        itself is taken from the shared vault cache and decrypted by the fill
+        agent, in the agent's own process, and the plaintext therefore never
+        crosses this boundary in either direction. The authority is granted
+        before the plaintext is touched, which is the same order every other
+        check on this service follows; a failure after that point is a spent
+        password, which is exactly what ADR-0026 already establishes for a
+        callback that throws.
+
+        The response reports WHETHER the use was authorised. It never contains
+        the secret, and there is no shape in which a value could travel back
+        over this boundary.
       requestBody:
         required: true
         content:
@@ -304,7 +313,7 @@ paths:
             schema: { $ref: "#/components/schemas/UseSecretRequest" }
       responses:
         "200":
-          description: Spent. The entry is destroyed and the handle is now dead.
+          description: Authorised and settled. The handle is now dead.
           content:
             application/json: { schema: { $ref: "#/components/schemas/SecretUseResult" } }
         "403":
@@ -316,6 +325,51 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: Already spent, expired, or cancelled.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/secret-fills:
+    post:
+      operationId: fillSecret
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: >-
+        Type a secret into a portal field. Served by the Secure Plane's FILL
+        AGENT, not by this service. Called by the automation runner.
+      description: >-
+        ADR-0042. The runner asks for a field to be filled; it never receives the
+        value, holds no vault, and has no credential that could decrypt one. The
+        agent connects to the runner's browser over the Chrome DevTools Protocol,
+        verifies the page, asks this service to authorise and settle the use,
+        then decrypts the ciphertext IN ITS OWN PROCESS and types it.
+
+        Three verifications happen before any plaintext exists, and all of them
+        are performed by the agent against the live page rather than asserted by
+        the caller: the page's host must equal the bound target host; the field
+        must exist; and the field must be an input the browser renders masked.
+        The agent additionally refuses if it detects a Playwright snapshot
+        streamer in any frame — measured to be present in exactly the tracing
+        configuration that writes typed values into trace.trace, and absent in
+        the two that do not.
+
+        The response says whether the field was filled. It cannot say what was
+        typed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SecretFillRequest" }
+      responses:
+        "200":
+          description: >-
+            The request was understood and reached a settled outcome. `filled`
+            means the characters are in the field; `refused` means they are not,
+            and `reason` says why in a closed set that names no value.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/SecretFillResult" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
@@ -334,8 +388,11 @@ components:
       type: mutualTLS
       description: >-
         Service-to-service, on a private subnet with no public route. A
-        per-service client certificate; the conversation service and the runner
-        have different ones and different permitted operations.
+        per-service client certificate; the conversation service, the fill agent
+        and the runner have different ones and different permitted operations.
+        The runner may reach /internal/v1/secret-fills and NOTHING else — it has
+        no certificate permitting /internal/v1/secret-uses, because the authority
+        to settle a use belongs to the process that performs it.
 
   security:
     - secureSession: []
@@ -527,12 +584,103 @@ components:
       required: [status, lifecycle]
       description: >-
         Whether it worked. There is deliberately no field here that could carry
-        the value: the vault hands plaintext to the automation's callback and
-        returns the callback's result, so nothing shaped like a secret can
-        travel back over this boundary.
+        the value, and ADR-0042 did not add one: the vault hands plaintext to a
+        callback INSIDE the fill agent's own process and returns the callback's
+        result, so nothing shaped like a secret can travel back over this
+        boundary — or over any other.
       properties:
         status: { type: string, enum: [used, refused] }
         lifecycle: { type: string, const: secret_consumed }
+
+    SecretFillRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [handle, studentRef, caseRef, purpose, targetHost, consumer,
+         noDiagnosticCapture, browserEndpoint, locator]
+      description: >-
+        Everything the agent needs to find the field, and nothing that could
+        carry a value. Note what the runner sends and what it gets back: it
+        names a field and a browser, and learns only whether typing succeeded.
+      properties:
+        handle: { $ref: "#/components/schemas/SecretHandle" }
+        studentRef: { type: string }
+        caseRef: { type: string }
+        purpose: { type: string, enum: [portal_account_creation, portal_password_reset] }
+        targetHost:
+          type: string
+          description: >-
+            Checked TWICE, and against two different things: against this
+            service's record of what the request was opened for, and against the
+            host of the page the agent is about to type into.
+        consumer:
+          type: string
+          description: An audit label for the capability spending it.
+        noDiagnosticCapture:
+          type: boolean
+          const: true
+          description: >-
+            ADR-0025. The runner asserts that screenshots, video and tracing are
+            disabled for this step, and a false value is refused rather than
+            warned about. Retained as a fail-closed declaration even though the
+            agent now VERIFIES the part of it that leaks, because a caller that
+            has not thought about capture should not be able to reach this
+            endpoint by omission.
+        browserEndpoint:
+          type: string
+          description: >-
+            The runner's browser, as a CDP WebSocket URL on the private network.
+            An address, not a capability to read a secret: what reaches the
+            browser through it is a keystroke, and what comes back is a length.
+        pageUrl:
+          type: string
+          description: >-
+            Which page, when the browser has more than one. Matched exactly; the
+            agent refuses rather than guessing between candidates.
+        locator:
+          $ref: "#/components/schemas/FieldLocator"
+
+    FieldLocator:
+      type: object
+      additionalProperties: false
+      required: [strategy, value]
+      description: How the blueprint names a field. The same shape the runner uses.
+      properties:
+        strategy: { type: string, enum: [label, placeholder, name, id, css, role] }
+        value: { type: string }
+
+    SecretFillResult:
+      type: object
+      additionalProperties: false
+      required: [status]
+      description: >-
+        Whether the characters reached the field. There is deliberately no field
+        here that could carry the value, no field that could carry its length,
+        and no free text: `reason` is a closed set, and every member of it names
+        a fact about the PAGE or the HANDLE rather than about the secret.
+      properties:
+        status: { type: string, enum: [filled, refused] }
+        lifecycle:
+          type: string
+          const: secret_consumed
+          description: Present when the use was authorised and settled.
+        reason: { $ref: "#/components/schemas/FillRefusal" }
+
+    FillRefusal:
+      type: string
+      description: >-
+        Why the agent did not type. `no_such_field` is the one that must not
+        spend a handle — it is a blueprint problem, and a student should not be
+        asked for a new password because of one.
+      enum:
+        - no_such_field
+        - field_not_masked
+        - host_mismatch
+        - diagnostic_capture_detected
+        - browser_unreachable
+        - not_authorised
+        - secret_unavailable
+        - not_accepted
 
     Problem:
       type: object

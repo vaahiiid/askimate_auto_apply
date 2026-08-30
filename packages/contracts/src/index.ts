@@ -118,3 +118,21 @@ export {
   DEPRECATION_HEADERS,
   NON_BREAKING_CHANGES,
 } from "./versioning.js";
+
+export type {
+  FillLocator,
+  FillLocatorStrategy,
+  FillPurpose,
+  FillRefusalReason,
+  NO_FILL_RESULT_FIELD_CAN_HOLD_A_VALUE,
+  SecretFillRequest,
+  SecretFillResult,
+} from "./fill.js";
+export {
+  FILL_LOCATOR_STRATEGIES,
+  FILL_PURPOSES,
+  FILL_REFUSAL_REASONS,
+  REFUSALS_BEFORE_SPENDING,
+  parseSecretFillRequest,
+  parseSecretFillResult,
+} from "./fill.js";

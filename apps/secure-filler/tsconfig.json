@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // The agent evaluates two expressions inside the page it is filling — the
+    // masked-field check and the snapshot-streamer probe — so it needs DOM
+    // types for those, and for nothing else.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/blueprint" },
+    { "path": "../../packages/browser-fill" },
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/secrets" },
+    { "path": "../../packages/secure-logging" }
+  ]
+}

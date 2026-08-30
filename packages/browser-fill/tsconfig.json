@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // `snapshotStreamerPresent` runs an expression inside the page, so this
+    // package needs DOM types for that one function and nothing else.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../blueprint" }]
+}

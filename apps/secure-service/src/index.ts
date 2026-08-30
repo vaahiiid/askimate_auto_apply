@@ -51,8 +51,11 @@ export { internalAppend } from "./internal-append.js";
 
 // ── The HTTP surface ──────────────────────────────────────────────────────
 
-export type { LogEvent, LogFields, LogSink } from "./logger.js";
-export { LOG_EVENTS, SecureLogger } from "./logger.js";
+// Re-exported rather than defined here: the logging discipline moved to
+// @askimate/aas-secure-logging when the Secure Plane gained a second deployable
+// (ADR-0042). Consumers of this app's public surface do not need to care.
+export type { LogEvent, LogFields, LogSink } from "@askimate/aas-secure-logging";
+export { LOG_EVENTS, SecureLogger } from "@askimate/aas-secure-logging";
 
 export type { Lifecycle, OpenInput, Purpose, SecretRequestRow } from "./requests.js";
 export { SecureRequestStore, newHandle, newOpaqueToken, newRequestId } from "./requests.js";
