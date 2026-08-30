@@ -58,6 +58,13 @@ export interface StreamHandlers {
   readonly onResume: (resumingAfter: Ordinal) => void;
 }
 
+/** The capability that lets a page start the secure frame. */
+export interface Bootstrap {
+  readonly requestId: string;
+  readonly frameToken: string;
+  readonly secureOrigin: string;
+}
+
 export interface ConversationTransport {
   /**
    * The durable transcript from `after` onwards, paged to the end.
@@ -71,6 +78,14 @@ export interface ConversationTransport {
   readonly send: (content: string) => Promise<SendResult>;
   /** Opens the stream. Returns a function that closes it. */
   readonly stream: (after: Ordinal, handlers: StreamHandlers) => () => void;
+  /**
+   * Fetches the one-time capability for an open secure request.
+   *
+   * A GET, and the capability comes back in the RESPONSE BODY. Never a URL:
+   * a capability in a URL reaches the Referer header, browser history, the
+   * access log and any shared screenshot.
+   */
+  readonly bootstrap: (requestId: string) => Promise<Bootstrap | null>;
 }
 
 /**
@@ -169,6 +184,21 @@ export function conversationTransport(
       // which is the property that makes the retry safe to make.
       const event = parseConversationEvent(await response.json().catch(() => null));
       return event === null ? { outcome: "failed" } : { outcome: "accepted", events: [event] };
+    },
+
+    bootstrap: async (requestId) => {
+      const response = await doFetch(
+        `${base}/secure-requests/${encodeURIComponent(requestId)}/bootstrap`,
+        { headers: { Accept: "application/json" }, cache: "no-store" },
+      );
+      if (!response.ok) return null;
+      const body = (await response.json().catch(() => null)) as Partial<Bootstrap> | null;
+      return typeof body?.requestId === "string" &&
+        typeof body.frameToken === "string" &&
+        typeof body.secureOrigin === "string" &&
+        body.secureOrigin.length > 0
+        ? { requestId: body.requestId, frameToken: body.frameToken, secureOrigin: body.secureOrigin }
+        : null;
     },
 
     stream: (after, handlers) => {

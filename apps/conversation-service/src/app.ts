@@ -42,6 +42,8 @@ export interface ConversationAppOptions {
   readonly pollIntervalMs?: number;
   readonly heartbeatIntervalMs?: number;
   readonly maxStreamMs?: number;
+  readonly mintFrameToken?: ConversationRoutesOptions["mintFrameToken"];
+  readonly secureOrigin?: string;
   /**
    * Mints a session for a subject. PROVISIONAL, and mounted only when supplied.
    *
@@ -105,6 +107,8 @@ export function createConversationApp(options: ConversationAppOptions): Express 
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.maxStreamMs === undefined ? {} : { maxStreamMs: options.maxStreamMs }),
+      ...(options.mintFrameToken === undefined ? {} : { mintFrameToken: options.mintFrameToken }),
+      ...(options.secureOrigin === undefined ? {} : { secureOrigin: options.secureOrigin }),
     }),
   );
 

@@ -59,6 +59,23 @@ export interface ConversationRoutesOptions {
     readonly conversationId: string;
     readonly event: ConversationEvent;
   }) => Promise<void>;
+  /**
+   * Fetches a one-time bootstrap capability for an open secure request.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * The conversation plane never holds a secret, and it does not hold this
+   * for long either: it asks the Secure Interaction Service over the internal
+   * API at the moment a page mounts the frame, and hands the answer straight
+   * to that page. Nothing is stored here — there is no column for it, and a
+   * capability at rest in the conversation plane's database would be a
+   * capability in the one place ADR-0037 keeps free of them.
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * Returns null when the request is unknown, settled or expired.
+   */
+  readonly mintFrameToken?: (requestId: string) => Promise<string | null>;
+  /** The secure plane's origin, handed to the page so it can check messages. */
+  readonly secureOrigin?: string;
   /** How often the stream re-reads the log to catch another instance's writes. */
   readonly pollIntervalMs?: number;
   readonly heartbeatIntervalMs?: number;
@@ -258,6 +275,52 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           throw error;
         }
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations/:id/secure-requests/:requestId/bootstrap ──────
+  //
+  // The capability that lets a page start the secure frame. Delivered in a
+  // RESPONSE BODY over an authenticated same-origin fetch — never in a URL,
+  // where it would reach the Referer header, browser history, an access log and
+  // any shared screenshot.
+  //
+  // Three checks before it is minted: the caller owns the conversation, the
+  // request is OPEN IN THIS CONVERSATION'S OWN LOG, and the secure service
+  // still considers it live. The middle one matters most: without it a student
+  // could ask for a bootstrap into someone else's secure step by naming its id.
+  router.get(
+    "/v1/conversations/:conversationId/secure-requests/:requestId/bootstrap",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+
+        const requestId = String(req.params["requestId"]);
+        const open = await options.store.openSecretRequest(conversationId, options.now());
+        if (open === null || open.requestId !== requestId) {
+          problem(res, "not_found");
+          return;
+        }
+        if (options.mintFrameToken === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const frameToken = await options.mintFrameToken(requestId);
+        if (frameToken === null) {
+          problem(res, "not_found");
+          return;
+        }
+        // `no-store`, because a capability in a cache is a capability that
+        // outlives the page that asked for it.
+        res.setHeader("Cache-Control", "no-store");
+        res.status(200).json({
+          requestId,
+          frameToken,
+          secureOrigin: options.secureOrigin ?? "",
+          expiresAt: open.expiresAt,
+        });
       })().catch(next);
     },
   );

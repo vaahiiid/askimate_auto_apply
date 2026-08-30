@@ -47,3 +47,23 @@ export { LifecycleOutbox, backoffSeconds } from "./lifecycle-outbox.js";
 
 export type { InternalAppendOptions } from "./internal-append.js";
 export { internalAppend } from "./internal-append.js";
+
+
+// ── The HTTP surface ──────────────────────────────────────────────────────
+
+export type { LogEvent, LogFields, LogSink } from "./logger.js";
+export { LOG_EVENTS, SecureLogger } from "./logger.js";
+
+export type { Lifecycle, OpenInput, Purpose, SecretRequestRow } from "./requests.js";
+export { SecureRequestStore, newHandle, newOpaqueToken, newRequestId } from "./requests.js";
+
+export type { ControlDocumentOptions } from "./control-document.js";
+export { controlCsp, controlDocument, controlHeaders } from "./control-document.js";
+
+export type { SecureRoutesOptions } from "./routes.js";
+export { SECURE_SESSION_COOKIE, createSecureRoutes } from "./routes.js";
+
+export type { SecureAppOptions } from "./app.js";
+export { createSecureApp } from "./app.js";
+
+export { buildSecureControl } from "./build-control.js";

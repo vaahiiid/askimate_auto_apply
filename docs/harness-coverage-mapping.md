@@ -63,43 +63,62 @@ provisional app's tables.
 | `fail-closed` · shows the refusal IN the conversation, and leaves the request open | `conversation-service.test.ts` · a rejection does not release the composer; `log.test.ts` · is unaffected by a rejection |
 | `quarantine` · DELETE marks it CANCELLED and reopens the ordinary message path | `lifecycle.test.ts` · a cancellation delivered through the internal append releases the guard |
 
-## NOT replaced — and why the harness stays
+## Replaced — the secret-entry path itself (0.16.0)
 
-Every row here is a property the React path does **not** yet prove. Each one is
-a reason not to delete anything.
+The Secure Interaction Service now exists, so the properties that were blocked
+on it have replacements. Each one is now proven against the REAL architecture —
+a cross-origin document on its own origin — rather than a same-origin React
+component in the conversation page.
+
+| Legacy property | Replacement |
+| --- | --- |
+| `fail-closed` · refuses when the client cannot show it / on an insecure origin / when the endpoint is unreachable | `SecureFrame.tsx` renders an error state when the frame never says `ready`; `two-origin.test.ts` exercises the real load. **Partial** — see below. |
+| `fail-closed` · rejects a confirmation mismatch ON THE SERVER | `secure-routes.test.ts` · REFUSES a mismatched confirmation, and logs a CODE not a value; `two-origin.test.ts` · shows a rejection, keeps the step open |
+| `fail-closed` · refuses a duplicate submission rather than replacing the secret | `secure-routes.test.ts` · REFUSES a duplicate submission — one authoritative receipt only; and the simultaneous case |
+| `fail-closed` · refuses a submission to an expired request | `secure-routes.test.ts` · the `expiresAt` check, and the vault's own TTL ceiling in `vault.test.ts` |
+| `fail-closed` · refuses a submission from a different student / conversation | `secure-routes.test.ts` · refuses a session for ANOTHER request; wrong_conversation |
+| `fail-closed` · requires authentication at all | `secure-routes.test.ts` · refuses without a session |
+| `fail-closed` · keeps the box open on a mismatch and clears both fields | `two-origin.test.ts` · shows a rejection, keeps the step open, and keeps the composer shut |
+| `fail-closed` · survives a page refresh: the box reopens and holds nothing | `two-origin.test.ts` · survives a refresh mid-step: a NEW capability, and nothing typed comes back |
+| `fail-closed` · the secure control is inline in the conversation, in order | `two-origin.test.ts` · the frame is a descendant of `#transcript` |
+| `fail-closed` · contains no secret store, and no way to reach one | Structural and stronger: the conversation plane is a DIFFERENT ORIGIN and a different process. `check-boundaries.ts` forbids the packages; the browser forbids the read. |
+| `end-to-end` · the marker leaks nowhere, across every column | `two-origin.test.ts` · scans every text-ish column of BOTH databases, the vault, every request body, every URL and every postMessage |
+| `end-to-end` · scrubs the body off a parse error | `secure-routes.test.ts` · writes NOTHING of a malformed JSON body — the err.body case; `conversation-service/app.test.ts` for the other plane |
+| `quarantine` · a refused message reaches no log, no stdout and no stderr | `secure-routes.test.ts` · stdout and stderr captured across a malformed submission |
+
+## NOT replaced — and why the harness stays
 
 | Legacy property | What is missing |
 | --- | --- |
-| `fail-closed` · refuses when the client does not support it / on an insecure origin / when the endpoint is unreachable | The Secure Interaction Service has **no HTTP surface yet** — migrations, an outbox and an internal-append client, but no submit endpoint and no cross-origin control. `decideRendering` is proven in jsdom and in the legacy browser suite only. |
-| `fail-closed` · rejects a confirmation mismatch ON THE SERVER | Same: there is no secure submit endpoint to reject against. |
-| `fail-closed` · refuses a duplicate submission / an expired request / a different student / a different conversation | Same. These are properties of the secure submit route, which does not exist on the new plane. |
-| `fail-closed` · requires authentication / refuses a forged token / refuses an unverified email | The secure plane's session and bootstrap (ADR-0033) are not implemented. |
-| `fail-closed` · the composer stays live for typing but the send is blocked, losing nothing | Partly covered (`conversation-service.test.ts` asserts typing stays enabled), but the draft-preservation and no-auto-send behaviours are only proven against the legacy route. |
-| `fail-closed` · suspends draft persistence while a request is open | Only proven in the legacy browser suite. |
-| `fail-closed` · the secure control is a descendant of the transcript, in conversation order | The new browser test has no secure control to place, because the control belongs to the secure origin. |
-| `end-to-end` · all 12 whole-database leak scans | These scan the provisional app's schema. The equivalent scan for the two new planes exists for the SECURE database (`secure-service/schema.test.ts`) but there is no end-to-end run that types a password into the new architecture, because nothing in it yet accepts one. |
-| `quarantine` · a refused message reaches no log, no stdout and no stderr | Not yet asserted against the Conversation Service. |
-| `quarantine` · the two routes are different paths, neither reachable at the other | There is only one route on the new plane so far. |
+| `fail-closed` · refuses when the client does not support it, on an insecure origin, or when the endpoint is unreachable | `decideRendering` is proven in jsdom and in the legacy browser suite. The REAL client no longer consults it: a cross-origin iframe either loads or does not, and `SecureFrame` reports "could not be loaded" after a timeout. The three capability refusals — no secure control, insecure context, endpoint unreachable — have no equivalent browser coverage on the new path. |
+| `fail-closed` · does NOT auto-send the draft when the secure step finishes | Only proven against the legacy route. |
+| `fail-closed` · restores the draft when a STALE client is refused by the server | The behaviour exists (the composer's DOM value is never written), and only the legacy suite proves it end to end. |
+| `fail-closed` · suspends draft persistence while a request is open | `ChatView` still does this; only the legacy browser suite asserts it. |
+| `fail-closed` · refuses an unverified email, as every other AskiMate route does | Email verification is part of ADR-0038's identity delegation, which is not implemented. |
+| `quarantine` · the chat route will not accept a secret submission, and vice versa; the two routes are different paths | Structurally true and stronger now — they are different SERVICES on different origins with different databases — but there is no test that names it on the new planes. |
+| `end-to-end` · the automation spends a handle and the plaintext reaches the runner | `POST /internal/v1/secret-uses` is implemented and unit-covered, and no test drives a real automation through it. |
 
-## The retirement condition
+## The retirement decision, 2026-08-28
 
-The legacy suites may be deleted when, and only when, every row in the section
-above has a named replacement that runs against the new planes — which requires
-at minimum:
+**Nothing was deleted.** The mapping above shows that the secret-entry path now
+has browser-level coverage on the real architecture — which was the stated
+precondition — but seven properties still have no replacement, and four of them
+are behaviours of the composer and the draft that a student would notice
+immediately if they broke.
 
-1. the Secure Interaction Service's submit endpoint, session and cross-origin
-   control (ADR-0030, ADR-0033);
-2. a browser end-to-end run that types a real password into the new
-   architecture and scans both databases and all captured output for it;
-3. a log-and-stdout scan for a refused message on the Conversation Service.
+Deleting `fail-closed.test.ts` today would delete the only proof of those seven.
+The correct order is unchanged and now much shorter:
 
-Item 4 of this list — a test for the body-blind error handler in
-`conversation-service/app.ts` — was **closed while writing this document**.
-Listing the gap is what showed that the scrub had been written and never
-exercised; `app.test.ts` now sends an unparseable body containing a marker and
-asserts it reaches neither the response nor stdout, stderr or `console`, with a
-canary so the scan cannot pass by capturing nothing. The session cookie's
-`__Host-` attributes and signature checks are covered there too.
+1. Port the four composer/draft properties to `two-origin.test.ts`. They are
+   about the CONVERSATION plane, so nothing blocks them but the work.
+2. Decide what replaces the three capability refusals now that the client no
+   longer decides whether it can render a control — the frame either loads or
+   reports that it did not. This may be a deliberate reduction in scope rather
+   than a test to write, and it is Vahid's call, not mine.
+3. Drive `POST /internal/v1/secret-uses` from the automation runner.
+4. Then, and only then, delete the legacy suites and the provisional app.
 
-Until then the provisional app is the only thing proving those properties, and
-deleting it would delete the proof rather than the code.
+`SecureControl.tsx` and the provisional `/api/askimate/*` routes remain mounted
+and remain tested. `ChatView` renders the cross-origin frame when a bootstrap
+capability exists and falls back to the provisional control otherwise, so both
+paths are live and both are covered.

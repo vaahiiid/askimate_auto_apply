@@ -64,6 +64,11 @@ const DATABASE_BACKED = [
   "apps/chat-integration/src/conversation-service.test.ts",
   // The lifecycle push across the plane boundary, against two real databases.
   "apps/secure-service/src/lifecycle.test.ts",
+  // THE ONE ENDPOINT THAT RECEIVES A PASSWORD, and the scans that prove the
+  // value reaches no column, no response and no log line.
+  "apps/secure-service/src/secure-routes.test.ts",
+  // A real browser typing a real credential into the cross-origin Secure Plane.
+  "apps/chat-integration/src/two-origin.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

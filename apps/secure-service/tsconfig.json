@@ -1,6 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // `control-client.ts` runs inside the secure frame — the one browser
+    // document this service serves. Like chat-integration, this app therefore
+    // legitimately needs DOM types.
+    "lib": ["es2023", "dom", "dom.iterable"]
+  },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../conversation-service" }, { "path": "../../packages/contracts" }, { "path": "../../packages/migrate" }]
+  "references": [{ "path": "../../packages/secrets" }, { "path": "../conversation-service" }, { "path": "../../packages/contracts" }, { "path": "../../packages/migrate" }]
 }

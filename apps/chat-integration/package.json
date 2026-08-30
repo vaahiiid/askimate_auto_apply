@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-chat-integration",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -41,6 +41,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "vitest": "^2.1.8",
-    "@askimate/aas-conversation-service": "workspace:*"
+    "@askimate/aas-conversation-service": "workspace:*",
+    "@askimate/aas-secure-service": "workspace:*",
+    "@askimate/aas-secrets": "workspace:*"
   }
 }

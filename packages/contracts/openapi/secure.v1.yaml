@@ -129,7 +129,24 @@ paths:
             because there is nothing to say that the cookie does not say.
           headers:
             Set-Cookie:
-              description: __Host-secure_session=…; HttpOnly; Secure; SameSite=Lax; Path=/
+              description: >-
+                __Host-secure_session=…; Path=/; HttpOnly; Secure; SameSite=None;
+                Partitioned
+
+                CORRECTED 2026-08-28. This said `SameSite=Lax`, and that was
+                measured to be unusable: a Lax cookie is not sent on requests
+                made from inside a CROSS-SITE IFRAME, which is the only context
+                this session exists in. The frame would set the cookie and then
+                be refused by its own service on the next fetch — `SameSite=Lax`
+                and ADR-0030's cross-origin control are mutually exclusive.
+
+                `Partitioned` (CHIPS) rather than bare `None`: the cookie is
+                keyed to the top-level site as well as this one, so it exists
+                only while embedded by the conversation plane rather than being
+                a general third-party cookie. The CSRF protection Lax would have
+                provided is replaced by the Origin and Sec-Fetch-Site checks,
+                which refuse a cross-site POST outright rather than merely
+                withholding a cookie from it.
               schema: { type: string }
         "400": { $ref: "#/components/responses/ValidationFailed" }
         "403":

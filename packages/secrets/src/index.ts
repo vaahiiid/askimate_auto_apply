@@ -50,3 +50,27 @@ export type {
   SubmitRefusal,
 } from "./store.js";
 export { InMemorySecretStore, describeSecretUse } from "./store.js";
+
+
+// ── The ephemeral encrypted vault (ADR-0034) ──────────────────────────────
+
+export type {
+  DataKey,
+  DataKeyProvider,
+  Envelope,
+  EnvelopeCache,
+  VaultRefusal,
+  VaultUse,
+} from "./vault.js";
+export {
+  EnvelopeVault,
+  InMemoryEnvelopeCache,
+  LocalDataKeyProvider,
+  VAULT_TTL_CEILING_SECONDS,
+  assertVaultIsProductionGrade,
+  confirmationMatches,
+} from "./vault.js";
+
+// The production key provider is exported from its own entry point so that
+// importing `@askimate/aas-secrets` does not pull the AWS SDK into a bundle
+// that will never call it.

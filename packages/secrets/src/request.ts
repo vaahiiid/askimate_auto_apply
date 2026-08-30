@@ -93,14 +93,34 @@ export interface SecretRequestRefusal {
 /**
  * The longest a secret may sit unspent.
  *
- * Fifteen minutes is long enough for a student to be interrupted mid-flow and
- * come back, and short enough that an abandoned session does not leave a live
- * password in memory for an afternoon. It is a ceiling, not a default: a
- * caller asking for less gets less.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * CORRECTED, 2026-08-28. This said fifteen minutes, and three artefacts
+ * disagreed:
+ *
+ *   packages/secrets/src/request.ts   900 seconds   (this file, was)
+ *   packages/contracts/…/secure.v1.yaml  60..300    (the published contract)
+ *   ADR-0034                          "hard ceiling 5 minutes"
+ *
+ * The contract and the ADR are the authority — they were written in the
+ * contract-first phase that this constant predates — so the ceiling is 300 and
+ * the floor is 60. Nothing was calling `request()` through the new secure
+ * service yet, so this corrects a value before it could be depended upon rather
+ * than changing one that was.
+ *
+ * Five minutes is long enough to type and confirm a password, and short enough
+ * that an abandoned session does not leave a live credential in the vault for a
+ * quarter of an hour. It is a ceiling, not a default: a caller asking for less
+ * gets less, and `EnvelopeVault.put` applies the same ceiling again at the
+ * moment of encryption so a caller that never went through this check cannot
+ * exceed it either.
+ * ═══════════════════════════════════════════════════════════════════════════
  */
-export const MAX_TTL_SECONDS = 15 * 60;
-/** Below this the student cannot realistically finish typing and confirming. */
-export const MIN_TTL_SECONDS = 30;
+export const MAX_TTL_SECONDS = 300;
+/**
+ * Below this the student cannot realistically finish typing and confirming.
+ * Sixty, matching `secure.v1.yaml`'s `minimum`, for the same reason as above.
+ */
+export const MIN_TTL_SECONDS = 60;
 
 // ───────────────────────────────────────────────────────────────────────────
 // What the chat renders

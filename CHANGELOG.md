@@ -19,6 +19,114 @@ not shipped artefacts.
 
 ---
 
+## [0.16.0] — 2026-08-28
+
+**A real browser now types a real credential into a real cross-origin Secure
+Plane, and the conversation page cannot read it — because the browser will not
+let it, not because our code promises not to look.**
+
+**Version bump: MINOR.** The Secure Interaction Service gained its HTTP surface
+and the vault became what ADR-0034 specifies; additive in capability. Two
+contract corrections are described below. No security property is weakened.
+
+### Added — the Secure Interaction Service
+
+Seven operations, implementing `secure.v1.yaml` as written. The contract and the
+`postMessage` protocol in `packages/contracts/src/frame.ts` already existed and
+were followed rather than re-invented.
+
+- **`control-document.ts`** — the control, served by the secure origin, under
+  `default-src 'none'; script-src 'self'; connect-src 'self'; form-action
+  'self'; base-uri 'none'; frame-ancestors <parent>`. `connect-src 'self'` is
+  the load-bearing one: even an injected script has no origin to send a value to.
+- **`control-client.ts`** — the only code that ever sees a password. No
+  framework, deliberately: React is what would have tempted someone to make the
+  input controlled. The value exists in one DOM element and one `fetch`
+  argument, and nowhere else.
+- **`routes.ts`** — the one endpoint in AskiMate that accepts a secret. Every
+  check that does not need the value runs first, so no refusal path ever holds
+  the plaintext in a variable.
+- **`logger.ts`** — a field allowlist, by type. `LogFields` admits scalars with
+  known meanings and there is no `meta`, no `extra`, no `err`. `failure()`
+  reduces a thrown value to a class name at its first statement.
+
+### Added — the vault ADR-0034 actually specifies
+
+AES-256-GCM, a fresh KMS data key per secret, keys zeroed after use, ciphertext
+in a cache with a five-minute ceiling applied at encryption time. `use()` still
+takes a callback and returns the callback's result — ADR-0034 says that design
+"is kept exactly", and it is.
+
+`LocalDataKeyProvider` is for development, and
+`assertVaultIsProductionGrade(provider, NODE_ENV)` **refuses to start** a
+production process that is using it. `KmsDataKeyProvider` is real code that has
+never been run against a live key from this repository, and
+`docs/secure-plane-deployment.md` says so rather than implying otherwise.
+
+### Fixed — two contradictions between the contracts and reality
+
+**The TTL ceiling.** `packages/secrets` said fifteen minutes; `secure.v1.yaml`
+said 60–300 seconds; ADR-0034 said "hard ceiling 5 minutes". The contract and
+the ADR are the authority — they were written in the contract-first phase that
+the constant predates — so the ceiling is 300 and the floor is 60. The vault
+applies the ceiling again at encryption, so a caller that never went through
+request validation still cannot exceed it.
+
+**The secure session cookie.** The contract specified `SameSite=Lax`, and that
+**cannot work**: measured in Chromium, a `Lax` cookie is not sent on requests
+made from inside a cross-site iframe, which is the only context this session
+exists in. The frame would set the cookie and then be refused by its own service
+on the next fetch — `SameSite=Lax` and ADR-0030 are mutually exclusive. It is
+now `SameSite=None; Partitioned` (CHIPS), which keys the cookie to the top-level
+site as well, so it is not a general third-party cookie. The CSRF protection
+`Lax` would have given is replaced by `Origin` and `Sec-Fetch-Site` checks,
+which refuse a cross-site POST outright rather than merely withholding a cookie.
+
+### Findings
+
+**A backup directory keyed by basename destroyed a file.** Two services both
+have `routes.ts`; the regression harness copied both into one directory and a
+restore wrote the conversation service's routes over the secure service's. It
+was caught by the next test run, the file was rewritten, and the backups are now
+keyed by full path. Recorded because the failure mode — a "restore" that
+silently installs the wrong file — is one a green suite would not have shown.
+
+**Four regressions were not caught, and each exposed a real gap.**
+
+- **R7** (a prefix origin comparison instead of an exact one) passed every test.
+  The rule was documented in `frame.ts` and enforced nowhere.
+  `packages/contracts/src/frame.test.ts` now tests nine lookalike origins,
+  including `https://app.askimate.com.evil.test`.
+- **R8** (`postMessage(payload, "*")`) passed everything, because a wildcard is
+  a superset of correct behaviour and no cooperating test notices. A boundary
+  rule now reads the source — and my first version of that rule caught the
+  wildcard in one file and missed it in the other, because the second call had a
+  trailing comma.
+- **R13** (splitting the receipt from its outbox row) passed, because on the
+  happy path both writes succeed either way. There is now a test that fails the
+  publication and asserts the receipt rolled back with it, plus a rule that only
+  `withTransaction` may issue BEGIN or COMMIT.
+- **R3**, in its first form, was "caught" only by a timeout after my patch broke
+  the control flow. That is not evidence, and it was redone surgically.
+
+### Verification
+
+- **1475 tests, 75 files**, `pnpm run verify` green.
+- **7 two-origin Chromium scenarios**: the full journey, postMessage scanning,
+  refresh, cancellation, rejection, a stale client POSTing directly, and two
+  browsers on one conversation.
+- **20 secure-service tests** against a real database and a real vault, every
+  log assertion on a FAILURE path.
+- **All 14 required regressions** confirmed, each verifying it applied first.
+
+### Not done, deliberately
+
+`docs/harness-coverage-mapping.md` is updated: the secret-entry path now has
+browser-level coverage on the real architecture, and **seven properties still
+have none**. Nothing was deleted.
+
+---
+
 ## [0.15.0] — 2026-08-28
 
 **The browser now talks to the real Conversation Service, and the Secure

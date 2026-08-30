@@ -66,7 +66,7 @@ import type {
   RejectionReason,
 } from "@askimate/aas-contracts";
 import { SECRET_LIFECYCLES, parseRejectionReason } from "@askimate/aas-contracts";
-import type { ConversationTransport, SendResult } from "./conversation-client.js";
+import type { Bootstrap, ConversationTransport, SendResult } from "./conversation-client.js";
 import {
   EMPTY_LOG,
   addProvisional,
@@ -235,6 +235,14 @@ export interface SecureTurnState {
   readonly items: readonly TranscriptItem[];
   /** The whole log, for a caller that needs to tell the two apart. */
   readonly log: ConversationLog;
+  /**
+   * The capability for the OPEN secure request, once fetched.
+   *
+   * Null while there is no open step, and null while the fetch is in flight —
+   * the frame is not rendered until this exists, because a frame with no token
+   * would sit on screen waiting for a bootstrap that never comes.
+   */
+  readonly bootstrap: Bootstrap | null;
   /** The prompt to draw, or null when nothing is open. From `openSecretRequest`. */
   readonly openPrompt: UncheckedIncomingPrompt | null;
   /** Fixed refusal text from `decideRendering`. Never assembled from input. */
@@ -242,6 +250,25 @@ export interface SecureTurnState {
   readonly composer: ComposerPolicy;
   readonly receive: (turn: ReceivedTurn) => void;
   readonly submitted: (handle: string) => void;
+  /**
+   * A lifecycle word the SECURE FRAME reported. A UX accelerator only.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-08-28: *"The browser's postMessage lifecycle notification may
+   * improve UX but must never become the authority for the server-side
+   * guard."*
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * What this does is DRAW a provisional entry, so the card closes the instant
+   * the student succeeds instead of a round trip later. What it does not do is
+   * settle anything: the authoritative transition is written by the Secure
+   * Interaction Service through the internal append, reaches the conversation
+   * log, and arrives here on the stream with an ordinal. Until it does, the
+   * Conversation Service's own guard still refuses ordinary messages — so a
+   * frame that lied, or a lifecycle push that failed, changes what the student
+   * SEES and nothing about what the server ALLOWS.
+   */
+  readonly frameLifecycle: (lifecycle: string, handle?: string) => void;
   readonly rejected: (reason: RejectionReason) => void;
   readonly cancel: () => void;
   readonly send: (content: string) => Promise<SendOutcome>;
@@ -452,6 +479,27 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
     [draw, openRequestId],
   );
 
+  const frameLifecycle = useCallback(
+    (lifecycle: string, handle?: string): void => {
+      if (openRequestId === null) return;
+      // Drawn, never admitted. It has no ordinal because the conversation log
+      // has not placed it — and it cannot, because this browser is not what
+      // writes to that log.
+      if (lifecycle === "secret_received") {
+        draw({ kind: "secret_received", requestId: openRequestId, handle: handle ?? "" });
+        return;
+      }
+      if (
+        lifecycle === "secret_cancelled" ||
+        lifecycle === "secret_expired" ||
+        lifecycle === "secret_consumed"
+      ) {
+        draw({ kind: lifecycle, requestId: openRequestId });
+      }
+    },
+    [draw, openRequestId],
+  );
+
   const rejected = useCallback(
     (reason: RejectionReason): void => {
       // Appended, and NOTHING ELSE. In particular the request is not closed:
@@ -641,9 +689,30 @@ export function useSecureTurn(input: SecureTurnInput): SecureTurnState {
     // event is how a stream becomes a reconnect loop.
   }, [admit, conversation]);
 
+  // ── The bootstrap for the open step ──────────────────────────────────────
+  //
+  // Fetched when a secure request opens, and dropped when it settles. It is a
+  // capability, so it is held for as short a time as the UI allows: in state
+  // for the life of one open step, never in storage, never in a URL, and never
+  // written to anything that outlives the mount.
+  const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
+  useEffect(() => {
+    if (conversation === undefined || openRequestId === null) {
+      setBootstrap(null);
+      return undefined;
+    }
+    let live = true;
+    void conversation.bootstrap(openRequestId).then((capability) => {
+      if (live) setBootstrap(capability);
+    });
+    return () => {
+      live = false;
+    };
+  }, [conversation, openRequestId]);
+
   return {
-    events, items, log, loaded, openPrompt, refusal, composer,
-    receive, submitted, rejected, cancel, send,
+    events, items, log, loaded, bootstrap, openPrompt, refusal, composer,
+    receive, submitted, frameLifecycle, rejected, cancel, send,
   };
 }
 

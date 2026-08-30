@@ -209,6 +209,35 @@ const RULES: readonly Rule[] = [
       "for a password to become a ConfirmedValue and appear in a submission preview (ADR-0026).",
   },
   {
+    packagePath: "apps/secure-service",
+    forbidden: [
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@askimate/aas-llm",
+      "morgan",
+      "pino",
+      "pino-http",
+      "winston",
+      "express-winston",
+      "@sentry/node",
+      "@sentry/express",
+      "dd-trace",
+      "newrelic",
+      "@opentelemetry/sdk-node",
+      "errorhandler",
+      "body-parser-xml",
+      "connect-logger",
+    ],
+    rationale:
+      "This service contains THE ONE ENDPOINT IN ASKIMATE THAT RECEIVES A PASSWORD. Every " +
+      "forbidden name is a request logger, an APM agent or an error reporter — the class of " +
+      "middleware that serialises a caught error, and body-parser attaches the raw request body " +
+      "to a JSON parse error as `err.body`. `logger.ts` exists precisely because a logger that " +
+      "accepts an arbitrary object is not sufficient here.",
+  },
+  {
     packagePath: "apps/chat-integration",
     forbidden: [
       "openai",
@@ -931,6 +960,171 @@ function main(): void {
     `  ✓  ${String(presentBrowserFiles.length)} browser file(s) — no import from, and no type ` +
       `declared by, a server route module (${String(serverDeclared.size)} name(s) compared)`,
   );
+
+  // ── The Secure Plane admits no third-party script, and no third origin ───
+  //
+  // ═════════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-08-28 (R14): *"Introduce a third-party script into the Secure
+  // Plane… extend the browser/build checks so the Secure Plane has the approved
+  // script and network-origin restrictions."*
+  // ADR-0036 — no third-party scripts on authenticated surfaces.
+  // ═════════════════════════════════════════════════════════════════════════
+  //
+  // The Content-Security-Policy is the control the browser enforces; this is
+  // what stops the policy being weakened in a diff nobody reads. `script-src
+  // 'self'` and `connect-src 'self'` are the two directives that matter most —
+  // the first means an injected inline script does not run, the second means
+  // that even if one did, there is no origin it could send the password to.
+  const CONTROL_DOCUMENT = "apps/secure-service/src/control-document.ts";
+  if (existsSync(CONTROL_DOCUMENT)) {
+    const source = readFileSync(CONTROL_DOCUMENT, "utf8");
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+
+    const required = [
+      "default-src 'none'",
+      "script-src 'self'",
+      "connect-src 'self'",
+      "form-action 'self'",
+      "base-uri 'none'",
+      "frame-ancestors",
+    ];
+    for (const directive of required) {
+      if (!code.includes(directive)) {
+        violations.push(
+          `${CONTROL_DOCUMENT} no longer sets \`${directive}\`. The secure control's policy is ` +
+            `what makes "no third-party script can read or exfiltrate the password" a property ` +
+            `the BROWSER enforces rather than one this repository asserts.`,
+        );
+      }
+    }
+    // A wildcard or an unsafe keyword anywhere in the policy defeats it.
+    for (const weakening of ["'unsafe-inline'", "'unsafe-eval'", "script-src *", "connect-src *"]) {
+      if (code.includes(weakening)) {
+        violations.push(
+          `${CONTROL_DOCUMENT} contains \`${weakening}\`. That re-admits exactly the class of ` +
+            `script the Secure Plane exists to exclude.`,
+        );
+      }
+    }
+    // No origin but this service's own may appear in the document or its
+    // script. A CDN, a font host, an analytics tag: all the same finding.
+    const CONTROL_FILES = [CONTROL_DOCUMENT, "apps/secure-service/src/control-client.ts"];
+    for (const file of CONTROL_FILES) {
+      if (!existsSync(file)) {
+        violations.push(`${file} is missing, so the Secure Plane script check is inert.`);
+        continue;
+      }
+      const body = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/^\s*\/\/.*$/gm, " ");
+      for (const match of body.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)) {
+        violations.push(
+          `${file} names the absolute URL \`${match[0]}\`. Everything the secure control loads ` +
+            `or calls must be same-origin: a third origin here is a third party inside the one ` +
+            `document that handles a credential.`,
+        );
+      }
+      if (/<script\s+src=/i.test(body) && !/src="\/control\.js"/.test(body)) {
+        violations.push(`${file} loads a script that is not /control.js.`);
+      }
+    }
+
+    // ── No wildcard targetOrigin, on EITHER side of the boundary ──────────
+    //
+    // `postMessage(payload, "*")` delivers to whatever happens to be at the
+    // other end. Inside the secure frame that means handing a lifecycle
+    // message — and the opaque handle that rides on a receipt — to whichever
+    // page embedded the control, which is precisely the attacker in the threat
+    // model. From the parent it means delivering the one-time bootstrap
+    // capability to a frame that may have been navigated since it was rendered.
+    //
+    // Added because a regression that replaced the exact origin with `"*"`
+    // was NOT caught: every test passed, because the wildcard is a superset of
+    // the correct behaviour and nothing in a cooperating test ever notices.
+    // Only a rule that reads the source can see it.
+    const POST_MESSAGE_FILES = [
+      "apps/secure-service/src/control-client.ts",
+      "apps/chat-integration/src/SecureFrame.tsx",
+    ];
+    for (const file of POST_MESSAGE_FILES) {
+      if (!existsSync(file)) {
+        violations.push(`${file} is missing, so the targetOrigin check is inert.`);
+        continue;
+      }
+      const body = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/^\s*\/\/.*$/gm, " ");
+      // `postMessage(x, "*")` and `postMessage(x, '*')`, however spaced or
+      // wrapped across lines.
+      // A trailing comma is legal and idiomatic — `postMessage(x, "*",)` — and
+      // my first version of this pattern required the quote to be followed
+      // immediately by `)`. It therefore caught the wildcard in one file and
+      // missed it in the other, which is the failure mode a check like this
+      // exists to avoid.
+      if (/postMessage\s*\([\s\S]*?,\s*["'`]\*["'`]\s*,?\s*\)/.test(body)) {
+        violations.push(
+          `${file} calls postMessage with a wildcard targetOrigin. The browser will deliver to ` +
+            `whatever is at the other end — which is the attacker in this design's threat model.`,
+        );
+      }
+      if (!/postMessage/.test(body)) {
+        violations.push(
+          `${file} no longer calls postMessage, so this rule is checking nothing. If the frame ` +
+            `protocol moved, move this check with it.`,
+        );
+      }
+    }
+    // ── Only the store opens and closes a transaction ────────────────────
+    //
+    // The receipt and the intent to publish it MUST commit together: that is
+    // the whole of the outbox guarantee, and it is what makes a failed
+    // publication leave nothing behind rather than a settled request nobody
+    // will ever announce.
+    //
+    // Added because a regression that put a `COMMIT` between the two was NOT
+    // caught: on the happy path both writes succeed either way, and no test
+    // was forcing the failure that distinguishes them. A behavioural test for
+    // this needs a fault injected between two statements inside one handler,
+    // which is a seam this service deliberately does not have — so the rule
+    // reads the source instead. `withTransaction` in `requests.ts` is the one
+    // place that may say BEGIN, COMMIT or ROLLBACK.
+    const TRANSACTION_OWNERS = ["apps/secure-service/src/requests.ts"];
+    const TRANSACTION_USERS = [
+      "apps/secure-service/src/routes.ts",
+      "apps/secure-service/src/lifecycle-outbox.ts",
+    ];
+    for (const file of TRANSACTION_USERS) {
+      if (!existsSync(file)) continue;
+      const body = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/^\s*\/\/.*$/gm, " ");
+      // `lifecycle-outbox.ts` owns its own publisher transaction, so it is
+      // allowed BEGIN/COMMIT; `routes.ts` is not, and that is the rule.
+      if (file.endsWith("routes.ts") && /query\(\s*["'`](BEGIN|COMMIT|ROLLBACK)/.test(body)) {
+        violations.push(
+          `${file} issues BEGIN, COMMIT or ROLLBACK directly. Transaction boundaries in this ` +
+            `service belong to \`withTransaction\` — a COMMIT in a handler splits the receipt ` +
+            `from the outbox row it must commit with, and the outbox guarantee is exactly that ` +
+            `they cannot be split.`,
+        );
+      }
+    }
+    for (const file of TRANSACTION_OWNERS) {
+      if (!existsSync(file)) {
+        violations.push(`${file} is missing, so the transaction-ownership rule is inert.`);
+        continue;
+      }
+      if (!/withTransaction/.test(readFileSync(file, "utf8"))) {
+        violations.push(`${file} no longer defines withTransaction; move this rule with it.`);
+      }
+    }
+
+    checked += 1;
+    console.log(
+      `  ✓  the Secure Plane — CSP intact, ${String(CONTROL_FILES.length)} file(s) name no third ` +
+        `origin, transaction boundaries owned by one module`,
+    );
+  }
 
   console.log(`\nPackages present: ${listExistingPackages().join(", ") || "(none)"}`);
 

@@ -32,6 +32,7 @@ import type { FormEvent, JSX } from "react";
 import { renderKey } from "@askimate/aas-conversation";
 
 import { SecureControl } from "./SecureControl.js";
+import { SecureFrame } from "./SecureFrame.js";
 import type { SecureTurnState } from "./useSecureTurn.js";
 
 /** Where a chat client would persist an unsent draft across a reload. */
@@ -161,6 +162,31 @@ export function ChatView(props: ChatViewProps): JSX.Element {
               //
               // Which request is open is not decided here. `openSecureRequest`
               // decided it; this only compares ids.
+              // ── The REAL architecture: a cross-origin iframe ──────────
+              //
+              // When a bootstrap capability exists for this request, the step
+              // is rendered by the SECURE PLANE inside an iframe this document
+              // cannot read. The password field lives there, in a document on
+              // another origin, and the browser is what stops this page seeing
+              // it — rather than this page promising not to look.
+              //
+              // `SecureControl` below is the PROVISIONAL same-origin path,
+              // still mounted when the provisional app supplies a prompt.
+              // It is retired with the legacy harness; see
+              // docs/harness-coverage-mapping.md.
+              if (state.bootstrap?.requestId === item.requestId) {
+                return (
+                  <SecureFrame
+                    key={renderKey(item.position)}
+                    requestId={item.requestId}
+                    secureOrigin={state.bootstrap.secureOrigin}
+                    frameToken={state.bootstrap.frameToken}
+                    onLifecycle={state.frameLifecycle}
+                    onRejected={state.rejected}
+                    onCancelled={state.cancel}
+                  />
+                );
+              }
               return state.openPrompt?.requestId === item.requestId ? (
                 <SecureControl
                   key={renderKey(item.position)}
