@@ -530,6 +530,57 @@ function main(): void {
     `  ✓  apps/browser-runner — ${String(runnerSources.length)} source file(s) name no vault, no store, no resolver`,
   );
 
+  // ── No mapping set may target a PASSWORD field ─────────────────────────
+  //
+  // A mapping says "this student value goes in this portal field". A password
+  // is not a student VALUE in that sense: it never becomes a `ConfirmedValue`,
+  // it is never in the profile, and it reaches its field through the Secure
+  // Plane's fill agent and through nothing else (ADR-0026, ADR-0042).
+  //
+  // A mapping to one would therefore be the single place a reviewer could
+  // accidentally create a route from a profile to a credential field — and
+  // ADR-0017's two-person review is a good control precisely because it is not
+  // the only one. `FieldInputType` gained a `password` member so this check
+  // could exist; before it, no check could tell which field to look for.
+  //
+  // Checked by loading the fixtures rather than by reading text, because the
+  // question is about the DATA — which fieldRefs a mapping set names, and what
+  // the blueprint says those fields are.
+  const FIXTURE_MODULES = existsSync("packages/mapping/src/fixtures")
+    ? readdirSync("packages/mapping/src/fixtures").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of FIXTURE_MODULES) {
+    const source = readFileSync(join("packages/mapping/src/fixtures", name), "utf8");
+    // Every fieldRef declared with inputType "password", and every fieldRef a
+    // mapping names. A blueprint and its mapping set live in one file here, so
+    // the comparison is local and needs no module loading.
+    const passwordFields = new Set<string>();
+    const fieldBlocks = source.split("fieldRef:").slice(1);
+    for (const block of fieldBlocks) {
+      const ref = /^\s*"([^"]+)"/.exec(block)?.[1];
+      if (ref === undefined) continue;
+      // Only the blueprint half declares an inputType; a mapping entry does not.
+      const inputType = /inputType:\s*"([^"]+)"/.exec(block.slice(0, 400))?.[1];
+      if (inputType === "password") passwordFields.add(ref);
+    }
+    if (passwordFields.size === 0) continue;
+
+    const mappingHalf = source.slice(source.indexOf("MAPPING_SET"));
+    for (const field of passwordFields) {
+      if (!mappingHalf.includes(`fieldRef: "${field}"`)) continue;
+      violations.push(
+        `packages/mapping/src/fixtures/${name} maps \`${field}\`, which the blueprint declares ` +
+          `as a password field. A password is not profile data and never becomes a ` +
+          `ConfirmedValue: it reaches its field through the Secure Plane's fill agent and nothing ` +
+          `else (ADR-0026, ADR-0042). There must be no mapping for it to review.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  ${String(FIXTURE_MODULES.length)} mapping fixture(s) — no mapping targets a password field`,
+  );
+
   // ── The conversation plane cannot NAME anything that resolves a secret ──
   //
   // The manifest rule above stops a declared dependency. This stops the other

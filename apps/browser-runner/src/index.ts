@@ -60,6 +60,12 @@ export { OBSERVE_SCRIPT } from "./observe-script.js";
 export type { CaptureIndex, CapturedPage, ReplayServer } from "./replay.js";
 export { startReplayServer } from "./replay.js";
 
+// A controlled portal that actually requires an account. Test infrastructure,
+// exported like `startReplayServer` beside it, because the suites that need it
+// live in other packages.
+export type { FixturePortal, PortalApplication } from "./fixture-portal.js";
+export { startFixturePortal } from "./fixture-portal.js";
+
 export type { SensitiveContextOptions } from "./sensitive.js";
 export { TracingForbiddenError, openSensitiveContext, tracingIsForbidden } from "./sensitive.js";
 

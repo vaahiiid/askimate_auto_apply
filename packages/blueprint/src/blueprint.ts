@@ -51,11 +51,28 @@ export type BlueprintStatus =
   /** Known to be wrong. Kept for the record, never executed. */
   | "retired";
 
-/** What kind of input a field takes. */
+/**
+ * What kind of input a field takes.
+ *
+ * ── `password` is here so a blueprint can be HONEST ───────────────────────
+ *
+ * It was absent until a blueprint had to describe a portal whose form is gated
+ * behind registration. Leaving it out did not stop a password field existing on
+ * a real page — it only stopped the blueprint saying so, which made the
+ * document quietly wrong about the one field that matters most.
+ *
+ * Naming it also makes a rule checkable that was previously only a convention:
+ * `scripts/check-boundaries.ts` fails the build if a MAPPING SET targets a
+ * field of this type. A password is not profile data, never becomes a
+ * `ConfirmedValue`, and reaches its field through the Secure Plane's fill agent
+ * and nothing else (ADR-0026, ADR-0042). Before this member existed there was
+ * no way for a check to tell which field a reviewer must never map.
+ */
 export type FieldInputType =
   | "text"
   | "textarea"
   | "email"
+  | "password"
   | "tel"
   | "number"
   | "date"

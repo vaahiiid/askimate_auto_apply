@@ -19,6 +19,57 @@ not shipped artefacts.
 
 ---
 
+## [0.20.0] — 2026-08-31
+
+**P2 — a controlled portal that actually requires an account.** The first
+end-to-end product test needs a target, and this is one we own: gated, stateful,
+and described by a blueprint proved against the real pages.
+
+**Version bump: MINOR.** New test infrastructure, one new blueprint fixture, one
+new `FieldInputType` member and one new build rule. No production behaviour
+changed; no security boundary moved.
+
+### Added — `startFixturePortal`
+
+`/register` → `/apply` → `/review`, with real cookies, real refusals and real
+state. The gate is the point: **`/apply` redirects to `/register` without a
+session.** A fixture that served the form to anyone would let the entire
+credential path be skipped while every later test still passed.
+
+It has a login page for a reason. Nothing here ever renders a password back — so
+"the right password arrived" cannot be checked by reading a page, which is the
+property we want. It is proved by signing in instead: the portal using the
+credential the way a real one does, failing on a single truncated character.
+
+`submissions()` exists so that "it did not submit" is an assertion rather than a
+hope (ADR-0014).
+
+### Added — `FieldInputType` gains `password`
+
+It was absent, which did not stop password fields existing on real pages — it
+only stopped a blueprint saying so, leaving the document quietly wrong about the
+field that matters most.
+
+Naming it makes a rule checkable that was previously only a convention:
+`check-boundaries` now fails the build if a **mapping set targets a password
+field**. A password is not profile data, never becomes a `ConfirmedValue`, and
+reaches its field through the Secure Plane's fill agent alone. There must be no
+mapping for it to review.
+
+### Found — an ambiguous locator that would have typed a credential into the wrong box
+
+The blueprint first located the password field by `label: "Password"`. The test
+that resolves every reviewed locator against the real page failed with *expected
+2 to be 1*: `getByLabel` is non-exact by design, so "Password" also matches
+"Confirm password".
+
+On any other field that is a bug. On this one it is the bug that types a
+credential into the wrong box — and the fill agent takes ONE locator, with no
+list to fall through. Both password fields are now located by `name`, which is
+also what discovery's own observer records for them.
+
+---
+
 ## [0.19.0] — 2026-08-31
 
 **P1 — the run exists.** A student conversation can now create and own a
