@@ -987,7 +987,7 @@ function main(): void {
     console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
   }
 
-  // ── The five decisions have exactly one implementation ──────────────────
+  // ── The six decisions have exactly one implementation ───────────────────
   //
   // Vahid, 2026-08-28: *"Treat it as the single domain authority for
   // conversation decisions… remove duplicated decision logic."*
@@ -1002,6 +1002,7 @@ function main(): void {
   // `packages/conversation`, these names may be IMPORTED but not DEFINED.
   const DECISIONS = [
     "openSecretRequest",
+    "latestSecretRequest",
     "composerPolicy",
     "decideRendering",
     "projectTranscript",

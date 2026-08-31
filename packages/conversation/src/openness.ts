@@ -57,3 +57,74 @@ export function openSecretRequest(events: readonly UnpositionedEvent[]): string 
   }
   return open;
 }
+
+/**
+ * The most recent secret request in a log, and where it got to.
+ *
+ * ── Why this is a SIXTH decision rather than a helper in the driver ───────
+ *
+ * `openSecretRequest` above answers "is a step open?" — which is what the
+ * composer guard needs. The Run Driver needs a different question: "what does
+ * the orchestrator's `RunState.secret` say?", which is a request id, a lifecycle
+ * word and, once the student has answered, an opaque handle.
+ *
+ * Both are readings of the same log, and the comment on `openSecretRequest`
+ * explains what happened last time two readings of it existed in two places:
+ * they drifted, and a lapsed request released a live one's guard. So this lives
+ * beside it, under the same rule — `scripts/check-boundaries.ts` permits these
+ * names to be imported anywhere and defined only here.
+ *
+ * Returns the LATEST request rather than the open one, because a settled
+ * request is exactly what the driver must see: `secret_consumed` is how it
+ * knows not to ask again.
+ */
+export function latestSecretRequest(events: readonly UnpositionedEvent[]): {
+  readonly requestId: string;
+  readonly lifecycle:
+    | "secret_requested"
+    | "secret_received"
+    | "secret_consumed"
+    | "secret_expired"
+    | "secret_cancelled";
+  /** Present once the student has answered. Opaque; resolves to nothing here. */
+  readonly handle?: string;
+} | null {
+  let requestId: string | null = null;
+  let lifecycle:
+    | "secret_requested"
+    | "secret_received"
+    | "secret_consumed"
+    | "secret_expired"
+    | "secret_cancelled" = "secret_requested";
+  let handle: string | undefined;
+
+  for (const event of events) {
+    switch (event.kind) {
+      case "secret_requested":
+        // A new request supersedes the last. Its handle does not carry over:
+        // a handle belongs to the request it was minted for.
+        requestId = event.requestId;
+        lifecycle = "secret_requested";
+        handle = undefined;
+        break;
+      case "secret_received":
+      case "secret_consumed":
+      case "secret_expired":
+      case "secret_cancelled":
+        // Only when it settles the one being tracked. A stale request's
+        // settlement must not move a live request's lifecycle — the same rule,
+        // and the same reason, as the guard above.
+        if (requestId === event.requestId) {
+          lifecycle = event.kind;
+          if ("handle" in event && typeof event.handle === "string") handle = event.handle;
+        }
+        break;
+      case "message":
+      case "secret_rejected":
+        break;
+    }
+  }
+
+  if (requestId === null) return null;
+  return { requestId, lifecycle, ...(handle === undefined ? {} : { handle }) };
+}

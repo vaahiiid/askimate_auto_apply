@@ -29,7 +29,7 @@
  * this package decides what to do about it.
  */
 
-export { openSecretRequest } from "./openness.js";
+export { latestSecretRequest, openSecretRequest } from "./openness.js";
 
 export type { ComposerPolicy } from "./composer.js";
 export { composerPolicy } from "./composer.js";
