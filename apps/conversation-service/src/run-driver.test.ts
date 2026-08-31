@@ -31,6 +31,9 @@ import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-work
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import {
   caseId as makeCaseId,
+  eventId as makeEventId,
+  externalRef,
+  idempotencyKeyFor,
   proposeValue,
   provenanceOf,
   runId as makeRunId,
@@ -55,6 +58,9 @@ import {
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import { parseClaimedWork, parseConversationRun } from "@askimate/aas-contracts";
+import type { ClaimedWork } from "@askimate/aas-contracts";
+import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { buildPreview } from "@askimate/aas-preparation";
 
 import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
@@ -130,6 +136,13 @@ const GATED_ENTRY: CatalogueEntry = {
 };
 
 const GATED_BLUEPRINT = "bp-gated-portal";
+
+/** The fields on the gated portal's registration page. */
+const REGISTER_FIELDS = new Set([
+  "account_email",
+  "account_password",
+  "account_password_confirm",
+]);
 
 const CATALOGUE: ApplicationCatalogue = {
   find: (id) =>
@@ -237,6 +250,46 @@ async function confirmInto<K extends ProfileFieldKey>(
   const entry = profile.entries.get(key);
   if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
   await store.save(studentId_, toStoredEntry(key, entry));
+}
+
+/**
+ * The student's approval of the preview, in the log that holds business facts.
+ *
+ * The hash is computed from the SAME blueprint, mapping set and profile the run
+ * uses, because an authorisation whose hash does not match the plan is an
+ * authorisation for something else — and `assess` compares the two before
+ * anything is typed.
+ */
+async function captureAuthorisation(
+  instancePool: pg.Pool,
+  conversation: string,
+  entry: CatalogueEntry,
+): Promise<void> {
+  const cases = new PostgresCaseStore(instancePool);
+  const caseRef = makeCaseId(`case_${conversation.toLowerCase()}`);
+  const existing = await cases.read(caseRef);
+  const usable = checkUsable(entry.mappingSet, entry.blueprint);
+  if (!usable.usable) expect.unreachable("the mapping set should be reviewed");
+  const profile = await new PostgresConfirmedProfileStore(instancePool).load(studentId_, NOW);
+  const preview = buildPreview(
+    entry.blueprint,
+    planFill(entry.blueprint, usable.mappingSet, profile),
+    new Map(),
+  );
+  if (!preview.built) expect.unreachable(`preview refused: ${preview.refusal.kind}`);
+  await cases.append(caseRef, existing.length, [
+    {
+      eventId: makeEventId(`evt_${caseRef}_auth`),
+      caseId: caseRef,
+      sequence: existing.length + 1,
+      occurredAt: NOW,
+      actor: { kind: "student", externalRef: externalRef(`student:${studentId_}`) },
+      type: "AuthorisationCaptured",
+      contentHash: preview.preview.contentHash,
+      hashAlgorithm: "sha256",
+      authorisedAt: NOW,
+    },
+  ]);
 }
 
 /** The six answers the gated run needs before it can ask for a password. */
@@ -1885,4 +1938,360 @@ describeIfDatabase("leasing browser work to a runner", () => {
       await instance.pool.end();
     }
   }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// H. P9 — page progress, from the intent ledger (ADR-0047)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("which page a multi-page run does next", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00080";
+  let runId = "";
+
+  /**
+   * A run standing at `execute`, with everything before it done.
+   *
+   * Through the real path as far as it goes: the interview is answered, the
+   * secure step opened and settled, the account's creation recorded in the
+   * ledger, and the student's authorisation appended to the case log. What is
+   * NOT faked is the thing under test — which page comes next — because that is
+   * derived from the ledger by the code these tests are about.
+   */
+  async function aRunReadyToFill(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"e".repeat(32)}`,
+        },
+      });
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("create_account");
+
+      // The account, recorded the way `reportWork` records it.
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "everything before the fill is done").toBe("execute");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  /** Records a page's `advance_portal_page` intent, exactly as `reportWork` does. */
+  async function recordPage(
+    page: string,
+    outcome: "succeeded" | "failed_cleanly" | null,
+  ): Promise<void> {
+    const instance = buildInstance(connectionString());
+    try {
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({
+        runId: runRef,
+        action: "advance_portal_page",
+        target: page,
+      });
+      if ((await runs.findIntent(runRef, key)) === null) {
+        await runs.recordIntent(runRef, {
+          idempotencyKey: key,
+          action: "advance_portal_page",
+          target: page,
+          startedAt: NOW,
+        });
+      }
+      // `null` leaves it OPEN — the uncertain case, which is what an intent
+      // with a start and no completion means (ADR-0008).
+      if (outcome !== null) await runs.completeIntent(runRef, key, outcome, NOW);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function claim(): Promise<ClaimedWork | null> {
+    const instance = buildInstance(connectionString());
+    try {
+      return await instance.driver.claimWork({ holder: "runner-pages", leaseSeconds: 120 });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("offers the FIRST page, and names it on the lease", async () => {
+    await aRunReadyToFill();
+    await pool.query("DELETE FROM work_leases");
+
+    const work = await claim();
+    if (work === null) expect.unreachable("a run at `execute` has a page to fill");
+    expect(work.formUrl).toBe("https://gated.portal.test/apply");
+    expect(
+      work.plan?.instructions.map((instruction) => instruction.fieldRef),
+      "only that page's fields",
+    ).toEqual(["given_name", "family_name", "dob", "nationality"]);
+
+    // The lease names the page, so the report keys the right intent (ADR-0047).
+    const leases = await pool.query<{ page_ref: string | null; kind: string }>(
+      "SELECT page_ref, kind FROM work_leases WHERE run_id = $1",
+      [runId],
+    );
+    expect(leases.rows[0]).toEqual({ page_ref: "page-application", kind: "execute" });
+  }, 300_000);
+
+  it("offers the SECOND page once the first is recorded, and never the first again", async () => {
+    await pool.query("DELETE FROM work_leases");
+    await recordPage("page-application", "succeeded");
+
+    const work = await claim();
+    if (work === null) expect.unreachable("page two is still to do");
+    expect(work.formUrl).toBe("https://gated.portal.test/study");
+    expect(work.plan?.instructions.map((instruction) => instruction.fieldRef)).toEqual([
+      "personal_statement",
+    ]);
+    const leases = await pool.query<{ page_ref: string | null }>(
+      "SELECT page_ref FROM work_leases WHERE run_id = $1",
+      [runId],
+    );
+    expect(leases.rows[0]?.page_ref).toBe("page-study");
+  }, 300_000);
+
+  it("offers NOTHING once every page is recorded, and the run is filled", async () => {
+    await pool.query("DELETE FROM work_leases");
+    await recordPage("page-study", "succeeded");
+
+    expect(await claim(), "no page remains").toBeNull();
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "filled, and waiting on the one thing out of scope").toBe(
+        "ready_to_submit",
+      );
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("offers a CLEANLY FAILED page again — nothing happened out there", async () => {
+    // `failed_cleanly` is a claim that the portal took nothing. Retrying is the
+    // right answer, and it is a different answer from the uncertain case below.
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly' WHERE run_id = $1 AND target = 'page-study'",
+      [runId],
+    );
+    // The checkpoint is a cache of position, and this test has just moved the
+    // ledger BACKWARDS — something no production path does. In a real run the
+    // checkpoint still says `filling` when a page fails, because it was written
+    // when the run reached `execute` and a report does not move it. Reset here
+    // so the candidate query sees what it would really see.
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"filling\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    const work = await claim();
+    if (work === null) expect.unreachable("a cleanly failed page is offered again");
+    expect(work.formUrl).toBe("https://gated.portal.test/study");
+  }, 300_000);
+
+  it("does NOT call a run filled when no page was ever saved", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after a deliberate regression was NOT detected. `markFilled`
+    // must mean "a page was actually saved", not "no page remains" — and those
+    // differ for a blueprint whose only mapped fields are on the registration
+    // page, which the Secure Plane and account creation complete between them.
+    //
+    // Without the distinction such a run reports `ready_to_submit` having typed
+    // nothing into the application, and the student is told their application
+    // is ready to send.
+    // ═══════════════════════════════════════════════════════════════════
+    const noFillablePage = "01JBXQ8Z9WKTQ6M4H2NPC00081";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      noFillablePage,
+      studentId_,
+    ]);
+    const registrationOnly: ApplicationCatalogue = {
+      find: (id) =>
+        Promise.resolve(
+          id !== GATED_BLUEPRINT
+            ? null
+            : {
+                ...GATED_ENTRY,
+                blueprint: {
+                  ...GATED_PORTAL_BLUEPRINT,
+                  // Only the registration page survives. Its `account_email` is
+                  // mapped, so the plan has an instruction — and it is on a
+                  // page the fill never touches.
+                  pages: GATED_PORTAL_BLUEPRINT.pages.filter(
+                    (page) => page.pageRef === "page-register",
+                  ),
+                },
+                // Trimmed to match. `checkUsable` refuses a mapping set that
+                // targets fields the blueprint does not have — correctly, and
+                // it refused the first version of this test, which is the
+                // mapping layer doing its job.
+                mappingSet: {
+                  ...GATED_PORTAL_MAPPING_SET,
+                  mappings: GATED_PORTAL_MAPPING_SET.mappings.filter((mapping) =>
+                    REGISTER_FIELDS.has(mapping.fieldRef),
+                  ),
+                },
+              },
+        ),
+    };
+
+    const trimmed = await registrationOnly.find(GATED_BLUEPRINT);
+    if (trimmed === null) expect.unreachable("the trimmed entry should be found");
+
+    const instance = buildInstance(connectionString(), opener(), registrationOnly);
+    try {
+      const started = await instance.driver.start({
+        conversationId: noFillablePage,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+
+      // Everything before the fill, so that `markFilled` is the only thing left
+      // deciding whether this run is ready. Without that, the run stops at
+      // `authorise` and the property under test is never reached — which is
+      // exactly why the first version of this test passed either way.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: noFillablePage,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"f".repeat(32)}`,
+        },
+      });
+      const runRef = makeRunId(started.position.runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const key = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: started.position.runId,
+      });
+      await runs.recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "create_portal_account",
+        target: started.position.runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await captureAuthorisation(instance.pool, noFillablePage, trimmed);
+
+      const advanced = await instance.driver.advance({
+        runId: started.position.runId,
+        conversationId: noFillablePage,
+      });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(
+        advanced.position.step,
+        "no page was ever saved, so nothing is ready to submit",
+      ).not.toBe("ready_to_submit");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("STOPS the run when a page's save may or may not have landed", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The property this phase turns on. An intent with a start and no
+    // completion means the page may be saved on a real portal. Offering it
+    // again would re-type a student's answers and press save a second time;
+    // skipping past it would act on a portal state nobody knows.
+    //
+    // `assessIntent` has no "retry it" branch, and this is what that absence
+    // buys: the run stops, visibly, for a specialist.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target = 'page-study'",
+      [runId],
+    );
+    // The checkpoint is a cache of position, and this test has just moved the
+    // ledger BACKWARDS — something no production path does. In a real run the
+    // checkpoint still says `filling` when a page fails, because it was written
+    // when the run reached `execute` and a report does not move it. Reset here
+    // so the candidate query sees what it would really see.
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"filling\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    expect(await claim(), "an unfinished page is not work").toBeNull();
+    const leases = await pool.query("SELECT 1 FROM work_leases");
+    expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
+  }, 300_000);
+
+  it("stops the run for an EARLIER page's uncertainty, not just the next one", async () => {
+    // Pages are ordered and a later one is often unreachable until an earlier
+    // one is saved. Skipping past an uncertain page one to fill page two would
+    // be acting on a portal state nobody knows — so the whole run stops.
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = 'succeeded', completed_at = $2 WHERE run_id = $1 AND target = 'page-study'",
+      [runId, NOW],
+    );
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target = 'page-application'",
+      [runId],
+    );
+    // The checkpoint is a cache of position, and this test has just moved the
+    // ledger BACKWARDS — something no production path does. In a real run the
+    // checkpoint still says `filling` when a page fails, because it was written
+    // when the run reached `execute` and a report does not move it. Reset here
+    // so the candidate query sees what it would really see.
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"filling\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    expect(await claim(), "an earlier page's uncertainty stops everything").toBeNull();
+
+    // And the run has NOT quietly become filled on the strength of page two.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step).not.toBe("ready_to_submit");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
 });

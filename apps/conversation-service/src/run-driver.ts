@@ -77,7 +77,7 @@ import type {
 } from "@askimate/aas-domain";
 import { newInterview } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
-import { checkUsable, toStoredPlan } from "@askimate/aas-mapping";
+import { checkUsable, planFill, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
@@ -737,7 +737,11 @@ export class RunDriver {
     // form was filled a second ago is offered to a runner again — which would
     // re-type a student's answers into a page they are already on, and press
     // save a second time.
-    const state: RunState = await this.#markFilledIfDone(authorised, input.record.runId);
+    const state: RunState = await this.#markFilledIfDone(
+      authorised,
+      input.record.runId,
+      input.entry,
+    );
 
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
@@ -783,16 +787,71 @@ export class RunDriver {
    * in what a HUMAN should do about them; they are identical in what this
    * coordinator may do, which is nothing.
    */
-  async #actionMayBeUnfinished(runId: RunId, kind: WorkKind): Promise<boolean> {
+  async #actionMayBeUnfinished(runId: RunId, kind: WorkKind, entry: CatalogueEntry): Promise<boolean> {
+    // A fill has one intent PER PAGE (ADR-0047), and an unfinished one anywhere
+    // stops the whole run — not just that page. Pages are ordered and a later
+    // one is often unreachable until an earlier one is saved, so skipping past
+    // a page whose save may or may not have landed would be acting on a portal
+    // state nobody knows.
+    const targets =
+      kind === "execute" ? entry.blueprint.pages.map((page) => page.pageRef) : [runId as string];
+    for (const target of targets) {
+      const verdict = await this.#verdictFor(runId, ACTION_FOR_WORK[kind], target);
+      if (verdict.kind === "verify_first" || verdict.kind === "escalate") return true;
+    }
+    return false;
+  }
+
+  /** What the ledger says about one consequential action on one target. */
+  async #verdictFor(
+    runId: RunId,
+    action: ConsequentialAction,
+    target: string,
+  ): Promise<ReturnType<typeof assessIntent>> {
     const found = await this.#options.stores.runs.findIntent(
       runId,
-      idempotencyKeyFor({ runId, action: ACTION_FOR_WORK[kind], target: runId }),
+      idempotencyKeyFor({ runId, action, target }),
     );
-    const verdict = assessIntent({
+    return assessIntent({
       ...(found?.intent === undefined ? {} : { intent: found.intent }),
       ...(found?.completed === undefined ? {} : { completed: found.completed }),
     });
-    return verdict.kind === "verify_first" || verdict.kind === "escalate";
+  }
+
+  /**
+   * The page this run should fill next, or `null` because none remains.
+   *
+   * ADR-0047. The first page in BLUEPRINT order that has fields to fill, has no
+   * credential field, and has no successful `advance_portal_page` intent.
+   *
+   * One derivation, used twice: `claimWork` asks it what to hand out, and
+   * `#markFilledIfDone` asks it whether anything is left. A counter would be a
+   * second answer to the same question, able to disagree with the ledger.
+   */
+  async #nextPage(
+    runId: RunId,
+    entry: CatalogueEntry,
+    plan: FillPlan,
+  ): Promise<ApplicationBlueprint["pages"][number] | null> {
+    const wanted = new Set(plan.instructions.map((instruction) => instruction.fieldRef));
+    const credentialFields = new Set(plan.credentials.map((credential) => credential.fieldRef));
+
+    for (const page of entry.blueprint.pages) {
+      const fields = page.sections.flatMap((section) => section.fields);
+      // A page with a credential field is a registration page: the Secure Plane
+      // filled the password and account creation submitted it, so it is done
+      // before `execute` is ever reached and is not the fill's to do.
+      if (fields.some((field) => credentialFields.has(field.fieldRef))) continue;
+      if (!fields.some((field) => wanted.has(field.fieldRef))) continue;
+
+      const verdict = await this.#verdictFor(runId, "advance_portal_page", page.pageRef);
+      // `failed_cleanly` is a claim that nothing happened out there, so the page
+      // is offered again. `already_done` + `succeeded` is skipped. The unfinished
+      // verdicts never reach here — `#actionMayBeUnfinished` stopped the run.
+      if (verdict.kind === "already_done" && verdict.outcome === "succeeded") continue;
+      return page;
+    }
+    return null;
   }
 
   /**
@@ -848,17 +907,32 @@ export class RunDriver {
    * action that may or may not have landed is not one to build on, and
    * `claimWork` refuses to re-offer it for the same reason.
    */
-  async #markFilledIfDone(state: RunState, runId: RunId): Promise<RunState> {
-    const found = await this.#options.stores.runs.findIntent(
-      runId,
-      idempotencyKeyFor({ runId, action: "advance_portal_page", target: runId }),
+  async #markFilledIfDone(
+    state: RunState,
+    runId: RunId,
+    entry: CatalogueEntry,
+  ): Promise<RunState> {
+    // Filled means EVERY page is saved, which is the same question `#nextPage`
+    // answers with `null`. Asked of the plan the run actually has, so a plan
+    // that grew a page — a corrected answer that made another field mappable —
+    // un-fills the run rather than leaving it claiming to be done.
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    if (!usable.usable) return state;
+    const plan = planFill(entry.blueprint, usable.mappingSet, state.profile);
+    if ((await this.#nextPage(runId, entry, plan)) !== null) return state;
+
+    // Nothing left to fill — but "nothing left" is also true of a run that
+    // never had a fillable page. `markFilled` only means something once at
+    // least one page has actually been saved.
+    const saved = await Promise.all(
+      entry.blueprint.pages.map(async (page) =>
+        this.#verdictFor(runId, "advance_portal_page", page.pageRef),
+      ),
     );
-    const verdict = assessIntent({
-      ...(found?.intent === undefined ? {} : { intent: found.intent }),
-      ...(found?.completed === undefined ? {} : { completed: found.completed }),
-    });
-    if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") return state;
-    return markFilled(state);
+    const any = saved.some(
+      (verdict) => verdict.kind === "already_done" && verdict.outcome === "succeeded",
+    );
+    return any ? markFilled(state) : state;
   }
 
   async #decideOnce(input: {
@@ -1078,16 +1152,22 @@ export class RunDriver {
       // stays `creating_account` and no runner is offered it, which is what
       // "a specialist looks at the portal and says which it was" means while
       // there is no verification capability to automate it.
-      if (await this.#actionMayBeUnfinished(record.runId, kind)) continue;
+      if (await this.#actionMayBeUnfinished(record.runId, kind, entry)) continue;
       // Both narrowings come from the orchestrator; this file reads their
       // results and never a step's kind.
       const account = accountWorkOf(situation.step);
       const detail = accountDetail(account, situation.account);
       if (detail === null) continue;
 
+      const plan = executePlanOf(situation.step);
       const payload = workPayloadFor(
         entry,
-        { kind, account, plan: executePlanOf(situation.step) },
+        {
+          kind,
+          account,
+          plan,
+          page: plan === null ? null : await this.#nextPage(record.runId, entry, plan),
+        },
         detail.portalHost,
       );
       if (payload === null) continue;
@@ -1100,6 +1180,9 @@ export class RunDriver {
         leaseId,
         kind,
         holder: input.holder,
+        // The lease names the page it holds, so the report keys the right
+        // intent without re-deriving a plan that may have changed (ADR-0047).
+        ...(payload.pageRef === undefined ? {} : { pageRef: payload.pageRef }),
         now,
         leaseSeconds: input.leaseSeconds,
       });
@@ -1167,7 +1250,13 @@ export class RunDriver {
     // and record a second half-action.
     const runId = makeRunId(input.runId);
     const action = ACTION_FOR_WORK[held.kind];
-    const key = idempotencyKeyFor({ runId, action, target: held.runId });
+    // The PAGE for a fill, the run for anything else. One intent per page is
+    // what makes "which pages are done" answerable at all (ADR-0047), and the
+    // page comes from the lease rather than from a re-derived plan — a plan
+    // that changed in between would complete an intent for a page the runner
+    // never touched.
+    const target = held.pageRef ?? held.runId;
+    const key = idempotencyKeyFor({ runId, action, target });
 
     // The intent is written on REPORT rather than on claim, and the difference
     // is what it would mean: an intent written at claim time says "this was
@@ -1179,7 +1268,7 @@ export class RunDriver {
       await this.#options.stores.runs.recordIntent(runId, {
         idempotencyKey: key,
         action,
-        target: held.runId,
+        target,
         startedAt: held.claimedAt,
       });
     }
@@ -1374,11 +1463,14 @@ function workPayloadFor(
     readonly kind: WorkKind;
     readonly account: ReturnType<typeof accountWorkOf>;
     readonly plan: FillPlan | null;
+    /** Which page to hand out, decided from the ledger by `#nextPage`. */
+    readonly page: ApplicationBlueprint["pages"][number] | null;
   },
   fromBlueprint: string,
 ):
   | {
       readonly portalHost: string;
+      readonly pageRef?: string;
       readonly carries: Partial<
         Pick<ClaimedWork, "registration" | "plan" | "formUrl" | "advanceLocator">
       >;
@@ -1415,11 +1507,13 @@ function workPayloadFor(
 
   // ── A unit of fill work is ONE PAGE ───────────────────────────────────
   //
-  // A plan covers the whole application, and an application is paginated: the
-  // gated blueprint's own plan spans the registration page and the form. A
+  // A plan covers the whole application, and an application is paginated. A
   // runner handed all of it would navigate to one page and time out on the
   // other's fields — which is exactly what happened the first time this ran.
-  const page = formPageFor(entry, plan);
+  //
+  // WHICH page is `#nextPage`'s answer, from the intent ledger (ADR-0047), so
+  // a page already saved is never handed out twice.
+  const page = input.page;
   if (page === null) return null;
   const at = atOrigin(page.url ?? "", entry.portalOrigin);
   if (at === null || hostOf(at) !== portalHost) return null;
@@ -1440,47 +1534,13 @@ function workPayloadFor(
 
   return {
     portalHost,
+    pageRef: page.pageRef,
     carries: {
       plan: toWirePlan({ ...transported.plan, instructions }),
       formUrl: at,
       advanceLocator: { strategy: advance.strategy, value: advance.value },
     },
   };
-}
-
-/**
- * The page this unit of fill work is for.
- *
- * ── The rule, and why it is this one ──────────────────────────────────────
- *
- * The first page in blueprint order that has fields to type and NO credential
- * field. A page with a credential field is a registration page: the Secure
- * Plane fills the password there and account creation submits it, so by the
- * time a run reaches `execute` that page is done — including its email, which
- * `createPortalAccount` typed.
- *
- * Blueprint order, not plan order: which page comes first is a fact about the
- * portal that a specialist reviewed, and the plan's instruction order is an
- * artefact of how `planFill` walks fields.
- *
- * ── The limitation, stated ────────────────────────────────────────────────
- *
- * One page per unit of work, and no way yet to advance to the next: a portal
- * with two application pages gets its first one filled and then has nothing
- * more offered, because nothing records which pages are done. The gated
- * blueprint has one, so the journey completes; a two-page portal needs a phase
- * that makes page progress durable, and it should not be faked here.
- */
-function formPageFor(entry: CatalogueEntry, plan: FillPlan): ApplicationBlueprint["pages"][number] | null {
-  const wanted = new Set(plan.instructions.map((instruction) => instruction.fieldRef));
-  const credentialFields = new Set(plan.credentials.map((credential) => credential.fieldRef));
-  return (
-    entry.blueprint.pages.find((page) => {
-      const fields = page.sections.flatMap((section) => section.fields);
-      if (fields.some((field) => credentialFields.has(field.fieldRef))) return false;
-      return fields.some((field) => wanted.has(field.fieldRef));
-    }) ?? null
-  );
 }
 
 /**

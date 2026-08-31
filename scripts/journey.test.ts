@@ -152,6 +152,9 @@ let caseContext: BrowserContext;
 let casePage: Page;
 /** The profile as the interview confirmed it. The preview hashes this one. */
 let journeyProfile: ConfirmedProfile;
+/** Held so a restarted instance can be rebuilt from the same reviewed inputs. */
+let journeyCatalogue: ApplicationCatalogue;
+let journeySecureRequests: ReturnType<typeof httpSecureRequestOpener>;
 
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
   const url = String(input);
@@ -258,12 +261,12 @@ beforeAll(async () => {
     // student opens the portal themselves and AskiMate never holds a password.
     passwordDelivery: "askimate_secure_channel",
   };
-  const catalogue: ApplicationCatalogue = {
+  journeyCatalogue = {
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
   };
 
   const store = new ConversationEventStore(conversationPool);
-  const secureRequests = httpSecureRequestOpener({
+  journeySecureRequests = httpSecureRequestOpener({
     baseUrl: SECURE,
     serviceToken: CONVERSATION_CERT,
     fetch: recordingFetch as unknown as typeof globalThis.fetch,
@@ -274,11 +277,11 @@ beforeAll(async () => {
       runs: new PostgresWorkflowRunStore(conversationPool),
     },
     bindings: new ApplicationBindingStore(conversationPool),
-    catalogue,
+    catalogue: journeyCatalogue,
     model: new DeterministicModelClient(),
     profiles: new PostgresConfirmedProfileStore(conversationPool),
     conversations: store,
-    secureRequests,
+    secureRequests: journeySecureRequests,
     leases: new WorkLeaseStore(conversationPool),
     now: () => new Date(),
   });
@@ -295,7 +298,7 @@ beforeAll(async () => {
       req.header("x-service-cert") === RUNNER_CERT,
     now: () => new Date(),
     runs: driver,
-    secureRequests,
+    secureRequests: journeySecureRequests,
     secureOrigin: SECURE,
   });
   conversationServer = await new Promise<Server>((resolve) => {
@@ -451,6 +454,83 @@ async function typeThePassword(requestId: string): Promise<void> {
 
 /** The student's session cookie, minted by the service's own issuer. */
 let devCookie = "";
+
+/**
+ * Everything a runner needs, rebuilt from nothing but the database and the
+ * portal's address.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A RESTART, not a second call on the same objects. A new pool, a new driver, a
+ * new server on a new port, a new browser context — so a run that resumes on
+ * the right page does so because the intent ledger said which pages were done,
+ * not because something was still in memory.
+ *
+ * The browser context is new too, and it signs in again with the credentials
+ * the portal already has. That is what a real restarted runner would do: the
+ * account exists, and the student's password is gone, so it uses the session
+ * the portal will give it — which is why `credentialsWork` mattering earlier
+ * matters again here.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+async function restartedInstance(): Promise<{
+  readonly intake: ReturnType<typeof httpWorkIntake>;
+  readonly page: Page;
+  readonly close: () => Promise<void>;
+}> {
+  const pool = new pg.Pool({ connectionString: conversationPool.options.connectionString ?? "", max: 4 });
+  const store = new ConversationEventStore(pool);
+  const driver = new RunDriver({
+    stores: {
+      cases: new PostgresCaseStore(pool),
+      runs: new PostgresWorkflowRunStore(pool),
+    },
+    bindings: new ApplicationBindingStore(pool),
+    catalogue: journeyCatalogue,
+    model: new DeterministicModelClient(),
+    profiles: new PostgresConfirmedProfileStore(pool),
+    conversations: store,
+    secureRequests: journeySecureRequests,
+    leases: new WorkLeaseStore(pool),
+    now: () => new Date(),
+  });
+  const app = createConversationApp({
+    store,
+    sessionSecret: SESSION_SECRET,
+    authorise: () => Promise.resolve(true),
+    authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
+    now: () => new Date(),
+    runs: driver,
+    secureRequests: journeySecureRequests,
+    secureOrigin: SECURE,
+  });
+  const port = CONVERSATION_PORT + 20;
+  const server = await new Promise<Server>((resolve) => {
+    const listening = app.listen(port, "127.0.0.1", () => resolve(listening));
+  });
+
+  // A NEW context: the old one's cookie is gone with the process that held it.
+  const context = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
+  const page = await context.newPage();
+  await page.goto(`${portal.baseUrl}/login`);
+  await page.getByLabel("Email address").fill(EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  return {
+    intake: httpWorkIntake({
+      baseUrl: `http://127.0.0.1:${String(port)}`,
+      holder: "runner-restarted",
+      serviceToken: RUNNER_CERT,
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    }),
+    page,
+    close: async () => {
+      await context.close().catch(() => undefined);
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await pool.end();
+    },
+  };
+}
 
 /**
  * The preview the orchestrator would build for this run, for its content hash.
@@ -713,10 +793,104 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(application.givenName).toBe("Niloofar");
     expect(application.familyName).toBe("Hosseini");
     expect(application.nationality).toBe("IR");
-    expect(application.personalStatement).toBe("Because it is the course I want.");
+
+    // PAGE ONE only. The second page has not been filled yet, and the portal
+    // is what says so — a run that had typed everything into one page would
+    // have this populated too.
+    expect(application.personalStatement, "page two is not done yet").toBe("");
+
+    // And the ledger records that page, by name (ADR-0047).
+    const intents = await conversationPool.query<{ target: string; outcome: string | null }>(
+      "SELECT target, outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page'",
+      [runId],
+    );
+    expect(intents.rows).toEqual([{ target: "page-application", outcome: "succeeded" }]);
 
     // Still nothing submitted. Filling is not submitting (ADR-0014).
     expect(portal.submissions()).toEqual([]);
+  }, 300_000);
+
+  it("RESUMES on the second page after a restart, and does not re-do the first", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The whole point of ADR-0047. Everything in memory is thrown away — a new
+    // driver, a new pool, a new browser context — and the run picks up on page
+    // two because the intent ledger says page one is saved.
+    //
+    // A run that had lost that would either re-type page one (pressing "Save
+    // and continue" a second time on a real portal) or stall entirely.
+    // ═══════════════════════════════════════════════════════════════════
+    const restarted = await restartedInstance();
+    try {
+      const claimed = await restarted.intake.claim();
+      if (claimed === null) expect.unreachable("page two is still to do");
+      expect(claimed.kind).toBe("execute");
+      expect(claimed.formUrl, "the SECOND page").toBe(`${portal.baseUrl}/study`);
+      expect(
+        claimed.plan?.instructions.map((instruction) => instruction.fieldRef),
+        "and only the fields on it",
+      ).toEqual(["personal_statement"]);
+
+      const outcome = await fillApplication(claimed, {
+        now: () => new Date(),
+        session: PlaywrightPreparationSession.attach(restarted.page, {
+          capability: "fillable",
+          runId: "run-journey-2",
+          allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
+          clickableControls: [claimed.advanceLocator!],
+        }),
+      });
+      expect(outcome).toEqual({ kind: "succeeded" });
+      expect(
+        await restarted.intake.report(claimed.runId, {
+          leaseId: claimed.leaseId,
+          outcome: "succeeded",
+        }),
+      ).toBe(true);
+
+      // ── Both pages, and page one was NOT filled again ─────────────────
+      const application = portal.application(EMAIL);
+      expect(application?.personalStatement).toBe("Because it is the course I want.");
+      expect(application?.givenName, "page one survived untouched").toBe("Niloofar");
+
+      const posts = portal.requests.filter(
+        (entry) => entry.method === "POST" && entry.path === "/apply",
+      );
+      expect(posts, "page one was saved exactly once").toHaveLength(1);
+
+      const intents = await conversationPool.query<{ target: string; outcome: string | null }>(
+        `SELECT target, outcome FROM workflow_action_intents
+          WHERE run_id = $1 AND action = 'advance_portal_page' ORDER BY target`,
+        [runId],
+      );
+      expect(intents.rows).toEqual([
+        { target: "page-application", outcome: "succeeded" },
+        { target: "page-study", outcome: "succeeded" },
+      ]);
+    } finally {
+      await restarted.close();
+    }
+  }, 300_000);
+
+  it("offers NOTHING once every page is saved, and the run is filled", async () => {
+    const restarted = await restartedInstance();
+    try {
+      expect(await restarted.intake.claim(), "no page remains").toBeNull();
+
+      const advanced = await recordingFetch(
+        `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", cookie: devCookie },
+          body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        },
+      );
+      const run = (await advanced.json()) as { step: string; phase: string };
+      // Filled, and waiting for the one thing that is out of scope.
+      expect(run.step).toBe("ready_to_submit");
+      expect(portal.submissions(), "and it is still not submitted").toEqual([]);
+    } finally {
+      await restarted.close();
+    }
   }, 300_000);
 
   it("does NOT create a second account for a student who has one", async () => {

@@ -163,6 +163,29 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
                 { value: "GB", label: "United Kingdom" },
               ],
             },
+          ],
+        },
+      ],
+      requiredDocuments: [],
+      advanceControl: { strategy: "role", value: "button:Save and continue" },
+      nextPageRef: "page-study",
+    },
+    {
+      // ── The second application page ────────────────────────────────────
+      //
+      // Real applications are paginated, and this fixture is paginated because
+      // of it: page one being SAVED is what makes page two reachable, so a run
+      // that lost track of which pages it had done would either stall on an
+      // unreachable page or re-save one it had already saved. ADR-0047 is the
+      // mechanism that stops both, and this page is what exercises it.
+      pageRef: "page-study",
+      title: "Your course",
+      url: `${GATED_PORTAL_ORIGIN}/study`,
+      sections: [
+        {
+          sectionRef: "sec-study",
+          title: "Your course",
+          fields: [
             {
               fieldRef: "personal_statement",
               label: "Why do you want to study this course?",
@@ -182,7 +205,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
   ],
   handoffPoints: [],
   submission: {
-    pageRef: "page-application",
+    pageRef: "page-study",
     // Recorded so the run KNOWS what it must not press. ADR-0014: discovery
     // cannot submit, and neither can preparation — `FillableSession` has no
     // `submit`, and this entry is what a guard checks a click against.
@@ -192,7 +215,11 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
   provenance: {
     discoveryRunId: "run-gated-1",
     discoveredAt: DISCOVERED_AT,
-    observedUrls: [`${GATED_PORTAL_ORIGIN}/register`, `${GATED_PORTAL_ORIGIN}/apply`],
+    observedUrls: [
+      `${GATED_PORTAL_ORIGIN}/register`,
+      `${GATED_PORTAL_ORIGIN}/apply`,
+      `${GATED_PORTAL_ORIGIN}/study`,
+    ],
     reviewedBy: "specialist-a",
     reviewedAt: REVIEWED_AT,
     unobservedClaims: [],

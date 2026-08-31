@@ -189,12 +189,33 @@ describe("the application form remembers, and the review page shows it", () => {
         family_name: "Hosseini",
         date_of_birth: "02/04/1999",
         nationality: "IR",
-        personal_statement: "Because the course is the one I want.",
       },
       signedIn,
     );
     expect(accepted.status).toBe(302);
-    expect(accepted.headers.get("location")).toBe("/review");
+    // ── The portal is PAGINATED ──────────────────────────────────────────
+    //
+    // Page one goes to page two, not to the review. That is what makes it a
+    // fixture for a real application: page one being saved is what makes page
+    // two reachable, and a runner that lost track of which pages it had done
+    // would either stall or re-save one it had already saved.
+    expect(accepted.headers.get("location")).toBe("/study");
+
+    // The review is not reachable until page two is saved either.
+    const early = await fetch(`${portal.baseUrl}/review`, {
+      headers: { cookie: signedIn },
+      redirect: "manual",
+    });
+    expect(early.status).toBe(302);
+    expect(early.headers.get("location")).toBe("/study");
+
+    const secondPage = await form(
+      "/study",
+      { personal_statement: "Because the course is the one I want." },
+      signedIn,
+    );
+    expect(secondPage.status).toBe(302);
+    expect(secondPage.headers.get("location")).toBe("/review");
 
     const review = await fetch(`${portal.baseUrl}/review`, { headers: { cookie: signedIn } });
     const body = await review.text();
@@ -203,6 +224,27 @@ describe("the application form remembers, and the review page shows it", () => {
     expect(body).not.toContain(PASSWORD);
 
     expect(portal.application(EMAIL)?.familyName).toBe("Hosseini");
+    // Page one's answers survived page two being saved, which is what a
+    // paginated portal has to do and what a resuming runner depends on.
+    expect(portal.application(EMAIL)?.personalStatement).toBe(
+      "Because the course is the one I want.",
+    );
+  });
+
+  it("will not show page two until page one is saved", async () => {
+    const stranger = sessionFrom(
+      await form("/register", {
+        email: "second@example.test",
+        password: PASSWORD,
+        password_confirm: PASSWORD,
+      }),
+    );
+    const early = await fetch(`${portal.baseUrl}/study`, {
+      headers: { cookie: stranger },
+      redirect: "manual",
+    });
+    expect(early.status).toBe(302);
+    expect(early.headers.get("location"), "back to page one").toBe("/apply");
   });
 
   it("records a submission, so that never happening is provable", async () => {

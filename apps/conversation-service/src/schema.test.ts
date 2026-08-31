@@ -97,6 +97,7 @@ beforeAll(async () => {
     "0004_case_blueprint",
     "0005_work_leases",
     "0006_execute_work",
+    "0007_lease_page",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -644,6 +645,51 @@ describeIfDatabase("idempotency and ownership", () => {
 // ADR-0003, for this directory specifically
 // ───────────────────────────────────────────────────────────────────────────
 
+describeIfDatabase("a lease names a page only when it is holding one", () => {
+  // ADR-0047. The lease's `page_ref` answers "which page is this runner
+  // holding", and only a fill holds one — `create_account` is a single form and
+  // the account either exists or does not. An account-creation lease carrying a
+  // page ref would be a claim about a page nobody is on, and the report would
+  // then key an `advance_portal_page` intent for a page nothing ever filled.
+  //
+  // In the CHECK rather than in the handler, for the reason every constraint in
+  // this schema is: application-level rules race, drift, and can be bypassed by
+  // a migration script or a psql session.
+  const run = "run_lease_check_1";
+
+  it("refuses an account-creation lease that names a page", async () => {
+    await expect(
+      pool.query(
+        `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_ref)
+              VALUES ($1, 'wl_x', 'create_account', 'runner', now(), now() + interval '2 minutes', 'page-application')`,
+        [run],
+      ),
+    ).rejects.toThrow(/work_leases_only_fill_names_a_page/);
+  });
+
+  it("accepts a fill lease that names one, and an account lease that does not", async () => {
+    // Both halves, so the constraint is shown to admit what it should as well
+    // as refuse what it should — a rule that refuses everything passes the test
+    // above and is useless.
+    await pool.query(
+      `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_ref)
+            VALUES ($1, 'wl_a', 'execute', 'runner', now(), now() + interval '2 minutes', 'page-application')`,
+      [run],
+    );
+    await pool.query(
+      `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_ref)
+            VALUES ($1, 'wl_b', 'create_account', 'runner', now(), now() + interval '2 minutes', NULL)`,
+      [`${run}_2`],
+    );
+    const rows = await pool.query<{ page_ref: string | null }>(
+      "SELECT page_ref FROM work_leases WHERE run_id IN ($1, $2) ORDER BY run_id",
+      [run, `${run}_2`],
+    );
+    expect(rows.rows.map((row) => row.page_ref)).toEqual(["page-application", null]);
+    await pool.query("DELETE FROM work_leases WHERE run_id IN ($1, $2)", [run, `${run}_2`]);
+  });
+});
+
 describeIfDatabase("migrations are forward-only and applied once", () => {
   it("applies nothing on a second run", async () => {
     const fresh = await ownDatabase("aas_conversation_twice");
@@ -655,6 +701,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0004_case_blueprint",
         "0005_work_leases",
         "0006_execute_work",
+        "0007_lease_page",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -692,6 +739,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0004_case_blueprint",
       "0005_work_leases",
       "0006_execute_work",
+      "0007_lease_page",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

@@ -89,6 +89,7 @@ beforeAll(async () => {
     "0004_case_blueprint",
     "0005_work_leases",
     "0006_execute_work",
+    "0007_lease_page",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

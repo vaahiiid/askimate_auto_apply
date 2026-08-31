@@ -19,6 +19,74 @@ not shipped artefacts.
 
 ---
 
+## [0.27.0] — 2026-08-31
+
+**P9 — durable multi-page execution. ADR-0047: page progress lives in the intent
+ledger, and a lease names the page it holds.**
+
+**Version bump: MINOR.** One ADR, one migration adding one nullable column, a
+second page on the fixture portal and its blueprint, and the page-selection
+logic. No new table, no cursor, no second workflow engine.
+
+### The gap P8 left, closed
+
+`formPageFor` handed out the first fillable page and nothing recorded that it
+was done — so a two-page application got its first page filled and then had
+nothing more offered, while the run reported itself `filling` forever.
+
+`advance_portal_page` now gets **one intent per page**. Nothing new is stored:
+`idempotencyKeyFor` already takes a `target`, documented as *"a host, a field
+ref, a document id"*, and a page ref is exactly that. It was being built with
+the run id in that slot because there had only ever been one page.
+
+### What each verdict means, per page
+
+`assessIntent` already distinguishes the three states this needs, and its
+deliberate absence of a "retry it" branch is what makes uncertainty safe:
+`succeeded` skips the page, `failed_cleanly` offers it again, and an unfinished
+intent **stops the whole run** — not just that page, because pages are ordered
+and a later one is often unreachable until an earlier one is saved.
+
+A run stopped that way is visibly stopped: its position is unchanged and no work
+is offered, which is what "a specialist looks at the portal" means while nothing
+here can verify.
+
+### A lease names the page it holds
+
+`work_leases.page_ref`, nullable, with a CHECK that only a fill may carry one.
+The lease says *this runner is doing page P*; the ledger says *page P was done*.
+They answer different questions, and the lease exists because a report arrives
+with a lease id and nothing else — re-deriving the page at report time would
+complete an intent for a page the runner never touched if the plan had changed.
+
+### `markFilled` means a page was saved
+
+Not "no page remains", which is vacuously true of a run with nothing to fill.
+A blueprint whose only mapped fields are on the registration page would
+otherwise report `ready_to_submit` having typed nothing into the application.
+
+### Proved on a genuinely paginated portal
+
+The fixture portal now has two application pages, and page one being saved is
+what makes page two reachable — so a run that lost track would stall or re-save.
+The journey fills page one, **restarts everything** (a new pool, a new driver, a
+new server, a new browser context signed in again), and resumes on page two;
+page one is saved exactly once, and the portal's own request log is what says so.
+
+### Where submission still is
+
+Nowhere near this. Advancing a page is `advance_portal_page` — consequential,
+because it may create a draft visible to admissions — and the runner's click
+guard admits exactly the one locator the plane sends. The review page has no
+fields and no advance control, so it is never a candidate.
+
+Nine deliberate regressions in
+[`docs/p9-regression-audit.md`](./docs/p9-regression-audit.md), including two
+that were not detected first time: a CHECK constraint nobody tested, and a test
+that stopped at `authorise` long before the property it was about.
+
+---
+
 ## [0.26.0] — 2026-08-31
 
 **P8 — the runner fills the application form. ADR-0046: a fill plan crosses as

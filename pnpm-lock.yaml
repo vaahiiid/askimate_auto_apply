@@ -311,6 +311,9 @@ importers:
         specifier: ^8.20.0
         version: 8.23.0
     devDependencies:
+      '@askimate/aas-preparation':
+        specifier: workspace:*
+        version: link:../../packages/preparation
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6

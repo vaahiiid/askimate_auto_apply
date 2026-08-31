@@ -173,10 +173,27 @@ const APPLY_PAGE = (error: string | null): string =>
     <option value="GB">United Kingdom</option>
   </select>
 
+  <button type="submit" id="continueBtn">Save and continue</button>
+</form>`,
+  );
+
+/**
+ * The SECOND application page.
+ *
+ * Real applications are paginated, and page one being saved is what makes page
+ * two reachable — which is why `/study` redirects back to `/apply` until the
+ * personal details are in. A portal that let you skip to page two would not
+ * exercise the thing this fixture exists to exercise.
+ */
+const STUDY_PAGE = (error: string | null): string =>
+  page(
+    "Your course",
+    `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
+<form method="post" action="/study" id="studyForm">
   <label for="statement">Why do you want to study this course?</label>
   <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
 
-  <button type="submit" id="continueBtn">Save and continue</button>
+  <button type="submit" id="studyContinueBtn">Save and continue</button>
 </form>`,
   );
 
@@ -195,6 +212,11 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <button type="submit" id="submitBtn">Submit application</button>
 </form>`,
   );
+
+/** The one field page two carries. Named so the handler reads as one line. */
+function body2(body: URLSearchParams): string {
+  return body.get("personal_statement") ?? "";
+}
 
 async function readBody(request: IncomingMessage): Promise<URLSearchParams> {
   const chunks: Buffer[] = [];
@@ -316,18 +338,47 @@ export async function startFixturePortal(): Promise<FixturePortal> {
 
       if (method === "POST" && path === "/apply") {
         const body = await readBody(request);
-        const application: PortalApplication = {
-          givenName: body.get("given_name") ?? "",
-          familyName: body.get("family_name") ?? "",
-          dateOfBirth: body.get("date_of_birth") ?? "",
-          nationality: body.get("nationality") ?? "",
-          personalStatement: body.get("personal_statement") ?? "",
-        };
-        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(application.dateOfBirth)) {
+        const dateOfBirth = body.get("date_of_birth") ?? "";
+        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateOfBirth)) {
           send(response, 400, APPLY_PAGE("Enter your date of birth as DD/MM/YYYY."));
           return;
         }
-        applications.set(signedInAs, application);
+        // Page one is KEPT on save, and page two is a separate submission. That
+        // is the whole point of a paginated portal: the student's work survives
+        // between pages, and so must a runner's.
+        applications.set(signedInAs, {
+          givenName: body.get("given_name") ?? "",
+          familyName: body.get("family_name") ?? "",
+          dateOfBirth,
+          nationality: body.get("nationality") ?? "",
+          personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
+        });
+        send(response, 302, "", { location: "/study" });
+        return;
+      }
+
+      if (method === "GET" && path === "/study") {
+        // Page two is unreachable until page one is saved.
+        if (applications.get(signedInAs) === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        send(response, 200, STUDY_PAGE(null));
+        return;
+      }
+
+      if (method === "POST" && path === "/study") {
+        const held = applications.get(signedInAs);
+        if (held === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        const statement = body2(await readBody(request));
+        if (statement.length === 0) {
+          send(response, 400, STUDY_PAGE("Tell us why you want to study this course."));
+          return;
+        }
+        applications.set(signedInAs, { ...held, personalStatement: statement });
         send(response, 302, "", { location: "/review" });
         return;
       }
@@ -336,6 +387,11 @@ export async function startFixturePortal(): Promise<FixturePortal> {
         const application = applications.get(signedInAs);
         if (application === undefined) {
           send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        // The review page is only complete once BOTH pages are saved.
+        if (application.personalStatement.length === 0) {
+          send(response, 302, "", { location: "/study" });
           return;
         }
         send(response, 200, REVIEW_PAGE(application));

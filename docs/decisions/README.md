@@ -68,5 +68,6 @@ ADR status uses exactly that vocabulary:
 | [0044](./0044-the-confirmed-profile-has-its-own-store.md) | The confirmed profile has its own store; the event log stays a record of events | Accepted |
 | [0045](./0045-the-runner-pulls-leased-work.md) | The Automation Runner pulls leased work; nothing calls into it | Accepted |
 | [0046](./0046-a-fill-plan-crosses-as-value-and-provenance.md) | A fill plan crosses to the runner as value and provenance, reassembled through the one mint | Accepted |
+| [0047](./0047-page-progress-lives-in-the-intent-ledger.md) | Page progress lives in the intent ledger; a lease names the page it holds | Accepted |
 
-Forty-one are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+Forty-two are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
