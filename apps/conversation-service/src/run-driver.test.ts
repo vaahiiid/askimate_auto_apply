@@ -1433,6 +1433,97 @@ describeIfDatabase("leasing browser work to a runner", () => {
     }
   }, 60_000);
 
+  it("does NOT ask for the account to be created a second time", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The loop this closes: `state.account` lives in memory, this process holds
+    // none between requests, and `accountStepFor` answers `create_account`
+    // whenever it is absent. Without the intent ledger being read, a run whose
+    // account was created a second ago is told to create it again — on a real
+    // university portal, for a student who already has one.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "the account exists; do not make another").not.toBe(
+        "create_account",
+      );
+      expect(advanced.position.phase).not.toBe("creating_account");
+
+      // And there is no work to claim, because there is nothing left to do in a
+      // browser — which is the same fact, read through the other door.
+      await pool.query("DELETE FROM work_leases");
+      expect(await instance.driver.claimWork({ holder: "runner-again", leaseSeconds: 120 })).toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 180_000);
+
+  it("does NOT offer work again for an action that may already have happened", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after five P7 regressions went undetected, because the journey
+    // only ever walks the happy path.
+    //
+    // `assessIntent` has NO branch that returns "retry it", and that absence is
+    // the safety property. An intent with a `started_at` and no completion means
+    // an account may exist on a real portal; offering the work again would
+    // create a second one for a student who already has one. The verdict is
+    // `verify_first` — look before acting — and nothing here can look yet, so
+    // the run stops, visibly, for a specialist.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM work_leases");
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query(
+      `INSERT INTO workflow_action_intents (run_id, idempotency_key, action, target, started_at)
+            VALUES ($1, $2, 'create_portal_account', $1, $3)`,
+      [runId, `${runId}:create_portal_account:${runId}`, NOW],
+    );
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(
+        await instance.driver.claimWork({ holder: "runner-unfinished", leaseSeconds: 120 }),
+        "an unfinished consequential action is not work",
+      ).toBeNull();
+      const leases = await pool.query("SELECT 1 FROM work_leases");
+      expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
+
+      // The run has not silently acquired an account either — nothing here
+      // knows whether one exists, and pretending otherwise is the other half of
+      // the same mistake.
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step).toBe("create_account");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 180_000);
+
+  it("does NOT treat a cleanly FAILED creation as an account", async () => {
+    // `failed_cleanly` is a claim that nothing happened out there. The run may
+    // try again — but it must not carry on as though an account existed, which
+    // would send it to fill a form it cannot reach.
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly', completed_at = $2 WHERE run_id = $1",
+      [runId, NOW],
+    );
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "a failed creation is not an account").toBe("create_account");
+    } finally {
+      await instance.pool.end();
+    }
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+  }, 180_000);
+
   it("leaves the uncertainty window OPEN when the runner could not tell", async () => {
     // The property `workflow_action_intents` exists for. An intent with a
     // `started_at` and no completion is the recoverable record of "somebody
@@ -1470,6 +1561,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
     } finally {
       await instance.pool.end();
     }
+    // Cleaned up deliberately: this test LEAVES an unfinished consequential
+    // action, and a run in that state is correctly never offered as work again.
+    // Later tests in this file want claimable work, so the state that makes
+    // them meaningful is restored here rather than assumed.
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
   }, 60_000);
 
   it("refuses a SECOND claim on a live lease, in the store itself", async () => {
@@ -1588,6 +1684,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // a long way from the configuration that caused it.
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
@@ -1629,6 +1726,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // have looked at, so the run stops here instead.
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
@@ -1702,6 +1800,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // a poll that finds nothing answers 204 with no body, a poll that finds
     // work answers 200 with a parseable item, and a report answers 204.
     await pool.query("DELETE FROM work_leases");
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],

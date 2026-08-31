@@ -657,6 +657,72 @@ export function withAccount(state: RunState, account: PortalAccount): RunState {
   return { ...state, account };
 }
 
+/**
+ * The account a successful creation produced, reconstructed from durable
+ * evidence rather than carried in memory.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Without this a run loops. `accountStepFor` answers `create_account` whenever
+ * `state.account` is absent, and `state.account` is absent on every request
+ * because nothing rebuilds it — so a run whose account was created a second ago
+ * would be told to create it again, on a real university portal, for a student
+ * who already has one. That is the exact failure `workflow_action_intents` was
+ * built to prevent, and this is what reads it.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Everything here is DERIVED, and that is the point ─────────────────────
+ *
+ * The email comes from the confirmed profile — the same `resolveField` call
+ * `accountStepFor` makes, so the address on the account is the address the run
+ * was told to create it with, by construction rather than by agreement. The
+ * plan comes from `planFor`, the same function that chose the approach in the
+ * first place. Nothing is stored and re-read, so nothing can be stored wrongly.
+ *
+ * ── Which stage, and why it is not "active" unconditionally ───────────────
+ *
+ * A portal that verifies email addresses has emailed the student, and the run
+ * must wait for them — it cannot read their inbox and will never be able to.
+ * So the stage after creation is `awaiting_email_verification` where discovery
+ * observed that requirement and `active` where it did not. That observation is
+ * a reviewed per-portal fact, not a guess.
+ *
+ * Returns `null` when the state cannot support an account — no plan, or no
+ * confirmed email. Both are states `accountStepFor` refuses to `specialist`
+ * from, and answering `null` here keeps that refusal the one that happens.
+ */
+export function accountCreated(
+  state: RunState,
+  input: { readonly accountId: string; readonly now: Date },
+): RunState | null {
+  const plan = planFor(state);
+  // Narrowed on `rejected`, not on `approach`. `planFor` answers a plan or a
+  // `specialist` step, and the step union ALSO has an `approach` — so the
+  // obvious discriminator lets a `create_account` step through where a plan is
+  // wanted. `rejected` — the approaches this one was chosen over — belongs to
+  // the plan alone.
+  if (!("rejected" in plan)) return null;
+
+  const email = resolveField(state.profile, "contact.email");
+  if (isFieldUnavailable(email)) return null;
+
+  const verificationRequired =
+    state.inputs.portalAuthentication?.emailVerificationRequired === true;
+
+  return withAccount(state, {
+    accountId: input.accountId,
+    caseId: state.inputs.caseId,
+    studentRef: state.inputs.studentRef,
+    portalHost: state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl),
+    email,
+    stage: verificationRequired ? "awaiting_email_verification" : "active",
+    authentication: plan,
+    // ADR-0020. AskiMate created it, and it is the student's — which is why
+    // `handover_due` exists and why a case cannot finish before `handed_over`.
+    createdBy: "askimate_on_behalf",
+    createdAt: input.now,
+  });
+}
+
 /** Records the student's authorisation on the run. */
 export function withAuthorisation(state: RunState, record: AuthorisationRecord): RunState {
   return { ...state, authorisation: record, filled: false };

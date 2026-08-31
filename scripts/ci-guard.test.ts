@@ -86,6 +86,11 @@ const DATABASE_BACKED = [
   // is the only source that could say no. Database-backed because the
   // lifecycle, the use ledger and the outbox are all in it.
   "apps/secure-service/src/account-creation-e2e.test.ts",
+  // P7: the whole journey — a student asks, is interviewed, types a password
+  // into the Secure Plane, and a runner creates their account on a real portal.
+  // Four planes, two databases, a real browser and a real portal. Nothing else
+  // in the repository crosses all of them at once.
+  "scripts/journey.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

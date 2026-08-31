@@ -56,6 +56,7 @@ import {
   caseId as makeCaseId,
   courseId as makeCourseId,
   externalRef,
+  assessIntent,
   idempotencyKeyFor,
   institutionId as makeInstitutionId,
   intake as makeIntake,
@@ -67,6 +68,7 @@ import {
 import type {
   CaseId,
   ConsequentialAction,
+  RunId,
   StudentId,
   WorkflowPhase,
   WorkflowRunRecord,
@@ -77,6 +79,7 @@ import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable } from "@askimate/aas-mapping";
 import type { MappingSet } from "@askimate/aas-mapping";
 import {
+  accountCreated,
   beginRun,
   browserWorkFor,
   checkpointAfter,
@@ -680,12 +683,77 @@ export class RunDriver {
     // Plane could not have made — a spent handle coming back to life, a second
     // request replacing a live one. A log that said either of those would be a
     // log this driver declines to act on rather than one it believes.
-    const state: RunState = secret === null ? base : withSecret(base, secret);
+    const withTheSecret: RunState = secret === null ? base : withSecret(base, secret);
+
+    // ── The account, from the durable record that it was created ──────────
+    //
+    // `state.account` lives in memory and this process holds none between
+    // requests. Without rebuilding it here, `accountStepFor` would answer
+    // `create_account` on EVERY request — and a run whose account was created a
+    // second ago would be told to create it again, on a real university portal,
+    // for a student who already has one.
+    //
+    // The evidence is `workflow_action_intents`, which exists for exactly this
+    // (ADR-0008), and `assessIntent` is the one function that reads a verdict
+    // out of it. `already_done` with `succeeded` is the only verdict that
+    // produces an account: `verify_first` and `escalate` both mean somebody has
+    // to go and look, and neither is a thing to assume through.
+    const state: RunState = await this.#withAccountIfCreated(withTheSecret, input, now);
 
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
     return { ok: true, step, now, secret };
+  }
+
+  /**
+   * Applies the account to the state when the durable record says one exists.
+   *
+   * Reads the intent ledger and nothing else. `assessIntent` owns the verdict —
+   * including the deliberate absence of a "retry it" branch, which is what
+   * stops an unverifiable half-creation becoming a second university account.
+   */
+  async #withAccountIfCreated(
+    state: RunState,
+    input: { readonly record: WorkflowRunRecord },
+    now: Date,
+  ): Promise<RunState> {
+    const runId = input.record.runId;
+    const found = await this.#options.stores.runs.findIntent(
+      runId,
+      idempotencyKeyFor({ runId, action: "create_portal_account", target: runId }),
+    );
+    const verdict = assessIntent({
+      ...(found?.intent === undefined ? {} : { intent: found.intent }),
+      ...(found?.completed === undefined ? {} : { completed: found.completed }),
+    });
+    if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") return state;
+
+    // Derived from the case, not random — the same reasoning as the run id and
+    // the case id. A random account id regenerated on the next request would
+    // describe a different account from the one the last request described.
+    const created = accountCreated(state, { accountId: `acct_${runId}`, now });
+    return created ?? state;
+  }
+
+  /**
+   * Whether this run has a consequential action that was started and never
+   * finished.
+   *
+   * `true` for both unfinished verdicts. `verify_first` and `escalate` differ
+   * in what a HUMAN should do about them; they are identical in what this
+   * coordinator may do, which is nothing.
+   */
+  async #actionMayBeUnfinished(runId: RunId, kind: WorkKind): Promise<boolean> {
+    const found = await this.#options.stores.runs.findIntent(
+      runId,
+      idempotencyKeyFor({ runId, action: ACTION_FOR_WORK[kind], target: runId }),
+    );
+    const verdict = assessIntent({
+      ...(found?.intent === undefined ? {} : { intent: found.intent }),
+      ...(found?.completed === undefined ? {} : { completed: found.completed }),
+    });
+    return verdict.kind === "verify_first" || verdict.kind === "escalate";
   }
 
   async #decideOnce(input: {
@@ -891,6 +959,21 @@ export class RunDriver {
       // step kinds kept here — see `browserWorkFor`.
       const kind = browserWorkFor(situation.step);
       if (kind === null) continue;
+
+      // ── An action that may already have happened is not work ────────────
+      //
+      // `assessIntent` has no branch that returns "retry it", and that absence
+      // is the safety property: a `create_portal_account` that was started and
+      // never completed may have created an account on a real portal, and
+      // handing it out again would create a second one for a student who
+      // already has one.
+      //
+      // The verdict is `verify_first` — look before acting — and nothing in
+      // this system can look yet. So the run stops here, visibly: its position
+      // stays `creating_account` and no runner is offered it, which is what
+      // "a specialist looks at the portal and says which it was" means while
+      // there is no verification capability to automate it.
+      if (await this.#actionMayBeUnfinished(record.runId, kind)) continue;
       const detail = accountWorkFrom(situation.step);
       if (detail === null) continue;
 

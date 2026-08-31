@@ -8,6 +8,7 @@
 export type { RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
 export {
   IllegalSecretTransitionError,
+  accountCreated,
   assess,
   beginRun,
   browserWorkFor,

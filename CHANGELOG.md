@@ -19,6 +19,85 @@ not shipped artefacts.
 
 ---
 
+## [0.25.0] — 2026-08-31
+
+**P7 — the first real end-to-end execution journey. A student asks, and ends up
+with a portal account they own, created by a browser they never see, with a
+password nobody in this system has ever read.**
+
+**Version bump: MINOR.** One orchestrator function, one guard in the claim path,
+one whole-system journey suite. A latent defect fixed. No trust boundary moved.
+
+### The journey, with nothing simulated
+
+`scripts/journey.test.ts` runs two real PostgreSQL databases (one per plane), the
+real Conversation Service, the real Secure Service including the student's own
+submit endpoint, the real fill agent over real HTTP, a real Chromium reached over
+real CDP, the real gated portal, and the real runner intake loop.
+
+It lives in `scripts/` for a boundary reason rather than a stylistic one: it
+needs the Conversation Plane's model client AND the Secure Plane's vault AND the
+runner's Playwright, and no app may depend on all three — `apps/secure-service`
+is forbidden `@askimate/aas-llm`, `apps/conversation-service` is forbidden
+`@askimate/aas-secrets`. Those rules are the architecture; a harness that ships
+nothing is the right home for the one thing that has to see across them.
+
+The password crosses exactly one wire — the student's own submission — and
+appears in no log line. The portal is asked, at the end, whether anything was
+submitted. It was not (ADR-0014).
+
+### The account survives the report
+
+`accountCreated` reconstructs the account from `workflow_action_intents`, the
+durable record that the creation happened. Without it a run loops:
+`accountStepFor` answers `create_account` whenever `state.account` is absent, and
+it is absent on every request because nothing rebuilt it — so a run whose account
+was created a second ago would be told to create it again, on a real portal, for
+a student who already has one.
+
+Everything on the account is derived. The email is the same `resolveField` call
+that chose it; the plan is the same `planFor`. Nothing is stored and re-read, so
+nothing can be stored wrongly. The stage is `awaiting_email_verification` where
+discovery observed that requirement and `active` where it did not — a reviewed
+per-portal fact, not a guess, because this system has no mailbox capability and
+never will.
+
+### Fixed — an unfinished creation was being re-offered as work
+
+Found by a deliberate regression, and it was a genuine defect rather than a gap.
+`#withAccountIfCreated` ignored every verdict but `already_done`, so a run whose
+`create_portal_account` intent had been **started and never completed** fell
+through to `create_account` and was handed to a runner again. An account may
+already exist on a real portal in that state.
+
+`claimWork` now refuses work for a run with an unfinished consequential action.
+`assessIntent` has no "retry it" branch and that absence is the safety property;
+the verdict is `verify_first`, nothing here can look yet, so the run stops
+visibly for a specialist.
+
+### What an end-to-end journey does not prove
+
+On the first run, **five of six regressions aimed at this phase went
+undetected**. They changed behaviour only in states the journey never reaches —
+it walks the happy path. The journey was kept as the proof that four planes, two
+databases, a real browser and a real portal actually compose; the properties
+moved to where they can be varied: `account-created.test.ts` in the orchestrator
+and the intent-verdict tests in the run driver.
+
+An end-to-end test proves the pieces fit. It is not where the pieces are checked.
+[`docs/p7-regression-audit.md`](./docs/p7-regression-audit.md) records all six,
+including the one that is **not** claimed as tested and why.
+
+### Where this stops
+
+At the account. Filling the form is the orchestrator's `execute` step, and
+`WORK_KINDS` still does not carry it — a `FillPlan`'s instructions hold
+`ConfirmedValue`s, mintable only inside `packages/profile`, which the runner may
+not depend on (ADR-0004, ADR-0045). Submission is further still and out of scope
+by ADR-0014.
+
+---
+
 ## [0.24.0] — 2026-08-31
 
 **P6 — an account is really created on a portal, with a password nobody in this
