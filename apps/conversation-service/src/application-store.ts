@@ -66,6 +66,15 @@ export interface ConversationCase {
   readonly blueprintId: string | null;
 }
 
+/**
+ * The advisory-lock namespace this module owns.
+ *
+ * Advisory locks are a single global keyspace shared by everything connected to
+ * the database, so a bare `hashtext(id)` would be a name anyone could collide
+ * with. The two-argument form gives it a namespace; this is ours.
+ */
+const CONVERSATION_LOCK_NAMESPACE = 0x4141_5301;
+
 export class ApplicationBindingStore {
   readonly #pool: Pool;
 
@@ -112,6 +121,69 @@ export class ApplicationBindingStore {
    * row lock held for as long as a decision takes, and the decision is pure and
    * needs no lock.
    */
+  /**
+   * Runs `task` while holding this conversation's ADVISORY lock.
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * "Ask the student for a password" is a critical section, and the run's
+   * checkpoint is not what guards it. Two callers advancing the SAME
+   * conversation can both hold a valid revision — the second loads the record
+   * after the first has already checkpointed, so the optimistic lock never
+   * fires — and then both read a log with no live request in it and both ask.
+   * The student watches one secure box be replaced by another, and whichever
+   * they typed into settles a request the run is no longer watching.
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * ── Why advisory, and not `SELECT … FOR UPDATE` like `withBinding` ───────
+   *
+   * Because the task APPENDS to the log, and appending updates
+   * `conversations.last_ordinal` on a different connection. Holding the
+   * conversation's row lock across that call deadlocks against the caller's own
+   * append — not a lock wait that resolves, but one that never can, because the
+   * transaction holding the row is waiting for the append that is waiting for
+   * the row. This was written the obvious way first and hung exactly there.
+   *
+   * An advisory lock is a lock on a NAME. It excludes other holders of the same
+   * name and nothing else, so the append proceeds while it is held.
+   *
+   * ── What it does and does not promise ───────────────────────────────────
+   *
+   * Mutual exclusion between processes asking the same question, not atomicity:
+   * the task calls another service over HTTP, which cannot be inside a
+   * transaction. A process killed mid-task leaves the lock (the session ends,
+   * so PostgreSQL releases it) and possibly an opened request whose event was
+   * never appended — which expires within ADR-0034's five minutes.
+   */
+  public async withConversationLock<T>(
+    conversationId: string,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const client = await this.#pool.connect();
+    try {
+      // Two-argument form. The first is a namespace this application owns, so a
+      // conversation id that happened to hash to the same number as some other
+      // subsystem's advisory key cannot collide with it.
+      await client.query("SELECT pg_advisory_lock($1, hashtext($2))", [
+        CONVERSATION_LOCK_NAMESPACE,
+        conversationId,
+      ]);
+      try {
+        return await task();
+      } finally {
+        await client
+          .query("SELECT pg_advisory_unlock($1, hashtext($2))", [
+            CONVERSATION_LOCK_NAMESPACE,
+            conversationId,
+          ])
+          // Released with the session anyway. Swallowed so a failure to unlock
+          // cannot mask the task's own error.
+          .catch(() => undefined);
+      }
+    } finally {
+      client.release();
+    }
+  }
+
   public async withBinding<T>(
     input: {
       readonly conversationId: string;

@@ -19,6 +19,82 @@ not shipped artefacts.
 
 ---
 
+## [0.22.0] — 2026-08-31
+
+**P4 — the first production caller of the Secure Interaction Service.
+`POST /internal/v1/secret-requests` has existed and been tested since the secure
+plane was built and had nobody calling it. The Conversation Service now does.**
+
+**Version bump: MINOR.** A new port and its HTTP client, two refusal kinds, one
+orchestrator predicate, one concurrency primitive, and a latent race fixed. No
+trust boundary moved, no new plaintext path, and nothing that returns a value.
+
+### The Conversation Service opens the secure step
+
+When `nextStep` answers `request_secret`, the Run Driver asks the Secure
+Interaction Service to open a request and appends the authoritative
+`secret_requested` event to the conversation's own log. That is the whole of the
+change from the student's point of view: the first code path by which anybody is
+actually asked for a password.
+
+What crosses is metadata — identifiers, a purpose and a target host, both taken
+from the case and the blueprint rather than from model output, so a
+prompt-injected model can ask for *a* password but not for whose or for which
+portal — plus the title and explanation shown inside the frame. What comes back
+is an id, an expiry and a one-time frame token; the title and explanation are
+**not** returned, so this plane holds no text a model wrote about a password and
+its schema needs no exception. A test scans every row of `conversation_events`
+for the word rather than checking a type.
+
+`parseOpened` rebuilds the response field by field instead of casting it, so a
+service that answered with a value-shaped field has nowhere to put it, and
+`check-boundaries` now fails the build if that rebuild is replaced by a cast.
+
+### One port for both halves of the secure step
+
+`createConversationApp` takes a `SecureRequestOpener`, and both the driver's
+`open` and the bootstrap endpoint's `mintFrameToken` go through it. Wired
+separately they could name different services, and a deployment that opened
+against one and minted against the other would answer `not_found` for every
+bootstrap — a misconfiguration indistinguishable, from a support ticket, from an
+expiry.
+
+### `requiresSecureRequest` — the orchestrator says which steps have effects
+
+The Run Driver may not branch on a step's kind; that rule is what keeps one
+implementation of the decision. But it does have to know which steps need
+something outside the process. So the orchestrator answers that too, as a type
+predicate, and the driver obeys it — a list of step kinds kept in the driver
+would go silently out of date the first time another step gained an effect.
+
+### Fixed — two concurrent starts could ask the student twice
+
+Two callers advancing the same conversation can both hold a valid run revision,
+because the second loads the record after the first has already checkpointed and
+nothing conflicts. Both then read a log with no live request in it and both ask.
+The student would watch one secure box be replaced by another, and whichever
+they typed into would settle a request the run was no longer watching.
+
+The read → open → append sequence is now serialised per conversation with an
+advisory lock. Deliberately advisory: `SELECT … FOR UPDATE` on the conversation
+row deadlocks, because appending an event updates `conversations.last_ordinal`
+on a different connection, so the transaction holding the row waits for the
+append that is waiting for the row.
+
+### Fixed — the loser of a checkpoint race got a 500
+
+Latent since P1 and exposed by the extra log read this phase adds: two racing
+starts leave `withBinding` holding a record at the same revision and both write a
+checkpoint against it, and the loser's `RunConcurrencyError` reached the student.
+It now does what the error's own message says — re-loads and decides again,
+bounded at three attempts.
+
+Nine deliberate regressions are recorded in
+[`docs/p4-regression-audit.md`](./docs/p4-regression-audit.md), including the one
+that was recorded as *not detected* until the racing test was made deterministic.
+
+---
+
 ## [0.21.0] — 2026-08-31
 
 **Two blockers resolved, both by decision rather than by working around them:

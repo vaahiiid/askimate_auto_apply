@@ -60,7 +60,12 @@ import type {
   SecretRequest,
   SecretRequestId,
 } from "@askimate/aas-secrets";
-import { canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
+import {
+  canTransition,
+  isSecretHandle,
+  isSecretRequestId,
+  isTerminalLifecycle,
+} from "@askimate/aas-secrets";
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
 import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
@@ -684,6 +689,34 @@ export class IllegalSecretTransitionError extends Error {
 }
 
 /**
+ * Whether this step requires the Secure Interaction Service to be asked to open
+ * a request before the caller may report it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A NARROWING, not a decision. `nextStep` already decided what happens next;
+ * this answers the separate question a coordinator has to ask about that
+ * decision — *does carrying it out require something outside this process?*
+ *
+ * It lives here rather than in the Conversation Service because the answer is
+ * a property of the step vocabulary, and the step vocabulary is this package's.
+ * A driver that wrote `step.kind === "request_secret"` itself would be keeping
+ * its own list of which steps have external effects, and that list would be
+ * wrong the first time a new step got one — silently, by omission, which is the
+ * failure mode `scripts/check-boundaries.ts` bans `step.kind ===` in a driver
+ * to prevent.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Exactly one step qualifies today. That it is one and not zero is the whole
+ * reason the predicate exists; that it is one and not several is a fact about
+ * this moment, not a simplification.
+ */
+export function requiresSecureRequest(
+  step: RunStep,
+): step is Extract<RunStep, { kind: "request_secret" }> {
+  return step.kind === "request_secret";
+}
+
+/**
  * Records where the student's password has got to. The only sanctioned writer
  * of `RunState.secret`.
  *
@@ -728,12 +761,43 @@ export class IllegalSecretTransitionError extends Error {
 export function withSecret(
   state: RunState,
   secret: {
-    readonly requestId: SecretRequestId;
+    /**
+     * `sr_` plus 32 hex. Taken as a plain string and validated here.
+     *
+     * ── Why the parameter is not the branded type ──────────────────────────
+     *
+     * The caller is the Conversation Service's Run Driver, reading lifecycle
+     * events out of its own durable log — and that plane may not depend on
+     * `@askimate/aas-secrets` at all (`scripts/check-boundaries.ts` forbids the
+     * dependency AND any source file naming it, because that package holds the
+     * only plaintext in the system).
+     *
+     * So the brand is applied HERE, at the boundary, by the package that
+     * already depends on secrets — the same pattern as `caseId()` and
+     * `runId()`. A malformed id is refused rather than branded, so the brand
+     * still means what it says.
+     */
+    readonly requestId: string;
     readonly lifecycle: SecretLifecycle;
-    /** Opaque. Resolves to nothing outside the vault. */
-    readonly handle?: SecretHandle;
+    /** Opaque. `sh_` plus 32 hex. Resolves to nothing outside the vault. */
+    readonly handle?: string;
   },
 ): RunState {
+  if (!isSecretRequestId(secret.requestId)) {
+    throw new IllegalSecretTransitionError(
+      state.secret?.lifecycle ?? "none",
+      secret.lifecycle,
+      `"${secret.requestId.slice(0, 3)}…" is not a secret request id. The brand asserts this came ` +
+        `from the secure plane; a string that cannot have does not get it.`,
+    );
+  }
+  if (secret.handle !== undefined && !isSecretHandle(secret.handle)) {
+    throw new IllegalSecretTransitionError(
+      state.secret?.lifecycle ?? "none",
+      secret.lifecycle,
+      `A handle must be "sh_" and 32 hex characters. Anything else did not come from the vault.`,
+    );
+  }
   const current = state.secret;
 
   if (current !== undefined && current.requestId !== secret.requestId) {
@@ -772,6 +836,9 @@ export function withSecret(
   return {
     ...state,
     secret: {
+      // Already narrowed by the guards above: `isSecretRequestId` and
+      // `isSecretHandle` are type predicates, so no cast is needed — and a cast
+      // here would be one that survived their removal.
       requestId: secret.requestId,
       lifecycle: secret.lifecycle,
       ...(secret.handle === undefined ? {} : { handle: secret.handle }),

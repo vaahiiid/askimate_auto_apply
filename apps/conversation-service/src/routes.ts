@@ -375,6 +375,19 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               // cannot be made.
               problem(res, "forbidden");
               return;
+            case "purpose_not_supported":
+              // A specialist's problem: the orchestrator and the published
+              // contract disagree about what a password may be asked for. The
+              // student can do nothing with that, so it is not their 400.
+              problem(res, "service_unavailable");
+              return;
+            case "secure_plane_unavailable":
+              // The run needs a secure step and this deployment has no route to
+              // one. Refused rather than skipped: a run that carried on past a
+              // password it could not ask for would create an account it could
+              // not sign in to.
+              problem(res, "service_unavailable");
+              return;
             case "unusable_mapping_set":
               // A specialist's problem, not the student's, and the detail names
               // fields of a university's form — so it stays out of the body.

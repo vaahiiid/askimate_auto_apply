@@ -34,8 +34,13 @@ import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS, SECRET_LIFECYCLES } from "@as
 import { WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
 import type { RunStep } from "@askimate/aas-orchestrator";
 import { phaseFor } from "@askimate/aas-orchestrator";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { load } from "js-yaml";
+
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
-import { SECRET_LIFECYCLE, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
+import { SECRET_LIFECYCLE, SECRET_PURPOSES, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
 import type { SecretLifecycle } from "@askimate/aas-secrets";
 
 describe("the wire vocabulary and the domain do not drift", () => {
@@ -117,18 +122,56 @@ describe("the run's wire words and the domain's do not drift", () => {
 // ADR-0043 — the credential purposes, written twice for the same reason
 // ───────────────────────────────────────────────────────────────────────────
 
-describe("the credential purposes do not drift", () => {
-  it("names the same purposes as the secret request contract, in both directions", () => {
+describe("the credential purposes, and a drift between three closed sets", () => {
+  /** The published contract's own enum, read from the document. */
+  function contractPurposes(): readonly string[] {
+    const spec = load(
+      readFileSync(
+        join(import.meta.dirname, "..", "packages", "contracts", "openapi", "secure.v1.yaml"),
+        "utf8",
+      ),
+    ) as { components: { schemas: Record<string, { properties: Record<string, { enum: string[] }> }> } };
+    return spec.components.schemas["OpenSecretRequest"]!.properties["purpose"]!.enum;
+  }
+
+  it("keeps CREDENTIAL_PURPOSES equal to the published contract's enum", () => {
     // `packages/mapping` must not depend on `@askimate/aas-secrets` — that
-    // package holds the only plaintext in the system, and a mapping set has no
-    // business being able to reach it. So the two words are written twice, and
-    // this is what makes writing them twice safe.
+    // package holds the only plaintext in the system — so ADR-0043's list is
+    // written twice. This is what makes writing it twice safe, and it compares
+    // against the DOCUMENT rather than against a literal: the first version of
+    // this test asserted the two words inline, which would have passed while
+    // the contract said something else entirely.
+    expect([...CREDENTIAL_PURPOSES].sort()).toEqual([...contractPurposes()].sort());
+  });
+
+  it("RECORDS the drift between the domain and the contract, rather than hiding it", () => {
+    // ── A real finding, found by wiring the two together ─────────────────
     //
-    // The secure plane's own list lives in its OpenAPI enum and in
-    // `SecretPurpose`; both are these two words.
-    expect([...CREDENTIAL_PURPOSES].sort()).toEqual([
+    //   domain   (`SecretPurpose`)          portal_account_creation | portal_sign_in
+    //   contract (`OpenSecretRequest`)      portal_account_creation | portal_password_reset
+    //
+    // They share ONE member and differ on the other. Nothing reachable is
+    // broken: `secretRequestFor` only ever asks for `portal_account_creation`,
+    // which both accept, and the Run Driver refuses anything the contract does
+    // not name (`purpose_not_supported`) rather than casting into it.
+    //
+    // This test exists so the divergence is a recorded fact with an owner
+    // rather than a surprise. Adding a member to either side without deciding
+    // about the other fails HERE, which is where the decision belongs.
+    const domain = [...SECRET_PURPOSES].sort();
+    const contract = [...contractPurposes()].sort();
+
+    expect(domain, "the domain's purposes changed — decide about the contract").toEqual([
+      "portal_account_creation",
+      "portal_sign_in",
+    ]);
+    expect(contract, "the contract's purposes changed — decide about the domain").toEqual([
       "portal_account_creation",
       "portal_password_reset",
     ]);
+
+    // The one they agree on is the only one a run can currently reach.
+    const shared = domain.filter((purpose) => contract.includes(purpose));
+    expect(shared).toEqual(["portal_account_creation"]);
   });
 });

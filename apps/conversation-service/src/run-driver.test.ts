@@ -62,6 +62,7 @@ import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
 import { RunDriver } from "./run-driver.js";
+import type { SecureRequestInput, SecureRequestOpener } from "./secure-requests.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { issueSession } from "./session.js";
 
@@ -150,12 +151,16 @@ function cookieFor(subject: string): string {
  * Written as a factory precisely so the restart test can call it twice. An
  * instance that reused an object from the first would not be a restart.
  */
-function buildInstance(connectionString: string): {
+function buildInstance(
+  connectionString: string,
+  secureRequests: SecureRequestOpener | null = null,
+): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
   readonly app: ReturnType<typeof createConversationApp>;
 } {
   const instancePool = new pg.Pool({ connectionString, max: 8 });
+  const store = new ConversationEventStore(instancePool);
   const driver = new RunDriver({
     stores: {
       cases: new PostgresCaseStore(instancePool),
@@ -167,10 +172,12 @@ function buildInstance(connectionString: string): {
     // ADR-0044: the profile comes from the database, so a new instance resumes
     // an interview where the last one left it.
     profiles: new PostgresConfirmedProfileStore(instancePool),
+    conversations: store,
+    ...(secureRequests === null ? {} : { secureRequests }),
     now: () => NOW,
   });
   const app = createConversationApp({
-    store: new ConversationEventStore(instancePool),
+    store,
     sessionSecret: SECRET,
     authorise: async (subject, conversation) => {
       const owned = await instancePool.query(
@@ -181,6 +188,11 @@ function buildInstance(connectionString: string): {
     },
     now: () => NOW,
     runs: driver,
+    // P4: one client for the secure plane. The driver opens requests through
+    // it and the bootstrap endpoint mints frame tokens through it, so a test
+    // cannot accidentally prove the wiring against two different services.
+    ...(secureRequests === null ? {} : { secureRequests }),
+    secureOrigin: "https://secure.test",
   });
   return { pool: instancePool, driver, app };
 }
@@ -189,6 +201,86 @@ function connectionString(): string {
   const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${DATABASE}`;
   return url.toString();
+}
+
+/**
+ * Confirms one field the way the interview does, and stores it.
+ *
+ * At module scope because two groups need it: E proves the profile survives a
+ * restart, and F needs a run that has got PAST the interview before it can
+ * reach the secure step at all.
+ */
+async function confirmInto<K extends ProfileFieldKey>(
+  store: PostgresConfirmedProfileStore,
+  key: K,
+  value: ProfileFieldType<K>,
+  verbatim: string,
+): Promise<void> {
+  const result = applyConfirmation({
+    key,
+    proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
+    confirmation: {
+      studentRef: studentId(studentId_),
+      presentedText: "Is that right?",
+      response: { kind: "accepted" },
+      respondedAt: NOW,
+    },
+  });
+  if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
+  const profile = confirmField(emptyProfile(studentId(studentId_), NOW), result, NOW);
+  const entry = profile.entries.get(key);
+  if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
+  await store.save(studentId_, toStoredEntry(key, entry));
+}
+
+/** The six answers the gated run needs before it can ask for a password. */
+async function confirmTheInterview(store: PostgresConfirmedProfileStore): Promise<void> {
+  await confirmInto(store, "identity.given_name", "Niloofar", "Niloofar");
+  await confirmInto(store, "identity.family_name", "Hosseini", "Hosseini");
+  await confirmInto(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
+  await confirmInto(store, "identity.nationality", "Iranian", "Iranian");
+  await confirmInto(store, "contact.email", "niloofar@example.test", "niloofar@example.test");
+  await confirmInto(store, "study.personal_statement", "Because it is the course I want.", "…");
+}
+
+/**
+ * A stand-in Secure Interaction Service that records what it was asked.
+ *
+ * At module scope because EVERY run against the gated portal now needs one: a
+ * run that reaches `request_secret` with no way to ask refuses rather than
+ * carrying on, which is the point of the P4 refusal and is asserted below.
+ */
+function opener(delayMs = 0): SecureRequestOpener & {
+  readonly opens: SecureRequestInput[];
+  readonly tokens: string[];
+} {
+  const opens: SecureRequestInput[] = [];
+  const tokens: string[] = [];
+  let n = 0;
+  return {
+    opens,
+    tokens,
+    open: async (input) => {
+      // `opens` is recorded on ENTRY, and the answer is delayed on request.
+      // The delay is what makes the racing test deterministic: it holds the
+      // winner inside `open` long enough that a second caller would certainly
+      // have read the log — and found no request in it — before the winner's
+      // event was appended. Without it the race resolves by luck and the test
+      // passes whether or not the ordering below is right.
+      opens.push(input);
+      n += 1;
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return {
+        requestId: `sr_${String(n).padStart(32, "0")}`,
+        expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
+        frameToken: `ft_${String(n)}`,
+      };
+    },
+    mintFrameToken: (requestId) => {
+      tokens.push(requestId);
+      return Promise.resolve(`ft_fresh_${requestId}`);
+    },
+  };
 }
 
 beforeAll(async () => {
@@ -733,30 +825,6 @@ describeIfDatabase("a run survives the process that started it", () => {
 describeIfDatabase("the confirmed profile is reconstructed from its own store", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00050";
 
-  /** Confirms one field the way the interview does, and stores it. */
-  async function confirm<K extends ProfileFieldKey>(
-    store: PostgresConfirmedProfileStore,
-    key: K,
-    value: ProfileFieldType<K>,
-    verbatim: string,
-  ): Promise<void> {
-    const result = applyConfirmation({
-      key,
-      proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
-      confirmation: {
-        studentRef: studentId(studentId_),
-        presentedText: "Is that right?",
-        response: { kind: "accepted" },
-        respondedAt: NOW,
-      },
-    });
-    if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
-    const profile = confirmField(emptyProfile(studentId(studentId_), NOW), result, NOW);
-    const entry = profile.entries.get(key);
-    if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
-    await store.save(studentId_, toStoredEntry(key, entry));
-  }
-
   it("moves a run OFF interviewing once every answer is stored", async () => {
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       conversation,
@@ -764,7 +832,7 @@ describeIfDatabase("the confirmed profile is reconstructed from its own store", 
     ]);
 
     // ── Instance one: start the run, and answer the interview ───────────
-    const first = buildInstance(connectionString());
+    const first = buildInstance(connectionString(), opener());
     let before: string;
     try {
       const started = await first.driver.start({
@@ -777,19 +845,13 @@ describeIfDatabase("the confirmed profile is reconstructed from its own store", 
       expect(started.position.phase).toBe("interviewing");
       before = started.position.runId;
 
-      const store = new PostgresConfirmedProfileStore(first.pool);
-      await confirm(store, "identity.given_name", "Niloofar", "Niloofar");
-      await confirm(store, "identity.family_name", "Hosseini", "Hosseini");
-      await confirm(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
-      await confirm(store, "identity.nationality", "Iranian", "Iranian");
-      await confirm(store, "contact.email", "niloofar@example.test", "niloofar@example.test");
-      await confirm(store, "study.personal_statement", "Because it is the course I want.", "…");
+      await confirmTheInterview(new PostgresConfirmedProfileStore(first.pool));
     } finally {
       await first.pool.end();
     }
 
     // ── Instance two: nothing carried over but the database ─────────────
-    const second = buildInstance(connectionString());
+    const second = buildInstance(connectionString(), opener());
     try {
       const resumed = await second.driver.advance({ runId: before, conversationId: conversation });
       if (!resumed.ok) expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
@@ -867,4 +929,278 @@ describeIfDatabase("the confirmed profile is reconstructed from its own store", 
       await instance.pool.end();
     }
   }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// F. P4 — the Conversation Service opens the secure step
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("opening a secure step, and recording it authoritatively", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00060";
+
+  /** Drives a run to the point where it wants a password. */
+  async function toTheSecureStep(
+    secure: SecureRequestOpener,
+  ): Promise<{ runId: string }> {
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      return { runId: started.position.runId };
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("asks the Secure Plane, and appends the authoritative event", async () => {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    // The profile the gated run needs, stored the way the interview stores it.
+    const seeding = buildInstance(connectionString());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(seeding.pool));
+    } finally {
+      await seeding.pool.end();
+    }
+
+    const secure = opener();
+    await toTheSecureStep(secure);
+
+    // ── What crossed to the Secure Plane ───────────────────────────────
+    expect(secure.opens).toHaveLength(1);
+    const asked = secure.opens[0];
+    if (asked === undefined) expect.unreachable("a request should have been opened");
+    expect(asked.conversationId).toBe(conversation);
+    expect(asked.studentRef).toBe(studentId_);
+    // From the case and the blueprint, never from model output.
+    expect(asked.purpose).toBe("portal_account_creation");
+    expect(asked.targetHost).toBe("gated.portal.test");
+    expect(asked.ttlSeconds).toBeLessThanOrEqual(300);
+
+    // ── What the conversation log now holds ────────────────────────────
+    const events = await pool.query<{ kind: string; request_id: string | null }>(
+      `SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal`,
+      [conversation],
+    );
+    expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+    // The id in the log is the one the Secure Plane minted, not one this plane
+    // invented: a request the secure service has never heard of would settle
+    // nothing, and the composer would stay locked forever.
+    expect(events.rows[0]?.request_id).toBe(`sr_${"0".repeat(31)}1`);
+  }, 120_000);
+
+  it("mints the frame capability through the SAME port that opened the request", async () => {
+    // The endpoint has existed since the cross-origin phase with no production
+    // wiring behind it. This is that wiring, exercised over real HTTP: the page
+    // asks its own origin, its own origin asks the secure plane, and the
+    // capability comes back in a body rather than in a URL.
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    const port = PORT + 3;
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      const requestId = `sr_${"0".repeat(31)}1`;
+      const response = await fetch(
+        `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/${requestId}/bootstrap`,
+        { headers: { cookie: cookieFor(studentId_) } },
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as Record<string, unknown>;
+
+      // It came from the opener, not from anywhere in this plane.
+      expect(secure.tokens).toEqual([requestId]);
+      expect(body["frameToken"]).toBe(`ft_fresh_${requestId}`);
+      expect(body["secureOrigin"]).toBe("https://secure.test");
+
+      // A capability in a cache outlives the page that asked for it.
+      expect(response.headers.get("cache-control")).toBe("no-store");
+
+      // And nothing resembling a secret came back with it.
+      expect(Object.keys(body).sort()).toEqual([
+        "expiresAt",
+        "frameToken",
+        "requestId",
+        "secureOrigin",
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("refuses a bootstrap for a request that is NOT open in this conversation", async () => {
+    // Without this check a student could ask for a bootstrap into someone
+    // else's secure step simply by naming its id.
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    const port = PORT + 4;
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/sr_${"c".repeat(32)}/bootstrap`,
+        { headers: { cookie: cookieFor(studentId_) } },
+      );
+      expect(response.status).toBe(404);
+      // The secure plane was never even asked. The conversation's own log is
+      // the authority on which request belongs to it.
+      expect(secure.tokens).toEqual([]);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("puts NO text about a password in the conversation's durable log", async () => {
+    // The contract stores the title and explanation on the secure origin and
+    // does not return them, so this plane has nothing to hold. Asserted against
+    // the database rather than against the shape of a type.
+    const bodies = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n
+         FROM conversation_events e
+         LEFT JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND mb.content IS NOT NULL`,
+      [conversation],
+    );
+    expect(Number(bodies.rows[0]!.n)).toBe(0);
+
+    // And a scan of the rows themselves, not just of the bodies table. The
+    // title this plane composed ("Choose a password for …") and the model's
+    // explanation both crossed to the secure service; neither may be here.
+    const rows = await pool.query<{ row: string }>(
+      "SELECT e::text AS row FROM conversation_events e WHERE e.conversation_id = $1",
+      [conversation],
+    );
+    expect(rows.rows).not.toHaveLength(0);
+    for (const { row } of rows.rows) {
+      expect(row.toLowerCase(), "no text about a password may reach this log").not.toContain(
+        "password",
+      );
+    }
+  }, 60_000);
+
+  it("does NOT open a second request while the first is live", async () => {
+    // `secretStepFor` refuses to ask twice, and `latestSecretRequest` is how the
+    // driver knows. Asking again would replace a box the student may be typing
+    // into — the failure the orchestrator's own comment names.
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      const again = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("request_secret");
+      expect(secure.opens, "a live request must not be re-opened").toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+
+    const events = await pool.query<{ kind: string }>(
+      `SELECT kind FROM conversation_events WHERE conversation_id = $1`,
+      [conversation],
+    );
+    expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+  }, 120_000);
+
+  it("opens ONE request when two starts race for the same conversation", async () => {
+    // The checkpoint is the run's optimistic lock, and the secure request is
+    // opened after it is won — so the same lock that stops two cases being
+    // created stops two password prompts being opened. Without that order both
+    // racers read a log with no live request and both ask.
+    const racing = "01JBXQ8Z9WKTQ6M4H2NPC00063";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      racing,
+      studentId_,
+    ]);
+    const shared = opener(150);
+    const a = buildInstance(connectionString(), shared);
+    const b = buildInstance(connectionString(), shared);
+    try {
+      const [first, second] = await Promise.all([
+        a.driver.start({
+          conversationId: racing,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        }),
+        b.driver.start({
+          conversationId: racing,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        }),
+      ]);
+      expect(first.ok && second.ok, "both starts should succeed").toBe(true);
+      expect(shared.opens, "a student must be asked for a password once").toHaveLength(1);
+
+      const events = await pool.query<{ kind: string }>(
+        "SELECT kind FROM conversation_events WHERE conversation_id = $1",
+        [racing],
+      );
+      expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+    } finally {
+      await a.pool.end();
+      await b.pool.end();
+    }
+  }, 120_000);
+
+  it("REFUSES rather than skipping when the plane is unreachable", async () => {
+    // A run that carried on past a password it could not ask for would create an
+    // account nobody can sign in to.
+    const other = "01JBXQ8Z9WKTQ6M4H2NPC00061";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      other,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), null);
+    try {
+      const outcome = await instance.driver.start({
+        conversationId: other,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "secure_plane_unavailable" } });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("REFUSES when the Secure Plane cannot open the request", async () => {
+    const refusing: SecureRequestOpener = {
+      open: () => Promise.resolve(null),
+      mintFrameToken: () => Promise.resolve(null),
+    };
+    const another = "01JBXQ8Z9WKTQ6M4H2NPC00062";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      another,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), refusing);
+    try {
+      const outcome = await instance.driver.start({
+        conversationId: another,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "secure_plane_unavailable" } });
+      // And nothing was written to the log for a request that does not exist.
+      const events = await pool.query(
+        "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+        [another],
+      );
+      expect(events.rowCount).toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
 });

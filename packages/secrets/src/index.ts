@@ -74,3 +74,5 @@ export {
 // The production key provider is exported from its own entry point so that
 // importing `@askimate/aas-secrets` does not pull the AWS SDK into a bundle
 // that will never call it.
+
+export { SECRET_PURPOSES } from "./handle.js";

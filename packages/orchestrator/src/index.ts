@@ -13,6 +13,7 @@ export {
   markFilled,
   nextStep,
   requiredFieldsFor,
+  requiresSecureRequest,
   withAccount,
   withAuthorisation,
   withProfile,

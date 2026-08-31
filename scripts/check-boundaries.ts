@@ -654,6 +654,14 @@ function main(): void {
           `would be a second implementation of a decision that already has one pure home.`,
       );
     }
+    if (!code.includes("requiresSecureRequest(")) {
+      violations.push(
+        `${DRIVER} does not call requiresSecureRequest(). A step that needs the Secure ` +
+          `Interaction Service opened is recognised by the orchestrator's own predicate, never ` +
+          `by a list of step kinds kept here — a list here would go silently out of date the ` +
+          `first time another step gained an external effect.`,
+      );
+    }
     if (!code.includes("nextStep(")) {
       violations.push(
         `${DRIVER} does not call nextStep(). The whole point of the Run Driver is that the ` +
@@ -664,6 +672,54 @@ function main(): void {
     checked += 1;
   }
   console.log(`  ✓  the Run Driver — calls nextStep, decides nothing itself`);
+
+  // ── P4: the conversation plane's client for the secure plane ───────────
+  //
+  // This is the only file in the conversation plane that talks to the service
+  // that holds passwords, so it is the only place the old architecture could
+  // come back. Two ways it could:
+  //
+  //   * by READING a value out of a response. `SecretUseResult` and
+  //     `OpenedSecretRequest` both forbid one, and `parseOpened` rebuilds the
+  //     answer field by field so a service that sent one has nowhere to put it.
+  //     A cast would undo that in a single line.
+  //   * by calling the STUDENT-FACING submission endpoint. `/v1/secret-requests
+  //     /{id}/secret` is the one route in this system that carries a plaintext
+  //     password, and it is same-origin from inside the frame by design. A
+  //     server-to-server call to it from here would mean this plane had a value
+  //     to send.
+  const SECURE_CLIENT = "apps/conversation-service/src/secure-requests.ts";
+  if (existsSync(SECURE_CLIENT)) {
+    const source = readFileSync(SECURE_CLIENT, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+
+    for (const forbidden of [
+      'record["value"]',
+      'record["secret"]',
+      'record["password"]',
+      'record["plaintext"]',
+      "as OpenedSecureRequest",
+      "/secret`",
+      '/secret"',
+    ]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${SECURE_CLIENT} contains \`${forbidden}\`. This plane opens requests and mints frame ` +
+          `capabilities; it neither sends a password nor reads one back. A value crossing here ` +
+          `is the architecture ADR-0037 and ADR-0042 were written to prevent.`,
+      );
+    }
+    if (!code.includes("function parseOpened")) {
+      violations.push(
+        `${SECURE_CLIENT} no longer rebuilds the response with parseOpened. Rebuilding field by ` +
+          `field is what gives a value-shaped field nowhere to land; a cast trusts the wire.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the secure-plane client — opens and mints, carries no value`);
 
   // ── The fill agent holds plaintext, and must leak nothing while it does ─
   //

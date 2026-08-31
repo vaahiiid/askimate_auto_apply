@@ -77,14 +77,20 @@ import {
   checkpointAfter,
   nextStep,
   requiredFieldsFor,
+  requiresSecureRequest,
   resumeRun,
   startRun,
   withCheckpoint,
+  withSecret,
 } from "@askimate/aas-orchestrator";
 import type { DurableStores, ResumeConcern, RunState, RunStep } from "@askimate/aas-orchestrator";
 import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
+import { latestSecretRequest } from "@askimate/aas-conversation";
+
 import type { ApplicationBindingStore } from "./application-store.js";
+import type { ConversationEventStore } from "./event-store.js";
+import type { SecureRequestOpener } from "./secure-requests.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -160,6 +166,24 @@ export interface ApplicationCatalogue {
 
 /** Why a start could not proceed. Outcomes, not exceptions. */
 export type RunRefusal =
+  /** The run needs a secure step and this deployment has no route to one. */
+  | { readonly kind: "secure_plane_unavailable" }
+  /**
+   * The orchestrator asked for a purpose the Secure Plane's contract does not
+   * accept.
+   *
+   * A latent drift, found by wiring the two together: `SecretPurpose` in
+   * `@askimate/aas-secrets` is `portal_account_creation | portal_sign_in`, and
+   * `OpenSecretRequest.purpose` in `secure.v1.yaml` is `portal_account_creation
+   * | portal_password_reset`. They share one member and differ on the other.
+   *
+   * Nothing reachable is broken — `secretRequestFor` only ever asks for
+   * `portal_account_creation`, which both accept. This refusal is what keeps it
+   * that way: a purpose the published contract does not name is refused here
+   * rather than cast into it, so a future change to either closed set fails
+   * loudly instead of opening a request the secure service will reject.
+   */
+  | { readonly kind: "purpose_not_supported" }
   | { readonly kind: "unknown_blueprint" }
   | { readonly kind: "unusable_mapping_set"; readonly detail: string }
   | { readonly kind: "unknown_conversation" }
@@ -191,6 +215,21 @@ export type RunOutcome =
   | { readonly ok: true; readonly position: RunPosition }
   | { readonly ok: false; readonly refusal: RunRefusal };
 
+/**
+ * Whether a secret lifecycle is finished with.
+ *
+ * A settled step is one the student can no longer answer, so the run may ask
+ * again. `secret_requested` and `secret_received` are both LIVE: the first is a
+ * box on screen, and the second is a handle the automation has not spent yet.
+ */
+function isSettled(lifecycle: string): boolean {
+  return (
+    lifecycle === "secret_consumed" ||
+    lifecycle === "secret_expired" ||
+    lifecycle === "secret_cancelled"
+  );
+}
+
 /** What the critical section hands back: a run, and whether it already existed. */
 interface StartedRun {
   readonly record: WorkflowRunRecord;
@@ -215,6 +254,20 @@ export interface RunDriverOptions {
    * interview where it left off rather than at the beginning.
    */
   readonly profiles: ConfirmedProfileStore;
+  /**
+   * The conversation's own durable log. ADR-0031.
+   *
+   * The driver reads it for one thing and writes it for one thing: where the
+   * last secure step got to, and that a new one has been opened. It is not a
+   * second home for run state — the checkpoint and the case log already have
+   * that between them.
+   */
+  readonly conversations: ConversationEventStore;
+  /**
+   * How a secure step is opened. Absent in a deployment that carries no Secure
+   * Plane, and a run that needs one is then refused rather than skipped.
+   */
+  readonly secureRequests?: SecureRequestOpener;
   readonly now: () => Date;
   /** Ids, injected so a test can make a run's identity predictable. */
   readonly newCaseId?: (conversationId: string) => string;
@@ -426,7 +479,56 @@ export class RunDriver {
 
   // ── The one place `nextStep` is called ────────────────────────────────
 
+  /**
+   * Decides, and re-decides if another process got there first.
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * `withBinding` serialises bind → open case → start run, and then releases.
+   * Two callers that raced to start the SAME conversation therefore both leave
+   * the critical section holding a record at the same revision, and both go on
+   * to write a checkpoint against it. One wins; `saveCheckpoint` refuses the
+   * other with a `RunConcurrencyError` whose own message says what to do —
+   * *"re-load and decide again"*.
+   *
+   * This is that. The re-decision is not a repeat of the first: it re-reads the
+   * conversation log and the run record, so it sees whatever the winner just
+   * wrote — including a secure request the winner opened, which is what stops
+   * the loser opening a second one.
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * Bounded at three attempts, and it does not sleep between them. One
+   * conversation belongs to one student, so contention here is two clicks or a
+   * double-submitted form, not a queue. A run that genuinely could not be
+   * checkpointed after three re-reads is a fault to surface, not to absorb.
+   */
   async #decide(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly caseId: CaseId;
+    readonly studentRef: StudentId;
+    readonly concerns: readonly ResumeConcern[];
+    readonly resumed: boolean;
+  }): Promise<RunOutcome> {
+    let record = input.record;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.#decideOnce({ ...input, record });
+      } catch (error: unknown) {
+        // By name, not by class: the error is raised in @askimate/aas-case-store
+        // and matching on the constructor would couple this file to that
+        // package's identity across a bundling boundary.
+        if (attempt >= 2 || !(error instanceof Error) || error.name !== "RunConcurrencyError") {
+          throw error;
+        }
+        const fresh = await this.#options.stores.runs.load(input.record.runId);
+        if (fresh === null) throw error;
+        record = fresh;
+      }
+    }
+  }
+
+  async #decideOnce(input: {
     readonly entry: CatalogueEntry;
     readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
     readonly conversationId: string;
@@ -449,7 +551,17 @@ export class RunDriver {
     // re-derived a profile with nothing in it and `planFill` reported the same
     // blockers it had reported the request before.
     const profile = await this.#options.profiles.load(input.studentRef, now);
-    const state: RunState = withCheckpoint(
+    // ── Where the last secure step got to, from the durable log ──────────
+    //
+    // `RunState.secret` is not persisted anywhere of its own, and it does not
+    // need to be: the conversation log already records every lifecycle word the
+    // Secure Plane published, and `latestSecretRequest` is the one reading of it
+    // (ADR-0041). Rebuilding it here is what stops a second call re-opening a
+    // step the student is already looking at.
+    const events = await this.#options.conversations.since(input.conversationId, 0);
+    const secret = latestSecretRequest(events);
+
+    const base: RunState = withCheckpoint(
       beginRun({
         inputs: {
           caseId: input.caseId,
@@ -487,9 +599,42 @@ export class RunDriver {
       input.record,
     );
 
+    // `withSecret` is the sanctioned writer, and it refuses a move the Secure
+    // Plane could not have made — a spent handle coming back to life, a second
+    // request replacing a live one. A log that said either of those would be a
+    // log this driver declines to act on rather than one it believes.
+    const state: RunState = secret === null ? base : withSecret(base, secret);
+
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
+
+    // ── The one place a student is asked for a password ──────────────────
+    //
+    // Only when the orchestrator asks, and only when the log does not already
+    // hold a live request. The driver decides NOTHING about whether to ask —
+    // `secretStepFor` has three refusals of its own and this is downstream of
+    // all of them.
+    //
+    // Under the conversation's row lock, and the log is re-read INSIDE it. The
+    // read above fed `withSecret` and the decision; this one decides whether to
+    // ask, and it has to be the one that cannot be stale. Two callers advancing
+    // the same conversation can both hold a valid run revision — the second
+    // loads the record after the first has checkpointed, so the optimistic lock
+    // never fires — and would otherwise both find an empty log and both ask.
+    if (requiresSecureRequest(step)) {
+      const opened = await this.#options.bindings.withConversationLock(
+        input.conversationId,
+        async (): Promise<RunOutcome | null> => {
+          const live = latestSecretRequest(
+            await this.#options.conversations.since(input.conversationId, 0),
+          );
+          if (live !== null && !isSettled(live.lifecycle)) return null;
+          return await this.#openSecureStep(input, step);
+        },
+      );
+      if (opened !== null) return opened;
+    }
 
     const revision = await checkpointAfter({
       stores: this.#options.stores,
@@ -517,5 +662,70 @@ export class RunDriver {
         concerns: input.concerns,
       },
     };
+  }
+  /**
+   * Opens a secure step and records it in the conversation's own log.
+   *
+   * Returns a refusal when the plane is unreachable, and `null` when the step
+   * was opened — the caller then reports the position `nextStep` already
+   * decided, which is `request_secret` either way.
+   */
+  async #openSecureStep(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly studentRef: StudentId;
+    },
+    step: Extract<RunStep, { kind: "request_secret" }>,
+  ): Promise<RunOutcome | null> {
+    const opener = this.#options.secureRequests;
+    if (opener === undefined) {
+      return { ok: false, refusal: { kind: "secure_plane_unavailable" } };
+    }
+
+    // Narrowed, not cast. See `purpose_not_supported` above for the drift this
+    // guards, and `scripts/contract-drift.test.ts` for the assertion that keeps
+    // both closed sets honest about it.
+    // Compared as a string, deliberately. TypeScript knows the two unions do
+    // not overlap on `portal_sign_in` and would call the check unintentional —
+    // which is exactly the drift being guarded, and a compile error here would
+    // mean deleting the guard rather than fixing the drift.
+    const purpose: string = step.request.purpose;
+    if (purpose !== "portal_account_creation" && purpose !== "portal_password_reset") {
+      return { ok: false, refusal: { kind: "purpose_not_supported" } };
+    }
+
+    const opened = await opener.open({
+      studentRef: input.studentRef,
+      conversationId: input.conversationId,
+      caseRef: input.caseId,
+      purpose,
+      targetHost: step.request.target.host,
+      // Read inside the FRAME, on the secure origin, and stored there. The
+      // contract does not return either of them, so no text about a password
+      // reaches this plane's log.
+      title: `Choose a password for ${input.entry.blueprint.institutionName}`,
+      explanation: step.request.explanation,
+      ttlSeconds: step.request.ttlSeconds,
+    });
+    if (opened === null) {
+      return { ok: false, refusal: { kind: "secure_plane_unavailable" } };
+    }
+
+    // The authoritative event. Four fields, and none of them is text: an id,
+    // the channel, and when it lapses. The frame token is NOT among them — a
+    // one-time capability at rest in a durable log is a capability that
+    // outlives the page it was minted for.
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: {
+        kind: "secret_requested",
+        requestId: opened.requestId,
+        channel: "secure_control",
+        expiresAt: opened.expiresAt,
+      },
+    });
+    return null;
   }
 }

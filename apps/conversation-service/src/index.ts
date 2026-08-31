@@ -75,3 +75,16 @@ export { RunDriver } from "./run-driver.js";
 
 // ── ADR-0044: the confirmed profile has its own store ───────────────────────
 export { PostgresConfirmedProfileStore } from "./profile-store.js";
+
+// ── P4: the client for the Secure Interaction Service ───────────────────────
+//
+// A PORT and one HTTP implementation of it. Note what is not exported and does
+// not exist: anything that returns a secret value. This plane opens requests
+// and mints frame capabilities; the plaintext is the secure plane's alone
+// (ADR-0037, ADR-0042).
+export type {
+  OpenedSecureRequest,
+  SecureRequestInput,
+  SecureRequestOpener,
+} from "./secure-requests.js";
+export { httpSecureRequestOpener } from "./secure-requests.js";

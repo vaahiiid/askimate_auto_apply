@@ -123,6 +123,19 @@ export type SecretPurpose =
   | "portal_sign_in";
 
 /**
+ * The purposes, as a value.
+ *
+ * Exists so `scripts/contract-drift.test.ts` can compare this closed set with
+ * the published contract's enum. They currently DIFFER on one member, and that
+ * test is where the divergence is recorded — adding a member here without
+ * deciding about the contract fails there, which is where the decision belongs.
+ */
+export const SECRET_PURPOSES: readonly SecretPurpose[] = [
+  "portal_account_creation",
+  "portal_sign_in",
+];
+
+/**
  * Where the secret will be typed.
  *
  * Bound at request time and checked at consumption time. A handle minted for

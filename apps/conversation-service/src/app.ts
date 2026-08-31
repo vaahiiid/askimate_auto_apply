@@ -26,6 +26,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 
 import type { ConversationEventStore } from "./event-store.js";
 import { createConversationRoutes, type ConversationRoutesOptions } from "./routes.js";
+import type { SecureRequestOpener } from "./secure-requests.js";
 import { readSession, setSession } from "./session.js";
 
 export interface ConversationAppOptions {
@@ -43,6 +44,25 @@ export interface ConversationAppOptions {
   readonly heartbeatIntervalMs?: number;
   readonly maxStreamMs?: number;
   readonly mintFrameToken?: ConversationRoutesOptions["mintFrameToken"];
+  /**
+   * The one client for the Secure Interaction Service (P4).
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Supplying this is how a deployment gets BOTH halves of the secure step
+   * from one place: the run driver opens the request through it, and the
+   * bootstrap endpoint mints the frame capability through it.
+   *
+   * They are wired together rather than separately because they must name the
+   * same secure service. Two independent wirings can drift — a deployment
+   * that opened requests against one service and minted frame tokens against
+   * another would answer `not_found` for every bootstrap, and the failure
+   * would look like an expiry rather than a misconfiguration.
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * `mintFrameToken` still wins if both are given, so a test can substitute
+   * one half without standing up the other.
+   */
+  readonly secureRequests?: SecureRequestOpener;
   readonly secureOrigin?: string;
   /** Starts and advances application runs (P1). Omit to serve conversations alone. */
   readonly runs?: ConversationRoutesOptions["runs"];
@@ -109,7 +129,17 @@ export function createConversationApp(options: ConversationAppOptions): Express 
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.maxStreamMs === undefined ? {} : { maxStreamMs: options.maxStreamMs }),
-      ...(options.mintFrameToken === undefined ? {} : { mintFrameToken: options.mintFrameToken }),
+      ...(options.mintFrameToken !== undefined
+        ? { mintFrameToken: options.mintFrameToken }
+        : options.secureRequests === undefined
+          ? {}
+          : {
+              mintFrameToken: (requestId: string): Promise<string | null> =>
+                // Bound at call time, never cached: a capability held here
+                // between requests would be a capability at rest in the one
+                // plane ADR-0037 keeps free of them.
+                (options.secureRequests as SecureRequestOpener).mintFrameToken(requestId),
+            }),
       ...(options.secureOrigin === undefined ? {} : { secureOrigin: options.secureOrigin }),
       ...(options.runs === undefined ? {} : { runs: options.runs }),
     }),
