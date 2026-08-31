@@ -597,7 +597,7 @@ components:
       additionalProperties: false
       required:
         [handle, studentRef, caseRef, purpose, targetHost, consumer,
-         noDiagnosticCapture, browserEndpoint, locator]
+         noDiagnosticCapture, browserEndpoint, locators]
       description: >-
         Everything the agent needs to find the field, and nothing that could
         carry a value. Note what the runner sends and what it gets back: it
@@ -637,8 +637,23 @@ components:
           description: >-
             Which page, when the browser has more than one. Matched exactly; the
             agent refuses rather than guessing between candidates.
-        locator:
-          $ref: "#/components/schemas/FieldLocator"
+        locators:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: { $ref: "#/components/schemas/FieldLocator" }
+          description: >-
+            Every field this ONE secret is typed into, in order. Plural because
+            a registration form asks for a password twice and the student is
+            asked once: two requests would need two handles, and a handle is
+            single-use, so the student would be asked for the same password
+            twice and the two would have to be compared — which cannot be done
+            without holding both.
+
+            The agent establishes that EVERY field exists and is masked before
+            any plaintext is obtained, then types them all inside a single
+            `use`. Bounded at four: a form asking for a password five times is
+            not a form this system should be typing into.
 
     FieldLocator:
       type: object

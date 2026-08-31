@@ -155,6 +155,8 @@ function cookieFor(subject: string): string {
 function buildInstance(
   connectionString: string,
   secureRequests: SecureRequestOpener | null = null,
+  /** Overridden only where a test needs a differently-deployed blueprint. */
+  catalogue: ApplicationCatalogue = CATALOGUE,
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -168,7 +170,7 @@ function buildInstance(
       runs: new PostgresWorkflowRunStore(instancePool),
     },
     bindings: new ApplicationBindingStore(instancePool),
-    catalogue: CATALOGUE,
+    catalogue,
     model: new DeterministicModelClient(),
     // ADR-0044: the profile comes from the database, so a new instance resumes
     // an interview where the last one left it.
@@ -1302,11 +1304,33 @@ describeIfDatabase("leasing browser work to a runner", () => {
         "kind",
         "leaseId",
         "portalHost",
+        "registration",
         "runId",
         "secretHandle",
         "studentRef",
       ]);
       expect(parseClaimedWork(JSON.parse(wire))).toEqual(work);
+
+      // ── The registration targets come from the REVIEWED blueprint ──────
+      //
+      // Not from a copy in the runner, and not from anything a model wrote.
+      // Both password boxes are here, by NAME rather than by label: the
+      // blueprint fixture records why — `getByLabel` is non-exact, so
+      // "Password" also matches "Confirm password", and on this one field an
+      // ambiguous locator is the bug that types a credential into the wrong box.
+      expect(work.registration.url).toBe("https://gated.portal.test/register");
+      expect(work.registration.emailLocator).toEqual({
+        strategy: "label",
+        value: "Email address",
+      });
+      expect(work.registration.passwordLocators).toEqual([
+        { strategy: "name", value: "password" },
+        { strategy: "name", value: "password_confirm" },
+      ]);
+      expect(work.registration.submitLocator).toEqual({
+        strategy: "role",
+        value: "button:Create account",
+      });
     } finally {
       await instance.pool.end();
     }
@@ -1546,6 +1570,94 @@ describeIfDatabase("leasing browser work to a runner", () => {
       expect(work, "the orchestrator decides, not the checkpoint").toBeNull();
       const leases = await pool.query("SELECT 1 FROM work_leases");
       expect(leases.rowCount, "and no lease is taken on the way to finding out").toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 180_000);
+
+  it("points a reviewed blueprint at the DEPLOYMENT's origin, keeping its paths", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The same reviewed blueprint runs against a university's sandbox before it
+    // ever runs against production. Rewriting the blueprint to point at the
+    // sandbox would mean running a blueprint nobody reviewed — so the ORIGIN is
+    // a deployment fact and the PATHS stay in the reviewed artefact.
+    //
+    // And it moves EVERY use of the portal's location together. Moving only the
+    // form would bind the handle to the blueprint's host and type into the
+    // sandbox, which the fill agent refuses as `host_mismatch` — correctly, and
+    // a long way from the configuration that caused it.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+      [runId],
+    );
+    const sandbox: ApplicationCatalogue = {
+      find: (id) =>
+        Promise.resolve(
+          id === GATED_BLUEPRINT ? { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" } : null,
+        ),
+    };
+    const instance = buildInstance(connectionString(), null, sandbox);
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-sandbox", leaseSeconds: 120 });
+      if (work === null) expect.unreachable("a sandboxed blueprint is still claimable work");
+      expect(work.registration.url).toBe("http://127.0.0.1:45999/register");
+      expect(work.portalHost, "the bound host moves with the form").toBe("127.0.0.1:45999");
+      // The reviewed locators are untouched. Only the origin moved.
+      expect(work.registration.passwordLocators).toEqual([
+        { strategy: "name", value: "password" },
+        { strategy: "name", value: "password_confirm" },
+      ]);
+    } finally {
+      await instance.pool.end();
+    }
+    await pool.query("DELETE FROM work_leases");
+  }, 180_000);
+
+  it("REFUSES a blueprint whose form is on a different host from its sign-in", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after a deliberate regression was NOT detected. Dropping the
+    // "the form must be on the bound host" check broke nothing any test could
+    // see, because every blueprint in the suite has both on one host.
+    //
+    // `portalHost` is what the secure request binds the handle to and what the
+    // fill agent checks the live page against. A registration page somewhere
+    // else means a run that would open a browser at host A holding a handle
+    // bound to host B — refused by the agent, correctly, and a long way from
+    // the blueprint that caused it. It is a portal fact a specialist should
+    // have looked at, so the run stops here instead.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    const elsewhere: ApplicationCatalogue = {
+      find: (id) =>
+        Promise.resolve(
+          id !== GATED_BLUEPRINT
+            ? null
+            : {
+                ...GATED_ENTRY,
+                blueprint: {
+                  ...GATED_PORTAL_BLUEPRINT,
+                  pages: GATED_PORTAL_BLUEPRINT.pages.map((page) =>
+                    page.pageRef === "page-register"
+                      ? { ...page, url: "https://someone-elses.portal.test/register" }
+                      : page,
+                  ),
+                },
+              },
+        ),
+    };
+    const instance = buildInstance(connectionString(), null, elsewhere);
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-x", leaseSeconds: 120 });
+      expect(work, "a form on another host is not work").toBeNull();
+      const leases = await pool.query("SELECT 1 FROM work_leases");
+      expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
     } finally {
       await instance.pool.end();
     }

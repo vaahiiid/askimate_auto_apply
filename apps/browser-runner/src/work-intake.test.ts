@@ -28,6 +28,15 @@ const WORK: ClaimedWork = {
   email: "niloofar@example.test",
   approach: "student_chosen",
   secretHandle: HANDLE,
+  registration: {
+    url: "https://gated.portal.test/register",
+    emailLocator: { strategy: "label", value: "Email address" },
+    passwordLocators: [
+      { strategy: "name", value: "password" },
+      { strategy: "name", value: "password_confirm" },
+    ],
+    submitLocator: { strategy: "role", value: "button:Create account" },
+  },
 };
 
 interface Recorded {

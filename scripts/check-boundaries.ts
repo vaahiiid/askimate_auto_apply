@@ -814,6 +814,60 @@ function main(): void {
   }
   console.log(`  ✓  the work contract — no free text, no value-shaped field`);
 
+  // ── P6: the process that creates the account holds no password ─────────
+  //
+  // `create-account.ts` drives a real browser through a real registration form
+  // on a real portal. It is the closest this system comes to holding a
+  // credential while not holding one, so the two ways it could start are named:
+  //
+  //   * By TYPING one. `fill(` on a password box, a literal, a generated
+  //     string — anything that puts characters into a masked field from this
+  //     process. Only `fillSecret` may, and it does not type: it ASKS the
+  //     Secure Plane's agent to, over CDP, from a process that has the vault.
+  //   * By READING one back. `inputValue()` on the box it just had filled.
+  //     ADR-0042 records this as the honest residual — the runner owns the
+  //     browser — but a call in the shipped path is a different thing from a
+  //     capability the architecture concedes.
+  const ACCOUNT = "apps/browser-runner/src/create-account.ts";
+  if (existsSync(ACCOUNT)) {
+    const source = readFileSync(ACCOUNT, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+
+    for (const forbidden of [
+      "inputValue()",
+      "randomBytes",
+      "generatePassword",
+      "EnvelopeVault",
+      "tracing.start",
+      "recordVideo",
+    ]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${ACCOUNT} contains \`${forbidden}\`. This process creates the account and never holds ` +
+          `the credential: the Secure Plane's fill agent types it (ADR-0042), and nothing here ` +
+          `may generate one, read one back, or record the page while one is on it.`,
+      );
+    }
+    if (!code.includes("openSensitiveContext(")) {
+      violations.push(
+        `${ACCOUNT} does not open a SENSITIVE context. Playwright writes typed values verbatim ` +
+          `into trace.trace, and stopping tracing around a fill does not prevent it — the action ` +
+          `is buffered and replayed into the next trace file (ADR-0025, measured).`,
+      );
+    }
+    if (!code.includes("fillSecret(")) {
+      violations.push(
+        `${ACCOUNT} no longer asks the Secure Plane to type the password. If it fills the field ` +
+          `itself then the plaintext is in the heap of the process that loads pages we do not ` +
+          `control, which is the architecture ADR-0042 exists to prevent.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  account creation — sensitive context, and the agent types`);
+
   // ── The fill agent holds plaintext, and must leak nothing while it does ─
   //
   // The same source-level rules the secure endpoint has, applied to the other

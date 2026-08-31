@@ -80,6 +80,12 @@ const DATABASE_BACKED = [
   // a restart that resumes rather than restarts — both properties of
   // PostgreSQL, which a fake would be re-implementing rather than testing.
   "apps/conversation-service/src/run-driver.test.ts",
+  // P6: a REAL account created on a REAL gated portal, with the password typed
+  // by the Secure Plane's agent into the runner's browser. The assertion that
+  // matters is `credentialsWork(email, password)` — asked of the portal, which
+  // is the only source that could say no. Database-backed because the
+  // lifecycle, the use ledger and the outbox are all in it.
+  "apps/secure-service/src/account-creation-e2e.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

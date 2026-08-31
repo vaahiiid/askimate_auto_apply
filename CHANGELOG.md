@@ -19,6 +19,85 @@ not shipped artefacts.
 
 ---
 
+## [0.24.0] — 2026-08-31
+
+**P6 — an account is really created on a portal, with a password nobody in this
+system has ever seen.**
+
+**Version bump: MINOR.** The fill contract's `locator` becomes `locators`, the
+work payload gains the registration targets, and the runner gains the performer
+that does the work. No trust boundary moved; the credential still exists only
+inside the Secure Plane and only for the length of one callback.
+
+### One handle, both password boxes
+
+`SecretFillRequest.locator` is now `locators`, and the agent types the secret
+into every one of them inside a **single** `vault.use`.
+
+Every registration form asks for the password twice, and the alternatives were
+both wrong: two requests need two handles, and a handle is single-use — so the
+student would be asked for the same password twice and the two would have to be
+compared, which cannot be done without holding both. Spending one handle on two
+calls would mean it was not single-use.
+
+The whole set is established **before** any plaintext exists: every field must
+be present and masked, or the request is refused with the handle untouched. A
+confirmation box rendered as plain text is refused too — it would show the
+student's password in the clear, in the page and in any capture of the run.
+
+### The runner creates the account
+
+`createPortalAccount` opens a sensitive context (tracing made unavailable, not
+merely unused), checks the form is on the host the work was bound to, types the
+email itself, asks the Secure Plane's agent to type the password, and only then
+submits. Submitting first would create an account with no password; asking for
+the password afterwards would be asking for a box that is no longer there.
+
+Whether it worked is asked of the **page** — a portal that refused re-renders
+the form, a portal that accepted moves on — never assumed from the click.
+
+### Proved against a real portal
+
+`apps/secure-service/src/account-creation-e2e.test.ts` runs a real PostgreSQL,
+the real Secure Service including the student's own submit endpoint, the real
+fill agent over real HTTP, a real Chromium reached over real CDP, the real gated
+fixture portal with real cookies and `timingSafeEqual` comparison, and the real
+runner performer.
+
+The assertion that matters is `credentialsWork(email, password)` — asked of the
+**portal**. Nothing in this repository renders a password back, so the only way
+to establish that the right characters reached the right box is to ask the site
+whether they let you in. Every HTTP body between every pair of processes is
+recorded, and the password appears in exactly one: the student's own submission,
+travelling towards the endpoint designed to receive it.
+
+### A blueprint can be pointed at a sandbox without being rewritten
+
+`CatalogueEntry.portalOrigin` moves a reviewed blueprint's paths onto another
+origin — a university's UAT environment, typically. Rewriting the blueprint
+would mean running one nobody reviewed, so the origin is a deployment fact and
+the paths stay in the reviewed artefact.
+
+It moves **every** use of the portal's location together. Moving only the form
+would bind the handle to the blueprint's host and type into the sandbox, which
+the fill agent refuses as `host_mismatch` — correctly, and a long way from the
+configuration that caused it.
+
+### `uncertain` is what a click that never lands means
+
+A submit that times out is reported `uncertain`, never `failed`. The click may
+have reached the portal and the account may exist; the runner simply stopped
+being able to tell, and `failed` would assert that nothing happened on a
+university's system.
+
+Ten deliberate regressions in
+[`docs/p6-regression-audit.md`](./docs/p6-regression-audit.md). Two were not
+detected first time — one property had no test at all, the other was never
+exercised — and each forced a new one, including a portal that serves the form
+and never answers the POST.
+
+---
+
 ## [0.23.0] — 2026-08-31
 
 **P5 — the Automation Runner can be given work. ADR-0045: it pulls, and nothing

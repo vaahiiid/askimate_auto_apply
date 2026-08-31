@@ -93,7 +93,14 @@ import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
 import { latestSecretRequest } from "@askimate/aas-conversation";
 
-import type { ClaimedWork, WorkApproach, WorkKind, WorkReport } from "@askimate/aas-contracts";
+import type {
+  ClaimedWork,
+  FillLocator,
+  RegistrationTargets,
+  WorkApproach,
+  WorkKind,
+  WorkReport,
+} from "@askimate/aas-contracts";
 import { WORK_APPROACHES } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
@@ -154,6 +161,25 @@ export interface CatalogueEntry {
    * to derive.
    */
   readonly portalAuthentication?: ObservedPortalAuthentication;
+
+  /**
+   * Where this blueprint's portal actually is, when that is not where the
+   * blueprint says.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * A blueprint records the PATHS of a portal — `/register`, `/apply` — and an
+   * origin it was discovered against. The same reviewed blueprint is run
+   * against a university's UAT or sandbox environment before it is ever run
+   * against production (see `docs/qa-higher-education-sandbox-request.md`), and
+   * rewriting the blueprint to point at the sandbox would mean running a
+   * blueprint nobody reviewed.
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * So the ORIGIN is a deployment fact and lives here, and the paths stay in the
+   * reviewed artefact where they belong. Absent means the blueprint's own
+   * origin, which is the production case.
+   */
+  readonly portalOrigin?: string;
 
   /**
    * How the student's password gets from them to the portal, when they choose
@@ -767,7 +793,11 @@ export class RunDriver {
       conversationId: input.conversationId,
       caseRef: input.caseId,
       purpose,
-      targetHost: step.request.target.host,
+      // The DEPLOYED host, for the same reason the work item carries it: the
+      // handle is bound at this host and the fill agent checks the live page
+      // against it. Opening against the blueprint's host and then typing into
+      // a sandbox would be refused by the agent — correctly, and much later.
+      targetHost: deployedHost(input.entry, step.request.target.host) ?? step.request.target.host,
       // Read inside the FRAME, on the secure origin, and stored there. The
       // contract does not return either of them, so no text about a password
       // reaches this plane's log.
@@ -864,6 +894,25 @@ export class RunDriver {
       const detail = accountWorkFrom(situation.step);
       if (detail === null) continue;
 
+      // From the REVIEWED blueprint, at the deployment's origin. A run whose
+      // blueprint has no registration page is not work — it is a blueprint that
+      // says an account is needed and does not say how to make one, which is a
+      // specialist's problem and not a runner's.
+      const registration = registrationFrom(entry);
+      if (registration === null) continue;
+      // The host the work is bound to must be the host the form is on. Derived
+      // rather than asserted: `portalHost` is what the fill agent checks the
+      // live page against, so a registration URL elsewhere would be a run that
+      // typed a password into a page nobody bound it to.
+      //
+      // Both sides move together when a deployment moves the origin, so what
+      // this catches is a BLUEPRINT whose registration page is on a different
+      // host from its sign-in page — which is a portal fact a specialist should
+      // have looked at, not something to proceed through.
+      const portalHost = deployedHost(entry, detail.portalHost);
+      const formHost = hostOf(registration.url);
+      if (formHost === null || portalHost === null || formHost !== portalHost) continue;
+
       const leaseId =
         this.#options.newLeaseId?.(candidate.runId, now) ?? `wl_${randomUUID().replace(/-/g, "")}`;
       const lease = await leases.claim({
@@ -885,7 +934,7 @@ export class RunDriver {
         caseId: record.caseId,
         studentRef: record.studentRef,
         kind,
-        portalHost: detail.portalHost,
+        portalHost,
         email: detail.email,
         approach: detail.approach,
         // Present only when the student has actually typed one. A handle is
@@ -894,6 +943,7 @@ export class RunDriver {
         ...(situation.secret?.handle === undefined
           ? {}
           : { secretHandle: situation.secret.handle }),
+        registration,
       };
     }
     return null;
@@ -989,6 +1039,100 @@ export class RunDriver {
 const ACTION_FOR_WORK: Readonly<Record<WorkKind, ConsequentialAction>> = {
   create_account: "create_portal_account",
 };
+
+/**
+ * Where the registration form is and which boxes to type into, from the
+ * reviewed blueprint.
+ *
+ * ── Why the ORIGIN is swapped and the PATHS are not ───────────────────────
+ *
+ * A blueprint records paths and the origin it was discovered against. The same
+ * reviewed blueprint runs against a university's sandbox before it ever runs
+ * against production, and rewriting it to point at the sandbox would mean
+ * running a blueprint nobody reviewed. So `CatalogueEntry.portalOrigin` — a
+ * deployment fact — replaces the origin, and the paths come through untouched.
+ *
+ * `null` when the blueprint has no registration page, or names no control to
+ * press, or names no password box. Every one of those is a blueprint that says
+ * an account is required and does not say how to create one — a specialist's
+ * problem, and not something to guess at with a form open.
+ */
+function registrationFrom(entry: CatalogueEntry): RegistrationTargets | null {
+  const page = entry.blueprint.pages.find((candidate) =>
+    candidate.sections.some((section) =>
+      section.fields.some((field) => field.inputType === "password"),
+    ),
+  );
+  if (page === undefined) return null;
+
+  const fields = page.sections.flatMap((section) => section.fields);
+  const email = fields.find((field) => field.inputType === "email");
+  const passwords = fields.filter((field) => field.inputType === "password");
+  if (email === undefined || passwords.length === 0) return null;
+
+  const emailLocator = email.locators[0];
+  const submit = page.advanceControl;
+  if (emailLocator === undefined || submit === undefined) return null;
+
+  const passwordLocators: FillLocator[] = [];
+  for (const field of passwords) {
+    // The FIRST locator only, and never a fallback list. On an ordinary field a
+    // second locator is a helpful alternative; on a password box it is a second
+    // guess about where a credential goes, and the blueprint fixture's own
+    // comment records the ambiguous-label bug that motivated `name` locators
+    // here in the first place.
+    const locator = field.locators[0];
+    if (locator === undefined) return null;
+    passwordLocators.push({ strategy: locator.strategy, value: locator.value });
+  }
+
+  if (page.url === undefined) return null;
+  const url = atOrigin(page.url, entry.portalOrigin);
+  if (url === null) return null;
+
+  return {
+    url,
+    emailLocator: { strategy: emailLocator.strategy, value: emailLocator.value },
+    passwordLocators,
+    submitLocator: { strategy: submit.strategy, value: submit.value },
+  };
+}
+
+/** A blueprint URL moved onto the deployment's origin, or `null` if it is not a URL. */
+function atOrigin(url: string, origin: string | undefined): string | null {
+  try {
+    const parsed = new URL(url);
+    if (origin === undefined) return parsed.toString();
+    const target = new URL(origin);
+    parsed.protocol = target.protocol;
+    parsed.host = target.host;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where this portal actually is, for this deployment.
+ *
+ * `CatalogueEntry.portalOrigin` moves the blueprint's paths onto another origin
+ * — a university's sandbox, typically. It has to move EVERY use of the portal's
+ * location together, or the parts disagree: the secure request would bind a
+ * handle to the blueprint's host and the runner would type into the sandbox,
+ * and the fill agent would refuse the page as `host_mismatch` — correctly, and
+ * a long way from the configuration that caused it.
+ */
+function deployedHost(entry: CatalogueEntry, fromBlueprint: string): string | null {
+  return entry.portalOrigin === undefined ? fromBlueprint : hostOf(entry.portalOrigin);
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The account facts a `create_account` step carries, or `null`.

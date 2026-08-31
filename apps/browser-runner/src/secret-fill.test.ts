@@ -88,7 +88,7 @@ describe("the runner asks for a fill and holds nothing", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: stubFetch(
@@ -108,7 +108,7 @@ describe("the runner asks for a fill and holds nothing", () => {
         "caseRef",
         "consumer",
         "handle",
-        "locator",
+        "locators",
         "noDiagnosticCapture",
         "pageUrl",
         "purpose",
@@ -134,7 +134,7 @@ describe("the runner asks for a fill and holds nothing", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: stubFetch(
@@ -168,7 +168,7 @@ describe("the runner asks for a fill and holds nothing", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: stubFetch({ status: 200, body: { status: "refused", reason: "no_such_field" } }, sent),
@@ -186,7 +186,7 @@ describe("the runner asks for a fill and holds nothing", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: stubFetch(
@@ -209,7 +209,7 @@ describe("the runner asks for a fill and holds nothing", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: () => Promise.reject(new Error("ECONNREFUSED")),
@@ -237,7 +237,7 @@ describe("a context that could be recording", () => {
         fillSecret({
           page,
           claim: CLAIM,
-          locator: LOCATOR,
+          locators: [LOCATOR],
           agentBaseUrl: AGENT,
           browserEndpoint: ENDPOINT,
           fetch: stubFetch({ status: 200, body: { status: "filled" } }, sent),
@@ -257,7 +257,7 @@ describe("a context that could be recording", () => {
       const outcome = await fillSecret({
         page,
         claim: CLAIM,
-        locator: LOCATOR,
+        locators: [LOCATOR],
         agentBaseUrl: AGENT,
         browserEndpoint: ENDPOINT,
         fetch: stubFetch(

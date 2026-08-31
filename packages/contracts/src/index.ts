@@ -132,6 +132,7 @@ export {
   FILL_LOCATOR_STRATEGIES,
   FILL_PURPOSES,
   FILL_REFUSAL_REASONS,
+  MAX_FILL_LOCATORS,
   REFUSALS_BEFORE_SPENDING,
   parseSecretFillRequest,
   parseSecretFillResult,
@@ -157,6 +158,8 @@ export {
 export type {
   ClaimedWork,
   NO_WORK_FIELD_IS_FREE_TEXT,
+  REGISTRATION_CARRIES_ONLY_TARGETS,
+  RegistrationTargets,
   WorkApproach,
   WorkFailure,
   WorkKind,

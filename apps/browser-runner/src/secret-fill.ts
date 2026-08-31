@@ -102,7 +102,15 @@ export interface SecretFillOutcome {
 export async function fillSecret(input: {
   readonly page: Page;
   readonly claim: SecretFillClaim;
-  readonly locator: FieldLocator;
+  /**
+   * Every field this one secret goes into, in order.
+   *
+   * Plural because a registration form asks for a password twice and the
+   * student is asked once (P1). The agent establishes that all of them exist
+   * and are masked before any plaintext is obtained, and types them inside a
+   * single `vault.use` — so one handle, spent once, fills both.
+   */
+  readonly locators: readonly FieldLocator[];
   /** The agent's internal base URL, on the private subnet. */
   readonly agentBaseUrl: string;
   /** This browser's CDP endpoint, reachable by the agent and by nothing else. */
@@ -111,7 +119,7 @@ export async function fillSecret(input: {
   readonly serviceToken?: string;
   readonly fetch?: typeof globalThis.fetch;
 }): Promise<SecretFillOutcome> {
-  const { page, locator, claim } = input;
+  const { page, locators, claim } = input;
 
   // Checked here as well as by the agent. The agent's check is the one that
   // protects the secret — it is performed by the process that holds it — and
@@ -129,7 +137,7 @@ export async function fillSecret(input: {
     noDiagnosticCapture: true,
     browserEndpoint: input.browserEndpoint,
     pageUrl: page.url(),
-    locator: { strategy: locator.strategy, value: locator.value },
+    locators: locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
   };
 
   const doFetch = input.fetch ?? globalThis.fetch;

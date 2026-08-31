@@ -88,8 +88,31 @@ export interface SecretFillRequest {
   readonly browserEndpoint: string;
   /** Which page, when the browser has more than one. Matched exactly. */
   readonly pageUrl?: string;
-  readonly locator: FillLocator;
+  /**
+   * Every field this ONE secret is typed into, in order.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Vahid, P1: *"one handle fills both `password` and `password_confirm` —
+   * never ask the student twice."*
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * Plural because registration forms ask for a password twice, and the
+   * alternatives are both wrong. Two requests would need two handles, and a
+   * handle is single-use — so the student would be asked for the same password
+   * twice and the two would have to match, which is a comparison this system
+   * cannot make without holding both. Spending one handle on two calls would
+   * mean it was not single-use.
+   *
+   * So the agent takes the whole set, establishes that EVERY field exists and
+   * is masked before any plaintext is obtained, and types them all inside one
+   * `vault.use`. Bounded at four, because a form asking for a password five
+   * times is not a form this system should be typing into.
+   */
+  readonly locators: readonly FillLocator[];
 }
+
+/** The most fields one secret may be typed into. See `SecretFillRequest.locators`. */
+export const MAX_FILL_LOCATORS = 4;
 
 export type SecretFillResult =
   | { readonly status: "filled"; readonly lifecycle: "secret_consumed" }
@@ -150,10 +173,15 @@ function isMember<T extends string>(members: readonly T[], value: unknown): valu
  */
 export function parseSecretFillRequest(value: unknown): SecretFillRequest | null {
   if (!isRecord(value)) return null;
-  const locator = value["locator"];
-  if (!isRecord(locator)) return null;
-  if (!isMember(FILL_LOCATOR_STRATEGIES, locator["strategy"])) return null;
-  if (typeof locator["value"] !== "string" || locator["value"].length === 0) return null;
+  const raw = value["locators"];
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_FILL_LOCATORS) return null;
+  const locators: FillLocator[] = [];
+  for (const entry of raw as readonly unknown[]) {
+    if (!isRecord(entry)) return null;
+    if (!isMember(FILL_LOCATOR_STRATEGIES, entry["strategy"])) return null;
+    if (typeof entry["value"] !== "string" || entry["value"].length === 0) return null;
+    locators.push({ strategy: entry["strategy"], value: entry["value"] });
+  }
 
   const strings = ["handle", "studentRef", "caseRef", "targetHost", "consumer", "browserEndpoint"];
   for (const field of strings) {
@@ -176,7 +204,7 @@ export function parseSecretFillRequest(value: unknown): SecretFillRequest | null
     noDiagnosticCapture: true,
     browserEndpoint: value["browserEndpoint"] as string,
     ...(pageUrl === undefined ? {} : { pageUrl }),
-    locator: { strategy: locator["strategy"], value: locator["value"] },
+    locators,
   };
 }
 

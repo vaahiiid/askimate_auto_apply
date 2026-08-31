@@ -33,6 +33,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import type { SecretFillRequest } from "@askimate/aas-contracts";
+import { MAX_FILL_LOCATORS, parseSecretFillRequest } from "@askimate/aas-contracts";
 import {
   EnvelopeVault,
   InMemoryEnvelopeCache,
@@ -54,6 +55,8 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
   <label for="email">Email</label><input id="email" name="email" type="email">
   <label for="pw">Password</label><input id="pw" name="pw" type="password">
   <label for="capped">Capped</label><input id="capped" name="capped" type="password" maxlength="8">
+  <label for="pw2">Confirm password</label><input id="pw2" name="pw2" type="password">
+  <label for="plain">Plain confirm</label><input id="plain" name="plain" type="text">
 </body></html>`;
 
 let pageServer: Server;
@@ -120,7 +123,7 @@ function request(over: Partial<SecretFillRequest> = {}): SecretFillRequest {
     consumer: "portal_account_creation_fill",
     noDiagnosticCapture: true,
     browserEndpoint: cdpEndpoint,
-    locator: { strategy: "css", value: "#pw" },
+    locators: [{ strategy: "css", value: "#pw" }],
     ...over,
   };
 }
@@ -292,7 +295,7 @@ describe("single use survives the process boundary", () => {
     const { context, page } = await runnerPage();
     try {
       const missing = await performSecretFill(
-        request({ locator: { strategy: "css", value: "#nope" } }),
+        request({ locators: [{ strategy: "css", value: "#nope" }] }),
         deps(),
       );
       expect(missing).toEqual({ status: "refused", reason: "no_such_field" });
@@ -313,7 +316,7 @@ describe("single use survives the process boundary", () => {
     const { context } = await runnerPage();
     try {
       const result = await performSecretFill(
-        request({ locator: { strategy: "css", value: "#capped" } }),
+        request({ locators: [{ strategy: "css", value: "#capped" }] }),
         deps(),
       );
       expect(result).toEqual({
@@ -330,6 +333,128 @@ describe("single use survives the process boundary", () => {
       await context.close();
     }
   }, 60_000);
+});
+
+describe("one handle, both password fields — the student is asked once", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, P1: *"one handle fills both `password` and `password_confirm` —
+  // never ask the student twice."*
+  //
+  // Every registration form on a real portal asks for the password twice. The
+  // alternatives to this are both wrong: two requests need two handles, and a
+  // handle is single-use — so the student would be asked for the same password
+  // twice and the two would have to be compared, which cannot be done without
+  // holding both. Spending one handle on two calls would mean it was not
+  // single-use.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("types the SAME secret into both fields, spending the handle once", async () => {
+    await submitted(request().handle);
+    const { context, page } = await runnerPage();
+    try {
+      const result = await performSecretFill(
+        request({
+          locators: [
+            { strategy: "css", value: "#pw" },
+            { strategy: "css", value: "#pw2" },
+          ],
+        }),
+        deps(),
+      );
+      expect(result).toEqual({ status: "filled", lifecycle: "secret_consumed" });
+
+      // Both fields hold it, and they hold the SAME thing — which is what makes
+      // the portal's own confirmation check pass.
+      expect(await page.locator("#pw").inputValue()).toBe(MARKER);
+      expect(await page.locator("#pw2").inputValue()).toBe(MARKER);
+
+      // ONE authority, for ONE use. Two would mean the handle was spent twice.
+      expect(authorisations).toHaveLength(1);
+      expect(cache.rawEntries(), "the handle is gone after one use").toHaveLength(0);
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it("does NOT spend the handle when the SECOND field is missing", async () => {
+    // The property the whole-set-first ordering exists for. Checking fields
+    // lazily would type the password into the first box, fail on the second,
+    // and leave a spent handle, a half-filled form and a student asked for a
+    // new password because one selector drifted.
+    await submitted(request().handle);
+    const { context, page } = await runnerPage();
+    try {
+      const result = await performSecretFill(
+        request({
+          locators: [
+            { strategy: "css", value: "#pw" },
+            { strategy: "css", value: "#nope" },
+          ],
+        }),
+        deps(),
+      );
+      expect(result).toEqual({ status: "refused", reason: "no_such_field" });
+      expect(authorisations, "the authority was never asked for").toEqual([]);
+      expect(cache.rawEntries(), "and the handle is untouched").toHaveLength(1);
+      // Nothing was typed anywhere — not even into the field that DID exist.
+      expect(await page.locator("#pw").inputValue()).toBe("");
+
+      // The corrected blueprint then spends it, with no new prompt.
+      expect(
+        (
+          await performSecretFill(
+            request({
+              locators: [
+                { strategy: "css", value: "#pw" },
+                { strategy: "css", value: "#pw2" },
+              ],
+            }),
+            deps(),
+          )
+        ).status,
+      ).toBe("filled");
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it("refuses when the CONFIRMATION box is not masked", async () => {
+    // A confirmation field rendered as plain text shows the student's password
+    // in the clear — in the page, and in any video or screenshot of the run.
+    // The masking check runs over every field, not just the first.
+    await submitted(request().handle);
+    const { context, page } = await runnerPage();
+    try {
+      const result = await performSecretFill(
+        request({
+          locators: [
+            { strategy: "css", value: "#pw" },
+            { strategy: "css", value: "#plain" },
+          ],
+        }),
+        deps(),
+      );
+      expect(result).toEqual({ status: "refused", reason: "field_not_masked" });
+      expect(cache.rawEntries(), "refused before anything was decrypted").toHaveLength(1);
+      expect(await page.locator("#pw").inputValue()).toBe("");
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it("refuses more locators than a real form could justify", () => {
+    // Bounded in the parser, at the boundary, rather than by a loop that would
+    // happily type a password into forty fields.
+    const tooMany = Array.from({ length: MAX_FILL_LOCATORS + 1 }, () => ({
+      strategy: "css" as const,
+      value: "#pw",
+    }));
+    expect(parseSecretFillRequest({ ...request(), locators: tooMany })).toBeNull();
+    expect(parseSecretFillRequest({ ...request(), locators: [] })).toBeNull();
+    // And the shape it does accept round-trips unchanged.
+    const good = { ...request(), locators: [{ strategy: "css", value: "#pw" }] };
+    expect(parseSecretFillRequest(good)?.locators).toEqual(good.locators);
+  });
 });
 
 describe("what the agent verifies against the live page, rather than trusting", () => {
@@ -357,7 +482,7 @@ describe("what the agent verifies against the live page, rather than trusting", 
     const { context } = await runnerPage();
     try {
       const result = await performSecretFill(
-        request({ locator: { strategy: "css", value: "#email" } }),
+        request({ locators: [{ strategy: "css", value: "#email" }] }),
         deps(),
       );
       expect(result).toEqual({ status: "refused", reason: "field_not_masked" });

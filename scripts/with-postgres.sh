@@ -13,10 +13,13 @@
 #                            restart that resumes a run rather than restarting
 #                            it.
 #   apps/secure-service    — that no column in that schema can hold a secret,
-#                            read from information_schema after migrating; and
+#                            read from information_schema after migrating;
 #                            (ADR-0042) the whole path from the student's
 #                            submission through the fill agent to a real field,
-#                            with every HTTP body on every wire scanned.
+#                            with every HTTP body on every wire scanned; and
+#                            (P6) a REAL account created on the gated portal,
+#                            proved by asking the portal whether the student's
+#                            password lets them in.
 #   apps/secure-filler     — the fill agent against a real Chromium reached over
 #                            real CDP. No database of its own, deliberately.
 #   packages/case-store    — optimistic concurrency and duplicate-submission

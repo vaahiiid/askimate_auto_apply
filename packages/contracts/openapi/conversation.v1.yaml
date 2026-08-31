@@ -734,7 +734,9 @@ components:
     ClaimedWork:
       type: object
       additionalProperties: false
-      required: [leaseId, expiresAt, runId, caseId, studentRef, kind, portalHost, email, approach]
+      required:
+        [leaseId, expiresAt, runId, caseId, studentRef, kind, portalHost, email, approach,
+         registration]
       description: >-
         One unit of browser work. Read the fields, then read what is absent:
         there is no password, no profile, no fill value, no document and no
@@ -784,6 +786,49 @@ components:
             The runner hands it to the Secure Plane's fill agent, which resolves
             it there; the runner holds no vault, has no KMS grant and has no
             certificate that could reach one (ADR-0042).
+        registration:
+          $ref: "#/components/schemas/RegistrationTargets"
+
+    RegistrationTargets:
+      type: object
+      additionalProperties: false
+      required: [url, emailLocator, passwordLocators, submitLocator]
+      description: >-
+        Where the form is and which boxes to type into. Blueprint facts only —
+        a URL, three or four selectors, and a control to press. The reviewed
+        blueprint stays in the Application Plane's catalogue; two copies would
+        be two things to keep in step, and the one in the runner would be the
+        one nobody reviewed.
+      properties:
+        url:
+          type: string
+          format: uri
+          description: >-
+            Must be on `ClaimedWork.portalHost`. The runner re-checks rather
+            than trusting it: a URL pointing somewhere else would be an
+            instruction to create an account on a host nobody bound the work to.
+        emailLocator: { $ref: "#/components/schemas/WorkLocator" }
+        passwordLocators:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items: { $ref: "#/components/schemas/WorkLocator" }
+          description: >-
+            Every password box on the form, in order. One secret fills all of
+            them in a single use of one handle — the student is asked once.
+        submitLocator: { $ref: "#/components/schemas/WorkLocator" }
+
+    WorkLocator:
+      type: object
+      additionalProperties: false
+      required: [strategy, value]
+      description: >-
+        How the blueprint names a field. The same shape the fill agent's own
+        contract uses, and the freest text in this payload — reviewed blueprint
+        data rather than model output.
+      properties:
+        strategy: { type: string, enum: [label, placeholder, name, id, css, role] }
+        value: { type: string }
 
     WorkReport:
       type: object

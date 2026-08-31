@@ -89,3 +89,7 @@ export type {
   WorkPerformer,
 } from "./work-intake.js";
 export { httpWorkIntake, runOneTurn } from "./work-intake.js";
+
+// ── P6: the first consequential action, on somebody else's website ────────
+export type { CreateAccountDeps } from "./create-account.js";
+export { createPortalAccount } from "./create-account.js";

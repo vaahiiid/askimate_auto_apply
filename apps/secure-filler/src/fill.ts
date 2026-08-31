@@ -102,28 +102,42 @@ export async function performSecretFill(
     // somewhere else fails here, before anything is decrypted.
     if (!pageHostMatches(page, request.targetHost)) return refused("host_mismatch");
 
-    const locator: FieldLocator = {
-      strategy: request.locator.strategy,
-      value: request.locator.value,
-    };
-    const target: Locator | null = toPlaywrightLocator(page, locator);
-    if (target === null) return refused("no_such_field");
-
-    // ── 3. The field must EXIST before the secret is spent ────────────────
+    // ── The whole SET is established before any plaintext exists ─────────
     //
-    // Playwright locators are lazy: building one for a selector that matches
-    // nothing succeeds, and the failure only arrives when an action on it times
-    // out. Without this wait the sequence is `vault.use` → ciphertext taken →
-    // `fill` hangs → timeout, and a single-use password has been spent on a
-    // field that was never there.
-    try {
-      await target.waitFor({ state: "attached", timeout: FIELD_TIMEOUT_MS });
-    } catch {
-      return refused("no_such_field");
-    }
+    // A registration form asks for a password twice, and one handle fills both
+    // (P1: *"never ask the student twice"*). That makes steps 3 and 4 a loop,
+    // and the loop has to finish before step 7 rather than interleaving with
+    // it: a second field that turns out not to exist AFTER the first has been
+    // typed would leave a spent handle, a half-filled form, and a student asked
+    // for a new password because a selector drifted.
+    const targets: { readonly locator: FieldLocator; readonly target: Locator }[] = [];
+    for (const asked of request.locators) {
+      const locator: FieldLocator = { strategy: asked.strategy, value: asked.value };
+      const target: Locator | null = toPlaywrightLocator(page, locator);
+      if (target === null) return refused("no_such_field");
 
-    // ── 4. The field must be one the browser renders as dots ──────────────
-    if (!(await fieldIsMasked(target))) return refused("field_not_masked");
+      // ── 3. The field must EXIST before the secret is spent ──────────────
+      //
+      // Playwright locators are lazy: building one for a selector that matches
+      // nothing succeeds, and the failure only arrives when an action on it
+      // times out. Without this wait the sequence is `vault.use` → ciphertext
+      // taken → `fill` hangs → timeout, and a single-use password has been
+      // spent on a field that was never there.
+      try {
+        await target.waitFor({ state: "attached", timeout: FIELD_TIMEOUT_MS });
+      } catch {
+        return refused("no_such_field");
+      }
+
+      // ── 4. The field must be one the browser renders as dots ────────────
+      //
+      // EVERY field, not just the first. A form whose confirmation box is a
+      // plain text input renders the student's password in the clear, and it
+      // would be visible in any video or screenshot of the run.
+      if (!(await fieldIsMasked(target))) return refused("field_not_masked");
+
+      targets.push({ locator, target });
+    }
 
     // ── 5. Nothing may be streaming DOM snapshots ─────────────────────────
     //
@@ -156,7 +170,12 @@ export async function performSecretFill(
       request.handle,
       async (secret: string): Promise<boolean> => {
         try {
-          await typeSecretInto(target, locator, secret);
+          // All of them, inside the ONE callback. The plaintext exists for the
+          // duration of this frame whether it is typed once or twice, and a
+          // second `use` would mean the handle was not single-use.
+          for (const { locator, target } of targets) {
+            await typeSecretInto(target, locator, secret);
+          }
           return true;
         } catch (error: unknown) {
           if (error instanceof SecretNotAcceptedError) return false;

@@ -30,7 +30,14 @@
  * declared here cannot quietly acquire a `ConfirmedValue`, a `FillPlan` or a
  * `SecretHandle` by importing one — the compiler enforces the omission above,
  * not a reviewer.
+ *
+ * The one import is a SIBLING in this package — `FillLocator`, the shape the
+ * fill agent already takes. Not a dependency: the same file, the same package,
+ * the same "no dependencies at all" guarantee.
  */
+
+import type { FillLocator } from "./fill.js";
+import { FILL_LOCATOR_STRATEGIES, MAX_FILL_LOCATORS } from "./fill.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // What kind of work
@@ -81,6 +88,47 @@ export type WorkApproach = (typeof WORK_APPROACHES)[number];
  * KEY, so a second claim on the same run is refused by the database rather than
  * by a handler that remembers to look.
  */
+/**
+ * Where the registration form is and which boxes to type into.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Blueprint facts, and blueprint facts only: a URL, three or four selectors,
+ * and a control to press. Not a student's answer, not a value, not a mapping.
+ * The reviewed blueprint lives in the Application Plane's catalogue and stays
+ * there; what crosses is the four locators this one page needs.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Why send them rather than give the runner the blueprint ───────────────
+ *
+ * Because two copies of a reviewed blueprint is two things to keep in step, and
+ * the one in the runner would be the one nobody reviewed. The plane holds the
+ * blueprint; the runner is told which four boxes are on the page in front of it.
+ *
+ * ── The honest note about `FillLocator.value` ─────────────────────────────
+ *
+ * A selector is freer text than anything else in this payload. It is reviewed
+ * blueprint data rather than model output, and the identical shape already
+ * crosses to the fill agent in `SecretFillRequest` — so this is not a new
+ * exposure. It is called out because the free-text assertion below exempts it,
+ * and an exemption nobody wrote down is an exemption nobody notices.
+ */
+export interface RegistrationTargets {
+  /** The page to open. Must be on `ClaimedWork.portalHost`; the runner re-checks. */
+  readonly url: string;
+  readonly emailLocator: FillLocator;
+  /**
+   * Every password box on the form, in order.
+   *
+   * Plural, and one secret fills all of them in a single use of one handle
+   * (P1: *"never ask the student twice"*). The runner passes this straight to
+   * the Secure Plane's fill agent, which is the only thing that types into
+   * them.
+   */
+  readonly passwordLocators: readonly FillLocator[];
+  /** The control that submits the form. */
+  readonly submitLocator: FillLocator;
+}
+
 export interface ClaimedWork {
   readonly leaseId: string;
   /** When the lease lapses and this run becomes claimable again. RFC 3339. */
@@ -102,6 +150,8 @@ export interface ClaimedWork {
    * no secrets may hold this.
    */
   readonly secretHandle?: string;
+  /** Where the form is and which boxes to type into. Blueprint facts only. */
+  readonly registration: RegistrationTargets;
 }
 
 /**
@@ -116,22 +166,45 @@ export interface ClaimedWork {
 type OpenStrings<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends WorkKind | WorkApproach
     ? never
-    : NonNullable<T[K]> extends string
-      ? K extends
-          | "leaseId"
-          | "expiresAt"
-          | "runId"
-          | "caseId"
-          | "studentRef"
-          | "portalHost"
-          | "email"
-          | "secretHandle"
-        ? never
-        : K
-      : K;
+    : // Exempt, and named here so the exemption is visible rather than implied:
+      // `registration` carries a URL and selectors from a REVIEWED blueprint,
+      // and the identical locator shape already crosses to the fill agent.
+      NonNullable<T[K]> extends RegistrationTargets
+      ? never
+      : NonNullable<T[K]> extends string
+        ? K extends
+            | "leaseId"
+            | "expiresAt"
+            | "runId"
+            | "caseId"
+            | "studentRef"
+            | "portalHost"
+            | "email"
+            | "secretHandle"
+          ? never
+          : K
+        : K;
 }[keyof T];
 type AssertNever<T extends never> = T;
 export type NO_WORK_FIELD_IS_FREE_TEXT = AssertNever<OpenStrings<ClaimedWork>>;
+
+/**
+ * COMPILE-TIME: the exemption above cannot be widened by widening what it
+ * exempts.
+ *
+ * `OpenStrings` lets `registration` through as a whole, so without this a
+ * `defaultPassword` or a `portalMessage` added to `RegistrationTargets` would
+ * ride in behind the exemption. This closes it: every member must be a URL, a
+ * locator, or a list of locators.
+ */
+type NonTargetFields<T> = {
+  [K in keyof T]-?: NonNullable<T[K]> extends FillLocator | readonly FillLocator[]
+    ? never
+    : K extends "url"
+      ? never
+      : K;
+}[keyof T];
+export type REGISTRATION_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<RegistrationTargets>>;
 
 // ───────────────────────────────────────────────────────────────────────────
 // How it ended
@@ -224,6 +297,9 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     return null;
   }
 
+  const registration = parseRegistration(record["registration"]);
+  if (registration === null) return null;
+
   return {
     leaseId: record["leaseId"] as string,
     expiresAt: record["expiresAt"] as string,
@@ -235,7 +311,43 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     email: record["email"] as string,
     approach: record["approach"],
     ...(handle === undefined ? {} : { secretHandle: handle }),
+    registration,
   };
+}
+
+function parseLocator(value: unknown): FillLocator | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const strategy = record["strategy"];
+  const held = record["value"];
+  if (!(FILL_LOCATOR_STRATEGIES as readonly string[]).includes(strategy as string)) return null;
+  if (typeof held !== "string" || held.length === 0) return null;
+  return { strategy: strategy as FillLocator["strategy"], value: held };
+}
+
+function parseRegistration(value: unknown): RegistrationTargets | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const url = record["url"];
+  if (typeof url !== "string" || url.length === 0) return null;
+
+  const emailLocator = parseLocator(record["emailLocator"]);
+  const submitLocator = parseLocator(record["submitLocator"]);
+  if (emailLocator === null || submitLocator === null) return null;
+
+  const raw = record["passwordLocators"];
+  // Bounded here as well as in `SecretFillRequest`, because this is where the
+  // list is first believed. A plane that sent forty would otherwise get forty
+  // as far as the fill agent's own boundary before anything refused it.
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_FILL_LOCATORS) return null;
+  const passwordLocators: FillLocator[] = [];
+  for (const entry of raw as readonly unknown[]) {
+    const locator = parseLocator(entry);
+    if (locator === null) return null;
+    passwordLocators.push(locator);
+  }
+
+  return { url, emailLocator, passwordLocators, submitLocator };
 }
 
 /** Bytes from the network to a report, or `null`. The plane's side of the wire. */
