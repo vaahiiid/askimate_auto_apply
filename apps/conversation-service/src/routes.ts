@@ -37,12 +37,31 @@ import {
   renderSseResumeFrame,
 } from "@askimate/aas-contracts";
 
+import type { ConversationRun } from "@askimate/aas-contracts";
+
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
+import type { RunOutcome } from "./run-driver.js";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
 export interface Caller {
   readonly studentId: string;
+}
+
+/**
+ * The part of the Run Driver these routes use.
+ *
+ * Narrower than `RunDriver` on purpose: the routes may start a run and read
+ * where one got to, and there is deliberately no method here that could make a
+ * run skip a step, change its status or set its phase directly. What a run does
+ * next is the orchestrator's decision, reached through `nextStep`.
+ */
+export interface RunCoordinator {
+  start(input: {
+    readonly conversationId: string;
+    readonly blueprintId: string;
+    readonly studentStatement: string;
+  }): Promise<RunOutcome>;
 }
 
 export interface ConversationRoutesOptions {
@@ -76,6 +95,16 @@ export interface ConversationRoutesOptions {
   readonly mintFrameToken?: (requestId: string) => Promise<string | null>;
   /** The secure plane's origin, handed to the page so it can check messages. */
   readonly secureOrigin?: string;
+  /**
+   * Starts and advances application runs (P1).
+   *
+   * A PORT, and optional, so every existing composition of these routes still
+   * works: a deployment that only carries conversations answers 503 on the run
+   * endpoint rather than failing to start. The driver COORDINATES; the
+   * orchestrator decides — see `run-driver.ts` for why nothing in this file
+   * branches on what a run should do next.
+   */
+  readonly runs?: RunCoordinator;
   /** How often the stream re-reads the log to catch another instance's writes. */
   readonly pollIntervalMs?: number;
   readonly heartbeatIntervalMs?: number;
@@ -275,6 +304,98 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           throw error;
         }
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/:id/runs ─────────────────────────────────────
+  //
+  // The student's starting action: "apply to this, for me". It creates the case
+  // the conversation owns, starts a durable run against it, and asks the
+  // orchestrator what happens next.
+  //
+  // ── No Idempotency-Key, and that is not an oversight ──────────────────
+  //
+  // The messages route requires one because two identical messages are two
+  // different facts. This one does not, because a conversation owns AT MOST ONE
+  // case — the schema says so, with a partial unique index and a composite
+  // foreign key — so a client that retries a timed-out start is asking the same
+  // question, not making a second request. `ApplicationBindingStore.bind` takes
+  // a row lock, so two simultaneous starts cannot produce two cases either.
+  // `resumed` in the response is how a caller tells which it got.
+  router.post(
+    "/v1/conversations/:conversationId/runs",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        // Ownership first, and through the SAME helper every other route uses:
+        // 401 with no session, 404 — never 403 — for someone else's
+        // conversation, because a 403 confirms it exists.
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const blueprintId = readString(req.body, "blueprintId");
+        const statement = readString(req.body, "studentStatement");
+        if (blueprintId === null || blueprintId.length === 0) {
+          problem(res, "validation_failed", { pointers: ["/blueprintId"] });
+          return;
+        }
+        // Required, because `openCase` refuses to build a case without request
+        // evidence. Product rule 1 — explicit request before consequential
+        // action, silence is not consent — is a structural precondition of the
+        // domain, and this is where it stops being an assumption.
+        if (statement === null || statement.length === 0 || statement.length > 2000) {
+          problem(res, "validation_failed", { pointers: ["/studentStatement"] });
+          return;
+        }
+
+        const outcome = await options.runs.start({
+          conversationId,
+          blueprintId,
+          studentStatement: statement,
+        });
+
+        if (!outcome.ok) {
+          switch (outcome.refusal.kind) {
+            case "unknown_blueprint":
+              problem(res, "not_found");
+              return;
+            case "unknown_conversation":
+              problem(res, "not_found");
+              return;
+            case "case_not_bindable":
+              // The conversation's student does not own that case, or another
+              // conversation already does. Reported as a conflict rather than a
+              // 404: the conversation exists and is theirs; the binding is what
+              // cannot be made.
+              problem(res, "forbidden");
+              return;
+            case "unusable_mapping_set":
+              // A specialist's problem, not the student's, and the detail names
+              // fields of a university's form — so it stays out of the body.
+              problem(res, "service_unavailable");
+              return;
+          }
+        }
+
+        const run: ConversationRun = {
+          runId: outcome.position.runId,
+          caseId: outcome.position.caseId,
+          conversationId: outcome.position.conversationId,
+          status: outcome.position.status,
+          phase: outcome.position.phase,
+          step: outcome.position.step,
+          revision: outcome.position.revision,
+          resumed: outcome.position.resumed,
+        };
+        // 201 when this call created the run, 200 when it resumed one. The
+        // difference is what makes the retry story readable in a log.
+        res.status(run.resumed ? 200 : 201).json(run);
       })().catch(next);
     },
   );

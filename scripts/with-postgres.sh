@@ -8,7 +8,10 @@
 #                            vacuous.
 #   apps/conversation-service — the CHECK constraints that make a secure event
 #                            unable to hold what a student typed. A fake would
-#                            be re-implementing the thing under test.
+#                            be re-implementing the thing under test. And (P1)
+#                            the conversation ↔ case binding, plus a real
+#                            restart that resumes a run rather than restarting
+#                            it.
 #   apps/secure-service    — that no column in that schema can hold a secret,
 #                            read from information_schema after migrating; and
 #                            (ADR-0042) the whole path from the student's

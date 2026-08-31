@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-conversation-service",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,9 +10,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@askimate/aas-blueprint": "workspace:*",
+    "@askimate/aas-case-store": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-conversation": "workspace:*",
+    "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-interview": "workspace:*",
+    "@askimate/aas-llm": "workspace:*",
+    "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-migrate": "workspace:*",
+    "@askimate/aas-orchestrator": "workspace:*",
+    "@askimate/aas-profile": "workspace:*",
     "express": "^5.1.0",
     "pg": "^8.20.0"
   },

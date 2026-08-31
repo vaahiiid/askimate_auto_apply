@@ -30,7 +30,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SECRET_LIFECYCLES } from "@askimate/aas-contracts";
+import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS, SECRET_LIFECYCLES } from "@askimate/aas-contracts";
+import { WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
+import type { RunStep } from "@askimate/aas-orchestrator";
+import { phaseFor } from "@askimate/aas-orchestrator";
 import { SECRET_LIFECYCLE, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
 import type { SecretLifecycle } from "@askimate/aas-secrets";
 
@@ -61,5 +64,50 @@ describe("the wire vocabulary and the domain do not drift", () => {
     // compile even before a test ran.
     const bridge: readonly SecretLifecycle[] = SECRET_LIFECYCLES;
     expect(bridge.length).toBe(SECRET_LIFECYCLE.length);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P1 — the run's vocabulary, written twice for the same reason
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the run's wire words and the domain's do not drift", () => {
+  it("names the same workflow phases, in both directions", () => {
+    expect([...RUN_PHASES].sort()).toEqual([...WORKFLOW_PHASES].sort());
+  });
+
+  it("names the same workflow statuses, in both directions", () => {
+    expect([...RUN_STATUSES].sort()).toEqual([...WORKFLOW_STATUSES].sort());
+  });
+
+  it("names every step kind the orchestrator can decide on", () => {
+    // `phaseFor` is a total mapping over `RunStep["kind"]` and TypeScript
+    // enforces its exhaustiveness, so a step kind added to the orchestrator
+    // without being added here fails to compile in this file before it fails
+    // this assertion — which is the order that helps.
+    const kinds: readonly RunStep["kind"][] = [
+      "interview",
+      "specialist",
+      "fix_content",
+      "authorise",
+      "execute",
+      "create_account",
+      "request_secret",
+      "student_handoff",
+      "ready_to_submit",
+      "hand_over_account",
+    ];
+    expect([...RUN_STEP_KINDS].sort()).toEqual([...kinds].sort());
+  });
+
+  it("maps every wire step kind onto a wire phase", () => {
+    // The client is told a phase and a step. If the orchestrator could map a
+    // step onto a phase the contract does not publish, a client would receive a
+    // word its parser rejects — and `parseConversationRun` would answer null on
+    // a perfectly legitimate run.
+    for (const kind of RUN_STEP_KINDS) {
+      const step = { kind } as RunStep;
+      expect(RUN_PHASES, `step ${kind}`).toContain(phaseFor(step));
+    }
   });
 });

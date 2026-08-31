@@ -1,0 +1,653 @@
+/**
+ * P1 — the run exists, and it survives the process that started it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-08-31: *"This phase is specifically about proving that the run is
+ * real … The implementation must prove that a process restart does not reset
+ * the run to an earlier business state. Use PostgreSQL-backed tests. An
+ * in-memory test alone is insufficient."*
+ *
+ * So every assertion here is against a real PostgreSQL, and the restart is a
+ * real one: the first app is CLOSED, its pool is ENDED, and a second app is
+ * built from nothing but a fresh connection to the same database. Nothing is
+ * carried over in a variable.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── What the four groups prove ────────────────────────────────────────────
+ *
+ *   schema   the binding is the database's rule, not a handler's
+ *   driver   the orchestrator is genuinely the one deciding
+ *   route    a student can start a run, and cannot start someone else's
+ *   restart  the case, the run, the checkpoint and the binding all survive
+ */
+
+import type { Server } from "node:http";
+
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import pg from "pg";
+
+import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
+import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
+import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
+import { caseId as makeCaseId, runId as makeRunId } from "@askimate/aas-domain";
+import { DeterministicModelClient } from "@askimate/aas-llm";
+import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
+import { migrate } from "@askimate/aas-migrate";
+import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
+import { parseConversationRun } from "@askimate/aas-contracts";
+
+import { createConversationApp } from "./app.js";
+import { ApplicationBindingStore } from "./application-store.js";
+import { ConversationEventStore } from "./event-store.js";
+import { MIGRATIONS_DIR } from "./index.js";
+import { RunDriver } from "./run-driver.js";
+import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
+import { issueSession } from "./session.js";
+
+const PORT = 4903;
+const BASE = `http://127.0.0.1:${String(PORT)}`;
+const SECRET = "a-test-session-secret-that-is-long-enough";
+const DATABASE = "aas_conversation_runs";
+const NOW = new Date("2026-08-31T10:00:00Z");
+const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00001";
+const OTHER_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00002";
+const BLUEPRINT = "bp-fixture-pg";
+const STATEMENT = "Please apply to the MSc for me.";
+
+const HAVE_DATABASE = await databaseReachable();
+if (!HAVE_DATABASE) announceSkip("P1 — the run exists, and survives a restart");
+const describeIfDatabase = HAVE_DATABASE ? describe : describe.skip;
+
+/** The reviewed blueprint and its reviewed mapping set. A port, not a table. */
+const ENTRY: CatalogueEntry = {
+  blueprint: FIXTURE_BLUEPRINT,
+  mappingSet: FIXTURE_MAPPING_SET,
+  requiredDocuments: [],
+  institutionRef: "inst-example",
+  courseRef: "course-msc-example",
+  // The blueprint's own `intake` is the label "September 2026". The domain's
+  // `Intake` is a branded YYYY-MM, because it goes into the submission key.
+  // The catalogue states it rather than parsing the label — see CatalogueEntry.
+  intakeRef: "2026-09",
+};
+
+const CATALOGUE: ApplicationCatalogue = {
+  find: (id) => Promise.resolve(id === BLUEPRINT ? ENTRY : null),
+  findByVersion: (version) =>
+    Promise.resolve(version === FIXTURE_BLUEPRINT.version ? ENTRY : null),
+};
+
+let pool: pg.Pool;
+let server: Server;
+let studentId: string;
+let otherStudentId: string;
+
+function cookieFor(subject: string): string {
+  return (issueSession(subject, SECRET).split(";")[0] ?? "").trim();
+}
+
+/**
+ * Everything a Conversation Service instance needs, built from a connection
+ * string and nothing else.
+ *
+ * Written as a factory precisely so the restart test can call it twice. An
+ * instance that reused an object from the first would not be a restart.
+ */
+function buildInstance(connectionString: string): {
+  readonly pool: pg.Pool;
+  readonly driver: RunDriver;
+  readonly app: ReturnType<typeof createConversationApp>;
+} {
+  const instancePool = new pg.Pool({ connectionString, max: 8 });
+  const driver = new RunDriver({
+    stores: {
+      cases: new PostgresCaseStore(instancePool),
+      runs: new PostgresWorkflowRunStore(instancePool),
+    },
+    bindings: new ApplicationBindingStore(instancePool),
+    catalogue: CATALOGUE,
+    model: new DeterministicModelClient(),
+    now: () => NOW,
+  });
+  const app = createConversationApp({
+    store: new ConversationEventStore(instancePool),
+    sessionSecret: SECRET,
+    authorise: async (subject, conversation) => {
+      const owned = await instancePool.query(
+        "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+        [conversation, subject],
+      );
+      return owned.rowCount === 1;
+    },
+    now: () => NOW,
+    runs: driver,
+  });
+  return { pool: instancePool, driver, app };
+}
+
+function connectionString(): string {
+  const url = new URL(TEST_DATABASE_URL);
+  url.pathname = `/${DATABASE}`;
+  return url.toString();
+}
+
+beforeAll(async () => {
+  if (!HAVE_DATABASE) return;
+  const admin = new pg.Pool({ connectionString: TEST_DATABASE_URL });
+  try {
+    await admin.query(`DROP DATABASE IF EXISTS ${DATABASE} WITH (FORCE)`);
+    await admin.query(`CREATE DATABASE ${DATABASE}`);
+  } finally {
+    await admin.end();
+  }
+  pool = new pg.Pool({ connectionString: connectionString(), max: 8 });
+
+  // BOTH schemas, into the one database the Application Plane's service owns.
+  // The registry is keyed by filename, so `0001_conversation_log` and
+  // `0001_case_events` are different rows rather than a collision.
+  await migrate(pool, CASE_MIGRATIONS);
+  await migrate(pool, MIGRATIONS_DIR);
+
+  const student = await pool.query<{ id: string }>(
+    "INSERT INTO students (subject, email_verified) VALUES ('oidc-runs', true) RETURNING id",
+  );
+  studentId = student.rows[0]!.id;
+  const other = await pool.query<{ id: string }>(
+    "INSERT INTO students (subject, email_verified) VALUES ('oidc-runs-other', true) RETURNING id",
+  );
+  otherStudentId = other.rows[0]!.id;
+
+  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+    CONVERSATION,
+    studentId,
+  ]);
+  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+    OTHER_CONVERSATION,
+    otherStudentId,
+  ]);
+
+  const instance = buildInstance(connectionString());
+  server = await new Promise<Server>((resolve) => {
+    const listening = instance.app.listen(PORT, "127.0.0.1", () => resolve(listening));
+  });
+}, 180_000);
+
+afterAll(async () => {
+  if (!HAVE_DATABASE) return;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await pool.end();
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// A. The schema
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the conversation ↔ case binding is the database's rule", () => {
+  it("applies migration 0002, and records it as forward-only", async () => {
+    const applied = await pool.query<{ version: string }>(
+      "SELECT version FROM schema_migrations ORDER BY version",
+    );
+    const versions = applied.rows.map((row) => row.version);
+    expect(versions).toContain("0002_application_runs");
+    // Both schemas in one database, with no collision between their 0001s.
+    expect(versions).toContain("0001_conversation_log");
+    expect(versions).toContain("0001_case_events");
+
+    // Re-running is a no-op, and a CHANGED file would throw. That is the
+    // forward-only rule, exercised rather than described.
+    const again = await migrate(pool, MIGRATIONS_DIR);
+    expect(again).toEqual([]);
+  });
+
+  it("binds a conversation to a case its own student owns", async () => {
+    const bindings = new ApplicationBindingStore(pool);
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      "01JBXQ8Z9WKTQ6M4H2NPC00010",
+      studentId,
+    ]);
+    const bound = await bindings.withBinding(
+      { conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010", caseId: "case-bindable", now: NOW },
+      (boundCase, created) => Promise.resolve({ boundCase, created }),
+    );
+    expect(bound.created).toBe(true);
+    expect(bound.boundCase).toEqual({ caseId: "case-bindable", studentId });
+
+    // Idempotent: the same question, the same answer, no second case.
+    const again = await bindings.withBinding(
+      { conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010", caseId: "case-something-else", now: NOW },
+      (boundCase, created) => Promise.resolve({ boundCase, created }),
+    );
+    expect(again.created).toBe(false);
+    expect(again.boundCase.caseId).toBe("case-bindable");
+  });
+
+  it("REFUSES, in the database, a case belonging to a different student", async () => {
+    // The composite foreign key over (student_id, case_id). A plain reference
+    // to `cases (case_id)` would accept this row: the case would exist and the
+    // ownership would be wrong.
+    await pool.query("INSERT INTO cases (case_id, student_id) VALUES ($1, $2)", [
+      "case-of-another-student",
+      otherStudentId,
+    ]);
+    await expect(
+      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+        "case-of-another-student",
+        CONVERSATION,
+      ]),
+    ).rejects.toMatchObject({ code: "23503" });
+  });
+
+  it("REFUSES a case that does not exist at all", async () => {
+    await expect(
+      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+        "case-never-created",
+        CONVERSATION,
+      ]),
+    ).rejects.toMatchObject({ code: "23503" });
+  });
+
+  it("REFUSES a second conversation claiming one case", async () => {
+    // "Which conversation authorised this?" must have one answer, and that
+    // question is the whole reason the binding exists.
+    await pool.query("INSERT INTO cases (case_id, student_id) VALUES ($1, $2)", [
+      "case-contested",
+      studentId,
+    ]);
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      "01JBXQ8Z9WKTQ6M4H2NPC00011",
+      studentId,
+    ]);
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      "01JBXQ8Z9WKTQ6M4H2NPC00012",
+      studentId,
+    ]);
+    await pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+      "case-contested",
+      "01JBXQ8Z9WKTQ6M4H2NPC00011",
+    ]);
+    await expect(
+      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+        "case-contested",
+        "01JBXQ8Z9WKTQ6M4H2NPC00012",
+      ]),
+    ).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("lets a conversation exist with no case at all", async () => {
+    // MATCH SIMPLE: a NULL case_id satisfies the composite key, so a
+    // conversation that has not started an application is the normal case
+    // rather than an exception the schema has to tolerate.
+    const none = await pool.query(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [OTHER_CONVERSATION],
+    );
+    expect(none.rows[0]).toEqual({ case_id: null });
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// B. The Run Driver
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the Run Driver coordinates, and the orchestrator decides", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00020";
+
+  it("starts a run, and the ORCHESTRATOR chose the step", async () => {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId,
+    ]);
+    const { driver, pool: instancePool } = buildInstance(connectionString());
+    try {
+      const outcome = await driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!outcome.ok) expect.unreachable(`start refused: ${outcome.refusal.kind}`);
+
+      // `interview` is not a word this service chose. `nextStep` reached it by
+      // finding the fill plan blocked on an empty profile — the assertion is
+      // therefore that the orchestrator ran, not merely that a field was set.
+      expect(outcome.position.step).toBe("interview");
+      expect(outcome.position.phase).toBe("interviewing");
+      expect(outcome.position.status).toBe("running");
+      expect(outcome.position.resumed).toBe(false);
+      expect(outcome.position.caseId).toBe(`case_${conversation.toLowerCase()}`);
+    } finally {
+      await instancePool.end();
+    }
+  });
+
+  it("writes the case's first event, with the student's own sentence", async () => {
+    // `openCase` refuses to build without request evidence. This is where
+    // "the student asked" stops being an assumption.
+    const events = await pool.query<{ event: { type: string; requestEvidence?: { studentStatement?: string } } }>(
+      `SELECT event FROM case_events WHERE case_id = $1 ORDER BY "sequence"`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(events.rows.map((row) => row.event.type)).toEqual(["CaseOpened"]);
+    expect(events.rows[0]?.event.requestEvidence?.studentStatement).toBe(STATEMENT);
+  });
+
+  it("checkpoints the decision durably", async () => {
+    const runs = await pool.query<{ run_id: string; checkpoint: { phase: string }; revision: number }>(
+      "SELECT run_id, checkpoint, revision FROM workflow_runs WHERE case_id = $1",
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(runs.rowCount).toBe(1);
+    expect(runs.rows[0]?.checkpoint.phase).toBe("interviewing");
+    // Advanced past its start, so the checkpoint was actually written rather
+    // than merely created with the run.
+    expect(runs.rows[0]?.revision).toBeGreaterThan(0);
+  });
+
+  it("RESUMES rather than restarting, and creates no second run", async () => {
+    const { driver, pool: instancePool } = buildInstance(connectionString());
+    try {
+      const again = await driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: "Any second thoughts are still the same request.",
+      });
+      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
+      expect(again.position.resumed).toBe(true);
+
+      const runs = await pool.query("SELECT run_id FROM workflow_runs WHERE case_id = $1", [
+        `case_${conversation.toLowerCase()}`,
+      ]);
+      expect(runs.rowCount, "a second run would give one case two positions").toBe(1);
+
+      // And the case log did not gain a second CaseOpened.
+      const events = await pool.query(`SELECT 1 FROM case_events WHERE case_id = $1`, [
+        `case_${conversation.toLowerCase()}`,
+      ]);
+      expect(events.rowCount).toBe(1);
+    } finally {
+      await instancePool.end();
+    }
+  });
+
+  it("refuses a blueprint the catalogue does not have", async () => {
+    const { driver, pool: instancePool } = buildInstance(connectionString());
+    try {
+      const outcome = await driver.start({
+        conversationId: OTHER_CONVERSATION,
+        blueprintId: "bp-not-reviewed",
+        studentStatement: STATEMENT,
+      });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "unknown_blueprint" } });
+      // Nothing was bound: a refused start must not leave a case behind.
+      const bound = await pool.query("SELECT case_id FROM conversations WHERE id = $1", [
+        OTHER_CONVERSATION,
+      ]);
+      expect(bound.rows[0]).toEqual({ case_id: null });
+    } finally {
+      await instancePool.end();
+    }
+  });
+
+  it("refuses to advance a run that belongs to another conversation", async () => {
+    const { driver, pool: instancePool } = buildInstance(connectionString());
+    try {
+      const runs = await pool.query<{ run_id: string }>(
+        "SELECT run_id FROM workflow_runs WHERE case_id = $1",
+        [`case_${conversation.toLowerCase()}`],
+      );
+      const runId = runs.rows[0]!.run_id;
+      const outcome = await driver.advance({ runId, conversationId: OTHER_CONVERSATION });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "unknown_conversation" } });
+    } finally {
+      await instancePool.end();
+    }
+  });
+
+  it("does not create two cases when two starts race", async () => {
+    // `bind` takes a row lock. Without it both callers read case_id = NULL and
+    // both insert, and one gets a unique violation the student sees as a 500.
+    const racing = "01JBXQ8Z9WKTQ6M4H2NPC00021";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      racing,
+      studentId,
+    ]);
+    const a = buildInstance(connectionString());
+    const b = buildInstance(connectionString());
+    try {
+      const [first, second] = await Promise.all([
+        a.driver.start({ conversationId: racing, blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        b.driver.start({ conversationId: racing, blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      ]);
+      expect(first.ok && second.ok, "both starts should succeed").toBe(true);
+      const cases = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [
+        `case_${racing.toLowerCase()}`,
+      ]);
+      expect(cases.rowCount).toBe(1);
+      const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = $1", [
+        `case_${racing.toLowerCase()}`,
+      ]);
+      expect(runs.rowCount, "one conversation, one case, one live run").toBe(1);
+    } finally {
+      await a.pool.end();
+      await b.pool.end();
+    }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// C. The route
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
+  async function startRun(
+    conversationId: string,
+    subject: string,
+    body: Record<string, unknown> = { blueprintId: BLUEPRINT, studentStatement: STATEMENT },
+  ): Promise<{ status: number; body: unknown }> {
+    const response = await fetch(`${BASE}/v1/conversations/${conversationId}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+      body: JSON.stringify(body),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
+  it("starts a run for the authenticated student, in the published shape", async () => {
+    const { status, body } = await startRun(CONVERSATION, studentId);
+    expect(status).toBe(201);
+
+    // Parsed by the CONTRACT's own parser, not by an ad-hoc cast. A response
+    // that drifted from `conversation.v1.yaml` fails here.
+    const run = parseConversationRun(body);
+    if (run === null) expect.unreachable(`the response is not a ConversationRun: ${JSON.stringify(body)}`);
+    expect(run.conversationId).toBe(CONVERSATION);
+    expect(run.step).toBe("interview");
+    expect(run.resumed).toBe(false);
+
+    // And it is durable, not merely returned.
+    const bound = await pool.query<{ case_id: string | null }>(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [CONVERSATION],
+    );
+    expect(bound.rows[0]?.case_id).toBe(run.caseId);
+    const runs = await pool.query("SELECT run_id FROM workflow_runs WHERE run_id = $1", [run.runId]);
+    expect(runs.rowCount).toBe(1);
+  });
+
+  it("answers 200 and resumed:true on a retry, without a second run", async () => {
+    const { status, body } = await startRun(CONVERSATION, studentId);
+    expect(status).toBe(200);
+    expect(parseConversationRun(body)?.resumed).toBe(true);
+    const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)", [CONVERSATION]);
+    expect(runs.rowCount).toBe(1);
+  });
+
+  it("REFUSES another student's conversation, with 404 rather than 403", async () => {
+    // A 403 confirms the conversation exists, which is a fact about another
+    // student. The same rule every other route on this service follows.
+    const { status, body } = await startRun(CONVERSATION, otherStudentId);
+    expect(status).toBe(404);
+    expect(body).toMatchObject({ code: "not_found" });
+
+    // And nothing was started for them.
+    const theirs = await pool.query("SELECT case_id FROM conversations WHERE id = $1", [
+      OTHER_CONVERSATION,
+    ]);
+    expect(theirs.rows[0]).toEqual({ case_id: null });
+  });
+
+  it("REFUSES an unauthenticated caller", async () => {
+    const response = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("REFUSES a start with no student statement", async () => {
+    // A case cannot be opened without request evidence: explicit request before
+    // consequential action, and silence is not consent.
+    const { status, body } = await startRun(CONVERSATION, studentId, {
+      blueprintId: BLUEPRINT,
+    });
+    expect(status).toBe(400);
+    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/studentStatement"] });
+  });
+
+  it("REFUSES a start with no blueprint", async () => {
+    const { status, body } = await startRun(CONVERSATION, studentId, {
+      studentStatement: STATEMENT,
+    });
+    expect(status).toBe(400);
+    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/blueprintId"] });
+  });
+
+  it("carries no free text at all in the response", async () => {
+    // The type-level assertion in @askimate/aas-contracts says this, and this
+    // is the same claim made against a real body: a `say`, a `detail` or a
+    // preview added later shows up here.
+    const { body } = await startRun(CONVERSATION, studentId);
+    expect(Object.keys(body as object).sort()).toEqual([
+      "caseId",
+      "conversationId",
+      "phase",
+      "resumed",
+      "revision",
+      "runId",
+      "status",
+      "step",
+    ]);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// D. The restart
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a run survives the process that started it", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00040";
+
+  it("resumes the SAME case and the SAME run, from a wholly new instance", async () => {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId,
+    ]);
+
+    // ── Instance one ────────────────────────────────────────────────────
+    const first = buildInstance(connectionString());
+    const firstServer = await new Promise<Server>((resolve) => {
+      const listening = first.app.listen(PORT + 1, "127.0.0.1", () => resolve(listening));
+    });
+    const started = await fetch(`http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId) },
+      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+    });
+    expect(started.status).toBe(201);
+    const before = parseConversationRun(await started.json());
+    if (before === null) expect.unreachable("the first instance should have started a run");
+
+    // ── The interruption ────────────────────────────────────────────────
+    //
+    // The server is closed and the pool is ENDED. Nothing from the first
+    // instance survives into the second except what is in PostgreSQL — which is
+    // the whole claim being tested.
+    await new Promise<void>((resolve) => firstServer.close(() => resolve()));
+    await first.pool.end();
+
+    // ── Instance two, built from a connection string ─────────────────────
+    const second = buildInstance(connectionString());
+    try {
+      const resumed = await second.driver.advance({
+        runId: before.runId,
+        conversationId: conversation,
+      });
+      if (!resumed.ok) expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
+
+      expect(resumed.position.runId, "the same run").toBe(before.runId);
+      expect(resumed.position.caseId, "the same case").toBe(before.caseId);
+      expect(resumed.position.conversationId, "still bound to the conversation").toBe(conversation);
+      expect(resumed.position.resumed).toBe(true);
+
+      // ── The run did NOT restart from zero ─────────────────────────────
+      //
+      // `beginCheckpoint` starts a run at `preparing_inputs`. A run that had
+      // been recreated would report that. This one reports where the
+      // orchestrator had already put it.
+      expect(resumed.position.phase).not.toBe("preparing_inputs");
+      expect(resumed.position.phase).toBe(before.phase);
+      expect(resumed.position.step).toBe(before.step);
+
+      // The revision moved forward rather than resetting: the durable
+      // checkpoint has a history, not a fresh start.
+      expect(resumed.position.revision).toBeGreaterThan(before.revision);
+
+      // One case, one run, one CaseOpened. A restart that re-opened the case
+      // would show a second event or a second run here.
+      const cases = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [before.caseId]);
+      expect(cases.rowCount).toBe(1);
+      const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = $1", [before.caseId]);
+      expect(runs.rowCount).toBe(1);
+      const events = await pool.query(`SELECT 1 FROM case_events WHERE case_id = $1`, [before.caseId]);
+      expect(events.rowCount).toBe(1);
+    } finally {
+      await second.pool.end();
+    }
+  }, 120_000);
+
+  it("keeps the business fact the log holds, not the checkpoint", async () => {
+    // Rule 3 of the approved architecture: dropping every checkpoint must lose
+    // no business fact. Proved here against the real database — the case's
+    // request evidence is still there after the position is thrown away.
+    const bound = await pool.query<{ case_id: string }>(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [conversation],
+    );
+    const caseRef = makeCaseId(bound.rows[0]!.case_id);
+    const runs = await pool.query<{ run_id: string }>(
+      "SELECT run_id FROM workflow_runs WHERE case_id = $1",
+      [caseRef],
+    );
+
+    const instance = buildInstance(connectionString());
+    try {
+      const store = new PostgresWorkflowRunStore(instance.pool);
+      await store.discardCheckpoints(makeRunId(runs.rows[0]!.run_id));
+
+      const cases = new PostgresCaseStore(instance.pool);
+      const events = await cases.read(caseRef);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.type).toBe("CaseOpened");
+
+      // And the run re-derives a position rather than losing the case.
+      const again = await instance.driver.advance({
+        runId: runs.rows[0]!.run_id,
+        conversationId: conversation,
+      });
+      if (!again.ok) expect.unreachable("a discarded checkpoint must not lose the run");
+      expect(again.position.caseId).toBe(caseRef);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+});

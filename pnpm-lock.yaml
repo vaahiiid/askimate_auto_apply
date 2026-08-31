@@ -241,15 +241,39 @@ importers:
 
   apps/conversation-service:
     dependencies:
+      '@askimate/aas-blueprint':
+        specifier: workspace:*
+        version: link:../../packages/blueprint
+      '@askimate/aas-case-store':
+        specifier: workspace:*
+        version: link:../../packages/case-store
       '@askimate/aas-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@askimate/aas-conversation':
         specifier: workspace:*
         version: link:../../packages/conversation
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@askimate/aas-interview':
+        specifier: workspace:*
+        version: link:../../packages/interview
+      '@askimate/aas-llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
+      '@askimate/aas-mapping':
+        specifier: workspace:*
+        version: link:../../packages/mapping
       '@askimate/aas-migrate':
         specifier: workspace:*
         version: link:../../packages/migrate
+      '@askimate/aas-orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
+      '@askimate/aas-profile':
+        specifier: workspace:*
+        version: link:../../packages/profile
       express:
         specifier: ^5.1.0
         version: 5.2.1

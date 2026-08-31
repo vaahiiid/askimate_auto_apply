@@ -136,3 +136,19 @@ export {
   parseSecretFillRequest,
   parseSecretFillResult,
 } from "./fill.js";
+
+export type {
+  ConversationRun,
+  NO_RUN_FIELD_IS_FREE_TEXT,
+  RunPhase,
+  RunRefusalCode,
+  RunStatus,
+  RunStepKind,
+} from "./runs.js";
+export {
+  RUN_PHASES,
+  RUN_REFUSALS,
+  RUN_STATUSES,
+  RUN_STEP_KINDS,
+  parseConversationRun,
+} from "./runs.js";

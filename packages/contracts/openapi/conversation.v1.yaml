@@ -233,6 +233,69 @@ paths:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /conversations/{conversationId}/runs:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: startRun
+      tags: [runs]
+      summary: Start the application run this conversation owns, or resume it.
+      description: >-
+        The student's starting action. It binds a case to the conversation,
+        starts a durable workflow run against it, and asks the orchestrator what
+        happens next. The Conversation Service COORDINATES; the orchestrator
+        DECIDES — nothing on this endpoint chooses a step.
+
+        There is no Idempotency-Key, and that is not an oversight. A conversation
+        owns AT MOST ONE case — a partial unique index and a composite foreign
+        key say so — so a client retrying a timed-out start is asking the same
+        question rather than making a second request. `resumed` and the status
+        code are how a caller tells which it got.
+
+        `studentStatement` is required because a case cannot be opened without
+        request evidence: explicit request before consequential action, and
+        silence is not consent. It is what the student actually said, so that
+        "why did you apply to this for this student?" has their own sentence as
+        its answer.
+
+        Note what the response does NOT carry: nothing a step SAID. Prompts,
+        previews, plans and violation lists stay out of it, and a client that
+        needs the student's next question reads the conversation log — the one
+        place a student-visible sentence is durable and ordered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartRunRequest" }
+      responses:
+        "200":
+          description: >-
+            The conversation already had a run; this is where it stands now,
+            after one further decision. `resumed` is true.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationRun" } }
+        "201":
+          description: A run was created for this conversation.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationRun" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: >-
+            The case cannot be bound here — it belongs to a different student, or
+            another conversation already owns it. Refused by the database's
+            composite foreign key, not by a check in a handler.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503":
+          description: >-
+            This deployment carries no run driver, or the blueprint's mapping set
+            is not usable. The second is a specialist's problem and its detail
+            names fields of a university's form, so the detail stays out of the
+            body.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /internal/v1/conversations/{conversationId}/events:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
@@ -374,6 +437,84 @@ components:
     # A closed oneOf discriminated by `kind`. Exactly one member has a
     # `content` field. The others do not have it set to null or made optional —
     # `additionalProperties: false` means the field cannot be present at all.
+    StartRunRequest:
+      type: object
+      additionalProperties: false
+      required: [blueprintId, studentStatement]
+      properties:
+        blueprintId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            Which reviewed blueprint to apply against. Resolved through a
+            catalogue port rather than a table: which portals AskiMate can apply
+            to is decided by discovery and two-person review, and a table of
+            blueprints would be a place for an unreviewed one to arrive.
+        studentStatement:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: What the student actually said. Becomes the case's request evidence.
+
+    ConversationRun:
+      type: object
+      additionalProperties: false
+      required: [runId, caseId, conversationId, status, phase, step, revision, resumed]
+      description: >-
+        Position and identity. Four closed-set words, three identifiers and a
+        number — there is no free-text field on this schema at all, which also
+        means there is no field into which a future change could interpolate a
+        value.
+      properties:
+        runId: { type: string, minLength: 1, maxLength: 128 }
+        caseId: { type: string, minLength: 1, maxLength: 128 }
+        conversationId: { type: string, pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }
+        status: { $ref: "#/components/schemas/RunStatus" }
+        phase: { $ref: "#/components/schemas/RunPhase" }
+        step: { $ref: "#/components/schemas/RunStepKind" }
+        revision:
+          type: integer
+          minimum: 0
+          description: Optimistic-concurrency revision of the durable checkpoint.
+        resumed:
+          type: boolean
+          description: True when the call resumed an existing run rather than creating one.
+
+    RunStatus:
+      type: string
+      enum: [running, suspended, uncertain, escalated, completed, abandoned]
+
+    RunPhase:
+      type: string
+      enum:
+        - preparing_inputs
+        - interviewing
+        - awaiting_specialist
+        - awaiting_secret
+        - creating_account
+        - awaiting_student_handoff
+        - awaiting_authorisation
+        - filling
+        - ready_to_submit
+        - handing_over
+
+    RunStepKind:
+      type: string
+      description: >-
+        The KIND of the orchestrator's decision, never its contents.
+      enum:
+        - interview
+        - specialist
+        - fix_content
+        - authorise
+        - execute
+        - create_account
+        - request_secret
+        - student_handoff
+        - ready_to_submit
+        - hand_over_account
+
     ConversationEvent:
       oneOf:
         - { $ref: "#/components/schemas/MessageEvent" }

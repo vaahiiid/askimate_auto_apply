@@ -7,6 +7,7 @@
 
 export type { RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
 export {
+  IllegalSecretTransitionError,
   assess,
   beginRun,
   markFilled,
@@ -15,6 +16,7 @@ export {
   withAccount,
   withAuthorisation,
   withProfile,
+  withSecret,
 } from "./run.js";
 
 export type {

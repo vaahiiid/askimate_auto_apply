@@ -44,6 +44,8 @@ export interface ConversationAppOptions {
   readonly maxStreamMs?: number;
   readonly mintFrameToken?: ConversationRoutesOptions["mintFrameToken"];
   readonly secureOrigin?: string;
+  /** Starts and advances application runs (P1). Omit to serve conversations alone. */
+  readonly runs?: ConversationRoutesOptions["runs"];
   /**
    * Mints a session for a subject. PROVISIONAL, and mounted only when supplied.
    *
@@ -109,6 +111,7 @@ export function createConversationApp(options: ConversationAppOptions): Express 
       ...(options.maxStreamMs === undefined ? {} : { maxStreamMs: options.maxStreamMs }),
       ...(options.mintFrameToken === undefined ? {} : { mintFrameToken: options.mintFrameToken }),
       ...(options.secureOrigin === undefined ? {} : { secureOrigin: options.secureOrigin }),
+      ...(options.runs === undefined ? {} : { runs: options.runs }),
     }),
   );
 

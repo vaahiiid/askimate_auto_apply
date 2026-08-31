@@ -60,6 +60,7 @@ import type {
   SecretRequest,
   SecretRequestId,
 } from "@askimate/aas-secrets";
+import { canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
 import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
@@ -659,6 +660,123 @@ export function withAuthorisation(state: RunState, record: AuthorisationRecord):
 /** Records that the portal has been filled. */
 export function markFilled(state: RunState): RunState {
   return { ...state, filled: true };
+}
+
+/**
+ * Raised when a caller tries to move a run's secret lifecycle somewhere it
+ * cannot go.
+ *
+ * A thrown error rather than a returned refusal, because every case it catches
+ * is a programming mistake rather than an outcome the product has to render:
+ * the lifecycle is decided by the Secure Interaction Service, and a driver that
+ * tries to walk it backwards has misread an event, not encountered a student
+ * doing something unusual.
+ */
+export class IllegalSecretTransitionError extends Error {
+  public override readonly name = "IllegalSecretTransitionError";
+  public constructor(
+    public readonly from: SecretLifecycle | "none",
+    public readonly to: SecretLifecycle,
+    detail: string,
+  ) {
+    super(`A run's secret cannot move from ${from} to ${to}. ${detail}`);
+  }
+}
+
+/**
+ * Records where the student's password has got to. The only sanctioned writer
+ * of `RunState.secret`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `RunState.secret` has existed since the secret channel was designed, and
+ * until now nothing could write it: `withAccount`, `withAuthorisation`,
+ * `withProfile` and `markFilled` had no counterpart, so the only way to move a
+ * run past `request_secret` was to build a new `RunState` by hand. This closes
+ * that, and closes it as a machine rather than an assignment.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Four words and a handle. Never a password ─────────────────────────────
+ *
+ * Vahid: *"Orchestration state may contain secret_requested / secret_received /
+ * secret_consumed / secret_expired — but NEVER the password itself."* The
+ * parameter type is what enforces that: there is no field here that could hold
+ * a value, and `SecretHandle` is `sh_` plus 32 random hex digits, derived from
+ * nothing.
+ *
+ * ── Why it refuses rather than accepts ────────────────────────────────────
+ *
+ * Three rules, each mirroring something the system already enforces elsewhere:
+ *
+ *  1. **The lifecycle moves only where `canTransition` allows.** Nothing leads
+ *     out of `secret_consumed`, `secret_expired` or `secret_cancelled`, so a
+ *     driver that re-read a stale event cannot resurrect a spent handle in run
+ *     state and hand it to an automation that would then try to spend it again.
+ *
+ *  2. **A different request may only replace a settled one.** A run has one
+ *     open secure step at a time; replacing a live `secret_requested` with a
+ *     second request id would abandon a box the student may be typing into,
+ *     which is the failure `secretStepFor` above is careful to avoid.
+ *
+ *  3. **A handle may only accompany a lifecycle that can have one.** The same
+ *     rule the secure plane's own schema states as
+ *     `a_handle_means_it_was_answered` — a handle before the student answered
+ *     describes something that has not happened.
+ *
+ * This does NOT talk to the Secure Interaction Service, mint a request, or
+ * decide when to ask. It records what the secure plane has already reported.
+ */
+export function withSecret(
+  state: RunState,
+  secret: {
+    readonly requestId: SecretRequestId;
+    readonly lifecycle: SecretLifecycle;
+    /** Opaque. Resolves to nothing outside the vault. */
+    readonly handle?: SecretHandle;
+  },
+): RunState {
+  const current = state.secret;
+
+  if (current !== undefined && current.requestId !== secret.requestId) {
+    if (!isTerminalLifecycle(current.lifecycle)) {
+      throw new IllegalSecretTransitionError(
+        current.lifecycle,
+        secret.lifecycle,
+        `Request ${current.requestId} is still live, so ${secret.requestId} cannot replace it. A ` +
+          `run has one open secure step at a time; a second one would abandon a box the student ` +
+          `may be typing into.`,
+      );
+    }
+  } else if (current !== undefined && !canTransition(current.lifecycle, secret.lifecycle)) {
+    // Re-reporting the SAME word is not a transition and is allowed: lifecycle
+    // events arrive through an at-least-once outbox, so a duplicate delivery
+    // must be a no-op rather than an error.
+    if (current.lifecycle !== secret.lifecycle) {
+      throw new IllegalSecretTransitionError(
+        current.lifecycle,
+        secret.lifecycle,
+        `Nothing leads out of a settled secret: single-use means the handle is dead, and a run ` +
+          `state that said otherwise would hand a spent handle to an automation.`,
+      );
+    }
+  }
+
+  if (secret.handle !== undefined && secret.lifecycle === "secret_requested") {
+    throw new IllegalSecretTransitionError(
+      current?.lifecycle ?? "none",
+      secret.lifecycle,
+      `A handle exists only once the student has answered. The secure plane's own schema says the ` +
+        `same thing as a_handle_means_it_was_answered.`,
+    );
+  }
+
+  return {
+    ...state,
+    secret: {
+      requestId: secret.requestId,
+      lifecycle: secret.lifecycle,
+      ...(secret.handle === undefined ? {} : { handle: secret.handle }),
+    },
+  };
 }
 
 /** Replaces the profile — after a confirmation, or a specialist correction. */

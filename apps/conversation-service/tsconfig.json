@@ -2,5 +2,17 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/migrate" }, { "path": "../../packages/conversation" }]
+  "references": [
+    { "path": "../../packages/blueprint" },
+    { "path": "../../packages/case-store" },
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/conversation" },
+    { "path": "../../packages/domain" },
+    { "path": "../../packages/interview" },
+    { "path": "../../packages/llm" },
+    { "path": "../../packages/mapping" },
+    { "path": "../../packages/migrate" },
+    { "path": "../../packages/orchestrator" },
+    { "path": "../../packages/profile" }
+  ]
 }

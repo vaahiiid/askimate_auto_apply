@@ -19,6 +19,88 @@ not shipped artefacts.
 
 ---
 
+## [0.19.0] — 2026-08-31
+
+**P1 — the run exists.** A student conversation can now create and own a
+durable application run, and the run survives the process that started it.
+
+**Version bump: MINOR.** One new endpoint, one new migration, one new
+orchestrator transition, and the first production caller of `nextStep`. No
+approved security boundary moved.
+
+### Added — the Conversation Service is now the Application Plane's service
+
+`nextStep` had exactly one caller in the whole repository — `scripts/end-to-end.ts`,
+a demo. The orchestrator was complete, tested and unreachable from anything a
+student could do. `apps/conversation-service/src/run-driver.ts` is the join.
+
+The division is stated and enforced: **the Conversation Service coordinates and
+the orchestrator decides.** `scripts/check-boundaries.ts` fails the build if the
+driver grows a `switch (step.kind)`, calls `phaseFor` or `deriveCheckpoint`, or
+stops calling `nextStep` at all — because a second implementation of the
+decision is exactly how the two models of a case came apart in the first place.
+
+### Added — migration 0002, and the binding is the database's rule
+
+`cases` is an identity anchor: an id, an owner, a timestamp. No status, no
+phase, no checkpoint, no business fact — `case_events` is still the sole
+authoritative record, and a `status` column here would have become a second
+opinion about it within a bug or two.
+
+`conversations.case_id` references `cases` through a **composite** foreign key
+over `(student_id, case_id)`. A plain reference to `cases (case_id)` would let
+student A's conversation point at student B's case: the reference would be valid
+and the ownership would be wrong. MATCH SIMPLE keeps the column nullable, so a
+conversation that has not started an application is the normal case rather than
+an exception the schema has to tolerate.
+
+### Added — `withSecret`, the only sanctioned writer of `RunState.secret`
+
+The field has existed since the secret channel was designed and nothing could
+write it. The writer is a machine, not an assignment: nothing may move out of a
+settled secret, a second request may only replace one that has settled, and a
+handle may only accompany a lifecycle that can have one — the same rule the
+secure plane's own schema states as `a_handle_means_it_was_answered`. Re-reporting
+the same word is a no-op, because lifecycle deliveries are at-least-once.
+
+### Added — `POST /v1/conversations/{id}/runs`
+
+No `Idempotency-Key`, and that is not an oversight: a conversation owns at most
+one case, so a retry is the same question rather than a second request.
+`resumed` and the status code (201 created, 200 resumed) are how a caller tells
+which it got. The response carries position and identity only — a type-level
+assertion in `@askimate/aas-contracts` fails the build if a free-text field is
+ever added to it.
+
+### Fixed — a concurrency defect the tests caught
+
+The first version locked the conversation row for the BINDING and nothing after
+it. Two simultaneous starts therefore agreed on one case and then raced to open
+that case's event log, and the loser got a `ConcurrencyConflictError` a student
+would have seen as a 500. The critical section now spans bind → open the case →
+start the run, and run ids are derived from the case rather than from a clock,
+for the same reason `idempotencyKeyFor` is derived rather than random.
+
+### Discovered — a seam between the blueprint and the domain
+
+`ApplicationBlueprint.intake` is the label `"September 2026"`; the domain's
+`Intake` is a branded, validated `YYYY-MM` that goes into the submission key
+preventing duplicate applications. Parsing the label would have made a
+coordinator derive a business fact from prose, and derive it wrongly the first
+time a blueprint said "Autumn 2026". The catalogue states the identity instead,
+beside the institution and course references that were already there for this
+reason.
+
+### Honestly not durable yet
+
+The `ConfirmedProfile` and the `InterviewState`. `resumeRun` has said so in its
+own documentation since it was written — `ConfirmationCaptured` carries a
+reference rather than a value, deliberately, so the event log is not a copy of
+the profile. Everything P1's brief lists as durable does survive: case identity,
+run identity, durable run state, checkpoint state and the conversation binding.
+
+---
+
 ## [0.18.0] — 2026-08-30
 
 **The runner no longer holds a password. The component that consumes a credential

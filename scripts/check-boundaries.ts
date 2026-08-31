@@ -313,6 +313,32 @@ const RULES: readonly Rule[] = [
       "password in full). A model SDK is forbidden for the same reason as everywhere else.",
   },
   {
+    packagePath: "apps/conversation-service",
+    forbidden: [
+      "@askimate/aas-secrets",
+      "@aws-sdk/client-kms",
+      "playwright",
+      "morgan",
+      "pino",
+      "pino-http",
+      "winston",
+      "express-winston",
+      "@sentry/node",
+      "@sentry/express",
+      "dd-trace",
+      "newrelic",
+      "@opentelemetry/sdk-node",
+      "errorhandler",
+    ],
+    rationale:
+      "P1 gave this service the application domain — the orchestrator, the case store, the " +
+      "interview — and with it a TRANSITIVE path to @askimate/aas-secrets. A DIRECT dependency " +
+      "would be a resolver in the plane ADR-0037 keeps free of them: the conversation plane " +
+      "learns which request a secure step was, what lifecycle it reached and an opaque handle, " +
+      "and nothing else. Playwright is forbidden for the same reason it is in the secure " +
+      "service — this service drives no browser. The logging and APM names are the usual list.",
+  },
+  {
     packagePath: "apps/browser-runner",
     forbidden: [
       "@askimate/aas-case-store",
@@ -503,6 +529,84 @@ function main(): void {
   console.log(
     `  ✓  apps/browser-runner — ${String(runnerSources.length)} source file(s) name no vault, no store, no resolver`,
   );
+
+  // ── The conversation plane cannot NAME anything that resolves a secret ──
+  //
+  // The manifest rule above stops a declared dependency. This stops the other
+  // route — a deep relative import that never appears in a package.json — and
+  // it matters more here than it did before P1, because the orchestrator's
+  // `RunState.secret` puts the vocabulary of secrets legitimately in reach.
+  //
+  // Four lifecycle words and an opaque handle are exactly what this plane may
+  // hold. A vault, a store or a resolver is not.
+  const CONVERSATION_FORBIDDEN_IMPORTS = [
+    "aas-secrets",
+    "secrets/src",
+    "InMemorySecretStore",
+    "EnvelopeVault",
+    "LocalDataKeyProvider",
+    "getSecret",
+    "useSecret",
+  ];
+  const conversationSources = existsSync("apps/conversation-service/src")
+    ? readdirSync("apps/conversation-service/src").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of conversationSources) {
+    const source = readFileSync(join("apps/conversation-service/src", name), "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+    for (const forbidden of CONVERSATION_FORBIDDEN_IMPORTS) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `apps/conversation-service/src/${name} mentions \`${forbidden}\`. The conversation plane ` +
+          `holds four lifecycle words and an opaque handle. A vault, a store or a resolver here ` +
+          `would put a password in the one plane ADR-0037 keeps free of them.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  apps/conversation-service — ${String(conversationSources.length)} source file(s) name no vault, no store, no resolver`,
+  );
+
+  // ── P1: the Run Driver coordinates; the orchestrator decides ────────────
+  //
+  // The rule that keeps the split real. A driver that grew a `switch (step.kind)`
+  // would be a SECOND implementation of the decision `nextStep` already makes,
+  // and the pure one would stop being the answer — which is exactly how the two
+  // models of a case came apart in the first place.
+  //
+  // `phaseFor` is named too: the mapping from a decision to a durable phase
+  // lives in the orchestrator's `durable.ts`, and a copy here would be a second
+  // opinion about where a run has got to.
+  const DRIVER = "apps/conversation-service/src/run-driver.ts";
+  if (existsSync(DRIVER)) {
+    const source = readFileSync(DRIVER, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+
+    for (const forbidden of ["step.kind ===", "switch (step", "phaseFor(", "deriveCheckpoint("]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${DRIVER} contains \`${forbidden}\`. The Conversation Service COORDINATES and the ` +
+          `orchestrator DECIDES: branching on a step's kind here, or deriving a phase here, ` +
+          `would be a second implementation of a decision that already has one pure home.`,
+      );
+    }
+    if (!code.includes("nextStep(")) {
+      violations.push(
+        `${DRIVER} does not call nextStep(). The whole point of the Run Driver is that the ` +
+          `orchestrator makes the decision; a driver that reached a conclusion another way ` +
+          `would be the second model of a case returning.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the Run Driver — calls nextStep, decides nothing itself`);
 
   // ── The fill agent holds plaintext, and must leak nothing while it does ─
   //

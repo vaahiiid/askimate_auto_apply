@@ -75,6 +75,11 @@ const DATABASE_BACKED = [
   // strongest assertions read the secure plane's own tables, so a run without a
   // database would report green while checking nothing.
   "apps/secure-service/src/fill-agent-e2e.test.ts",
+  // P1: the run exists, and survives the process that started it. Its strongest
+  // assertions are a composite foreign key refusing another student's case and
+  // a restart that resumes rather than restarts — both properties of
+  // PostgreSQL, which a fake would be re-implementing rather than testing.
+  "apps/conversation-service/src/run-driver.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

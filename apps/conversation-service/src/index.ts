@@ -48,10 +48,27 @@ export {
   UnknownConversationError,
 } from "./event-store.js";
 
-export type { Caller, ConversationRoutesOptions } from "./routes.js";
+export type { Caller, ConversationRoutesOptions, RunCoordinator } from "./routes.js";
 export { createConversationRoutes } from "./routes.js";
 
 export { SESSION_COOKIE, issueSession, readSession, setSession } from "./session.js";
 
 export type { ConversationAppOptions } from "./app.js";
 export { createConversationApp } from "./app.js";
+
+// ── P1: the run (ADR-0031's log, joined to the application domain) ──────────
+export type { ConversationCase } from "./application-store.js";
+export {
+  ApplicationBindingStore,
+  CaseBindingRefusedError,
+  UnknownConversationBindingError,
+} from "./application-store.js";
+export type {
+  ApplicationCatalogue,
+  CatalogueEntry,
+  RunDriverOptions,
+  RunOutcome,
+  RunPosition,
+  RunRefusal,
+} from "./run-driver.js";
+export { RunDriver } from "./run-driver.js";

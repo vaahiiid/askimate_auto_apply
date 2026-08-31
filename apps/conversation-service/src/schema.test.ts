@@ -90,7 +90,7 @@ beforeAll(async () => {
   const applied = await migrate(pool, MIGRATIONS_DIR);
   // A migration run that applied nothing would leave every test below passing
   // against an empty database in the most misleading way possible.
-  expect(applied).toEqual(["0001_conversation_log"]);
+  expect(applied).toEqual(["0001_conversation_log", "0002_application_runs"]);
 
   const student = await pool.query<{ id: string }>(
     "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",
@@ -641,7 +641,10 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
   it("applies nothing on a second run", async () => {
     const fresh = await ownDatabase("aas_conversation_twice");
     try {
-      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual(["0001_conversation_log"]);
+      expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([
+        "0001_conversation_log",
+        "0002_application_runs",
+      ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
       await fresh.end();
@@ -666,9 +669,15 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     }
   }, 60_000);
 
-  it("has exactly one migration, named and ordered as ADR-0003 requires", () => {
+  it("names and orders every migration as ADR-0003 requires", () => {
+    // The list is written out rather than counted. A new migration is a
+    // reviewed addition, so it should be a line in a diff here too — and the
+    // ORDER matters, because 0002 adds a foreign key to a table 0001 created.
     const migrations = loadMigrations(MIGRATIONS_DIR);
-    expect(migrations.map((migration) => migration.version)).toEqual(["0001_conversation_log"]);
+    expect(migrations.map((migration) => migration.version)).toEqual([
+      "0001_conversation_log",
+      "0002_application_runs",
+    ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.
     for (const migration of migrations) expect(migration.version).toMatch(/^[0-9]{4}_/);
