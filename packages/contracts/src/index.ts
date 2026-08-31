@@ -152,3 +152,22 @@ export {
   RUN_STEP_KINDS,
   parseConversationRun,
 } from "./runs.js";
+
+// ── ADR-0045: the internal work API the Automation Runner pulls from ───────
+export type {
+  ClaimedWork,
+  NO_WORK_FIELD_IS_FREE_TEXT,
+  WorkApproach,
+  WorkFailure,
+  WorkKind,
+  WorkOutcome,
+  WorkReport,
+} from "./work.js";
+export {
+  WORK_APPROACHES,
+  WORK_FAILURES,
+  WORK_KINDS,
+  WORK_OUTCOMES,
+  parseClaimedWork,
+  parseWorkReport,
+} from "./work.js";

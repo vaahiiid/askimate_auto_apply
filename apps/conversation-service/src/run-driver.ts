@@ -45,6 +45,8 @@
  * confirmed value lives, not a line of code here.
  */
 
+import { randomUUID } from "node:crypto";
+
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
@@ -54,6 +56,7 @@ import {
   caseId as makeCaseId,
   courseId as makeCourseId,
   externalRef,
+  idempotencyKeyFor,
   institutionId as makeInstitutionId,
   intake as makeIntake,
   openCase,
@@ -63,6 +66,7 @@ import {
 } from "@askimate/aas-domain";
 import type {
   CaseId,
+  ConsequentialAction,
   StudentId,
   WorkflowPhase,
   WorkflowRunRecord,
@@ -74,6 +78,7 @@ import { checkUsable } from "@askimate/aas-mapping";
 import type { MappingSet } from "@askimate/aas-mapping";
 import {
   beginRun,
+  browserWorkFor,
   checkpointAfter,
   nextStep,
   requiredFieldsFor,
@@ -88,9 +93,13 @@ import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
 import { latestSecretRequest } from "@askimate/aas-conversation";
 
+import type { ClaimedWork, WorkApproach, WorkKind, WorkReport } from "@askimate/aas-contracts";
+import { WORK_APPROACHES } from "@askimate/aas-contracts";
+
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
+import type { WorkLeaseStore } from "./work-store.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -216,6 +225,17 @@ export type RunOutcome =
   | { readonly ok: false; readonly refusal: RunRefusal };
 
 /**
+ * The durable phases from which browser work can exist.
+ *
+ * A cheap NARROWING of which runs to ask the orchestrator about, not an answer
+ * — `browserWorkFor` gives the answer, and a run in one of these phases is
+ * routinely found to have nothing to do. Kept as phases rather than step kinds
+ * because the checkpoint is what the claim query can filter on in SQL, and a
+ * checkpoint holds a phase.
+ */
+const BROWSER_PHASES: readonly string[] = ["creating_account"];
+
+/**
  * Whether a secret lifecycle is finished with.
  *
  * A settled step is one the student can no longer answer, so the run may ask
@@ -268,6 +288,17 @@ export interface RunDriverOptions {
    * Plane, and a run that needs one is then refused rather than skipped.
    */
   readonly secureRequests?: SecureRequestOpener;
+  /**
+   * Who is holding which run's browser work. ADR-0045.
+   *
+   * Optional, and absent means this deployment hands out no work — the claim
+   * route then answers "nothing to do" rather than failing to start. A
+   * deployment that carries conversations and no runners is a real shape: it is
+   * what every test of the conversation surface runs as.
+   */
+  readonly leases?: WorkLeaseStore;
+  /** Lease ids, injected so a test can make a claim predictable. */
+  readonly newLeaseId?: (runId: string, now: Date) => string;
   readonly now: () => Date;
   /** Ids, injected so a test can make a run's identity predictable. */
   readonly newCaseId?: (conversationId: string) => string;
@@ -528,15 +559,35 @@ export class RunDriver {
     }
   }
 
-  async #decideOnce(input: {
+  /**
+   * What the orchestrator says about this run right now, and the facts the
+   * decision was made from.
+   *
+   * Extracted because TWO callers need it and neither may re-derive it. The
+   * decide path acts on the step; the claim path (ADR-0045) reads the step to
+   * build a unit of work. A claim path that reconstructed the state itself
+   * would be a second answer to "what happens next", which is the failure
+   * ADR-0041 and `check-boundaries` exist to prevent.
+   *
+   * It writes nothing. Everything durable — the checkpoint, the secure request,
+   * the lease — is the caller's to do, so a caller that only wanted to LOOK
+   * cannot move the run by looking.
+   */
+  async #situation(input: {
     readonly entry: CatalogueEntry;
     readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
     readonly conversationId: string;
     readonly caseId: CaseId;
     readonly studentRef: StudentId;
-    readonly concerns: readonly ResumeConcern[];
-    readonly resumed: boolean;
-  }): Promise<RunOutcome> {
+  }): Promise<
+    | { readonly ok: false; readonly refusal: RunRefusal }
+    | {
+        readonly ok: true;
+        readonly step: RunStep;
+        readonly now: Date;
+        readonly secret: ReturnType<typeof latestSecretRequest>;
+      }
+  > {
     const usable = checkUsable(input.entry.mappingSet, input.entry.blueprint);
     if (!usable.usable) {
       return {
@@ -608,6 +659,21 @@ export class RunDriver {
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
+    return { ok: true, step, now, secret };
+  }
+
+  async #decideOnce(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly caseId: CaseId;
+    readonly studentRef: StudentId;
+    readonly concerns: readonly ResumeConcern[];
+    readonly resumed: boolean;
+  }): Promise<RunOutcome> {
+    const situation = await this.#situation(input);
+    if (!situation.ok) return situation;
+    const { step, now } = situation;
 
     // ── The one place a student is asked for a password ──────────────────
     //
@@ -728,4 +794,219 @@ export class RunDriver {
     });
     return null;
   }
+
+  // ── ADR-0045: the work the Automation Runner pulls ─────────────────────
+
+  /**
+   * Leases one unit of browser work to a runner, or answers `null`.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `null` is the ordinary answer. Most polls find nothing, because most runs
+   * at any instant are waiting for a student rather than for a browser — and
+   * that is why it is `null` rather than a refusal: "there is no work" is not
+   * a failure and must not be logged, retried or alerted on as one.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * ── The order of the three questions ──────────────────────────────────
+   *
+   *  1. Which runs MIGHT need a browser? — the durable checkpoint's phase,
+   *     narrowing cheaply, because deriving `nextStep` for every run in the
+   *     database would load a blueprint, a mapping set and a profile per row.
+   *  2. What does the orchestrator actually say? — `#situation`, the same
+   *     path the decide route takes. The phase is a hint; this is the answer.
+   *  3. Can this runner have it? — the lease, decided by the database.
+   *
+   * Two and three in that order, deliberately. Taking the lease first would
+   * mean holding a run while asking a question that usually answers "no", and
+   * a poll that leased and released every candidate would keep the pool
+   * churning through runs it was never going to work.
+   */
+  public async claimWork(input: {
+    readonly holder: string;
+    readonly leaseSeconds: number;
+    readonly limit?: number;
+  }): Promise<ClaimedWork | null> {
+    const leases = this.#options.leases;
+    if (leases === undefined) return null;
+
+    const now = this.#options.now();
+    const candidates = await leases.candidates({
+      phases: BROWSER_PHASES,
+      now,
+      limit: input.limit ?? 10,
+    });
+
+    for (const candidate of candidates) {
+      const conversationId = await this.#options.bindings.conversationForCase(candidate.caseId);
+      if (conversationId === null) continue;
+
+      const bound = await this.#options.bindings.caseFor(conversationId);
+      if (bound === null || bound.blueprintId === null) continue;
+      const entry = await this.#options.catalogue.find(bound.blueprintId);
+      if (entry === null) continue;
+
+      const record = await this.#options.stores.runs.load(makeRunId(candidate.runId));
+      if (record === null) continue;
+
+      const situation = await this.#situation({
+        entry,
+        record,
+        conversationId,
+        caseId: record.caseId,
+        studentRef: record.studentRef,
+      });
+      if (!situation.ok) continue;
+
+      // The orchestrator's answer, not the checkpoint's hint and not a list of
+      // step kinds kept here — see `browserWorkFor`.
+      const kind = browserWorkFor(situation.step);
+      if (kind === null) continue;
+      const detail = accountWorkFrom(situation.step);
+      if (detail === null) continue;
+
+      const leaseId =
+        this.#options.newLeaseId?.(candidate.runId, now) ?? `wl_${randomUUID().replace(/-/g, "")}`;
+      const lease = await leases.claim({
+        runId: candidate.runId,
+        leaseId,
+        kind,
+        holder: input.holder,
+        now,
+        leaseSeconds: input.leaseSeconds,
+      });
+      // Somebody else took it between the candidate query and here. Ordinary;
+      // try the next one rather than failing the poll.
+      if (lease === null) continue;
+
+      return {
+        leaseId: lease.leaseId,
+        expiresAt: lease.expiresAt.toISOString(),
+        runId: candidate.runId,
+        caseId: record.caseId,
+        studentRef: record.studentRef,
+        kind,
+        portalHost: detail.portalHost,
+        email: detail.email,
+        approach: detail.approach,
+        // Present only when the student has actually typed one. A handle is
+        // opaque and resolves to nothing outside a live vault (ADR-0026), which
+        // is why the component that may hold no secrets may hold this.
+        ...(situation.secret?.handle === undefined
+          ? {}
+          : { secretHandle: situation.secret.handle }),
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Records how a unit of work ended, and gives the lease back.
+   *
+   * ── What this deliberately does NOT do ────────────────────────────────
+   *
+   * It does not move the run. A report is evidence about the world — an account
+   * exists, a portal refused us, a browser died — and what a run does next is
+   * `nextStep`'s to decide from that evidence, on the next advance. A report
+   * handler that set a phase would be the second implementation of the decision
+   * that ADR-0041 and the boundary check exist to prevent, and it would be one
+   * written by the least trusted process in the system.
+   *
+   * `false` means the caller does not hold this lease — it expired and somebody
+   * took over, or the work was already reported. Refused rather than applied,
+   * because a slow runner must not be able to close out work the current holder
+   * is in the middle of.
+   */
+  public async reportWork(input: {
+    readonly runId: string;
+    readonly report: WorkReport;
+  }): Promise<boolean> {
+    const leases = this.#options.leases;
+    if (leases === undefined) return false;
+    const now = this.#options.now();
+
+    const held = await leases.held(input.runId, now);
+    if (held === null || held.leaseId !== input.report.leaseId) return false;
+
+    // ── The evidence, written where evidence about this goes ─────────────
+    //
+    // ADR-0008. `recordIntent`/`completeIntent` is the existing mechanism for
+    // "a consequential action may have happened", and creating a real account
+    // on a real university portal is its first-named example. The key comes
+    // from the domain's own `idempotencyKeyFor` rather than being assembled
+    // here, so a second writer of the same fact cannot format it differently
+    // and record a second half-action.
+    const runId = makeRunId(input.runId);
+    const action = ACTION_FOR_WORK[held.kind];
+    const key = idempotencyKeyFor({ runId, action, target: held.runId });
+
+    // The intent is written on REPORT rather than on claim, and the difference
+    // is what it would mean: an intent written at claim time says "this was
+    // attempted" about work a runner might never have started, which reads as
+    // more uncertainty than there is. Written here it says "a runner did this
+    // and here is how it ended" — and `startedAt` is when the lease was taken,
+    // which is when it actually began.
+    if ((await this.#options.stores.runs.findIntent(runId, key)) === null) {
+      await this.#options.stores.runs.recordIntent(runId, {
+        idempotencyKey: key,
+        action,
+        target: held.runId,
+        startedAt: held.claimedAt,
+      });
+    }
+
+    // ── Why `uncertain` completes nothing ────────────────────────────────
+    //
+    // Because `IntentOutcome` has two members and neither of them means "we do
+    // not know". The schema says it with a constraint: an intent with no
+    // completion is the uncertain case, and the gap between `started_at` and a
+    // completion that never came is exactly the uncertainty window. Inventing a
+    // third outcome word would destroy that distinction at the only point where
+    // it is still recoverable.
+    //
+    // So a runner that cannot tell whether the portal accepted must report
+    // `uncertain`, not `failed`. `failed_cleanly` is a claim — that nothing
+    // happened out there — and only the runner is in a position to make it.
+    if (input.report.outcome !== "uncertain") {
+      await this.#options.stores.runs.completeIntent(
+        runId,
+        key,
+        input.report.outcome === "succeeded" ? "succeeded" : "failed_cleanly",
+        now,
+      );
+    }
+
+    return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+}
+
+/**
+ * Which consequential action a unit of work performs.
+ *
+ * A total map over `WorkKind` rather than a switch, so adding a work kind is a
+ * compile error here — the alternative is a `default` that silently records the
+ * wrong action for a new kind, in the one record an incident review reads.
+ */
+const ACTION_FOR_WORK: Readonly<Record<WorkKind, ConsequentialAction>> = {
+  create_account: "create_portal_account",
+};
+
+/**
+ * The account facts a `create_account` step carries, or `null`.
+ *
+ * Narrowed rather than cast, and separate from `browserWorkFor` because the two
+ * answer different questions: the orchestrator owns *which steps need a
+ * browser*, and this file owns *how this step's fields become a wire payload*.
+ * A step that gains a browser but no account details fails here rather than
+ * producing a work item with empty strings in it.
+ */
+function accountWorkFrom(
+  step: RunStep,
+): { portalHost: string; email: string; approach: WorkApproach } | null {
+  if (step.kind !== "create_account") return null;
+  if (!(WORK_APPROACHES as readonly string[]).includes(step.approach)) return null;
+  return {
+    portalHost: step.portalHost,
+    email: step.email,
+    approach: step.approach,
+  };
 }

@@ -30,7 +30,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS, SECRET_LIFECYCLES } from "@askimate/aas-contracts";
+import {
+  RUN_PHASES,
+  RUN_STATUSES,
+  RUN_STEP_KINDS,
+  SECRET_LIFECYCLES,
+  WORK_APPROACHES,
+  WORK_KINDS,
+} from "@askimate/aas-contracts";
+import { AUTHENTICATION_APPROACHES } from "@askimate/aas-account";
 import { WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
 import type { RunStep } from "@askimate/aas-orchestrator";
 import { phaseFor } from "@askimate/aas-orchestrator";
@@ -173,5 +181,33 @@ describe("the credential purposes, and a drift between three closed sets", () =>
     // The one they agree on is the only one a run can currently reach.
     const shared = domain.filter((purpose) => contract.includes(purpose));
     expect(shared).toEqual(["portal_account_creation"]);
+  });
+});
+
+describe("the work vocabulary and the domain do not drift", () => {
+  it("declares exactly the approaches the account domain has", () => {
+    // Re-declared rather than imported, because `@askimate/aas-contracts` has
+    // no dependencies and one here would be a dependency in the secure control
+    // bundle too (ADR-0040). This is the price of that, paid here: two closed
+    // sets, compared in both directions, so the duplication cannot drift.
+    expect([...WORK_APPROACHES].sort()).toEqual([...AUTHENTICATION_APPROACHES].sort());
+  });
+
+  it("hands out only work kinds the orchestrator can produce a step for", () => {
+    // Every work kind must be a step kind. The reverse does NOT hold and must
+    // not be asserted: `execute` is a step that needs a browser and is
+    // deliberately absent from `WORK_KINDS` until the `ConfirmedValue` boundary
+    // question in ADR-0045 has an answer.
+    for (const kind of WORK_KINDS) {
+      expect(RUN_STEP_KINDS, `${kind} is not a step the orchestrator produces`).toContain(kind);
+    }
+  });
+
+  it("records that `execute` is a browser step the runner is NOT yet given", () => {
+    // The divergence, written down where it will be read. A future phase that
+    // adds `execute` to WORK_KINDS deletes this test in the same diff, which is
+    // where the decision belongs.
+    expect(RUN_STEP_KINDS).toContain("execute");
+    expect(WORK_KINDS as readonly string[]).not.toContain("execute");
   });
 });

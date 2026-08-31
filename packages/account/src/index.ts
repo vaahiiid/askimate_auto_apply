@@ -21,6 +21,7 @@ export type {
   PortalAuthFact,
 } from "./authentication.js";
 export {
+  AUTHENTICATION_APPROACHES,
   authenticationQuestions,
   chooseApproach,
   describePlan,

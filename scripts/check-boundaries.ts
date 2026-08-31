@@ -721,6 +721,99 @@ function main(): void {
   }
   console.log(`  ✓  the secure-plane client — opens and mints, carries no value`);
 
+  // ── ADR-0045: the runner pulls work, and decides nothing about it ──────
+  //
+  // Two rules on the one file in the runner that talks to the Application
+  // Plane, and they guard the two ways the runner could stop being a component
+  // that does what it is told.
+  //
+  //   * By DECIDING. A runner that branched on a step kind, called `nextStep`,
+  //     or picked which run to work would be a second implementation of the
+  //     orchestrator's decision — in the least trusted process in the system.
+  //   * By RECEIVING. The claim response is rebuilt by the contract's own
+  //     parser, which is what gives a plane answering with a fill value, a
+  //     password or a profile nowhere to put it. A cast undoes that in a line.
+  const INTAKE = "apps/browser-runner/src/work-intake.ts";
+  if (existsSync(INTAKE)) {
+    const source = readFileSync(INTAKE, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+
+    for (const forbidden of [
+      "nextStep(",
+      "work.kind ===",
+      "switch (work",
+      "as ClaimedWork",
+      "planFill(",
+      "ConfirmedValue",
+    ]) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `${INTAKE} contains \`${forbidden}\`. The runner does what the Application Plane tells ` +
+          `it and reports how it went. Deciding what to do here, or trusting the wire instead of ` +
+          `parsing it, is the architecture ADR-0045 and ADR-0041 were written to prevent.`,
+      );
+    }
+    if (!code.includes("parseClaimedWork(")) {
+      violations.push(
+        `${INTAKE} no longer parses the claim with parseClaimedWork. Rebuilding the response ` +
+          `field by field is what gives a value-shaped field nowhere to land; a cast trusts a ` +
+          `plane this process should not have to trust.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the runner's work intake — pulls, parses, decides nothing`);
+
+  // ── The work contract carries no value, and says so in the type ────────
+  //
+  // `packages/contracts` has no dependencies, so this file CANNOT import a
+  // `ConfirmedValue`, a `FillPlan` or a `SecretHandle` — but it could still
+  // declare a `password: string`. The compile-time assertion in the file is what
+  // stops that, and this rule is what stops the assertion being deleted.
+  const WORK_CONTRACT = "packages/contracts/src/work.ts";
+  if (existsSync(WORK_CONTRACT)) {
+    const source = readFileSync(WORK_CONTRACT, "utf8");
+    if (!source.includes("NO_WORK_FIELD_IS_FREE_TEXT")) {
+      violations.push(
+        `${WORK_CONTRACT} no longer asserts NO_WORK_FIELD_IS_FREE_TEXT. That assertion is the ` +
+          `only thing that fails the build when a free-text field is added to a payload the ` +
+          `Automation Runner receives.`,
+      );
+    }
+    // Scoped to the PAYLOAD's own declaration, not to the whole file. Two
+    // earlier versions of this rule scanned the file and both cried wolf —
+    // once on `"passwordless"`, which is a legal approach, and once on a
+    // parser's `value: unknown` parameter. A rule that has to be explained
+    // away gets weakened; this one reads the fields of the interface the
+    // runner actually receives, which is what it was always about.
+    const declaration = /export interface ClaimedWork \{([\s\S]*?)\n\}/.exec(
+      source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " "),
+    );
+    if (declaration === null) {
+      violations.push(
+        `${WORK_CONTRACT} no longer declares \`export interface ClaimedWork\`. This rule reads ` +
+          `its fields; a payload it cannot find is a payload it cannot check.`,
+      );
+    } else {
+      const fields = [...(declaration[1] ?? "").matchAll(/readonly\s+([A-Za-z0-9_]+)\??\s*:/g)].map(
+        (match) => match[1] ?? "",
+      );
+      const FORBIDDEN_FIELDS = ["password", "plaintext", "secret", "secretValue", "value", "fillValue", "plan", "profile"];
+      for (const field of fields) {
+        if (!FORBIDDEN_FIELDS.includes(field)) continue;
+        violations.push(
+          `${WORK_CONTRACT} declares \`ClaimedWork.${field}\`. This is the payload the Automation ` +
+            `Runner receives on every claim; a field by that name would hand the least trusted ` +
+            `component in the system something ADR-0045 says it must never be given.`,
+        );
+      }
+    }
+    checked += 1;
+  }
+  console.log(`  ✓  the work contract — no free text, no value-shaped field`);
+
   // ── The fill agent holds plaintext, and must leak nothing while it does ─
   //
   // The same source-level rules the secure endpoint has, applied to the other

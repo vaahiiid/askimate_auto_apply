@@ -79,3 +79,13 @@ export { SecretNotAcceptedError } from "@askimate/aas-browser-fill";
 
 export type { DiscoveryTarget } from "./target.js";
 export { InvalidTargetError, parseTarget, shouldFollow } from "./target.js";
+
+// ── ADR-0045: work intake. The runner PULLS; nothing calls into it ─────────
+export type {
+  PerformOutcome,
+  TurnResult,
+  WorkIntake,
+  WorkIntakeOptions,
+  WorkPerformer,
+} from "./work-intake.js";
+export { httpWorkIntake, runOneTurn } from "./work-intake.js";

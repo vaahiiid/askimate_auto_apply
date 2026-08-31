@@ -689,6 +689,36 @@ export class IllegalSecretTransitionError extends Error {
 }
 
 /**
+ * The kind of browser work this step needs done, or `null` if it needs none.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A NARROWING, like `requiresSecureRequest` below it, and here for the same
+ * reason: *which steps need a browser* is a property of the step vocabulary,
+ * and the step vocabulary is this package's. A list of step kinds kept in the
+ * Run Driver or in an HTTP route would be a second list of the same fact, and it
+ * would go silently out of date — by omission — the first time another step
+ * needed one.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Why `execute` answers `null` today ────────────────────────────────────
+ *
+ * `execute` unambiguously needs a browser. It is not here because the question
+ * this function answers is *what may be handed to the Automation Runner*, and a
+ * fill plan cannot yet be handed to it: `FillInstruction.value` carries a
+ * `ConfirmedValue<string>`, which may only be minted inside `packages/profile`
+ * (ADR-0004, enforced package-scoped by `scripts/check-boundaries.ts`), and the
+ * runner may not depend on that package. Serialising a plan and rebuilding it
+ * there would mint confirmed values outside the one place allowed to.
+ *
+ * So the honest answer is `null` and the gap is named — in ADR-0045, in
+ * `WORK_KINDS`, and here — rather than papered over with a field that would
+ * quietly weaken ADR-0004.
+ */
+export function browserWorkFor(step: RunStep): "create_account" | null {
+  return step.kind === "create_account" ? "create_account" : null;
+}
+
+/**
  * Whether this step requires the Secure Interaction Service to be asked to open
  * a request before the caller may report it.
  *

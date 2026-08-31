@@ -19,6 +19,94 @@ not shipped artefacts.
 
 ---
 
+## [0.23.0] — 2026-08-31
+
+**P5 — the Automation Runner can be given work. ADR-0045: it pulls, and nothing
+calls into it.**
+
+**Version bump: MINOR.** A new ADR, a wire contract, a migration, a lease store,
+an orchestrator predicate, two internal endpoints and a runner-side loop. No
+trust boundary moved: the runner keeps its single inbound port and gains no
+capability it did not have.
+
+### The runner pulls; nothing calls into it
+
+ADR-0037 already gave the runner exactly one inbound port — a CDP endpoint
+reachable by the fill agent **alone**. An HTTP control API would be a second
+inbound surface on the component that loads pages we do not control, so the
+shape was already decided: the runner claims work over the internal API and
+reports how it ended.
+
+`POST /internal/v1/work/claims` and `POST /internal/v1/work/{runId}/report`,
+both behind the same injected service-certificate predicate every internal route
+uses — the one that **denies when absent**, so a deployment that forgot to
+configure it refuses every runner rather than accepting every caller. `204` is
+the ordinary answer to a claim: a poll that found nothing is a successful poll.
+
+### A lease, not a queue
+
+`work_leases.run_id` is a PRIMARY KEY, so "one run, one runner" is what the
+table can hold rather than what a handler remembers to check. Leases **expire**
+rather than being released by a heartbeat — a runner that dies mid-task cannot
+tell anyone, and a lease that outlived its holder would strand a student's
+application behind a process that no longer exists. The lease id is regenerated
+on every takeover, so a runner that was slow rather than dead cannot close out
+work the new holder is in the middle of.
+
+There is no queue. The run's own durable position says what work exists and
+`nextStep` decides it; the lease only says who has it. A queue would be a second
+opinion about what a run should do next, and this repository has already had two
+models of one thing come apart once (ADR-0041).
+
+### What crosses to the runner
+
+Identifiers, closed-set words, a portal host, the student's own email, and the
+**opaque secret handle** — which is safe to hand about precisely because seeing
+one confers nothing (ADR-0026). No password, no profile, no fill value, no
+document, no database credential. `packages/contracts` has no dependencies, so
+the payload *cannot* import a `ConfirmedValue` or a `FillPlan`; a compile-time
+assertion covers the rest, and a boundary rule reads the interface's own fields.
+
+### A report is evidence, not permission
+
+`reportWork` records the outcome as a `workflow_action_intent` and gives the
+lease back. It does **not** move the run — what happens next is `nextStep`'s
+decision on the next advance, and a report handler that set a phase would be
+that decision reimplemented by the least trusted process in the system.
+
+An outcome of `uncertain` completes **nothing**, because `IntentOutcome` has two
+members and neither means "we do not know": an intent with no completion *is* the
+uncertainty window (ADR-0008). A runner that cannot tell whether the portal
+accepted must report `uncertain`; `failed` is a claim that nothing happened on
+somebody else's system, and only the runner is in a position to make it. A
+performer that throws is reported as `uncertain`, never as a clean failure.
+
+### `execute` is deliberately not claimable yet
+
+`WORK_KINDS` has one member. The orchestrator's other browser step, `execute`,
+carries a `FillPlan` whose instructions hold `ConfirmedValue<string>` — a branded
+type that may only be minted inside `packages/profile` (ADR-0004, enforced
+package-scoped), and the runner may not depend on that package. Serialising a
+plan and rebuilding it there would mint confirmed values outside the one place
+allowed to. That needs a decision, not a field; it is recorded in ADR-0045, in
+the contract, in `browserWorkFor`, and in a drift test that a future phase
+deletes in the same diff that resolves it.
+
+### Fixed — a guessed enum, caught by the drift test
+
+`WORK_APPROACHES` was first written with three members that do not exist. The
+contract-drift test compares it against `AUTHENTICATION_APPROACHES` in both
+directions and failed immediately, which is what that test is for. `packages/account`
+now exports the set as a named value rather than keeping it private beside the
+preference order.
+
+Ten deliberate regressions in
+[`docs/p5-regression-audit.md`](./docs/p5-regression-audit.md) — including two
+that were **not** detected first time and forced two new tests, because the
+existing suite was reaching the right answers through the wrong guards.
+
+---
+
 ## [0.22.0] — 2026-08-31
 
 **P4 — the first production caller of the Secure Interaction Service.

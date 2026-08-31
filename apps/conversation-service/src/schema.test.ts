@@ -90,10 +90,13 @@ beforeAll(async () => {
   const applied = await migrate(pool, MIGRATIONS_DIR);
   // A migration run that applied nothing would leave every test below passing
   // against an empty database in the most misleading way possible.
-  expect(applied).toEqual(["0001_conversation_log",
+  expect(applied).toEqual([
+    "0001_conversation_log",
     "0002_application_runs",
     "0003_profile_entries",
-    "0004_case_blueprint"]);
+    "0004_case_blueprint",
+    "0005_work_leases",
+  ]);
 
   const student = await pool.query<{ id: string }>(
     "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",
@@ -649,6 +652,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0002_application_runs",
         "0003_profile_entries",
         "0004_case_blueprint",
+        "0005_work_leases",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -684,6 +688,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0002_application_runs",
       "0003_profile_entries",
       "0004_case_blueprint",
+      "0005_work_leases",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

@@ -88,3 +88,7 @@ export type {
   SecureRequestOpener,
 } from "./secure-requests.js";
 export { httpSecureRequestOpener } from "./secure-requests.js";
+
+// ── ADR-0045: who is holding which run's browser work ──────────────────────
+export type { WorkCandidate, WorkLease } from "./work-store.js";
+export { WorkLeaseStore } from "./work-store.js";

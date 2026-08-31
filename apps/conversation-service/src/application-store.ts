@@ -122,6 +122,29 @@ export class ApplicationBindingStore {
    * needs no lock.
    */
   /**
+   * Which conversation authorised this case, or `null`.
+   *
+   * The reverse of `caseFor`, and it exists because work intake starts from a
+   * RUN rather than from a conversation (ADR-0045): the claim path finds a
+   * candidate run, and the run knows its case but not the conversation whose
+   * student asked for it. The composite foreign key added in migration 0002 is
+   * what makes this a single lookup rather than a guess.
+   *
+   * `null` means no conversation is bound to that case — which, given the
+   * partial unique index, means the case was not opened through this service.
+   * A run in that state is not claimable, and refusing it here is what keeps
+   * "a run is attributable to the student and conversation that authorised it"
+   * true on the work path as well as on the start path.
+   */
+  public async conversationForCase(caseId: string): Promise<string | null> {
+    const rows = await this.#pool.query<{ id: string }>(
+      "SELECT id FROM conversations WHERE case_id = $1",
+      [caseId],
+    );
+    return rows.rows[0]?.id ?? null;
+  }
+
+  /**
    * Runs `task` while holding this conversation's ADVISORY lock.
    *
    * ═════════════════════════════════════════════════════════════════════════

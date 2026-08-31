@@ -141,6 +141,22 @@ export type AuthenticationApproach =
  * they are flagged as such in ADR-0020 — both are cases where the portal or
  * the student already does the thing and we simply must not get in the way.
  */
+export const AUTHENTICATION_APPROACHES: readonly AuthenticationApproach[] = [
+  "passwordless",
+  "student_chosen",
+  "portal_issued",
+  "generated_ephemeral",
+];
+
+/**
+ * The same four, as the preference order. Index 0 wins.
+ *
+ * A separate name from `AUTHENTICATION_APPROACHES` even though the members are
+ * identical today, because they answer different questions — *which approaches
+ * exist* and *which do we prefer* — and a caller that wanted the set should not
+ * be silently depending on the order, nor a caller that wanted the order be
+ * broken by somebody sorting the set.
+ */
 const RANKED: readonly AuthenticationApproach[] = [
   "passwordless",
   "student_chosen",

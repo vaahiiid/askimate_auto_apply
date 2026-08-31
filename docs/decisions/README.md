@@ -66,5 +66,6 @@ ADR status uses exactly that vocabulary:
 | [0042](./0042-the-credential-is-consumed-inside-the-secure-plane.md) | The credential is consumed inside the Secure Plane, not by the runner | Accepted |
 | [0043](./0043-a-credential-field-is-mapped-to-the-secure-plane.md) | A credential field is mapped to the Secure Plane, not to data | Accepted |
 | [0044](./0044-the-confirmed-profile-has-its-own-store.md) | The confirmed profile has its own store; the event log stays a record of events | Accepted |
+| [0045](./0045-the-runner-pulls-leased-work.md) | The Automation Runner pulls leased work; nothing calls into it | Accepted |
 
-Thirty-nine are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+Forty are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

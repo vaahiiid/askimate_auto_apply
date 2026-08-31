@@ -34,10 +34,11 @@ import {
   parseRejectionReason,
   problemTypeFor,
   renderSseFrame,
+  parseWorkReport,
   renderSseResumeFrame,
 } from "@askimate/aas-contracts";
 
-import type { ConversationRun } from "@askimate/aas-contracts";
+import type { ClaimedWork, ConversationRun, WorkReport } from "@askimate/aas-contracts";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome } from "./run-driver.js";
@@ -62,7 +63,35 @@ export interface RunCoordinator {
     readonly blueprintId: string;
     readonly studentStatement: string;
   }): Promise<RunOutcome>;
+  /**
+   * Leases one unit of browser work, or `null` because there is none. ADR-0045.
+   *
+   * `null` is the ordinary answer and must not be treated as a failure: most
+   * polls find nothing, because most runs at any instant are waiting for a
+   * student rather than for a browser.
+   */
+  claimWork(input: {
+    readonly holder: string;
+    readonly leaseSeconds: number;
+  }): Promise<ClaimedWork | null>;
+  /** Records how a unit of work ended. `false` when the caller is not the holder. */
+  reportWork(input: {
+    readonly runId: string;
+    readonly report: WorkReport;
+  }): Promise<boolean>;
 }
+
+/**
+ * How long a runner may hold a unit of work before it returns to the pool.
+ *
+ * Bounded here rather than taken from the request, because the lease duration
+ * is the Application Plane's risk and not the runner's: a runner that asked for
+ * an hour would be a runner that could strand a student's application for an
+ * hour by crashing. Five minutes is long enough to create an account on a slow
+ * portal and short enough that a dead runner is not a long outage.
+ */
+const MAX_LEASE_SECONDS = 300;
+const DEFAULT_LEASE_SECONDS = 120;
 
 export interface ConversationRoutesOptions {
   readonly store: ConversationEventStore;
@@ -634,6 +663,99 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           throw error;
         }
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/work/claims ───────────────────────────────────────
+  //
+  // ADR-0045. The Automation Runner asks for something to do. Behind mutual TLS
+  // on a private subnet, and the runner has no session, no cookie and no
+  // student identity — it is not acting for anybody, it is a component of this
+  // system doing what the orchestrator decided.
+  //
+  // `204 No Content` for "nothing to do", not `404` and not an empty `200`
+  // body. A poll that found no work is a successful poll, and giving it a
+  // status a monitoring system reads as an error would make an idle system look
+  // like a broken one.
+  router.post(
+    "/internal/v1/work/claims",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const body: unknown = req.body;
+        const record = (typeof body === "object" && body !== null ? body : {}) as Record<
+          string,
+          unknown
+        >;
+        const holder = record["holder"];
+        if (typeof holder !== "string" || holder.length === 0 || holder.length > 128) {
+          problem(res, "validation_failed", { pointers: ["/holder"] });
+          return;
+        }
+        const asked = record["leaseSeconds"];
+        const leaseSeconds =
+          typeof asked === "number" && Number.isInteger(asked) && asked > 0
+            ? Math.min(asked, MAX_LEASE_SECONDS)
+            : DEFAULT_LEASE_SECONDS;
+
+        const work = await options.runs.claimWork({ holder, leaseSeconds });
+        if (work === null) {
+          res.status(204).end();
+          return;
+        }
+        // A lease is a capability with a deadline. Caching one would be caching
+        // permission to act on a student's application after that deadline.
+        res.setHeader("Cache-Control", "no-store");
+        res.status(200).json(work);
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/work/:runId/report ────────────────────────────────
+  //
+  // How it ended. The report does NOT move the run: what happens next is
+  // `nextStep`'s decision on the next advance, from the evidence this writes.
+  // A report handler that set a phase would be a second implementation of that
+  // decision, written by the least trusted process in the system.
+  router.post(
+    "/internal/v1/work/:runId/report",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const report = parseWorkReport(req.body);
+        if (report === null) {
+          problem(res, "validation_failed", { pointers: ["/leaseId", "/outcome", "/failure"] });
+          return;
+        }
+        const accepted = await options.runs.reportWork({
+          runId: String(req.params["runId"]),
+          report,
+        });
+        if (!accepted) {
+          // Not the holder: the lease expired and somebody took over, or this
+          // work was already reported. `forbidden` rather than a new problem
+          // code, because that is exactly what it is — the caller does not hold
+          // the capability it is trying to spend. A runner reading this knows to
+          // stop and poll again rather than to retry the report.
+          problem(res, "forbidden");
+          return;
+        }
+        res.status(204).end();
       })().catch(next);
     },
   );

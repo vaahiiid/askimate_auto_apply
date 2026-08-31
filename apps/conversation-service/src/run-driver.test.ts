@@ -54,13 +54,14 @@ import {
 } from "@askimate/aas-mapping/fixtures/gated";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
-import { parseConversationRun } from "@askimate/aas-contracts";
+import { parseClaimedWork, parseConversationRun } from "@askimate/aas-contracts";
 
 import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
+import { WorkLeaseStore } from "./work-store.js";
 import { RunDriver } from "./run-driver.js";
 import type { SecureRequestInput, SecureRequestOpener } from "./secure-requests.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
@@ -174,6 +175,9 @@ function buildInstance(
     profiles: new PostgresConfirmedProfileStore(instancePool),
     conversations: store,
     ...(secureRequests === null ? {} : { secureRequests }),
+    // ADR-0045. Present in every instance, because the claim path answering
+    // "nothing to do" and the claim path not existing must not look alike.
+    leases: new WorkLeaseStore(instancePool),
     now: () => NOW,
   });
   const app = createConversationApp({
@@ -1203,4 +1207,469 @@ describeIfDatabase("opening a secure step, and recording it authoritatively", ()
       await instance.pool.end();
     }
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// G. P5 — the work the Automation Runner pulls (ADR-0045)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("leasing browser work to a runner", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00070";
+  let runId: string;
+
+  /**
+   * Drives a run all the way to `creating_account`.
+   *
+   * Through the REAL path, not by writing a checkpoint: the interview is
+   * answered, the secure step is opened, and the Secure Plane's `secret_received`
+   * is appended the way the secure service appends it. A test that forced the
+   * phase would prove the claim query works and nothing about whether a run can
+   * actually get there.
+   */
+  async function driveToAccountCreation(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("request_secret");
+      runId = started.position.runId;
+
+      // The student types a password into the secure control. The Secure Plane
+      // reports it; this plane learns a handle exists and never more than that.
+      const requested = secure.opens[0];
+      if (requested === undefined) expect.unreachable("a request should have been opened");
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"a".repeat(32)}`,
+        },
+      });
+
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("create_account");
+      expect(next.position.phase).toBe("creating_account");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("hands a runner exactly the facts it needs, and nothing else", async () => {
+    await driveToAccountCreation();
+
+    const instance = buildInstance(connectionString());
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-1", leaseSeconds: 120 });
+      if (work === null) expect.unreachable("there should be work to claim");
+
+      expect(work.kind).toBe("create_account");
+      expect(work.runId).toBe(runId);
+      expect(work.studentRef).toBe(studentId_);
+      // From the blueprint's observed authentication, not from model output.
+      expect(work.portalHost).toBe("gated.portal.test");
+      expect(work.email).toBe("niloofar@example.test");
+      expect(work.approach).toBe("student_chosen");
+      // Opaque, and the only route from it to a password is a vault this app
+      // has no dependency on, no KMS grant for and no certificate to reach.
+      expect(work.secretHandle).toBe(`sh_${"a".repeat(32)}`);
+
+      // ── What is NOT on the wire ────────────────────────────────────────
+      //
+      // Scanned rather than type-checked: a type says what a field is declared
+      // to be, and this says what actually crossed. The student's confirmed
+      // answers are in this plane's database and none of them is here.
+      const wire = JSON.stringify(work);
+      for (const secret of ["Niloofar", "Hosseini", "Iranian", "Because it is the course"]) {
+        expect(wire, `${secret} must not reach the runner`).not.toContain(secret);
+      }
+      expect(Object.keys(work).sort()).toEqual([
+        "approach",
+        "caseId",
+        "email",
+        "expiresAt",
+        "kind",
+        "leaseId",
+        "portalHost",
+        "runId",
+        "secretHandle",
+        "studentRef",
+      ]);
+      expect(parseClaimedWork(JSON.parse(wire))).toEqual(work);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 180_000);
+
+  it("does NOT hand the same run to a second runner", async () => {
+    const a = buildInstance(connectionString());
+    const b = buildInstance(connectionString());
+    try {
+      // The first claim is still live from the test above — the lease outlives
+      // the process that took it, which is the point of storing it.
+      const second = await b.driver.claimWork({ holder: "runner-2", leaseSeconds: 120 });
+      expect(second, "a leased run is not claimable").toBeNull();
+      void a;
+    } finally {
+      await a.pool.end();
+      await b.pool.end();
+    }
+  }, 60_000);
+
+  it("hands it to somebody else once the lease has LAPSED", async () => {
+    // Not by sleeping. The lease's expiry is a timestamp in a row, so the test
+    // ages the row rather than waiting on the clock — a test that waited two
+    // minutes for a two-minute lease would be a test nobody runs.
+    //
+    // BOTH timestamps move, because `expires_at > claimed_at` is a CHECK: a
+    // lease cannot be written already spent, and the first attempt at this test
+    // moved only the expiry and was refused by the database. That refusal is
+    // the constraint working, so the test was changed rather than the schema.
+    await pool.query(
+      "UPDATE work_leases SET claimed_at = $1, expires_at = $2 WHERE run_id = $3",
+      [new Date(NOW.getTime() - 600_000), new Date(NOW.getTime() - 1000), runId],
+    );
+    const instance = buildInstance(connectionString());
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 });
+      if (work === null) expect.unreachable("a lapsed lease must return the run to the pool");
+      expect(work.runId).toBe(runId);
+
+      const leases = await pool.query<{ holder: string; lease_id: string }>(
+        "SELECT holder, lease_id FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
+      expect(leases.rows).toHaveLength(1);
+      expect(leases.rows[0]?.holder).toBe("runner-3");
+      // A NEW lease id, so the runner that was superseded cannot close out work
+      // the new holder is in the middle of.
+      expect(leases.rows[0]?.lease_id).toBe(work.leaseId);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("REFUSES a report from a runner that no longer holds the lease", async () => {
+    const instance = buildInstance(connectionString());
+    try {
+      const accepted = await instance.driver.reportWork({
+        runId,
+        report: { leaseId: "wl_someone_elses_lease", outcome: "succeeded" },
+      });
+      expect(accepted, "only the holder may report").toBe(false);
+
+      // And nothing was written about an action nobody is holding.
+      const intents = await pool.query("SELECT 1 FROM workflow_action_intents WHERE run_id = $1", [
+        runId,
+      ]);
+      expect(intents.rowCount).toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("records the outcome as evidence, and gives the lease back", async () => {
+    const held = await pool.query<{ lease_id: string }>(
+      "SELECT lease_id FROM work_leases WHERE run_id = $1",
+      [runId],
+    );
+    const leaseId = held.rows[0]?.lease_id;
+    if (leaseId === undefined) expect.unreachable("the run should still be leased");
+
+    const instance = buildInstance(connectionString());
+    try {
+      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "succeeded" } }))
+        .toBe(true);
+
+      const intents = await pool.query<{ action: string; outcome: string | null }>(
+        "SELECT action, outcome FROM workflow_action_intents WHERE run_id = $1",
+        [runId],
+      );
+      expect(intents.rows).toHaveLength(1);
+      // The domain's word for it, not the wire's — creating a real account on a
+      // real university portal is `create_portal_account` everywhere else.
+      expect(intents.rows[0]?.action).toBe("create_portal_account");
+      expect(intents.rows[0]?.outcome).toBe("succeeded");
+
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rowCount, "a reported lease is given back").toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("leaves the uncertainty window OPEN when the runner could not tell", async () => {
+    // The property `workflow_action_intents` exists for. An intent with a
+    // `started_at` and no completion is the recoverable record of "somebody
+    // acted and nobody knows what happened"; collapsing it into `failed_cleanly`
+    // would assert that nothing happened out there, which is a claim about a
+    // university's database that this system is not entitled to make.
+    const other = "01JBXQ8Z9WKTQ6M4H2NPC00071";
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1", [runId]);
+    void other;
+
+    const instance = buildInstance(connectionString());
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-4", leaseSeconds: 120 });
+      if (work === null) expect.unreachable("the run should be claimable again");
+
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: work.leaseId, outcome: "uncertain", failure: "runner_fault" },
+        }),
+      ).toBe(true);
+
+      const intents = await pool.query<{ outcome: string | null; completed_at: Date | null }>(
+        "SELECT outcome, completed_at FROM workflow_action_intents WHERE run_id = $1",
+        [runId],
+      );
+      expect(intents.rows).toHaveLength(1);
+      expect(intents.rows[0]?.outcome, "uncertain completes nothing").toBeNull();
+      expect(intents.rows[0]?.completed_at).toBeNull();
+
+      // And the lease is still given back — the runner is gone either way.
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rowCount).toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("refuses a SECOND claim on a live lease, in the store itself", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after a deliberate regression was NOT detected. Removing the
+    // `expires_at <= $now` predicate from the upsert changed nothing that any
+    // test could see, because the candidate query already filters leased runs
+    // out and no test reached the store's own guarantee.
+    //
+    // That filter is an optimisation — it stops a busy pool walking the same
+    // held runs on every poll. The GUARANTEE is here, and it is the one that
+    // holds when two claimers pass the filter at the same instant, which is
+    // precisely when it matters.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM work_leases");
+    const instance = buildInstance(connectionString());
+    try {
+      const store = new WorkLeaseStore(instance.pool);
+      const first = await store.claim({
+        runId,
+        leaseId: "wl_first",
+        kind: "create_account",
+        holder: "runner-a",
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      expect(first).not.toBeNull();
+
+      const second = await store.claim({
+        runId,
+        leaseId: "wl_second",
+        kind: "create_account",
+        holder: "runner-b",
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      expect(second, "a live lease is not takeable").toBeNull();
+
+      const rows = await pool.query<{ lease_id: string; holder: string }>(
+        "SELECT lease_id, holder FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
+      expect(rows.rows).toHaveLength(1);
+      expect(rows.rows[0]?.lease_id, "the first holder keeps it").toBe("wl_first");
+      expect(rows.rows[0]?.holder).toBe("runner-a");
+      await pool.query("DELETE FROM work_leases");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("offers nothing when the CHECKPOINT says browser work but the orchestrator does not", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Also written after a regression was not detected. Every earlier test
+    // reached "no work" through the candidate query, so nothing proved that the
+    // ORCHESTRATOR is the authority — a claim path that trusted the phase would
+    // have passed all of them.
+    //
+    // A checkpoint is a cache of position and the log wins every disagreement
+    // (rule 3, and `resumeRun`'s whole purpose). So a stale one saying
+    // `creating_account` about a run whose interview is unfinished is not a
+    // contrived state: it is the state the reconciliation exists for.
+    // ═══════════════════════════════════════════════════════════════════
+    const stale = "01JBXQ8Z9WKTQ6M4H2NPC00072";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      stale,
+      otherStudentId,
+    ]);
+    await pool.query("DELETE FROM work_leases");
+    // The run from the tests above is still sitting in `creating_account` and
+    // is genuinely claimable. Moved out of the way, so that "no work" below
+    // means "no work for the stale run" rather than "the poll found the other
+    // one first" — which is what the first version of this test measured.
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"ready_to_submit\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      // This student has confirmed nothing, so `nextStep` says `interview`.
+      const started = await instance.driver.start({
+        conversationId: stale,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("interview");
+
+      // The checkpoint is made to lie. Nothing else changes.
+      await pool.query(
+        "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+        [started.position.runId],
+      );
+
+      const work = await instance.driver.claimWork({ holder: "runner-stale", leaseSeconds: 120 });
+      expect(work, "the orchestrator decides, not the checkpoint").toBeNull();
+      const leases = await pool.query("SELECT 1 FROM work_leases");
+      expect(leases.rowCount, "and no lease is taken on the way to finding out").toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 180_000);
+
+  it("REFUSES a claim from a caller with no service certificate", async () => {
+    // ADR-0045's intake is internal, behind mutual TLS on a private subnet. The
+    // predicate DENIES WHEN ABSENT — `options.authoriseService?.(req) !== true`
+    // — so a deployment that forgot to configure it refuses every runner rather
+    // than accepting every caller.
+    await pool.query("DELETE FROM work_leases");
+    const instance = buildInstance(connectionString());
+    const port = PORT + 5;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      now: () => NOW,
+      runs: instance.driver,
+      // No `authoriseService` at all. This is the deployment that forgot.
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/work/claims`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ holder: "an-unauthenticated-runner" }),
+      });
+      expect(response.status).toBe(403);
+      const leases = await pool.query("SELECT 1 FROM work_leases");
+      expect(leases.rowCount, "a refused claim must take no lease").toBe(0);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("hands work out and takes a report back, over real HTTP", async () => {
+    // The whole round trip through the routes rather than through the driver:
+    // a poll that finds nothing answers 204 with no body, a poll that finds
+    // work answers 200 with a parseable item, and a report answers 204.
+    await pool.query("DELETE FROM work_leases");
+    await pool.query(
+      "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+      [runId],
+    );
+
+    const instance = buildInstance(connectionString());
+    const port = PORT + 6;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "runner",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    const base = `http://127.0.0.1:${String(port)}`;
+    const headers = { "content-type": "application/json", "x-service-cert": "runner" };
+    try {
+      const claimed = await fetch(`${base}/internal/v1/work/claims`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ holder: "runner-http", leaseSeconds: 120 }),
+      });
+      expect(claimed.status).toBe(200);
+      expect(claimed.headers.get("cache-control")).toBe("no-store");
+      const work = parseClaimedWork(await claimed.json());
+      if (work === null) expect.unreachable("the claim must be a legal work item");
+      expect(work.runId).toBe(runId);
+
+      // A report from a lease nobody holds is refused, over HTTP too.
+      const wrong = await fetch(`${base}/internal/v1/work/${runId}/report`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leaseId: "wl_not_yours", outcome: "succeeded" }),
+      });
+      expect(wrong.status).toBe(403);
+
+      const reported = await fetch(`${base}/internal/v1/work/${runId}/report`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leaseId: work.leaseId, outcome: "failed", failure: "portal_drift" }),
+      });
+      expect(reported.status).toBe(204);
+
+      // And a half-written report — a failure with no reason — is refused
+      // rather than stored as more certainty than the runner reported.
+      const half = await fetch(`${base}/internal/v1/work/${runId}/report`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leaseId: work.leaseId, outcome: "failed" }),
+      });
+      expect(half.status).toBe(400);
+
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rowCount).toBe(0);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("offers nothing for a run that is not waiting on a browser", async () => {
+    // The run whose interview is unfinished, from group B. `nextStep` says
+    // `interview`; `browserWorkFor` says null; no lease is taken.
+    const instance = buildInstance(connectionString());
+    try {
+      await pool.query("DELETE FROM work_leases");
+      await pool.query(
+        "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"interviewing\"') WHERE run_id = $1",
+        [runId],
+      );
+      const work = await instance.driver.claimWork({ holder: "runner-5", leaseSeconds: 120 });
+      expect(work, "a run that needs no browser is not work").toBeNull();
+      const leases = await pool.query("SELECT 1 FROM work_leases");
+      expect(leases.rowCount, "a poll that finds nothing must leave no lease").toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
 });

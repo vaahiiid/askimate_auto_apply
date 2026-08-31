@@ -10,6 +10,7 @@ export {
   IllegalSecretTransitionError,
   assess,
   beginRun,
+  browserWorkFor,
   markFilled,
   nextStep,
   requiredFieldsFor,

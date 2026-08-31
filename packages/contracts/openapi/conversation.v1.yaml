@@ -348,6 +348,103 @@ paths:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /internal/v1/work/claims:
+    post:
+      operationId: claimWork
+      tags: [work]
+      security: [{ serviceMutualTls: [] }]
+      summary: The Automation Runner asks for something to do.
+      description: >-
+        ADR-0045. The runner PULLS. ADR-0037 gives it exactly one inbound port —
+        a CDP endpoint reachable by the fill agent alone — so pushing work to it
+        would mean a second inbound surface on the component that loads pages we
+        do not control.
+
+        The runner has no session, no cookie and no student identity. It is not
+        acting for anybody; it is a component of this system doing what the
+        orchestrator decided.
+
+        204 is the ordinary answer. Most polls find nothing, because most runs
+        at any instant are waiting for a student rather than for a browser, and
+        a status a monitoring system reads as an error would make an idle system
+        look like a broken one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClaimWorkRequest" }
+      responses:
+        "200":
+          description: One unit of work, leased to this runner.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: >-
+                A lease is a capability with a deadline. Caching one would be
+                caching permission to act on a student's application after it.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ClaimedWork" } }
+        "204":
+          description: Nothing to do. A successful poll, not a failure.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment hands out no work.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/work/{runId}/report:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string, maxLength: 200 }
+        description: >-
+          An identifier, not a capability. The capability is the `leaseId`, and
+          it travels in the body — a lease in a URL would reach the Referer
+          header, browser history, an access log and any shared screenshot.
+    post:
+      operationId: reportWork
+      tags: [work]
+      security: [{ serviceMutualTls: [] }]
+      summary: The Automation Runner says how a unit of work ended.
+      description: >-
+        ADR-0045. This does NOT move the run. A report is evidence about the
+        world — an account exists, a portal refused us, a browser died — and what
+        a run does next is `nextStep`'s decision on the next advance. A report
+        handler that set a phase would be a second implementation of that
+        decision, written by the least trusted process in the system.
+
+        An outcome of `uncertain` completes nothing: `workflow_action_intents`
+        records an action with no completion, which is the recoverable form of
+        "somebody acted and nobody knows what happened" (ADR-0008). A runner
+        that cannot tell whether the portal accepted must report `uncertain`,
+        because `failed` is a claim that nothing happened out there and only the
+        runner is in a position to make it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkReport" }
+      responses:
+        "204":
+          description: Recorded, and the lease is given back.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: >-
+            Certificate missing or not permitted, OR this caller does not hold
+            the lease — it lapsed and somebody took over, or the work was
+            already reported. A runner reading this stops rather than retrying.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment hands out no work.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
 components:
   securitySchemes:
     conversationSession:
@@ -366,9 +463,12 @@ components:
     serviceMutualTls:
       type: mutualTLS
       description: >-
-        Service-to-service, on a private subnet with no public route. Only the
-        Secure Interaction Service's client certificate is permitted, and only
-        for the internal append endpoint.
+        Service-to-service, on a private subnet with no public route. Two
+        certificates are permitted and each is permitted for its own endpoints
+        only: the Secure Interaction Service's, for the internal append
+        endpoint, and the Automation Runner's, for the work claim and report
+        endpoints. Neither may reach the other's, and neither may reach any
+        student-facing endpoint.
 
   parameters:
     ConversationId:
@@ -604,6 +704,116 @@ components:
         createdAt: { type: string, format: date-time }
         requestId: { $ref: "#/components/schemas/SecretRequestId" }
         reason: { $ref: "#/components/schemas/RejectionReason" }
+
+    ClaimWorkRequest:
+      type: object
+      additionalProperties: false
+      required: [holder]
+      description: >-
+        Who is asking, and for how long. ADR-0045.
+      properties:
+        holder:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: >-
+            Which runner. An identifier for an operator reading the lease table
+            during an incident — never a credential, and never used for
+            authorisation. The client certificate does that.
+        leaseSeconds:
+          type: integer
+          minimum: 1
+          maximum: 300
+          default: 120
+          description: >-
+            Clamped by the server, not trusted from the request. The lease
+            duration is the Application Plane's risk and not the runner's: a
+            runner that asked for an hour would be a runner that could strand a
+            student's application for an hour by crashing.
+
+    ClaimedWork:
+      type: object
+      additionalProperties: false
+      required: [leaseId, expiresAt, runId, caseId, studentRef, kind, portalHost, email, approach]
+      description: >-
+        One unit of browser work. Read the fields, then read what is absent:
+        there is no password, no profile, no fill value, no document and no
+        database credential. The runner is the component that loads pages we do
+        not control, and every one of those would be a thing a compromised
+        page's process could go looking for.
+      properties:
+        leaseId:
+          type: string
+          description: >-
+            Proof this runner is the holder. Regenerated on every claim
+            INCLUDING a takeover, so a runner that was superseded while it
+            worked cannot close out work the new holder is in the middle of.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the lease lapses and the run becomes claimable again.
+        runId: { type: string }
+        caseId: { type: string }
+        studentRef: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [create_account]
+          description: >-
+            One member today, deliberately. The orchestrator has a second step
+            that needs a browser — `execute` — and it is absent because its
+            payload is a fill plan, whose instructions carry `ConfirmedValue`s
+            that may only be minted inside one package (ADR-0004). Adding a
+            member is a reviewable change to a one-member list.
+        portalHost:
+          type: string
+          description: The host the account is being created on. Bound, not a suggestion.
+        email:
+          type: string
+          format: email
+          description: The student's own address. The account being created is theirs (ADR-0020).
+        approach:
+          type: string
+          enum: [passwordless, student_chosen, portal_issued, generated_ephemeral]
+        secretHandle:
+          type: string
+          pattern: "^sh_[0-9a-f]{32}$"
+          description: >-
+            An OPAQUE reference to the password the student typed into the
+            secure control — no plaintext, no length, nothing derived from it
+            (ADR-0026). Present only when one exists and the portal needs it.
+            The runner hands it to the Secure Plane's fill agent, which resolves
+            it there; the runner holds no vault, has no KMS grant and has no
+            certificate that could reach one (ADR-0042).
+
+    WorkReport:
+      type: object
+      additionalProperties: false
+      required: [leaseId, outcome]
+      description: >-
+        How a unit of work ended. There is no free-text field, deliberately: a
+        portal's error message is written by a site that can put anything in it,
+        and this is a durable record in a plane that site should not be able to
+        write to.
+      properties:
+        leaseId: { type: string }
+        outcome:
+          type: string
+          enum: [succeeded, failed, uncertain]
+        failure:
+          type: string
+          enum:
+            [
+              portal_drift,
+              portal_refused,
+              already_exists,
+              secret_unavailable,
+              needs_the_student,
+              runner_fault,
+            ]
+          description: >-
+            Required exactly when the outcome is not `succeeded`, and refused
+            when it is. A half-written report reads as more or less certainty
+            than the runner actually had.
 
     AppendSecureEventRequest:
       type: object
