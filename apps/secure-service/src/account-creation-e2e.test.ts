@@ -248,6 +248,21 @@ async function submitSecret(requestId: string, frameToken: string): Promise<stri
  * blueprint — with the fixture portal's real origin swapped in, which is what
  * `CatalogueEntry.portalOrigin` does in the service.
  */
+/** The registration targets, as `RunDriver.claimWork` derives them. */
+function targets(): NonNullable<ClaimedWork["registration"]> {
+  return {
+    url: `${portal.baseUrl}/register`,
+    emailLocator: { strategy: "label", value: "Email address" },
+    // From the gated blueprint, by NAME rather than by label — `getByLabel`
+    // is non-exact, so "Password" also matches "Confirm password".
+    passwordLocators: [
+      { strategy: "name", value: "password" },
+      { strategy: "name", value: "password_confirm" },
+    ],
+    submitLocator: { strategy: "role", value: "button:Create account" },
+  };
+}
+
 function work(handle: string, over: Partial<ClaimedWork> = {}): ClaimedWork {
   return {
     leaseId: "wl_p6",
@@ -260,17 +275,7 @@ function work(handle: string, over: Partial<ClaimedWork> = {}): ClaimedWork {
     email: EMAIL,
     approach: "student_chosen",
     secretHandle: handle,
-    registration: {
-      url: `${portal.baseUrl}/register`,
-      emailLocator: { strategy: "label", value: "Email address" },
-      // From the gated blueprint, by NAME rather than by label — `getByLabel`
-      // is non-exact, so "Password" also matches "Confirm password".
-      passwordLocators: [
-        { strategy: "name", value: "password" },
-        { strategy: "name", value: "password_confirm" },
-      ],
-      submitLocator: { strategy: "role", value: "button:Create account" },
-    },
+    registration: targets(),
     ...over,
   };
 }
@@ -392,7 +397,7 @@ describeIfDatabase("the student gets an account, and only they know the password
       const outcome = await createPortalAccount(
         work(handle, {
           portalHost: registration.host,
-          registration: { ...work(handle).registration, url: registration.url },
+          registration: { ...targets(), url: registration.url },
         }),
         deps(),
       );
@@ -422,10 +427,7 @@ describeIfDatabase("the student gets an account, and only they know the password
 
     const outcome = await createPortalAccount(
       work(handle, {
-        registration: {
-          ...work(handle).registration,
-          url: "http://127.0.0.1:1/register",
-        },
+        registration: { ...targets(), url: "http://127.0.0.1:1/register" },
       }),
       deps(),
     );
@@ -446,10 +448,7 @@ describeIfDatabase("the student gets an account, and only they know the password
     const outcome = await createPortalAccount(
       work(handle, {
         email: other,
-        registration: {
-          ...work(handle).registration,
-          passwordLocators: [{ strategy: "name", value: "not_a_field" }],
-        },
+        registration: { ...targets(), passwordLocators: [{ strategy: "name", value: "not_a_field" }] },
       }),
       deps(),
     );

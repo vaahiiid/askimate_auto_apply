@@ -41,7 +41,7 @@
 import type { FieldLocator } from "@askimate/aas-blueprint";
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 import type { ClaimedWork } from "@askimate/aas-contracts";
-import type { Browser, Page } from "playwright";
+import type { Browser, BrowserContext, Page } from "playwright";
 
 import { fillSecret } from "./secret-fill.js";
 import { openSensitiveContext } from "./sensitive.js";
@@ -60,6 +60,22 @@ export interface CreateAccountDeps {
   readonly serviceToken?: string;
   readonly userAgent?: string;
   readonly fetch?: typeof globalThis.fetch;
+  /**
+   * A context to work in, kept open afterwards.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Creating the account SIGNS THE STUDENT IN — the portal sets a session
+   * cookie, exactly as it would for a person — and the application form is
+   * unreachable without it. So a runner that goes on to fill the form needs
+   * the context that holds that cookie, and closing it here would throw away
+   * the only session the run has.
+   * ═════════════════════════════════════════════════════════════════════
+   *
+   * Absent, a context is opened and closed here, which is right for a runner
+   * that only creates the account. Supplied, it is the CALLER's to close — and
+   * it must be a sensitive one; `fillSecret` refuses anything else, loudly.
+   */
+  readonly context?: BrowserContext;
 }
 
 /**
@@ -81,6 +97,14 @@ export async function createPortalAccount(
     return { kind: "failed", failure: "secret_unavailable" };
   }
 
+  const targets = work.registration;
+  if (targets === undefined) {
+    // An account-creation item with no registration targets is a plane that
+    // sent the wrong shape. Refused rather than guessed at: there is no
+    // sensible default for "which box is the password".
+    return { kind: "failed", failure: "portal_drift" };
+  }
+
   // ── 2. The form must be on the host this work was bound to ─────────────
   //
   // Checked here as well as in the plane, and for the same reason the fill
@@ -88,7 +112,7 @@ export async function createPortalAccount(
   // navigate, so this is where the check is about the thing that happens.
   let target: URL;
   try {
-    target = new URL(work.registration.url);
+    target = new URL(targets.url);
   } catch {
     return { kind: "failed", failure: "portal_drift" };
   }
@@ -97,9 +121,12 @@ export async function createPortalAccount(
   }
 
   // ── 1. Sensitive before anything is typed ──────────────────────────────
-  const context = await openSensitiveContext(deps.browser, {
-    userAgent: deps.userAgent ?? "AskiMate-Runner/1.0",
-  });
+  const supplied = deps.context;
+  const context =
+    supplied ??
+    (await openSensitiveContext(deps.browser, {
+      userAgent: deps.userAgent ?? "AskiMate-Runner/1.0",
+    }));
   try {
     const page = await context.newPage();
     try {
@@ -109,7 +136,7 @@ export async function createPortalAccount(
     }
 
     // ── 3. The email. Ordinary text, and this process types it ────────────
-    const email = await resolve(page, work.registration.emailLocator);
+    const email = await resolve(page, targets.emailLocator);
     if (email === null) return { kind: "failed", failure: "portal_drift" };
     try {
       await email.fill(work.email, { timeout: STEP_TIMEOUT_MS });
@@ -127,7 +154,7 @@ export async function createPortalAccount(
         purpose: "portal_account_creation",
         targetHost: work.portalHost,
       },
-      locators: work.registration.passwordLocators.map(
+      locators: targets.passwordLocators.map(
         (locator): FieldLocator => ({ strategy: locator.strategy, value: locator.value }),
       ),
       agentBaseUrl: deps.agentBaseUrl,
@@ -150,7 +177,7 @@ export async function createPortalAccount(
     }
 
     // ── 5. Submit, and only now ────────────────────────────────────────────
-    const submit = await resolve(page, work.registration.submitLocator);
+    const submit = await resolve(page, targets.submitLocator);
     if (submit === null) return { kind: "failed", failure: "portal_drift" };
     try {
       await Promise.all([
@@ -183,9 +210,10 @@ export async function createPortalAccount(
     }
     return { kind: "succeeded" };
   } finally {
-    // The context, not the browser. The browser belongs to the runner and may
-    // be doing other work; the context held this student's session and goes.
-    await context.close().catch(() => undefined);
+    // The context, not the browser — the browser belongs to the runner and may
+    // be doing other work. And only a context opened HERE: a supplied one holds
+    // the session the caller is about to fill a form with.
+    if (supplied === undefined) await context.close().catch(() => undefined);
   }
 }
 

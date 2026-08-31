@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-orchestrator",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -15,6 +15,7 @@
     "@askimate/aas-case-store": "workspace:*",
     "@askimate/aas-disclosure": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-execution": "workspace:*",
     "@askimate/aas-interview": "workspace:*",
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",

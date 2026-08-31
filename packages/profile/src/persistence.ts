@@ -155,6 +155,65 @@ export function toStoredEntry(
 }
 
 /**
+ * A provenance, with its timestamp back as a `Date`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The value half of an entry goes through `encodeValue`/`decodeValue`, which
+ * tag a `Date` so it survives JSON. The PROVENANCE half did not, and it holds
+ * one: `confirmedAt`. So a profile read back from the database carried a
+ * provenance whose `confirmedAt` was a string that claimed to be a Date, and
+ * every caller doing arithmetic on it — or calling `.toISOString()` — got a
+ * `TypeError` at runtime and nothing at compile time.
+ *
+ * Found by wiring a fill plan across a wire, where the provenance is serialised
+ * a second time. It was wrong before that and everywhere else too.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+function decodeProvenance(provenance: ConfirmationProvenance): ConfirmationProvenance {
+  const at: unknown = provenance.confirmedAt;
+  if (at instanceof Date) return provenance;
+  // A string, or a `$date` tag if it went through `encodeValue` on the way in.
+  const decoded: unknown = typeof at === "string" ? new Date(at) : decodeValue(at);
+  return {
+    ...provenance,
+    confirmedAt: decoded instanceof Date ? decoded : new Date(String(at)),
+  };
+}
+
+/**
+ * Reassembles ONE `ConfirmedValue` from its two halves.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0046. THE mint, extracted so that `rehydrateProfile` is no longer the
+ * only thing that needs it: a fill plan crossing to the Automation Runner has
+ * to be rebuilt on the other side, and `packages/mapping` owns `FillPlan` but
+ * may not cast to `ConfirmedValue`.
+ *
+ * So the cast stays here, in the package that owns the type, and `mapping`
+ * composes plans out of values this function returns. The boundary rule in
+ * `scripts/check-boundaries.ts` is unchanged: `as ConfirmedValue` still appears
+ * in exactly one package.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── What it will not do ───────────────────────────────────────────────────
+ *
+ * Invent a provenance. It takes one, and a caller with nothing to pass has
+ * nothing to call this with — which is the difference between rebuilding a
+ * value the student confirmed and manufacturing one nobody did. Every caller
+ * gets its provenance from something the student actually did: a stored profile
+ * row, or a plan built from one.
+ */
+export function rehydrateConfirmed<T>(input: {
+  readonly value: T;
+  readonly provenance: ConfirmationProvenance;
+}): ConfirmedValue<T> {
+  return {
+    value: input.value,
+    provenance: input.provenance,
+  } as unknown as ConfirmedValue<T>;
+}
+
+/**
  * Rebuilds a profile from stored entries.
  *
  * THE ONE CAST, and it is in the package that owns the mint. It reassembles a
@@ -175,10 +234,10 @@ export function rehydrateProfile(input: {
   >();
   for (const stored of input.entries) {
     entries.set(stored.key, {
-      value: {
+      value: rehydrateConfirmed({
         value: decodeValue(stored.value),
-        provenance: stored.provenance,
-      } as unknown as ConfirmedValue<unknown>,
+        provenance: decodeProvenance(stored.provenance),
+      }),
       revision: stored.revision,
     });
   }

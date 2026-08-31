@@ -6,6 +6,7 @@
     { "path": "../domain" },
     { "path": "../case-store" },
     { "path": "../disclosure" },
+    { "path": "../execution" },
     { "path": "../account" },
     { "path": "../blueprint" },
     { "path": "../interview" },

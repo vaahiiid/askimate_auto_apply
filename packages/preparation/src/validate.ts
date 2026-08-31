@@ -72,6 +72,17 @@ export function validatePlan(
   const filled = new Map(plan.instructions.map((i) => [i.fieldRef, textOf(i.value)]));
   const uploaded = new Set(plan.uploads.map((upload) => upload.fieldRef));
   const handedOff = new Set(plan.handoffs.map((handoff) => handoff.fieldRef));
+  // ADR-0043. A credential field is filled by the Secure Plane, from a value
+  // this process never sees, so `plan.instructions` has nothing for it BY
+  // DESIGN — a `FillInstruction` carries a `FillValue` and there is no
+  // `FillValue` that could hold a credential.
+  //
+  // Without this line every password box on every gated portal reads as a
+  // missing required field, `nextStep` answers `fix_content`, and the student
+  // is asked to fix content they cannot fix — forever, because there is nothing
+  // they could type that would satisfy it. Found by wiring the first gated run
+  // end to end.
+  const filledSecurely = new Set(plan.credentials.map((credential) => credential.fieldRef));
 
   for (const fieldRef of filled.keys()) {
     if (!fields.has(fieldRef)) unknownFields.push(fieldRef);
@@ -84,6 +95,7 @@ export function validatePlan(
       const violation = checkRule(field, rule, value, {
         uploaded: uploaded.has(field.fieldRef),
         handedOff: handedOff.has(field.fieldRef),
+        filledSecurely: filledSecurely.has(field.fieldRef),
       });
       if (violation !== null) violations.push(violation);
     }
@@ -99,6 +111,8 @@ function fieldRef(field: BlueprintField): string {
 interface FieldContext {
   readonly uploaded: boolean;
   readonly handedOff: boolean;
+  /** Filled by the Secure Plane's agent, from a value nothing here holds. */
+  readonly filledSecurely: boolean;
 }
 
 function checkRule(
@@ -117,10 +131,11 @@ function checkRule(
 
   switch (rule.kind) {
     case "required": {
-      // A field satisfied by an upload or reserved for the student is not
-      // empty — it is filled by something other than typing. Reporting those
-      // as violations would bury the real ones.
-      if (context.uploaded || context.handedOff) return null;
+      // A field satisfied by an upload, reserved for the student, or filled by
+      // the Secure Plane is not empty — it is filled by something other than
+      // typing here. Reporting those as violations would bury the real ones,
+      // and in the credential case would be a violation nobody could ever fix.
+      if (context.uploaded || context.handedOff || context.filledSecurely) return null;
       if (value !== undefined && value.trim().length > 0) return null;
       return violation(`"${field.label}" is required and the plan has nothing for it.`);
     }

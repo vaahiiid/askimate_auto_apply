@@ -342,7 +342,18 @@ const RULES: readonly Rule[] = [
     packagePath: "apps/browser-runner",
     forbidden: [
       "@askimate/aas-case-store",
-      "@askimate/aas-profile",
+      // `@askimate/aas-profile` was on this list until ADR-0046. The runner now
+      // depends on it, and deliberately: a fill plan crossing a wire has to be
+      // reassembled through the ONE mint that may produce a `ConfirmedValue`,
+      // and the alternative was stripping the brand at the boundary — which
+      // would have left the process that actually types unable to tell a value
+      // the student confirmed from one nobody did.
+      //
+      // The rationale below is unchanged and still holds: profile is neither a
+      // secret store nor a database driver. `@askimate/aas-orchestrator` stays
+      // absent for exactly that reason — it carries both — which is why
+      // `executePlan` moved to `@askimate/aas-execution`.
+      "@askimate/aas-orchestrator",
       "@askimate/aas-documents",
       "@askimate/aas-secrets",
       "@aws-sdk/client-kms",
@@ -646,7 +657,21 @@ function main(): void {
       .replace(/"(?:[^"\\]|\\.)*"/g, '""')
       .replace(/`(?:[^`\\]|\\.)*`/g, "``");
 
-    for (const forbidden of ["step.kind ===", "switch (step", "phaseFor(", "deriveCheckpoint("]) {
+    // COMPARING a step's kind, in either direction. The rule used to name only
+    // `step.kind ===` and missed `step.kind !==` — the same second copy of the
+    // step vocabulary written the other way round, and one had been sitting in
+    // this file passing the check. Every narrowing now lives in the orchestrator
+    // (`browserWorkFor`, `accountWorkOf`, `executePlanOf`).
+    //
+    // Reading `step.kind` is fine and stays fine: the run's reported position
+    // carries it, and repeating a word is not deciding with it.
+    for (const forbidden of [
+      "step.kind ==",
+      "step.kind !=",
+      "switch (step",
+      "phaseFor(",
+      "deriveCheckpoint(",
+    ]) {
       if (!code.includes(forbidden)) continue;
       violations.push(
         `${DRIVER} contains \`${forbidden}\`. The Conversation Service COORDINATES and the ` +
@@ -775,11 +800,20 @@ function main(): void {
   const WORK_CONTRACT = "packages/contracts/src/work.ts";
   if (existsSync(WORK_CONTRACT)) {
     const source = readFileSync(WORK_CONTRACT, "utf8");
-    if (!source.includes("NO_WORK_FIELD_IS_FREE_TEXT")) {
+    for (const assertion of [
+      "NO_WORK_FIELD_IS_FREE_TEXT",
+      "REGISTRATION_CARRIES_ONLY_TARGETS",
+      // ADR-0046's load-bearing half. Without it a plan could cross as text
+      // with the provenance dropped, and the only way to rebuild a value on the
+      // far side would be to INVENT one — an assertion that a student said
+      // something, made by a process with no idea whether they did.
+      "A_CONFIRMED_VALUE_CARRIES_ITS_PROVENANCE",
+    ]) {
+      if (source.includes(assertion)) continue;
       violations.push(
-        `${WORK_CONTRACT} no longer asserts NO_WORK_FIELD_IS_FREE_TEXT. That assertion is the ` +
-          `only thing that fails the build when a free-text field is added to a payload the ` +
-          `Automation Runner receives.`,
+        `${WORK_CONTRACT} no longer asserts ${assertion}. These assertions are the only things ` +
+          `that fail the build when the payload the Automation Runner receives grows a field it ` +
+          `must not carry.`,
       );
     }
     // Scoped to the PAYLOAD's own declaration, not to the whole file. Two
@@ -800,7 +834,12 @@ function main(): void {
       const fields = [...(declaration[1] ?? "").matchAll(/readonly\s+([A-Za-z0-9_]+)\??\s*:/g)].map(
         (match) => match[1] ?? "",
       );
-      const FORBIDDEN_FIELDS = ["password", "plaintext", "secret", "secretValue", "value", "fillValue", "plan", "profile"];
+      // `plan` was on this list until ADR-0046 decided how a fill plan may
+      // cross: as text plus the provenance that confirmed it, reassembled
+      // through the one mint. What guards its CONTENTS is the compile-time
+      // assertion below, which is why removing the name from here is a
+      // narrowing rather than a hole.
+      const FORBIDDEN_FIELDS = ["password", "plaintext", "secret", "secretValue", "value", "fillValue", "profile"];
       for (const field of fields) {
         if (!FORBIDDEN_FIELDS.includes(field)) continue;
         violations.push(

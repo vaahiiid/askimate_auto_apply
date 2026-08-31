@@ -47,7 +47,20 @@ import { join } from "node:path";
 
 import { load } from "js-yaml";
 
-import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
+import {
+  CREDENTIAL_PURPOSES,
+  checkUsable,
+  planFill,
+  rehydratePlan,
+  textOf,
+  toStoredPlan,
+} from "@askimate/aas-mapping";
+import {
+  GATED_PORTAL_BLUEPRINT,
+  GATED_PORTAL_MAPPING_SET,
+} from "@askimate/aas-mapping/fixtures/gated";
+import { proposeValue, provenanceOf, studentId, unwrapConfirmed } from "@askimate/aas-domain";
+import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 import { SECRET_LIFECYCLE, SECRET_PURPOSES, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
 import type { SecretLifecycle } from "@askimate/aas-secrets";
 
@@ -193,21 +206,114 @@ describe("the work vocabulary and the domain do not drift", () => {
     expect([...WORK_APPROACHES].sort()).toEqual([...AUTHENTICATION_APPROACHES].sort());
   });
 
-  it("hands out only work kinds the orchestrator can produce a step for", () => {
-    // Every work kind must be a step kind. The reverse does NOT hold and must
-    // not be asserted: `execute` is a step that needs a browser and is
-    // deliberately absent from `WORK_KINDS` until the `ConfirmedValue` boundary
-    // question in ADR-0045 has an answer.
+  it("hands out every browser step the orchestrator can produce", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // This test used to assert the OPPOSITE for `execute` — that it was a
+    // browser step deliberately withheld — and said in its own comment that the
+    // phase resolving the gap would delete it in the same diff. ADR-0046 was
+    // that decision, and this is that diff.
+    //
+    // What it asserts now is the invariant the gap made impossible: every step
+    // that needs a browser is a kind of work that can be claimed. A new browser
+    // step added without a work kind fails here rather than silently never
+    // being done.
+    // ═══════════════════════════════════════════════════════════════════
+    expect([...WORK_KINDS].sort()).toEqual(["create_account", "execute"]);
     for (const kind of WORK_KINDS) {
       expect(RUN_STEP_KINDS, `${kind} is not a step the orchestrator produces`).toContain(kind);
     }
   });
+});
 
-  it("records that `execute` is a browser step the runner is NOT yet given", () => {
-    // The divergence, written down where it will be read. A future phase that
-    // adds `execute` to WORK_KINDS deletes this test in the same diff, which is
-    // where the decision belongs.
-    expect(RUN_STEP_KINDS).toContain("execute");
-    expect(WORK_KINDS as readonly string[]).not.toContain("execute");
+describe("a plan survives the round trip to the runner and back", () => {
+  it("loses nothing — not the value, and not the confirmation behind it", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0046. `StoredFillPlan` and `TransportedPlan` are the same shape held
+    // by two packages that may not depend on each other, and a real plan is
+    // taken through both here. A field added to one and forgotten in the other
+    // fails on the value, not on a list of names.
+    // ═══════════════════════════════════════════════════════════════════
+    const now = new Date("2026-08-31T10:00:00Z");
+    const student = studentId("11111111-1111-1111-1111-111111111111");
+    const confirmed = applyConfirmation({
+      key: "identity.given_name",
+      proposed: proposeValue({
+        value: "Niloofar",
+        origin: "conversation",
+        verbatim: "my name is Niloofar",
+        confidence: 1,
+      }),
+      confirmation: {
+        studentRef: student,
+        presentedText: "Is that right?",
+        response: { kind: "accepted" },
+        respondedAt: now,
+      },
+    });
+    if (isDeclined(confirmed)) expect.unreachable("it should have been accepted");
+    const profile = confirmField(emptyProfile(student, now), confirmed, now);
+
+    const usable = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+    if (!usable.usable) expect.unreachable(`the gated mapping set should be usable`);
+    const plan = planFill(GATED_PORTAL_BLUEPRINT, usable.mappingSet, profile);
+
+    // A real plan against a real blueprint has blockers while the profile is
+    // partial, so the round trip is checked on the instructions it DID produce.
+    const transportable = {
+      ...plan,
+      uploads: [],
+      handoffs: [],
+      blockers: [],
+    };
+    const taken = toStoredPlan(transportable);
+    if (!taken.ok) expect.unreachable(`a plan with no uploads is transportable`);
+    expect(taken.plan.instructions.length).toBeGreaterThan(0);
+
+    const back = rehydratePlan(taken.plan);
+    expect(back.instructions).toHaveLength(transportable.instructions.length);
+
+    for (const [at, instruction] of back.instructions.entries()) {
+      const original = transportable.instructions[at];
+      if (original === undefined) expect.unreachable("same length, same indices");
+      expect(instruction.fieldRef).toBe(original.fieldRef);
+      expect(instruction.locators).toEqual(original.locators);
+      expect(textOf(instruction.value)).toBe(textOf(original.value));
+
+      if (original.value.kind !== "confirmed") continue;
+      if (instruction.value.kind !== "confirmed") {
+        expect.unreachable("a confirmed value must come back confirmed");
+      }
+      // THE assertion. Not merely "the text survived" — the confirmation behind
+      // it survived, which is what makes it a value the student agreed to rather
+      // than one this system produced.
+      expect(provenanceOf(instruction.value.value)).toEqual(
+        provenanceOf(original.value.value),
+      );
+      expect(unwrapConfirmed(instruction.value.value)).toBe(
+        unwrapConfirmed(original.value.value),
+      );
+    }
+  });
+
+  it("REFUSES a plan it cannot carry, rather than carrying part of it", () => {
+    // A plan with its uploads dropped would report itself complete having
+    // attached nothing, and the student would be told their application was
+    // filled.
+    const empty: Parameters<typeof toStoredPlan>[0] = {
+      blueprintId: "bp",
+      blueprintVersion: "1.0.0",
+      mappingSetId: "ms",
+      instructions: [],
+      uploads: [
+        { fieldRef: "passport", label: "Passport", documentRef: "doc-1", locators: [] },
+      ],
+      handoffs: [],
+      credentials: [],
+      blockers: [],
+    };
+    expect(toStoredPlan(empty)).toEqual({ ok: false, refusal: "has_uploads" });
+    expect(toStoredPlan({ ...empty, uploads: [], blockers: [
+      { kind: "no_mapping", fieldRef: "x", label: "X" },
+    ] as never })).toEqual({ ok: false, refusal: "has_blockers" });
   });
 });

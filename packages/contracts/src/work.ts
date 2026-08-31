@@ -46,19 +46,21 @@ import { FILL_LOCATOR_STRATEGIES, MAX_FILL_LOCATORS } from "./fill.js";
 /**
  * The kinds of work a browser is needed for.
  *
- * **One member today, deliberately.** The orchestrator has a second step that
- * needs a browser — `execute` — and it is not here because its payload is a
- * `FillPlan`, whose instructions carry `ConfirmedValue<string>`. That is a
- * branded type which may only be minted inside `packages/profile` (ADR-0004,
- * enforced package-scoped), and the runner may not depend on that package.
- * Serialising a plan and rebuilding it in the runner would mint confirmed
- * values outside the one place allowed to mint them.
+ * ── How `execute` got here ────────────────────────────────────────────────
  *
- * So `execute` needs a decision rather than a field, and adding a member here is
- * a reviewable change to a one-member list — which is the point of writing it
- * as a closed set rather than as a string.
+ * It was deliberately absent for a phase. A `FillPlan`'s instructions carry
+ * `ConfirmedValue<string>`, which only `packages/profile` may mint (ADR-0004),
+ * and `JSON.parse` on the far side would produce ordinary objects with the
+ * brand gone — so every consumer downstream would stop being able to tell a
+ * value the student confirmed from one nobody did.
+ *
+ * ADR-0046 decided it: the plan crosses as its two halves — the text and the
+ * provenance the student's confirmation produced — and is reassembled through
+ * the mint, in the package that owns it. Nothing outside `packages/profile`
+ * casts, and a provenance is carried rather than invented, because a provenance
+ * nobody produced is a lie about a student.
  */
-export const WORK_KINDS = ["create_account"] as const;
+export const WORK_KINDS = ["create_account", "execute"] as const;
 export type WorkKind = (typeof WORK_KINDS)[number];
 
 /**
@@ -150,26 +152,127 @@ export interface ClaimedWork {
    * no secrets may hold this.
    */
   readonly secretHandle?: string;
-  /** Where the form is and which boxes to type into. Blueprint facts only. */
-  readonly registration: RegistrationTargets;
+  /**
+   * Where the form is and which boxes to type into. Blueprint facts only.
+   *
+   * Present for `create_account`, absent for `execute` — the application form
+   * is reached from the plan's own locators, and an account has already been
+   * created by the time a run gets there.
+   */
+  readonly registration?: RegistrationTargets;
+  /**
+   * The fill plan, taken apart for transport. ADR-0046.
+   *
+   * Present for `execute`, absent for `create_account`. `text` and `provenance`
+   * rather than a `ConfirmedValue`, because the brand cannot survive a wire —
+   * and the provenance is CARRIED rather than rebuilt on arrival, so what is
+   * reassembled is the value the student actually confirmed.
+   */
+  readonly plan?: TransportedPlan;
+  /** The page the plan's fields are on. Must be on `portalHost`. */
+  readonly formUrl?: string;
+  /**
+   * The control that saves this page and moves to the next.
+   *
+   * ═════════════════════════════════════════════════════════════════════
+   * Filling a form types into boxes; a portal does not KEEP any of it until
+   * the page is saved. So the fill is not done when the last field is typed,
+   * and a runner that stopped there would report success over an application
+   * the university has no record of.
+   *
+   * This is `advance_portal_page` — consequential, and modelled as such: it may
+   * create a draft visible to admissions. It is NOT the submit control, and it
+   * never can be: the runner's click guard admits exactly the locators it is
+   * given, and it is given this one (ADR-0014).
+   * ═════════════════════════════════════════════════════════════════════
+   */
+  readonly advanceLocator?: FillLocator;
+}
+
+/** How a value reached the profile. Mirrors `ConfirmationProvenance`. */
+export const WORK_PROVENANCE_SOURCES = [
+  "student_stated",
+  "student_entered",
+  "document_extracted",
+  "student_corrected",
+] as const;
+export type WorkProvenanceSource = (typeof WORK_PROVENANCE_SOURCES)[number];
+
+export interface TransportedProvenance {
+  readonly source: WorkProvenanceSource;
+  /** RFC 3339. When the student confirmed it. */
+  readonly confirmedAt: string;
+  /** The student's own words, where the value came from conversation. */
+  readonly sourceExcerpt?: string;
+  readonly documentId?: string;
+}
+
+export type TransportedValue =
+  | {
+      readonly kind: "confirmed";
+      readonly fieldKey: string;
+      readonly text: string;
+      readonly provenance: TransportedProvenance;
+    }
+  | {
+      readonly kind: "reviewed_constant";
+      readonly text: string;
+      readonly rationale: string;
+      readonly mappingSetId: string;
+      readonly reviewedBy: string;
+    };
+
+export interface TransportedInstruction {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly inputType: string;
+  readonly locators: readonly FillLocator[];
+  readonly value: TransportedValue;
 }
 
 /**
- * COMPILE-TIME: no field of a work item may be free text.
+ * A plan on the wire.
  *
- * The type-level form of "read the fields, then read what is absent". A `say`, a
- * `detail`, a `value` or a `password` added later stops this being `never` and
- * fails the build naming the field. It is a CONSTRAINT rather than a
- * computation, because an assertion that merely evaluates to `never` is vacuous
- * — this repository has shipped one of those and found it by regression.
+ * No `uploads`, no `handoffs`, no `blockers` — and they are absent because a
+ * plan that had any of them is REFUSED for transport rather than trimmed. A
+ * plan with its uploads silently removed would report itself complete having
+ * attached nothing, and the student would be told their application was filled.
+ */
+export interface TransportedPlan {
+  readonly blueprintId: string;
+  readonly blueprintVersion: string;
+  readonly mappingSetId: string;
+  readonly instructions: readonly TransportedInstruction[];
+}
+
+/**
+ * COMPILE-TIME: no field of a work item is free text the student did not write.
+ *
+ * ── The claim this makes, and how it changed ──────────────────────────────
+ *
+ * It used to say "no field is free text", and that was true while the payload
+ * carried only identifiers. ADR-0046 made it false: an `execute` work item
+ * carries the student's own confirmed answers, because those answers are what
+ * gets typed into the university's form.
+ *
+ * So the claim is narrower and still worth enforcing. Every string here is one
+ * of: a closed-set word, an identifier, a URL, a locator, or a value the student
+ * confirmed — travelling with the provenance that confirmed it. A `say`, a
+ * `detail`, a `portalMessage` or a `password` added later still stops this being
+ * `never` and still fails the build naming the field.
+ *
+ * A CONSTRAINT rather than a computation: an assertion that merely evaluates to
+ * `never` on failure is vacuous, which this repository has shipped once and
+ * found by regression.
  */
 type OpenStrings<T> = {
   [K in keyof T]-?: NonNullable<T[K]> extends WorkKind | WorkApproach
     ? never
-    : // Exempt, and named here so the exemption is visible rather than implied:
-      // `registration` carries a URL and selectors from a REVIEWED blueprint,
-      // and the identical locator shape already crosses to the fill agent.
-      NonNullable<T[K]> extends RegistrationTargets
+    : // Two exemptions, both named here so they are visible rather than
+      // implied. `registration` carries a URL and selectors from a REVIEWED
+      // blueprint; `plan` carries confirmed answers, and its own assertion
+      // below closes the door this one opens.
+      NonNullable<T[K]> extends RegistrationTargets | TransportedPlan | FillLocator
       ? never
       : NonNullable<T[K]> extends string
         ? K extends
@@ -181,6 +284,7 @@ type OpenStrings<T> = {
             | "portalHost"
             | "email"
             | "secretHandle"
+            | "formUrl"
           ? never
           : K
         : K;
@@ -205,6 +309,32 @@ type NonTargetFields<T> = {
       : K;
 }[keyof T];
 export type REGISTRATION_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<RegistrationTargets>>;
+
+/**
+ * COMPILE-TIME: a confirmed value cannot travel without its provenance.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The load-bearing half of ADR-0046. A `ConfirmedValue` cannot survive a wire,
+ * so the plan crosses as text plus the provenance that confirmed it and is
+ * reassembled through the mint. If the provenance became optional — or were
+ * dropped in a "simplification" — the far side would have text with nothing to
+ * rebuild from, and the only way to produce a value would be to INVENT a
+ * provenance: an assertion that a student said something, made by a process
+ * that has no idea whether they did.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Distributive, so both branches of the union are examined: a plain mapped type
+ * over a union collapses to the keys they share, and `provenance` is on one
+ * branch only — which is exactly the shape this has to check.
+ */
+type ConfirmedWithoutProvenance<T> = T extends { readonly kind: "confirmed" }
+  ? T extends { readonly provenance: TransportedProvenance }
+    ? never
+    : "confirmed"
+  : never;
+export type A_CONFIRMED_VALUE_CARRIES_ITS_PROVENANCE = AssertNever<
+  ConfirmedWithoutProvenance<TransportedValue>
+>;
 
 // ───────────────────────────────────────────────────────────────────────────
 // How it ended
@@ -297,8 +427,20 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     return null;
   }
 
-  const registration = parseRegistration(record["registration"]);
-  if (registration === null) return null;
+  // Each work kind carries what IT needs, and refusing the other shape is what
+  // stops an `execute` item arriving with registration targets and no plan.
+  const kind = record["kind"];
+  const registration =
+    kind === "create_account" ? parseRegistration(record["registration"]) : null;
+  if (kind === "create_account" && registration === null) return null;
+
+  const plan = kind === "execute" ? parseTransportedPlan(record["plan"]) : null;
+  const formUrl = record["formUrl"];
+  const advanceLocator = kind === "execute" ? parseLocator(record["advanceLocator"]) : null;
+  if (kind === "execute") {
+    if (plan === null || advanceLocator === null) return null;
+    if (typeof formUrl !== "string" || formUrl.length === 0) return null;
+  }
 
   return {
     leaseId: record["leaseId"] as string,
@@ -311,7 +453,104 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     email: record["email"] as string,
     approach: record["approach"],
     ...(handle === undefined ? {} : { secretHandle: handle }),
-    registration,
+    ...(registration === null ? {} : { registration }),
+    ...(plan === null ? {} : { plan }),
+    ...(typeof formUrl === "string" && formUrl.length > 0 ? { formUrl } : {}),
+    ...(advanceLocator === null ? {} : { advanceLocator }),
+  };
+}
+
+function parseProvenance(value: unknown): TransportedProvenance | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (!isMember(WORK_PROVENANCE_SOURCES, record["source"])) return null;
+  if (!nonEmpty(record["confirmedAt"])) return null;
+  const excerpt = record["sourceExcerpt"];
+  const documentId = record["documentId"];
+  if (excerpt !== undefined && typeof excerpt !== "string") return null;
+  if (documentId !== undefined && typeof documentId !== "string") return null;
+  return {
+    source: record["source"],
+    confirmedAt: record["confirmedAt"],
+    ...(excerpt === undefined ? {} : { sourceExcerpt: excerpt }),
+    ...(documentId === undefined ? {} : { documentId }),
+  };
+}
+
+function parseTransportedValue(value: unknown): TransportedValue | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (record["kind"] === "confirmed") {
+    const provenance = parseProvenance(record["provenance"]);
+    // ── The refusal that matters ────────────────────────────────────────
+    //
+    // A confirmed value with no provenance cannot be rebuilt without inventing
+    // one, and an invented provenance asserts that a student said something
+    // when nobody knows whether they did. Refused at the boundary rather than
+    // patched up after it.
+    if (provenance === null) return null;
+    if (!nonEmpty(record["fieldKey"]) || typeof record["text"] !== "string") return null;
+    return {
+      kind: "confirmed",
+      fieldKey: record["fieldKey"],
+      text: record["text"],
+      provenance,
+    };
+  }
+  if (record["kind"] !== "reviewed_constant") return null;
+  for (const field of ["text", "rationale", "mappingSetId", "reviewedBy"]) {
+    if (typeof record[field] !== "string") return null;
+  }
+  return {
+    kind: "reviewed_constant",
+    text: record["text"] as string,
+    rationale: record["rationale"] as string,
+    mappingSetId: record["mappingSetId"] as string,
+    reviewedBy: record["reviewedBy"] as string,
+  };
+}
+
+function parseTransportedPlan(value: unknown): TransportedPlan | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  for (const field of ["blueprintId", "blueprintVersion", "mappingSetId"]) {
+    if (!nonEmpty(record[field])) return null;
+  }
+  const raw = record["instructions"];
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+
+  const instructions: TransportedInstruction[] = [];
+  for (const entry of raw as readonly unknown[]) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const held = entry as Record<string, unknown>;
+    if (!nonEmpty(held["fieldRef"]) || typeof held["label"] !== "string") return null;
+    if (!nonEmpty(held["inputType"])) return null;
+
+    const locatorList = held["locators"];
+    if (!Array.isArray(locatorList) || locatorList.length === 0) return null;
+    const locators: FillLocator[] = [];
+    for (const candidate of locatorList as readonly unknown[]) {
+      const locator = parseLocator(candidate);
+      if (locator === null) return null;
+      locators.push(locator);
+    }
+
+    const parsed = parseTransportedValue(held["value"]);
+    if (parsed === null) return null;
+    instructions.push({
+      fieldRef: held["fieldRef"],
+      label: held["label"],
+      inputType: held["inputType"],
+      locators,
+      value: parsed,
+    });
+  }
+
+  return {
+    blueprintId: record["blueprintId"] as string,
+    blueprintVersion: record["blueprintVersion"] as string,
+    mappingSetId: record["mappingSetId"] as string,
+    instructions,
   };
 }
 

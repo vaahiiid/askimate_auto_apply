@@ -47,6 +47,7 @@ export {
   InMemoryConfirmedProfileStore,
   decodeValue,
   encodeValue,
+  rehydrateConfirmed,
   rehydrateProfile,
   toStoredEntry,
 } from "./persistence.js";

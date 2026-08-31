@@ -27,7 +27,11 @@
     { "path": "./packages/extraction" },
     { "path": "./packages/mapping" },
     { "path": "./packages/preparation" },
+    { "path": "./packages/execution" },
     { "path": "./packages/orchestrator" },
-    { "path": "./apps/browser-runner" }
+    { "path": "./apps/browser-runner" },
+    { "path": "./apps/conversation-service" },
+    { "path": "./apps/secure-service" },
+    { "path": "./apps/secure-filler" }
   ]
 }

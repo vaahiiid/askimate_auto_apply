@@ -735,8 +735,7 @@ components:
       type: object
       additionalProperties: false
       required:
-        [leaseId, expiresAt, runId, caseId, studentRef, kind, portalHost, email, approach,
-         registration]
+        [leaseId, expiresAt, runId, caseId, studentRef, kind, portalHost, email, approach]
       description: >-
         One unit of browser work. Read the fields, then read what is absent:
         there is no password, no profile, no fill value, no document and no
@@ -759,13 +758,12 @@ components:
         studentRef: { type: string, format: uuid }
         kind:
           type: string
-          enum: [create_account]
+          enum: [create_account, execute]
           description: >-
-            One member today, deliberately. The orchestrator has a second step
-            that needs a browser — `execute` — and it is absent because its
-            payload is a fill plan, whose instructions carry `ConfirmedValue`s
-            that may only be minted inside one package (ADR-0004). Adding a
-            member is a reviewable change to a one-member list.
+            `create_account` carries `registration`; `execute` carries `plan`
+            and `formUrl`. Each kind carries what it needs and refuses the other
+            shape, so an `execute` item with registration targets and no plan is
+            rejected at the boundary rather than half-executed.
         portalHost:
           type: string
           description: The host the account is being created on. Bound, not a suggestion.
@@ -788,6 +786,117 @@ components:
             certificate that could reach one (ADR-0042).
         registration:
           $ref: "#/components/schemas/RegistrationTargets"
+        plan:
+          $ref: "#/components/schemas/TransportedPlan"
+        formUrl:
+          type: string
+          format: uri
+          description: >-
+            The page the plan's fields are on. Must be on `portalHost`; the
+            runner re-checks rather than trusting it.
+        advanceLocator:
+          allOf: [{ $ref: "#/components/schemas/WorkLocator" }]
+          description: >-
+            The control that SAVES this page. A portal keeps nothing until the
+            page is saved, so a runner that stopped at the last field would
+            report success over an application the university has no record of.
+
+            Not the submit control, and it cannot become one: the runner's click
+            guard admits exactly the locators it is given (ADR-0014).
+
+    TransportedPlan:
+      type: object
+      additionalProperties: false
+      required: [blueprintId, blueprintVersion, mappingSetId, instructions]
+      description: >-
+        A fill plan, taken apart for transport (ADR-0046). A `ConfirmedValue`
+        cannot survive a wire, so each value crosses as its text plus the
+        provenance the student's confirmation produced, and is reassembled
+        through the one mint that may produce one.
+
+        No `uploads`, no `handoffs`, no `blockers` — and they are absent because
+        a plan that had any of them is REFUSED for transport rather than
+        trimmed. A plan with its uploads silently removed would report itself
+        complete having attached nothing.
+      properties:
+        blueprintId: { type: string }
+        blueprintVersion: { type: string }
+        mappingSetId: { type: string }
+        instructions:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/TransportedInstruction" }
+
+    TransportedInstruction:
+      type: object
+      additionalProperties: false
+      required: [fieldRef, label, inputType, locators, value]
+      properties:
+        fieldRef: { type: string }
+        label: { type: string }
+        inputType: { type: string }
+        locators:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/WorkLocator" }
+        value: { $ref: "#/components/schemas/TransportedValue" }
+
+    TransportedValue:
+      oneOf:
+        - $ref: "#/components/schemas/TransportedConfirmedValue"
+        - $ref: "#/components/schemas/TransportedReviewedConstant"
+      discriminator:
+        propertyName: kind
+        mapping:
+          confirmed: "#/components/schemas/TransportedConfirmedValue"
+          reviewed_constant: "#/components/schemas/TransportedReviewedConstant"
+
+    TransportedConfirmedValue:
+      type: object
+      additionalProperties: false
+      required: [kind, fieldKey, text, provenance]
+      description: >-
+        A value the student confirmed, with the confirmation that made it one.
+        `provenance` is REQUIRED: without it the far side has text and nothing
+        to rebuild from, and the only way to produce a value would be to invent
+        a provenance — an assertion that a student said something, made by a
+        process with no idea whether they did.
+      properties:
+        kind: { type: string, enum: [confirmed] }
+        fieldKey: { type: string }
+        text: { type: string }
+        provenance: { $ref: "#/components/schemas/TransportedProvenance" }
+
+    TransportedReviewedConstant:
+      type: object
+      additionalProperties: false
+      required: [kind, text, rationale, mappingSetId, reviewedBy]
+      description: >-
+        Not the student's data, and it stays distinguishable from their data all
+        the way to the keyboard — `executePlan` calls `fill` for one and
+        `fillConstant` for the other, and no provenance is fabricated for either.
+      properties:
+        kind: { type: string, enum: [reviewed_constant] }
+        text: { type: string }
+        rationale: { type: string }
+        mappingSetId: { type: string }
+        reviewedBy: { type: string }
+
+    TransportedProvenance:
+      type: object
+      additionalProperties: false
+      required: [source, confirmedAt]
+      properties:
+        source:
+          type: string
+          enum: [student_stated, student_entered, document_extracted, student_corrected]
+        confirmedAt: { type: string, format: date-time }
+        sourceExcerpt:
+          type: string
+          description: The student's own words, where the value came from conversation.
+        documentId:
+          type: string
+          description: Document ID only — never the document, and never its contents.
 
     RegistrationTargets:
       type: object

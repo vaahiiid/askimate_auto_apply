@@ -34,8 +34,8 @@ import { chooseApproach } from "@askimate/aas-account";
 import { isFieldUnavailable } from "@askimate/aas-domain";
 import { resolveField } from "@askimate/aas-profile";
 
-import type { ApplicationSession, DocumentSource, ExecutionContext } from "./execute.js";
-import { executePlan, failures } from "./execute.js";
+import type { ApplicationSession, DocumentSource, ExecutionContext } from "@askimate/aas-execution";
+import { executePlan, failures } from "@askimate/aas-execution";
 import {
   beginRun,
   markFilled,

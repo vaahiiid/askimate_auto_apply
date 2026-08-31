@@ -19,6 +19,77 @@ not shipped artefacts.
 
 ---
 
+## [0.26.0] — 2026-08-31
+
+**P8 — the runner fills the application form. ADR-0046: a fill plan crosses as
+value and provenance, reassembled through the one mint.**
+
+**Version bump: MINOR.** A new ADR, a new package, a migration, the plan
+transport, the fill performer, and four latent defects fixed. The runner's
+forbidden-dependency list is narrowed by decision and widened by another name.
+
+### The gap ADR-0045 left, decided
+
+`FillInstruction.value` carries a `ConfirmedValue<string>`, mintable only inside
+`packages/profile`, and the runner may not depend on that package — so `execute`
+was not claimable work and the journey stopped at the account.
+
+A plan now crosses as its two halves: each value's text and **the provenance the
+student's confirmation produced**. It is reassembled through `rehydrateConfirmed`
+— the same cast `rehydrateProfile` already made, extracted so a second caller
+can use it. Nothing outside `packages/profile` casts.
+
+The provenance is **carried, never rebuilt**. A provenance nobody produced is a
+lie about a student: `student_stated` means they said it, the agent played it
+back, and they confirmed it. A compile-time assertion fails the build if it
+becomes optional, and the parser refuses a confirmed value without one.
+
+### `executePlan` moves to `@askimate/aas-execution`
+
+Which is what makes the above possible. The runner must run the executor and
+cannot take `@askimate/aas-orchestrator`: that package carries
+`@askimate/aas-case-store` (and `pg`) and `@askimate/aas-secrets`, and browser
+automation must have neither anywhere in its tree.
+
+The move is right on its own terms too. `executePlan` is a pure function over a
+session and a plan — it reads no run state, writes no checkpoint, decides
+nothing. Its four real dependencies are blueprint, disclosure, domain and
+mapping. The orchestrator re-exports it, so no caller changes.
+
+### A unit of fill work is one page, and it is saved
+
+A portal keeps nothing until the page is saved, so a runner that stopped at the
+last field would report success over an application the university has no record
+of. The work item carries the page's **advance control**, and the runner's click
+guard admits exactly that locator — so it cannot become a submit however the
+blueprint changes (ADR-0014).
+
+A save that never lands is `uncertain`, never `failed`: the click may have
+reached the portal.
+
+### Four defects found by running it
+
+- **A credential field read as a missing required field.** ADR-0043 routed
+  password fields to `plan.credentials`; `validatePlan` looked only at
+  `instructions` and `uploads`. Every gated run answered `fix_content` and asked
+  the student to fix something they could not fix, forever.
+- **A stored provenance came back with a string in its `Date`.** The value half
+  of a profile entry is date-tagged; the provenance half was not, and it holds
+  `confirmedAt`. Nothing at compile time; a `TypeError` at runtime.
+- **The work item's email was a placeholder for `execute`**, so the wire parser
+  refused it, the route 500'd, and the client read that as "nothing to do" — an
+  idle-looking system with a student waiting.
+- **The lease table's `kind` CHECK still had one member.** Migration
+  `0006_execute_work` widens it; 0005 is untouched.
+
+Ten deliberate regressions in
+[`docs/p8-regression-audit.md`](./docs/p8-regression-audit.md), which also
+records the one thing this phase deliberately does not do: page progress beyond
+the first application page is not durable, and a two-page portal would stop
+after one.
+
+---
+
 ## [0.25.0] — 2026-08-31
 
 **P7 — the first real end-to-end execution journey. A student asks, and ends up

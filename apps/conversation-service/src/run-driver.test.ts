@@ -1318,16 +1318,18 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // blueprint fixture records why — `getByLabel` is non-exact, so
       // "Password" also matches "Confirm password", and on this one field an
       // ambiguous locator is the bug that types a credential into the wrong box.
-      expect(work.registration.url).toBe("https://gated.portal.test/register");
-      expect(work.registration.emailLocator).toEqual({
+      const registration = work.registration;
+      if (registration === undefined) expect.unreachable("account work carries its targets");
+      expect(registration.url).toBe("https://gated.portal.test/register");
+      expect(registration.emailLocator).toEqual({
         strategy: "label",
         value: "Email address",
       });
-      expect(work.registration.passwordLocators).toEqual([
+      expect(registration.passwordLocators).toEqual([
         { strategy: "name", value: "password" },
         { strategy: "name", value: "password_confirm" },
       ]);
-      expect(work.registration.submitLocator).toEqual({
+      expect(registration.submitLocator).toEqual({
         strategy: "role",
         value: "button:Create account",
       });
@@ -1699,10 +1701,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
     try {
       const work = await instance.driver.claimWork({ holder: "runner-sandbox", leaseSeconds: 120 });
       if (work === null) expect.unreachable("a sandboxed blueprint is still claimable work");
-      expect(work.registration.url).toBe("http://127.0.0.1:45999/register");
+      expect(work.registration?.url).toBe("http://127.0.0.1:45999/register");
       expect(work.portalHost, "the bound host moves with the form").toBe("127.0.0.1:45999");
       // The reviewed locators are untouched. Only the origin moved.
-      expect(work.registration.passwordLocators).toEqual([
+      expect(work.registration?.passwordLocators).toEqual([
         { strategy: "name", value: "password" },
         { strategy: "name", value: "password_confirm" },
       ]);

@@ -93,3 +93,7 @@ export { httpWorkIntake, runOneTurn } from "./work-intake.js";
 // ── P6: the first consequential action, on somebody else's website ────────
 export type { CreateAccountDeps } from "./create-account.js";
 export { createPortalAccount } from "./create-account.js";
+
+// ── P8 / ADR-0046: the plan, reassembled and executed ─────────────────────
+export type { FillApplicationDeps } from "./fill-application.js";
+export { fillApplication } from "./fill-application.js";

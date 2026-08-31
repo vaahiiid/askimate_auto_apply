@@ -162,6 +162,34 @@ export class PlaywrightPreparationSession implements FillableSession {
     this.#clickAllowList = new ClickAllowList(mode.clickableControls);
   }
 
+  /**
+   * A session over a page that already exists, and a context this does not own.
+   *
+   * ═════════════════════════════════════════════════════════════════════════
+   * ADR-0046. The application form is behind a login: creating the account
+   * signed the student in, and the context holding that cookie is the only
+   * session the run has. `open` launches its own browser and would arrive
+   * logged out — with no way back, because the password was single-use.
+   *
+   * So the caller supplies the page. Everything else is identical: the same
+   * `#type`, the same option check, the same read-back that catches a portal
+   * silently truncating a personal statement. A caller that hand-rolled an
+   * `ApplicationSession` over a page would lose all three, which is what the
+   * first version of the end-to-end journey did — and it typed "IR" into a
+   * `<select>` and failed.
+   * ═════════════════════════════════════════════════════════════════════════
+   *
+   * `close()` closes nothing here. The context belongs to whoever opened it.
+   */
+  public static attach(
+    page: Page,
+    mode: Omit<PreparationMode, "traceDir">,
+  ): PlaywrightPreparationSession {
+    const session = new PlaywrightPreparationSession({ ...mode, traceDir: "" });
+    session.#page = page;
+    return session;
+  }
+
   public static async open(mode: PreparationMode): Promise<PlaywrightPreparationSession> {
     // No runtime capability check here, unlike the discovery session: this one
     // takes a `PreparationMode`, whose capability is the literal "fillable", so

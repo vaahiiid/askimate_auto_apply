@@ -9,9 +9,11 @@ export type { RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
 export {
   IllegalSecretTransitionError,
   accountCreated,
+  accountWorkOf,
   assess,
   beginRun,
   browserWorkFor,
+  executePlanOf,
   markFilled,
   nextStep,
   requiredFieldsFor,
@@ -22,6 +24,9 @@ export {
   withSecret,
 } from "./run.js";
 
+// Re-exported, not owned. `executePlan` moved to `@askimate/aas-execution`
+// (ADR-0046) so the Automation Runner can run it without taking this package's
+// database driver and vault into its tree. Existing callers are unaffected.
 export type {
   ApplicationSession,
   AuthorisedDocument,
@@ -29,8 +34,8 @@ export type {
   ExecutionContext,
   ExecutionOutcome,
   ExecutionReport,
-} from "./execute.js";
-export { executePlan, failures } from "./execute.js";
+} from "@askimate/aas-execution";
+export { executePlan, failures } from "@askimate/aas-execution";
 
 // ── Phase 3: durable execution ───────────────────────────────────────────
 //

@@ -46,3 +46,12 @@ export type {
 } from "./mapping.js";
 export { CREDENTIAL_PURPOSES } from "./mapping.js";
 export type { CredentialRequirement } from "./plan.js";
+
+// ── ADR-0046: a plan, as it crosses to the Automation Runner ───────────────
+export type {
+  PlanTransportRefusal,
+  StoredFillInstruction,
+  StoredFillPlan,
+  StoredFillValue,
+} from "./plan-transport.js";
+export { rehydratePlan, toStoredPlan } from "./plan-transport.js";

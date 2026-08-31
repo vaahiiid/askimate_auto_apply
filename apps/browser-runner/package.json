@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-browser-runner",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,10 +14,12 @@
     "@askimate/aas-browser-fill": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
+    "@askimate/aas-execution": "workspace:*",
+    "@askimate/aas-mapping": "workspace:*",
+    "@askimate/aas-profile": "workspace:*",
     "playwright": "^1.49.1"
   },
   "devDependencies": {
-    "@askimate/aas-mapping": "workspace:*",
     "vitest": "^2.1.8"
   }
 }

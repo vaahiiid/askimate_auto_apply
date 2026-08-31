@@ -64,6 +64,7 @@ import {
   runId as makeRunId,
   stamp,
   studentId as makeStudentId,
+  unwrapConfirmed,
 } from "@askimate/aas-domain";
 import type {
   CaseId,
@@ -76,18 +77,22 @@ import type {
 } from "@askimate/aas-domain";
 import { newInterview } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
-import { checkUsable } from "@askimate/aas-mapping";
-import type { MappingSet } from "@askimate/aas-mapping";
+import { checkUsable, toStoredPlan } from "@askimate/aas-mapping";
+import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
+  accountWorkOf,
   beginRun,
   browserWorkFor,
+  executePlanOf,
+  markFilled,
   checkpointAfter,
   nextStep,
   requiredFieldsFor,
   requiresSecureRequest,
   resumeRun,
   startRun,
+  withAuthorisation,
   withCheckpoint,
   withSecret,
 } from "@askimate/aas-orchestrator";
@@ -100,6 +105,7 @@ import type {
   ClaimedWork,
   FillLocator,
   RegistrationTargets,
+  TransportedPlan,
   WorkApproach,
   WorkKind,
   WorkReport,
@@ -261,8 +267,14 @@ export type RunOutcome =
  * routinely found to have nothing to do. Kept as phases rather than step kinds
  * because the checkpoint is what the claim query can filter on in SQL, and a
  * checkpoint holds a phase.
+ *
+ * One entry per work kind, and they are checked against each other: a work kind
+ * whose phase is missing here is work that exists and is never handed out —
+ * silently, because a candidate query that returns nothing looks exactly like
+ * an idle system. `phaseFor` in the orchestrator is what maps a step to its
+ * phase, and the drift test compares the two lists.
  */
-const BROWSER_PHASES: readonly string[] = ["creating_account"];
+const BROWSER_PHASES: readonly string[] = ["creating_account", "filling"];
 
 /**
  * Whether a secret lifecycle is finished with.
@@ -615,6 +627,8 @@ export class RunDriver {
         readonly step: RunStep;
         readonly now: Date;
         readonly secret: ReturnType<typeof latestSecretRequest>;
+        /** The account the run is carrying, once one has been created. */
+        readonly account: RunState["account"];
       }
   > {
     const usable = checkUsable(input.entry.mappingSet, input.entry.blueprint);
@@ -698,12 +712,37 @@ export class RunDriver {
     // out of it. `already_done` with `succeeded` is the only verdict that
     // produces an account: `verify_first` and `escalate` both mean somebody has
     // to go and look, and neither is a thing to assume through.
-    const state: RunState = await this.#withAccountIfCreated(withTheSecret, input, now);
+    const withAccount_: RunState = await this.#withAccountIfCreated(withTheSecret, input, now);
+
+    // ── The authorisation, from the case's own log ────────────────────────
+    //
+    // Same shape as the account above, and the same reason: `state.authorisation`
+    // lives in memory and this process holds none between requests. Without it a
+    // student who has approved a preview is asked to approve it again on every
+    // request, and the run never reaches `execute`.
+    //
+    // `AuthorisationCaptured` is a CASE event — a business fact, in the log that
+    // holds business facts (ADR-0031, rule 3) — so the record is durable
+    // already and this only reads it.
+    const authorised: RunState = await this.#withAuthorisationIfCaptured(
+      withAccount_,
+      input.caseId,
+      input.entry,
+    );
+
+    // ── And that the portal was filled ────────────────────────────────────
+    //
+    // The third of the same shape, and the last one this phase needs.
+    // `markFilled` is memory too, so without reading the record a run whose
+    // form was filled a second ago is offered to a runner again — which would
+    // re-type a student's answers into a page they are already on, and press
+    // save a second time.
+    const state: RunState = await this.#markFilledIfDone(authorised, input.record.runId);
 
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
-    return { ok: true, step, now, secret };
+    return { ok: true, step, now, secret, account: state.account };
   }
 
   /**
@@ -754,6 +793,72 @@ export class RunDriver {
       ...(found?.completed === undefined ? {} : { completed: found.completed }),
     });
     return verdict.kind === "verify_first" || verdict.kind === "escalate";
+  }
+
+  /**
+   * Applies the student's authorisation when the case log records one.
+   *
+   * The LATEST one wins, and a voided one does not count: `AuthorisationVoided`
+   * exists because content that changed after approval is content nobody
+   * approved, and treating a voided authorisation as live would fill a form
+   * with values the student never saw.
+   */
+  async #withAuthorisationIfCaptured(
+    state: RunState,
+    caseId: CaseId,
+    entry: CatalogueEntry,
+  ): Promise<RunState> {
+    const events = await this.#options.stores.cases.read(caseId);
+    let captured: { contentHash: string; authorisedAt: Date } | null = null;
+    for (const event of events) {
+      if (event.type === "AuthorisationCaptured") {
+        captured = { contentHash: event.contentHash, authorisedAt: event.authorisedAt };
+        continue;
+      }
+      if (event.type === "AuthorisationVoided" && captured?.contentHash === event.previousContentHash) {
+        captured = null;
+      }
+    }
+    if (captured === null) return state;
+
+    return withAuthorisation(state, {
+      authorisationId: `auth_${caseId}`,
+      caseId,
+      studentRef: state.inputs.studentRef,
+      contentHash: captured.contentHash,
+      hashAlgorithm: "sha256",
+      // Not stored on the event and not invented here. The preview's text is
+      // shown to the student by the conversation surface and is not a fact this
+      // coordinator holds; what makes the authorisation binding is the CONTENT
+      // HASH, which is on the event and is compared against the plan.
+      presentedText: "",
+      blueprintId: entry.blueprint.blueprintId,
+      blueprintVersion: entry.blueprint.version,
+      mappingSetId: entry.mappingSet.mappingSetId,
+      authorisedAt: captured.authorisedAt,
+    });
+  }
+
+  /**
+   * Marks the run filled when the durable record says the page was saved.
+   *
+   * `advance_portal_page` is the consequential action a fill performs, and its
+   * completion is the only durable evidence that the portal kept anything.
+   * `verify_first` and `escalate` are deliberately NOT treated as filled: an
+   * action that may or may not have landed is not one to build on, and
+   * `claimWork` refuses to re-offer it for the same reason.
+   */
+  async #markFilledIfDone(state: RunState, runId: RunId): Promise<RunState> {
+    const found = await this.#options.stores.runs.findIntent(
+      runId,
+      idempotencyKeyFor({ runId, action: "advance_portal_page", target: runId }),
+    );
+    const verdict = assessIntent({
+      ...(found?.intent === undefined ? {} : { intent: found.intent }),
+      ...(found?.completed === undefined ? {} : { completed: found.completed }),
+    });
+    if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") return state;
+    return markFilled(state);
   }
 
   async #decideOnce(input: {
@@ -974,27 +1079,19 @@ export class RunDriver {
       // "a specialist looks at the portal and says which it was" means while
       // there is no verification capability to automate it.
       if (await this.#actionMayBeUnfinished(record.runId, kind)) continue;
-      const detail = accountWorkFrom(situation.step);
+      // Both narrowings come from the orchestrator; this file reads their
+      // results and never a step's kind.
+      const account = accountWorkOf(situation.step);
+      const detail = accountDetail(account, situation.account);
       if (detail === null) continue;
 
-      // From the REVIEWED blueprint, at the deployment's origin. A run whose
-      // blueprint has no registration page is not work — it is a blueprint that
-      // says an account is needed and does not say how to make one, which is a
-      // specialist's problem and not a runner's.
-      const registration = registrationFrom(entry);
-      if (registration === null) continue;
-      // The host the work is bound to must be the host the form is on. Derived
-      // rather than asserted: `portalHost` is what the fill agent checks the
-      // live page against, so a registration URL elsewhere would be a run that
-      // typed a password into a page nobody bound it to.
-      //
-      // Both sides move together when a deployment moves the origin, so what
-      // this catches is a BLUEPRINT whose registration page is on a different
-      // host from its sign-in page — which is a portal fact a specialist should
-      // have looked at, not something to proceed through.
-      const portalHost = deployedHost(entry, detail.portalHost);
-      const formHost = hostOf(registration.url);
-      if (formHost === null || portalHost === null || formHost !== portalHost) continue;
+      const payload = workPayloadFor(
+        entry,
+        { kind, account, plan: executePlanOf(situation.step) },
+        detail.portalHost,
+      );
+      if (payload === null) continue;
+      const { portalHost } = payload;
 
       const leaseId =
         this.#options.newLeaseId?.(candidate.runId, now) ?? `wl_${randomUUID().replace(/-/g, "")}`;
@@ -1026,7 +1123,7 @@ export class RunDriver {
         ...(situation.secret?.handle === undefined
           ? {}
           : { secretHandle: situation.secret.handle }),
-        registration,
+        ...payload.carries,
       };
     }
     return null;
@@ -1121,6 +1218,10 @@ export class RunDriver {
  */
 const ACTION_FOR_WORK: Readonly<Record<WorkKind, ConsequentialAction>> = {
   create_account: "create_portal_account",
+  // Filling advances the portal, which may create a draft application visible
+  // to admissions — which is why it is consequential at all, and why it gets an
+  // intent rather than being treated as a read.
+  execute: "advance_portal_page",
 };
 
 /**
@@ -1218,22 +1319,217 @@ function hostOf(url: string): string | null {
 }
 
 /**
- * The account facts a `create_account` step carries, or `null`.
+ * The email, host and approach every unit of work carries.
  *
- * Narrowed rather than cast, and separate from `browserWorkFor` because the two
- * answer different questions: the orchestrator owns *which steps need a
- * browser*, and this file owns *how this step's fields become a wire payload*.
- * A step that gains a browser but no account details fails here rather than
- * producing a work item with empty strings in it.
+ * For `create_account` they come from the step the orchestrator narrowed. For
+ * `execute` there is no such step — the account already exists by then — so the
+ * portal's host comes from the reviewed blueprint, which is where the account's
+ * host came from originally, and the address is left to the account itself
+ * rather than restated on the wire.
  */
-function accountWorkFrom(
-  step: RunStep,
+function accountDetail(
+  step: ReturnType<typeof accountWorkOf>,
+  existing: RunState["account"],
 ): { portalHost: string; email: string; approach: WorkApproach } | null {
-  if (step.kind !== "create_account") return null;
-  if (!(WORK_APPROACHES as readonly string[]).includes(step.approach)) return null;
+  // Before the account exists, the step says who it is for.
+  if (step !== null) {
+    if (!(WORK_APPROACHES as readonly string[]).includes(step.approach)) return null;
+    return {
+      portalHost: step.portalHost,
+      email: step.email,
+      approach: step.approach,
+    };
+  }
+  // After it exists, the ACCOUNT does — and it is the same address, because
+  // `accountCreated` took it from the same confirmed profile the step did.
+  // Reading it from the account rather than re-deriving it is what stops the
+  // two ever disagreeing about whose application this is.
+  if (existing === undefined) return null;
+  if (!(WORK_APPROACHES as readonly string[]).includes(existing.authentication.approach)) {
+    return null;
+  }
   return {
-    portalHost: step.portalHost,
-    email: step.email,
-    approach: step.approach,
+    portalHost: existing.portalHost,
+    email: unwrapConfirmed(existing.email),
+    approach: existing.authentication.approach,
+  };
+}
+
+/**
+ * What a unit of work carries, and the host it is bound to — or `null` because
+ * this run is not work after all.
+ *
+ * ── The check both kinds share ────────────────────────────────────────────
+ *
+ * The page must be on the bound host. `portalHost` is what the secure request
+ * binds a handle to and what the fill agent checks the live page against, so a
+ * page elsewhere would be a run acting on a host nobody bound it to. Both sides
+ * move together when a deployment moves the origin, so what this catches is a
+ * BLUEPRINT whose pages disagree with its sign-in — a portal fact a specialist
+ * should have looked at, not something to proceed through.
+ */
+function workPayloadFor(
+  entry: CatalogueEntry,
+  input: {
+    readonly kind: WorkKind;
+    readonly account: ReturnType<typeof accountWorkOf>;
+    readonly plan: FillPlan | null;
+  },
+  fromBlueprint: string,
+):
+  | {
+      readonly portalHost: string;
+      readonly carries: Partial<
+        Pick<ClaimedWork, "registration" | "plan" | "formUrl" | "advanceLocator">
+      >;
+    }
+  | null {
+  const portalHost = deployedHost(entry, fromBlueprint);
+  if (portalHost === null) return null;
+
+  // Branching on the WORK KIND — a word from the wire contract — and never on a
+  // step's kind. The orchestrator narrowed the step already; a second narrowing
+  // here would be this file keeping its own copy of what each step holds.
+  if (input.kind === "create_account") {
+    if (input.account === null) return null;
+    // A blueprint that says an account is needed and does not say how to make
+    // one is a specialist's problem, not a runner's.
+    const registration = registrationFrom(entry);
+    if (registration === null) return null;
+    if (hostOf(registration.url) !== portalHost) return null;
+    return { portalHost, carries: { registration } };
+  }
+
+  const plan = input.plan;
+  if (plan === null) return null;
+
+  // ── Taken apart for transport, or refused ─────────────────────────────
+  //
+  // `toStoredPlan` refuses a plan with uploads, handoffs or blockers rather
+  // than trimming them: a plan with its uploads removed would report itself
+  // complete having attached nothing, and the student would be told their
+  // application was filled. A refused plan means this run is not work — it is
+  // waiting on something else, and `nextStep` says what on the next advance.
+  const transported = toStoredPlan(plan);
+  if (!transported.ok) return null;
+
+  // ── A unit of fill work is ONE PAGE ───────────────────────────────────
+  //
+  // A plan covers the whole application, and an application is paginated: the
+  // gated blueprint's own plan spans the registration page and the form. A
+  // runner handed all of it would navigate to one page and time out on the
+  // other's fields — which is exactly what happened the first time this ran.
+  const page = formPageFor(entry, plan);
+  if (page === null) return null;
+  const at = atOrigin(page.url ?? "", entry.portalOrigin);
+  if (at === null || hostOf(at) !== portalHost) return null;
+
+  // The control that saves this page. A blueprint page with fields to fill and
+  // no way to save them is a blueprint a specialist should look at, not a page
+  // to type into and abandon.
+  const advance = page.advanceControl;
+  if (advance === undefined) return null;
+
+  const onThisPage = new Set(
+    page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)),
+  );
+  const instructions = transported.plan.instructions.filter((instruction) =>
+    onThisPage.has(instruction.fieldRef),
+  );
+  if (instructions.length === 0) return null;
+
+  return {
+    portalHost,
+    carries: {
+      plan: toWirePlan({ ...transported.plan, instructions }),
+      formUrl: at,
+      advanceLocator: { strategy: advance.strategy, value: advance.value },
+    },
+  };
+}
+
+/**
+ * The page this unit of fill work is for.
+ *
+ * ── The rule, and why it is this one ──────────────────────────────────────
+ *
+ * The first page in blueprint order that has fields to type and NO credential
+ * field. A page with a credential field is a registration page: the Secure
+ * Plane fills the password there and account creation submits it, so by the
+ * time a run reaches `execute` that page is done — including its email, which
+ * `createPortalAccount` typed.
+ *
+ * Blueprint order, not plan order: which page comes first is a fact about the
+ * portal that a specialist reviewed, and the plan's instruction order is an
+ * artefact of how `planFill` walks fields.
+ *
+ * ── The limitation, stated ────────────────────────────────────────────────
+ *
+ * One page per unit of work, and no way yet to advance to the next: a portal
+ * with two application pages gets its first one filled and then has nothing
+ * more offered, because nothing records which pages are done. The gated
+ * blueprint has one, so the journey completes; a two-page portal needs a phase
+ * that makes page progress durable, and it should not be faked here.
+ */
+function formPageFor(entry: CatalogueEntry, plan: FillPlan): ApplicationBlueprint["pages"][number] | null {
+  const wanted = new Set(plan.instructions.map((instruction) => instruction.fieldRef));
+  const credentialFields = new Set(plan.credentials.map((credential) => credential.fieldRef));
+  return (
+    entry.blueprint.pages.find((page) => {
+      const fields = page.sections.flatMap((section) => section.fields);
+      if (fields.some((field) => credentialFields.has(field.fieldRef))) return false;
+      return fields.some((field) => wanted.has(field.fieldRef));
+    }) ?? null
+  );
+}
+
+/**
+ * The transport form, as the WIRE declares it.
+ *
+ * Rebuilt field by field rather than passed through. `StoredFillPlan` and
+ * `TransportedPlan` are the same shape held by two packages that may not depend
+ * on each other — `@askimate/aas-contracts` has no dependencies at all — and
+ * this is where the two meet. `scripts/contract-drift.test.ts` takes a real plan
+ * through both and requires the round trip to be lossless, so the duplication
+ * cannot drift unnoticed.
+ */
+function toWirePlan(stored: StoredFillPlan): TransportedPlan {
+  return {
+    blueprintId: stored.blueprintId,
+    blueprintVersion: stored.blueprintVersion,
+    mappingSetId: stored.mappingSetId,
+    instructions: stored.instructions.map((instruction) => ({
+      fieldRef: instruction.fieldRef,
+      label: instruction.label,
+      inputType: instruction.inputType,
+      locators: instruction.locators.map((locator) => ({
+        strategy: locator.strategy,
+        value: locator.value,
+      })),
+      value:
+        instruction.value.kind === "confirmed"
+          ? {
+              kind: "confirmed" as const,
+              fieldKey: instruction.value.fieldKey,
+              text: instruction.value.text,
+              provenance: {
+                source: instruction.value.provenance.source,
+                confirmedAt: instruction.value.provenance.confirmedAt.toISOString(),
+                ...(instruction.value.provenance.sourceExcerpt === undefined
+                  ? {}
+                  : { sourceExcerpt: instruction.value.provenance.sourceExcerpt }),
+                ...(instruction.value.provenance.documentId === undefined
+                  ? {}
+                  : { documentId: instruction.value.provenance.documentId }),
+              },
+            }
+          : {
+              kind: "reviewed_constant" as const,
+              text: instruction.value.text,
+              rationale: instruction.value.rationale,
+              mappingSetId: instruction.value.mappingSetId,
+              reviewedBy: instruction.value.reviewedBy,
+            },
+    })),
   };
 }

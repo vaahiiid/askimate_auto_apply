@@ -15,6 +15,8 @@
     { "path": "../../packages/blueprint" },
     { "path": "../../packages/browser-fill" },
     { "path": "../../packages/contracts" },
-    { "path": "../../packages/mapping" }
+    { "path": "../../packages/execution" },
+    { "path": "../../packages/mapping" },
+    { "path": "../../packages/profile" }
   ]
 }

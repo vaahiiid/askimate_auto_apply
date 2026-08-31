@@ -766,22 +766,39 @@ export class IllegalSecretTransitionError extends Error {
  * needed one.
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * ── Why `execute` answers `null` today ────────────────────────────────────
- *
- * `execute` unambiguously needs a browser. It is not here because the question
- * this function answers is *what may be handed to the Automation Runner*, and a
- * fill plan cannot yet be handed to it: `FillInstruction.value` carries a
- * `ConfirmedValue<string>`, which may only be minted inside `packages/profile`
- * (ADR-0004, enforced package-scoped by `scripts/check-boundaries.ts`), and the
- * runner may not depend on that package. Serialising a plan and rebuilding it
- * there would mint confirmed values outside the one place allowed to.
- *
- * So the honest answer is `null` and the gap is named — in ADR-0045, in
- * `WORK_KINDS`, and here — rather than papered over with a field that would
- * quietly weaken ADR-0004.
+ * Two steps qualify. `execute` was absent for a phase, because a fill plan
+ * could not be handed to the runner without minting `ConfirmedValue`s outside
+ * the one package allowed to mint them; ADR-0046 decided how — the plan crosses
+ * as text plus the provenance that confirmed it, and is reassembled through the
+ * mint. Whether a PARTICULAR plan can be transported is a separate question
+ * with its own refusals (`toStoredPlan`); this one is about the step vocabulary.
  */
-export function browserWorkFor(step: RunStep): "create_account" | null {
-  return step.kind === "create_account" ? "create_account" : null;
+export function browserWorkFor(step: RunStep): "create_account" | "execute" | null {
+  if (step.kind === "create_account") return "create_account";
+  return step.kind === "execute" ? "execute" : null;
+}
+
+/**
+ * The account facts a `create_account` step carries, or `null`.
+ *
+ * Here rather than in the caller for the same reason `browserWorkFor` is: the
+ * step vocabulary is this package's, and a coordinator that narrowed a step
+ * itself would be keeping its own copy of what each kind holds — wrong the
+ * first time a kind gains a field, silently, by omission. `check-boundaries`
+ * bans `step.kind` in the Run Driver to keep that true.
+ */
+export function accountWorkOf(step: RunStep): {
+  readonly portalHost: string;
+  readonly email: string;
+  readonly approach: AuthenticationApproach;
+} | null {
+  if (step.kind !== "create_account") return null;
+  return { portalHost: step.portalHost, email: step.email, approach: step.approach };
+}
+
+/** The plan an `execute` step carries, or `null`. */
+export function executePlanOf(step: RunStep): FillPlan | null {
+  return step.kind === "execute" ? step.plan : null;
 }
 
 /**

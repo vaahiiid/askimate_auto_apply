@@ -47,11 +47,8 @@ import { chromium, type Browser } from "playwright";
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
-import {
-  proposeValue,
-  studentId as makeStudentId,
-} from "@askimate/aas-domain";
-import type { ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
+import { proposeValue, studentId as makeStudentId } from "@askimate/aas-domain";
+import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import {
   applyConfirmation,
   confirmField,
@@ -60,6 +57,9 @@ import {
   toStoredEntry,
 } from "@askimate/aas-profile";
 import { DeterministicModelClient } from "@askimate/aas-llm";
+import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { buildPreview } from "@askimate/aas-preparation";
+import { caseId as makeCaseId, eventId as makeEventId, externalRef } from "@askimate/aas-domain";
 import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
@@ -75,11 +75,15 @@ import { SecureLogger } from "@askimate/aas-secure-logging";
 import { createFillAgentApp, httpUseAuthoriser } from "@askimate/aas-secure-filler";
 import {
   createPortalAccount,
+  fillApplication,
   httpWorkIntake,
+  openSensitiveContext,
+  PlaywrightPreparationSession,
   runOneTurn,
   startFixturePortal,
   type FixturePortal,
 } from "@askimate/aas-browser-runner";
+import type { BrowserContext, Page } from "playwright";
 import {
   ApplicationBindingStore,
   ConversationEventStore,
@@ -136,6 +140,18 @@ let cache: InMemoryEnvelopeCache;
 let studentUuid: string;
 let logLines: string[] = [];
 let wire: { where: string; body: string }[] = [];
+/**
+ * The runner's context for this case, opened once and kept.
+ *
+ * Creating the account SIGNS THE STUDENT IN — the portal sets a session cookie
+ * exactly as it would for a person — and the application form is unreachable
+ * without it. A runner that opened a fresh context to fill would arrive logged
+ * out with no way back, because the password was single-use and is gone.
+ */
+let caseContext: BrowserContext;
+let casePage: Page;
+/** The profile as the interview confirmed it. The preview hashes this one. */
+let journeyProfile: ConfirmedProfile;
 
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
   const url = String(input);
@@ -309,6 +325,8 @@ beforeAll(async () => {
     await fetch(`http://127.0.0.1:${String(CDP_PORT)}/json/version`)
   ).json()) as { webSocketDebuggerUrl: string };
   cdpEndpoint = version.webSocketDebuggerUrl;
+  caseContext = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
+  casePage = await caseContext.newPage();
 
   // ── The interview, answered ─────────────────────────────────────────────
   //
@@ -316,6 +334,7 @@ beforeAll(async () => {
   // interview surface takes. Written here rather than driven through the chat
   // endpoint because the journey under test starts at "the student has
   // answered" — the interview has its own suites and its own model.
+  journeyProfile = emptyProfile(makeStudentId(studentUuid), new Date());
   const profiles = new PostgresConfirmedProfileStore(conversationPool);
   await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar");
   await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini");
@@ -337,6 +356,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!HAVE_DATABASE) return;
+  await caseContext.close().catch(() => undefined);
   await runnerBrowser.close();
   await portal.stop();
   await new Promise<void>((resolve) => conversationServer.close(() => resolve()));
@@ -364,8 +384,8 @@ async function confirmInto<K extends ProfileFieldKey>(
   });
   if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
   const now = new Date();
-  const profile = confirmField(emptyProfile(makeStudentId(studentUuid), now), result, now);
-  const entry = profile.entries.get(key);
+  journeyProfile = confirmField(journeyProfile, result, now);
+  const entry = journeyProfile.entries.get(key);
   if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
   await store.save(studentUuid, toStoredEntry(key, entry));
 }
@@ -431,6 +451,23 @@ async function typeThePassword(requestId: string): Promise<void> {
 
 /** The student's session cookie, minted by the service's own issuer. */
 let devCookie = "";
+
+/**
+ * The preview the orchestrator would build for this run, for its content hash.
+ *
+ * Built from the same blueprint, the same reviewed mapping set and the same
+ * confirmed profile the run uses — because an authorisation whose hash does not
+ * match the plan is an authorisation for something else, and `assess` compares
+ * the two before anything is typed.
+ */
+function previewForThisRun(): { contentHash: string } {
+  const usable = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+  if (!usable.usable) expect.unreachable("the gated mapping set is reviewed");
+  const plan = planFill(GATED_PORTAL_BLUEPRINT, usable.mappingSet, journeyProfile);
+  const preview = buildPreview(GATED_PORTAL_BLUEPRINT, plan, new Map());
+  if (!preview.built) expect.unreachable(`preview refused: ${preview.refusal.kind}`);
+  return { contentHash: preview.preview.contentHash };
+}
 
 describeIfDatabase("a student asks, and ends up with an account they own", () => {
   let runId = "";
@@ -517,6 +554,8 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         agentBaseUrl: AGENT,
         serviceToken: RUNNER_CERT,
         fetch: recordingFetch as unknown as typeof globalThis.fetch,
+        // Kept open: the cookie it is about to hold is the run's only session.
+        context: caseContext,
       }),
     );
     expect(turn).toEqual({
@@ -543,6 +582,141 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       [runId],
     );
     expect(intents.rows).toEqual([{ action: "create_portal_account", outcome: "succeeded" }]);
+  }, 300_000);
+
+  it("asks the student to authorise before ANYTHING is typed", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Product rule 1, at the point it costs something. The account exists and
+    // the plan is ready, and the run STOPS: nothing is typed into a university's
+    // form until the student has seen exactly what will be sent and said yes.
+    // ═══════════════════════════════════════════════════════════════════
+    const advanced = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      },
+    );
+    expect(advanced.status).toBe(200);
+    const run = (await advanced.json()) as { step: string; phase: string };
+    expect(run.step).toBe("authorise");
+    expect(run.phase).toBe("awaiting_authorisation");
+
+    // And no work is offered while it waits. A runner cannot get ahead of the
+    // student's approval, which is the whole point of the step.
+    const intake = httpWorkIntake({
+      baseUrl: CONVERSATION_URL,
+      holder: "runner-journey",
+      serviceToken: RUNNER_CERT,
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    });
+    expect(await intake.claim(), "nothing to do until the student approves").toBeNull();
+    expect(portal.application(EMAIL), "and nothing typed").toBeNull();
+  }, 300_000);
+
+  it("the student approves, and the run becomes work", async () => {
+    // The student presses approve. Recorded where business facts are recorded —
+    // the case's append-only log — which is what makes it survive a restart and
+    // what the driver reads back.
+    const cases = new PostgresCaseStore(conversationPool);
+    const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
+    const existing = await cases.read(caseRef);
+
+    // The hash of exactly what will be sent. Taken from the preview the
+    // orchestrator built, never invented here: an authorisation whose hash did
+    // not match the plan is an authorisation for something else.
+    const preview = previewForThisRun();
+    await cases.append(caseRef, existing.length, [
+      {
+        eventId: makeEventId(`evt_${caseRef}_auth`),
+        caseId: caseRef,
+        sequence: existing.length + 1,
+        occurredAt: new Date(),
+        actor: { kind: "student", externalRef: externalRef(`student:${studentUuid}`) },
+        type: "AuthorisationCaptured",
+        contentHash: preview.contentHash,
+        hashAlgorithm: "sha256",
+        authorisedAt: new Date(),
+      },
+    ]);
+
+    const advanced = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      },
+    );
+    const run = (await advanced.json()) as { step: string; phase: string };
+    expect(run.step, "approved; now it is work").toBe("execute");
+    expect(run.phase).toBe("filling");
+  }, 300_000);
+
+  it("the RUNNER claims the FILL, and types the student's own answers", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0046. The plan crossed as text plus the provenance the student's
+    // confirmation produced, and was reassembled on this side through the one
+    // mint. What runs is `executePlan` — the same function the in-process demo
+    // has always run, on the same plan the Application Plane built.
+    // ═══════════════════════════════════════════════════════════════════
+    const intake = httpWorkIntake({
+      baseUrl: CONVERSATION_URL,
+      holder: "runner-journey",
+      serviceToken: RUNNER_CERT,
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    });
+
+    let received: NonNullable<Parameters<typeof fillApplication>[0]["plan"]> | undefined;
+    const turn = await runOneTurn(intake, (work) => {
+      received = work.plan;
+      const advance = work.advanceLocator;
+      if (advance === undefined) expect.unreachable("execute work carries its save control");
+      return fillApplication(work, {
+        now: () => new Date(),
+        // The REAL session, attached to the page the account was created in.
+        // Not a hand-rolled adapter: the first version of this test wrote one
+        // and lost the option check, the checkbox handling and the read-back
+        // that catches a portal silently truncating a personal statement — and
+        // typed "IR" into a `<select>`.
+        session: PlaywrightPreparationSession.attach(casePage, {
+          capability: "fillable",
+          runId: "run-journey",
+          allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
+          // EXACTLY the control the plane sent, and nothing else. The guard
+          // is a whitelist, so the submit button is unreachable however the
+          // blueprint changes — structural rather than a promise (ADR-0014).
+          clickableControls: [advance],
+        }),
+      });
+    });
+    expect(turn.kind, JSON.stringify(turn)).toBe("worked");
+    if (turn.kind !== "worked") expect.unreachable("the fill should have been reported");
+    expect(turn.report.outcome).toBe("succeeded");
+
+    // ── What crossed, and what came with it ────────────────────────────
+    if (received === undefined) expect.unreachable("an execute item carries a plan");
+    const name = received.instructions.find(
+      (instruction) => instruction.fieldRef === "given_name",
+    );
+    if (name?.value.kind !== "confirmed") expect.unreachable("the name is a confirmed value");
+    expect(name.value.text).toBe("Niloofar");
+    // The confirmation behind it, not just the text. Without this the runner
+    // would be typing a value nobody could say the student had agreed to.
+    expect(name.value.provenance.source).toBe("student_stated");
+    expect(name.value.provenance.confirmedAt).toMatch(/^\d{4}-/);
+
+    // ── Asked of the PORTAL ────────────────────────────────────────────
+    const application = portal.application(EMAIL);
+    if (application === null) expect.unreachable("the portal should hold the application");
+    expect(application.givenName).toBe("Niloofar");
+    expect(application.familyName).toBe("Hosseini");
+    expect(application.nationality).toBe("IR");
+    expect(application.personalStatement).toBe("Because it is the course I want.");
+
+    // Still nothing submitted. Filling is not submitting (ADR-0014).
+    expect(portal.submissions()).toEqual([]);
   }, 300_000);
 
   it("does NOT create a second account for a student who has one", async () => {
@@ -581,9 +755,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
   });
 
   it("submitted NOTHING, and the portal is the one saying so", () => {
-    // ADR-0014. Submission is out of scope and stays so; the run stops at the
-    // account because `execute` is not yet claimable work (ADR-0045).
+    // ADR-0014. The form is filled and saved; the submit control is never
+    // pressed, and the portal's own record of submissions is what says so.
     expect(portal.submissions()).toEqual([]);
-    expect(portal.application(EMAIL), "not even a saved draft").toBeNull();
+    expect(portal.application(EMAIL), "filled, and not submitted").not.toBeNull();
   });
 });
