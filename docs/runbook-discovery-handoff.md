@@ -12,7 +12,7 @@
 Paste this into Terminal. One line.
 
 ```bash
-git clone -b claude/askimate-application-automation-ab22hz https://github.com/vaahiiid/askimate_auto_apply.git ~/askimate-discovery && cd ~/askimate-discovery && ./scripts/discover.sh
+git clone https://github.com/vaahiiid/askimate_auto_apply.git ~/askimate-discovery && cd ~/askimate-discovery && ./scripts/discover.sh
 ```
 
 If you have already cloned it:

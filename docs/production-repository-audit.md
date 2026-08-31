@@ -96,10 +96,22 @@ somewhere*.
 
 ## 6. A separate finding, in this repository — **Measured**
 
-`vaahiiid/askimate_auto_apply` has **no `main` branch**. Its GitHub default branch is
-`claude/askimate-application-automation-ab22hz` — a working branch. There are also no git tags.
+**Original finding (2026-08-27).** `vaahiiid/askimate_auto_apply` has **no `main` branch**. Its
+GitHub default branch is `claude/askimate-application-automation-ab22hz` — a working branch. There
+are also no git tags.
 
 This matters now that versioning exists (ADR-0027): a release process needs a trunk to tag on, and
 tagging a release on a feature branch is workable but wrong. **This is your call**, so it is raised
 rather than fixed: creating `main` from the current branch and making it the default would take a
 minute, and it changes where every future PR targets.
+
+**Update, 2026-08-31 — partly closed.** You approved it, and `main` now exists on the remote at the
+tip of the working branch; no commit was rewritten. Two parts remain open:
+
+- The **default branch is still the working branch**. Flipping it is a repository-settings write,
+  which this session's network path refuses (`403 Repository settings writes are not permitted
+  through this proxy`), so it needs you: *Settings → General → Default branch*. Deleting the
+  working branch has to follow the flip, because GitHub will not delete a default branch.
+- **The remote still has no tags.** Unchanged, and unchanged for the same reason recorded in
+  ADR-0029 §7 — tag pushes are refused. `v0.1.0`–`v0.9.1` remain local-only, so the repository
+  still has no published release.

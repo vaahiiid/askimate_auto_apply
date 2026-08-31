@@ -83,8 +83,8 @@ is dated to today.
 
 ## What this does not fix
 
-The repository has **no `main` branch** — GitHub's default branch is
-`claude/askimate-application-automation-ab22hz`, the working branch. Tagging a release on a
-feature branch is workable but wrong, and a release process needs a trunk to tag on. That is
-Vahid's call, not something to fix silently, and it is raised in
-`docs/production-repository-audit.md` §6.
+**Resolved 2026-08-31 by ADR-0029.** `main` now exists, created at the tip of
+`claude/askimate-application-automation-ab22hz` without rewriting anything, and is the branch a
+release is tagged on. One step is outstanding and needs Vahid: GitHub's default branch is still
+`claude/askimate-application-automation-ab22hz`, because this session's network path refuses
+repository-settings writes. See ADR-0029 *What has been done*.

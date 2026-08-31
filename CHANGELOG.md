@@ -17,6 +17,22 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+### Changed
+
+- **`main` is the trunk.** Created at `e5b052b`, the exact tip of the working branch — a new ref at
+  an existing commit, so nothing was rewritten, amended or re-authored. ADR-0029 moves from
+  *Proposed* to **Accepted**, and records the two steps that still need Vahid: making `main` the
+  GitHub default branch, and deleting the old working branch afterwards. Both are
+  repository-settings writes that this session's network path refuses.
+- **Commit messages no longer carry agent attribution** — no `Co-Authored-By:` naming a model, no
+  `Claude-Session:` trailer, no "Generated with …" footer. Forward-only: the trailers already in the
+  pushed history stay, because removing them would mean rewriting every commit and force-pushing.
+  Stated in the new `CLAUDE.md` and reasoned through in ADR-0029 §9.
+- `docs/runbook-discovery-handoff.md` clones the default branch instead of naming the working
+  branch, so the command keeps working after the default is flipped.
+
+No version bump: documentation and repository governance, no source change (ADR-0028 §3).
+
 ---
 
 ## [0.27.0] — 2026-08-31

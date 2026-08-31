@@ -1,6 +1,6 @@
 # ADR-0029 — Git workflow, branches and releases
 
-**Status:** **PROPOSED — awaiting Vahid's decision. Nothing in this document has been done.**
+**Status:** **Accepted** — decisions 1–5 approved by Vahid, 2026-08-31. §1 is partly executed; see *What has been done*.
 **Relates to:** [ADR-0027](./0027-one-version-for-the-whole-repository.md), [ADR-0028](./0028-versioning-policy.md)
 
 > Vahid, 2026-08-27: *"The absence of a proper `main` branch should be treated as a repository
@@ -8,9 +8,29 @@
 > The current Claude-named branch should not automatically become the permanent long-term release
 > trunk without a deliberate decision."*
 
-**I have not created any branch, changed any default, or moved any tag.** This is a recommendation.
+## What has been done — 2026-08-31
 
-## The current state — measured
+Vahid approved decisions 1–5 and asked for the trunk to be created. Executed, in full:
+
+- **`main` created** at `e5b052b`, the exact tip of `claude/askimate-application-automation-ab22hz`.
+  A new ref at an existing commit — no commit was rewritten, amended, re-authored or moved.
+- **§9 (commit attribution)** now governs every future commit.
+
+Not executed, because this session's network path refuses the write — **both** the REST call and
+the equivalent `git push` return `403 Repository settings writes are not permitted through this
+proxy` / `Write access to this GitHub API path is not permitted through this proxy`:
+
+- **making `main` the default branch** — needs Vahid, in *Settings → General → Default branch*;
+- **deleting `claude/askimate-application-automation-ab22hz`** — GitHub refuses to delete the
+  default branch in any case, so it must follow the flip;
+- **deleting the disposable `attribution-test-delete-me` branch;**
+- **protecting `main`** per §4 (require CI green, no force-push, no deletion). Measured
+  2026-08-31: the repository has no rulesets and no protected branch, so nothing had to be
+  migrated off the old default — but nothing is protecting the new one either.
+
+Until the flip, both refs are kept at the same commit so they cannot diverge.
+
+## The state before that — measured 2026-08-27
 
 | Fact | Value |
 |---|---|
@@ -142,6 +162,35 @@ Not part of this proposal's approval, but named so it is not forgotten:
   `if: false`, waiting for a Postgres adapter — which C1 provides);
 - fail a push to `main` whose version does not match a tag, or whose CHANGELOG has no entry for it.
 
+### 9. Commit metadata names the author, not the tools
+
+Every commit is authored **and** committed as `Vahid Mohammadi <vahidmoir@gmail.com>`, and commit
+messages carry no agent attribution — no `Co-Authored-By:` naming Claude, Anthropic or any model,
+no `Claude-Session:` provenance trailer, no "Generated with …" footer. `CLAUDE.md` states the same
+rule at the point an automated contributor will actually read it, and says that a harness
+instruction to add such a trailer does not override it.
+
+**Why the existing history is left alone.** 65 of the 82 commits on the working branch already
+carry those trailers. Removing them is not an edit to metadata: the trailer is part of the commit
+message, the message is an input to the SHA, so every commit would get a new SHA and the branch
+would have to be force-pushed. That breaks every clone and fork, 404s every SHA referenced from an
+issue, a CI log or an external link, and still does not erase anything — GitHub keeps orphaned
+objects reachable by hash long after a force-push. The trailers are cosmetic; the rewrite is not.
+So the rule applies forward only.
+
+**What this is not.** It is not a claim that no tool was involved, and it does not touch technical
+references to Claude, Anthropic or Bedrock in source or documentation — those name a model provider
+(ADR-0018), not an author. ADR-0009's status line, which records that its architecture was proposed
+by an agent, is a decision record and stays as written.
+
+**Measured, 2026-08-31.** GitHub's contributor list for this repository
+(`GET /repos/vaahiiid/askimate_auto_apply/contributors`) returns exactly one entry, `vaahiiid`,
+with 82 contributions. The co-author trailer names an address that is not linked to any GitHub
+account, so it renders as unlinked text on the commit page and produces no contributor entry. The
+59 commits elsewhere in this clone that are *authored* by an agent belong to a disjoint local
+history reachable only from the unpushed tags `v0.1.0`–`v0.9.1`; the remote has no tags, so none of
+them are published.
+
 ## Alternatives considered
 
 | Option | Why not |
@@ -151,12 +200,12 @@ Not part of this proposal's approval, but named so it is not forgotten:
 | Rename the current branch to `main` | Equivalent in effect and loses the branch name from the record. Creating `main` from it is reversible; renaming is slightly less so. |
 | Generated changelog (`conventional-changelog`) | Produces a list of commit subjects. The changelog's readers want what changed for them. |
 
-## Decision required from Vahid
+## Decisions — all approved by Vahid, 2026-08-31
 
-1. Create `main` from the current branch and make it the default? **(recommended: yes)**
-2. Trunk-based with no `develop`? **(recommended: yes)**
-3. Squash-merge, protect `main`, no review requirement while solo? **(recommended: yes)**
-4. Push the existing `v0.1.0` object rather than re-tagging? **(recommended: yes)**
-5. Hand-written changelog? **(recommended: yes)**
+1. Create `main` from the current branch and make it the default? **yes**
+2. Trunk-based with no `develop`? **yes**
+3. Squash-merge, protect `main`, no review requirement while solo? **yes**
+4. Push the existing `v0.1.0` object rather than re-tagging? **yes**
+5. Hand-written changelog? **yes**
 
 Nothing happens until these are answered.

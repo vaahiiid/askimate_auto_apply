@@ -50,7 +50,7 @@ ADR status uses exactly that vocabulary:
 | [0026](./0026-a-password-the-model-can-ask-for-and-never-see.md) | A password the model can ask for and never see | Accepted |
 | [0027](./0027-one-version-for-the-whole-repository.md) | One version for the whole repository, and a changelog that does not invent history | Accepted |
 | [0028](./0028-versioning-policy.md) | Versioning policy: what counts as a release, and what does not | Accepted |
-| [0029](./0029-git-workflow.md) | Git workflow, branches and releases | **Proposed — awaiting Vahid** |
+| [0029](./0029-git-workflow.md) | Git workflow, branches and releases | Accepted |
 | [0030](./0030-the-secure-control-runs-on-its-own-origin.md) | The secure control runs on its own origin | Accepted |
 | [0031](./0031-one-conversation-event-log.md) | One append-only conversation event log | Accepted |
 | [0032](./0032-cancellation-is-its-own-lifecycle.md) | Cancellation is its own lifecycle | Accepted |
@@ -70,4 +70,4 @@ ADR status uses exactly that vocabulary:
 | [0046](./0046-a-fill-plan-crosses-as-value-and-provenance.md) | A fill plan crosses to the runner as value and provenance, reassembled through the one mint | Accepted |
 | [0047](./0047-page-progress-lives-in-the-intent-ledger.md) | Page progress lives in the intent ledger; a lease names the page it holds | Accepted |
 
-Forty-two are **Accepted**; ADR-0029 is **Proposed** and must not be acted on until approved. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+Forty-three are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
