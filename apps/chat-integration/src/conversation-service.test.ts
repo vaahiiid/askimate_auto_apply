@@ -70,6 +70,33 @@ let otherStudentId: string;
  * that let PostgreSQL invent one would be testing a different id space.
  */
 let counter = 0;
+
+/**
+ * What the SERVER received on the `Last-Event-ID` header of every `/stream`
+ * request, oldest first. `null` means the request carried no such header.
+ *
+ * The server, not the browser-side listener, because the server is the only
+ * observer that cannot be wrong about this. Playwright's `request.headers()`
+ * is a snapshot of the request as the page issued it and documents itself as
+ * incomplete — `allHeaders()` exists precisely because some headers are added
+ * below it. `Last-Event-ID` is one the browser adds on its own. Asserting on
+ * the client-side snapshot is asserting about the instrument; asserting on
+ * what arrived at the service is asserting about the guarantee, which is what
+ * ADR-0035 actually promises: a reconnect resumes from the header, and the
+ * service honours it.
+ */
+interface StreamObservation {
+  /** `Last-Event-ID` as the SERVICE received it, or `null` if absent. */
+  readonly resumeFrom: string | null;
+  /** The ordinals the service wrote back on THIS connection, in order. */
+  readonly delivered: number[];
+}
+
+const streamObservations: StreamObservation[] = [];
+
+/** Just the resume cursors, oldest first — the common case. */
+const resumeCursors = (): (string | null)[] =>
+  streamObservations.map((observation) => observation.resumeFrom);
 async function newConversation(owner: string = studentId): Promise<string> {
   counter += 1;
   const id = `01JBXQ8Z9WKTQ6M4H2NPB${String(counter).padStart(5, "0")}`;
@@ -192,6 +219,40 @@ beforeAll(async () => {
   });
   server = await new Promise<Server>((resolve) => {
     const listening = app.listen(PORT, "127.0.0.1", () => resolve(listening));
+  });
+  // An extra `request` listener alongside the app's own. It only reads, so it
+  // cannot change what the service does, and it sees every request the service
+  // sees — including the reconnects the browser makes by itself, which are the
+  // ones no client-side assertion can observe reliably.
+  server.on("request", (req, res) => {
+    if (!(req.url ?? "").includes("/stream")) return;
+    // Node types a header as `string | string[]`, because a client may send it
+    // twice. The service reads it with `req.header()`, which takes the first,
+    // so this observer takes the first too — an observer that disagreed with
+    // the code it observes would report on a value nothing acted on.
+    const raw = req.headers["last-event-id"];
+    const observation: StreamObservation = {
+      resumeFrom: (Array.isArray(raw) ? raw[0] : raw) ?? null,
+      delivered: [],
+    };
+    streamObservations.push(observation);
+    // Reading the frames the service writes, because "duplicates nothing"
+    // asserted on the page is asserted AFTER the client deduplicates by
+    // ordinal — which is exactly the "the paged load alone would produce the
+    // same list" trap, one level down. A service that ignored the cursor and
+    // replayed the conversation on every reconnect would leave the transcript
+    // correct and this array full of repeats.
+    const write = res.write.bind(res) as (...args: unknown[]) => boolean;
+    res.write = ((...args: unknown[]): boolean => {
+      const chunk = args[0];
+      if (typeof chunk === "string") {
+        for (const line of chunk.split("\n")) {
+          const id = /^id: (\d+)$/.exec(line);
+          if (id !== null) observation.delivered.push(Number(id[1]));
+        }
+      }
+      return write(...args);
+    }) as typeof res.write;
   });
   browser = await chromium.launch({ headless: true });
 }, 180_000);
@@ -611,9 +672,28 @@ describeIfDatabase("two clients on one conversation", () => {
   it("survives the stream dropping: reconnects, misses nothing, duplicates nothing", async () => {
     const conversation = await newConversation();
     const page = await chatPage(conversation);
-    await sendFromComposer(page, "before the drop");
+
+    // ── The precondition the old version of this test left to luck ──────
+    //
+    // `EventSource` sends `Last-Event-ID` only once it has actually received
+    // an `id:` line — the header is its account of what it received, and a
+    // connection that received nothing has nothing to account for. So the
+    // stream must deliver an event BEFORE the drop, or the reconnect that
+    // follows legitimately carries no header and this test would be asserting
+    // something the design never promised.
+    //
+    // Appending to the store, rather than sending from the composer, is what
+    // makes that deterministic: a composer send also returns the event in its
+    // own POST response (ADR-0031), so the page can reach one durable event
+    // without the stream having carried anything. An event written straight to
+    // the log has no such second path — the stream is the only way the page
+    // can learn it, so holding it proves the stream delivered it.
+    await store.append({
+      conversationId: conversation,
+      event: { kind: "message", actor: "assistant", content: "before the drop" },
+    });
     await expect
-      .poll(async () => (await durableOf(page)).length, { timeout: 10_000 })
+      .poll(async () => (await durableOf(page)).length, { timeout: 15_000 })
       .toBe(1);
 
     // ── The drop ──────────────────────────────────────────────────────
@@ -636,15 +716,8 @@ describeIfDatabase("two clients on one conversation", () => {
     // browser's own — `EventSource` retries by itself and re-sends
     // `Last-Event-ID` carrying the last `id:` it saw, which is the mechanism
     // ADR-0035 chose SSE for and which no stubbed transport can exercise.
-    const resumeHeaders: string[] = [];
-    let streamRequests = 0;
-    page.on("request", (request) => {
-      if (!request.url().includes("/stream")) return;
-      streamRequests += 1;
-      const header = request.headers()["last-event-id"];
-      if (header !== undefined) resumeHeaders.push(header);
-    });
-    const before = streamRequests;
+    const before = streamObservations.length;
+    const sinceDrop = (): (string | null)[] => resumeCursors().slice(before);
 
     // Two events, written while the connection is being closed and remade.
     await store.append({
@@ -674,14 +747,104 @@ describeIfDatabase("two clients on one conversation", () => {
     // first was closed, and that request carrying `Last-Event-ID` — the
     // browser's own account of where it got to, which is the header the whole
     // resumability design turns on.
+    //
+    // Read from the SERVICE's record, so what is asserted is what arrived and
+    // was acted on, not what a client-side listener managed to observe.
     await expect
-      .poll(() => streamRequests, { timeout: 15_000 })
-      .toBeGreaterThan(before);
+      .poll(() => sinceDrop().length, { timeout: 20_000 })
+      .toBeGreaterThan(0);
+
+    // Not "at least one carried it" — EVERY one did. Once the connection has
+    // received an event, a reconnect that drops the cursor would silently
+    // replay the conversation from the beginning, and a test that tolerated
+    // one such request would not notice.
     expect(
-      resumeHeaders,
+      sinceDrop(),
       "a reconnect carried no Last-Event-ID, so it resumed from the beginning",
     ).not.toHaveLength(0);
-    expect(resumeHeaders.every((value) => /^[0-9]+$/.test(value))).toBe(true);
+    for (const value of sinceDrop()) {
+      expect(value, "a reconnect lost the cursor").not.toBeNull();
+      expect(/^[0-9]+$/.test(value ?? ""), `not an ordinal: ${String(value)}`).toBe(true);
+    }
+
+    // And the cursor TRACKS the log rather than merely existing: once all three
+    // events have been delivered, the next reconnect asks to resume after the
+    // third. This is the assertion that would fail if the header were stale or
+    // if the service ignored it and replayed from zero.
+    await expect
+      .poll(() => Math.max(...sinceDrop().map((value) => Number(value ?? 0))), { timeout: 20_000 })
+      .toBe(3);
+
+    // And the SERVICE honoured it. Every reconnect after the drop asked to
+    // resume after some ordinal; none of them may re-send an ordinal at or
+    // below what was asked for. Without this, a service that ignored the
+    // header and replayed from zero would still pass everything above, because
+    // the client deduplicates what it already holds.
+    for (const observation of streamObservations.slice(before)) {
+      const cursor = Number(observation.resumeFrom ?? 0);
+      expect(
+        observation.delivered.filter((ordinal) => ordinal <= cursor),
+        `the service re-sent events at or below the cursor ${String(cursor)}`,
+      ).toEqual([]);
+    }
+    // Across every connection, no ordinal was ever put on the wire twice.
+    const wire = streamObservations.slice(before).flatMap((o) => o.delivered);
+    expect(wire, "an event was delivered twice on the wire").toEqual([...new Set(wire)]);
+    await page.close();
+  }, 120_000);
+
+  it("a stream recycled before any event exists still delivers what arrived while it was down", async () => {
+    // The ordering that used to break the test above, now a property in its
+    // own right. A page opens on an EMPTY conversation, so the first stream
+    // connection carries no cursor in its URL and receives no `id:` before the
+    // service recycles it on the `maxStreamMs` schedule. The browser therefore
+    // reconnects with NO `Last-Event-ID` — correctly, because it has received
+    // nothing — and the service resumes that stream from the beginning.
+    //
+    // Nothing about that is a fault, and the point of this test is that it must
+    // stay harmless: everything appended while the connection was down still
+    // arrives, exactly once, in order. Before this test existed the behaviour
+    // was real but unasserted, and the only thing that noticed it was a sibling
+    // test failing on a slower machine for a reason that looked like a flake.
+    const conversation = await newConversation();
+    const page = await chatPage(conversation);
+    const before = streamObservations.length;
+
+    // Long enough for the first connection to be recycled and the browser to be
+    // between attempts. `maxStreamMs` is 1.5s and Chromium's reconnect delay is
+    // ~3s, so this lands inside the gap rather than merely after the close.
+    await expect
+      .poll(() => streamObservations.length, { timeout: 20_000 })
+      .toBeGreaterThan(before);
+
+    // The reconnect a connection that received nothing makes: no cursor, and
+    // none to be had. If this ever carries one, the premise of the test above
+    // has changed and it should be revisited rather than quietly passing.
+    expect(
+      resumeCursors().slice(before),
+      "a stream that received no event still claimed a cursor",
+    ).toEqual(resumeCursors().slice(before).map(() => null));
+
+    for (const content of ["first while down", "second while down", "third while down"]) {
+      await store.append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "assistant", content },
+      });
+    }
+
+    // Polling on the ORDINALS, not on a count. A count that never arrives
+    // fails as a bare "matcher did not succeed", which says nothing about what
+    // went wrong; polling the list means the failure prints what the page
+    // actually holds — `[]` for events that never came, `[1, 3]` for a gap.
+    await expect
+      .poll(async () => (await durableOf(page)).map((event) => event.ordinal), { timeout: 30_000 })
+      .toEqual([1, 2, 3]);
+    const durable = await durableOf(page);
+    expect(durable.map((event) => event.content)).toEqual([
+      "first while down",
+      "second while down",
+      "third while down",
+    ]);
     await page.close();
   }, 120_000);
 });

@@ -31,7 +31,25 @@ not shipped artefacts.
 - `docs/runbook-discovery-handoff.md` clones the default branch instead of naming the working
   branch, so the command keeps working after the default is flipped.
 
-No version bump: documentation and repository governance, no source change (ADR-0028 §3).
+### Fixed
+
+- **CI is green again.** `apps/chat-integration` asserted that a dropped SSE stream reconnects with
+  `Last-Event-ID` by reading the header off Playwright's client-side view of the request, and it
+  read it on whichever reconnect happened first. `EventSource` sends that header only once it has
+  actually received an `id:` line, so on a machine slow enough for the first connection to be
+  recycled before the first event existed, the first reconnect legitimately carried nothing and the
+  assertion failed. It failed on every CI run from 2026-08-28 and on none locally. The test now
+  establishes the precondition instead of assuming it, and reads the cursor from the **service's**
+  record of what arrived rather than from the client-side snapshot, which documents itself as
+  incomplete.
+- The same test now also asserts what the service put back **on the wire**, so a service that
+  ignored the cursor and replayed the conversation on every reconnect fails — previously it passed,
+  because the client deduplicates by ordinal and the transcript looked right either way.
+- New test: a stream recycled before any event exists still delivers everything appended while it
+  was down, exactly once and in order. That behaviour was real but unasserted, and it is what the
+  old test was accidentally depending on.
+
+No version bump: documentation, repository governance and tests, no source change (ADR-0028 §3).
 
 ---
 
