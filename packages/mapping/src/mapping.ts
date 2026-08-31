@@ -83,7 +83,55 @@ export type ValueSource =
       readonly value: string;
       readonly classification: "application_metadata";
       readonly rationale: string;
-    };
+    }
+  /**
+   * The Secure Plane fills this. A MARKER, and nothing else (ADR-0043).
+   *
+   * ── The one source that says no value comes from here ───────────────────
+   *
+   * Every other member answers *where a value comes from*. This one answers
+   * that none does: the field is filled by the Secure Plane's fill agent, out
+   * of the vault, and the plan learns only that the field exists and needs one.
+   *
+   * It has no `value`, no `fieldKey`, no `format` and no `documentRef` — and
+   * `NO_CREDENTIAL_SOURCE_FIELD_CAN_HOLD_A_VALUE` below fails the build if one
+   * is added. "It must never contain plaintext" is therefore a property of the
+   * type rather than a rule a reviewer has to remember.
+   *
+   * A mapping set using this is still reviewed by a second person (ADR-0017),
+   * but what they review is "yes, the Secure Plane fills this, for this
+   * purpose" — not a data route.
+   */
+  | { readonly kind: "secure_credential"; readonly purpose: CredentialPurpose };
+
+/**
+ * What a credential is for.
+ *
+ * The same two words the secure plane uses, written again rather than imported:
+ * `packages/mapping` must not depend on `@askimate/aas-secrets`, which holds the
+ * only plaintext in the system. `scripts/contract-drift.test.ts` compares the
+ * two lists in both directions, exactly as it does for the lifecycle words.
+ */
+export const CREDENTIAL_PURPOSES = ["portal_account_creation", "portal_password_reset"] as const;
+export type CredentialPurpose = (typeof CREDENTIAL_PURPOSES)[number];
+
+/**
+ * COMPILE-TIME: a credential source may hold nothing but its two closed-set
+ * words.
+ *
+ * A `value`, a `fieldKey`, a `hint` or a `length` added later makes this stop
+ * being `never` and fails the build naming the field. A CONSTRAINT, not a
+ * computation — an assertion that merely evaluates to `never` on failure is
+ * vacuous.
+ */
+type CredentialSource = Extract<ValueSource, { kind: "secure_credential" }>;
+type NotClosedWords<T> = {
+  [K in keyof T]-?: NonNullable<T[K]> extends "secure_credential" | CredentialPurpose ? never : K;
+}[keyof T];
+type AssertNever<T extends never> = T;
+export type NO_CREDENTIAL_SOURCE_FIELD_CAN_HOLD_A_VALUE = AssertNever<
+  NotClosedWords<CredentialSource>
+>;
 
 /** One portal field, and where its value comes from. */
 export interface FieldMapping {
@@ -132,7 +180,23 @@ export type MappingRefusal =
   | { readonly kind: "reviewed_by_author"; readonly detail: string }
   | { readonly kind: "blueprint_mismatch"; readonly detail: string }
   | { readonly kind: "unknown_field_refs"; readonly detail: string; readonly fieldRefs: readonly string[] }
-  | { readonly kind: "duplicate_mappings"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "duplicate_mappings"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A password field is mapped to something other than the Secure Plane.
+   *
+   * The one route from a profile to a credential field that ADR-0026 exists to
+   * prevent, refused at review time rather than discovered at fill time.
+   */
+  | { readonly kind: "credential_field_mismapped"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * `secure_credential` is used on a field that is not a credential field.
+   *
+   * The other direction, and it is not symmetry for its own sake: without it
+   * the marker becomes a way to say "the Secure Plane fills this" about a name
+   * box, and the fill agent's masked-field check would refuse it at the last
+   * moment instead of the mapping being refused at review time.
+   */
+  | { readonly kind: "credential_source_misused"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -231,6 +295,60 @@ export function checkUsable(
         detail:
           `Two mappings target the same field: ${[...duplicated].join(", ")}. Which one wins ` +
           `would depend on ordering, which is not a decision anyone reviewed.`,
+      },
+    };
+  }
+
+  // ── ADR-0043: credential fields and credential sources, both ways ───────
+  //
+  // Checked here, in the domain authority, rather than only at the build:
+  // `planFill` takes a `UsableMappingSet`, so a set that breaks either
+  // direction cannot reach it. The signature does the work.
+  const credentialFields = new Set(
+    allFields(blueprint)
+      .filter((field) => field.inputType === "password")
+      .map((field) => field.fieldRef),
+  );
+
+  const mismapped = mappingSet.mappings
+    .filter(
+      (mapping) =>
+        credentialFields.has(mapping.fieldRef) && mapping.source.kind !== "secure_credential",
+    )
+    .map((mapping) => mapping.fieldRef);
+  if (mismapped.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "credential_field_mismapped",
+        fieldRefs: mismapped,
+        detail:
+          `${mismapped.join(", ")} ${mismapped.length === 1 ? "is a" : "are"} credential field` +
+          `${mismapped.length === 1 ? "" : "s"}, and may only be mapped with ` +
+          `{ kind: "secure_credential" }. A password is not the student's profile data and never ` +
+          `becomes a ConfirmedValue: it reaches its field through the Secure Plane's fill agent ` +
+          `and nothing else (ADR-0026, ADR-0042, ADR-0043).`,
+      },
+    };
+  }
+
+  const misused = mappingSet.mappings
+    .filter(
+      (mapping) =>
+        mapping.source.kind === "secure_credential" && !credentialFields.has(mapping.fieldRef),
+    )
+    .map((mapping) => mapping.fieldRef);
+  if (misused.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "credential_source_misused",
+        fieldRefs: misused,
+        detail:
+          `${misused.join(", ")} ${misused.length === 1 ? "is" : "are"} not a credential field, ` +
+          `so { kind: "secure_credential" } does not belong there. The marker means the Secure ` +
+          `Plane types a password into this field; on any other field that is a password typed ` +
+          `somewhere it can be read (ADR-0043).`,
       },
     };
   }

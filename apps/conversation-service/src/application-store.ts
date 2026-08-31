@@ -57,6 +57,13 @@ export class CaseBindingRefusedError extends Error {
 export interface ConversationCase {
   readonly caseId: string;
   readonly studentId: string;
+  /**
+   * Which blueprint this case is an application against.
+   *
+   * Null only for a case created before migration 0004. A case nobody can
+   * identify cannot be resumed, and the driver says so rather than guessing.
+   */
+  readonly blueprintId: string | null;
 }
 
 export class ApplicationBindingStore {
@@ -68,14 +75,21 @@ export class ApplicationBindingStore {
 
   /** The case this conversation owns, or null. */
   public async caseFor(conversationId: string): Promise<ConversationCase | null> {
-    const found = await this.#pool.query<{ case_id: string | null; student_id: string }>(
-      "SELECT case_id, student_id FROM conversations WHERE id = $1",
+    const found = await this.#pool.query<{
+      case_id: string | null;
+      student_id: string;
+      blueprint_id: string | null;
+    }>(
+      `SELECT c.case_id, c.student_id, k.blueprint_id
+         FROM conversations c
+    LEFT JOIN cases k ON k.case_id = c.case_id
+        WHERE c.id = $1`,
       [conversationId],
     );
     const row = found.rows[0];
     if (row === undefined) return null;
     if (row.case_id === null) return null;
-    return { caseId: row.case_id, studentId: row.student_id };
+    return { caseId: row.case_id, studentId: row.student_id, blueprintId: row.blueprint_id };
   }
 
   /**
@@ -102,6 +116,7 @@ export class ApplicationBindingStore {
     input: {
       readonly conversationId: string;
       readonly caseId: string;
+      readonly blueprintId: string;
       readonly now: Date;
     },
     task: (bound: ConversationCase, created: boolean) => Promise<T>,
@@ -123,17 +138,25 @@ export class ApplicationBindingStore {
       let created = false;
       if (row.case_id === null) {
         await client.query(
-          "INSERT INTO cases (case_id, student_id, created_at) VALUES ($1, $2, $3)",
-          [input.caseId, row.student_id, input.now],
+          "INSERT INTO cases (case_id, student_id, blueprint_id, created_at) VALUES ($1, $2, $3, $4)",
+          [input.caseId, row.student_id, input.blueprintId, input.now],
         );
         await client.query(
           "UPDATE conversations SET case_id = $1, updated_at = $2 WHERE id = $3",
           [input.caseId, input.now, input.conversationId],
         );
-        bound = { caseId: input.caseId, studentId: row.student_id };
+        bound = { caseId: input.caseId, studentId: row.student_id, blueprintId: input.blueprintId };
         created = true;
       } else {
-        bound = { caseId: row.case_id, studentId: row.student_id };
+        const held = await client.query<{ blueprint_id: string | null }>(
+          "SELECT blueprint_id FROM cases WHERE case_id = $1",
+          [row.case_id],
+        );
+        bound = {
+          caseId: row.case_id,
+          studentId: row.student_id,
+          blueprintId: held.rows[0]?.blueprint_id ?? null,
+        };
       }
 
       const result = await task(bound, created);

@@ -72,3 +72,6 @@ export type {
   RunRefusal,
 } from "./run-driver.js";
 export { RunDriver } from "./run-driver.js";
+
+// ── ADR-0044: the confirmed profile has its own store ───────────────────────
+export { PostgresConfirmedProfileStore } from "./profile-store.js";

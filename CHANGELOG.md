@@ -19,6 +19,76 @@ not shipped artefacts.
 
 ---
 
+## [0.21.0] — 2026-08-31
+
+**Two blockers resolved, both by decision rather than by working around them:
+ADR-0043 (a credential field is mapped to the Secure Plane) and ADR-0044 (the
+confirmed profile has its own store).**
+
+**Version bump: MINOR.** A fifth `ValueSource`, a new store and port, two
+migrations, and one design weakness corrected. No trust boundary moved and no
+plaintext path changed.
+
+### ADR-0043 — a credential field is mapped to the Secure Plane, not to data
+
+Building the first gated blueprint produced two approved rules that could not
+both be satisfied: no mapping may target a password field (ADR-0026/0042), and
+every required field must have a mapping (`planFill`). The password field
+genuinely *is* required, so `nextStep` answered `specialist / no_mapping` and the
+run stopped for a specialist who had nothing to decide.
+
+The root cause was an absence: `ValueSource` had no way to say *"the Secure Plane
+fills this"*. It now does — a marker with two closed-set words, no `value`, no
+`fieldKey`, and a compile-time assertion that fails the build if a field is added
+that could hold one.
+
+Credentials route to their own `FillPlan.credentials` list, away from the
+`instructions` every existing consumer reads — because a `FillInstruction`
+carries a `FillValue` and there is no `FillValue` that could hold a credential.
+The preview shows *"filled from the password you typed in the secure box"*, and
+hashes the **fact** — field and purpose — so an application that gained a
+credential field after the student authorised it is a different application.
+
+Enforced **both ways**, in `checkUsable` and again at the build: a password field
+may have only this source, and this source may target only a password field.
+
+### ADR-0044 — the confirmed profile has its own store
+
+`docs/durable-execution-architecture.md` §12 flagged this when durable runs were
+designed and explicitly deferred it: *"This needs your decision — it is a change
+to what the event log is for."* It was decided, not assumed.
+
+The log keeps recording **that** a confirmation happened, by reference;
+`ConfirmationCaptured` is unchanged. The values live in `profile_entries` in the
+Conversation Plane's database, behind `ConfirmedProfileStore`.
+
+Rehydration lives in `packages/profile`, beside `applyConfirmation`, because the
+boundary check that keeps `as ConfirmedValue` in one package is package-scoped —
+putting it anywhere else would have meant widening the rule or casting outside
+it. A rehydrated value carries the provenance it was minted with, so it is the
+value the student confirmed rather than one nobody did.
+
+**This is what unblocked the run.** The driver previously called `emptyProfile`
+on every request, so a run could never leave `interviewing`: each call
+re-derived a profile with nothing in it and reported the same blockers as the
+one before. A restarted process now resumes an interview where it left off, and
+the gated blueprint's run reaches `awaiting_secret`.
+
+### Fixed — a version cannot identify a blueprint
+
+P1's driver resumed by asking the catalogue for the blueprint whose *version*
+matched the checkpoint. That worked while one blueprint existed and broke the
+moment a second was written: both fixtures are at `1.0.0`, and a version is only
+unique within a blueprint.
+
+Migration 0004 records `cases.blueprint_id` — the fourth part of an identity
+`CaseOpened.submissionIdentity` already carried three of. The checkpoint's
+`blueprintVersion` keeps its own job, which is detecting that the blueprint
+*moved*. Identity and revision are two questions and now have two answers;
+`ApplicationCatalogue.findByVersion` is gone.
+
+---
+
 ## [0.20.0] — 2026-08-31
 
 **P2 — a controlled portal that actually requires an account.** The first

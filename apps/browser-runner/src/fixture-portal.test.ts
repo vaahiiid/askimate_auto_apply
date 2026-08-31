@@ -235,7 +235,11 @@ describe("the blueprint describes THIS portal", () => {
     expect(GATED_PORTAL_BLUEPRINT.authentication.loginUrl).toBe(`${GATED_PORTAL_ORIGIN}/login`);
   });
 
-  it("has NO mapping for either password field", () => {
+  it("maps both password fields to the Secure Plane, and to nothing else", () => {
+    // ADR-0043. An ABSENT mapping read as the safer choice and was not: it
+    // produced a `no_mapping` blocker for a required field, stopping the run
+    // for a specialist who had nothing to decide. "Nobody has thought about
+    // this yet" is a different thing from "the Secure Plane handles it".
     const passwords = GATED_PORTAL_BLUEPRINT.pages
       .flatMap((page) => page.sections)
       .flatMap((section) => section.fields)
@@ -243,10 +247,23 @@ describe("the blueprint describes THIS portal", () => {
       .map((field) => field.fieldRef);
     expect(passwords).toEqual(["account_password", "account_password_confirm"]);
 
-    const mapped = GATED_PORTAL_MAPPING_SET.mappings.map((mapping) => mapping.fieldRef);
     for (const field of passwords) {
-      expect(mapped, `${field} must have no mapping to review`).not.toContain(field);
+      const mapping = GATED_PORTAL_MAPPING_SET.mappings.find((m) => m.fieldRef === field);
+      if (mapping === undefined) expect.unreachable(`${field} must be mapped`);
+      expect(mapping.source.kind, `${field} may only be a secure_credential`).toBe(
+        "secure_credential",
+      );
+      // The marker holds two closed-set words and nothing else. Asserted
+      // against the DATA as well as against the type, because a fixture is
+      // where a stray field would be written first.
+      expect(Object.keys(mapping.source).sort()).toEqual(["kind", "purpose"]);
     }
+
+    // And no ordinary field borrowed the marker.
+    const credentialSourced = GATED_PORTAL_MAPPING_SET.mappings
+      .filter((mapping) => mapping.source.kind === "secure_credential")
+      .map((mapping) => mapping.fieldRef);
+    expect(credentialSourced).toEqual(passwords);
   });
 
   it("resolves EVERY reviewed locator against the real pages", async () => {

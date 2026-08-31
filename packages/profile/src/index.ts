@@ -40,3 +40,13 @@ export {
   resolveFieldWithValidity,
   revisionOf,
 } from "./profile.js";
+
+// ── ADR-0044: the confirmed profile has its own store ───────────────────────
+export type { ConfirmedProfileStore, StoredProfileEntry } from "./persistence.js";
+export {
+  InMemoryConfirmedProfileStore,
+  decodeValue,
+  encodeValue,
+  rehydrateProfile,
+  toStoredEntry,
+} from "./persistence.js";

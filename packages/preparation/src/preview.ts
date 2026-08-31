@@ -32,7 +32,7 @@ import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields } from "@askimate/aas-blueprint";
 import { provenanceOf } from "@askimate/aas-domain";
 import type { ConfirmationProvenance } from "@askimate/aas-domain";
-import type { FillPlan } from "@askimate/aas-mapping";
+import type { CredentialPurpose, FillPlan } from "@askimate/aas-mapping";
 import { constantAttribution, constantText } from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
@@ -87,6 +87,31 @@ export interface PreviewHandoff {
   readonly reason: string;
 }
 
+/**
+ * A field the Secure Plane will fill. ADR-0043.
+ *
+ * ── It has no `text`, and it is still in the hash ─────────────────────────
+ *
+ * `PreviewEntry.text` is "exactly what will be submitted", and for a credential
+ * there is nothing that may go there — the value is not known to this process
+ * and must never be. So a credential is a different shape, in its own list, and
+ * the student sees that a password WILL be typed into this field rather than
+ * seeing the password.
+ *
+ * The FACT is hashed even though the value is not: field reference and purpose.
+ * That is what makes the authorisation mean "a password will be typed into the
+ * Password field" — and it means a later change that added a third credential
+ * field would change the hash, so the earlier authorisation would no longer
+ * cover the application.
+ */
+export interface PreviewCredential {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly purpose: CredentialPurpose;
+  /** What the student is told. Never a value, and never its length. */
+  readonly explanation: string;
+}
+
 export interface SubmissionPreview {
   readonly blueprintId: string;
   readonly blueprintVersion: string;
@@ -97,6 +122,8 @@ export interface SubmissionPreview {
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
+  readonly credentials: readonly PreviewCredential[];
   /** `sha256:…` over the canonical content. */
   readonly contentHash: string;
   readonly hashAlgorithm: "sha256";
@@ -232,6 +259,14 @@ export function buildPreview(
     reason: handoff.reason,
   }));
 
+  const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
+    fieldRef: credential.fieldRef,
+    label: credential.label,
+    purpose: credential.purpose,
+    explanation:
+      "Filled from the password you typed in the secure box. AskiMate cannot read it back.",
+  }));
+
   const contentHash = hashContent({
     blueprintId: plan.blueprintId,
     blueprintVersion: plan.blueprintVersion,
@@ -239,6 +274,7 @@ export function buildPreview(
     entries,
     attachments,
     handoffs,
+    credentials,
   });
 
   return {
@@ -253,6 +289,7 @@ export function buildPreview(
       entries,
       attachments,
       handoffs,
+      credentials,
       contentHash,
       hashAlgorithm: "sha256",
       // Non-enumerable, so it does not show up in Object.keys or a spread and
@@ -284,6 +321,7 @@ function hashContent(content: {
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  readonly credentials: readonly PreviewCredential[];
 }): string {
   const lines: string[] = [
     `blueprint${content.blueprintId}${content.blueprintVersion}`,

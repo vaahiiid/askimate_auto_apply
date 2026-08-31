@@ -200,13 +200,23 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
 };
 
 /**
- * The mapping set. Five fields, and NOT the two password fields.
+ * The mapping set — including the two password fields, as ADR-0043 requires.
  *
- * A password has no mapping because it is not the student's profile data and
- * never becomes a `ConfirmedValue`: it reaches the field through the Secure
- * Plane's fill agent and through nothing else. A mapping for it would be the
- * one place a reviewer could accidentally create a route from a profile to a
- * credential field, so there is none to review.
+ * ── What a reviewer is approving for those two ────────────────────────────
+ *
+ * Not a data route. `{ kind: "secure_credential", purpose }` has no `fieldKey`,
+ * no `value` and no `format`; a compile-time assertion in `mapping.ts` fails
+ * the build if a field is ever added that could hold one. What the second
+ * specialist checks is "yes, the Secure Plane fills this, for account
+ * creation" — and the check is enforced BOTH ways by `checkUsable`: a password
+ * field may have only this source, and this source may target only a password
+ * field.
+ *
+ * The first version of this file left both fields unmapped, which read as the
+ * safer choice and was not: `planFill` produced a `no_mapping` blocker for a
+ * required field, and the run stopped for a specialist who had nothing to
+ * decide. An absent mapping did not mean "the Secure Plane handles it" — it
+ * meant "nobody has thought about this yet", which is a different thing.
  */
 export const GATED_PORTAL_MAPPING_SET: MappingSet = {
   mappingSetId: "map-gated-portal",
@@ -219,6 +229,17 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
   authoredAt: new Date("2026-08-30T10:00:00Z"),
   reviewedAt: new Date("2026-08-30T16:00:00Z"),
   mappings: [
+    // The credential fields. Markers, and the only mapping a password may have.
+    {
+      fieldRef: "account_password",
+      source: { kind: "secure_credential", purpose: "portal_account_creation" },
+      note: "Typed by the Secure Plane's fill agent from the vault. Never from the profile.",
+    },
+    {
+      fieldRef: "account_password_confirm",
+      source: { kind: "secure_credential", purpose: "portal_account_creation" },
+      note: "The same single handle fills both fields in one use — the student is asked once.",
+    },
     {
       fieldRef: "account_email",
       source: { kind: "profile_field", fieldKey: "contact.email", format: { kind: "text" } },

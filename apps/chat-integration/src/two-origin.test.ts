@@ -768,6 +768,21 @@ describeIfDatabase("what the composer does around a secure step", () => {
       .toBe(true);
 
     await page.locator("#chat-input").fill(PASSWORD);
+    // ── The draft must actually BE there before the submit ──────────────
+    //
+    // `#chat-input` is a controlled React input, so `fill` sets the DOM value
+    // and React then re-renders from state. Under a loaded full-suite run the
+    // re-render can land after the dispatch below, and the test then asserts
+    // that an empty draft was preserved — which it trivially was.
+    //
+    // Observed as a real intermittent failure ("expected '' to be 'Tr0ub4…'")
+    // in one full run and not in the same suite alone. Polling the precondition
+    // is what makes the assertion afterwards mean "the draft was KEPT" rather
+    // than "there was nothing to lose".
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 10_000 })
+      .toBe(PASSWORD);
+
     // A real submit event, bubbling. React attaches its listeners at the root
     // container, so a non-bubbling `new Event("submit")` never reaches the
     // handler and the test would pass having triggered nothing.

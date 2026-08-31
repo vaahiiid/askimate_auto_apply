@@ -8,6 +8,10 @@ import { checkUsable, constantsIn, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "./fixtures/portal.js";
+import {
+  GATED_PORTAL_BLUEPRINT,
+  GATED_PORTAL_MAPPING_SET,
+} from "./fixtures/gated-portal.js";
 
 const NOW = new Date("2026-08-26T10:00:00Z");
 const STUDENT = studentId("student-1");
@@ -248,5 +252,111 @@ describe("what planFill will not accept", () => {
     // The signature takes UsableMappingSet, which only checkUsable produces.
     // @ts-expect-error a MappingSet is not a UsableMappingSet
     planFill(FIXTURE_BLUEPRINT, draft, COMPLETE_PROFILE);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0043 — a credential field is mapped to the Secure Plane, not to data
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("credential fields and credential sources, both ways", () => {
+  it("accepts a password field mapped to the Secure Plane", () => {
+    const check = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+    expect(check.usable, JSON.stringify(check)).toBe(true);
+  });
+
+  it("REFUSES a password field mapped to a profile field", () => {
+    // The one route from a profile to a credential field that ADR-0026 exists
+    // to prevent — refused at review time, not discovered at fill time.
+    const mismapped: MappingSet = {
+      ...GATED_PORTAL_MAPPING_SET,
+      mappings: GATED_PORTAL_MAPPING_SET.mappings.map((mapping) =>
+        mapping.fieldRef === "account_password"
+          ? {
+              fieldRef: "account_password",
+              source: {
+                kind: "profile_field" as const,
+                fieldKey: "contact.email" as ProfileFieldKey,
+                format: { kind: "text" as const },
+              },
+            }
+          : mapping,
+      ),
+    };
+    const check = checkUsable(mismapped, GATED_PORTAL_BLUEPRINT);
+    expect(check.usable).toBe(false);
+    if (check.usable) expect.unreachable("a mismapped credential field must not be usable");
+    expect(check.refusal.kind).toBe("credential_field_mismapped");
+    expect(check.refusal.detail).toContain("account_password");
+  });
+
+  it("REFUSES a password field with no mapping at all", () => {
+    // An absent mapping is not the safe choice. `planFill` would report a
+    // `no_mapping` blocker for a required field and stop the run for a
+    // specialist who has nothing to decide.
+    const unmapped: MappingSet = {
+      ...GATED_PORTAL_MAPPING_SET,
+      mappings: GATED_PORTAL_MAPPING_SET.mappings.filter(
+        (mapping) => mapping.fieldRef !== "account_password",
+      ),
+    };
+    const check = checkUsable(unmapped, GATED_PORTAL_BLUEPRINT);
+    // Usable — an absent mapping is not a mapping-set error — but the PLAN
+    // refuses, which is the behaviour that made ADR-0043 necessary.
+    expect(check.usable).toBe(true);
+    if (!check.usable) expect.unreachable("an absent mapping is not a usability failure");
+    const plan = planFill(GATED_PORTAL_BLUEPRINT, check.mappingSet, emptyProfile(STUDENT, NOW));
+    expect(plan.blockers.some((blocker) => blocker.kind === "no_mapping")).toBe(true);
+  });
+
+  it("REFUSES `secure_credential` on a field that is not a credential field", () => {
+    // Otherwise the marker becomes a way to say "the Secure Plane fills this"
+    // about a name box — a password typed somewhere it can be read.
+    const misused: MappingSet = {
+      ...GATED_PORTAL_MAPPING_SET,
+      mappings: GATED_PORTAL_MAPPING_SET.mappings.map((mapping) =>
+        mapping.fieldRef === "given_name"
+          ? {
+              fieldRef: "given_name",
+              source: { kind: "secure_credential" as const, purpose: "portal_account_creation" as const },
+            }
+          : mapping,
+      ),
+    };
+    const check = checkUsable(misused, GATED_PORTAL_BLUEPRINT);
+    expect(check.usable).toBe(false);
+    if (check.usable) expect.unreachable("a misused credential source must not be usable");
+    expect(check.refusal.kind).toBe("credential_source_misused");
+    expect(check.refusal.detail).toContain("given_name");
+  });
+
+  it("routes credentials AWAY from the instructions the preview reads", () => {
+    const check = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+    if (!check.usable) expect.unreachable("the gated mapping set should be usable");
+    const plan = planFill(GATED_PORTAL_BLUEPRINT, check.mappingSet, emptyProfile(STUDENT, NOW));
+
+    expect(plan.credentials.map((credential) => credential.fieldRef)).toEqual([
+      "account_password",
+      "account_password_confirm",
+    ]);
+    // The list every existing consumer reads must not have gained them: a
+    // `FillInstruction` carries a `FillValue`, and there is no `FillValue` that
+    // could hold a credential.
+    const instructed = plan.instructions.map((instruction) => instruction.fieldRef);
+    expect(instructed).not.toContain("account_password");
+    expect(instructed).not.toContain("account_password_confirm");
+    // And a credential requirement has no field that could carry a value.
+    for (const credential of plan.credentials) {
+      expect(Object.keys(credential).sort()).toEqual(["fieldRef", "label", "locators", "purpose"]);
+    }
+  });
+
+  it("no longer blocks the plan on the required password field", () => {
+    // The contradiction ADR-0043 resolved, asserted directly.
+    const check = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+    if (!check.usable) expect.unreachable("the gated mapping set should be usable");
+    const plan = planFill(GATED_PORTAL_BLUEPRINT, check.mappingSet, emptyProfile(STUDENT, NOW));
+    const unmapped = plan.blockers.filter((blocker) => blocker.kind === "no_mapping");
+    expect(unmapped).toEqual([]);
   });
 });

@@ -38,3 +38,11 @@ export type {
   UploadInstruction,
 } from "./plan.js";
 export { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
+
+// ── ADR-0043: a credential field is mapped to the Secure Plane, not to data ─
+export type {
+  CredentialPurpose,
+  NO_CREDENTIAL_SOURCE_FIELD_CAN_HOLD_A_VALUE,
+} from "./mapping.js";
+export { CREDENTIAL_PURPOSES } from "./mapping.js";
+export type { CredentialRequirement } from "./plan.js";

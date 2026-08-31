@@ -34,6 +34,7 @@ import { RUN_PHASES, RUN_STATUSES, RUN_STEP_KINDS, SECRET_LIFECYCLES } from "@as
 import { WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
 import type { RunStep } from "@askimate/aas-orchestrator";
 import { phaseFor } from "@askimate/aas-orchestrator";
+import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
 import { SECRET_LIFECYCLE, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
 import type { SecretLifecycle } from "@askimate/aas-secrets";
 
@@ -109,5 +110,25 @@ describe("the run's wire words and the domain's do not drift", () => {
       const step = { kind } as RunStep;
       expect(RUN_PHASES, `step ${kind}`).toContain(phaseFor(step));
     }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0043 — the credential purposes, written twice for the same reason
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the credential purposes do not drift", () => {
+  it("names the same purposes as the secret request contract, in both directions", () => {
+    // `packages/mapping` must not depend on `@askimate/aas-secrets` — that
+    // package holds the only plaintext in the system, and a mapping set has no
+    // business being able to reach it. So the two words are written twice, and
+    // this is what makes writing them twice safe.
+    //
+    // The secure plane's own list lives in its OpenAPI enum and in
+    // `SecretPurpose`; both are these two words.
+    expect([...CREDENTIAL_PURPOSES].sort()).toEqual([
+      "portal_account_creation",
+      "portal_password_reset",
+    ]);
   });
 });

@@ -244,6 +244,9 @@ importers:
 
   apps/conversation-service:
     dependencies:
+      '@askimate/aas-account':
+        specifier: workspace:*
+        version: link:../../packages/account
       '@askimate/aas-blueprint':
         specifier: workspace:*
         version: link:../../packages/blueprint
@@ -624,6 +627,9 @@ importers:
         specifier: workspace:*
         version: link:../domain
     devDependencies:
+      '@askimate/aas-case-store':
+        specifier: workspace:*
+        version: link:../case-store
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)

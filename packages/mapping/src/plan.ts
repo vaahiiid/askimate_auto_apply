@@ -33,7 +33,7 @@ import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedProfile, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
 import { renderConfirmed, resolveField } from "@askimate/aas-profile";
 
-import type { ReviewedConstant, UsableMappingSet } from "./mapping.js";
+import type { CredentialPurpose, ReviewedConstant, UsableMappingSet } from "./mapping.js";
 import { constantText, isRequired, mappingFor, reviewedConstant } from "./mapping.js";
 
 /**
@@ -80,6 +80,25 @@ export interface UploadInstruction {
   readonly locators: readonly FieldLocator[];
 }
 
+/**
+ * A field the Secure Plane fills. ADR-0043.
+ *
+ * Deliberately NOT a `FillInstruction`. A `FillInstruction` carries a
+ * `FillValue`, and there is no `FillValue` that could hold a credential — so
+ * keeping these in their own list means every existing consumer of
+ * `instructions` (the preview, the validator, the executor) continues to see
+ * only things that have values, and cannot accidentally treat a credential as
+ * one.
+ *
+ * There is no `value` field here, and there is nowhere for one to go.
+ */
+export interface CredentialRequirement {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly purpose: CredentialPurpose;
+  readonly locators: readonly FieldLocator[];
+}
+
 /** A point where the student must act (brief §7). Never automated, never bypassed. */
 export interface HandoffRequirement {
   readonly fieldRef: string;
@@ -120,6 +139,8 @@ export interface FillPlan {
   readonly instructions: readonly FillInstruction[];
   readonly uploads: readonly UploadInstruction[];
   readonly handoffs: readonly HandoffRequirement[];
+  /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
+  readonly credentials: readonly CredentialRequirement[];
   readonly blockers: readonly FillBlocker[];
 }
 
@@ -138,6 +159,7 @@ export function planFill(
   const instructions: FillInstruction[] = [];
   const uploads: UploadInstruction[] = [];
   const handoffs: HandoffRequirement[] = [];
+  const credentials: CredentialRequirement[] = [];
   const blockers: FillBlocker[] = [];
 
   for (const field of allFields(blueprint)) {
@@ -166,6 +188,17 @@ export function planFill(
           fieldRef: field.fieldRef,
           label: field.label,
           reason: mapping.source.reason,
+        });
+        break;
+
+      // ADR-0043. Nothing is read from the profile, nothing is rendered, and
+      // no `FillValue` is built — because there is none that could hold this.
+      case "secure_credential":
+        credentials.push({
+          fieldRef: field.fieldRef,
+          label: field.label,
+          purpose: mapping.source.purpose,
+          locators: field.locators,
         });
         break;
 
@@ -231,6 +264,7 @@ export function planFill(
     instructions,
     uploads,
     handoffs,
+    credentials,
     blockers,
   };
 }

@@ -3,6 +3,7 @@
   "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
   "include": ["src/**/*.ts"],
   "references": [
+    { "path": "../../packages/account" },
     { "path": "../../packages/blueprint" },
     { "path": "../../packages/case-store" },
     { "path": "../../packages/contracts" },

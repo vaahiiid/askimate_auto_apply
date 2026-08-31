@@ -82,7 +82,10 @@ beforeAll(async () => {
   url.pathname = "/aas_conversation_store";
   // A pool big enough that "concurrent" means concurrent, not queued.
   pool = new pg.Pool({ connectionString: url.toString(), max: 20 });
-  expect(await migrate(pool, MIGRATIONS_DIR)).toEqual(["0001_conversation_log", "0002_application_runs"]);
+  expect(await migrate(pool, MIGRATIONS_DIR)).toEqual(["0001_conversation_log",
+    "0002_application_runs",
+    "0003_profile_entries",
+    "0004_case_blueprint"]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
     "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",

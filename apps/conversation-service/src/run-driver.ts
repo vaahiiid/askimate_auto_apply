@@ -45,6 +45,7 @@
  * confirmed value lives, not a line of code here.
  */
 
+import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import {
@@ -81,7 +82,7 @@ import {
   withCheckpoint,
 } from "@askimate/aas-orchestrator";
 import type { DurableStores, ResumeConcern, RunState, RunStep } from "@askimate/aas-orchestrator";
-import { emptyProfile } from "@askimate/aas-profile";
+import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
 import type { ApplicationBindingStore } from "./application-store.js";
 
@@ -123,20 +124,38 @@ export interface CatalogueEntry {
   readonly courseRef: string;
   /** `YYYY-MM`. The blueprint's own `intake` is a label; this is the identity. */
   readonly intakeRef: string;
+
+  /**
+   * What discovery observed about this portal's authentication.
+   *
+   * Optional in `RunInputs` and required in practice: a portal whose blueprint
+   * says authentication is required cannot get past `accountStepFor` without
+   * it, and answers `specialist` instead — which is the correct refusal, since
+   * "how does this portal's sign-in work?" is a question a run must not guess
+   * at while a form is open.
+   *
+   * It belongs in the catalogue for the same reason `institutionRef` does: it
+   * is a reviewed per-portal fact with a discovery run behind it, not something
+   * to derive.
+   */
+  readonly portalAuthentication?: ObservedPortalAuthentication;
+
+  /**
+   * How the student's password gets from them to the portal, when they choose
+   * their own.
+   *
+   * A per-portal decision that ADR-0020 ranks and a specialist records, not a
+   * default. Absent means `student_types_into_portal` — the student opens the
+   * portal themselves and AskiMate never holds a password at all. Naming
+   * `askimate_secure_channel` is the deliberate choice to use the Secure Plane,
+   * and it is the only value for which any of ADR-0026, ADR-0030, ADR-0034 or
+   * ADR-0042 applies.
+   */
+  readonly passwordDelivery?: PasswordDelivery;
 }
 
 export interface ApplicationCatalogue {
   find(blueprintId: string): Promise<CatalogueEntry | null>;
-  /**
-   * The entry a checkpoint's blueprint VERSION belongs to.
-   *
-   * Resuming needs this and `find` cannot serve it: a checkpoint records a
-   * version rather than an id, because a page position from one revision means
-   * nothing in another (`resumeRun` discards the checkpoint when they differ).
-   * So the reverse lookup is asked for explicitly instead of being guessed at
-   * by passing a version where an id is expected.
-   */
-  findByVersion(version: string): Promise<CatalogueEntry | null>;
 }
 
 /** Why a start could not proceed. Outcomes, not exceptions. */
@@ -186,6 +205,16 @@ export interface RunDriverOptions {
   readonly catalogue: ApplicationCatalogue;
   /** The interview's model. Injected; this service decides nothing with it. */
   readonly model: ModelClient;
+  /**
+   * Where confirmed values live between requests. ADR-0044.
+   *
+   * The gap `resumeRun` documented and could not close: a `ConfirmedProfile` is
+   * not reconstructible from the event log by design, because
+   * `ConfirmationCaptured` carries a reference rather than a value. It is
+   * reconstructible from HERE, which is why a restarted process now resumes an
+   * interview where it left off rather than at the beginning.
+   */
+  readonly profiles: ConfirmedProfileStore;
   readonly now: () => Date;
   /** Ids, injected so a test can make a run's identity predictable. */
   readonly newCaseId?: (conversationId: string) => string;
@@ -237,7 +266,12 @@ export class RunDriver {
     let outcome: StartedRun | RunOutcome;
     try {
       outcome = await this.#options.bindings.withBinding(
-        { conversationId: input.conversationId, caseId: proposed, now },
+        {
+          conversationId: input.conversationId,
+          caseId: proposed,
+          blueprintId: input.blueprintId,
+          now,
+        },
         async (bound): Promise<StartedRun | RunOutcome> => {
           const caseId = makeCaseId(bound.caseId);
           const studentRef = makeStudentId(bound.studentId);
@@ -351,7 +385,14 @@ export class RunDriver {
       return { ok: false, refusal: { kind: "unknown_conversation" } };
     }
 
-    const entry = await this.#options.catalogue.findByVersion(record.checkpoint.blueprintVersion);
+    // Identified by the case's blueprint id, not by the checkpoint's VERSION.
+    // A version is only unique within a blueprint, so two blueprints at 1.0.0
+    // are indistinguishable by it — which is exactly what happened the moment a
+    // second one was written (migration 0004).
+    if (bound.blueprintId === null) {
+      return { ok: false, refusal: { kind: "unknown_blueprint" } };
+    }
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
 
     const resumed = await resumeRun({
@@ -403,7 +444,11 @@ export class RunDriver {
     }
 
     const now = this.#options.now();
-    const profile = emptyProfile(input.studentRef, now);
+    // Loaded, not invented. Before ADR-0044 this was `emptyProfile(...)` on
+    // every call, so a run could never leave `interviewing`: each request
+    // re-derived a profile with nothing in it and `planFill` reported the same
+    // blockers it had reported the request before.
+    const profile = await this.#options.profiles.load(input.studentRef, now);
     const state: RunState = withCheckpoint(
       beginRun({
         inputs: {
@@ -412,6 +457,24 @@ export class RunDriver {
           blueprint: input.entry.blueprint,
           mappingSet: input.entry.mappingSet,
           documents: new Map(),
+          ...(input.entry.portalAuthentication === undefined
+            ? {}
+            : { portalAuthentication: input.entry.portalAuthentication }),
+          ...(input.entry.passwordDelivery === undefined
+            ? {}
+            : { passwordDelivery: input.entry.passwordDelivery }),
+          // ── Not an assumption, and worth saying why ────────────────────
+          //
+          // `chooseApproach` uses this to decide between the student picking
+          // their own password and one being generated for them, so getting it
+          // wrong would change what happens to a credential.
+          //
+          // It is true because of the ORDER, not because of optimism: the
+          // account is created after the secure step, and the secure step
+          // cannot complete unless the student typed a password into the
+          // secure control. A run therefore cannot reach account creation
+          // without the student having been present — the step enforces it.
+          studentPresentAtCreation: true,
         },
         profile,
         interview: newInterview({

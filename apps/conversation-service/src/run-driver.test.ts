@@ -29,9 +29,29 @@ import pg from "pg";
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
-import { caseId as makeCaseId, runId as makeRunId } from "@askimate/aas-domain";
+import {
+  caseId as makeCaseId,
+  proposeValue,
+  provenanceOf,
+  runId as makeRunId,
+  studentId,
+  unwrapConfirmed,
+} from "@askimate/aas-domain";
+import type { ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
+import {
+  applyConfirmation,
+  confirmField,
+  emptyProfile,
+  isDeclined,
+  resolveField,
+  toStoredEntry,
+} from "@askimate/aas-profile";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
+import {
+  GATED_PORTAL_BLUEPRINT,
+  GATED_PORTAL_MAPPING_SET,
+} from "@askimate/aas-mapping/fixtures/gated";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import { parseConversationRun } from "@askimate/aas-contracts";
@@ -40,6 +60,7 @@ import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
+import { PostgresConfirmedProfileStore } from "./profile-store.js";
 import { RunDriver } from "./run-driver.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { issueSession } from "./session.js";
@@ -71,15 +92,51 @@ const ENTRY: CatalogueEntry = {
   intakeRef: "2026-09",
 };
 
+/**
+ * The GATED portal — the one that actually requires an account (P2).
+ *
+ * Separate from `ENTRY` on purpose: `FIXTURE_BLUEPRINT` has no login and
+ * requires a passport upload, so a run against it stops at the preview for want
+ * of a document. This one is the path towards the secure step.
+ */
+const GATED_ENTRY: CatalogueEntry = {
+  blueprint: GATED_PORTAL_BLUEPRINT,
+  mappingSet: GATED_PORTAL_MAPPING_SET,
+  requiredDocuments: [],
+  institutionRef: "inst-gated",
+  courseRef: "course-msc-controlled",
+  intakeRef: "2026-09",
+  // What discovery observed about the controlled portal, reviewed. Without it
+  // `accountStepFor` answers `specialist` — correctly, because "how does this
+  // portal's sign-in work?" is not a question to guess at with a form open.
+  portalAuthentication: {
+    portalHost: "gated.portal.test",
+    discoveryRunId: "run-gated-1",
+    observedAt: new Date("2026-08-30T09:00:00Z"),
+    applicantChoosesPassword: true,
+    portalIssuesCredential: false,
+    passwordlessAvailable: false,
+    emailVerificationRequired: false,
+    mfaOrOtpRequired: false,
+    captchaPresent: false,
+    passwordResetAvailable: true,
+    credentialsCanBeHandedBack: true,
+  },
+  // The deliberate choice to use the Secure Plane. Absent would mean the
+  // student opens the portal themselves and AskiMate never holds a password.
+  passwordDelivery: "askimate_secure_channel",
+};
+
+const GATED_BLUEPRINT = "bp-gated-portal";
+
 const CATALOGUE: ApplicationCatalogue = {
-  find: (id) => Promise.resolve(id === BLUEPRINT ? ENTRY : null),
-  findByVersion: (version) =>
-    Promise.resolve(version === FIXTURE_BLUEPRINT.version ? ENTRY : null),
+  find: (id) =>
+    Promise.resolve(id === BLUEPRINT ? ENTRY : id === GATED_BLUEPRINT ? GATED_ENTRY : null),
 };
 
 let pool: pg.Pool;
 let server: Server;
-let studentId: string;
+let studentId_: string;
 let otherStudentId: string;
 
 function cookieFor(subject: string): string {
@@ -107,6 +164,9 @@ function buildInstance(connectionString: string): {
     bindings: new ApplicationBindingStore(instancePool),
     catalogue: CATALOGUE,
     model: new DeterministicModelClient(),
+    // ADR-0044: the profile comes from the database, so a new instance resumes
+    // an interview where the last one left it.
+    profiles: new PostgresConfirmedProfileStore(instancePool),
     now: () => NOW,
   });
   const app = createConversationApp({
@@ -151,7 +211,7 @@ beforeAll(async () => {
   const student = await pool.query<{ id: string }>(
     "INSERT INTO students (subject, email_verified) VALUES ('oidc-runs', true) RETURNING id",
   );
-  studentId = student.rows[0]!.id;
+  studentId_ = student.rows[0]!.id;
   const other = await pool.query<{ id: string }>(
     "INSERT INTO students (subject, email_verified) VALUES ('oidc-runs-other', true) RETURNING id",
   );
@@ -159,7 +219,7 @@ beforeAll(async () => {
 
   await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
     CONVERSATION,
-    studentId,
+    studentId_,
   ]);
   await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
     OTHER_CONVERSATION,
@@ -203,18 +263,32 @@ describeIfDatabase("the conversation ↔ case binding is the database's rule", (
     const bindings = new ApplicationBindingStore(pool);
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       "01JBXQ8Z9WKTQ6M4H2NPC00010",
-      studentId,
+      studentId_,
     ]);
     const bound = await bindings.withBinding(
-      { conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010", caseId: "case-bindable", now: NOW },
+      {
+        conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
+        caseId: "case-bindable",
+        blueprintId: BLUEPRINT,
+        now: NOW,
+      },
       (boundCase, created) => Promise.resolve({ boundCase, created }),
     );
     expect(bound.created).toBe(true);
-    expect(bound.boundCase).toEqual({ caseId: "case-bindable", studentId });
+    expect(bound.boundCase).toEqual({
+      caseId: "case-bindable",
+      studentId: studentId_,
+      blueprintId: BLUEPRINT,
+    });
 
     // Idempotent: the same question, the same answer, no second case.
     const again = await bindings.withBinding(
-      { conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010", caseId: "case-something-else", now: NOW },
+      {
+        conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
+        caseId: "case-something-else",
+        blueprintId: BLUEPRINT,
+        now: NOW,
+      },
       (boundCase, created) => Promise.resolve({ boundCase, created }),
     );
     expect(again.created).toBe(false);
@@ -251,15 +325,15 @@ describeIfDatabase("the conversation ↔ case binding is the database's rule", (
     // question is the whole reason the binding exists.
     await pool.query("INSERT INTO cases (case_id, student_id) VALUES ($1, $2)", [
       "case-contested",
-      studentId,
+      studentId_,
     ]);
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       "01JBXQ8Z9WKTQ6M4H2NPC00011",
-      studentId,
+      studentId_,
     ]);
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       "01JBXQ8Z9WKTQ6M4H2NPC00012",
-      studentId,
+      studentId_,
     ]);
     await pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
       "case-contested",
@@ -295,7 +369,7 @@ describeIfDatabase("the Run Driver coordinates, and the orchestrator decides", (
   it("starts a run, and the ORCHESTRATOR chose the step", async () => {
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       conversation,
-      studentId,
+      studentId_,
     ]);
     const { driver, pool: instancePool } = buildInstance(connectionString());
     try {
@@ -408,7 +482,7 @@ describeIfDatabase("the Run Driver coordinates, and the orchestrator decides", (
     const racing = "01JBXQ8Z9WKTQ6M4H2NPC00021";
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       racing,
-      studentId,
+      studentId_,
     ]);
     const a = buildInstance(connectionString());
     const b = buildInstance(connectionString());
@@ -452,7 +526,7 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   }
 
   it("starts a run for the authenticated student, in the published shape", async () => {
-    const { status, body } = await startRun(CONVERSATION, studentId);
+    const { status, body } = await startRun(CONVERSATION, studentId_);
     expect(status).toBe(201);
 
     // Parsed by the CONTRACT's own parser, not by an ad-hoc cast. A response
@@ -474,7 +548,7 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   });
 
   it("answers 200 and resumed:true on a retry, without a second run", async () => {
-    const { status, body } = await startRun(CONVERSATION, studentId);
+    const { status, body } = await startRun(CONVERSATION, studentId_);
     expect(status).toBe(200);
     expect(parseConversationRun(body)?.resumed).toBe(true);
     const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)", [CONVERSATION]);
@@ -507,7 +581,7 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   it("REFUSES a start with no student statement", async () => {
     // A case cannot be opened without request evidence: explicit request before
     // consequential action, and silence is not consent.
-    const { status, body } = await startRun(CONVERSATION, studentId, {
+    const { status, body } = await startRun(CONVERSATION, studentId_, {
       blueprintId: BLUEPRINT,
     });
     expect(status).toBe(400);
@@ -515,7 +589,7 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   });
 
   it("REFUSES a start with no blueprint", async () => {
-    const { status, body } = await startRun(CONVERSATION, studentId, {
+    const { status, body } = await startRun(CONVERSATION, studentId_, {
       studentStatement: STATEMENT,
     });
     expect(status).toBe(400);
@@ -526,7 +600,7 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     // The type-level assertion in @askimate/aas-contracts says this, and this
     // is the same claim made against a real body: a `say`, a `detail` or a
     // preview added later shows up here.
-    const { body } = await startRun(CONVERSATION, studentId);
+    const { body } = await startRun(CONVERSATION, studentId_);
     expect(Object.keys(body as object).sort()).toEqual([
       "caseId",
       "conversationId",
@@ -550,7 +624,7 @@ describeIfDatabase("a run survives the process that started it", () => {
   it("resumes the SAME case and the SAME run, from a wholly new instance", async () => {
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       conversation,
-      studentId,
+      studentId_,
     ]);
 
     // ── Instance one ────────────────────────────────────────────────────
@@ -560,7 +634,7 @@ describeIfDatabase("a run survives the process that started it", () => {
     });
     const started = await fetch(`http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/runs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId) },
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId_) },
       body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
     });
     expect(started.status).toBe(201);
@@ -650,4 +724,147 @@ describeIfDatabase("a run survives the process that started it", () => {
       await instance.pool.end();
     }
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// E. The confirmed profile survives too — ADR-0044
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the confirmed profile is reconstructed from its own store", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00050";
+
+  /** Confirms one field the way the interview does, and stores it. */
+  async function confirm<K extends ProfileFieldKey>(
+    store: PostgresConfirmedProfileStore,
+    key: K,
+    value: ProfileFieldType<K>,
+    verbatim: string,
+  ): Promise<void> {
+    const result = applyConfirmation({
+      key,
+      proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
+      confirmation: {
+        studentRef: studentId(studentId_),
+        presentedText: "Is that right?",
+        response: { kind: "accepted" },
+        respondedAt: NOW,
+      },
+    });
+    if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
+    const profile = confirmField(emptyProfile(studentId(studentId_), NOW), result, NOW);
+    const entry = profile.entries.get(key);
+    if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
+    await store.save(studentId_, toStoredEntry(key, entry));
+  }
+
+  it("moves a run OFF interviewing once every answer is stored", async () => {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+
+    // ── Instance one: start the run, and answer the interview ───────────
+    const first = buildInstance(connectionString());
+    let before: string;
+    try {
+      const started = await first.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      // Nothing is confirmed yet, so the orchestrator wants the interview.
+      expect(started.position.phase).toBe("interviewing");
+      before = started.position.runId;
+
+      const store = new PostgresConfirmedProfileStore(first.pool);
+      await confirm(store, "identity.given_name", "Niloofar", "Niloofar");
+      await confirm(store, "identity.family_name", "Hosseini", "Hosseini");
+      await confirm(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
+      await confirm(store, "identity.nationality", "Iranian", "Iranian");
+      await confirm(store, "contact.email", "niloofar@example.test", "niloofar@example.test");
+      await confirm(store, "study.personal_statement", "Because it is the course I want.", "…");
+    } finally {
+      await first.pool.end();
+    }
+
+    // ── Instance two: nothing carried over but the database ─────────────
+    const second = buildInstance(connectionString());
+    try {
+      const resumed = await second.driver.advance({ runId: before, conversationId: conversation });
+      if (!resumed.ok) expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
+
+      // THE assertion. Before ADR-0044 the driver called `emptyProfile` on
+      // every request, so this run could never leave `interviewing` — each
+      // call re-derived a profile with nothing in it and `planFill` reported
+      // the same blockers as the call before.
+      expect(
+        resumed.position.phase,
+        "a resumed run with a complete profile must move past the interview",
+      ).not.toBe("interviewing");
+      expect(resumed.position.runId).toBe(before);
+
+      // The gated portal needs an account, so this is where it goes next.
+      expect(resumed.position.phase).toBe("awaiting_secret");
+      expect(resumed.position.step).toBe("request_secret");
+    } finally {
+      await second.pool.end();
+    }
+  }, 120_000);
+
+  it("keeps the value AND its provenance across the restart", async () => {
+    const instance = buildInstance(connectionString());
+    try {
+      const store = new PostgresConfirmedProfileStore(instance.pool);
+      const profile = await store.load(studentId_, NOW);
+
+      const name = resolveField(profile, "identity.given_name");
+      expect(unwrapConfirmed(name as never)).toBe("Niloofar");
+      // The half a careless store loses. Without it the value is one nobody
+      // confirmed, which is what ADR-0004 exists to prevent.
+      expect(provenanceOf(name as never).source).toBe("student_stated");
+
+      // And a Date is still a Date, not the string a plain JSON round-trip
+      // would have left — the minor-detection safeguard calls `.getTime()`.
+      const dob = unwrapConfirmed(resolveField(profile, "identity.date_of_birth") as never);
+      expect(dob).toBeInstanceOf(Date);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("does not hand one student another student's profile", async () => {
+    const instance = buildInstance(connectionString());
+    try {
+      const store = new PostgresConfirmedProfileStore(instance.pool);
+      const theirs = await store.load(otherStudentId, NOW);
+      expect(theirs.entries.size).toBe(0);
+      expect(resolveField(theirs, "identity.given_name")).toMatchObject({
+        kind: "field_unavailable",
+      });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("survives the checkpoint being thrown away", async () => {
+    // Rule 3 of the approved architecture: discarding every checkpoint must
+    // lose no business fact. A confirmed profile IS a business fact, so it is
+    // not a checkpoint and is never discarded with one.
+    const instance = buildInstance(connectionString());
+    try {
+      const runs = await pool.query<{ run_id: string }>(
+        "SELECT run_id FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)",
+        [conversation],
+      );
+      const runs_ = new PostgresWorkflowRunStore(instance.pool);
+      await runs_.discardCheckpoints(makeRunId(runs.rows[0]!.run_id));
+
+      const store = new PostgresConfirmedProfileStore(instance.pool);
+      const profile = await store.load(studentId_, NOW);
+      expect(profile.entries.size).toBe(6);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
 });
