@@ -1,6 +1,6 @@
 # ADR-0048 — A specialist resolution completes an intent; the operator CLI is only its first interface
 
-**Status:** **PROPOSED — awaiting Vahid's decision. Nothing in this document has been built.** ·
+**Status:** **Accepted** — approved by Vahid, 2026-09-01, with three amendments recorded in §3, §5 and §4. ·
 **Date:** 2026-09-01 · **Supersedes:** nothing ·
 **Related:** ADR-0008, ADR-0020, ADR-0031, ADR-0038, ADR-0041, ADR-0045, ADR-0046, ADR-0047
 
@@ -133,6 +133,14 @@ is `resume | route_fallback | abandon` — what to do next — which is a differ
 the action landed. Keeping them apart is what stops this becoming the second source of truth
 ADR-0041 forbids.
 
+**The failure point is recorded in the vocabulary this system actually has.** `ExecutionCheckpoint`
+was written in an early phase as *"pure domain modelling … the shape they must fit"*, before the
+execution vocabulary existed, and it asks for a `section` and a zero-based `step` that nothing in
+this system knows. Filling those with placeholders would be inventing a position, which this
+repository refuses to do with a student's data and should not do with its own. P10 refines the type
+to what is knowable at a stop — the blueprint version, the action, its target, the run's phase, the
+pages already completed, and when it was captured — and `failurePointOf` continues to return it.
+
 The student-visible message says the run is paused and that a person is looking. It carries no
 portal internals, no field names and no specialist identity — a student can act on none of them, and
 `routes.ts:408` already takes that position for a mapping-set refusal.
@@ -155,10 +163,22 @@ the operator already has one; it does not open the database.
 
 **The access-control limitation, stated rather than buried.** Under B the control is *whoever can
 run the CLI with the service credential*. `specialistId` is therefore **asserted, not
-authenticated** — the record is honest about who claimed to resolve it, not proof of who did. That
-is acceptable for one named operator and stops being acceptable the moment a second specialist
-exists, which is exactly when option A gets built. The route's shape does not change when it does;
-only who is allowed to call it.
+authenticated** — the record is honest about who claimed to resolve it, not proof of who did.
+
+**Vahid, 2026-09-01, approving it:** *"approved as asserted, not authenticated, for P10 only …
+acceptable only for the current controlled single-operator model. The moment we introduce multiple
+specialists, authenticated individual identity becomes a required architectural capability, not a
+deferred cosmetic improvement."*
+
+So this is scoped, not open-ended, and the scope is a property of the deployment rather than of the
+code: **exactly one named operator holds the service credential.** The condition that ends it is not
+a date or a nice-to-have — it is a second specialist existing at all. At that point authenticated
+individual identity is a **required capability and a release blocker**, because every guarantee that
+rests on `specialistId` — who adjudicated an uncertain account creation, whose judgement entered the
+learning loop through `asReusable` — degrades from a fact to a claim the moment two people can make
+it. The implementation says so where a reader will meet it: at the route, at the CLI, and on the
+stored record. The route's shape does not change when option A is built; only who is allowed to
+call it.
 
 ### 4 · How the run returns to `running`
 
@@ -180,6 +200,11 @@ worked" without somebody finding out* — which is the invariant this whole phas
 `abandon` maps to `abandoned`. **`route_fallback` has no machinery and is out of scope**; a
 resolution carrying it is refused rather than half-honoured.
 
+**Vahid, 2026-09-01:** *"approved to reject explicitly for now. Do not partially implement it. A
+future route change must be handled by a separate ADR and complete implementation."* So the refusal
+is a tested property, not an unhandled case: a resolution naming `route_fallback` is rejected by the
+route with a reason, changes nothing, and leaves the run exactly as it was.
+
 ### 5 · How the run resumes from the failure point rather than restarting
 
 This is the requirement that would be expensive under A or B and is nearly free under C, and it is
@@ -199,13 +224,28 @@ settled, not the first page, and not the one already saved.
 That gives the property ADR-0008 asks for as a **consequence of the existing design** rather than as
 a new mechanism, and it means there is no resume cursor that can disagree with the ledger.
 
-One consequence must be recorded rather than glossed: `RecoveryResolution.resumeFrom` is a modelled
-`ExecutionCheckpoint`, and honouring it as a cursor would reintroduce exactly the second source of
-truth this section avoids. **P10 stores it as the specialist's account of where they left the
-application, and does not read it to decide what runs next.** Where a specialist advanced the
-application by hand, that is expressed by completing the corresponding page intents — the same fact,
-in the one place that already means it. If that proves insufficient in practice, a later ADR
-supersedes this paragraph; it should not be quietly worked around.
+**Amendment, Vahid, 2026-09-01.** The draft proposed storing `RecoveryResolution.resumeFrom` as the
+specialist's account while not reading it. That was rejected, and rightly:
+
+> *"I do not approve storing an executable field that the system deliberately ignores. The workflow
+> must continue to derive its real position from authoritative facts and the intent ledger."*
+
+A typed `ExecutionCheckpoint` sitting on a resolution record is indistinguishable, to anyone reading
+the code later, from a cursor that something honours. The comment saying otherwise is one refactor
+away from being wrong, and the field is one `??` away from being load-bearing. **`resumeFrom` is
+therefore removed from the resolution model entirely.** A resolution carries what the specialist did
+(`actionsTaken`) and what worked (`resolution`) as prose, and no position of any kind.
+
+Where a specialist advanced the application by hand, that is expressed by completing the
+corresponding page intents — the same fact, in the one place that already means it, where the resume
+logic already reads it.
+
+**The one position that remains, and why it is not the same thing.** `RecoveryEscalation.checkpoint`
+records where the run *stopped*, captured at the stop. It is diagnostic: it is what a specialist
+reads to know where to look, and `failurePointOf` returns it for exactly that. It is **never read by
+the code that decides what runs next**, and P10 asserts that by enumeration rather than by comment.
+It is also refined to what this system can truthfully record — see §2 — because a checkpoint with an
+invented `section` and `step` would be a fabricated position, which is worse than none.
 
 ### 6 · Trust, auditability and idempotency
 
@@ -252,8 +292,14 @@ racing the run's own recovery cannot produce two.
 - The unhappy path becomes reachable and recoverable, and a run can no longer become silently inert.
 - One new table, one new internal route, one new operator command, and two new event appends on the
   existing log. No new service, no new plane, no new workflow engine.
-- Access control for the resolution is the service credential until option A is built. **This must
-  be revisited before a second specialist exists**, and is the known limitation of this decision.
+- Access control for the resolution is the service credential until option A is built. **A second
+  specialist is the event that makes authenticated individual identity a required capability and a
+  release blocker** — not a deferred improvement. This is the known limitation of this decision, and
+  the only one.
+- `RecoveryResolution` loses `resumeFrom`, and `ExecutionCheckpoint` is refined to a position this
+  system can state truthfully. Both types are currently referenced only by `packages/domain` and
+  `scripts/walkthrough.ts`, so the change costs nothing and buys a model with no ignorable
+  executable field in it.
 - `route_fallback` remains unimplemented; a resolution carrying it is refused.
 - The alerting transport — the other half of ADR-0008 — is still not built, and is the natural
   phase after this one.
