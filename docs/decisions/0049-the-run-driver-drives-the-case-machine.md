@@ -107,21 +107,36 @@ says stop.
 A guard that never sees a trigger passes every time. So the driver raises the
 mandatory triggers from what the run actually holds:
 
-- **`minor_involved`** — from the confirmed date of birth, through the domain's
-  own `determineAge`/`isMinor`. Never inferred from anything else, and a missing
-  or ambiguous date of birth does not mean "adult" (ADR-0013).
-- **`financial_evidence`** — from the fields the plan fills, through
-  `isFinancialEvidence`.
+- **`involves_minor`** — from the confirmed date of birth, through the domain's
+  own `suggestsMinority`. Never inferred from anything else, and a missing or
+  ambiguous date of birth does not mean "adult" (ADR-0013).
+- **`financial_evidence`** — from the confirmed profile the run reads, through
+  the domain's `isFinancialField`.
 
 Raised with `request_human_review`, which is the intent that already exists.
+
+> **`suggestsMinority`, not `determineAge`.** The draft of this ADR named
+> `determineAge`, and implementing it that way raised `involves_minor` on
+> **every case in the system**: `determineAge` answers `requires_identity_check`
+> for any *stated* date of birth, which is its safety property and is right for
+> the question it answers. The two questions differ — "can we conclude
+> adulthood" versus "does what we hold suggest a minor" — and only the second is
+> what this trigger is about. `suggestsMinority` was added to the domain rather
+> than the age being recomputed in the driver, per ADR-0041.
 
 ### 4 · A specialist clears a review, through the path P10 built
 
 Raising a trigger with no way to clear it would deadlock every case involving a
 minor or money — a worse failure than the one being fixed. `complete_human_review`
 is therefore reachable, and it is reachable **through the specialist path
-ADR-0048 established**: the same internal plane, the same operator CLI, the same
-asserted-not-authenticated identity with the same limit on it.
+ADR-0048 established**: the same internal plane and the same
+asserted-not-authenticated identity, with the same limit on it, at
+`POST /internal/v1/cases/{caseId}/review`.
+
+As shipped there is a route and no CLI verb. `pnpm run interventions` gained
+nothing for reviews, which is a gap in the operator's tooling rather than in the
+path — the route is the interface ADR-0048 §1 argued for, and a CLI verb over it
+is additive.
 
 That is deliberate reuse rather than a second console. A review and an
 intervention are both "a named human looked at something and said what they
