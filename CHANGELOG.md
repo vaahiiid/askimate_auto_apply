@@ -31,6 +31,13 @@ not shipped artefacts.
 - `docs/runbook-discovery-handoff.md` clones the default branch instead of naming the working
   branch, so the command keeps working after the default is flipped.
 
+### Added
+
+- **ADR-0048 (Proposed, not agreed)** — how a specialist's resolution enters the system for a run
+  that stopped `uncertain` or `escalated`. Analyses three options and proposes the intent ledger as
+  the authoritative model, with an operator CLI calling the service's internal route as the first
+  interface. Nothing is built; the unhappy path is still unreachable.
+
 ### Fixed
 
 - **CI is green again.** `apps/chat-integration` asserted that a dropped SSE stream reconnects with
