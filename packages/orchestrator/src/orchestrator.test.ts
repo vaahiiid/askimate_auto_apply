@@ -30,7 +30,7 @@ import type {
   ObservedPortalAuthentication,
   PortalAccount,
 } from "@askimate/aas-account";
-import { chooseApproach } from "@askimate/aas-account";
+import { chooseApproach, outstandingHandoverItems } from "@askimate/aas-account";
 import { isFieldUnavailable } from "@askimate/aas-domain";
 import { resolveField } from "@askimate/aas-profile";
 
@@ -743,11 +743,36 @@ describe("a portal that needs an account", () => {
     expect(step.kind).toBe("hand_over_account");
     if (step.kind !== "hand_over_account") expect.unreachable("checked above");
     expect(step.say).toContain("the account is yours");
-    // Every applicable item, named — not "the handover has not been started".
-    // The person acting on this needs the list, not the status.
+
+    // Every item the STUDENT can act on, named — not "the handover has not
+    // been started". The person acting on this needs the list, not the status.
     expect(step.outstanding).toContain("the student has confirmed they can sign in");
-    expect(step.outstanding).toContain(
+
+    // ── And NOT our items (ADR-0050 §6) ───────────────────────────────
+    //
+    // This assertion used to be the other way round. The full checklist is the
+    // GATE and includes things about us; the student is shown what they can do
+    // something about. Showing them the gate would show somebody a to-do list
+    // containing "the student has been told the account exists" — and, worse,
+    // telling them is what makes that item true, so the message would change
+    // the moment it was sent, and a confirmation is bound by a hash of exactly
+    // what they were shown.
+    expect(step.outstanding).not.toContain(
       "AskiMate retains no operational access — no live session, no stored token, no second factor",
+    );
+    // The gate still has it. Two lists, one checklist.
+    expect(outstandingHandoverItems(accountAt("handover_due", COMPLETE))).toContain(
+      "AskiMate retains no operational access — no live session, no stored token, no second factor",
+    );
+
+    // One thing asked for at a time, and the RESET comes first: this portal is
+    // on `generated_ephemeral`, so there is a password of ours to displace, and
+    // the confirmation of access is about the account AFTER it has been. Asked
+    // the other way round, the student would confirm they can sign in with a
+    // password we chose, and then change it (ADR-0050 §5).
+    expect(step.awaiting).toBe("password_reset");
+    expect(step.outstanding).toContain(
+      "the student has set their own password via the portal's reset flow",
     );
   });
 

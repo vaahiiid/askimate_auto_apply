@@ -38,20 +38,23 @@
 import type {
   AuthenticationApproach,
   AuthenticationPlan,
+  HandoverChecklist,
   ObservedPortalAuthentication,
   PasswordDelivery,
   PortalAccount,
 } from "@askimate/aas-account";
 import {
+  checkHandoverComplete,
   chooseApproach,
   describeSecureChannel,
   outstandingHandoverItems,
   renderAccountCreationRequest,
   renderHandover,
+  studentHandoverItems,
 } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
-import type { RunId, StudentId, WorkflowCheckpoint } from "@askimate/aas-domain";
+import type { HandoffKind, RunId, StudentId, WorkflowCheckpoint } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
 import type {
@@ -265,6 +268,17 @@ export type RunStep =
       readonly kind: "hand_over_account";
       readonly say: string;
       readonly outstanding: readonly string[];
+      /**
+       * The ONE thing the student is being asked for now.
+       *
+       * `outstanding` is the whole list, for them to read; this is what the
+       * next confirmation will be about. They are separate because the
+       * checklist is all-or-nothing over INDEPENDENT facts (ADR-0020 §3), and
+       * one confirmation covering two of them would record a student who
+       * pressed "yes, I'm in" as having also completed a password reset they
+       * never did.
+       */
+      readonly awaiting: HandoffKind;
     };
 
 /** What a run looks like when nothing has happened yet. */
@@ -521,7 +535,11 @@ function accountStepFor(state: RunState): RunStep | null {
   if (account.stage === "handover_due") {
     return {
       kind: "hand_over_account",
-      outstanding: outstandingHandoverItems(account),
+      // The STUDENT's outstanding items, not the whole gate. See
+      // `studentHandoverItems` for why the two lists differ, and why the
+      // difference is load-bearing rather than cosmetic.
+      outstanding: studentHandoverItems(account),
+      awaiting: awaitingHandoverStep(account),
       say: renderHandover({
         institutionName: state.inputs.blueprint.institutionName,
         portalHost: account.portalHost,
@@ -532,6 +550,28 @@ function accountStepFor(state: RunState): RunStep | null {
   }
 
   return null;
+}
+
+/**
+ * Which of the student's handover steps is being asked for now.
+ *
+ * The reset first where it is outstanding, then the confirmation — in that
+ * order because the confirmation is about the account AFTER the reset. Asked
+ * the other way round, a student would confirm they can sign in with a
+ * password we chose, and then change it, and the confirmation would be about
+ * a state of the account that no longer exists.
+ *
+ * `account_handover` is the fallback rather than a fifth branch: it is on every
+ * checklist and no approach or observation drops it (ADR-0020 §3), so there is
+ * always something to ask for while the account is outstanding.
+ */
+function awaitingHandoverStep(account: PortalAccount): HandoffKind {
+  const checklist = account.handover?.checklist;
+  const outstanding = outstandingHandoverItems(account);
+  const resetOutstanding =
+    checklist?.passwordResetCompleted !== true &&
+    outstanding.some((item) => item.includes("reset flow"));
+  return resetOutstanding ? "password_reset" : "account_handover";
 }
 
 /**
@@ -690,9 +730,107 @@ export function withAccount(state: RunState, account: PortalAccount): RunState {
  * confirmed email. Both are states `accountStepFor` refuses to `specialist`
  * from, and answering `null` here keeps that refusal the one that happens.
  */
+/**
+ * What the case log and the run's own records say about handing the account
+ * back (ADR-0050).
+ *
+ * Every field is a FACT somebody established, never a flag a caller sets to
+ * make a stage move. The handoff lists come from `fold`; the last one comes
+ * from the coordinator, which is the only thing that can see whether anything
+ * of ours can still reach the portal.
+ */
+export interface HandoverEvidence {
+  /** Handoff kinds that have been put in front of the student. */
+  readonly raised: readonly HandoffKind[];
+  /** Handoff kinds the student has completed. */
+  readonly completed: readonly HandoffKind[];
+  /**
+   * Nothing of ours can still reach the account: no open work lease, no live
+   * secure handle, no session held anywhere.
+   *
+   * Established by the caller because nothing in this pure function can see a
+   * lease. It is on every checklist and no approach drops it (ADR-0020 §3),
+   * so a caller that cannot establish it answers `false` and the account
+   * stays outstanding — which is the safe direction.
+   */
+  readonly askimateRetainsNoAccess: boolean;
+  /**
+   * The application is done — every mapped page saved.
+   *
+   * Passed rather than read off `state.filled`, because `withAuthorisation`
+   * clears that flag and the coordinator applies the authorisation AFTER the
+   * account. Reading the stale value here would leave an account `active`
+   * forever on a run that had finished filling.
+   */
+  readonly applicationFilled: boolean;
+}
+
+/** No evidence at all — the state of a run before anything has been handed back. */
+const NO_HANDOVER_EVIDENCE: HandoverEvidence = {
+  raised: [],
+  completed: [],
+  askimateRetainsNoAccess: false,
+  applicationFilled: false,
+};
+
+/**
+ * The handover checklist, derived from evidence rather than assembled by a
+ * caller.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Every student-side item is a COMPLETED HANDOFF — a durable case event, with
+ * the text the student was shown bound to it by hash. Not a boolean somebody
+ * set, which is what "we handed it over" would otherwise be.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `studentInformed` comes from the RAISE rather than a completion: raising the
+ * handover handoff is what puts the account, its portal and how to get in front
+ * of the student. Telling them is the act; their reply is a different item.
+ */
+export function handoverChecklistFrom(
+  evidence: HandoverEvidence,
+  plan: AuthenticationPlan,
+): HandoverChecklist {
+  return {
+    emailVerifiedByPortal: evidence.completed.includes("email_verification"),
+    studentInformed: evidence.raised.includes("account_handover"),
+    passwordResetCompleted: evidence.completed.includes("password_reset"),
+    // True where there was never a credential to destroy — which is three of
+    // the four approaches. Read from the PLAN rather than asserted by a
+    // caller: `askimateHoldsACredential` is what `chooseApproach` decided, and
+    // it is the same field `mintCredentialUnder` gates on.
+    //
+    // Under `generated_ephemeral` this is `false` and stays `false`: nothing in
+    // this service ever holds that credential — the runner mints it, uses it
+    // through `useTo` and lets it expire — so nothing here can truthfully say
+    // it is gone. The account stays outstanding, which is the safe direction
+    // and an honest one. Closing it needs the runner to report the
+    // destruction, and that is not this phase.
+    temporaryCredentialDestroyed: !plan.askimateHoldsACredential,
+    askimateRetainsNoAccess: evidence.askimateRetainsNoAccess,
+    studentConfirmedAccess: evidence.completed.includes("account_handover"),
+  };
+}
+
+/**
+ * A stable handoff token for a case and a kind.
+ *
+ * Derived, not minted, for the reason `idempotencyKeyFor` is: the run raises a
+ * handoff every time it decides, and a fresh token per decision would open a
+ * second handoff on every poll. Two raises of the same thing are one handoff.
+ */
+export function handoffTokenFor(input: { readonly caseId: string; readonly kind: HandoffKind }): string {
+  return `ho_${input.caseId}_${input.kind}`;
+}
+
 export function accountCreated(
   state: RunState,
-  input: { readonly accountId: string; readonly now: Date },
+  input: {
+    readonly accountId: string;
+    readonly now: Date;
+    /** What has actually happened about handing it back. */
+    readonly handover?: HandoverEvidence;
+  },
 ): RunState | null {
   const plan = planFor(state);
   // Narrowed on `rejected`, not on `approach`. `planFor` answers a plan or a
@@ -705,22 +843,95 @@ export function accountCreated(
   const email = resolveField(state.profile, "contact.email");
   if (isFieldUnavailable(email)) return null;
 
-  const verificationRequired =
-    state.inputs.portalAuthentication?.emailVerificationRequired === true;
+  const portalHost =
+    state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
+  const evidence = input.handover ?? NO_HANDOVER_EVIDENCE;
+  const checklist = handoverChecklistFrom(evidence, plan);
+  // The text the student is shown when the account is handed back. The same
+  // string whether or not the checklist has passed: it is what they were told,
+  // and an incomplete handover records what they were told just as a complete
+  // one does.
+  const presentedText = renderHandover({
+    institutionName: state.inputs.blueprint.institutionName,
+    portalHost,
+    email: unwrapConfirmed(email),
+    approach: plan.approach,
+  });
+  const handover = checkHandoverComplete({
+    checklist,
+    plan,
+    completedAt: input.now,
+    presentedText,
+  });
 
   return withAccount(state, {
     accountId: input.accountId,
     caseId: state.inputs.caseId,
     studentRef: state.inputs.studentRef,
-    portalHost: state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl),
+    portalHost,
     email,
-    stage: verificationRequired ? "awaiting_email_verification" : "active",
+    stage: stageFrom(plan, evidence, handover.complete),
+    // Attached either way, so `outstandingHandoverItems` reports what is
+    // ACTUALLY left rather than the whole list. Only the branded
+    // `CompletedHandover` means it is done, and only `checkHandoverComplete`
+    // can produce one.
+    handover: handover.complete
+      ? handover.handover
+      : { checklist, approach: plan.approach, completedAt: input.now, presentedText },
     authentication: plan,
     // ADR-0020. AskiMate created it, and it is the student's — which is why
     // `handover_due` exists and why a case cannot finish before `handed_over`.
     createdBy: "askimate_on_behalf",
     createdAt: input.now,
   });
+}
+
+/**
+ * Where the account stands, derived from what has happened to it (ADR-0050).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A DERIVATION, not a stored column. `AccountStage` has never been persisted
+ * anywhere and must not start being: a stored stage is a second answer to
+ * "where is this account", and this repository has already had two models of
+ * one thing come apart (ADR-0041). Everything here comes from the confirmed
+ * profile, the reviewed portal observations, the intent ledger and the case
+ * log — the four things that were already authoritative.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The order of the branches is the lifecycle, and each one is a refusal to
+ * move on:
+ *
+ *   handed_over                 the checklist passed. The only stage in which
+ *                               a case may finish (ADR-0020 §4).
+ *   awaiting_email_verification the portal emailed them and they have not said
+ *                               they followed it. We cannot read their inbox
+ *                               and never will, so this is a wait, not a poll.
+ *   handover_due                the application is done and the account is
+ *                               still ours to give back. `mayConcludeCase`
+ *                               refuses this stage BY NAME, because "we meant
+ *                               to" is exactly what it exists to catch.
+ *   active                      usable for the application, and not yet theirs.
+ */
+function stageFrom(
+  plan: AuthenticationPlan,
+  evidence: HandoverEvidence,
+  handoverComplete: boolean,
+): PortalAccount["stage"] {
+  if (handoverComplete) return "handed_over";
+
+  // `basedOn`, not the run's own copy of the observations: the plan carries
+  // the observations it was chosen from, and reading the requirement from
+  // anywhere else would let the two disagree.
+  const verificationRequired = plan.basedOn.emailVerificationRequired === true;
+  if (verificationRequired && !evidence.completed.includes("email_verification")) {
+    return "awaiting_email_verification";
+  }
+
+  // "The application is done" is the run having filled the portal. Not
+  // "authorised" — an authorised run has typed nothing yet, and handing the
+  // account back before the form is filled would mean asking the student to
+  // change the password we are about to sign in with.
+  return evidence.applicationFilled ? "handover_due" : "active";
 }
 
 /** Records the student's authorisation on the run. */
@@ -845,6 +1056,40 @@ export function requiresSecureRequest(
  * back into the step for the hash it must compare — and reaching into a step is
  * the thing `accountWorkOf` and `executePlanOf` exist to stop.
  */
+/**
+ * The handoff this step is waiting on, or `null` when it is waiting on nothing
+ * only the student can do.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A NARROWING, like `requiresSecureRequest` and `awaitsStudentAuthorisation`
+ * beside it, and here for the sharpest version of the same reason: TWO step
+ * kinds are handoffs, they carry the kind in different shapes, and a
+ * coordinator matching on either would be keeping its own copy of a mapping
+ * that has already gone wrong once — `student_handoff.reason` and the case
+ * event's `handoffKind` were separate vocabularies until ADR-0050 joined them.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `student_handoff` names what the portal is demanding; `hand_over_account`
+ * names the one thing the student is being asked for now, which walks the
+ * handover checklist rather than being fixed.
+ */
+export function handoffFor(step: RunStep): HandoffKind | null {
+  if (step.kind === "student_handoff") return step.reason;
+  return step.kind === "hand_over_account" ? step.awaiting : null;
+}
+
+/** What the student is told for a handoff step. The text a hash is taken over. */
+export function handoffMessageOf(step: RunStep): string | null {
+  if (step.kind === "student_handoff") return step.say;
+  if (step.kind !== "hand_over_account") return null;
+  // The list is part of what they were shown, not decoration: the hash binds
+  // the whole message, and "here is your account" without "and here is what is
+  // still outstanding" is a different thing to have agreed to.
+  return step.outstanding.length === 0
+    ? step.say
+    : `${step.say}\n\nStill to do:\n${step.outstanding.map((item) => `  \u2022 ${item}`).join("\n")}`;
+}
+
 export function awaitsStudentAuthorisation(
   step: RunStep,
 ): step is Extract<RunStep, { kind: "authorise" }> {

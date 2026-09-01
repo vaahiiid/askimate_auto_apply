@@ -38,6 +38,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
+import { createHash } from "node:crypto";
 import type { Server } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -884,7 +885,13 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     }
   }, 300_000);
 
-  it("offers NOTHING once every page is saved, and the run is filled", async () => {
+  it("asks for the account back once every page is saved", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0050. This used to expect `ready_to_submit` — the application done
+    // and the account still ours, reported as finished. Handing it back is not
+    // a courtesy after the work; it is part of the work, and until P12 nothing
+    // in the system could do it: no account had ever left `active`.
+    // ═══════════════════════════════════════════════════════════════════
     const restarted = await restartedInstance();
     try {
       expect(await restarted.intake.claim(), "no page remains").toBeNull();
@@ -898,11 +905,137 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         },
       );
       const run = (await advanced.json()) as { step: string; phase: string };
-      // Filled, and waiting for the one thing that is out of scope.
-      expect(run.step).toBe("ready_to_submit");
+      expect(run.step, "filled, and the account is still ours").toBe("hand_over_account");
       expect(portal.submissions(), "and it is still not submitted").toEqual([]);
+
+      // And the student was TOLD, in the log that holds what they were told.
+      const told = await conversationPool.query<{ content: string }>(
+        `SELECT mb.content FROM conversation_events e
+           JOIN message_bodies mb ON mb.id = e.body_id
+          WHERE e.conversation_id = $1 ORDER BY e.ordinal DESC LIMIT 1`,
+        [CONVERSATION],
+      );
+      // Asserted as a string before it is searched. A regression that stopped
+      // raising the handover entirely left this `undefined`, and `toContain`
+      // then failed on the ARGUMENT TYPE rather than on the property — a
+      // detection that says "invalid combination of arguments" tells a reader
+      // nothing about what broke.
+      const last = told.rows[0]?.content ?? "";
+      expect(last, "the student was told something").not.toBe("");
+      expect(last, "the handover message reached them").toContain(
+        GATED_PORTAL_BLUEPRINT.institutionName,
+      );
     } finally {
       await restarted.close();
+    }
+  }, 300_000);
+
+  it("the student takes the account back, and only then is the run finished", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The end of the whole journey, and the first time `mayConcludeCase` has
+    // ever been able to answer `true` — it takes the accounts on a case, and
+    // until P12 no account could reach `handed_over` because nothing moved an
+    // account's stage at all.
+    //
+    // Two confirmations, not one, because two INDEPENDENT facts are being
+    // established: this portal never verified the address, so the student
+    // proves they receive at it through the portal's own reset (ADR-0050), and
+    // separately says they can sign in. One confirmation covering both would
+    // record a reset they never did.
+    // ═══════════════════════════════════════════════════════════════════
+    const cases = new PostgresCaseStore(conversationPool);
+    const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
+
+    /**
+     * The hash of the message the student is looking at.
+     *
+     * Taken over the text the SERVICE appended to the conversation, which is
+     * what a real client has: it renders the message it received and hashes
+     * that. The service compares it against what it would render now, so a
+     * client that hashed something else is refused rather than believed.
+     */
+    const hashOfLastMessage = async (): Promise<string> => {
+      const said = await conversationPool.query<{ content: string }>(
+        `SELECT mb.content FROM conversation_events e
+           JOIN message_bodies mb ON mb.id = e.body_id
+          WHERE e.conversation_id = $1 ORDER BY e.ordinal DESC LIMIT 1`,
+        [CONVERSATION],
+      );
+      const content = said.rows[0]?.content ?? "";
+      expect(content, "there is a message to confirm").not.toBe("");
+      return `sha256:${createHash("sha256").update(content).digest("hex")}`;
+    };
+
+    const confirm = async (): Promise<number> => {
+      const response = await recordingFetch(
+        `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", cookie: devCookie },
+          body: JSON.stringify({
+            kind: "confirm_handoff",
+            contentHash: await hashOfLastMessage(),
+          }),
+        },
+      );
+      return response.status;
+    };
+
+    const advance = async (): Promise<{ step: string }> => {
+      const response = await recordingFetch(
+        `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", cookie: devCookie },
+          body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        },
+      );
+      return (await response.json()) as { step: string };
+    };
+
+    // 1 — the reset, which is how they prove they receive mail at the address
+    //     on a portal that never verified it.
+    expect(await confirm(), "the student's own session").toBe(204);
+    expect((await advance()).step, "one down, one to go").toBe("hand_over_account");
+
+    // 2 — and that they are actually in.
+    expect(await confirm()).toBe(204);
+
+    const logged = await cases.read(caseRef);
+    const completed = logged.filter((event) => event.type === "HandoffCompleted");
+    expect(completed, "both, recorded by the domain").toHaveLength(2);
+
+    expect((await advance()).step, "handed back; now it is finished").toBe("ready_to_submit");
+    expect(portal.submissions(), "and STILL not submitted — ADR-0014").toEqual([]);
+
+    // ── The rule that made handover non-optional, finally asked ─────────
+    //
+    // `mayConcludeCase` has existed since the account model was written and
+    // nothing had ever called it, because no account could reach `handed_over`
+    // — nothing moved an account's stage at all. This is it answering `true`
+    // for the first time, about an account derived from the real run.
+    const pool = new pg.Pool({
+      connectionString: conversationPool.options.connectionString ?? "",
+      max: 2,
+    });
+    const driver = new RunDriver({
+      stores: { cases: new PostgresCaseStore(pool), runs: new PostgresWorkflowRunStore(pool) },
+      bindings: new ApplicationBindingStore(pool),
+      catalogue: journeyCatalogue,
+      model: new DeterministicModelClient(),
+      profiles: new PostgresConfirmedProfileStore(pool),
+      conversations: new ConversationEventStore(pool),
+      secureRequests: journeySecureRequests,
+      leases: new WorkLeaseStore(pool),
+      now: () => new Date(),
+    });
+    try {
+      expect(await driver.mayConclude(runId, CONVERSATION)).toEqual({
+        may: true,
+        outstanding: [],
+      });
+    } finally {
+      await pool.end();
     }
   }, 300_000);
 

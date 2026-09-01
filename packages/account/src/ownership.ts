@@ -205,36 +205,83 @@ const CHECKLIST_LABELS: Readonly<Record<keyof HandoverChecklist, string>> = {
 };
 
 /**
- * Which items apply under which approach.
+ * Which items apply, given the approach and what the portal actually does.
  *
  * ── Why this is not a weakening ───────────────────────────────────────────
  *
  * "Some items do not apply" is exactly the shape of a loophole, so the way it
- * is reached matters. An approach is not a string a caller picks: it comes
- * from `chooseApproach`, which refuses without observations. So dropping
- * `passwordResetCompleted` requires discovery to have *observed* a portal with
- * passwordless sign-in — you cannot claim the item is inapplicable, you have
- * to have found a portal where it is.
+ * is reached matters. Neither input here is a string a caller picks: the
+ * approach comes from `chooseApproach`, and `portalVerifiesEmail` is one of
+ * the eight discovery questions, every one of which must be observed before an
+ * account may be created at all. So dropping an item requires discovery to
+ * have *found* a portal where it does not apply — you cannot claim
+ * inapplicability, you have to have observed it.
  *
- * Two items are on every list and cannot be dropped by any approach: the
- * student confirming they are in, and AskiMate retaining no access. Those are
- * the outcome; the rest are mechanism.
+ * Two items are on every list and no input can drop them: the student
+ * confirming they are in, and AskiMate retaining no access. Those are the
+ * outcome; the rest is mechanism.
+ *
+ * ── The one PROPERTY behind two mechanisms ────────────────────────────────
+ *
+ * `emailVerifiedByPortal` is not really about verification. It is the only
+ * external proof that **the student can receive mail at the account's
+ * address** — the recovery route, without which "the account is theirs" is a
+ * claim rather than a fact.
+ *
+ * On a portal that does not verify email addresses there is no such
+ * verification to have, and the item could never become true: under the first
+ * version of this function, no account on such a portal could EVER be handed
+ * over, and no case involving one could ever conclude. That is a deadlock, not
+ * a safety property.
+ *
+ * Where it bites is narrower than it looks, and worth tracing, because three
+ * of the four approaches already prove receipt by other means:
+ *
+ *   `passwordless`         they sign in with an emailed link or code
+ *   `portal_issued`        the portal emails them the credential
+ *   `generated_ephemeral`  `passwordResetCompleted` is already required
+ *   `student_chosen`       NOTHING in the flow ever emails them  ← the gap
+ *
+ * So on a non-verifying portal this substitutes the portal's own password
+ * reset for the portal's own verification. Vahid decided that, 2026-09-01, over
+ * the alternatives of dropping the item outright (which removes the check while
+ * leaving the risk) and leaving the deadlock in place. The count of proofs of
+ * receipt stays at one, and it is still the PORTAL's email that provides it —
+ * only the mechanism changes. See ADR-0050.
  */
-function applicableItems(
-  approach: AuthenticationApproach,
-): readonly (keyof HandoverChecklist)[] {
+function applicableItems(input: {
+  readonly approach: AuthenticationApproach;
+  /**
+   * Did discovery observe that this portal verifies the email address?
+   *
+   * From `ObservedPortalAuthentication.emailVerificationRequired`, which cannot
+   * be `"unobserved"` by the time an account exists — `chooseApproach` refuses
+   * on any unobserved question.
+   */
+  readonly portalVerifiesEmail: boolean;
+}): readonly (keyof HandoverChecklist)[] {
   const always: (keyof HandoverChecklist)[] = [
-    "emailVerifiedByPortal",
     "studentInformed",
     "askimateRetainsNoAccess",
     "studentConfirmedAccess",
   ];
 
+  const items: (keyof HandoverChecklist)[] = input.portalVerifiesEmail
+    ? ["emailVerifiedByPortal", ...always]
+    : // The substitution. Not an exemption: an item is REPLACED, not removed.
+      ["passwordResetCompleted", ...always];
+
   // Only the approach where we held a secret has a secret to displace and
-  // destroy.
-  return approach === "generated_ephemeral"
-    ? [...always, "passwordResetCompleted", "temporaryCredentialDestroyed"]
-    : always;
+  // destroy. `passwordResetCompleted` may already be present by substitution,
+  // in which case requiring it twice is requiring it once.
+  if (input.approach !== "generated_ephemeral") return items;
+  return [
+    ...new Set<keyof HandoverChecklist>([
+      ...items,
+      "passwordResetCompleted",
+      "temporaryCredentialDestroyed",
+    ]),
+  ];
 }
 
 /**
@@ -246,12 +293,23 @@ function applicableItems(
  */
 export function checkHandoverComplete(input: {
   readonly checklist: HandoverChecklist;
-  /** From the account's `authentication.approach`, not chosen here. */
-  readonly approach: AuthenticationApproach;
+  /**
+   * The account's whole plan, not its approach.
+   *
+   * Same reason `mintCredentialUnder` takes one (ADR-0020 §2): a boolean — or
+   * an approach — is something a caller passes, and a plan is something a
+   * caller has to have. It also carries `basedOn`, so which items apply is
+   * decided from the discovery observations themselves rather than from two
+   * arguments a caller could pass inconsistently.
+   */
+  readonly plan: AuthenticationPlan;
   readonly completedAt: Date;
   readonly presentedText: string;
 }): HandoverCheck {
-  const outstanding = applicableItems(input.approach)
+  const outstanding = applicableItems({
+    approach: input.plan.approach,
+    portalVerifiesEmail: input.plan.basedOn.emailVerificationRequired === true,
+  })
     .filter((key) => !input.checklist[key])
     .map((key) => CHECKLIST_LABELS[key]);
 
@@ -273,7 +331,7 @@ export function checkHandoverComplete(input: {
     complete: true,
     handover: {
       checklist: input.checklist,
-      approach: input.approach,
+      approach: input.plan.approach,
       completedAt: input.completedAt,
       presentedText: input.presentedText,
     } as CompletedHandover,
@@ -288,19 +346,45 @@ export function checkHandoverComplete(input: {
  * apart — including when the approach changes which items apply.
  */
 export function outstandingHandoverItems(account: PortalAccount): readonly string[] {
-  const checklist = account.handover?.checklist;
-  if (checklist === undefined) {
-    return applicableItems(account.authentication.approach).map((key) => CHECKLIST_LABELS[key]);
-  }
+  return outstandingKeys(account).map((key) => CHECKLIST_LABELS[key]);
+}
 
-  const check = checkHandoverComplete({
-    checklist,
+/** The applicable items this account has not satisfied, as keys. */
+function outstandingKeys(account: PortalAccount): readonly (keyof HandoverChecklist)[] {
+  const applicable = applicableItems({
     approach: account.authentication.approach,
-    completedAt: account.handover?.completedAt ?? new Date(0),
-    presentedText: account.handover?.presentedText ?? "",
+    portalVerifiesEmail: account.authentication.basedOn.emailVerificationRequired === true,
   });
+  const checklist = account.handover?.checklist;
+  if (checklist === undefined) return applicable;
+  return applicable.filter((key) => !checklist[key]);
+}
 
-  return check.complete ? [] : check.refusal.outstanding;
+/**
+ * The items on that list that the STUDENT can do something about.
+ *
+ * ── Why this is a separate list rather than the same one ──────────────────
+ *
+ * The full list is the gate: it includes our items — that we have told them,
+ * that we retain no access, that anything we held is destroyed — and a case
+ * cannot finish while any of them is outstanding.
+ *
+ * Showing them that list would be showing somebody a to-do list containing
+ * "the student has been told the account exists", which is nonsense at best.
+ * It is also unstable in a way that matters: telling them is what makes
+ * `studentInformed` true, so the message would change the moment it was sent,
+ * and a confirmation is bound by a hash of exactly what they were shown
+ * (ADR-0050). The message a student confirms has to be the message they read.
+ */
+export function studentHandoverItems(account: PortalAccount): readonly string[] {
+  const theirs: readonly (keyof HandoverChecklist)[] = [
+    "emailVerifiedByPortal",
+    "passwordResetCompleted",
+    "studentConfirmedAccess",
+  ];
+  return outstandingKeys(account)
+    .filter((key) => theirs.includes(key))
+    .map((key) => CHECKLIST_LABELS[key]);
 }
 
 /**

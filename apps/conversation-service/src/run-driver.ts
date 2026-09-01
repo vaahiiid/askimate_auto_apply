@@ -48,6 +48,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
+import { mayConcludeCase } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import type {
@@ -79,6 +80,7 @@ import {
 } from "@askimate/aas-domain";
 import type {
   ApplicationCase,
+  CaseIntent,
   CaseEventPayload,
   CaseState,
   CaseId,
@@ -97,6 +99,8 @@ import type {
   WorkflowStatus,
 } from "@askimate/aas-domain";
 import { newInterview } from "@askimate/aas-interview";
+import { createHash } from "node:crypto";
+
 import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, toStoredPlan } from "@askimate/aas-mapping";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
@@ -105,6 +109,9 @@ import {
   accountWorkOf,
   awaitsStudentAuthorisation,
   beginRun,
+  handoffFor,
+  handoffMessageOf,
+  handoffTokenFor,
   browserWorkFor,
   caseStateForStep,
   executePlanOf,
@@ -120,7 +127,13 @@ import {
   withCheckpoint,
   withSecret,
 } from "@askimate/aas-orchestrator";
-import type { DurableStores, ResumeConcern, RunState, RunStep } from "@askimate/aas-orchestrator";
+import type {
+  DurableStores,
+  HandoverEvidence,
+  ResumeConcern,
+  RunState,
+  RunStep,
+} from "@askimate/aas-orchestrator";
 import { isFinancialField, resolveField } from "@askimate/aas-profile";
 import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
@@ -359,6 +372,32 @@ function reviewMessage(entry: CatalogueEntry): string {
     `like yours, not something that has gone wrong. Nothing you have given me is lost, and I ` +
     `will come back to you as soon as it has been looked at.`
   );
+}
+
+/**
+ * How far out a handoff's `expiresAt` is set.
+ *
+ * A hundred years. `HandoffRequired.expiresAt` is required by the event and
+ * nothing in this phase reads it, and the honest way to say "this does not
+ * expire" in a required Date field is a date so far out that nobody mistakes it
+ * for a deadline somebody chose. A plausible-looking one — 48 hours, say —
+ * would read as a policy, and there is no policy: a student who has not
+ * followed a verification link by Friday has not lost the right to.
+ */
+const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * The hash of a message the student is asked to confirm.
+ *
+ * `sha256:` prefixed and hex, matching `buildPreview`'s `contentHash` exactly
+ * — one shape of hash in the system, so a reader comparing an authorisation
+ * and a handover confirmation in the case log is comparing like with like.
+ * Deliberately NOT reusing `buildPreview`: that hashes a rendered application,
+ * field by field, and pointing it at a sentence would be borrowing a function
+ * for a job it does not do.
+ */
+function hashOfText(text: string): string {
+  return `sha256:${createHash("sha256").update(text).digest("hex")}`;
 }
 
 /** What the student is told when it moves again. */
@@ -805,7 +844,23 @@ export class RunDriver {
     // out of it. `already_done` with `succeeded` is the only verdict that
     // produces an account: `verify_first` and `escalate` both mean somebody has
     // to go and look, and neither is a thing to assume through.
-    const withAccount_: RunState = await this.#withAccountIfCreated(withTheSecret, input, now);
+    // ── Whether the application is done, BEFORE the account is derived ────
+    //
+    // The account's stage turns on it (ADR-0050) and `withAuthorisation`
+    // clears the flag below, so the question is asked once, here, and the
+    // answer is used twice.
+    const filled = await this.#hasFilled(withTheSecret, input.record.runId, input.entry);
+    const handover = await this.#handoverEvidence({
+      caseId: input.caseId,
+      record: input.record,
+      filled,
+      now,
+    });
+    const withAccount_: RunState = await this.#withAccountIfCreated(
+      withTheSecret,
+      { record: input.record, handover },
+      now,
+    );
 
     // ── The authorisation, from the case's own log ────────────────────────
     //
@@ -851,7 +906,7 @@ export class RunDriver {
    */
   async #withAccountIfCreated(
     state: RunState,
-    input: { readonly record: WorkflowRunRecord },
+    input: { readonly record: WorkflowRunRecord; readonly handover: HandoverEvidence },
     now: Date,
   ): Promise<RunState> {
     const runId = input.record.runId;
@@ -868,8 +923,50 @@ export class RunDriver {
     // Derived from the case, not random — the same reasoning as the run id and
     // the case id. A random account id regenerated on the next request would
     // describe a different account from the one the last request described.
-    const created = accountCreated(state, { accountId: `acct_${runId}`, now });
+    const created = accountCreated(state, {
+      accountId: `acct_${runId}`,
+      now,
+      handover: input.handover,
+    });
     return created ?? state;
+  }
+
+  /**
+   * What has actually happened about handing this account back (ADR-0050).
+   *
+   * Three sources, and not one of them is a flag this service set:
+   *
+   *   the CASE LOG      which handoffs were put in front of the student, and
+   *                     which they completed. Business facts, in the log that
+   *                     holds business facts (ADR-0031 rule 3).
+   *   the LEASE TABLE   whether a runner is still holding this run. An open
+   *                     lease is a browser somewhere that can still reach the
+   *                     portal, which is operational access whether or not a
+   *                     credential was involved (ADR-0020 §3).
+   *   the INTENT LEDGER whether every mapped page is saved.
+   *
+   * `askimateRetainsNoAccess` answers `false` when there is no lease store at
+   * all, rather than `true`. A deployment that cannot see its leases cannot
+   * see whether anything is still holding the account, and "we could not check"
+   * must never read as "nothing is holding it".
+   */
+  async #handoverEvidence(input: {
+    readonly caseId: CaseId;
+    readonly record: WorkflowRunRecord;
+    readonly filled: boolean;
+    readonly now: Date;
+  }): Promise<HandoverEvidence> {
+    const events = await this.#options.stores.cases.read(input.caseId);
+    const held = events.length === 0 ? null : fold(events);
+    const leases = this.#options.leases;
+    const openLease =
+      leases === undefined ? "unknown" : await leases.held(input.record.runId, input.now);
+    return {
+      raised: held?.raisedHandoffs ?? [],
+      completed: held?.completedHandoffs ?? [],
+      askimateRetainsNoAccess: openLease === null,
+      applicationFilled: input.filled,
+    };
   }
 
   /**
@@ -1236,24 +1333,20 @@ export class RunDriver {
     });
     if (!situation.ok) return { ok: false, reason: "no_case" };
 
-    // The run must actually be ASKING. A decision arriving at any other moment
-    // is not an approval of anything currently on screen. The narrowing comes
-    // from the orchestrator, which owns the step vocabulary — and it carries
-    // the preview out with it, so the hash below is read from the step the
-    // orchestrator handed over rather than dug out of it here.
-    const asking = situation.step;
-    if (!awaitsStudentAuthorisation(asking)) return { ok: false, reason: "not_asked" };
-    if (asking.preview.contentHash !== input.decision.contentHash) {
-      return { ok: false, reason: "content_changed" };
-    }
-
     const events = await this.#options.stores.cases.read(record.caseId);
     if (events.length === 0) return { ok: false, reason: "no_case" };
     const held = fold(events);
-    const decided = decide(held, {
-      kind: "capture_authorisation",
-      contentHash: input.decision.contentHash,
-    });
+
+    // What the run is asking for, and the text it asked with. Both from the
+    // orchestrator and the case — never from the decision, which carries a
+    // hash and a kind and nothing else (ADR-0050).
+    const intent =
+      input.decision.kind === "authorise"
+        ? this.#authorisationIntent(situation.step, input.decision)
+        : this.#handoffIntent(situation.step, held, input.decision);
+    if (!intent.ok) return intent;
+
+    const decided = decide(held, intent.intent);
     if (!decided.accepted) return { ok: false, reason: "refused" };
 
     await this.#appendToCase(
@@ -1264,6 +1357,132 @@ export class RunDriver {
       this.#options.now(),
     );
     return { ok: true };
+  }
+
+  /**
+   * The authorisation intent, or why the decision is not one.
+   *
+   * The narrowing comes from the orchestrator, which owns the step vocabulary,
+   * and it carries the preview out with it — so the hash is read from the step
+   * the orchestrator handed over rather than dug out of it here.
+   */
+  #authorisationIntent(
+    step: RunStep,
+    decision: StudentDecision,
+  ):
+    | { readonly ok: true; readonly intent: CaseIntent }
+    | { readonly ok: false; readonly reason: DecisionRefusalReason } {
+    if (!awaitsStudentAuthorisation(step)) return { ok: false, reason: "not_asked" };
+    if (step.preview.contentHash !== decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+    return { ok: true, intent: { kind: "capture_authorisation", contentHash: decision.contentHash } };
+  }
+
+  /**
+   * The handoff-completion intent, or why the decision is not one.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * WHAT was confirmed is not in the decision and cannot be. The token comes
+   * from the case's open handoff, and the hash is compared against the message
+   * the orchestrator would render NOW for the step the run is standing on.
+   * A client that could name the handoff could confirm a password reset the
+   * student never did (ADR-0050).
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The two checks are not redundant. The token says the case is waiting on
+   * something; the hash says the student was looking at THAT something when
+   * they pressed the button. A stale page passes the first and fails the
+   * second, which is exactly the case worth catching.
+   */
+  #handoffIntent(
+    step: RunStep,
+    held: ApplicationCase,
+    decision: StudentDecision,
+  ):
+    | { readonly ok: true; readonly intent: CaseIntent }
+    | { readonly ok: false; readonly reason: DecisionRefusalReason } {
+    const open = held.openHandoffToken;
+    const asked = handoffFor(step);
+    if (open === undefined || asked === null) return { ok: false, reason: "not_asked" };
+
+    const message = handoffMessageOf(step);
+    if (message === null || hashOfText(message) !== decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+    return { ok: true, intent: { kind: "complete_handoff", handoffToken: open } };
+  }
+
+  /**
+   * The hash of the message a student is being asked to confirm.
+   *
+   * Public because the client needs the same number to send back, and it must
+   * come from the SERVICE: a client that computed its own would be hashing
+   * whatever it decided to display.
+   */
+  public async handoffHashFor(runId: string, conversationId: string): Promise<string | null> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return null;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const record = await this.#options.stores.runs.load(makeRunId(runId));
+    if (entry === null || record === null || record.caseId !== bound.caseId) return null;
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok) return null;
+    const message = handoffMessageOf(situation.step);
+    return message === null ? null : hashOfText(message);
+  }
+
+  /**
+   * May this case finish? (ADR-0020 §4, ADR-0050.)
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `mayConcludeCase` has existed since the account model was written and
+   * NOTHING HAS EVER CALLED IT. It could not be: it takes the accounts on a
+   * case, and no account could reach `handed_over` because nothing moved an
+   * account's stage at all. This is the first caller, and it is the whole
+   * point of the phase — the rule that makes handover non-optional is only a
+   * rule once something asks it.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * It asks the ACCOUNT THE RUN DERIVES, not a stored one, so the answer comes
+   * from the same evidence every other decision about this run comes from: the
+   * intent ledger, the case log, the confirmed profile and the reviewed portal
+   * observations. There is no second record to disagree with.
+   *
+   * `may: false` with an empty `outstanding` means there is no account at all —
+   * a run that has not got that far, or a portal that needs none. Those are
+   * different from an account that is outstanding, and the caller can tell.
+   */
+  public async mayConclude(
+    runId: string,
+    conversationId: string,
+  ): Promise<{ readonly may: boolean; readonly outstanding: readonly string[] }> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return { may: false, outstanding: [] };
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const record = await this.#options.stores.runs.load(makeRunId(runId));
+    if (entry === null || record === null || record.caseId !== bound.caseId) {
+      return { may: false, outstanding: [] };
+    }
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok) return { may: false, outstanding: [] };
+    const account = situation.account;
+    // No account is not the same as an account that is fine. A portal that
+    // needs none is `not_required` and `mayConcludeCase` says so; a run that
+    // has not created one yet has nothing to ask about.
+    return account === undefined ? { may: false, outstanding: [] } : mayConcludeCase([account]);
   }
 
   /**
@@ -1443,6 +1662,61 @@ export class RunDriver {
     return resolved;
   }
 
+  /**
+   * Raises the handoff this step is waiting on, and tells the student once.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The system CANNOT do these things and will never be able to. It has no
+   * capability to read a mailbox — not a disabled one, none (ADR-0020 §5) — so
+   * a verification link, a reset email and "can you actually sign in?" all end
+   * the same way: the run asks and waits. This is the asking.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Two writes, in this order and for the same reason `#pause` orders its
+   * three: the case event is idempotent by token, so a crash between them
+   * leaves a raised handoff the next decide re-raises as a no-op and re-tells
+   * the student about. Telling somebody twice is a much smaller failure than a
+   * run that waits forever on something nobody asked for.
+   *
+   * The message is appended only when the raise CREATED the handoff — `decide`
+   * answers with no events when the token is already open, and that is what
+   * makes the poll silent.
+   */
+  async #raiseHandoff(input: {
+    readonly caseId: CaseId;
+    readonly conversationId: string;
+    readonly step: RunStep;
+    readonly now: Date;
+  }): Promise<void> {
+    const kind = handoffFor(input.step);
+    if (kind === null) return;
+
+    const events = await this.#options.stores.cases.read(input.caseId);
+    if (events.length === 0) return;
+    const held = fold(events);
+    const decision = decide(held, {
+      kind: "require_handoff",
+      handoffKind: kind,
+      handoffToken: handoffTokenFor({ caseId: input.caseId, kind }),
+      // The handoff does not expire in this phase. A student who has not
+      // followed a verification link in a week has not lost the right to; what
+      // an expiry would buy is a way to stop asking, and stopping asking is a
+      // product decision nobody has made. The field is required by the event,
+      // so it carries a date far enough out to be obviously not a deadline.
+      expiresAt: new Date(input.now.getTime() + NEVER_MIND_THE_CLOCK_MS),
+      });
+    if (!decision.accepted || decision.events.length === 0) return;
+
+    await this.#appendToCase(input.caseId, held.sequence, decision.events, input, input.now);
+
+    const message = handoffMessageOf(input.step);
+    if (message === null) return;
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: { kind: "message", actor: "assistant", content: message },
+    });
+  }
+
   /** Tells the student their run is moving again, when there is one to tell. */
   async #announceResumed(held: StoredIntervention): Promise<void> {
     const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
@@ -1571,10 +1845,25 @@ export class RunDriver {
     // answers with `null`. Asked of the plan the run actually has, so a plan
     // that grew a page — a corrected answer that made another field mappable —
     // un-fills the run rather than leaving it claiming to be done.
+    return (await this.#hasFilled(state, runId, entry)) ? markFilled(state) : state;
+  }
+
+  /**
+   * Whether every mapped page of this run is saved.
+   *
+   * Split out of `#markFilledIfDone` because TWO things need the answer and
+   * only one of them can read it off the state: the account's stage depends on
+   * whether the application is done (ADR-0050), and `withAuthorisation` clears
+   * `state.filled` — so by the time the flag exists, the account has already
+   * been derived without it.
+   */
+  async #hasFilled(state: RunState, runId: RunId, entry: CatalogueEntry): Promise<boolean> {
+    // Filled means EVERY page is saved, which is the same question `#nextPage`
+    // answers with `null`.
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
-    if (!usable.usable) return state;
+    if (!usable.usable) return false;
     const plan = planFill(entry.blueprint, usable.mappingSet, state.profile);
-    if ((await this.#nextPage(runId, entry, plan)) !== null) return state;
+    if ((await this.#nextPage(runId, entry, plan)) !== null) return false;
 
     // Nothing left to fill — but "nothing left" is also true of a run that
     // never had a fillable page. `markFilled` only means something once at
@@ -1584,10 +1873,9 @@ export class RunDriver {
         this.#verdictFor(runId, "advance_portal_page", page.pageRef),
       ),
     );
-    const any = saved.some(
+    return saved.some(
       (verdict) => verdict.kind === "already_done" && verdict.outcome === "succeeded",
     );
-    return any ? markFilled(state) : state;
   }
 
   async #decideOnce(input: {
@@ -1665,6 +1953,19 @@ export class RunDriver {
         now,
       });
     }
+
+    // ── The one thing only the student can do (ADR-0050) ─────────────────
+    //
+    // AFTER the case walk, so the handoff is raised on a case that has reached
+    // the state it belongs in, and after the secure step for the same reason
+    // the walk is. Raising is idempotent by token, so the ordinary case — a
+    // poll of a run already waiting on the student — writes nothing.
+    await this.#raiseHandoff({
+      caseId: input.caseId,
+      conversationId: input.conversationId,
+      step,
+      now,
+    });
 
     const revision = await checkpointAfter({
       stores: this.#options.stores,

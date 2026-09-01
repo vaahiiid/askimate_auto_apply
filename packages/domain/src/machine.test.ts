@@ -160,7 +160,7 @@ describe("fold — deriving a case from its log", () => {
       buildLog([
         OPENED,
         { type: "HandoffRequired", handoffKind: "mfa", handoffToken: "ho_abc", expiresAt: new Date("2026-08-26T12:00:00Z") },
-        { type: "HandoffCompleted", handoffToken: "ho_abc" },
+        { type: "HandoffCompleted", handoffToken: "ho_abc", handoffKind: "mfa" },
       ]),
     );
     expect(resumed.openHandoffToken).toBeUndefined();
@@ -615,5 +615,132 @@ describe("stamp — envelope construction", () => {
     const derived = fold(stamped);
     expect(derived.state).toBe("INTAKE");
     expect(derived.caseId).toBe(CASE);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Handoffs — the things only the student can do (ADR-0050)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("decide — handoffs", () => {
+  const LATER = new Date("2126-08-26T10:15:00Z");
+  const TOKEN = "ho_case_email_verification";
+
+  const raise = (kind: "email_verification" | "password_reset" | "account_handover", token = TOKEN) =>
+    ({ kind: "require_handoff", handoffKind: kind, handoffToken: token, expiresAt: LATER }) as const;
+
+  it("raises one, and records what it is waiting for", () => {
+    const opened = fold(buildLog([OPENED]));
+    const decision = decide(opened, raise("email_verification"));
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events).toHaveLength(1);
+    expect(decision.events[0]).toMatchObject({
+      type: "HandoffRequired",
+      handoffKind: "email_verification",
+      handoffToken: TOKEN,
+    });
+  });
+
+  it("is IDEMPOTENT by token — a second raise writes nothing", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The run raises a handoff every time it decides, because deciding is what
+    // it does on every poll. "Already open" is therefore the ORDINARY case,
+    // and an event per poll would make the log a record of how often somebody
+    // refreshed rather than of what was asked.
+    // ═══════════════════════════════════════════════════════════════════
+    const waiting = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "email_verification", handoffToken: TOKEN, expiresAt: LATER },
+      ]),
+    );
+    const decision = decide(waiting, raise("email_verification"));
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events, "accepted, and nothing to say").toEqual([]);
+  });
+
+  it("REFUSES a second, different handoff while one is open", () => {
+    // Two things only the student can do, one of which the system has forgotten
+    // it asked for, is how somebody ends up waiting on something nobody is
+    // going to tell them about.
+    const waiting = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "email_verification", handoffToken: TOKEN, expiresAt: LATER },
+      ]),
+    );
+    const decision = decide(waiting, raise("account_handover", "ho_case_account_handover"));
+    if (decision.accepted) expect.unreachable("one at a time");
+    expect(decision.refusal.kind).toBe("invalid_intent");
+  });
+
+  it("completes the OPEN one, and names the kind from the case", () => {
+    // The kind is not on the intent. What was confirmed is a fact the case
+    // holds, and a caller that could name it could confirm something else.
+    const waiting = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "password_reset", handoffToken: TOKEN, expiresAt: LATER },
+      ]),
+    );
+    const decision = decide(waiting, { kind: "complete_handoff", handoffToken: TOKEN });
+    if (!decision.accepted) expect.unreachable(`refused: ${decision.refusal.kind}`);
+    expect(decision.events[0]).toEqual({
+      type: "HandoffCompleted",
+      handoffToken: TOKEN,
+      handoffKind: "password_reset",
+    });
+  });
+
+  it("REFUSES a completion for a handoff the case is not waiting on", () => {
+    // The realistic cause is a stale client: the student is looking at a page
+    // for a step the run has moved past. Accepting it would close the handoff
+    // that IS open with evidence about a different one.
+    const waiting = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "email_verification", handoffToken: TOKEN, expiresAt: LATER },
+      ]),
+    );
+    const decision = decide(waiting, { kind: "complete_handoff", handoffToken: "ho_something_else" });
+    if (decision.accepted) expect.unreachable("not this one");
+    expect(decision.refusal.kind).toBe("invalid_intent");
+  });
+
+  it("REFUSES a completion when nothing is open", () => {
+    const decision = decide(fold(buildLog([OPENED])), {
+      kind: "complete_handoff",
+      handoffToken: TOKEN,
+    });
+    expect(decision.accepted).toBe(false);
+  });
+
+  it("remembers what was completed after the handoff has closed", () => {
+    // The account stage is derived from this: "has the student verified their
+    // email?" is a question about the whole log, and an account that stopped
+    // being `awaiting_email_verification` must not go back to it the moment
+    // the handoff closes.
+    const done = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "email_verification", handoffToken: TOKEN, expiresAt: LATER },
+        { type: "HandoffCompleted", handoffToken: TOKEN, handoffKind: "email_verification" },
+      ]),
+    );
+    expect(done.openHandoffToken, "closed").toBeUndefined();
+    expect(done.raisedHandoffs).toEqual(["email_verification"]);
+    expect(done.completedHandoffs, "and remembered").toEqual(["email_verification"]);
+  });
+
+  it("allows the NEXT handoff once the first is closed", () => {
+    const done = fold(
+      buildLog([
+        OPENED,
+        { type: "HandoffRequired", handoffKind: "password_reset", handoffToken: TOKEN, expiresAt: LATER },
+        { type: "HandoffCompleted", handoffToken: TOKEN, handoffKind: "password_reset" },
+      ]),
+    );
+    const decision = decide(done, raise("account_handover", "ho_case_account_handover"));
+    expect(decision.accepted).toBe(true);
   });
 });

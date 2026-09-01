@@ -27,7 +27,7 @@ import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@aski
 import type { ConfirmedProfile } from "@askimate/aas-profile";
 
 import { accountCreated, beginRun } from "./run.js";
-import type { RunState } from "./run.js";
+import type { HandoverEvidence, RunState } from "./run.js";
 
 const NOW = new Date("2026-08-31T10:00:00Z");
 const STUDENT = studentId("student-1");
@@ -160,5 +160,112 @@ describe("the account a creation produced", () => {
     const after = accountCreated(before, { accountId: "acct-1", now: NOW });
     expect(before.account).toBeUndefined();
     expect(after).not.toBe(before);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P12 — the stage, derived from what has happened (ADR-0050)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("where the account stands", () => {
+  const evidence = (over: Partial<HandoverEvidence> = {}): HandoverEvidence => ({
+    raised: [],
+    completed: [],
+    askimateRetainsNoAccess: false,
+    applicationFilled: false,
+    ...over,
+  });
+
+  const stageWith = (
+    handover: HandoverEvidence,
+    observed: ObservedPortalAuthentication = OBSERVED,
+  ): string | undefined =>
+    accountCreated(stateWith({ profile: withEmail(EMAIL), observed }), {
+      accountId: "acct-1",
+      now: NOW,
+      handover,
+    })?.account?.stage;
+
+  const VERIFYING: ObservedPortalAuthentication = {
+    ...OBSERVED,
+    emailVerificationRequired: true,
+  };
+
+  it("stays with the verification until the student says they did it", () => {
+    expect(stageWith(evidence(), VERIFYING)).toBe("awaiting_email_verification");
+    expect(stageWith(evidence({ completed: ["email_verification"] }), VERIFYING)).toBe("active");
+  });
+
+  it("becomes handover_due when the application is done, not before", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `handover_due` — "we meant to give it back" — is the stage
+    // `mayConcludeCase` refuses BY NAME, and it exists because the moment a
+    // case is finished is the moment it is tempting to stop. Reaching it
+    // early would be worse: handing the account back before the form is
+    // filled means asking the student to change the password we are about to
+    // sign in with.
+    // ═══════════════════════════════════════════════════════════════════
+    expect(stageWith(evidence({ applicationFilled: false }))).toBe("active");
+    expect(stageWith(evidence({ applicationFilled: true }))).toBe("handover_due");
+  });
+
+  it("reaches handed_over only when every applicable item is a FACT", () => {
+    // This portal does not verify email, so the proof of receipt is the
+    // portal's own password reset (ADR-0050). Three of the four items are
+    // student-side and each is a completed handoff.
+    const nearly = evidence({
+      applicationFilled: true,
+      raised: ["account_handover"],
+      completed: ["password_reset"],
+      askimateRetainsNoAccess: true,
+    });
+    expect(stageWith(nearly), "they have not said they are in").toBe("handover_due");
+
+    expect(
+      stageWith({ ...nearly, completed: ["password_reset", "account_handover"] }),
+    ).toBe("handed_over");
+  });
+
+  it("will NOT hand over while a lease is still open", () => {
+    // A runner holding this run is a browser somewhere that can still reach
+    // the portal. That is operational access whether or not a credential was
+    // involved, and it is on every checklist (ADR-0020 §3).
+    const held = evidence({
+      applicationFilled: true,
+      raised: ["account_handover"],
+      completed: ["password_reset", "account_handover"],
+      askimateRetainsNoAccess: false,
+    });
+    expect(stageWith(held)).toBe("handover_due");
+  });
+
+  it("will NOT hand over on a verifying portal until the address is verified", () => {
+    // The other half of the substitution: where the portal DOES verify, the
+    // reset is not a stand-in for anything.
+    const done = evidence({
+      applicationFilled: true,
+      raised: ["account_handover"],
+      completed: ["password_reset", "account_handover"],
+      askimateRetainsNoAccess: true,
+    });
+    expect(stageWith(done, VERIFYING), "unverified, and not asked yet either").toBe(
+      "awaiting_email_verification",
+    );
+    expect(
+      stageWith({ ...done, completed: [...done.completed, "email_verification"] }, VERIFYING),
+    ).toBe("handed_over");
+  });
+
+  it("answers the same for the same evidence, however often it is asked", () => {
+    // The stage is a DERIVATION and nothing stores it. A function that
+    // answered differently on a second call would be the stored stage this
+    // deliberately is not.
+    const facts = evidence({
+      applicationFilled: true,
+      raised: ["account_handover"],
+      completed: ["password_reset", "account_handover"],
+      askimateRetainsNoAccess: true,
+    });
+    expect(stageWith(facts)).toBe(stageWith(facts));
   });
 });

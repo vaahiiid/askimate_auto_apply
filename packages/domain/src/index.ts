@@ -121,6 +121,7 @@ export type {
   EventActor,
   EventEnvelope,
   HandoffCompleted,
+  HandoffKind,
   HandoffRequired,
   HumanReviewCompleted,
   HumanReviewRequested,
@@ -133,7 +134,7 @@ export type {
   TaskCompleted,
   TaskRaised,
 } from "./events.js";
-export { isEventOfType } from "./events.js";
+export { HANDOFF_KINDS, isEventOfType } from "./events.js";
 
 export type { InformationSource, Task, TaskKind, TaskOwner, TaskStatus } from "./tasks.js";
 export {

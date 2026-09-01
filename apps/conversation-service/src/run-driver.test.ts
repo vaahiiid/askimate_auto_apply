@@ -143,6 +143,36 @@ const GATED_ENTRY: CatalogueEntry = {
 
 const GATED_BLUEPRINT = "bp-gated-portal";
 
+/**
+ * The same portal, on a deployment where discovery observed that it VERIFIES
+ * the email address.
+ *
+ * A separate entry rather than a mutated one: `emailVerificationRequired` is a
+ * reviewed per-portal observation, and a test that flipped it under a running
+ * fixture would be changing a fact about the world halfway through a case.
+ * Every other group's runs keep the non-verifying portal they were written
+ * against.
+ */
+const VERIFYING_ENTRY: CatalogueEntry = {
+  ...GATED_ENTRY,
+  portalAuthentication: {
+    ...GATED_ENTRY.portalAuthentication,
+    portalHost: "gated.portal.test",
+    discoveryRunId: "run-gated-verifying-1",
+    observedAt: new Date("2026-08-30T09:00:00Z"),
+    applicantChoosesPassword: true,
+    portalIssuesCredential: false,
+    passwordlessAvailable: false,
+    emailVerificationRequired: true,
+    mfaOrOtpRequired: false,
+    captchaPresent: false,
+    passwordResetAvailable: true,
+    credentialsCanBeHandedBack: true,
+  },
+};
+
+const VERIFYING_BLUEPRINT = "bp-gated-verifying";
+
 /** The fields on the gated portal's registration page. */
 const REGISTER_FIELDS = new Set([
   "account_email",
@@ -152,7 +182,15 @@ const REGISTER_FIELDS = new Set([
 
 const CATALOGUE: ApplicationCatalogue = {
   find: (id) =>
-    Promise.resolve(id === BLUEPRINT ? ENTRY : id === GATED_BLUEPRINT ? GATED_ENTRY : null),
+    Promise.resolve(
+      id === BLUEPRINT
+        ? ENTRY
+        : id === GATED_BLUEPRINT
+          ? GATED_ENTRY
+          : id === VERIFYING_BLUEPRINT
+            ? VERIFYING_ENTRY
+            : null,
+    ),
 };
 
 let pool: pg.Pool;
@@ -2164,8 +2202,15 @@ describeIfDatabase("which page a multi-page run does next", () => {
     try {
       const advanced = await instance.driver.advance({ runId, conversationId: conversation });
       if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
-      expect(advanced.position.step, "filled, and waiting on the one thing out of scope").toBe(
-        "ready_to_submit",
+      // ── Not `ready_to_submit`, and that is P12 (ADR-0050) ──────────────
+      //
+      // The application is done and the account is still OURS. Handing it back
+      // is not a courtesy after the work; it is part of the work, and a run
+      // that reported itself ready to submit while still holding the student's
+      // credentials would have skipped it. `mayConcludeCase` refuses a
+      // `handover_due` account by name for the same reason.
+      expect(advanced.position.step, "filled, and the account is still ours").toBe(
+        "hand_over_account",
       );
     } finally {
       await instance.pool.end();
@@ -3504,3 +3549,191 @@ describeIfDatabase("the mandatory-review guard, now that something drives it", (
   }, 300_000);
 });
 
+
+// ───────────────────────────────────────────────────────────────────────────
+// N. P12 — the things only the student can do (ADR-0050)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a handoff the system cannot do for them", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000B0";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+
+  async function caseEvents(): Promise<{ type: string; kind: string | null }[]> {
+    const rows = await pool.query<{ type: string; kind: string | null }>(
+      `SELECT event->>'type' AS type, event->>'handoffKind' AS kind
+         FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [caseRef],
+    );
+    return rows.rows;
+  }
+
+  async function messages(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  /** A run on the VERIFYING portal, with its account created. */
+  async function aRunAwaitingVerification(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: VERIFYING_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"d".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("stops for the verification, raises ONE handoff, and tells the student ONCE", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // This system has no capability to read a mailbox — not a disabled one,
+    // none (ADR-0020 §5). So the run asks and waits, and the ONE thing that
+    // must not happen is asking again on every poll.
+    // ═══════════════════════════════════════════════════════════════════
+    await aRunAwaitingVerification();
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const first = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!first.ok) expect.unreachable(`advance refused: ${first.refusal.kind}`);
+      expect(first.position.step, "waiting on the student").toBe("student_handoff");
+
+      // Polled four more times, as a real deployment does.
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await instance.driver.advance({ runId, conversationId: conversation });
+      }
+    } finally {
+      await instance.pool.end();
+    }
+
+    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
+    expect(raised, "raised once, however often it is polled").toHaveLength(1);
+    expect(raised[0]?.kind).toBe("email_verification");
+
+    const asked = (await messages()).filter((content) => content.includes("follow the link"));
+    expect(asked, "and told once").toHaveLength(1);
+  }, 300_000);
+
+  it("REFUSES a confirmation whose hash is not the message they were shown", async () => {
+    // The token says the case is waiting on something; the hash says the
+    // student was looking at THAT something. A stale page passes the first and
+    // fails the second, which is the case worth catching.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const refused = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "confirm_handoff", contentHash: "sha256:a-page-from-yesterday" },
+      });
+      expect(refused).toEqual({ ok: false, reason: "content_changed" });
+    } finally {
+      await instance.pool.end();
+    }
+
+    const completed = (await caseEvents()).filter((event) => event.type === "HandoffCompleted");
+    expect(completed, "and nothing was recorded").toHaveLength(0);
+  }, 300_000);
+
+  it("moves the run on once the student says they followed the link", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const hash = await instance.driver.handoffHashFor(runId, conversation);
+      expect(hash, "the service renders the message and the hash").not.toBeNull();
+
+      const done = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "confirm_handoff", contentHash: hash ?? "" },
+      });
+      expect(done).toEqual({ ok: true });
+
+      const after = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      expect(after.position.step, "verified; the account is usable now").not.toBe(
+        "student_handoff",
+      );
+    } finally {
+      await instance.pool.end();
+    }
+
+    const completed = (await caseEvents()).filter((event) => event.type === "HandoffCompleted");
+    expect(completed).toHaveLength(1);
+    expect(completed[0]?.kind, "the kind came from the case, not the client").toBe(
+      "email_verification",
+    );
+  }, 300_000);
+
+  it("does NOT ask again after a restart — the stage is derived, not remembered", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `AccountStage` is not stored anywhere, by design (ADR-0050): a stored
+    // stage is a second answer to "where is this account". A fresh process
+    // holding nothing must reach the same answer from the case log alone, and
+    // a student who verified their address last week must not be asked again
+    // because a container restarted.
+    // ═══════════════════════════════════════════════════════════════════
+    const restarted = buildInstance(connectionString(), opener());
+    try {
+      const after = await restarted.driver.advance({ runId, conversationId: conversation });
+      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      expect(after.position.step).not.toBe("student_handoff");
+    } finally {
+      await restarted.pool.end();
+    }
+
+    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
+    expect(raised, "and no second ask").toHaveLength(1);
+  }, 300_000);
+
+  it("REFUSES to conclude the case while the account is still ours", async () => {
+    // `mayConcludeCase` had no caller until P12 and could not have had one: no
+    // account could reach `handed_over`, because nothing moved a stage at all.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const verdict = await instance.driver.mayConclude(runId, conversation);
+      expect(verdict.may, "the application is not even filled").toBe(false);
+      expect(verdict.outstanding.join(" ")).toContain("has not been handed back");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});

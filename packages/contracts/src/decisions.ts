@@ -17,17 +17,35 @@
  * decide a fact about a real application. Inventing a value into one and
  * deciding that a student approved one are the same class of act.
  *
- * ── Why it is a closed set with one member ───────────────────────────────
+ * ── Why it is a closed set ───────────────────────────────────────────────
  *
- * `student_handoff` and `hand_over_account` need exactly this mechanism pointed
- * at the account lifecycle, and they are the next phase. A closed set means
- * that is adding a member rather than building the mechanism twice, which is
- * what ADR-0041 exists to prevent.
+ * It shipped with one member and the note that `student_handoff` and
+ * `hand_over_account` "need exactly this mechanism pointed at the account
+ * lifecycle, and they are the next phase". They did, and it cost one member
+ * rather than a second mechanism — which is what ADR-0041 exists to prevent.
+ *
+ * ── Why `confirm_handoff` does not name WHAT was confirmed ────────────────
+ *
+ * The obvious shape is a member per thing: `confirm_email_verified`,
+ * `confirm_password_reset`, `confirm_account_access`. Every one of those puts
+ * the SUBJECT of the confirmation in the client's hands, and the subject is
+ * exactly what must not come from there: a client that could name the handoff
+ * could confirm a password reset the student never did.
+ *
+ * A case has at most one open handoff — `decide` refuses a second — so what
+ * was confirmed is already a fact the SERVER holds. The student's message is
+ * "I have done the thing you asked", the case says what was asked, and the
+ * hash binds the text they were shown while asking. That is the same rule
+ * `parseSecureAppend` and `parseResolutionSubmission` follow, applied to the
+ * one field somebody would otherwise have been tempted to send.
+ *
+ * It also means `mfa`, `otp`, `captcha` and `payment` need no new member when
+ * their turn comes. They are already reachable.
  */
 
 import { closedSetParser } from "./vocabulary.js";
 
-export const STUDENT_DECISIONS = ["authorise"] as const;
+export const STUDENT_DECISIONS = ["authorise", "confirm_handoff"] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
 export const parseStudentDecisionKind = closedSetParser(STUDENT_DECISIONS);
@@ -45,6 +63,12 @@ export interface StudentDecision {
    *
    * The service compares it against the preview it would render NOW, and
    * refuses on a mismatch rather than recording an approval of something else.
+   *
+   * A `confirm_handoff` carries the hash of the message the student was shown
+   * when they were asked, for the same reason and with the same comparison. A
+   * handover message names the account, the portal and what is still
+   * outstanding; confirming one they cannot see any more is confirming
+   * something else.
    */
   readonly contentHash: string;
 }

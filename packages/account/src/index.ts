@@ -46,6 +46,7 @@ export {
   checkHandoverComplete,
   mayConcludeCase,
   outstandingHandoverItems,
+  studentHandoverItems,
   prepareAccountCreation,
   renderAccountCreationRequest,
   renderHandover,

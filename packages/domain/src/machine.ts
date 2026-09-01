@@ -17,7 +17,13 @@
 
 import type { HumanReviewRecord, ReviewTrigger } from "./escalation.js";
 import { isMandatory } from "./escalation.js";
-import type { CaseEvent, CaseEventPayload, EventActor, RequestEvidence } from "./events.js";
+import type {
+  CaseEvent,
+  CaseEventPayload,
+  EventActor,
+  HandoffKind,
+  RequestEvidence,
+} from "./events.js";
 import type { CaseId, ExternalRef } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
 import type { ReapplicationInstruction } from "./reapplication.js";
@@ -53,6 +59,31 @@ export interface ApplicationCase {
   /** True once a submission has been attempted with the current identity. */
   readonly submissionAttempted: boolean;
   readonly openHandoffToken?: string;
+  /**
+   * What the open handoff is waiting for.
+   *
+   * Beside the token rather than derivable from it, because a token is opaque
+   * on purpose — it identifies a resumable session and says nothing about what
+   * the student has to do.
+   */
+  readonly openHandoffKind?: HandoffKind;
+  /**
+   * Every handoff that has been RAISED, in order.
+   *
+   * "Has the student been told this account exists?" is answered by the raise
+   * rather than by the completion: raising a handover handoff is what puts the
+   * message in front of them (ADR-0050).
+   */
+  readonly raisedHandoffs: readonly HandoffKind[];
+  /**
+   * Every handoff the student has COMPLETED, in order.
+   *
+   * The account stage is derived from this (ADR-0050): "has the student
+   * verified their email?" is a question about the whole log, not about what
+   * is open now, and an account that stopped being `awaiting_email_verification`
+   * must not go back to it the moment the handoff closes.
+   */
+  readonly completedHandoffs: readonly HandoffKind[];
   /**
    * The unresolved recovery escalation, if the case is paused on one.
    *
@@ -91,6 +122,9 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let authorisedContentHash: string | undefined;
   let preparedContentHash: string | undefined;
   let openHandoffToken: string | undefined;
+  let openHandoffKind: HandoffKind | undefined;
+  const raisedHandoffs: HandoffKind[] = [];
+  const completedHandoffs: HandoffKind[] = [];
   let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
 
@@ -165,10 +199,20 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
 
       case "HandoffRequired":
         openHandoffToken = event.handoffToken;
+        openHandoffKind = event.handoffKind;
+        raisedHandoffs.push(event.handoffKind);
         break;
 
       case "HandoffCompleted":
-        if (openHandoffToken === event.handoffToken) openHandoffToken = undefined;
+        // Recorded whether or not it matches the open token. The completion is
+        // a fact about the student either way, and dropping it because the
+        // bookkeeping disagrees would lose the evidence rather than the
+        // inconsistency.
+        completedHandoffs.push(event.handoffKind);
+        if (openHandoffToken === event.handoffToken) {
+          openHandoffToken = undefined;
+          openHandoffKind = undefined;
+        }
         break;
 
       case "RecoveryEscalationRaised":
@@ -234,6 +278,8 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     sequence: last.sequence,
     tasks: [...tasks.values()],
     activeTriggers: [...activeTriggers],
+    raisedHandoffs,
+    completedHandoffs,
     completedReviews,
     submissionAttempted,
     createdAt: first.occurredAt,
@@ -247,6 +293,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     ...(authorisedContentHash !== undefined ? { authorisedContentHash } : {}),
     ...(preparedContentHash !== undefined ? { preparedContentHash } : {}),
     ...(openHandoffToken !== undefined ? { openHandoffToken } : {}),
+    ...(openHandoffKind !== undefined ? { openHandoffKind } : {}),
     ...(openEscalation !== undefined ? { openEscalation } : {}),
   };
 }
@@ -262,6 +309,14 @@ export type CaseIntent =
   | { readonly kind: "complete_task"; readonly taskId: string; readonly outcome: "done" | "cancelled" | "superseded" }
   | { readonly kind: "request_human_review"; readonly triggers: readonly ReviewTrigger[] }
   | { readonly kind: "complete_human_review"; readonly review: HumanReviewRecord }
+  | {
+      readonly kind: "require_handoff";
+      readonly handoffKind: HandoffKind;
+      /** Stable for a given (run, kind), so raising twice is one handoff. */
+      readonly handoffToken: string;
+      readonly expiresAt: Date;
+    }
+  | { readonly kind: "complete_handoff"; readonly handoffToken: string }
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
@@ -405,6 +460,79 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
 
     case "complete_human_review":
       return { accepted: true, events: [{ type: "HumanReviewCompleted", review: intent.review }] };
+
+    case "require_handoff": {
+      // Idempotent by token. The run raises a handoff every time it decides,
+      // because deciding is what it does on every poll — so "already open" is
+      // the ordinary case and must not append a second event. An event per
+      // poll would also make `openHandoffToken` answer about the latest raise
+      // rather than about the open handoff.
+      if (applicationCase.openHandoffToken === intent.handoffToken) {
+        return { accepted: true, events: [] };
+      }
+      // A DIFFERENT handoff already open is a refusal rather than a silent
+      // replacement. Two things only the student can do, one of which the
+      // system has forgotten it asked for, is how a student ends up waiting on
+      // something nobody is going to tell them about.
+      if (applicationCase.openHandoffToken !== undefined) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail:
+              `Handoff ${applicationCase.openHandoffToken} is already open on this case; ` +
+              `${intent.handoffToken} cannot replace it. Complete the open one first.`,
+          },
+        };
+      }
+      return {
+        accepted: true,
+        events: [
+          {
+            type: "HandoffRequired",
+            handoffKind: intent.handoffKind,
+            handoffToken: intent.handoffToken,
+            expiresAt: intent.expiresAt,
+          },
+        ],
+      };
+    }
+
+    case "complete_handoff": {
+      const open = applicationCase.openHandoffToken;
+      if (open === undefined) {
+        return {
+          accepted: false,
+          refusal: { kind: "invalid_intent", detail: "There is no open handoff to complete." },
+        };
+      }
+      if (open !== intent.handoffToken) {
+        // Completing a handoff the case is not waiting on. The realistic cause
+        // is a stale client: the student is looking at a page for a step the
+        // run has moved past, and accepting it would close the handoff that IS
+        // open with evidence about a different one.
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail: `This case is waiting on handoff ${open}, not ${intent.handoffToken}.`,
+          },
+        };
+      }
+      const kind = applicationCase.openHandoffKind;
+      /* c8 ignore next 6 -- unreachable: `fold` sets the token and the kind from
+         the same event, so an open token without a kind cannot exist. */
+      if (kind === undefined) {
+        return {
+          accepted: false,
+          refusal: { kind: "invalid_intent", detail: `No record of handoff ${open} on this case.` },
+        };
+      }
+      return {
+        accepted: true,
+        events: [{ type: "HandoffCompleted", handoffToken: open, handoffKind: kind }],
+      };
+    }
 
     case "capture_authorisation":
       if (applicationCase.state !== "AWAITING_STUDENT_AUTHORISATION") {

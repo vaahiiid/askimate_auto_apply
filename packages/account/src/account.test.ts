@@ -577,13 +577,29 @@ const NOTHING_DONE: HandoverChecklist = {
   studentConfirmedAccess: false,
 };
 
+/**
+ * A plan with a chosen approach, on a portal that DOES verify email.
+ *
+ * Built through `chooseApproach` where the observations reach it, and stamped
+ * otherwise: three of the four approaches are unreachable from the two portal
+ * fixtures above, and the point of these tests is the checklist rather than
+ * the ranking (which `chooseApproach`'s own tests cover).
+ */
+function planWith(
+  approach: AuthenticationPlan["approach"],
+  observed: ObservedPortalAuthentication = PASSWORD_PORTAL,
+): AuthenticationPlan {
+  return { ...planFor(observed), approach, basedOn: observed };
+}
+
 function handover(
   checklist: HandoverChecklist,
   approach: AuthenticationPlan["approach"] = "generated_ephemeral",
+  observed: ObservedPortalAuthentication = PASSWORD_PORTAL,
 ) {
   return checkHandoverComplete({
     checklist,
-    approach,
+    plan: planWith(approach, observed),
     completedAt: LATER,
     presentedText: renderHandover({
       institutionName: "Ulster University",
@@ -647,6 +663,75 @@ describe("handover", () => {
       "AskiMate retains no operational access — no live session, no stored token, no second factor",
       "the student has confirmed they can sign in",
     ]);
+  });
+
+  it("substitutes the reset flow where the portal does not verify the address", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0050. `emailVerifiedByPortal` is the only external proof the student
+    // can RECEIVE at the account's address. A portal that never verifies has
+    // no such proof to give, and under the first version of `applicableItems`
+    // no account on one could ever be handed over — a deadlock, not a safety
+    // property.
+    //
+    // The substitution keeps the property and changes the mechanism: the
+    // portal's own password reset also reaches their inbox. One proof either
+    // way, and it is the portal's email that provides it.
+    // ═══════════════════════════════════════════════════════════════════
+    const nonVerifying: ObservedPortalAuthentication = {
+      ...PASSWORD_PORTAL,
+      emailVerificationRequired: false,
+    };
+
+    // Verification cannot be the proof here, and saying it happened does not
+    // help: the item is not on the list at all.
+    const claimed = handover(
+      { ...NOTHING_DONE, emailVerifiedByPortal: true, studentInformed: true,
+        askimateRetainsNoAccess: true, studentConfirmedAccess: true },
+      "student_chosen",
+      nonVerifying,
+    );
+    if (claimed.complete) expect.unreachable("the reset has not happened");
+    expect(claimed.refusal.outstanding).toEqual([
+      "the student has set their own password via the portal's reset flow",
+    ]);
+
+    // And with the reset done it completes, with no verification anywhere.
+    const done = handover(
+      { ...NOTHING_DONE, passwordResetCompleted: true, studentInformed: true,
+        askimateRetainsNoAccess: true, studentConfirmedAccess: true },
+      "student_chosen",
+      nonVerifying,
+    );
+    expect(done.complete, "the reset stands in for the verification").toBe(true);
+  });
+
+  it("does NOT drop the verification where the portal DOES verify", () => {
+    // The other half. A substitution that fired everywhere would be the
+    // exemption this deliberately is not.
+    const check = handover(
+      { ...NOTHING_DONE, passwordResetCompleted: true, studentInformed: true,
+        askimateRetainsNoAccess: true, studentConfirmedAccess: true },
+      "student_chosen",
+      PASSWORD_PORTAL,
+    );
+    if (check.complete) expect.unreachable("the address is unverified");
+    expect(check.refusal.outstanding).toEqual([
+      "the portal has verified the student's own email address",
+    ]);
+  });
+
+  it("asks for the reset ONCE where it is both substituted and held", () => {
+    // `generated_ephemeral` on a non-verifying portal reaches
+    // `passwordResetCompleted` twice — by substitution and because we held a
+    // credential. A duplicated item would report the same outstanding line
+    // twice to a student.
+    const check = handover(NOTHING_DONE, "generated_ephemeral", {
+      ...PASSWORD_PORTAL,
+      emailVerificationRequired: false,
+    });
+    if (check.complete) expect.unreachable("nothing is done");
+    const resets = check.refusal.outstanding.filter((line) => line.includes("reset flow"));
+    expect(resets).toHaveLength(1);
   });
 
   it("still requires the student to confirm access under every approach", () => {

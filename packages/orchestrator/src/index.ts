@@ -5,7 +5,7 @@
  * nothing, decides nothing on the student's behalf, and cannot submit.
  */
 
-export type { RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
+export type { HandoverEvidence, RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
 export {
   IllegalSecretTransitionError,
   accountCreated,
@@ -13,6 +13,10 @@ export {
   assess,
   awaitsStudentAuthorisation,
   beginRun,
+  handoffFor,
+  handoffMessageOf,
+  handoffTokenFor,
+  handoverChecklistFrom,
   browserWorkFor,
   executePlanOf,
   markFilled,

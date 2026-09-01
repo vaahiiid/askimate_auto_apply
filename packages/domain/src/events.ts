@@ -134,18 +134,53 @@ export interface HumanReviewCompleted {
   readonly review: HumanReviewRecord;
 }
 
+/**
+ * The closed set of things only the student can do.
+ *
+ * Two members were added when the account lifecycle was first driven for real
+ * (ADR-0050), and the omissions are worth naming because both were reachable
+ * in the run vocabulary and unrepresentable here:
+ *
+ *   `email_verification`  the portal emailed them to confirm the address. Not
+ *                         `identity_verification` — proving you receive mail at
+ *                         an address is not proving who you are, and recording
+ *                         one as the other would put a claim about identity in
+ *                         the audit log that nobody made.
+ *   `password_reset`      they set their own password through the PORTAL's own
+ *                         reset flow. Required where we held a credential, and
+ *                         also where the portal never verified the address —
+ *                         there it is the only proof they receive mail at it
+ *                         (ADR-0050).
+ *   `account_handover`    they confirmed they can sign in, which is the one
+ *                         handover item that cannot be observed from outside
+ *                         (ADR-0020 §3).
+ */
+export const HANDOFF_KINDS = [
+  "email_verification",
+  "identity_verification",
+  "mfa",
+  "otp",
+  "captcha",
+  "payment",
+  "legal_declaration",
+  "password_reset",
+  "account_handover",
+  "final_submission",
+] as const;
+
+export type HandoffKind = (typeof HANDOFF_KINDS)[number];
+
 /** Execution paused for something only the student can do. */
 export interface HandoffRequired {
   readonly type: "HandoffRequired";
-  readonly handoffKind:
-    | "identity_verification"
-    | "mfa"
-    | "otp"
-    | "captcha"
-    | "payment"
-    | "legal_declaration"
-    | "final_submission";
-  /** Opaque token identifying the resumable session. Never a credential. */
+  readonly handoffKind: HandoffKind;
+  /**
+   * Opaque token identifying the resumable session. Never a credential.
+   *
+   * Derived from the run and the kind rather than minted, so raising the same
+   * handoff twice is the same token — which is what makes a second raise a
+   * no-op instead of a second open handoff nobody closes.
+   */
   readonly handoffToken: string;
   readonly expiresAt: Date;
 }
@@ -153,6 +188,16 @@ export interface HandoffRequired {
 export interface HandoffCompleted {
   readonly type: "HandoffCompleted";
   readonly handoffToken: string;
+  /**
+   * The kind that was completed.
+   *
+   * On the event as well as on the raise, so a fold can answer "has the student
+   * verified their email?" from the completion alone. Without it the question
+   * needs the matching `HandoffRequired`, and a reader that has one event and
+   * not the other gets no answer — which is exactly the position the account
+   * stage derivation is in (ADR-0050).
+   */
+  readonly handoffKind: HandoffKind;
 }
 
 /**

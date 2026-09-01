@@ -19,6 +19,68 @@ not shipped artefacts.
 
 ---
 
+## [0.30.0] — 2026-09-01
+
+**P12 — the account lifecycle completes through the student's own decision, and
+a case can finally conclude. ADR-0050.**
+
+**Version bump: MINOR.** No migration, no new store, no new route. One member on
+a closed set, two intents on the case machine, and a derivation.
+
+### The change that matters
+
+Three things had been unreachable since the account model was written, and they
+were one gap:
+
+- **`AccountStage` never moved.** `handover_due` and `handed_over` were words in
+  a union that nothing wrote.
+- **`HandoffRequired` / `HandoffCompleted` were folded and never produced.**
+- **`mayConcludeCase` had no caller**, and could not have had one: it refuses
+  any account that is not `handed_over`, and none could be.
+
+An account that cannot change stage cannot be handed back, and a case that
+cannot hand an account back cannot finish — the rule that makes handover
+non-optional, enforcing itself into a deadlock.
+
+**`ready_to_submit` now follows the handover rather than preceding it.** A run
+that reported itself ready while still holding the student's credentials had
+skipped part of the work.
+
+### Added
+
+- `require_handoff` and `complete_handoff` on the case machine, idempotent by a
+  token derived from the case and the kind. A second, different handoff while
+  one is open is refused rather than silently replacing it.
+- `confirm_handoff` on `STUDENT_DECISIONS` — one member, not three. What was
+  confirmed comes from the case's open handoff, never from the client.
+- `email_verification`, `password_reset` and `account_handover` on
+  `HANDOFF_KINDS`; `raisedHandoffs` and `completedHandoffs` on the folded case.
+- `RunDriver.mayConclude`, the first caller `mayConcludeCase` has ever had. The
+  P7 journey ends by asserting it answers `true`.
+- `studentHandoverItems` — what the student is shown, as distinct from the gate.
+
+### Changed
+
+- `applicableItems` takes the portal observation as well as the approach: where
+  discovery observed that a portal does not verify email addresses,
+  `emailVerifiedByPortal` is **replaced** by `passwordResetCompleted` rather
+  than dropped. The portal's own email still provides exactly one proof of
+  receipt. Decided by Vahid, 2026-09-01 (ADR-0050 §4).
+- `checkHandoverComplete` takes the whole `AuthenticationPlan` rather than an
+  approach — the same reason `mintCredentialUnder` does.
+- The P7 journey now walks the handover and ends with a concludable case.
+
+### Known limitations
+
+- `generated_ephemeral` accounts cannot yet reach `handed_over`: nothing in this
+  service holds that credential, so nothing here can say it is destroyed.
+- A handoff does not expire; `expiresAt` is required by the event and unread.
+- `AWAITING_HANDOFF` stays unreached, deliberately (ADR-0050 §7).
+- No terminal case state is reachable, deliberately. A finished case rests at
+  `AUTHORISED` with its account handed back.
+
+---
+
 ## [0.29.0] — 2026-09-01
 
 **P11 — the run driver drives the case machine, and a student's authorisation is

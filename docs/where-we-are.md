@@ -170,6 +170,7 @@ never from the beginning.
 | P9 | Durable multi-page execution; page progress lives in the intent ledger (ADR-0047) |
 | P10 | A run that stops says so, and can be picked up (ADR-0048) |
 | P11 | The run driver drives the case machine; a student authorises through it (ADR-0049) |
+| P12 | The account lifecycle completes; a case can finally conclude (ADR-0050) |
 
 ## The state table, corrected
 
@@ -189,7 +190,7 @@ never from the beginning.
 | 11a | **Case state** | ✅ | **New in P11.** The run driver walks `CASE_SPINE` one hop at a time through `decide`, so `checkTransition` runs on every move. The mandatory-review guard — financial evidence, or a minor — now actually holds a real run back. |
 | 12 | **Recovery** | 🟡 | **New in P10.** A stopped run is durable, visible and resolvable. The **alerting transport is not built** — the queue is pull-only. |
 | 13 | Submission | ❌ | **Deliberately not built. This is where we stop.** |
-| 14 | Account hand-over | ❌ | `hand_over_account` is modelled; nothing writes the `handover_due` stage that reaches it (ADR-0020). |
+| 14 | **Account hand-over** | ✅ | **New in P12.** The stage is derived from the case log and the intent ledger — `handover_due` is reachable, `handed_over` is reachable, and `mayConcludeCase` has a caller for the first time. |
 
 ## Known limitations, stated plainly
 
@@ -203,11 +204,22 @@ never from the beginning.
   path produces. The branch is correct and enumerated directly.
 - **`route_fallback` is refused, not implemented** (ADR-0048 §4).
 - **Account hand-over is unreachable**, as above.
+- **`generated_ephemeral` accounts cannot yet be handed over.** Nothing in this
+  service holds that credential — the runner mints it, uses it and lets it
+  expire — so nothing here can truthfully say it is destroyed. The account stays
+  outstanding, which is the safe direction (ADR-0050).
+- **A handoff does not expire.** `expiresAt` is required by the event and nothing
+  reads it. Stopping asking is a product decision nobody has made.
+- **`AWAITING_HANDOFF` is unreached**, deliberately: using it takes a case off
+  `CASE_SPINE` and would need a return edge the transition table does not have
+  (ADR-0050 §7).
 - **Mandatory review has one interface.** A specialist clears one with
   `POST /internal/v1/cases/{caseId}/review`, on the same internal plane and the
   same asserted identity as an intervention (ADR-0049 §4). There is no CLI verb
   for it yet.
-- **Two case states are still unreachable.** `SUBMITTING` is out of scope by
-  ADR-0014; `handover_due` has nothing that writes it, as above. The spine stops
-  at `AUTHORISED`, which is where ADR-0014 says stop.
+- **No terminal case state is reachable, deliberately.** `CONFIRMED` means the
+  portal confirmed a SUBMISSION, and submission is a later phase — reaching it
+  any other way would be untrue. A finished case rests at `AUTHORISED` with its
+  account handed back, and "concludable" is `mayConcludeCase` answering `true`.
+  Decided by Vahid, 2026-09-01; see ADR-0050 §7.
 - **No live run.** Blocked on portal egress and a sandbox account.
