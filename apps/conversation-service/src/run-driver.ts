@@ -67,6 +67,10 @@ import {
   intake as makeIntake,
   interventionId as makeInterventionId,
   priorityFor,
+  fold,
+  isFieldUnavailable,
+  decide,
+  suggestsMinority,
   openCase,
   runId as makeRunId,
   stamp,
@@ -74,8 +78,14 @@ import {
   unwrapConfirmed,
 } from "@askimate/aas-domain";
 import type {
+  ApplicationCase,
+  CaseEventPayload,
+  CaseState,
   CaseId,
   ConsequentialAction,
+  HumanReviewRecord,
+  DecisionRefusal,
+  MandatoryReviewTrigger,
   InterventionId,
   RecoveryEscalation,
   RecoveryResolution,
@@ -93,9 +103,12 @@ import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping
 import {
   accountCreated,
   accountWorkOf,
+  awaitsStudentAuthorisation,
   beginRun,
   browserWorkFor,
+  caseStateForStep,
   executePlanOf,
+  nextCaseHop,
   markFilled,
   checkpointAfter,
   nextStep,
@@ -108,6 +121,7 @@ import {
   withSecret,
 } from "@askimate/aas-orchestrator";
 import type { DurableStores, ResumeConcern, RunState, RunStep } from "@askimate/aas-orchestrator";
+import { isFinancialField, resolveField } from "@askimate/aas-profile";
 import type { ConfirmedProfileStore } from "@askimate/aas-profile";
 
 import { latestSecretRequest } from "@askimate/aas-conversation";
@@ -116,6 +130,7 @@ import type {
   ClaimedWork,
   FillLocator,
   RegistrationTargets,
+  StudentDecision,
   TransportedPlan,
   WorkApproach,
   WorkKind,
@@ -329,6 +344,23 @@ function pauseMessage(entry: CatalogueEntry): string {
   );
 }
 
+/**
+ * What the student is told when their case needs a human review first.
+ *
+ * Honest about the CAUSE without naming the trigger. "Because you are under
+ * 18" or "because of your bank statement" is true and is not this system's to
+ * volunteer in a chat window; what the student needs is that a person is
+ * looking and that nothing is lost.
+ */
+function reviewMessage(entry: CatalogueEntry): string {
+  return (
+    `Before I show you your ${entry.blueprint.institutionName} application to approve, a member ` +
+    `of the team needs to check it over. That is a rule we apply every time for applications ` +
+    `like yours, not something that has gone wrong. Nothing you have given me is lost, and I ` +
+    `will come back to you as soon as it has been looked at.`
+  );
+}
+
 /** What the student is told when it moves again. */
 function resumeMessage(entry: CatalogueEntry): string {
   return (
@@ -336,6 +368,9 @@ function resumeMessage(entry: CatalogueEntry): string {
     `it is moving again. I am picking up exactly where I stopped, so nothing will be repeated.`
   );
 }
+
+/** Why a student's decision was not recorded. A closed set, for the wire. */
+export type DecisionRefusalReason = "no_case" | "not_asked" | "content_changed" | "refused";
 
 export interface RunDriverOptions {
   readonly stores: DurableStores;
@@ -682,6 +717,8 @@ export class RunDriver {
         readonly ok: true;
         readonly step: RunStep;
         readonly now: Date;
+        /** The state the decision was made from, for the case walk. */
+        readonly state: RunState;
         readonly secret: ReturnType<typeof latestSecretRequest>;
         /** The account the run is carrying, once one has been created. */
         readonly account: RunState["account"];
@@ -802,7 +839,7 @@ export class RunDriver {
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
-    return { ok: true, step, now, secret, account: state.account };
+    return { ok: true, step, now, secret, account: state.account, state };
   }
 
   /**
@@ -865,6 +902,162 @@ export class RunDriver {
       }
     }
     return null;
+  }
+
+  // ── ADR-0049: the case machine, driven ────────────────────────────────
+
+  /**
+   * Walks the case toward where the run has got to.
+   *
+   * One hop at a time along `CASE_SPINE`, each through `decide`, so
+   * `checkTransition` runs on every one. This coordinator never appends a
+   * `CaseStateChanged` itself — the whole point of ADR-0049 is that the
+   * machine's guards are the thing deciding, not this file.
+   *
+   * Returns the refusal when the case CANNOT legitimately get there. That is
+   * not an error to swallow: the case most likely to be refused is one
+   * carrying financial evidence or involving a minor, and the refusal is the
+   * guard doing exactly what it was written for.
+   */
+  async #advanceCase(input: {
+    readonly caseId: CaseId;
+    readonly conversationId: string;
+    readonly step: RunStep;
+    readonly state: RunState;
+    readonly now: Date;
+  }): Promise<{ ok: true } | { ok: false; detail: string; triggers: readonly string[] }> {
+    const target = caseStateForStep(input.step);
+
+    // Bounded, because two requests can advance one conversation at the same
+    // instant and both walk the case. The loop re-reads every iteration, so a
+    // lost race is not an error to surface — the winner made the hop and this
+    // caller finds it already made. Bounded rather than unbounded so a genuine
+    // repeated conflict fails loudly instead of spinning.
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const events = await this.#options.stores.cases.read(input.caseId);
+      if (events.length === 0) return { ok: true };
+      const held = fold(events);
+
+      // The triggers first, and BEFORE the hop that is guarded on them. Raised
+      // late they would be raised after the gate they exist to close.
+      //
+      // The `continue` is an efficiency, not the safety. Deleting it during the
+      // P11 regression pass changed no test and no outcome: deciding against
+      // the `held` we already have would append at a sequence the trigger write
+      // has just taken, the store refuses it, and the loop re-reads anyway. The
+      // guard is the sequence check; this only avoids paying for a conflict we
+      // can see coming.
+      const raised = await this.#raiseMandatoryTriggers(held, input);
+      if (raised) continue;
+
+      const hop = nextCaseHop(held.state, target);
+      if (hop === null) return { ok: true };
+
+      const decision = decide(held, {
+        kind: "transition",
+        to: hop,
+        reason: reasonFor(hop),
+      });
+      if (!decision.accepted) {
+        return {
+          ok: false,
+          detail: detailOf(decision.refusal),
+          triggers: triggersOf(decision.refusal),
+        };
+      }
+      try {
+        await this.#appendToCase(input.caseId, held.sequence, decision.events, input, input.now);
+      } catch (error: unknown) {
+        // By NAME, not by class: raised in @askimate/aas-case-store, and
+        // matching the constructor would couple this file to that package's
+        // identity across a bundling boundary — the same reason `#decide`
+        // matches `RunConcurrencyError` by name.
+        if (!(error instanceof Error) || error.name !== "ConcurrencyConflictError") throw error;
+      }
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Raises the mandatory review triggers this case actually carries.
+   *
+   * From real data or not at all. A guard that never sees a trigger passes
+   * every time, and `transitions.ts` is explicit that this one is not a
+   * convention: financial evidence and minors are reviewed EVERY time,
+   * "regardless of confidence", and no flag changes it.
+   *
+   * Returns `true` when it wrote something, so the caller re-reads rather than
+   * deciding against a case it has just changed.
+   */
+  async #raiseMandatoryTriggers(
+    held: ApplicationCase,
+    input: {
+      readonly caseId: CaseId;
+      readonly conversationId: string;
+      readonly state: RunState;
+      readonly now: Date;
+    },
+  ): Promise<boolean> {
+    const wanted = mandatoryTriggersOf(input.state, input.now).filter(
+      (trigger) => !held.activeTriggers.includes(trigger),
+    );
+    if (wanted.length === 0) return false;
+
+    const decision = decide(held, { kind: "request_human_review", triggers: wanted });
+    if (!decision.accepted) return false;
+    await this.#appendToCase(input.caseId, held.sequence, decision.events, input, input.now);
+    return true;
+  }
+
+  /**
+   * Records a specialist's review of a case, through the domain's own intent.
+   *
+   * The counterpart to raising a trigger. Without it, raising one would
+   * deadlock every case involving a minor or money — a worse failure than the
+   * one ADR-0049 fixes — so the two ship together.
+   *
+   * Reached through the SAME internal plane and the same operator identity as
+   * an intervention (ADR-0048 §3), deliberately: a review and an intervention
+   * are both "a named human looked and said what they found", and two
+   * interfaces would be two places to build the authentication that becomes a
+   * release blocker the moment a second specialist exists.
+   */
+  public async completeReview(input: {
+    readonly caseId: CaseId;
+    readonly review: HumanReviewRecord;
+  }): Promise<{ ok: true } | { ok: false; detail: string }> {
+    const events = await this.#options.stores.cases.read(input.caseId);
+    if (events.length === 0) return { ok: false, detail: `No case ${input.caseId}.` };
+    const held = fold(events);
+    const decision = decide(held, { kind: "complete_human_review", review: input.review });
+    if (!decision.accepted) return { ok: false, detail: detailOf(decision.refusal) };
+    await this.#appendToCase(
+      input.caseId,
+      held.sequence,
+      decision.events,
+      { conversationId: "", caseId: input.caseId },
+      this.#options.now(),
+    );
+    return { ok: true };
+  }
+
+  /** Stamps and appends decided payloads. The one place case events are written. */
+  async #appendToCase(
+    caseId: CaseId,
+    fromSequence: number,
+    payloads: readonly CaseEventPayload[],
+    input: { readonly conversationId: string; readonly caseId: CaseId },
+    now: Date,
+  ): Promise<void> {
+    const stamped = stamp({
+      caseId,
+      fromSequence,
+      payloads,
+      actor: askimateActor(externalRef(input.conversationId === "" ? String(caseId) : input.conversationId)),
+      now,
+      nextEventId: (index) => `evt_${caseId}_${String(fromSequence + index + 1)}`,
+    });
+    await this.#options.stores.cases.append(caseId, fromSequence, stamped);
   }
 
   // ── ADR-0048: a run that stops says so, and can be picked up ───────────
@@ -974,6 +1167,201 @@ export class RunDriver {
         ...(input.action === "advance_portal_page" ? { page: input.target } : {}),
       },
       raisedAt: now,
+    };
+  }
+
+  /**
+   * The hash of what this run would show the student right now, or `null`.
+   *
+   * A read, for a surface that has to render the preview and send the hash
+   * back. It computes nothing of its own: the hash is the orchestrator's, off
+   * the same `AuthorisablePreview` the step carries, so what is rendered and
+   * what is authorised cannot come from two different renderings.
+   */
+  public async previewHashFor(runId: string, conversationId: string): Promise<string | null> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return null;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const record = await this.#options.stores.runs.load(makeRunId(runId));
+    if (entry === null || record === null) return null;
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok || !awaitsStudentAuthorisation(situation.step)) return null;
+    return situation.step.preview.contentHash;
+  }
+
+  /**
+   * Records a decision only the student can make (ADR-0049 §5).
+   *
+   * The authorisation is captured through the domain's own
+   * `capture_authorisation` intent, which refuses unless the case is in
+   * `AWAITING_STUDENT_AUTHORISATION`. That refusal is the point: a student
+   * cannot approve content the case has not legitimately reached the point of
+   * showing them, and this coordinator does not get to decide otherwise.
+   *
+   * The hash is compared against the preview the orchestrator would render NOW.
+   * A mismatch is refused rather than recorded, because an authorisation of
+   * content that has since changed is exactly what `void_authorisation` and the
+   * `SUBMITTING` guard exist to catch — and catching it here, before it is
+   * written, is better than writing it and catching it later.
+   */
+  public async recordDecision(input: {
+    readonly conversationId: string;
+    readonly runId: string;
+    readonly decision: StudentDecision;
+  }): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
+  > {
+    const bound = await this.#options.bindings.caseFor(input.conversationId);
+    if (bound === null || bound.blueprintId === null) {
+      return { ok: false, reason: "no_case" };
+    }
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const record = await this.#options.stores.runs.load(makeRunId(input.runId));
+    if (entry === null || record === null || record.caseId !== bound.caseId) {
+      return { ok: false, reason: "no_case" };
+    }
+
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId: input.conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok) return { ok: false, reason: "no_case" };
+
+    // The run must actually be ASKING. A decision arriving at any other moment
+    // is not an approval of anything currently on screen. The narrowing comes
+    // from the orchestrator, which owns the step vocabulary — and it carries
+    // the preview out with it, so the hash below is read from the step the
+    // orchestrator handed over rather than dug out of it here.
+    const asking = situation.step;
+    if (!awaitsStudentAuthorisation(asking)) return { ok: false, reason: "not_asked" };
+    if (asking.preview.contentHash !== input.decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+
+    const events = await this.#options.stores.cases.read(record.caseId);
+    if (events.length === 0) return { ok: false, reason: "no_case" };
+    const held = fold(events);
+    const decided = decide(held, {
+      kind: "capture_authorisation",
+      contentHash: input.decision.contentHash,
+    });
+    if (!decided.accepted) return { ok: false, reason: "refused" };
+
+    await this.#appendToCase(
+      record.caseId,
+      held.sequence,
+      decided.events,
+      { conversationId: input.conversationId, caseId: record.caseId },
+      this.#options.now(),
+    );
+    return { ok: true };
+  }
+
+  /**
+   * Stops a run whose case cannot legitimately reach the student.
+   *
+   * Reuses P10's machinery exactly (ADR-0048): an intervention a specialist can
+   * pick up, one honest message to the student, and a durable status. It is
+   * `escalated` rather than `uncertain` — nothing is uncertain here, and no
+   * amount of looking at the portal would settle it. A person has to review the
+   * case, which is a different job from establishing what happened.
+   */
+  async #pauseForReview(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly caseId: CaseId;
+    readonly step: RunStep;
+    readonly detail: string;
+    readonly triggers: readonly string[];
+    readonly now: Date;
+  }): Promise<RunOutcome> {
+    const interventions = this.#options.interventions;
+    const runId = input.record.runId;
+
+    if (interventions !== undefined) {
+      const idempotencyKey = idempotencyKeyFor({
+        runId,
+        action: "advance_portal_page",
+        target: `review:${input.triggers.join(",")}`,
+      });
+      const raised = await interventions.raise({
+        interventionId: makeInterventionId(
+          this.#options.newInterventionId?.(runId, idempotencyKey, input.now) ??
+            `iv_${randomUUID().replace(/-/g, "")}`,
+        ),
+        runId,
+        idempotencyKey,
+        caseId: input.caseId,
+        studentRef: input.record.studentRef,
+        escalation: {
+          reason: "information_unobtainable",
+          priority: "critical",
+          encountered: input.detail,
+          expected:
+            `An approving human review recorded against every mandatory trigger, before the ` +
+            `student is asked to authorise anything.`,
+          checkpoint: {
+            blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+            action: "advance_portal_page",
+            target: `review:${input.triggers.join(",")}`,
+            phase: input.record.checkpoint.phase,
+            pagesCompleted: [],
+            capturedAt: input.now,
+          },
+          raisedAt: input.now,
+        },
+        context: {
+          institutionId: makeInstitutionId(input.entry.institutionRef),
+          portal: portalOf(input.entry),
+          courseId: makeCourseId(input.entry.courseRef),
+          blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+        },
+      });
+      const held = await interventions.find(raised.interventionId);
+      if (held !== null && held.announcedAt === undefined) {
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: {
+            kind: "message",
+            actor: "assistant",
+            content: reviewMessage(input.entry),
+          },
+        });
+        await interventions.markAnnounced(raised.interventionId, input.now);
+      }
+      if (input.record.status === "running") {
+        await this.#options.stores.runs.saveCheckpoint({
+          runId,
+          checkpoint: input.record.checkpoint,
+          expectedRevision: input.record.revision,
+          status: "escalated",
+        });
+      }
+    }
+
+    return {
+      ok: true,
+      position: {
+        runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status: "escalated",
+        phase: input.record.checkpoint.phase,
+        step: input.step.kind,
+        revision: input.record.revision,
+        resumed: false,
+        concerns: [],
+      },
     };
   }
 
@@ -1240,6 +1628,42 @@ export class RunDriver {
         },
       );
       if (opened !== null) return opened;
+    }
+
+    // ── The case walks to where the run has got to (ADR-0049) ────────────
+    //
+    // AFTER the secure step and before the checkpoint, so that a run which
+    // REFUSED has not moved its case. `#openSecureStep` answers `null` when it
+    // opened the step and a refusal when it could not reach the Secure Plane;
+    // on that refusal `#decideOnce` returns here, and the case is left where
+    // the run actually is. Walking first would record a hop for a run that got
+    // nowhere — the case state is a claim about the real world, and a run that
+    // could not ask for a password has made none of the progress the hop would
+    // assert.
+    //
+    // In `#decideOnce` rather than `#situation`, because this is the path that
+    // ADVANCES a run — `#situation` is also how the claim path LOOKS, and a
+    // look that moved a case state would make polling a mutation.
+    //
+    // The refusal is not swallowed. The case most likely to be refused is one
+    // carrying financial evidence or a minor, and that refusal is the guard in
+    // `transitions.ts` doing what it says: reviewed every time, and confidence
+    // does not override it. The run then stops the way P10 stops one.
+    const walked = await this.#advanceCase({
+      caseId: input.caseId,
+      conversationId: input.conversationId,
+      step,
+      state: situation.state,
+      now,
+    });
+    if (!walked.ok) {
+      return await this.#pauseForReview({
+        ...input,
+        step,
+        detail: walked.detail,
+        triggers: walked.triggers,
+        now,
+      });
     }
 
     const revision = await checkpointAfter({
@@ -1678,6 +2102,100 @@ function atOrigin(url: string, origin: string | undefined): string | null {
  * and the fill agent would refuse the page as `host_mismatch` — correctly, and
  * a long way from the configuration that caused it.
  */
+/**
+ * The confirmed date of birth as a Date, or `null` when there is not one yet.
+ *
+ * Parsed strictly. A date this cannot read is `null` — which raises the minor
+ * trigger through `requires_identity_check` rather than passing as an adult,
+ * because ADR-0013 says a missing or ambiguous date of birth is never assumed
+ * absent.
+ */
+function confirmedDateOfBirth(state: RunState): Date | null {
+  // Through `resolveField`, which is typed: `identity.date_of_birth` is a
+  // `Date`, not a string. A first draft of this parsed it as an ISO string and
+  // would have returned `null` every time — the minor trigger silently never
+  // firing, which is the worst possible failure for this particular check.
+  const held = resolveField(state.profile, "identity.date_of_birth");
+  if (isFieldUnavailable(held)) return null;
+  const value = unwrapConfirmed(held);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+/**
+ * Why a hop happened, for the case log a person reads later.
+ *
+ * Keyed on the SPINE rather than on every case state, because only the spine is
+ * walked here. A `Record` over the spine's members rather than a switch with a
+ * default: a default would quietly give a new spine state a stub reason, and
+ * the reason is what somebody reads in a year when they ask why a case moved.
+ */
+const HOP_REASONS: Readonly<Record<string, string>> = {
+  REQUIREMENTS_RESOLUTION:
+    "Requirements come from the reviewed blueprint this run was started against (ADR-0017).",
+  ELIGIBILITY_REVIEW: "The blueprint and mapping set were checked usable for this student.",
+  READY_TO_PREPARE: "Everything needed to prepare is present.",
+  PREPARING: "Preparing the application from the confirmed profile.",
+  AWAITING_STUDENT_AUTHORISATION:
+    "The exact content has been rendered and shown to the student.",
+  AUTHORISED: "The student authorised the prepared content.",
+};
+
+function reasonFor(to: CaseState): string {
+  return HOP_REASONS[to] ?? `Moved to ${to}.`;
+}
+
+/** A refusal's own words, whichever shape it is. */
+function detailOf(refusal: DecisionRefusal): string {
+  return refusal.kind === "transition_refused" ? refusal.refusal.detail : refusal.detail;
+}
+
+/**
+ * The triggers a refusal named, when it named any.
+ *
+ * Only `mandatory_review_outstanding` carries them, and that is the refusal
+ * this phase exists to be able to hit — so it is read by name rather than by a
+ * shape that would also match some future refusal with a `triggers` field.
+ */
+function triggersOf(refusal: DecisionRefusal): readonly string[] {
+  if (refusal.kind !== "transition_refused") return [];
+  return refusal.refusal.kind === "mandatory_review_outstanding" ? refusal.refusal.triggers : [];
+}
+
+/**
+ * The mandatory review triggers this run's own data carries.
+ *
+ * From real data or not at all (ADR-0049 §3). Two rules, both from the domain
+ * rather than restated here:
+ *
+ *   involves_minor     `suggestsMinority` on the CONFIRMED date of birth.
+ *                      NOT `determineAge`, which returns
+ *                      `requires_identity_check` for any merely stated date of
+ *                      birth — correct for the question it answers, and it
+ *                      raised this trigger on every case in the system when
+ *                      used here.
+ *   financial_evidence any field the plan fills that the profile says is
+ *                      financial evidence.
+ */
+function mandatoryTriggersOf(state: RunState, now: Date): readonly MandatoryReviewTrigger[] {
+  const triggers: MandatoryReviewTrigger[] = [];
+
+  const dob = confirmedDateOfBirth(state);
+  if (dob !== null && suggestsMinority({ level: "stated", value: dob }, now)) {
+    // `suggestsMinority`, NOT `determineAge`. A first version used the latter,
+    // and `determineAge` returns `requires_identity_check` for ANY merely
+    // stated date of birth — which is its safety property and is right, and
+    // which raised this trigger on every case in the system. The two answer
+    // different questions: "can we conclude adulthood" versus "does what we
+    // hold suggest a minor". Only the second is what this trigger is about.
+    triggers.push("involves_minor");
+  }
+
+  if ([...state.profile.entries.keys()].some((key) => isFinancialField(key))) {
+    triggers.push("financial_evidence");
+  }
+  return triggers;
+}
+
 /**
  * The status a stopped run takes, from the verdict that stopped it.
  *

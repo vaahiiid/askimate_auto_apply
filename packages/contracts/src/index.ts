@@ -193,3 +193,11 @@ export {
   parseResolutionSubmission,
   parseWireResolutionOutcome,
 } from "./interventions.js";
+
+// ── A decision only the student can make (ADR-0049) ──────────────────────
+export type { StudentDecision, StudentDecisionKind } from "./decisions.js";
+export {
+  STUDENT_DECISIONS,
+  parseStudentDecision,
+  parseStudentDecisionKind,
+} from "./decisions.js";

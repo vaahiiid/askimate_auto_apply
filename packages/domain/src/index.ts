@@ -162,6 +162,7 @@ export type {
   ResolutionOutcome,
 } from "./recovery.js";
 export { RECOVERY_REASONS, RESOLUTION_OUTCOMES, priorityFor } from "./recovery.js";
+export { REVIEW_TRIGGERS, isReviewTrigger } from "./escalation.js";
 
 export type {
   InterventionContext,
@@ -214,7 +215,7 @@ export type {
   MinorConditionSet,
   MinorGateResult,
 } from "./minors.js";
-export { APPLICATION_STAGES, checkMinorGate, determineAge, isMinor, requiresIdentityCheck, stageReached } from "./minors.js";
+export { APPLICATION_STAGES, checkMinorGate, determineAge, isMinor, requiresIdentityCheck, stageReached, suggestsMinority } from "./minors.js";
 
 export type {
   DocumentType,

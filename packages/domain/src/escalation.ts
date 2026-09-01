@@ -63,6 +63,30 @@ export type DiscretionaryReviewTrigger =
 
 export type ReviewTrigger = MandatoryReviewTrigger | DiscretionaryReviewTrigger;
 
+/**
+ * Every review trigger, mandatory and discretionary.
+ *
+ * Exists so a wire parser can refuse an invented one. `satisfies` forces it to
+ * stay complete: adding a trigger without adding it here is a compile error,
+ * and a parser silently rejecting a real trigger would be a review nobody could
+ * record.
+ */
+export const REVIEW_TRIGGERS = [
+  "financial_evidence",
+  "involves_minor",
+  "low_confidence",
+  "conflicting_information",
+  "stale_requirement_data",
+  "blueprint_drift",
+  "unexpected_portal_behaviour",
+  "information_unobtainable",
+] as const satisfies readonly ReviewTrigger[];
+
+/** Type guard for a trigger arriving from a network. */
+export function isReviewTrigger(value: unknown): value is ReviewTrigger {
+  return typeof value === "string" && (REVIEW_TRIGGERS as readonly string[]).includes(value);
+}
+
 const MANDATORY_SET: ReadonlySet<ReviewTrigger> = new Set<ReviewTrigger>(MANDATORY_REVIEW_TRIGGERS);
 
 /** True for a trigger that no confidence score can override. */

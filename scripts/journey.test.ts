@@ -59,7 +59,7 @@ import {
 import { DeterministicModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { buildPreview } from "@askimate/aas-preparation";
-import { caseId as makeCaseId, eventId as makeEventId, externalRef } from "@askimate/aas-domain";
+import { caseId as makeCaseId } from "@askimate/aas-domain";
 import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
@@ -695,31 +695,44 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(portal.application(EMAIL), "and nothing typed").toBeNull();
   }, 300_000);
 
-  it("the student approves, and the run becomes work", async () => {
-    // The student presses approve. Recorded where business facts are recorded —
-    // the case's append-only log — which is what makes it survive a restart and
-    // what the driver reads back.
+  it("the student approves, over the real decision route, and the run becomes work", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0049. Until P11 this test APPENDED `AuthorisationCaptured` itself —
+    // the test giving the student's approval on their behalf, because no
+    // production path could. That is now a real request on the student's own
+    // session, and it is the difference between a journey that proves the
+    // system works and one that proves it works if somebody forges the one
+    // event the whole safety design rests on.
+    // ═══════════════════════════════════════════════════════════════════
     const cases = new PostgresCaseStore(conversationPool);
     const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
-    const existing = await cases.read(caseRef);
 
     // The hash of exactly what will be sent. Taken from the preview the
     // orchestrator built, never invented here: an authorisation whose hash did
     // not match the plan is an authorisation for something else.
     const preview = previewForThisRun();
-    await cases.append(caseRef, existing.length, [
+
+    const decided = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
       {
-        eventId: makeEventId(`evt_${caseRef}_auth`),
-        caseId: caseRef,
-        sequence: existing.length + 1,
-        occurredAt: new Date(),
-        actor: { kind: "student", externalRef: externalRef(`student:${studentUuid}`) },
-        type: "AuthorisationCaptured",
-        contentHash: preview.contentHash,
-        hashAlgorithm: "sha256",
-        authorisedAt: new Date(),
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ kind: "authorise", contentHash: preview.contentHash }),
       },
-    ]);
+    );
+    expect(decided.status, "the student's own session, not a service credential").toBe(204);
+
+    // It landed where business facts land, through the domain's own intent —
+    // not written here.
+    const logged = await cases.read(caseRef);
+    expect(
+      logged.some((event) => event.type === "AuthorisationCaptured"),
+      "captured in the case log by the service",
+    ).toBe(true);
+    expect(
+      logged.some((event) => event.type === "CaseStateChanged" && event.to === "AUTHORISED"),
+      "and the case machine moved with it (ADR-0049)",
+    ).toBe(true);
 
     const advanced = await recordingFetch(
       `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,

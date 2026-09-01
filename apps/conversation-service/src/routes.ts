@@ -36,6 +36,7 @@ import {
   renderSseFrame,
   parseWorkReport,
   parseResolutionSubmission,
+  parseStudentDecision,
   renderSseResumeFrame,
 } from "@askimate/aas-contracts";
 
@@ -43,13 +44,18 @@ import type {
   ClaimedWork,
   ConversationRun,
   OpenIntervention,
+  StudentDecision,
   WorkReport,
 } from "@askimate/aas-contracts";
 import type {
+  CaseId,
+  HumanReviewRecord,
+  ReviewTrigger,
   InterventionId,
   RecoveryResolution,
   ReusabilityAssessment,
 } from "@askimate/aas-domain";
+import { caseId as makeCaseId, isReviewTrigger } from "@askimate/aas-domain";
 import { interventionId as makeInterventionId } from "@askimate/aas-domain";
 import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
 import {
@@ -97,6 +103,17 @@ export interface RunCoordinator {
     readonly runId: string;
     readonly report: WorkReport;
   }): Promise<boolean>;
+  /** Records a decision only the student can make. ADR-0049. */
+  recordDecision(input: {
+    readonly conversationId: string;
+    readonly runId: string;
+    readonly decision: StudentDecision;
+  }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
+  /** Records a specialist's review of a case. ADR-0049 §4. */
+  completeReview(input: {
+    readonly caseId: CaseId;
+    readonly review: HumanReviewRecord;
+  }): Promise<{ readonly ok: true } | { readonly ok: false; readonly detail: string }>;
   /** Everything waiting for a specialist, oldest first. ADR-0048. */
   openInterventions(): Promise<readonly StoredIntervention[]>;
   /** Records a specialist's adjudication and lets the run continue. ADR-0048. */
@@ -250,6 +267,46 @@ function parseSecureAppend(body: unknown): AppendableEvent | null {
     default:
       return null;
   }
+}
+
+/**
+ * A specialist's review, from bytes, or a refusal.
+ *
+ * Everything against a closed set. `reviewedAt` is the SERVICE's clock, never
+ * the caller's: a review whose time a client could choose is a review that
+ * could be backdated to before the trigger it clears.
+ *
+ * `reviewerId` is asserted, not authenticated, exactly as ADR-0048 §3 records
+ * for a resolution — and the domain says of this same field that it must be *a
+ * named individual, never a shared account*. Both statements are true at once
+ * today, and the second one is why the first has a condition that ends it: a
+ * second specialist existing at all.
+ */
+function parseReview(body: unknown, now: Date): HumanReviewRecord | null {
+  const reviewerId = readString(body, "reviewerId");
+  const outcomeRaw = (body as Record<string, unknown> | null)?.["outcome"];
+  const outcome =
+    outcomeRaw === "approved" || outcomeRaw === "rejected" || outcomeRaw === "changes_requested"
+      ? outcomeRaw
+      : null;
+  const triggersRaw = (body as Record<string, unknown> | null)?.["triggers"];
+  if (reviewerId === null || outcome === null || !Array.isArray(triggersRaw)) return null;
+
+  const triggers: ReviewTrigger[] = [];
+  for (const candidate of triggersRaw) {
+    if (!isReviewTrigger(candidate)) return null;
+    triggers.push(candidate);
+  }
+  if (triggers.length === 0) return null;
+
+  const notes = readString(body, "notes");
+  return {
+    reviewerId,
+    reviewedAt: now,
+    triggers,
+    outcome,
+    ...(notes === null ? {} : { notes }),
+  };
 }
 
 /**
@@ -768,6 +825,87 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         // permission to act on a student's application after that deadline.
         res.setHeader("Cache-Control", "no-store");
         res.status(200).json(work);
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/{id}/runs/{runId}/decision ──────────────────
+  //
+  // The one decision that is the student's alone (ADR-0049 §5).
+  //
+  // On the STUDENT's own authenticated session, deliberately — not the internal
+  // service plane the runner and the operator use. Admitting an authorisation
+  // on a service credential would make approving a real university application
+  // something the operator could do on the student's behalf, which is the
+  // opposite of what the authorisation ledger is for.
+  router.post(
+    "/v1/conversations/:conversationId/runs/:runId/decision",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const decision = parseStudentDecision(req.body);
+        if (decision === null) {
+          problem(res, "validation_failed", { pointers: ["/kind", "/contentHash"] });
+          return;
+        }
+        const recorded = await options.runs.recordDecision({
+          conversationId,
+          runId: String(req.params["runId"]),
+          decision,
+        });
+        if (recorded.ok) {
+          res.status(204).end();
+          return;
+        }
+        // `content_changed` is its own answer rather than a generic refusal: a
+        // client that showed a preview which has since changed must re-render
+        // and ask again, not retry. Everything else is a 404 or a plain
+        // refusal, and neither tells the caller anything about another
+        // student's case.
+        problem(res, recorded.reason === "content_changed" ? "content_changed" : "not_found");
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/cases/{caseId}/review ────────────────────────────
+  //
+  // A specialist's review, through the plane and the identity ADR-0048
+  // established. Ships with the trigger-raising in ADR-0049 §4 because raising
+  // a mandatory trigger with no way to clear it would deadlock every case
+  // involving a minor or money — a worse failure than the one being fixed.
+  router.post(
+    "/internal/v1/cases/:caseId/review",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const review = parseReview(req.body, options.now());
+        if (review === null) {
+          problem(res, "validation_failed", {
+            pointers: ["/reviewerId", "/outcome", "/triggers", "/notes"],
+          });
+          return;
+        }
+        const done = await options.runs.completeReview({
+          caseId: makeCaseId(String(req.params["caseId"])),
+          review,
+        });
+        if (done.ok) {
+          res.status(204).end();
+          return;
+        }
+        problem(res, "validation_failed", { pointers: ["/outcome"] });
       })().catch(next);
     },
   );

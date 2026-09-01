@@ -169,6 +169,7 @@ never from the beginning.
 | P8 | A fill plan crosses as value and provenance (ADR-0046); the runner fills the form |
 | P9 | Durable multi-page execution; page progress lives in the intent ledger (ADR-0047) |
 | P10 | A run that stops says so, and can be picked up (ADR-0048) |
+| P11 | The run driver drives the case machine; a student authorises through it (ADR-0049) |
 
 ## The state table, corrected
 
@@ -184,7 +185,8 @@ never from the beginning.
 | 8 | Autonomous completion | ✅ | **Multi-page, durable across restarts**, against a real Chromium and a real gated portal. |
 | 9 | Validation | ✅ | Against rules the blueprint observed. |
 | 10 | Preview | ✅ | Every field, rendered deterministically, hashed. |
-| 11 | Authorisation | ✅ | Ledger stores the preview text verbatim. |
+| 11 | Authorisation | ✅ | **New in P11:** captured through the student's own route and the domain's `capture_authorisation` intent. The ledger still stores the preview text verbatim; nothing appends an authorisation by hand. |
+| 11a | **Case state** | ✅ | **New in P11.** The run driver walks `CASE_SPINE` one hop at a time through `decide`, so `checkTransition` runs on every move. The mandatory-review guard — financial evidence, or a minor — now actually holds a real run back. |
 | 12 | **Recovery** | 🟡 | **New in P10.** A stopped run is durable, visible and resolvable. The **alerting transport is not built** — the queue is pull-only. |
 | 13 | Submission | ❌ | **Deliberately not built. This is where we stop.** |
 | 14 | Account hand-over | ❌ | `hand_over_account` is modelled; nothing writes the `handover_due` stage that reaches it (ADR-0020). |
@@ -201,4 +203,11 @@ never from the beginning.
   path produces. The branch is correct and enumerated directly.
 - **`route_fallback` is refused, not implemented** (ADR-0048 §4).
 - **Account hand-over is unreachable**, as above.
+- **Mandatory review has one interface.** A specialist clears one with
+  `POST /internal/v1/cases/{caseId}/review`, on the same internal plane and the
+  same asserted identity as an intervention (ADR-0049 §4). There is no CLI verb
+  for it yet.
+- **Two case states are still unreachable.** `SUBMITTING` is out of scope by
+  ADR-0014; `handover_due` has nothing that writes it, as above. The spine stops
+  at `AUTHORISED`, which is where ADR-0014 says stop.
 - **No live run.** Blocked on portal egress and a sandbox account.

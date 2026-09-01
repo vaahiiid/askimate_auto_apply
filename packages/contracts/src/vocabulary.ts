@@ -127,6 +127,7 @@ export const PROBLEM_CODES = [
   "payload_too_large",
   "idempotency_key_conflict",
   "intervention_already_resolved",
+  "content_changed",
   "secret_request_open",
   "rate_limited",
   "internal_error",

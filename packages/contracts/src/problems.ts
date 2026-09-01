@@ -49,6 +49,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   payload_too_large: "Payload too large",
   idempotency_key_conflict: "Idempotency key already used with a different request",
   intervention_already_resolved: "This intervention has already been adjudicated",
+  content_changed: "The content changed since it was shown; it must be re-approved",
   secret_request_open: "A secure step is open on this conversation",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
@@ -67,6 +68,11 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // specialist who submitted one needs to know it lost to somebody else's
   // rather than assume theirs is what the record now says.
   intervention_already_resolved: 409,
+  // 409, and its own code rather than a generic refusal: a client that showed a
+  // preview which has since changed must RE-RENDER and ask again. Retrying the
+  // same hash would be asking the service to record an approval of content the
+  // student never saw.
+  content_changed: 409,
   secret_request_open: 409,
   rate_limited: 429,
   internal_error: 500,
@@ -208,6 +214,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "payload_too_large":
     case "idempotency_key_conflict":
     case "intervention_already_resolved":
+    case "content_changed":
     case "internal_error":
     case "service_unavailable":
       return { ...base, code };

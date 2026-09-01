@@ -70,5 +70,6 @@ ADR status uses exactly that vocabulary:
 | [0046](./0046-a-fill-plan-crosses-as-value-and-provenance.md) | A fill plan crosses to the runner as value and provenance, reassembled through the one mint | Accepted |
 | [0047](./0047-page-progress-lives-in-the-intent-ledger.md) | Page progress lives in the intent ledger; a lease names the page it holds | Accepted |
 | [0048](./0048-a-specialist-resolution-completes-an-intent.md) | A specialist resolution completes an intent; the operator CLI is only its first interface | Accepted |
+| [0049](./0049-the-run-driver-drives-the-case-machine.md) | The run driver drives the case state machine, and a student's authorisation is captured through it | Accepted |
 
-Forty-four are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.
+Forty-five are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011. Reversing any of them requires a new ADR that supersedes it.

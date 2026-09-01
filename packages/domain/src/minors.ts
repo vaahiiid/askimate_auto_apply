@@ -141,6 +141,34 @@ export function determineAge(dob: DateOfBirthRecord, referenceDate: Date): AgeDe
     : { kind: "adult_verified", ageAtReference: age };
 }
 
+/**
+ * Does the recorded date of birth indicate someone under 18?
+ *
+ * Separate from `determineAge` because it answers a different question, and
+ * conflating them raises the mandatory-review trigger on every case in the
+ * system. `determineAge` answers *can we conclude this student is an adult*,
+ * and the honest answer for a merely stated date of birth is always "no, check
+ * further" — that is its safety property and it is right.
+ *
+ * This answers *does what we hold suggest a minor*, which is what the
+ * `involves_minor` review trigger is about. A stated date of birth showing 25
+ * still requires an identity check; it does not make the case one involving a
+ * minor.
+ *
+ * Deliberately in the domain rather than computed by a caller. "How old is this
+ * student" having two implementations is exactly the drift ADR-0041 exists to
+ * prevent, and the arithmetic — whole years, month and day aware — is the part
+ * that gets subtly wrong somewhere else.
+ *
+ * Unknown or uncaptured resolves to `false`: there is nothing to suggest. That
+ * is NOT "they are an adult" — `determineAge` still refuses to conclude that,
+ * and `requiresIdentityCheck` still holds.
+ */
+export function suggestsMinority(dob: DateOfBirthRecord, referenceDate: Date): boolean {
+  if (dob.level === "unknown" || dob.value === undefined) return false;
+  return yearsBetween(dob.value, referenceDate) < 18;
+}
+
 /** True when the case must not advance until an identity check has happened. */
 export function requiresIdentityCheck(determination: AgeDetermination): boolean {
   return determination.kind === "requires_identity_check";

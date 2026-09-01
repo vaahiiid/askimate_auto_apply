@@ -830,6 +830,28 @@ export function requiresSecureRequest(
 }
 
 /**
+ * Whether the run is standing in front of the student with a preview, waiting
+ * for the one decision only they can make (ADR-0049 §5).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A NARROWING, for the same reason as `requiresSecureRequest` above it, and
+ * with the same consequence if it were written in the caller instead: the Run
+ * Driver would hold its own list of which steps mean "asking", and a step added
+ * later that also asks would be missed silently, by omission.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The narrowing carries the preview out with it, which is the point. A
+ * coordinator that only learned *yes, it is asking* would then have to reach
+ * back into the step for the hash it must compare — and reaching into a step is
+ * the thing `accountWorkOf` and `executePlanOf` exist to stop.
+ */
+export function awaitsStudentAuthorisation(
+  step: RunStep,
+): step is Extract<RunStep, { kind: "authorise" }> {
+  return step.kind === "authorise";
+}
+
+/**
  * Records where the student's password has got to. The only sanctioned writer
  * of `RunState.secret`.
  *

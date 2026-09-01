@@ -48,6 +48,7 @@ import type {
   BlueprintVersion,
   CaseEvent,
   CaseId,
+  CaseState,
   RunId,
   StudentId,
   WorkflowCheckpoint,
@@ -66,6 +67,102 @@ import type { RunState, RunStep } from "./run.js";
  * about where it sits rather than silently checkpointing as something else.
  * The switch is exhaustive and TypeScript enforces that.
  */
+/**
+ * The case states a healthy run walks, in order (ADR-0049 §1).
+ *
+ * An explicit spine, NOT a shortest-path search over `ALLOWED_TRANSITIONS`. A
+ * graph walk would be shorter to write and would happily route a case through a
+ * state nobody intended — `AWAITING_HUMAN_REVIEW` is on several paths, and
+ * arriving there by pathfinding rather than by decision is exactly the kind of
+ * thing that is discovered a year later in a real case.
+ *
+ * This list says where a healthy case goes. Anything not on it is a refusal to
+ * surface, not a route to find.
+ */
+export const CASE_SPINE: readonly CaseState[] = [
+  "INTAKE",
+  "REQUIREMENTS_RESOLUTION",
+  "ELIGIBILITY_REVIEW",
+  "READY_TO_PREPARE",
+  "PREPARING",
+  "AWAITING_STUDENT_AUTHORISATION",
+  "AUTHORISED",
+];
+
+/**
+ * How far along the spine a run's phase belongs.
+ *
+ * ── Why the run authorises BEFORE it fills, and the case says otherwise ───
+ *
+ * The case machine reads `PREPARING` → `AWAITING_STUDENT_AUTHORISATION` →
+ * `AUTHORISED` → `SUBMITTING`: fill, approve, submit. The run approves first.
+ *
+ * They agree once submission is out of scope (ADR-0014). What the student
+ * approves is the exact content that WOULD be submitted, rendered from the
+ * plan; the fill is us typing that approved content into the portal. So
+ * `PREPARING` is building the plan, `AWAITING_STUDENT_AUTHORISATION` is the
+ * preview in front of the student, and everything after — filling included — is
+ * `AUTHORISED`. The run stops at the `AUTHORISED → SUBMITTING` edge, which is
+ * where ADR-0014 says stop.
+ *
+ * Total over `WorkflowPhase`, so a new phase forces a decision about where it
+ * sits rather than defaulting to somewhere plausible.
+ */
+export function caseStateFor(phase: WorkflowPhase): CaseState {
+  switch (phase) {
+    case "preparing_inputs":
+    case "interviewing":
+      // Still collecting from the student. Nothing has been prepared.
+      return "INTAKE";
+    case "awaiting_specialist":
+      // A blueprint or mapping set a specialist must look at (ADR-0017). The
+      // case is not stuck in the machine's sense; it is waiting on curation,
+      // which is where `READY_TO_PREPARE` sits.
+      return "READY_TO_PREPARE";
+    case "awaiting_secret":
+    case "creating_account":
+    case "awaiting_student_handoff":
+      return "PREPARING";
+    case "awaiting_authorisation":
+      return "AWAITING_STUDENT_AUTHORISATION";
+    case "filling":
+    case "ready_to_submit":
+    case "handing_over":
+      return "AUTHORISED";
+  }
+}
+
+/**
+ * The next hop toward a target, or `null` when there is nothing to do.
+ *
+ * Forward along the spine ONLY, one state at a time. Never backwards: a case
+ * that has been authorised does not become un-prepared because a later phase
+ * reads earlier, and moving it back would void an authorisation the student
+ * gave (`void_authorisation` is a separate, deliberate act).
+ */
+export function nextCaseHop(current: CaseState, target: CaseState): CaseState | null {
+  const from = CASE_SPINE.indexOf(current);
+  const to = CASE_SPINE.indexOf(target);
+  // A case that has left the spine — recovery, cancellation, a terminal state —
+  // is not walked back onto it by this function. Whatever put it there decides.
+  if (from === -1 || to === -1 || to <= from) return null;
+  return CASE_SPINE[from + 1] ?? null;
+}
+
+/**
+ * Where a case belongs when the run is standing at this step.
+ *
+ * The composition of `phaseFor` and `caseStateFor`, and it lives here rather
+ * than at the call site because both halves do. `check-boundaries` bans
+ * `phaseFor(` in the Run Driver for the reason it bans `step.kind`: a
+ * coordinator deriving a phase would be a second implementation of a decision
+ * that already has one pure home, and it would drift the first time a step's
+ * phase changed.
+ */
+export function caseStateForStep(step: RunStep): CaseState {
+  return caseStateFor(phaseFor(step));
+}
+
 export function phaseFor(step: RunStep): WorkflowPhase {
   switch (step.kind) {
     case "interview":

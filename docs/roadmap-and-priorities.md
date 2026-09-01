@@ -1,6 +1,6 @@
 # Roadmap, priorities, and why C2 is not the next item
 
-> ## ⚠️ Historical — its central finding was resolved by P1–P10
+> ## ⚠️ Historical — its central finding was resolved by P1–P11
 >
 > **Updated 2026-09-01.** This document argued that C2 (recovery transport)
 > could not be next because durable run state did not exist:
@@ -13,7 +13,9 @@
 > `workflow_runs`, its consequential actions in `workflow_action_intents`, its
 > page progress derived from that ledger (ADR-0047), and since P10 its stopped
 > state and adjudication in `interventions` (ADR-0048). The two unconnected
-> models of a case described in §3 were joined.
+> models of a case described in §3 were joined — and since P11 the case state
+> machine is *driven* by the run rather than standing beside it (ADR-0049), so
+> the join is a moving one rather than a shared identifier.
 >
 > The reasoning is kept because the *ordering argument* was right and is worth
 > reading: the substrate before the transport. What it asked for now exists, so

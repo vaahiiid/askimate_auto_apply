@@ -245,22 +245,33 @@ async function confirmInto<K extends ProfileFieldKey>(
   key: K,
   value: ProfileFieldType<K>,
   verbatim: string,
+  /**
+   * Whose profile. Defaults to the first student, as every caller before P11
+   * assumed.
+   *
+   * Made explicit because a profile is PER STUDENT and outlives a run: a group
+   * that confirmed a financial field onto the shared student left every later
+   * run for that student carrying financial evidence, and the mandatory-review
+   * guard then fired in a group that had never heard of it. The coupling was
+   * invisible until a guard existed to notice it.
+   */
+  forStudent: string = studentId_,
 ): Promise<void> {
   const result = applyConfirmation({
     key,
     proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
     confirmation: {
-      studentRef: studentId(studentId_),
+      studentRef: studentId(forStudent),
       presentedText: "Is that right?",
       response: { kind: "accepted" },
       respondedAt: NOW,
     },
   });
   if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
-  const profile = confirmField(emptyProfile(studentId(studentId_), NOW), result, NOW);
+  const profile = confirmField(emptyProfile(studentId(forStudent), NOW), result, NOW);
   const entry = profile.entries.get(key);
   if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
-  await store.save(studentId_, toStoredEntry(key, entry));
+  await store.save(forStudent, toStoredEntry(key, entry));
 }
 
 /**
@@ -304,13 +315,16 @@ async function captureAuthorisation(
 }
 
 /** The six answers the gated run needs before it can ask for a password. */
-async function confirmTheInterview(store: PostgresConfirmedProfileStore): Promise<void> {
-  await confirmInto(store, "identity.given_name", "Niloofar", "Niloofar");
-  await confirmInto(store, "identity.family_name", "Hosseini", "Hosseini");
-  await confirmInto(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
-  await confirmInto(store, "identity.nationality", "Iranian", "Iranian");
-  await confirmInto(store, "contact.email", "niloofar@example.test", "niloofar@example.test");
-  await confirmInto(store, "study.personal_statement", "Because it is the course I want.", "…");
+async function confirmTheInterview(
+  store: PostgresConfirmedProfileStore,
+  forStudent: string = studentId_,
+): Promise<void> {
+  await confirmInto(store, "identity.given_name", "Niloofar", "Niloofar", forStudent);
+  await confirmInto(store, "identity.family_name", "Hosseini", "Hosseini", forStudent);
+  await confirmInto(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", forStudent);
+  await confirmInto(store, "identity.nationality", "Iranian", "Iranian", forStudent);
+  await confirmInto(store, "contact.email", "niloofar@example.test", "niloofar@example.test", forStudent);
+  await confirmInto(store, "study.personal_statement", "Because it is the course I want.", "…", forStudent);
 }
 
 /**
@@ -1230,6 +1244,11 @@ describeIfDatabase("opening a secure step, and recording it authoritatively", ()
     const other = "01JBXQ8Z9WKTQ6M4H2NPC00061";
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       other,
+      // The student whose interview THIS group confirmed. A first P11 draft
+      // moved it to the second student to keep the profiles apart, and the run
+      // then stopped at `interview` and returned `{ok: true}` — the refusal
+      // under test never happened, because the run never reached the password.
+      // A refusal test needs the run to actually get there.
       studentId_,
     ]);
     const instance = buildInstance(connectionString(), null);
@@ -1240,6 +1259,17 @@ describeIfDatabase("opening a secure step, and recording it authoritatively", ()
         studentStatement: STATEMENT,
       });
       expect(outcome).toEqual({ ok: false, refusal: { kind: "secure_plane_unavailable" } });
+
+      // And the case did not move on the strength of a run that got nowhere.
+      // The case state is a claim about the real world; a run that could not
+      // ask for a password has made none of the progress a hop would assert.
+      // This is what pins the walk to AFTER the secure step in `#decideOnce`.
+      const moved = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events
+          WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
+        [`case_${other.toLowerCase()}`],
+      );
+      expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe("0");
     } finally {
       await instance.pool.end();
     }
@@ -2916,3 +2946,561 @@ describe("which status a stopped run takes", () => {
     }
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// L. P11 — the case machine, driven (ADR-0049)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the case walks with the run", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A0";
+  let runId = "";
+
+  async function caseEvents(): Promise<{ type: string; to?: string }[]> {
+    // The event is one JSONB column; `type` and `to` live inside it.
+    const rows = await pool.query<{ type: string; to: string | null }>(
+      `SELECT event->>'type' AS type, event->>'to' AS to
+         FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    return rows.rows.map((row) => ({
+      type: row.type,
+      ...(row.to === null ? {} : { to: row.to }),
+    }));
+  }
+
+  it("walks the spine as the run advances, and never writes a state itself", async () => {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+
+    const events = await caseEvents();
+    expect(events[0]?.type, "the log still opens with the case").toBe("CaseOpened");
+
+    // Every move is a CaseStateChanged the DOMAIN produced from a `transition`
+    // intent. This coordinator appends no state of its own — that is the whole
+    // point of ADR-0049, and a state written here would be a state that skipped
+    // `checkTransition`.
+    const moves = events.filter((event) => event.type === "CaseStateChanged").map((e) => e.to);
+    expect(moves, "in spine order, one hop at a time").toEqual([
+      "REQUIREMENTS_RESOLUTION",
+      "ELIGIBILITY_REVIEW",
+      "READY_TO_PREPARE",
+      "PREPARING",
+    ]);
+  }, 300_000);
+
+  it("does NOT move ANY case when a runner merely looks for work", async () => {
+    // `claimWork` reaches `#situation`, the same question the advancing path
+    // asks — so a walk placed there would make POLLING a mutation, and every
+    // case in the database would march forward on the runner's poll interval
+    // rather than on its own run's progress.
+    //
+    // Counted across every case rather than this one, because the failure is
+    // not local: a poll walks whatever it looks at, and what it looks at is
+    // whichever runs happen to be claimable at that moment.
+    //
+    // ── Honestly: this is a canary, not a proof ────────────────────────
+    //
+    // The P11 regression pass moved the walk into `#situation` and this test
+    // still passed. It looked at a real run, but a CLAIMABLE run is by
+    // definition one whose phase is `creating_account` or `filling`, and the
+    // decide path has already walked its case to the state those phases map
+    // to — so there was no hop left to make. The regression was caught by the
+    // secure-refusal test instead, which has a case that genuinely lags.
+    //
+    // It is kept because the invariant is worth a standing check and the check
+    // is cheap: if a future phase mapping ever leaves a claimable run's case
+    // behind, this is what notices.
+    const before = await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const looked = await instance.driver.claimWork({ holder: "runner-looking", leaseSeconds: 120 });
+      // The poll really did find a run and reach `#situation` for it. Without
+      // this the test would pass on an empty pool, having looked at nothing.
+      expect(looked, "the poll must actually have looked at a run").not.toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+    const after = await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events");
+    expect(after.rows[0]?.n, "a look is not a move").toBe(before.rows[0]?.n);
+  }, 300_000);
+
+  it("says nothing new when the run advances and stays where it is", async () => {
+    // The walk is idempotent: a second advance that lands on the same phase
+    // adds no case event. Without that, every poll of a run sitting at
+    // `awaiting_secret` would append another state change.
+    //
+    // ── What this test does NOT prove ──────────────────────────────────
+    //
+    // It was first written as "does NOT walk backwards when a later phase
+    // reads earlier", and the P11 regression pass showed it was passing for
+    // the wrong reason: in these fixtures the target never reads EARLIER than
+    // the case has got to, so `nextCaseHop` answers `null` on `to === from`
+    // and the backwards branch is never reached. Breaking the branch changed
+    // nothing here. That property is a property of a pure function and is
+    // proved directly, over every ordered pair on the spine, in
+    // `packages/orchestrator/src/case-spine.test.ts`.
+    const before = (await caseEvents()).length;
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+    const after = await caseEvents();
+    expect(after.length, "nothing new to say").toBe(before);
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// M. P11 — the student's own decision (ADR-0049 §5)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the decision only the student can make", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A3";
+  let runId = "";
+  let contentHash = "";
+  let nextPort = PORT + 40;
+
+  async function aRunAtTheAuthorisation(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"c".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("authorise");
+
+      // The hash of exactly what the student is shown, from the orchestrator.
+      const situation = await instance.driver.previewHashFor(runId, conversation);
+      contentHash = situation ?? "";
+      expect(contentHash).not.toBe("");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function post(body: unknown, cookie: string): Promise<number> {
+    const instance = buildInstance(connectionString(), opener());
+    nextPort += 1;
+    const port = nextPort;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: async (subject, conversationId) => {
+        const owned = await instance.pool.query(
+          "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+          [conversationId, subject],
+        );
+        return owned.rowCount === 1;
+      },
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/runs/${runId}/decision`,
+        { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) },
+      );
+      return response.status;
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }
+
+  it("REFUSES a decision from someone else's session", async () => {
+    await aRunAtTheAuthorisation();
+    // The one decision that is the student's alone. Another student's cookie is
+    // not "a caller who may act on their behalf" — it is a different person.
+    // 404, not 403: `caller()` answers `not_found` for a conversation that is
+    // not yours, deliberately — a 403 would confirm the conversation exists.
+    expect(await post({ kind: "authorise", contentHash }, cookieFor(otherStudentId))).toBe(404);
+  }, 300_000);
+
+  it("REFUSES a hash that is not what was rendered", async () => {
+    // An authorisation of content the student never saw. `content_changed`
+    // rather than a generic refusal, so a client re-renders instead of
+    // retrying the same stale hash.
+    expect(await post({ kind: "authorise", contentHash: "sha256:not-what-they-saw" }, cookieFor(studentId_))).toBe(409);
+  }, 300_000);
+
+  it("REFUSES a body with no hash at all", async () => {
+    expect(await post({ kind: "authorise" }, cookieFor(studentId_))).toBe(400);
+    expect(await post({ kind: "submit", contentHash }, cookieFor(studentId_))).toBe(400);
+  }, 300_000);
+
+  it("records the authorisation THROUGH the domain, and the case moves with it", async () => {
+    const before = await pool.query<{ to: string | null }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged' ORDER BY "sequence" ASC`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(
+      before.rows.map((row) => row.to),
+      "the case is standing where the student may be asked",
+    ).toContain("AWAITING_STUDENT_AUTHORISATION");
+
+    expect(await post({ kind: "authorise", contentHash }, cookieFor(studentId_))).toBe(204);
+
+    const events = await pool.query<{ type: string; to: string | null }>(
+      `SELECT event->>'type' AS type, event->>'to' AS to
+         FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    const types = events.rows.map((row) => row.type);
+    expect(types, "captured, not appended by hand").toContain("AuthorisationCaptured");
+    expect(
+      events.rows.some((row) => row.type === "CaseStateChanged" && row.to === "AUTHORISED"),
+      "and the machine moved, from the same decision",
+    ).toBe(true);
+  }, 300_000);
+
+  it("REFUSES a second decision once the case has moved on", async () => {
+    // `capture_authorisation` refuses unless the case is in
+    // AWAITING_STUDENT_AUTHORISATION. Approving twice is not idempotent-safe
+    // by accident — it is refused by the guard, which is better.
+    expect(await post({ kind: "authorise", contentHash }, cookieFor(studentId_))).toBe(404);
+  }, 300_000);
+});
+
+describeIfDatabase("the mandatory-review guard, now that something drives it", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A1";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+  // A fresh port per server, for the reason group J gives: `close()` does not
+  // drop the keep-alive sockets a previous `fetch` left open.
+  let reviewPort = PORT + 60;
+
+  /**
+   * A run standing exactly at `authorise`, whose case carries financial
+   * evidence.
+   *
+   * ── Two things this had to be rebuilt around ───────────────────────────
+   *
+   * A first version used a MINOR's date of birth. The run reached `specialist`,
+   * not `authorise` — because the orchestrator gates a minor earlier through
+   * `checkMinorGate` (ADR-0011, ADR-0013). Correct product behaviour, and it
+   * means the case-level guard is defence in depth for minors rather than the
+   * thing that stops them. Financial evidence has no earlier gate, so it is
+   * where the guard is load-bearing and therefore where it must be tested.
+   *
+   * A second version used the plain blueprint, which never reaches `authorise`
+   * in these fixtures at all. Only the gated path does, and only with the
+   * secret and the account behind it — so this walks the same road group H
+   * does, and simply stops before the authorisation instead of injecting one.
+   */
+  async function aRunAtTheAuthorisation(into: string = conversation): Promise<string> {
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [into, studentId_],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles);
+      // The trigger's source: a confirmed field the domain calls financial
+      // evidence. Raised from this, never configured.
+      await confirmInto(profiles, "finance.funding_source", "Family savings", "my family are paying");
+
+      // Before the run starts, and against the DATABASE — the run reads this,
+      // not the object the confirmation produced.
+      const stored = await pool.query<{ field_key: string }>(
+        "SELECT field_key FROM profile_entries WHERE student_id = $1",
+        [studentId_],
+      );
+      expect(
+        stored.rows.map((row) => row.field_key),
+        "the trigger has a source the run will actually read",
+      ).toContain("finance.funding_source");
+
+      const started = await instance.driver.start({
+        conversationId: into,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: into,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"b".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: into });
+
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+
+      const asked = await instance.driver.advance({ runId, conversationId: into });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "standing at the authorisation").toBe("authorise");
+
+      // The financial field really is on the profile this run reads. Asserted
+      // because the whole test is vacuous without it, and a profile written
+      // against the wrong student is silent.
+      const loaded = await new PostgresConfirmedProfileStore(instance.pool).load(studentId_, NOW);
+      expect([...loaded.entries.keys()], "the trigger has a source").toContain(
+        "finance.funding_source",
+      );
+      return runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function reachedTheStudent(caseId: string): Promise<string> {
+    const found = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+          AND event->>'to' = 'AWAITING_STUDENT_AUTHORISATION'`,
+      [caseId],
+    );
+    return found.rows[0]?.n ?? "?";
+  }
+
+  it("REFUSES to ask for authorisation while a mandatory review is outstanding", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `transitions.ts`: a case carrying financial evidence "cannot reach
+    // AWAITING_STUDENT_AUTHORISATION without a recorded, approving human
+    // review … Confidence does not override this." Until P11 nothing drove the
+    // machine, so this guard had never run in the assembled system.
+    // ═══════════════════════════════════════════════════════════════════
+    await aRunAtTheAuthorisation();
+
+    const all = await pool.query<{ type: string }>(
+      `SELECT event->>'type' AS type FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [caseRef],
+    );
+    expect(
+      all.rows.map((row) => row.type),
+      "raised from the student's own confirmed profile",
+    ).toContain("HumanReviewRequested");
+    expect(await reachedTheStudent(caseRef), "the guard held").toBe("0");
+
+    const run = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(run.rows[0]?.status, "stopped the way P10 stops one").toBe("escalated");
+
+    const said = await pool.query<{ content: string | null }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1`,
+      [conversation],
+    );
+    const told = said.rows.filter((row) => row.content?.includes("needs to check it over"));
+    expect(told, "the student is told once").toHaveLength(1);
+    expect(told[0]?.content, "and not why").not.toContain("financial");
+  }, 300_000);
+
+  it("REFUSES the student's own approval while the review is outstanding", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The run IS standing at `authorise` — the orchestrator got there, and
+    // `previewHashFor` will render a preview. What has not happened is the
+    // case reaching `AWAITING_STUDENT_AUTHORISATION`, because the guard held
+    // it. So this is the one case where a decision arrives with the run
+    // asking and the CASE saying no, and the domain is what refuses it.
+    //
+    // Without this test the `!decided.accepted` branch in `recordDecision` is
+    // unreachable in the suite: everywhere else the run has already moved off
+    // `authorise` and the earlier `not_asked` refusal answers first. The P11
+    // regression pass found exactly that — swallowing the domain's refusal
+    // changed nothing, because nothing reached it.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const hash = await instance.driver.previewHashFor(runId, conversation);
+      expect(hash, "the run really is asking").not.toBeNull();
+      const recorded = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: hash ?? "" },
+      });
+      expect(recorded, "the case machine refuses, not this coordinator").toEqual({
+        ok: false,
+        reason: "refused",
+      });
+    } finally {
+      await instance.pool.end();
+    }
+
+    // And nothing was written: a refused approval is not a recorded one.
+    const captured = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured'`,
+      [caseRef],
+    );
+    expect(captured.rows[0]?.n).toBe("0");
+  }, 300_000);
+
+  it("an APPROVING review clears it, over the real internal route", async () => {
+    // Through HTTP, on the SAME internal plane and credential as an
+    // intervention (ADR-0048 §3, ADR-0049 §4) — not by calling the driver.
+    // A review recorded by reaching past the route would prove nothing about
+    // who is allowed to record one, and that is half of what this route is.
+    const instance = buildInstance(connectionString(), opener());
+    reviewPort += 1;
+    const port = reviewPort;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "operator",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    const body = JSON.stringify({
+      reviewerId: "specialist_vahid",
+      triggers: ["financial_evidence"],
+      outcome: "approved",
+      notes: "Funding source checked against the statement on file.",
+    });
+    try {
+      const denied = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+      expect(denied.status, "clearing a mandatory review is not open to anyone").toBe(403);
+      expect(await reachedTheStudent(caseRef), "and it cleared nothing").toBe("0");
+
+      const done = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-service-cert": "operator" },
+        body,
+      });
+      expect(done.status, "the review was recorded").toBe(204);
+
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+
+    expect(await reachedTheStudent(caseRef), "cleared, and now it may ask").toBe("1");
+  }, 300_000);
+
+  it("a REJECTING review does NOT clear it", async () => {
+    // Only an approving review clears a trigger. A rejection leaves it
+    // standing and the work goes back round — otherwise "a human looked" and
+    // "a human approved" would be the same fact.
+    //
+    // ── Why this drives a WHOLE run rather than just starting one ──────
+    //
+    // A first version started a run, recorded a rejection, and asserted the
+    // case had not reached the student. It passed, and it would have passed
+    // with the rule inverted: the run never got past `request_secret`, so its
+    // case never targeted `AWAITING_STUDENT_AUTHORISATION` and there was
+    // nothing for the guard to hold back. The P11 regression pass caught it by
+    // forcing every review to `approved` and watching the suite stay green.
+    //
+    // A test of a guard has to put the case in front of the guard.
+    const other = "01JBXQ8Z9WKTQ6M4H2NPC000A2";
+    const otherCase = `case_${other.toLowerCase()}`;
+    const otherRun = await aRunAtTheAuthorisation(other);
+    expect(await reachedTheStudent(otherCase), "held, before any review").toBe("0");
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const done = await instance.driver.completeReview({
+        caseId: makeCaseId(otherCase),
+        review: {
+          reviewerId: "specialist_vahid",
+          reviewedAt: NOW,
+          triggers: ["financial_evidence"],
+          outcome: "rejected",
+          notes: "The statement is older than the 31-day window.",
+        },
+      });
+      expect(done.ok, "the rejection WAS recorded — it is a review either way").toBe(true);
+
+      // Several times, and each time put back in the pool: the run stops again
+      // on every pass, and a guard that leaked would leak on one of them.
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [
+          otherRun,
+        ]);
+        await instance.driver.advance({ runId: otherRun, conversationId: other });
+      }
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await reachedTheStudent(otherCase), "a rejection is not an approval").toBe("0");
+  }, 300_000);
+});
+

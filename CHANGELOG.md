@@ -19,6 +19,61 @@ not shipped artefacts.
 
 ---
 
+## [0.29.0] — 2026-09-01
+
+**P11 — the run driver drives the case machine, and a student's authorisation is
+captured through it. ADR-0049.**
+
+**Version bump: MINOR.** No migration, no new store, no new plane. One decision
+route on the student's own session, one review route on the internal plane, and
+a spine walk in the coordinator that already existed.
+
+### The change that matters
+
+The case state machine has been in the domain since the beginning, guards and
+all, and **nothing drove it**. A run advanced; its case sat in `INTAKE`. The
+most consequential of those guards — that a case carrying financial evidence or
+involving a minor cannot reach `AWAITING_STUDENT_AUTHORISATION` without a
+recorded, approving human review — had therefore never run in the assembled
+system.
+
+It runs now, and it holds a real run back.
+
+### Added
+
+- `CASE_SPINE`, `caseStateFor`, `caseStateForStep` and `nextCaseHop` in the
+  orchestrator: an explicit ordered spine, walked **one hop at a time, forward
+  only**, never a shortest-path search over the transition table.
+- `RunDriver.recordDecision` and `POST /v1/conversations/{id}/runs/{runId}/decision`
+  — the one decision that is the student's alone, on the student's own
+  authenticated session rather than the internal service plane. It carries a
+  content hash and never the content: the service compares it against the
+  preview it would render now and refuses on a mismatch.
+- `RunDriver.completeReview` and `POST /internal/v1/cases/{caseId}/review` — a
+  specialist clears a mandatory review through the same plane and the same
+  asserted identity as an intervention (ADR-0048 §3).
+- `suggestsMinority` in the domain, and `REVIEW_TRIGGERS`. Triggers are raised
+  from the student's own confirmed profile or not at all.
+- `packages/contracts/src/decisions.ts`, with the compile-time constraint
+  `A_DECISION_CARRIES_A_HASH_NOT_THE_CONTENT`.
+- `packages/orchestrator/src/case-spine.test.ts` — the spine as a pure function,
+  including that every spine edge is one the case machine allows.
+
+### Changed
+
+- `scripts/journey.test.ts` authorises through the real decision route instead
+  of appending `AuthorisationCaptured` itself.
+- Three tests that were passing for the wrong reason were rewritten, and one
+  renamed to what it proves. See `docs/p11-regression-audit.md`.
+
+### Known limitations
+
+- Clearing a mandatory review has an HTTP route but no CLI verb.
+- `SUBMITTING` and `handover_due` remain unreachable — deliberately (ADR-0014,
+  ADR-0020). The spine stops at `AUTHORISED`.
+
+---
+
 ## [0.28.0] — 2026-09-01
 
 **P10 — a run that stops says so, and can be picked up. ADR-0048: a specialist
