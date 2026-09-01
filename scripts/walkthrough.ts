@@ -269,10 +269,11 @@ async function main(): Promise<void> {
 
   const checkpoint: ExecutionCheckpoint = {
     blueprintVersion: blueprintVersion("leeds-direct-v3"),
+    action: "advance_portal_page",
+    target: "funding",
     page: "funding",
-    section: "financial-evidence",
-    step: 2,
-    completedSections: ["personal-details", "previous-education", "english-language"],
+    phase: "filling",
+    pagesCompleted: ["personal-details", "previous-education", "english-language"],
     capturedAt: new Date("2026-08-26T14:00:00Z"),
   };
   const escalation: RecoveryEscalation = {
@@ -285,8 +286,8 @@ async function main(): Promise<void> {
   };
 
   await apply("AI hits an unfamiliar validation error", { kind: "escalate_for_recovery", escalation });
-  note(`Paused at ${checkpoint.page}/${checkpoint.section} step ${String(checkpoint.step)} — NOT failed, NOT restarted.`);
-  note(`${String(checkpoint.completedSections.length)} sections already completed are preserved: ${checkpoint.completedSections.join(", ")}`);
+  note(`Paused during ${checkpoint.action} against ${checkpoint.target} — NOT failed, NOT restarted.`);
+  note(`${String(checkpoint.pagesCompleted.length)} pages already completed are preserved: ${checkpoint.pagesCompleted.join(", ")}`);
   note(`Specialist alerted at priority: ${escalation.priority}`);
 
   ok("Specialist Amara finds the currency dropdown must be set first");
@@ -298,11 +299,12 @@ async function main(): Promise<void> {
       actionsTaken: "Selected GBP in the currency dropdown before entering the amount.",
       resolution: "Currency must be selected before the amount field accepts input.",
       resolvedAt: new Date("2026-08-26T14:25:00Z"),
-      resumeFrom: checkpoint,
       outcome: "resume",
     },
   });
-  note("Resumed from the checkpoint. The specialist unblocked it; they did not take over.");
+  note("Resumed. The specialist unblocked it; they did not take over — and they did not");
+  note("hand back a cursor either: where the run picks up is derived from its intent");
+  note("ledger (ADR-0047), so the resolution carries no position at all (ADR-0048 §5).");
 
   const intervention: InterventionRecord = {
     interventionId: "iv_001" as InterventionRecord["interventionId"],
@@ -313,7 +315,6 @@ async function main(): Promise<void> {
       actionsTaken: "Selected GBP in the currency dropdown before entering the amount.",
       resolution: "Currency must be selected before the amount field accepts input.",
       resolvedAt: new Date("2026-08-26T14:25:00Z"),
-      resumeFrom: checkpoint,
       outcome: "resume",
     },
     context: {
@@ -322,7 +323,6 @@ async function main(): Promise<void> {
       courseId: IDENTITY.courseId,
       blueprintVersion: blueprintVersion("leeds-direct-v3"),
       page: "funding",
-      section: "financial-evidence",
     },
     reusability: {
       scope: "this_institution",

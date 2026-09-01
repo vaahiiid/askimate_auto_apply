@@ -1,5 +1,28 @@
 # Roadmap, priorities, and why C2 is not the next item
 
+> ## ⚠️ Historical — its central finding was resolved by P1–P10
+>
+> **Updated 2026-09-01.** This document argued that C2 (recovery transport)
+> could not be next because durable run state did not exist:
+>
+> > *"`RunState` — the orchestrator's entire notion of where a run has got to —
+> > is a plain object passed between function calls … It is never written
+> > anywhere. **If the process ends, the run is gone.**"*
+>
+> **That is no longer true, and has not been since P1.** A run is durable in
+> `workflow_runs`, its consequential actions in `workflow_action_intents`, its
+> page progress derived from that ledger (ADR-0047), and since P10 its stopped
+> state and adjudication in `interventions` (ADR-0048). The two unconnected
+> models of a case described in §3 were joined.
+>
+> The reasoning is kept because the *ordering argument* was right and is worth
+> reading: the substrate before the transport. What it asked for now exists, so
+> **the alerting transport is genuinely next** — see the end of
+> `docs/where-we-are.md` for the current state and limitations.
+>
+> Everything below is the state as of 2026-08-27 at `0.2.0`. Do not read its
+> measurements as current.
+
 **Date:** 2026-08-27
 **Version at time of writing:** `0.2.0`
 **Asked for by Vahid:** establish whether C2 is clearly next before starting it.

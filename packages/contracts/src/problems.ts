@@ -48,6 +48,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   unsupported_media_type: "Unsupported media type",
   payload_too_large: "Payload too large",
   idempotency_key_conflict: "Idempotency key already used with a different request",
+  intervention_already_resolved: "This intervention has already been adjudicated",
   secret_request_open: "A secure step is open on this conversation",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
@@ -62,6 +63,10 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   unsupported_media_type: 415,
   payload_too_large: 413,
   idempotency_key_conflict: 409,
+  // 409 rather than 200: the caller's adjudication was NOT recorded, and a
+  // specialist who submitted one needs to know it lost to somebody else's
+  // rather than assume theirs is what the record now says.
+  intervention_already_resolved: 409,
   secret_request_open: 409,
   rate_limited: 429,
   internal_error: 500,
@@ -202,6 +207,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "unsupported_media_type":
     case "payload_too_large":
     case "idempotency_key_conflict":
+    case "intervention_already_resolved":
     case "internal_error":
     case "service_unavailable":
       return { ...base, code };

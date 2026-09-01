@@ -17,46 +17,68 @@ not shipped artefacts.
 
 ## [Unreleased]
 
-### Changed
+---
 
-- **`main` is the trunk.** Created at `e5b052b`, the exact tip of the working branch — a new ref at
-  an existing commit, so nothing was rewritten, amended or re-authored. ADR-0029 moves from
-  *Proposed* to **Accepted**, and records the two steps that still need Vahid: making `main` the
-  GitHub default branch, and deleting the old working branch afterwards. Both are
-  repository-settings writes that this session's network path refuses.
-- **Commit messages no longer carry agent attribution** — no `Co-Authored-By:` naming a model, no
-  `Claude-Session:` trailer, no "Generated with …" footer. Forward-only: the trailers already in the
-  pushed history stay, because removing them would mean rewriting every commit and force-pushing.
-  Stated in the new `CLAUDE.md` and reasoned through in ADR-0029 §9.
-- `docs/runbook-discovery-handoff.md` clones the default branch instead of naming the working
-  branch, so the command keeps working after the default is flipped.
+## [0.28.0] — 2026-09-01
+
+**P10 — a run that stops says so, and can be picked up. ADR-0048: a specialist
+resolution completes an intent; the operator CLI is only its first interface.**
+
+**Version bump: MINOR.** One ADR, one migration, one new store port with two
+adapters, two internal routes, one operator command — and no new service, no new
+plane, no second workflow engine.
 
 ### Added
 
-- **ADR-0048 (Proposed, not agreed)** — how a specialist's resolution enters the system for a run
-  that stopped `uncertain` or `escalated`. Analyses three options and proposes the intent ledger as
-  the authoritative model, with an operator CLI calling the service's internal route as the first
-  interface. Nothing is built; the unhappy path is still unreachable.
+- **Durable `uncertain` and `escalated` run states.** Both words were already in
+  `RUN_STATUSES` and in the transition table, and nothing wrote either. A run
+  that met an unfinished consequential action simply fell out of the work pool
+  with its status still `running` — safe, and indistinguishable from a run with
+  nothing to do. It now takes a durable status, and the transition back is one
+  the store already enforces.
+- **`interventions`** — a third store port beside the case log and the workflow
+  runs, holding who adjudicated a stopped run and what they found. It never
+  says whether the action happened; completing the intent says that, and the
+  split is what keeps the two from being able to disagree.
+- **Honest student-facing messages** on pause and on resume. They name no portal
+  field and no specialist — a student can act on neither — and they do not
+  pretend a paused application is still progressing.
+- **`GET /internal/v1/interventions`** and
+  **`POST /internal/v1/interventions/:id/resolution`**, behind the same service
+  credential as the runner's routes.
+- **`pnpm run interventions`** — list and resolve. It calls the service; it does
+  not open the database, and `pnpm run boundaries` fails if it ever does.
+- **`unverified_consequential_action`**, a recovery reason for the one thing the
+  existing nine could not say: an intent exists, no completion does, and nobody
+  knows which side of the action the process died on.
+
+### Changed
+
+- **`RecoveryResolution` no longer carries `resumeFrom`.** A draft proposed
+  storing it unread; Vahid rejected that — *"I do not approve storing an
+  executable field that the system deliberately ignores."* Where a run resumes
+  is derived from the intent ledger, and `A_RESOLUTION_CARRIES_NO_POSITION`
+  makes adding a position back fail to compile.
+- **`ExecutionCheckpoint` records a position this system can state truthfully** —
+  the action, its target, the phase, the pages done. It asked for a `section`
+  and a zero-based `step` that nothing here knows, and filling those with
+  placeholders would have been inventing a position.
+- `InterventionContext` loses `section` for the same reason.
+
+### Security
+
+- **`specialistId` is asserted, not authenticated**, and the scope of that is
+  written at the route, at the CLI and on the stored record: acceptable while
+  exactly one operator holds the service credential, and a **release blocker**
+  the moment a second specialist exists.
+- **`route_fallback` is refused in three places** — the wire's closed set, the
+  store, and a database CHECK — and implemented in none.
 
 ### Fixed
 
-- **CI is green again.** `apps/chat-integration` asserted that a dropped SSE stream reconnects with
-  `Last-Event-ID` by reading the header off Playwright's client-side view of the request, and it
-  read it on whichever reconnect happened first. `EventSource` sends that header only once it has
-  actually received an `id:` line, so on a machine slow enough for the first connection to be
-  recycled before the first event existed, the first reconnect legitimately carried nothing and the
-  assertion failed. It failed on every CI run from 2026-08-28 and on none locally. The test now
-  establishes the precondition instead of assuming it, and reads the cursor from the **service's**
-  record of what arrived rather than from the client-side snapshot, which documents itself as
-  incomplete.
-- The same test now also asserts what the service put back **on the wire**, so a service that
-  ignored the cursor and replayed the conversation on every reconnect fails — previously it passed,
-  because the client deduplicates by ordinal and the transcript looked right either way.
-- New test: a stream recycled before any event exists still delivers everything appended while it
-  was down, exactly once and in order. That behaviour was real but unasserted, and it is what the
-  old test was accidentally depending on.
-
-No version bump: documentation, repository governance and tests, no source change (ADR-0028 §3).
+- Two documents describing a world P1–P10 replaced. `docs/where-we-are.md` and
+  `docs/roadmap-and-priorities.md` are marked historical and carry the current
+  state; the latter still asserted that a run *"is never written anywhere"*.
 
 ---
 

@@ -56,8 +56,16 @@ export interface InterventionContext {
   readonly portal: string;
   readonly courseId: CourseId;
   readonly blueprintVersion: BlueprintVersion;
-  readonly page: string;
-  readonly section: string;
+  /**
+   * The page it occurred on, when the stop was on a page.
+   *
+   * `section` was here until 2026-09-01 and was removed for the reason given on
+   * `ExecutionCheckpoint`: this system has no section vocabulary, and a context
+   * with an invented section is a context that lies about where a fix applies —
+   * which matters more here than anywhere, because reusability is judged from
+   * it.
+   */
+  readonly page?: string;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

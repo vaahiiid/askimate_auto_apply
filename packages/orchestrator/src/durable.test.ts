@@ -334,7 +334,7 @@ describeIfDatabase("a genuine process restart", () => {
     // socket and every server-side session goes.
     //
     // Process B: opens its own pool, knowing only the runId, and resumes.
-    await admin.query("TRUNCATE workflow_action_intents, workflow_runs, case_events");
+    await admin.query("TRUNCATE interventions, workflow_action_intents, workflow_runs, case_events");
 
     const id = makeRunId("run_restart_1");
     const processA = newProcess();
@@ -411,7 +411,7 @@ describeIfDatabase("a genuine process restart", () => {
   it("a restart WITHOUT the authorisation in the log refuses to resume into filling", async () => {
     // The same restart, with the business fact missing. The checkpoint says
     // "filling"; the log does not agree; the log wins.
-    await admin.query("TRUNCATE workflow_action_intents, workflow_runs, case_events");
+    await admin.query("TRUNCATE interventions, workflow_action_intents, workflow_runs, case_events");
 
     const id = makeRunId("run_restart_2");
     const processA = newProcess();
@@ -454,7 +454,7 @@ describeIfDatabase("a genuine process restart", () => {
 
   it("losing every checkpoint loses no business fact, across a restart", async () => {
     // Rule 3, demonstrated end to end rather than only in the store contract.
-    await admin.query("TRUNCATE workflow_action_intents, workflow_runs, case_events");
+    await admin.query("TRUNCATE interventions, workflow_action_intents, workflow_runs, case_events");
 
     const id = makeRunId("run_restart_3");
     const first = newProcess();

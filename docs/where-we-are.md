@@ -1,5 +1,16 @@
 # Where we are
 
+> ## ⚠️ Superseded below — this section is the state as of 2026-08-26
+>
+> **Updated 2026-09-01 (P10).** Everything from the headline to "Since then" is
+> the picture *before* P1–P10, and its numbers are long out of date — "620
+> tests" is now 1715, and the state table below is missing four steps that have
+> since been built and one that has since been found. The current state is at
+> the **end of this file**, under *Where we are — 2026-09-01*. This section is
+> kept rather than
+> rewritten because it is the record of a real milestone, and overwriting it
+> would lose what Stage D actually proved.
+
 **Date:** 2026-08-26
 **Supersedes the state table in** [`gap-analysis-to-first-end-to-end-run.md`](./gap-analysis-to-first-end-to-end-run.md)
 (its account of the blockers and the account options still stands)
@@ -123,3 +134,71 @@ Said plainly so nothing here reads as further along than it is.
 - **A student-facing interface of any kind**, and there never will be one — the interview is a
   capability the existing AskiMate Chat calls (ADR-0015). The CLI harnesses in `scripts/` are test
   drivers and ship nowhere near a product.
+
+
+---
+
+# Where we are — 2026-09-01
+
+**Version:** `0.28.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**The happy path runs end to end, and the unhappy path is now recoverable.**
+
+A student is interviewed, types a password into the Secure Plane that no other
+service ever sees, an Automation Runner creates their account on a real portal,
+fills a multi-page application across restarts, and the run stops before
+submission — where ADR-0014 says stop.
+
+And when it cannot proceed, it now **says so**: the run takes a durable
+`uncertain` or `escalated` status, the student is told once in honest terms, a
+specialist gets a case with the failure point on it, and their adjudication puts
+the run back in the pool — resuming from where the intent ledger says it got to,
+never from the beginning.
+
+## What changed since 2026-08-26
+
+| Phase | What it delivered |
+|---|---|
+| P1–P3 | The React client on the real Conversation Service; a durable event log; the Secure Service appending authoritatively |
+| P4 | The Conversation Service opens the secure step and mints the frame capability |
+| P5 | The Automation Runner **pulls** leased work (ADR-0045) |
+| P6 | Account creation and protected fill against a real gated portal |
+| P7 | The first real end-to-end execution journey, across four planes |
+| P8 | A fill plan crosses as value and provenance (ADR-0046); the runner fills the form |
+| P9 | Durable multi-page execution; page progress lives in the intent ledger (ADR-0047) |
+| P10 | A run that stops says so, and can be picked up (ADR-0048) |
+
+## The state table, corrected
+
+| # | Step | State | Notes |
+|---|---|---|---|
+| 1 | Discovery | ✅ | Read-only. The *live run* is still blocked on egress. |
+| 2 | Application Blueprint | ✅ | Draft → specialist review → executable. |
+| 3 | Requirements | 🟡 | Model and evidence bar built. **The Requirements Service and its curated content are not** (ADR-0019). |
+| 4 | Conversational interview | ✅ | A capability of AskiMate Chat (ADR-0015). |
+| 5 | Confirmed profile | ✅ | **Postgres, behind `ConfirmedProfileStore`** (ADR-0044) — no longer in memory. |
+| 6 | Documents | ✅ | Vault, deterministic validity, extraction with the grounding rule. |
+| 7 | Field mapping | ✅ | Reviewed data pinned to a blueprint version. |
+| 8 | Autonomous completion | ✅ | **Multi-page, durable across restarts**, against a real Chromium and a real gated portal. |
+| 9 | Validation | ✅ | Against rules the blueprint observed. |
+| 10 | Preview | ✅ | Every field, rendered deterministically, hashed. |
+| 11 | Authorisation | ✅ | Ledger stores the preview text verbatim. |
+| 12 | **Recovery** | 🟡 | **New in P10.** A stopped run is durable, visible and resolvable. The **alerting transport is not built** — the queue is pull-only. |
+| 13 | Submission | ❌ | **Deliberately not built. This is where we stop.** |
+| 14 | Account hand-over | ❌ | `hand_over_account` is modelled; nothing writes the `handover_due` stage that reaches it (ADR-0020). |
+
+## Known limitations, stated plainly
+
+- **No alerting transport.** A specialist must run `pnpm run interventions`.
+  Nothing pushes. ADR-0008's other half.
+- **`specialistId` is asserted, not authenticated.** Acceptable for exactly one
+  operator; a second specialist makes authenticated identity a release blocker,
+  not an improvement (ADR-0048 §3).
+- **`escalated` is unreachable from `claimWork`** — every action a runner
+  performs is verifiable, so `verify_first` is the only verdict the integration
+  path produces. The branch is correct and enumerated directly.
+- **`route_fallback` is refused, not implemented** (ADR-0048 §4).
+- **Account hand-over is unreachable**, as above.
+- **No live run.** Blocked on portal egress and a sandbox account.

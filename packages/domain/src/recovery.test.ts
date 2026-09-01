@@ -44,10 +44,11 @@ const EVIDENCE: RequestEvidence = {
 
 const CHECKPOINT: ExecutionCheckpoint = {
   blueprintVersion: blueprintVersion("leeds-direct-v3"),
+  action: "advance_portal_page",
+  target: "funding",
   page: "funding",
-  section: "financial-evidence",
-  step: 2,
-  completedSections: ["personal-details", "previous-education", "english-language"],
+  phase: "filling",
+  pagesCompleted: ["personal-details", "previous-education", "english-language"],
   capturedAt: new Date("2026-08-26T14:00:00Z"),
 };
 
@@ -93,9 +94,12 @@ describe("pausing at the point of failure", () => {
       const moved = decision.events[1];
       if (moved?.type === "CaseStateChanged") {
         expect(moved.to).toBe("AWAITING_SPECIALIST_RECOVERY");
-        // The reason a specialist sees in the queue names the exact spot.
-        expect(moved.reason).toContain("funding/financial-evidence");
-        expect(moved.reason).toContain("step 2");
+        // The reason a specialist sees in the queue names the exact spot — in
+        // the vocabulary this system actually has: which action, against what.
+        // It used to name a page/section/step, two of which nothing could fill
+        // truthfully (see `ExecutionCheckpoint`).
+        expect(moved.reason).toContain("advance_portal_page");
+        expect(moved.reason).toContain("funding");
         expect(moved.reason).toContain("high");
       }
     }
@@ -115,7 +119,7 @@ describe("pausing at the point of failure", () => {
     );
 
     expect(paused.openEscalation).toBeDefined();
-    expect(paused.openEscalation?.checkpoint.completedSections).toEqual([
+    expect(paused.openEscalation?.checkpoint.pagesCompleted).toEqual([
       "personal-details",
       "previous-education",
       "english-language",
@@ -132,7 +136,8 @@ describe("pausing at the point of failure", () => {
     ]);
 
     expect(fold(log)).toEqual(fold(log));
-    expect(fold(log).openEscalation?.checkpoint.step).toBe(2);
+    expect(fold(log).openEscalation?.checkpoint.target).toBe("funding");
+    expect(fold(log).openEscalation?.checkpoint.action).toBe("advance_portal_page");
   });
 
   it("can be reached from every execution state", () => {
@@ -160,7 +165,6 @@ describe("resuming, not restarting", () => {
         actionsTaken: "Set the currency dropdown to GBP before entering the amount.",
         resolution: "Currency must be selected before the amount field accepts input.",
         resolvedAt: new Date("2026-08-26T14:25:00Z"),
-        resumeFrom: CHECKPOINT,
         outcome: "resume",
       },
     });
@@ -171,9 +175,10 @@ describe("resuming, not restarting", () => {
       const moved = decision.events[1];
       if (moved?.type === "CaseStateChanged") {
         expect(moved.to).toBe("PREPARING");
-        // The audit trail names who, and where it picked up.
+        // The audit trail names WHO and WHAT THEY DECIDED — and deliberately
+        // no position, because a resolution holds none (ADR-0048 §5).
         expect(moved.reason).toContain("specialist_amara");
-        expect(moved.reason).toContain("funding/financial-evidence");
+        expect(moved.reason).toContain("resume");
       }
     }
   });
@@ -188,7 +193,6 @@ describe("resuming, not restarting", () => {
         actionsTaken: "Unblocked.",
         resolution: "Fixed.",
         resolvedAt: new Date("2026-08-26T14:25:00Z"),
-        resumeFrom: CHECKPOINT,
         outcome: "resume",
       },
     });
@@ -214,7 +218,6 @@ describe("resuming, not restarting", () => {
             actionsTaken: "Unblocked.",
             resolution: "Fixed.",
             resolvedAt: new Date("2026-08-26T14:25:00Z"),
-            resumeFrom: CHECKPOINT,
             outcome: "resume",
           },
         },
@@ -234,7 +237,6 @@ describe("resuming, not restarting", () => {
         actionsTaken: "x",
         resolution: "x",
         resolvedAt: new Date(),
-        resumeFrom: CHECKPOINT,
         outcome: "resume",
       },
     });
@@ -262,7 +264,6 @@ describe("resuming, not restarting", () => {
         actionsTaken: "Unblocked the portal issue.",
         resolution: "Fixed.",
         resolvedAt: new Date("2026-08-26T14:25:00Z"),
-        resumeFrom: CHECKPOINT,
         outcome: "resume",
       },
     });

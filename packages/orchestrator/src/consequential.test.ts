@@ -449,7 +449,7 @@ describeIfDatabase("across a genuine process restart", () => {
     // Process A records the intent and then DIES mid-action — the account may
     // or may not exist on the portal. Process B, with its own pool and no
     // memory of anything, must not create a second one.
-    await admin.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await admin.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const id = makeRunId("run_restart_account");
     let creations = 0;
 
@@ -517,7 +517,7 @@ describeIfDatabase("across a genuine process restart", () => {
   }, 120_000);
 
   it("an unverifiable action escalates across a restart, and never runs twice", async () => {
-    await admin.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await admin.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const id = makeRunId("run_restart_secret");
     let spends = 0;
 

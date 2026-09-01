@@ -35,10 +35,28 @@ import {
   problemTypeFor,
   renderSseFrame,
   parseWorkReport,
+  parseResolutionSubmission,
   renderSseResumeFrame,
 } from "@askimate/aas-contracts";
 
-import type { ClaimedWork, ConversationRun, WorkReport } from "@askimate/aas-contracts";
+import type {
+  ClaimedWork,
+  ConversationRun,
+  OpenIntervention,
+  WorkReport,
+} from "@askimate/aas-contracts";
+import type {
+  InterventionId,
+  RecoveryResolution,
+  ReusabilityAssessment,
+} from "@askimate/aas-domain";
+import { interventionId as makeInterventionId } from "@askimate/aas-domain";
+import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
+import {
+  InterventionAlreadyResolvedError,
+  InterventionNotFoundError,
+  ResolutionOutcomeNotImplementedError,
+} from "@askimate/aas-case-store/interventions";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome } from "./run-driver.js";
@@ -79,6 +97,15 @@ export interface RunCoordinator {
     readonly runId: string;
     readonly report: WorkReport;
   }): Promise<boolean>;
+  /** Everything waiting for a specialist, oldest first. ADR-0048. */
+  openInterventions(): Promise<readonly StoredIntervention[]>;
+  /** Records a specialist's adjudication and lets the run continue. ADR-0048. */
+  resolveIntervention(input: {
+    readonly interventionId: InterventionId;
+    readonly resolution: RecoveryResolution;
+    readonly reusability: ReusabilityAssessment;
+    readonly didHappen: boolean;
+  }): Promise<StoredIntervention>;
 }
 
 /**
@@ -223,6 +250,32 @@ function parseSecureAppend(body: unknown): AppendableEvent | null {
     default:
       return null;
   }
+}
+
+/**
+ * An intervention as a specialist reads it.
+ *
+ * A projection, not the record. What is dropped is the point: the stored
+ * `context` and the resolution's prose stay on the server, and nothing shaped
+ * like a position is here to be honoured by a caller (ADR-0048 §5).
+ */
+function onTheWire(record: StoredIntervention): OpenIntervention {
+  return {
+    interventionId: record.interventionId,
+    runId: record.runId,
+    caseId: record.caseId,
+    studentRef: record.studentRef,
+    priority: record.escalation.priority,
+    reason: record.escalation.reason,
+    action: record.escalation.checkpoint.action,
+    target: record.escalation.checkpoint.target,
+    portal: record.context.portal,
+    phase: record.escalation.checkpoint.phase,
+    encountered: record.escalation.encountered,
+    expected: record.escalation.expected,
+    raisedAt: record.escalation.raisedAt.toISOString(),
+    announced: record.announcedAt !== undefined,
+  };
 }
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
@@ -715,6 +768,110 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         // permission to act on a student's application after that deadline.
         res.setHeader("Cache-Control", "no-store");
         res.status(200).json(work);
+      })().catch(next);
+    },
+  );
+
+  // ── GET /internal/v1/interventions ─────────────────────────────────────
+  //
+  // What is waiting for a specialist. ADR-0048 §1.
+  //
+  // Pull, not push: "open" is DERIVED from the store rather than from anything
+  // a notification did or did not deliver, so no case can be lost by an alert
+  // that never arrived. The alerting transport is the other half of ADR-0008
+  // and is not built; when it is, it reads this.
+  router.get(
+    "/internal/v1/interventions",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const open = await options.runs.openInterventions();
+        res.status(200).json({ interventions: open.map(onTheWire) });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/interventions/:id/resolution ─────────────────────
+  //
+  // A specialist's adjudication. ADR-0048 §3.
+  //
+  // Behind `authoriseService`, alongside the runner's routes, on the internal
+  // plane ADR-0045 established. So `specialistId` is ASSERTED, not
+  // authenticated: this records who CLAIMED to resolve it. Vahid approved that
+  // for the current single-operator model and named the condition that ends
+  // it — a second specialist existing at all, at which point authenticated
+  // individual identity is a required capability and a release blocker, not a
+  // deferred improvement. The route's shape does not change then; only who is
+  // allowed to call it.
+  router.post(
+    "/internal/v1/interventions/:interventionId/resolution",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const submission = parseResolutionSubmission(req.body);
+        if (submission === null) {
+          // `route_fallback` lands here too, and that is correct: it is absent
+          // from the wire's closed set because ADR-0048 §4 rejects it rather
+          // than implementing it partly.
+          problem(res, "validation_failed", {
+            pointers: ["/specialistId", "/actionsTaken", "/resolution", "/outcome", "/didHappen"],
+          });
+          return;
+        }
+
+        const resolution: RecoveryResolution = {
+          specialistId: submission.specialistId,
+          actionsTaken: submission.actionsTaken,
+          resolution: submission.resolution,
+          resolvedAt: options.now(),
+          outcome: submission.outcome,
+        };
+        const reusability = {
+          scope: submission.scope,
+          kind: submission.kind,
+          signature: submission.signature,
+        } as ReusabilityAssessment;
+
+        try {
+          const resolved = await options.runs.resolveIntervention({
+            interventionId: makeInterventionId(String(req.params["interventionId"])),
+            resolution,
+            reusability,
+            didHappen: submission.didHappen,
+          });
+          res.status(200).json({ intervention: onTheWire(resolved) });
+        } catch (error) {
+          if (error instanceof InterventionNotFoundError) {
+            problem(res, "not_found");
+            return;
+          }
+          if (error instanceof InterventionAlreadyResolvedError) {
+            // A 409, not a `forbidden`: the caller was allowed to ask, and
+            // somebody answered first. A second adjudication is not discarded
+            // silently — two specialists disagreeing is evidence.
+            problem(res, "intervention_already_resolved");
+            return;
+          }
+          if (error instanceof ResolutionOutcomeNotImplementedError) {
+            problem(res, "validation_failed", { pointers: ["/outcome"] });
+            return;
+          }
+          throw error;
+        }
       })().catch(next);
     },
   );

@@ -181,3 +181,15 @@ export {
   parseClaimedWork,
   parseWorkReport,
 } from "./work.js";
+
+// ── Specialist interventions (ADR-0048) ──────────────────────────────────
+export type {
+  OpenIntervention,
+  ResolutionSubmission,
+  WireResolutionOutcome,
+} from "./interventions.js";
+export {
+  WIRE_RESOLUTION_OUTCOMES,
+  parseResolutionSubmission,
+  parseWireResolutionOutcome,
+} from "./interventions.js";

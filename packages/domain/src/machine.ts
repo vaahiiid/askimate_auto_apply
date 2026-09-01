@@ -503,8 +503,8 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
             from: applicationCase.state,
             to: "AWAITING_SPECIALIST_RECOVERY",
             reason:
-              `Paused at ${intent.escalation.checkpoint.page}/${intent.escalation.checkpoint.section} ` +
-              `step ${String(intent.escalation.checkpoint.step)}: ${intent.escalation.reason}. ` +
+              `Paused during ${intent.escalation.checkpoint.action} against ` +
+              `${intent.escalation.checkpoint.target}: ${intent.escalation.reason}. ` +
               `Specialist alerted (${intent.escalation.priority}).`,
           },
         ],
@@ -544,10 +544,10 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
             type: "CaseStateChanged",
             from: applicationCase.state,
             to: intent.resumeTo,
-            reason:
-              `Resolved by ${intent.resolution.specialistId}; resuming from ` +
-              `${intent.resolution.resumeFrom.page}/${intent.resolution.resumeFrom.section} ` +
-              `step ${String(intent.resolution.resumeFrom.step)}.`,
+            // No position in this sentence, deliberately (ADR-0048 §5). Where
+            // the run resumes is derived from the intent ledger, and a reason
+            // string quoting a cursor would be quoting one that does not exist.
+            reason: `Resolved by ${intent.resolution.specialistId} (${intent.resolution.outcome}).`,
           },
         ],
       };

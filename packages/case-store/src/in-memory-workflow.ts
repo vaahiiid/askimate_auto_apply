@@ -46,7 +46,7 @@ function copyCheckpoint(checkpoint: WorkflowCheckpoint): WorkflowCheckpoint {
       : {
           portal: {
             ...checkpoint.portal,
-            completedSections: [...checkpoint.portal.completedSections],
+            pagesCompleted: [...checkpoint.portal.pagesCompleted],
             capturedAt: new Date(checkpoint.portal.capturedAt.getTime()),
           },
         }),

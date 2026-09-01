@@ -26,6 +26,7 @@ export type {
   ExternalRef,
   InstitutionId,
   Intake,
+  InterventionId,
   StudentId,
   TaskId,
 } from "./ids.js";
@@ -158,8 +159,9 @@ export type {
   RecoveryEscalation,
   RecoveryReason,
   RecoveryResolution,
+  ResolutionOutcome,
 } from "./recovery.js";
-export { RECOVERY_REASONS, priorityFor } from "./recovery.js";
+export { RECOVERY_REASONS, RESOLUTION_OUTCOMES, priorityFor } from "./recovery.js";
 
 export type {
   InterventionContext,

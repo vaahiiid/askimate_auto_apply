@@ -37,3 +37,26 @@ export {
   RunStatusError,
 } from "./workflow-store.js";
 export { InMemoryWorkflowRunStore } from "./in-memory-workflow.js";
+
+// ── The intervention store — who adjudicated a stuck run (ADR-0048) ───────
+//
+// A THIRD port. `WorkflowRunStore` says where a run got to and whether an
+// action happened; neither can say who decided, on what evidence, and whether
+// the fix generalises — and ADR-0008's learning loop needs all three.
+//
+// As with the case store, the Postgres adapter is exported from
+// "@askimate/aas-case-store/postgres-interventions" rather than here, so a
+// consumer that only wants the in-memory one does not pull `pg`.
+export type {
+  InterventionStore,
+  RaiseInput,
+  RaisedIntervention,
+  ResolveInput,
+  StoredIntervention,
+} from "./intervention-store.js";
+export {
+  InterventionAlreadyResolvedError,
+  InterventionNotFoundError,
+  ResolutionOutcomeNotImplementedError,
+} from "./intervention-store.js";
+export { InMemoryInterventionStore } from "./in-memory-intervention.js";

@@ -19,10 +19,11 @@ import type { ExecutionCheckpoint } from "./recovery.js";
 
 const CHECKPOINT: ExecutionCheckpoint = {
   blueprintVersion: blueprintVersion("leeds-direct-v3"),
+  action: "advance_portal_page",
+  target: "funding",
   page: "funding",
-  section: "financial-evidence",
-  step: 2,
-  completedSections: ["personal-details", "previous-education", "english-language"],
+  phase: "filling",
+  pagesCompleted: ["personal-details", "previous-education", "english-language"],
   capturedAt: new Date("2026-08-26T14:00:00Z"),
 };
 
@@ -45,7 +46,6 @@ function record(overrides: Partial<InterventionRecord> = {}): InterventionRecord
         "The funding amount field requires the currency dropdown to be set first; " +
         "setting it afterwards silently clears the amount.",
       resolvedAt: new Date("2026-08-26T14:25:00Z"),
-      resumeFrom: CHECKPOINT,
       outcome: "resume",
     },
     context: {
@@ -54,7 +54,6 @@ function record(overrides: Partial<InterventionRecord> = {}): InterventionRecord
       courseId: courseId("crs_msc_data_science"),
       blueprintVersion: blueprintVersion("leeds-direct-v3"),
       page: "funding",
-      section: "financial-evidence",
     },
     reusability: {
       scope: "this_institution",
@@ -197,7 +196,8 @@ describe("what a record captures", () => {
     // what the AI encountered / expected / where it failed
     expect(r.escalation.encountered).toContain("Value must match declared currency");
     expect(r.escalation.expected).toContain("plain numeric field");
-    expect(failurePointOf(r).section).toBe("financial-evidence");
+    expect(failurePointOf(r).target).toBe("funding");
+    expect(failurePointOf(r).action).toBe("advance_portal_page");
 
     // what the specialist did / what worked
     expect(r.resolution.actionsTaken).toContain("currency dropdown");
@@ -217,7 +217,7 @@ describe("what a record captures", () => {
   it("preserves what the AI had already completed", () => {
     // "Everything the AI had already completed must remain available and
     // auditable" — the checkpoint is where that lives.
-    expect(failurePointOf(record()).completedSections).toEqual([
+    expect(failurePointOf(record()).pagesCompleted).toEqual([
       "personal-details",
       "previous-education",
       "english-language",

@@ -101,7 +101,7 @@ if (HAVE_DATABASE) {
     // A FRESH, EMPTY store, exactly as the contract documents. The CaseStore
     // contract said the same and ignoring it cost six failing tests in 0.2.0.
     // Intents first: they reference runs.
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     return new PostgresWorkflowRunStore(pool);
   });
 }
@@ -121,7 +121,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
   });
 
   it("brings its Dates back as Dates", async () => {
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_dates"));
 
@@ -134,7 +134,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
     // The one place untyped data enters. A checkpoint this build cannot read
     // is reset to the start, never guessed at — a half-understood resume point
     // produces confident wrong behaviour on a real application.
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_future"));
 
@@ -152,7 +152,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
   }, 60_000);
 
   it("DISCARDS a corrupt checkpoint rather than crashing", async () => {
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_corrupt"));
 
@@ -168,7 +168,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
   }, 60_000);
 
   it("survives a completely new connection pool — the point of the adapter", async () => {
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_restart"));
     await store.saveCheckpoint({
@@ -202,7 +202,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
     // claimSubmissionKey prevented the duplicate but reported a raw driver
     // error that looked transient and invited exactly the retry that must not
     // happen.
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_crowd"));
 
@@ -234,7 +234,7 @@ describeIfDatabase("a checkpoint read back from JSONB", () => {
     // An outcome with no timestamp, or a timestamp with no outcome, reads as
     // certainty the system does not have. The CHECK constraint is what makes
     // that impossible rather than merely discouraged.
-    await pool.query("TRUNCATE workflow_action_intents, workflow_runs");
+    await pool.query("TRUNCATE interventions, workflow_action_intents, workflow_runs");
     const store = new PostgresWorkflowRunStore(pool);
     await store.start(fresh("run_half"));
     const key = idempotencyKeyFor({

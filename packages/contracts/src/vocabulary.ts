@@ -126,6 +126,7 @@ export const PROBLEM_CODES = [
   "unsupported_media_type",
   "payload_too_large",
   "idempotency_key_conflict",
+  "intervention_already_resolved",
   "secret_request_open",
   "rate_limited",
   "internal_error",
@@ -162,7 +163,7 @@ export const FRAME_PROTOCOL_VERSION = 1;
  * the caller decides; there is deliberately no default baked in here, because a
  * default chosen inside a parser is a default nobody reads.
  */
-function closedSetParser<T extends string>(
+export function closedSetParser<T extends string>(
   members: readonly T[],
 ): (value: unknown) => T | null {
   const set = new Set<string>(members);

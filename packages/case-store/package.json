@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-case-store",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,7 +10,10 @@
     "./workflow": "./src/workflow-store.ts",
     "./workflow-contract": "./src/workflow-contract.ts",
     "./postgres-workflow": "./src/postgres-workflow.ts",
-    "./serialisation": "./src/serialisation.ts"
+    "./serialisation": "./src/serialisation.ts",
+    "./interventions": "./src/intervention-store.ts",
+    "./postgres-interventions": "./src/postgres-intervention.ts",
+    "./intervention-contract": "./src/intervention-contract.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

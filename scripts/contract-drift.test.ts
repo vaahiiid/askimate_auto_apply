@@ -35,11 +35,13 @@ import {
   RUN_STATUSES,
   RUN_STEP_KINDS,
   SECRET_LIFECYCLES,
+  WIRE_RESOLUTION_OUTCOMES,
   WORK_APPROACHES,
   WORK_KINDS,
+  parseWireResolutionOutcome,
 } from "@askimate/aas-contracts";
 import { AUTHENTICATION_APPROACHES } from "@askimate/aas-account";
-import { WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
+import { RESOLUTION_OUTCOMES, WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
 import type { RunStep } from "@askimate/aas-orchestrator";
 import { phaseFor } from "@askimate/aas-orchestrator";
 import { readFileSync } from "node:fs";
@@ -315,5 +317,38 @@ describe("a plan survives the round trip to the runner and back", () => {
     expect(toStoredPlan({ ...empty, uploads: [], blockers: [
       { kind: "no_mapping", fieldRef: "x", label: "X" },
     ] as never })).toEqual({ ok: false, refusal: "has_blockers" });
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The wire admits only what is implemented (ADR-0048 §4)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("resolution outcomes, on the wire and in the domain", () => {
+  it("the wire's set is a STRICT SUBSET of the domain's", () => {
+    // The domain models the decision ADR-0008 described, `route_fallback`
+    // included. The wire admits only what is built. Keeping them as two lists
+    // is deliberate — and this is the test that stops them drifting apart
+    // silently in either direction.
+    for (const outcome of WIRE_RESOLUTION_OUTCOMES) {
+      expect(RESOLUTION_OUTCOMES, `the wire invented "${outcome}"`).toContain(outcome);
+    }
+    expect(WIRE_RESOLUTION_OUTCOMES.length).toBeLessThan(RESOLUTION_OUTCOMES.length);
+  });
+
+  it("names exactly what is NOT implemented, so building it is a deliberate act", () => {
+    // The day route switching is built, this test is what notices the two
+    // lists have to be reconciled — and ADR-0048 says that needs its own ADR
+    // and a complete implementation, not an entry added here.
+    const missing = RESOLUTION_OUTCOMES.filter(
+      (outcome) => !(WIRE_RESOLUTION_OUTCOMES as readonly string[]).includes(outcome),
+    );
+    expect(missing).toEqual(["route_fallback"]);
+  });
+
+  it("the parser REFUSES the unimplemented one", () => {
+    expect(parseWireResolutionOutcome("resume")).toBe("resume");
+    expect(parseWireResolutionOutcome("abandon")).toBe("abandon");
+    expect(parseWireResolutionOutcome("route_fallback")).toBeNull();
   });
 });

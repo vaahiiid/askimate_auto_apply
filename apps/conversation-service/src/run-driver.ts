@@ -50,6 +50,11 @@ import { randomUUID } from "node:crypto";
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
+import type {
+  InterventionStore,
+  StoredIntervention,
+} from "@askimate/aas-case-store/interventions";
+import { InterventionNotFoundError } from "@askimate/aas-case-store/interventions";
 import {
   askimateActor,
   blueprintVersion,
@@ -60,6 +65,8 @@ import {
   idempotencyKeyFor,
   institutionId as makeInstitutionId,
   intake as makeIntake,
+  interventionId as makeInterventionId,
+  priorityFor,
   openCase,
   runId as makeRunId,
   stamp,
@@ -69,6 +76,10 @@ import {
 import type {
   CaseId,
   ConsequentialAction,
+  InterventionId,
+  RecoveryEscalation,
+  RecoveryResolution,
+  ReusabilityAssessment,
   RunId,
   StudentId,
   WorkflowPhase,
@@ -299,6 +310,33 @@ interface StartedRun {
   readonly resumed: boolean;
 }
 
+/**
+ * What the student is told when their run pauses.
+ *
+ * Honest and useless to act on, deliberately. It names no portal field, no
+ * validation error and no specialist — a student can do nothing with any of
+ * them, and `routes.ts` already takes that position for a mapping-set refusal.
+ * What it does NOT do is pretend the run is still progressing: a paused
+ * application that looks busy is how a deadline gets missed quietly.
+ */
+function pauseMessage(entry: CatalogueEntry): string {
+  return (
+    `I have paused your ${entry.blueprint.institutionName} application. Something happened on ` +
+    `their system that I could not confirm one way or the other, and rather than risk repeating ` +
+    `a step you may already have completed, I have stopped and asked a person to check it. ` +
+    `Nothing you have given me is lost, and you do not need to do anything — I will tell you as ` +
+    `soon as it moves again.`
+  );
+}
+
+/** What the student is told when it moves again. */
+function resumeMessage(entry: CatalogueEntry): string {
+  return (
+    `Good news — someone has checked your ${entry.blueprint.institutionName} application and ` +
+    `it is moving again. I am picking up exactly where I stopped, so nothing will be repeated.`
+  );
+}
+
 export interface RunDriverOptions {
   readonly stores: DurableStores;
   readonly bindings: ApplicationBindingStore;
@@ -338,6 +376,24 @@ export interface RunDriverOptions {
    * what every test of the conversation surface runs as.
    */
   readonly leases?: WorkLeaseStore;
+  /**
+   * Where a stopped run's adjudication lives. ADR-0048.
+   *
+   * Optional for the same reason `leases` is: a deployment that hands out no
+   * browser work cannot get a run stuck on a consequential action, so it needs
+   * no specialist queue. Where it is absent the run still stops — that is the
+   * ledger's doing, not this store's — it simply stops silently, exactly as it
+   * did before P10.
+   */
+  readonly interventions?: InterventionStore;
+  /**
+   * Intervention ids, injected so a test can make one predictable.
+   *
+   * Given the idempotency key as well as the run, because a run can be stuck on
+   * more than one action over its life — a page-two save and, later, a page-
+   * three save. An id derived from the run alone collides on the second.
+   */
+  readonly newInterventionId?: (runId: string, idempotencyKey: string, now: Date) => string;
   /** Lease ids, injected so a test can make a claim predictable. */
   readonly newLeaseId?: (runId: string, now: Date) => string;
   readonly now: () => Date;
@@ -780,14 +836,21 @@ export class RunDriver {
   }
 
   /**
-   * Whether this run has a consequential action that was started and never
-   * finished.
+   * The consequential action that was started and never finished, if there is
+   * one.
    *
-   * `true` for both unfinished verdicts. `verify_first` and `escalate` differ
-   * in what a HUMAN should do about them; they are identical in what this
-   * coordinator may do, which is nothing.
+   * Returns the target AND the verdict rather than a boolean, because P10 needs
+   * both: the target is what a specialist is told to look at, and the verdict
+   * decides whether the run is `uncertain` (someone could establish this by
+   * looking programmatically, if a verifier existed) or `escalated` (only a
+   * person can). They remain identical in what this coordinator may do, which
+   * is nothing — that has not changed and must not.
    */
-  async #actionMayBeUnfinished(runId: RunId, kind: WorkKind, entry: CatalogueEntry): Promise<boolean> {
+  async #unfinishedAction(
+    runId: RunId,
+    kind: WorkKind,
+    entry: CatalogueEntry,
+  ): Promise<{ target: string; verdict: "verify_first" | "escalate" } | null> {
     // A fill has one intent PER PAGE (ADR-0047), and an unfinished one anywhere
     // stops the whole run — not just that page. Pages are ordered and a later
     // one is often unreachable until an earlier one is saved, so skipping past
@@ -797,9 +860,213 @@ export class RunDriver {
       kind === "execute" ? entry.blueprint.pages.map((page) => page.pageRef) : [runId as string];
     for (const target of targets) {
       const verdict = await this.#verdictFor(runId, ACTION_FOR_WORK[kind], target);
-      if (verdict.kind === "verify_first" || verdict.kind === "escalate") return true;
+      if (verdict.kind === "verify_first" || verdict.kind === "escalate") {
+        return { target, verdict: verdict.kind };
+      }
     }
-    return false;
+    return null;
+  }
+
+  // ── ADR-0048: a run that stops says so, and can be picked up ───────────
+
+  /**
+   * Records that a run stopped, tells the student, and moves its status.
+   *
+   * Three writes, in this order and for a reason. Nothing here is transactional
+   * across them — they are in two stores — so each step is written to be safe
+   * to repeat, and the ORDER is chosen so that a crash between any two leaves a
+   * state the next pass repairs rather than one nobody notices:
+   *
+   *   1. raise      idempotent per (run, stuck action). A crash after this
+   *                 leaves an intervention on a run still marked `running`,
+   *                 which the next poll finds and finishes.
+   *   2. announce   guarded by `announcedAt`, so a crash before it leaves a
+   *                 paused run the next poll still tells the student about.
+   *                 This is why the flag is on the record rather than inferred
+   *                 from "did we just create it".
+   *   3. status     last, because it is the step that takes the run out of the
+   *                 poll's reach. Doing it first would strand steps 1 and 2.
+   */
+  async #pause(input: {
+    readonly record: WorkflowRunRecord;
+    readonly entry: CatalogueEntry;
+    readonly conversationId: string;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly verdict: "verify_first" | "escalate";
+  }): Promise<void> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return;
+
+    const now = this.#options.now();
+    const runId = input.record.runId;
+    const idempotencyKey = idempotencyKeyFor({ runId, action: input.action, target: input.target });
+
+    const raised = await interventions.raise({
+      interventionId: makeInterventionId(
+        this.#options.newInterventionId?.(runId, idempotencyKey, now) ??
+          `iv_${randomUUID().replace(/-/g, "")}`,
+      ),
+      runId,
+      idempotencyKey,
+      caseId: input.record.caseId,
+      studentRef: input.record.studentRef,
+      escalation: this.#escalationFor(input, now),
+      context: {
+        institutionId: makeInstitutionId(input.entry.institutionRef),
+        portal: portalOf(input.entry),
+        courseId: makeCourseId(input.entry.courseRef),
+        blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+        ...(input.action === "advance_portal_page" ? { page: input.target } : {}),
+      },
+    });
+
+    const held = await interventions.find(raised.interventionId);
+    if (held !== null && held.announcedAt === undefined) {
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: { kind: "message", actor: "assistant", content: pauseMessage(input.entry) },
+      });
+      await interventions.markAnnounced(raised.interventionId, now);
+    }
+
+    const status = statusForVerdict(input.verdict);
+    if (input.record.status === status) return;
+    // Only from `running`. A run already paused is not moved again — the
+    // transition table would refuse `uncertain → uncertain` and there would be
+    // nothing to gain from asking it to.
+    if (input.record.status !== "running") return;
+    await this.#options.stores.runs.saveCheckpoint({
+      runId,
+      checkpoint: input.record.checkpoint,
+      expectedRevision: input.record.revision,
+      status,
+    });
+  }
+
+  /** What the specialist is told, in the vocabulary the system actually has. */
+  #escalationFor(
+    input: {
+      readonly record: WorkflowRunRecord;
+      readonly entry: CatalogueEntry;
+      readonly action: ConsequentialAction;
+      readonly target: string;
+      readonly verdict: "verify_first" | "escalate";
+    },
+    now: Date,
+  ): RecoveryEscalation {
+    return {
+      reason: "unverified_consequential_action",
+      priority: priorityFor("unverified_consequential_action"),
+      encountered:
+        `A "${input.action}" was started against ${input.target} and no completion was ever ` +
+        `recorded. This process cannot tell a crash BEFORE the action from a crash AFTER it, ` +
+        `and it will not guess: repeating it could create a second account, or re-save a page ` +
+        `a student has already had accepted.`,
+      expected: `A completion recorded against the intent, one way or the other.`,
+      checkpoint: {
+        blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+        action: input.action,
+        target: input.target,
+        phase: input.record.checkpoint.phase,
+        pagesCompleted: [],
+        capturedAt: now,
+        ...(input.action === "advance_portal_page" ? { page: input.target } : {}),
+      },
+      raisedAt: now,
+    };
+  }
+
+  /** Every intervention waiting for a specialist, oldest first. */
+  public async openInterventions(): Promise<readonly StoredIntervention[]> {
+    return (await this.#options.interventions?.open()) ?? [];
+  }
+
+  /**
+   * Records a specialist's adjudication, and lets the run continue.
+   *
+   * The order is the mirror of `#pause`, and again chosen so a crash repairs:
+   *
+   *   1. resolve   the adjudication. Refuses a second one rather than
+   *                overwriting — two specialists disagreeing is evidence.
+   *   2. complete  THE FACT. `did it happen` becomes an outcome in the intent
+   *                ledger, which is what actually un-sticks the run: the next
+   *                `assessIntent` returns `already_done` instead of
+   *                `verify_first`, with no code anywhere saying "resume".
+   *   3. status    back to `running`, so the poll can see it again.
+   *
+   * Note what step 2 does NOT do: it sets no position. Where the run picks up
+   * falls out of the ledger — `#nextPage` returns the first page with no
+   * successful intent — which is why a resolution carries no cursor and why
+   * ADR-0048 §5 could remove the one an earlier draft proposed.
+   */
+  public async resolveIntervention(input: {
+    readonly interventionId: InterventionId;
+    readonly resolution: RecoveryResolution;
+    readonly reusability: ReusabilityAssessment;
+    /** What the specialist established: did the action happen? */
+    readonly didHappen: boolean;
+  }): Promise<StoredIntervention> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) {
+      throw new InterventionNotFoundError(input.interventionId);
+    }
+    const held = await interventions.find(input.interventionId);
+    if (held === null) throw new InterventionNotFoundError(input.interventionId);
+
+    const resolved = await interventions.resolve({
+      interventionId: input.interventionId,
+      resolution: input.resolution,
+      reusability: input.reusability,
+    });
+
+    // ── The fact, in the one place that holds facts ────────────────────
+    //
+    // `succeeded` when the specialist found the action HAD landed, so the run
+    // moves past it. `failed_cleanly` when they established it had not — which
+    // is not "try again now": `assessIntent` returns `already_done` for both,
+    // and there is deliberately no verdict meaning retry. A run whose account
+    // creation cleanly did not happen needs a new attempt somebody decides to
+    // make, not one this code makes on their behalf.
+    await this.#options.stores.runs.completeIntent(
+      held.runId,
+      held.idempotencyKey,
+      input.didHappen ? "succeeded" : "failed_cleanly",
+      input.resolution.resolvedAt,
+    );
+
+    const record = await this.#options.stores.runs.load(held.runId);
+    if (record !== null && record.status !== "running") {
+      const next: WorkflowStatus = input.resolution.outcome === "abandon" ? "abandoned" : "running";
+      await this.#options.stores.runs.saveCheckpoint({
+        runId: held.runId,
+        checkpoint: record.checkpoint,
+        expectedRevision: record.revision,
+        status: next,
+      });
+    }
+
+    // Told last, and only for a run that will actually continue. A student who
+    // hears "it is moving again" about an abandoned application has been
+    // misled, which is worse than not being told at all.
+    if (input.resolution.outcome !== "abandon") {
+      await this.#announceResumed(held);
+    }
+    return resolved;
+  }
+
+  /** Tells the student their run is moving again, when there is one to tell. */
+  async #announceResumed(held: StoredIntervention): Promise<void> {
+    const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+    if (conversationId === null) return;
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return;
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: resumeMessage(entry) },
+    });
   }
 
   /** What the ledger says about one consequential action on one target. */
@@ -847,7 +1114,7 @@ export class RunDriver {
       const verdict = await this.#verdictFor(runId, "advance_portal_page", page.pageRef);
       // `failed_cleanly` is a claim that nothing happened out there, so the page
       // is offered again. `already_done` + `succeeded` is skipped. The unfinished
-      // verdicts never reach here — `#actionMayBeUnfinished` stopped the run.
+      // verdicts never reach here — `#unfinishedAction` stopped the run.
       if (verdict.kind === "already_done" && verdict.outcome === "succeeded") continue;
       return page;
     }
@@ -1152,7 +1419,23 @@ export class RunDriver {
       // stays `creating_account` and no runner is offered it, which is what
       // "a specialist looks at the portal and says which it was" means while
       // there is no verification capability to automate it.
-      if (await this.#actionMayBeUnfinished(record.runId, kind, entry)) continue;
+      const unfinished = await this.#unfinishedAction(record.runId, kind, entry);
+      if (unfinished !== null) {
+        // P10: the run stops, and now it SAYS SO. Before this it simply fell
+        // out of the work pool with its status still `running` — safe, and
+        // indistinguishable from a run with nothing to do. Pausing is
+        // idempotent, so a poller hitting the same stuck run every few seconds
+        // raises one intervention and tells the student once.
+        await this.#pause({
+          record,
+          entry,
+          conversationId,
+          action: ACTION_FOR_WORK[kind],
+          target: unfinished.target,
+          verdict: unfinished.verdict,
+        });
+        continue;
+      }
       // Both narrowings come from the orchestrator; this file reads their
       // results and never a step's kind.
       const account = accountWorkOf(situation.step);
@@ -1395,6 +1678,56 @@ function atOrigin(url: string, origin: string | undefined): string | null {
  * and the fill agent would refuse the page as `host_mismatch` — correctly, and
  * a long way from the configuration that caused it.
  */
+/**
+ * The status a stopped run takes, from the verdict that stopped it.
+ *
+ *   verify_first → `uncertain`  somebody COULD establish this by looking, and
+ *                               one day a verifier will do it automatically
+ *   escalate     → `escalated`  only a person can; there is nothing to look at
+ *
+ * Both stop the run. The difference is what it would take to un-stop it, and
+ * `NEXT_STATUS` treats them differently for that reason — `uncertain` may
+ * become `escalated`, never the reverse.
+ *
+ * ── Honestly: `escalated` is not reachable from `claimWork` today ─────────
+ *
+ * `assessIntent` returns `escalate` only for an action `isVerifiable` says
+ * cannot be checked, and both actions a runner performs — `create_portal_
+ * account` and `advance_portal_page` — are verifiable. The unverifiable ones
+ * are `consume_secret` and `submit_application`, and neither is work a runner
+ * is ever handed (submission is out of scope by ADR-0014).
+ *
+ * So the branch is real, correct and currently unexercised by the integration
+ * path. It is a pure function and enumerated in the tests for exactly that
+ * reason: the alternative was leaving it untested and saying nothing.
+ */
+export function statusForVerdict(verdict: "verify_first" | "escalate"): WorkflowStatus {
+  return verdict === "verify_first" ? "uncertain" : "escalated";
+}
+
+/**
+ * Which portal an intervention is about, for a person to read.
+ *
+ * The deployed origin when the catalogue names one, else the host of the first
+ * page the blueprint actually observed a URL for, else the institution
+ * reference. Never a guess dressed as a host: the last fallback is plainly an
+ * institution reference rather than something shaped like a domain, because a
+ * specialist reading "inst_leeds" knows to go and look, while a fabricated
+ * "leeds.ac.uk" would send them somewhere the run never touched.
+ */
+function portalOf(entry: CatalogueEntry): string {
+  if (entry.portalOrigin !== undefined) {
+    const host = hostOf(entry.portalOrigin);
+    if (host !== null) return host;
+  }
+  for (const page of entry.blueprint.pages) {
+    if (page.url === undefined) continue;
+    const host = hostOf(page.url);
+    if (host !== null) return host;
+  }
+  return entry.institutionRef;
+}
+
 function deployedHost(entry: CatalogueEntry, fromBlueprint: string): string | null {
   return entry.portalOrigin === undefined ? fromBlueprint : hostOf(entry.portalOrigin);
 }

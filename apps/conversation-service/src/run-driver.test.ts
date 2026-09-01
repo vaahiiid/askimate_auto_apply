@@ -25,15 +25,21 @@ import type { Server } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
+import { createHash } from "node:crypto";
 
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
+import { PostgresInterventionStore } from "@askimate/aas-case-store/postgres-interventions";
+import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
+import { InterventionAlreadyResolvedError } from "@askimate/aas-case-store/interventions";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import {
+  canTransitionStatus,
   caseId as makeCaseId,
   eventId as makeEventId,
   externalRef,
   idempotencyKeyFor,
+  isTerminalWorkflowStatus,
   proposeValue,
   provenanceOf,
   runId as makeRunId,
@@ -68,7 +74,7 @@ import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
 import { WorkLeaseStore } from "./work-store.js";
-import { RunDriver } from "./run-driver.js";
+import { RunDriver, statusForVerdict } from "./run-driver.js";
 import type { SecureRequestInput, SecureRequestOpener } from "./secure-requests.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { issueSession } from "./session.js";
@@ -193,6 +199,11 @@ function buildInstance(
     // ADR-0045. Present in every instance, because the claim path answering
     // "nothing to do" and the claim path not existing must not look alike.
     leases: new WorkLeaseStore(instancePool),
+    // ADR-0048. Present in every instance for the same reason `leases` is: a
+    // run that stops silently and a run that stops and says so must not be
+    // indistinguishable in the tests either.
+    interventions: new PostgresInterventionStore(instancePool),
+    newInterventionId: (runId, key) => `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
     now: () => NOW,
   });
   const app = createConversationApp({
@@ -1269,6 +1280,31 @@ describeIfDatabase("opening a secure step, and recording it authoritatively", ()
 // ───────────────────────────────────────────────────────────────────────────
 
 describeIfDatabase("leasing browser work to a runner", () => {
+  /**
+   * Puts a run back where a claim can see it.
+   *
+   * Several tests here deliberately LEAVE an unfinished consequential action,
+   * because that is the state they are about. Since P10 (ADR-0048) that state
+   * is no longer merely "not offered as work": the run is moved to `uncertain`
+   * and an intervention is raised, which is the point of the phase. So a
+   * fixture that only deleted the intents used to be enough and now is not —
+   * the pause outlives it.
+   *
+   * This resets all three, in a test fixture and never in production, so the
+   * tests that follow are about what they claim to be about.
+   */
+  async function restoreClaimable(run: string, phase: string): Promise<void> {
+    await pool.query("DELETE FROM interventions WHERE run_id = $1", [run]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [run]);
+    await pool.query(
+      `UPDATE workflow_runs
+          SET status = 'running',
+              checkpoint = jsonb_set(checkpoint, '{phase}', $2::jsonb)
+        WHERE run_id = $1`,
+      [run, JSON.stringify(phase)],
+    );
+  }
+
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00070";
   let runId: string;
 
@@ -1586,8 +1622,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // would assert that nothing happened out there, which is a claim about a
     // university's database that this system is not entitled to make.
     const other = "01JBXQ8Z9WKTQ6M4H2NPC00071";
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
-    await pool.query("UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1", [runId]);
+    await restoreClaimable(runId, "creating_account");
     void other;
 
     const instance = buildInstance(connectionString());
@@ -1617,10 +1652,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
       await instance.pool.end();
     }
     // Cleaned up deliberately: this test LEAVES an unfinished consequential
-    // action, and a run in that state is correctly never offered as work again.
-    // Later tests in this file want claimable work, so the state that makes
-    // them meaningful is restored here rather than assumed.
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    // action, and a run in that state is correctly never offered as work again
+    // — and, since P10, is PAUSED with an intervention raised. Later tests in
+    // this file want claimable work, so the state that makes them meaningful is
+    // restored here rather than assumed.
+    await restoreClaimable(runId, "creating_account");
   }, 60_000);
 
   it("refuses a SECOND claim on a live lease, in the store itself", async () => {
@@ -2294,4 +2330,589 @@ describeIfDatabase("which page a multi-page run does next", () => {
       await instance.pool.end();
     }
   }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// I. P10 — a run that stops says so, and can be picked up (ADR-0048)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a run that stops on an unfinished action", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00090";
+  let runId = "";
+
+  /** Everything up to `execute`, exactly as group H builds it. */
+  async function aRunReadyToFill(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"f".repeat(32)}`,
+        },
+      });
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+
+      const runRef = makeRunId(runId);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  /** Leaves a page's intent OPEN — started, never completed. The uncertainty. */
+  async function leaveOpen(page: string): Promise<void> {
+    const instance = buildInstance(connectionString());
+    try {
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const runRef = makeRunId(runId);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: idempotencyKeyFor({
+          runId: runRef,
+          action: "advance_portal_page",
+          target: page,
+        }),
+        action: "advance_portal_page",
+        target: page,
+        startedAt: NOW,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function claim(): Promise<ClaimedWork | null> {
+    const instance = buildInstance(connectionString());
+    try {
+      return await instance.driver.claimWork({ holder: "runner-p10", leaseSeconds: 120 });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function statusOf(): Promise<string> {
+    const found = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    return found.rows[0]?.status ?? "";
+  }
+
+  /** Assistant messages in this conversation, oldest first. */
+  async function messages(): Promise<string[]> {
+    const found = await pool.query<{ content: string | null }>(
+      `SELECT mb.content
+         FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1
+        ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return found.rows.map((row) => row.content ?? "");
+  }
+
+  /**
+   * Open interventions FOR THIS RUN.
+   *
+   * Scoped deliberately. Earlier groups in this file leave runs stuck on
+   * purpose, and since P10 those correctly raise interventions of their own —
+   * so an unscoped list is a list of other tests' fixtures, and asserting on
+   * its first element is asserting about whichever ran first.
+   */
+  async function openInterventions(): Promise<readonly StoredIntervention[]> {
+    const instance = buildInstance(connectionString());
+    try {
+      const all = await instance.driver.openInterventions();
+      return all.filter((item) => item.runId === runId);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("becomes UNCERTAIN, raises ONE intervention, and tells the student ONCE", async () => {
+    await aRunReadyToFill();
+    await pool.query("DELETE FROM work_leases");
+    await leaveOpen("page-application");
+
+    expect(await statusOf(), "still running before anybody polls").toBe("running");
+
+    // Three polls, because a runner polls continuously. Before P10 this run
+    // simply fell out of the pool with its status untouched; the bug this
+    // guards against is the opposite one — a queue filling with copies of a
+    // single stuck page, and a student told about it over and over.
+    expect(await claim(), "a run with an unfinished action is not work").toBeNull();
+    expect(await claim()).toBeNull();
+    expect(await claim()).toBeNull();
+
+    expect(await statusOf(), "verify_first — somebody could establish this").toBe("uncertain");
+
+    const open = await openInterventions();
+    expect(open, "one problem, one case").toHaveLength(1);
+    expect(open[0]?.escalation.reason).toBe("unverified_consequential_action");
+    expect(open[0]?.escalation.priority).toBe("critical");
+    expect(open[0]?.escalation.checkpoint.action).toBe("advance_portal_page");
+    expect(open[0]?.escalation.checkpoint.target).toBe("page-application");
+
+    const said = await messages();
+    const paused = said.filter((text) => text.includes("I have paused"));
+    expect(paused, "told once, not once per poll").toHaveLength(1);
+    expect(paused[0], "no portal internals a student cannot act on").not.toContain("page-application");
+  }, 300_000);
+
+  it("raises ONE intervention even if the pause is interrupted before the status write", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after a deliberate regression was NOT detected. Randomising the
+    // key the driver raises under changed nothing any test could see, because
+    // the first poll moves the run to `uncertain` and the candidate query
+    // never offers it again — so `raise` was only ever called once and its
+    // idempotency was never exercised at the driver at all.
+    //
+    // The crash window is the case it exists for: `#pause` raises, then
+    // announces, then writes the status, across two stores with no transaction
+    // between them. A process that dies after the raise leaves a run still
+    // marked `running`, and the next poll comes straight back through here.
+    // That must find the SAME intervention and must not tell the student twice.
+    // ═══════════════════════════════════════════════════════════════════
+    const before = (await openInterventions())[0];
+    if (before === undefined) expect.unreachable("the run is paused");
+
+    // The interruption: the status write never landed.
+    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM work_leases");
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await claim();
+    }
+
+    const after = await openInterventions();
+    expect(after, "one stuck action is one case, however many times it is polled").toHaveLength(1);
+    expect(after[0]?.interventionId, "and it is the SAME one").toBe(before.interventionId);
+
+    const said = await messages();
+    expect(
+      said.filter((text) => text.includes("I have paused")),
+      "and the student is still told exactly once",
+    ).toHaveLength(1);
+    expect(await statusOf(), "and the status write completes on the retry").toBe("uncertain");
+  }, 300_000);
+
+  it("offers NO work while it is paused", async () => {
+    await pool.query("DELETE FROM work_leases");
+    expect(await claim()).toBeNull();
+    expect(await statusOf()).toBe("uncertain");
+  }, 300_000);
+
+  it("resolving it completes THE FACT, and the run continues from the failure point", async () => {
+    const open = await openInterventions();
+    const held = open[0];
+    if (held === undefined) expect.unreachable("the run is paused");
+
+    const instance = buildInstance(connectionString());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: held.interventionId,
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Signed in and confirmed the first page was saved.",
+          resolution: "The save landed; only the completion was lost.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "gated:page-one" },
+        didHappen: true,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+
+    // The fact, in the one place that holds facts.
+    const intent = await pool.query<{ outcome: string | null }>(
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target = 'page-application'",
+      [runId],
+    );
+    expect(intent.rows[0]?.outcome).toBe("succeeded");
+    expect(await statusOf()).toBe("running");
+
+    // ── The property ADR-0048 §5 exists for ─────────────────────────────
+    //
+    // Nothing was told where to resume. The next claim offers page TWO because
+    // the ledger now says page one is done — not page one again, and not the
+    // first page of the blueprint.
+    await pool.query("DELETE FROM work_leases");
+    const work = await claim();
+    if (work === null) expect.unreachable("page two is still to do");
+    expect(work.formUrl, "resumed from the failure point, not the beginning").toBe(
+      "https://gated.portal.test/study",
+    );
+
+    const said = await messages();
+    expect(said.filter((text) => text.includes("moving again"))).toHaveLength(1);
+  }, 300_000);
+
+  it("a SECOND resolution is refused, and the first one stands", async () => {
+    await pool.query("DELETE FROM work_leases");
+    await leaveOpen("page-study");
+    expect(await claim()).toBeNull();
+
+    const open = await openInterventions();
+    const held = open[0];
+    if (held === undefined) expect.unreachable("the run is paused again");
+
+    const resolution = {
+      specialistId: "specialist_first",
+      actionsTaken: "Looked.",
+      resolution: "Nothing was saved.",
+      resolvedAt: NOW,
+      outcome: "resume" as const,
+    };
+    const reusability = {
+      scope: "this_case_only" as const,
+      kind: "guidance" as const,
+      signature: "s",
+    };
+
+    const instance = buildInstance(connectionString());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: held.interventionId,
+        resolution,
+        reusability,
+        didHappen: false,
+      });
+      // Two specialists disagreeing is evidence, not noise to tidy away by
+      // keeping whichever answer arrived last.
+      await expect(
+        instance.driver.resolveIntervention({
+          interventionId: held.interventionId,
+          resolution: { ...resolution, specialistId: "specialist_second" },
+          reusability,
+          didHappen: true,
+        }),
+      ).rejects.toThrow(InterventionAlreadyResolvedError);
+    } finally {
+      await instance.pool.end();
+    }
+
+    const stored = await pool.query<{ specialist_id: string; resolution_outcome: string }>(
+      "SELECT specialist_id, resolution_outcome FROM interventions WHERE intervention_id = $1",
+      [held.interventionId],
+    );
+    expect(stored.rows[0]?.specialist_id).toBe("specialist_first");
+
+    // `didHappen: false` recorded `failed_cleanly` — which is NOT "try it
+    // again now". `assessIntent` returns `already_done` for both outcomes and
+    // has no verdict meaning retry; a fresh attempt is somebody's decision.
+    const intent = await pool.query<{ outcome: string | null }>(
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target = 'page-study'",
+      [runId],
+    );
+    expect(intent.rows[0]?.outcome).toBe("failed_cleanly");
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// J. P10 — the specialist path over real HTTP (ADR-0048 §3)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the internal specialist routes", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00091";
+  let runId = "";
+  let interventionId = "";
+
+  async function aPausedRun(): Promise<void> {
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"a".repeat(32)}`,
+        },
+      });
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step, "standing at the account creation").toBe("create_account");
+
+      // An account creation started and never finished: the uncertainty.
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const runRef = makeRunId(runId);
+      await runs.recordIntent(runRef, {
+        idempotencyKey: idempotencyKeyFor({
+          runId: runRef,
+          action: "create_portal_account",
+          target: runId,
+        }),
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      // ── Polling until this run is REACHED, not merely polled once ──────
+      //
+      // `claimWork` walks candidates and RETURNS on the first claimable one,
+      // so a single poll only passes over — and therefore only pauses — the
+      // runs that sort before it. Earlier groups in this file leave claimable
+      // runs behind, so one call may never get here.
+      //
+      // The leases are deliberately NOT cleared between attempts: each claim
+      // takes one run out of the pool, so successive polls reach further,
+      // which is exactly what a real runner pool does over a few seconds.
+      await pool.query("DELETE FROM work_leases");
+      let open: readonly StoredIntervention[] = [];
+      for (let attempt = 0; attempt < 12 && open.length === 0; attempt += 1) {
+        await instance.driver.claimWork({ holder: `r${String(attempt)}`, leaseSeconds: 600 });
+        open = (await instance.driver.openInterventions()).filter(
+          (item) => item.runId === runId,
+        );
+      }
+      await pool.query("DELETE FROM work_leases");
+      interventionId = open[0]?.interventionId ?? "";
+      expect(interventionId, "the run paused and raised one").not.toBe("");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  // A fresh port per server. `close()` does not drop keep-alive sockets the
+  // previous test's `fetch` left open, so reusing one port makes the next
+  // `listen` race the old socket and surface as an unexplained "fetch failed".
+  let nextPort = PORT + 20;
+
+  async function withServer<T>(
+    task: (base: string) => Promise<T>,
+  ): Promise<T> {
+    const instance = buildInstance(connectionString());
+    nextPort += 1;
+    const port = nextPort;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: () => Promise.resolve(true),
+      authoriseService: (req) => req.header("x-service-cert") === "operator",
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      return await task(`http://127.0.0.1:${String(port)}`);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }
+
+  const CERT = { "content-type": "application/json", "x-service-cert": "operator" };
+
+  const goodBody = {
+    specialistId: "specialist_vahid",
+    actionsTaken: "Signed in to the portal; no account exists for that address.",
+    resolution: "The submit never reached the portal.",
+    outcome: "resume",
+    didHappen: false,
+    scope: "this_case_only",
+    kind: "guidance",
+    signature: "gated:account:no-account-created",
+  };
+
+  it("lists what is waiting, and REFUSES a caller with no service credential", async () => {
+    await aPausedRun();
+    await withServer(async (base) => {
+      const denied = await fetch(`${base}/internal/v1/interventions`);
+      expect(denied.status, "the internal plane is not open").toBe(403);
+
+      const listed = await fetch(`${base}/internal/v1/interventions`, { headers: CERT });
+      expect(listed.status).toBe(200);
+      const body = (await listed.json()) as { interventions: Record<string, unknown>[] };
+      const mine = body.interventions.filter((item) => item["runId"] === runId);
+      expect(mine).toHaveLength(1);
+      expect(mine[0]?.["action"]).toBe("create_portal_account");
+      expect(mine[0]?.["priority"]).toBe("critical");
+      expect(mine[0]?.["announced"]).toBe(true);
+
+      // What a specialist gets is enough to go and look, and nothing that
+      // would let them drive the run from outside.
+      expect(Object.keys(mine[0] ?? {}).sort()).toEqual(
+        [
+          "action",
+          "announced",
+          "caseId",
+          "encountered",
+          "expected",
+          "interventionId",
+          "phase",
+          "portal",
+          "priority",
+          "raisedAt",
+          "reason",
+          "runId",
+          "studentRef",
+          "target",
+        ].sort(),
+      );
+    });
+  }, 300_000);
+
+  it("REFUSES route_fallback, and changes nothing", async () => {
+    // ADR-0048 §4, Vahid 2026-09-01: rejected explicitly, not partially
+    // implemented. It is absent from the wire's closed set, so the parser
+    // refuses it before any handler sees it.
+    await withServer(async (base) => {
+      const refused = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify({ ...goodBody, outcome: "route_fallback" }) },
+      );
+      expect(refused.status).toBe(400);
+    });
+
+    const after = await pool.query<{ resolved_at: Date | null; status: string }>(
+      `SELECT i.resolved_at, r.status
+         FROM interventions i JOIN workflow_runs r ON r.run_id = i.run_id
+        WHERE i.intervention_id = $1`,
+      [interventionId],
+    );
+    expect(after.rows[0]?.resolved_at, "refused means unchanged").toBeNull();
+    expect(after.rows[0]?.status).toBe("uncertain");
+  }, 300_000);
+
+  it("REFUSES a submission with no answer to the only question that matters", async () => {
+    // `didHappen` has no default. A default would be the service guessing at
+    // the exact thing a person was asked to go and check.
+    await withServer(async (base) => {
+      const body: Record<string, unknown> = { ...goodBody };
+      delete body["didHappen"];
+      const refused = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify(body) },
+      );
+      expect(refused.status).toBe(400);
+    });
+  }, 300_000);
+
+  it("records a resolution, and answers 409 to a second one", async () => {
+    await withServer(async (base) => {
+      const first = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        { method: "POST", headers: CERT, body: JSON.stringify(goodBody) },
+      );
+      expect(first.status).toBe(200);
+
+      const second = await fetch(
+        `${base}/internal/v1/interventions/${interventionId}/resolution`,
+        {
+          method: "POST",
+          headers: CERT,
+          body: JSON.stringify({ ...goodBody, specialistId: "specialist_other", didHappen: true }),
+        },
+      );
+      expect(second.status, "not silently accepted — somebody answered first").toBe(409);
+      const problem = (await second.json()) as Record<string, unknown>;
+      expect(problem["code"]).toBe("intervention_already_resolved");
+    });
+
+    const stored = await pool.query<{ specialist_id: string; status: string; outcome: string }>(
+      `SELECT i.specialist_id, r.status, a.outcome
+         FROM interventions i
+         JOIN workflow_runs r ON r.run_id = i.run_id
+         JOIN workflow_action_intents a ON a.run_id = i.run_id AND a.idempotency_key = i.idempotency_key
+        WHERE i.intervention_id = $1`,
+      [interventionId],
+    );
+    expect(stored.rows[0]?.specialist_id, "the first adjudication stands").toBe(
+      "specialist_vahid",
+    );
+    expect(stored.rows[0]?.status, "and the run is going again").toBe("running");
+    expect(stored.rows[0]?.outcome, "the fact, from didHappen: false").toBe("failed_cleanly");
+  }, 300_000);
+
+  it("answers 404 for an intervention nobody raised", async () => {
+    await withServer(async (base) => {
+      const missing = await fetch(`${base}/internal/v1/interventions/iv_nope/resolution`, {
+        method: "POST",
+        headers: CERT,
+        body: JSON.stringify(goodBody),
+      });
+      expect(missing.status).toBe(404);
+    });
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// K. P10 — the verdict-to-status rule, enumerated
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("which status a stopped run takes", () => {
+  // Not `describeIfDatabase`: a pure function, and it is tested here precisely
+  // because ONE of its two branches cannot be reached through `claimWork`.
+  //
+  // `assessIntent` returns `escalate` only for an action `isVerifiable` says
+  // cannot be checked. Both actions a runner performs are verifiable, and the
+  // two that are not — `consume_secret`, `submit_application` — are never
+  // handed to a runner. So `escalated` is correct, is wired end to end, and is
+  // currently unexercised by the integration path. Saying that out loud and
+  // testing the rule directly is better than leaving it to look covered.
+  it("maps verify_first to uncertain — somebody could establish this", () => {
+    expect(statusForVerdict("verify_first")).toBe("uncertain");
+  });
+
+  it("maps escalate to escalated — only a person can", () => {
+    expect(statusForVerdict("escalate")).toBe("escalated");
+  });
+
+  it("never returns a status that cannot get back to running", () => {
+    // The property that matters more than either mapping: whatever a stop
+    // chooses, a resolution must be able to undo it. `abandoned` and
+    // `completed` are terminal, and a stop that landed on one would be a run
+    // no specialist could ever release.
+    for (const verdict of ["verify_first", "escalate"] as const) {
+      expect(canTransitionStatus(statusForVerdict(verdict), "running")).toBe(true);
+      expect(isTerminalWorkflowStatus(statusForVerdict(verdict))).toBe(false);
+    }
+  });
 });

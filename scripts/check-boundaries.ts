@@ -648,6 +648,44 @@ function main(): void {
   // `phaseFor` is named too: the mapping from a decision to a durable phase
   // lives in the orchestrator's `durable.ts`, and a copy here would be a second
   // opinion about where a run has got to.
+  // ── The operator CLI calls the service; it does not open the store ─────
+  //
+  // ADR-0048's whole shape. A CLI writing the database directly would be a
+  // SECOND WRITER, and every invariant the Conversation Service enforces would
+  // need enforcing here too — and would eventually be enforced in only one of
+  // them. This repository has already had two models of one thing come apart
+  // (ADR-0041), and ADR-0045 turned on the same principle.
+  //
+  // The rule is worth having as a check rather than a comment because the
+  // shortcut is so easy: one `pg.Pool` and a specialist queue becomes a second
+  // implementation of the run's rules.
+  const CLI = "scripts/interventions.ts";
+  if (existsSync(CLI)) {
+    const source = readFileSync(CLI, "utf8");
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ")
+      .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, "``");
+    for (const forbidden of [
+      "pg",
+      "aas-case-store",
+      "InterventionStore",
+      "PostgresInterventionStore",
+      "WorkflowRunStore",
+      "ConversationEventStore",
+    ]) {
+      const pattern = new RegExp(`(^|[^\\w-])${forbidden}([^\\w-]|$)`);
+      if (!pattern.test(code)) continue;
+      violations.push(
+        `${CLI} mentions \`${forbidden}\`. The operator CLI is an INTERFACE, not a writer ` +
+          `(ADR-0048): it calls the Conversation Service's internal routes so the service stays ` +
+          `the only thing that writes a resolution. Opening the store here would put the run's ` +
+          `invariants in two places and, in time, in one.`,
+      );
+    }
+  }
+
   const DRIVER = "apps/conversation-service/src/run-driver.ts";
   if (existsSync(DRIVER)) {
     const source = readFileSync(DRIVER, "utf8");
