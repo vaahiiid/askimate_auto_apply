@@ -1,6 +1,6 @@
 # ADR-0053 — A student can stop
 
-**Status:** **Proposed** — drafted 2026-09-02. Not to be acted on until approved. ·
+**Status:** **Accepted** — Vahid, 2026-09-02, settling all four decisions. ·
 **Completes:** the symmetry [ADR-0032](./0032-cancellation-is-its-own-lifecycle.md) established for
 one secure step, at the level of the case ·
 **Constrained by:** [ADR-0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md)
@@ -97,57 +97,115 @@ Stated first, because a cancellation that over-promises is worse than none:
 What a student is told when they cancel must therefore be true about all three. Getting that message
 right is part of this phase, not a detail after it.
 
-## The decisions I need from you
+## The decisions, as settled
 
-### Decision 1 — the shape of a cancellation (**this is the material one**)
+### §1 · The shape — wind down, then conclude (**decision 1: option A**)
 
-**A — Wind down, then conclude.** A new non-terminal state (`WINDING_DOWN`, or reuse
-`AWAITING_HANDOFF`) that stops new work immediately, allows the outstanding handover to complete, and
-reaches `CANCELLED` only when the account is handed back. Honours ADR-0050 exactly; costs a new state
-and a return edge, and a student who never completes the handover leaves a case that never concludes —
-which is already true of every finished case today.
+**Settled by Vahid, 2026-09-02.** A student must be able to stop *immediately*, and cancellation must
+not bypass ADR-0050's non-optional handover. So cancelling is two acts separated in time:
 
-**B — Cancel immediately; the account becomes a specialist's problem.** Transition straight to
-`CANCELLED` and raise an intervention for the outstanding account. Simple and immediate for the
-student; converts every cancellation into human labour, which is precisely what ADR-0008 says the
-specialist layer must not become.
+```
+  any non-terminal state ──cancel_case──▶ WINDING_DOWN ──(obligations clear)──▶ CANCELLED
+                                              │
+                                              └── no return edge. Ever.
+```
 
-**C — Refuse to cancel until the handover is done.** "You can stop, once you've taken your account
-back." Keeps the machine simple; makes the stop button conditional, which for a student who wants out
-*now* is close to not having one. I think this is the wrong answer for a consent mechanism.
+**`WINDING_DOWN` is a new, explicit case state.** Vahid: *"Do not silently overload an existing state
+if it would make the lifecycle ambiguous."* The tempting reuse is `AWAITING_HANDOFF`, and it would be
+exactly that ambiguity — that state means *"a healthy case is waiting on its account handover"*, and a
+reader could no longer tell it from *"the student stopped and we are finishing our obligations"*.
+Those call for different messages, different urgency and different analytics, which is ADR-0032's
+argument for `secret_cancelled` one level up.
 
-**My recommendation is A**, on the ADR-0050 argument: the account is the student's, handover is
-non-optional, and a stop that stranded it would be a stop that lied. But A adds a case state, and this
-repository has been careful about that — ADR-0050 declined to add a terminal state on exactly this
-kind of reasoning — so it is yours to settle rather than mine.
+**What `WINDING_DOWN` means, exactly:** no further consequential work will be started; the obligations
+already owed to the student — today, the account handover — are still being met.
 
-### Decision 2 — does cancelling void the authorisation?
+- **Entering it is never refused.** Every non-terminal state may transition to it, with no guard. A
+  stop button with a precondition is not a stop button.
+- **Leaving it goes one place only.** `WINDING_DOWN → CANCELLED`, and that transition IS guarded:
+  refused while any obligation is outstanding.
+- **There is no way back.** A student who changes their mind re-applies, which ADR-0006 already
+  models as `instruct_reapplication` on a concluded case — the one intent a terminal case admits.
 
-`student_revoked` exists as a void reason and has never been issued. If a cancelled case can later be
-re-applied (ADR-0006 permits `instruct_reapplication` on a terminal case), an authorisation that
-survived cancellation would be an approval of content the student walked away from.
+**`CANCELLED` becomes the first terminal state this system can actually reach.** ADR-0050 §7 declined
+to make one reachable, on the grounds that `CONFIRMED` means the portal confirmed a submission and
+submission is out of scope. That reasoning does not apply here: `CANCELLED` means the student stopped,
+which is a fact this system holds entirely and can state truthfully.
 
-**My recommendation: yes** — cancelling issues `void_authorisation` with `student_revoked`, which
-gives that declared reason its first writer and means no fill work can be handed out for a cancelled
-case even if one somehow reached the pool.
+**How the guard learns whether obligations are outstanding.** `GuardContext` gains one field,
+`outstandingObligations`, supplied by the run driver from `mayConcludeCase` — the same shape
+`authorisedContentHash` already has: a fact the driver establishes and the domain guards on. The
+account stage is *derived* from the case log and the intent ledger (ADR-0050) and cannot be computed
+from the case alone, so the domain cannot fetch it. Putting the check only in the driver was the
+alternative and is weaker: it would make "a cancelled case cannot conclude while it owes the student
+an account" a rule one caller remembers rather than one the machine enforces.
 
-### Decision 3 — who may cancel
+### §2 · Cancelling voids the authorisation (**decision 2**)
 
-**My recommendation: the student, through their own session**, on the existing decision route rather
-than a new surface — the same mechanism P11 established for `authorise` and P12 for `confirm_handoff`,
-carrying the hash of the message they were shown. A specialist can already abandon a stuck run through
-an intervention; that path stays as it is and is not widened.
+**Settled.** `AuthorisationVoided` with reason **`student_revoked`** — which gives that declared,
+never-issued reason its first writer, and makes it the authoritative reason for a void on
+cancellation.
 
-Whether a **specialist** may cancel on a student's behalf (a phone call, an email) is a product
-question I should not answer for you.
+One detail worth stating because it is easy to get wrong: `cancel_case` emits the void **without** the
+return transition that `void_authorisation` emits. Voiding on a healthy case moves it back to
+`AWAITING_STUDENT_AUTHORISATION` so the student can be asked again (ADR-0051 §7); voiding on a
+cancellation must not, because there is nothing to ask. One decided act, three events, and the
+transition in it goes to `WINDING_DOWN`.
 
-### Decision 4 — what the student is told
+### §3 · Who may cancel (**decision 3**)
 
-The message must be true about all three limits above. My proposal, for your wording:
+**The student, through the existing `StudentDecision` mechanism.** No separate cancellation surface —
+one new member on the closed set, which is what ADR-0041 exists to keep true and what
+`confirm_handoff` and `confirm_value` each cost before it.
 
-> *"I've stopped work on your Leeds application. Two things you should know: the account you created
-> at Leeds is yours and still exists — I'll help you take control of it — and the parts of the form I
-> already filled in are still saved there. Nothing has been submitted."*
+**`cancel` carries no content hash, and that is deliberate.** Every other member does, because each is
+agreement to something the student was *shown* and the hash binds which thing. A stop is not agreement
+to content; it is a refusal of all of it. Requiring a hash would mean a student could only stop
+immediately after the system had spoken — a stop button that works only when the system is talking is
+not a stop button. `StudentDecision` therefore becomes a discriminated union rather than gaining an
+optional field, so a `cancel` carrying a meaningless hash and a `confirm_value` missing a meaningful
+one are both unrepresentable.
+
+**Specialist cancellation on a student's behalf: refused, and the existing authority already decides
+it.** Vahid asked whether existing mechanisms determine this. They do, and the answer is no:
+
+> ADR-0048 §3, approved by Vahid on 2026-09-01: *"`specialistId` is **asserted, not authenticated**
+> — the record is honest about who claimed to resolve it, not proof of who did … acceptable only for
+> the current controlled single-operator model."*
+
+A cancellation is a **consent decision**, and the audit trail already distinguishes a `student` actor
+from a `specialist` one precisely so that question can be answered later. Letting an unauthenticated
+asserted identity terminate a student's application on their behalf would record a consent act against
+an identity nobody verified. The condition that would change this is the one ADR-0048 already names —
+authenticated individual identity — and it is a release blocker there for the same reason it is a
+blocker here.
+
+So this is **not** a new deferred decision; it is an existing one applied. A specialist can still
+abandon a *stuck run* through an intervention (`resolveIntervention`, outcome `abandon`), which is a
+different act about a different subject: that adjudicates automation that cannot proceed, and does not
+claim the student asked to stop.
+
+### §4 · What the student is told (**decision 4**)
+
+**Settled: completely honest and explicit**, distinguishing stopping future work from erasure or
+reversal, and never implying that an account, saved data or a completed portal action has been undone.
+
+The message this phase ships:
+
+> *"I've stopped work on your {institution} application, and I won't start anything new on it.*
+>
+> *Two things I want to be straight with you about, because stopping does not undo them. The account
+> at {institution} was created in your name and still exists — it is yours, and I'll help you take
+> control of it before we finish. Anything I already filled in on their form is still saved there;
+> I cannot remove it, and you can change it yourself once you have the account.*
+>
+> *Nothing was submitted. If you want your data deleted rather than just stopped, tell me — that is a
+> separate request and I'll pass it to a person."*
+
+The last sentence is load-bearing and is why decision 4 mattered. **Erasure is not cancellation.** It
+has a different lawful basis and is bound up with the retention schedule, which is externally blocked
+(0 policies, 12 unresolved, stamped UNAPPROVED). A stop button that quietly implied deletion would be
+the most damaging thing this phase could ship.
 
 ## What this phase would NOT do
 
@@ -173,4 +231,4 @@ The message must be true about all three limits above. My proposal, for your wor
 
 ---
 
-*Nothing in this ADR is implemented. It is a draft for a decision, not a decision.*
+*Accepted 2026-09-02. P15 implements it.*

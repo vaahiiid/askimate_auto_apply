@@ -74,6 +74,6 @@ ADR status uses exactly that vocabulary:
 | [0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) | The account lifecycle completes through the student's own decision, and a case can finally conclude | Accepted |
 | [0051](./0051-the-student-supplies-through-the-conversation.md) | The student answers in the conversation, and a correction can reach the portal | Accepted |
 | [0052](./0052-the-system-acts-when-nobody-is-watching.md) | The system acts when nobody is watching: a background worker owns autonomous progression | Accepted |
-| [0053](./0053-a-student-can-stop.md) | A student can stop: cancellation is reachable, and it does not strand their account | **Proposed** |
+| [0053](./0053-a-student-can-stop.md) | A student can stop: cancellation is reachable, and it does not strand their account | Accepted |
 
-Forty-eight are **Accepted** and one is **Proposed** — a proposed ADR is a draft for a decision, not a decision, and nothing may be built on it until it is accepted. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 amends ADR-0037's deployable table. Reversing any accepted one requires a new ADR that supersedes it.
+Forty-nine are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 amends ADR-0037's deployable table; ADR-0053 makes `CANCELLED` the first reachable terminal state. Reversing any of them requires a new ADR that supersedes it.

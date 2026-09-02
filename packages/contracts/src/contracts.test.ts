@@ -33,6 +33,7 @@ import {
   parseRejectionReason,
   parseSecretLifecycle,
 } from "./vocabulary.js";
+import { parseStudentDecision } from "./decisions.js";
 
 const MARKER = "SECRET-PASSWORD-DO-NOT-LEAK-123!";
 const REQUEST_ID = `sr_${"a".repeat(32)}`;
@@ -417,6 +418,39 @@ describe("the wire vocabulary is internally coherent", () => {
     for (const kind of PROPOSAL_EVENT_KINDS) {
       expect(SECURE_EVENT_KINDS as readonly string[], kind).not.toContain(kind);
     }
+  });
+
+  it("parses a student's decision, and refuses one that names no content", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // This parser guards a CONSENT decision and had no test at all before
+    // ADR-0053 — which is how the hash requirement could have been relaxed for
+    // `cancel` and quietly relaxed for the other three at the same time.
+    // ═══════════════════════════════════════════════════════════════════
+    expect(parseStudentDecision({ kind: "authorise", contentHash: "sha256:abc" })).toEqual({
+      kind: "authorise",
+      contentHash: "sha256:abc",
+    });
+    // An approval that does not name what was approved is the thing the ledger
+    // exists to make impossible.
+    expect(parseStudentDecision({ kind: "authorise" })).toBeNull();
+    expect(parseStudentDecision({ kind: "confirm_handoff" })).toBeNull();
+    expect(parseStudentDecision({ kind: "confirm_value" })).toBeNull();
+    expect(parseStudentDecision({ kind: "resign" })).toBeNull();
+    expect(parseStudentDecision(null)).toBeNull();
+  });
+
+  it("takes a CANCELLATION with no hash, and ignores one sent anyway", () => {
+    // ADR-0053 §3. Requiring a hash would mean a student could stop only
+    // immediately after the system had spoken, because the hash has to name
+    // something they were shown. A stop button that works only while the
+    // system is talking is not a stop button.
+    expect(parseStudentDecision({ kind: "cancel" })).toEqual({ kind: "cancel" });
+
+    // A hash sent with one is DROPPED rather than stored — the rule every
+    // parser here follows about fields a caller might send hopefully.
+    expect(parseStudentDecision({ kind: "cancel", contentHash: "sha256:whatever" })).toEqual({
+      kind: "cancel",
+    });
   });
 
   it("answers isSecureEventKind from the LIST, not from 'is it a message'", () => {

@@ -18,6 +18,8 @@ import { caseId, courseId, eventId, externalRef, institutionId, intake, studentI
 import type { SubmissionIdentity } from "./idempotency.js";
 import type { ApplicationCase, CaseIntent } from "./machine.js";
 import { MalformedEventLogError, askimateActor, decide, fold, openCase, stamp } from "./machine.js";
+import { CASE_STATES } from "./state.js";
+import { checkTransition, isTransitionAllowed } from "./transitions.js";
 
 const CASE = caseId("case_001");
 const ACTOR = askimateActor(externalRef("askimate:user:4812"));
@@ -325,7 +327,11 @@ describe("FAILURE SCENARIO — missing document blocks progress (brief §10)", (
       ]),
     );
 
-    expect(decide(blocked, { kind: "transition", to: "CANCELLED", reason: "Student stopped." }).accepted).toBe(true);
+    // ADR-0053: the student stops with `cancel_case`, and it lands in
+    // WINDING_DOWN rather than CANCELLED. The property this test was written
+    // for is unchanged and is the one asserted — a blocking task does not stop
+    // somebody stopping.
+    expect(decide(blocked, { kind: "cancel_case", reason: "Student stopped." }).accepted).toBe(true);
   });
 
   it("does not block on a non-blocking task", () => {
@@ -504,6 +510,169 @@ describe("decide — authorisation", () => {
         expect(decision.refusal.refusal.kind).toBe("mandatory_review_outstanding");
       }
     }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0053 — a student can stop
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("decide — cancellation", () => {
+  it("produces the CaseCancelled nothing had ever produced, and winds down", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `CaseCancelled` has existed since the domain was written, is folded by
+    // `fold`, and had NO producer. This is its first one.
+    // ═══════════════════════════════════════════════════════════════════
+    const derived = fold(buildLog([OPENED]));
+    const decision = decide(derived, { kind: "cancel_case", reason: "I changed my mind." });
+
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    expect(decision.events.map((event) => event.type)).toEqual([
+      "CaseCancelled",
+      "CaseStateChanged",
+    ]);
+    const [cancelled, moved] = decision.events;
+    if (cancelled?.type === "CaseCancelled") {
+      // Their own words, for the reason `requestEvidence` carries them.
+      expect(cancelled.reason).toBe("I changed my mind.");
+    }
+    if (moved?.type === "CaseStateChanged") {
+      expect(moved.to, "not straight to a terminal state").toBe("WINDING_DOWN");
+    }
+  });
+
+  it("VOIDS the authorisation, and names the student as the reason", () => {
+    // ADR-0053 §2. `student_revoked` has been a declared void reason since the
+    // domain was written and nothing has ever issued one.
+    const decision = decide(authorisedCase(), { kind: "cancel_case", reason: "Stop please." });
+
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    const voided = decision.events.find((event) => event.type === "AuthorisationVoided");
+    expect(voided, "an approval they have withdrawn").toBeDefined();
+    if (voided?.type === "AuthorisationVoided") {
+      expect(voided.reason).toBe("student_revoked");
+      expect(voided.previousContentHash).toBe("sha256:content-v1");
+    }
+  });
+
+  it("does NOT send the case back to be authorised again", () => {
+    // The difference between this and `void_authorisation`, which emits the
+    // move back to AWAITING_STUDENT_AUTHORISATION so the student can be asked
+    // again. Here there is nothing to ask: they have stopped.
+    const decision = decide(authorisedCase(), { kind: "cancel_case", reason: "Stop." });
+
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    const moves = decision.events.filter((event) => event.type === "CaseStateChanged");
+    expect(moves, "exactly one move, and it is not backwards").toHaveLength(1);
+    if (moves[0]?.type === "CaseStateChanged") {
+      expect(moves[0].to).toBe("WINDING_DOWN");
+    }
+  });
+
+  it("is not refused by a mandatory review, or by anything else", () => {
+    // A stop button with a precondition is not a stop button. The
+    // mandatory-review guard holds the case back from ASKING the student to
+    // approve something; it has no business holding them in the application.
+    const raised = fold(
+      buildLog([
+        OPENED,
+        { type: "HumanReviewRequested", triggers: ["financial_evidence"], mandatory: true },
+      ]),
+    );
+    expect(decide(raised, { kind: "cancel_case", reason: "Out." }).accepted).toBe(true);
+  });
+
+  it("REFUSES to conclude while the student is still owed their account", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The guard that makes cancellation two acts rather than one. CANCELLED is
+    // terminal, and a terminal case refuses every intent except
+    // `instruct_reapplication` — so concluding here would make
+    // `complete_handoff` permanently refusable and strand an account created
+    // in the student's name on a real portal, defeating ADR-0050 while
+    // reporting success.
+    // ═══════════════════════════════════════════════════════════════════
+    const winding = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseCancelled", reason: "Stop." },
+        { type: "CaseStateChanged", from: "INTAKE", to: "WINDING_DOWN", reason: "The student stopped." },
+      ]),
+    );
+
+    const decision = decide(winding, {
+      kind: "transition",
+      to: "CANCELLED",
+      reason: "Nothing left.",
+    });
+
+    // `decide` builds the guard context from the case alone, which carries no
+    // obligations — so this passes. The refusal is proved directly against
+    // `checkTransition`, which is where the driver supplies them.
+    expect(decision.accepted, "the case alone knows of no obligation").toBe(true);
+
+    const refused = checkTransition("WINDING_DOWN", "CANCELLED", {
+      activeTriggers: [],
+      completedReviews: [],
+      outstandingObligations: ["acct_1 on portal.example.ac.uk has not been handed back"],
+    });
+    expect(refused.permitted).toBe(false);
+    if (!refused.permitted) {
+      expect(refused.refusal.kind).toBe("obligations_outstanding");
+    }
+  });
+
+  it("CONCLUDES once nothing is outstanding", () => {
+    const permitted = checkTransition("WINDING_DOWN", "CANCELLED", {
+      activeTriggers: [],
+      completedReviews: [],
+      outstandingObligations: [],
+    });
+    expect(permitted.permitted).toBe(true);
+  });
+
+  it("is the ONLY door into the terminal state", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Every non-terminal state used to list CANCELLED directly, and the
+    // substitution to WINDING_DOWN IS the decision: a direct jump would skip
+    // the obligations guard, and `decide` refuses every intent on a terminal
+    // case — so `complete_handoff` would be refused and the student's account
+    // stranded.
+    //
+    // Asserted as a property of the whole table rather than of the one state
+    // somebody happened to think of. Re-adding CANCELLED anywhere fails here.
+    // ═══════════════════════════════════════════════════════════════════
+    for (const state of CASE_STATES) {
+      if (state === "WINDING_DOWN") continue;
+      expect(isTransitionAllowed(state, "CANCELLED"), `${state} → CANCELLED`).toBe(false);
+    }
+    expect(isTransitionAllowed("WINDING_DOWN", "CANCELLED")).toBe(true);
+  });
+
+  it("has NO way back — winding down goes one place only", () => {
+    // A student who changes their mind re-applies (ADR-0006), which is the one
+    // intent a concluded case admits. Reversing a cancellation in place would
+    // make "did they stop?" unanswerable from the log.
+    for (const state of CASE_STATES) {
+      if (state === "CANCELLED") continue;
+      expect(isTransitionAllowed("WINDING_DOWN", state), state).toBe(false);
+    }
+  });
+
+  it("REFUSES a cancellation of an already concluded case", () => {
+    const concluded = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseCancelled", reason: "Stop." },
+        { type: "CaseStateChanged", from: "INTAKE", to: "WINDING_DOWN", reason: "Stopped." },
+        { type: "CaseStateChanged", from: "WINDING_DOWN", to: "CANCELLED", reason: "Nothing owed." },
+      ]),
+    );
+    const again = decide(concluded, { kind: "cancel_case", reason: "Stop again." });
+    expect(again.accepted).toBe(false);
+    if (!again.accepted) expect(again.refusal.kind).toBe("case_terminal");
   });
 });
 

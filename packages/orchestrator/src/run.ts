@@ -765,6 +765,26 @@ export interface HandoverEvidence {
    * forever on a run that had finished filling.
    */
   readonly applicationFilled: boolean;
+  /**
+   * The student stopped, and the run will fill nothing more (ADR-0053).
+   *
+   * ── Why this earns a place beside `applicationFilled` ──────────────────
+   *
+   * The branch below uses "the application is done" as the trigger for
+   * handover, and its own comment says why: *"handing the account back before
+   * the form is filled would mean asking the student to change the password we
+   * are about to sign in with."*
+   *
+   * That reasoning INVERTS under cancellation. We are never going to sign in
+   * again, so the account is due back immediately — and waiting for a fill that
+   * will never happen would leave it `active` for ever, which is exactly the
+   * stranding ADR-0053 exists to prevent.
+   *
+   * Two different facts with the same consequence, rather than one fact
+   * overloaded: `applicationFilled` means the work finished, `runStopped` means
+   * it will not. A reader can tell which happened.
+   */
+  readonly runStopped?: boolean;
 }
 
 /** No evidence at all — the state of a run before anything has been handed back. */
@@ -773,6 +793,7 @@ const NO_HANDOVER_EVIDENCE: HandoverEvidence = {
   completed: [],
   askimateRetainsNoAccess: false,
   applicationFilled: false,
+  runStopped: false,
 };
 
 /**
@@ -996,7 +1017,13 @@ function stageFrom(
   // "authorised" — an authorised run has typed nothing yet, and handing the
   // account back before the form is filled would mean asking the student to
   // change the password we are about to sign in with.
-  return evidence.applicationFilled ? "handover_due" : "active";
+  //
+  // A STOPPED run is due back for the mirror-image reason (ADR-0053): the form
+  // will never be filled, so there is no sign-in to protect, and an account
+  // that waited for a fill that is not coming would stay `active` for ever.
+  return evidence.applicationFilled || evidence.runStopped === true
+    ? "handover_due"
+    : "active";
 }
 
 /** Records the student's authorisation on the run. */

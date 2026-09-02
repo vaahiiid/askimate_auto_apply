@@ -375,6 +375,45 @@ function pauseMessage(entry: CatalogueEntry): string {
 }
 
 /**
+ * What the student is told when they stop.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0053 §4, Vahid: *"completely honest and explicit … Do not imply that an
+ * existing portal account, already submitted data, or previously completed
+ * portal actions have been undone or erased when they have not."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Three things stopping does NOT do, and every one of them is easy to imply by
+ * omission:
+ *
+ *   - it does not un-create the portal account. It exists in the student's
+ *     name and is theirs (ADR-0020);
+ *   - it does not un-fill a page. What was typed into their form is in their
+ *     form, and nothing here reaches back through a browser to remove it;
+ *   - it is not erasure. That is a different request with a different lawful
+ *     basis, bound up with a retention schedule that is not approved — so the
+ *     message NAMES it as separate rather than letting "stopped" be heard as
+ *     "deleted", which would be the most damaging thing this phase could ship.
+ *
+ * The account sentence is conditional because the claim must be true: a student
+ * who stops before any account exists must not be told one does.
+ */
+function cancellationMessage(entry: CatalogueEntry, hasAccount: boolean): string {
+  const institution = entry.blueprint.institutionName;
+  const account = hasAccount
+    ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
+      `I will help you take control of it before we finish. Anything I already filled in on their ` +
+      `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
+      `the account. `
+    : ``;
+  return (
+    `I have stopped work on your ${institution} application, and I will not start anything new ` +
+    `on it. ${account}Nothing was submitted. If you want your data deleted rather than just ` +
+    `stopped, tell me — that is a separate request and I will pass it to a person.`
+  );
+}
+
+/**
  * What the student is told when their case needs a human review first.
  *
  * Honest about the CAUSE without naming the trigger. "Because you are under
@@ -1059,6 +1098,7 @@ export class RunDriver {
     // THE decision. Made by the orchestrator, on a pure function, from state
     // this service loaded and did not interpret.
     const step: RunStep = await nextStep(state, this.#options.model);
+
     return { ok: true, step, now, secret, account: state.account, state };
   }
 
@@ -1131,6 +1171,11 @@ export class RunDriver {
       completed: held?.completedHandoffs ?? [],
       askimateRetainsNoAccess: openLease === null,
       applicationFilled: input.filled,
+      // ADR-0053. Read from the CASE, which is where "the student stopped" is
+      // a durable fact, rather than from the run's status — the run stays
+      // `running` while it winds down, because handing the account back is
+      // real work it is still doing.
+      runStopped: held?.state === "WINDING_DOWN" || held?.state === "CANCELLED",
     };
   }
 
@@ -1520,6 +1565,16 @@ export class RunDriver {
       return await this.#confirmValue(input.conversationId, situation.state, input.decision);
     }
 
+    // ── A stop is answered wherever the run happens to be ────────────────
+    //
+    // ADR-0053. Every other decision asks "is the run at the step that was
+    // waiting for this?" and refuses `not_asked` if it is not. A cancellation
+    // never asks: the student did not have to be prompted to want to stop, and
+    // a stop button that only worked at certain steps would not be one.
+    if (input.decision.kind === "cancel") {
+      return await this.#cancel(input.conversationId, record, held);
+    }
+
     const intent =
       input.decision.kind === "authorise"
         ? this.#authorisationIntent(situation.step, input.decision)
@@ -1548,7 +1603,7 @@ export class RunDriver {
    */
   #authorisationIntent(
     step: RunStep,
-    decision: StudentDecision,
+    decision: Extract<StudentDecision, { contentHash: string }>,
   ):
     | { readonly ok: true; readonly intent: CaseIntent }
     | { readonly ok: false; readonly reason: DecisionRefusalReason } {
@@ -1578,7 +1633,7 @@ export class RunDriver {
   #handoffIntent(
     step: RunStep,
     held: ApplicationCase,
-    decision: StudentDecision,
+    decision: Extract<StudentDecision, { contentHash: string }>,
   ):
     | { readonly ok: true; readonly intent: CaseIntent }
     | { readonly ok: false; readonly reason: DecisionRefusalReason } {
@@ -1608,10 +1663,128 @@ export class RunDriver {
    * coordinator does not construct one and could not: the boundary check
    * forbids the cast outside `packages/profile`.
    */
+  /**
+   * What a cancelled case still owes the student (ADR-0053 §1).
+   *
+   * ── Why this is NOT `mayConclude` ────────────────────────────────────────
+   *
+   * `mayConclude` answers a different question and answers it correctly:
+   * a HEALTHY run that has not created an account yet is not finished, so it
+   * returns `may: false` with nothing named. Reusing it here would mean a
+   * student who stopped during the interview — before any account existed —
+   * could never conclude, and would sit in WINDING_DOWN for ever with nothing
+   * outstanding to point at.
+   *
+   * For a cancellation the question is only "is anything owed?", and no account
+   * means nothing owed. Two questions, two derivations, one source of truth
+   * underneath — the account is derived by `#situation` in both.
+   */
+  async #outstandingObligations(input: {
+    readonly record: WorkflowRunRecord;
+    readonly entry: CatalogueEntry;
+    readonly conversationId: string;
+  }): Promise<readonly string[]> {
+    const situation = await this.#situation({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.record.caseId,
+      studentRef: input.record.studentRef,
+    });
+    if (!situation.ok) return [];
+    const account = situation.account;
+    return account === undefined ? [] : mayConcludeCase([account]).outstanding;
+  }
+
+  /** The accounts this run holds, for a message that must not claim one exists. */
+  async #accountsOn(record: WorkflowRunRecord, entry: CatalogueEntry): Promise<readonly unknown[]> {
+    const bound = await this.#options.bindings.conversationForCase(record.caseId);
+    if (bound === null) return [];
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId: bound,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    return situation.ok && situation.account !== undefined ? [situation.account] : [];
+  }
+
+  /**
+   * The student stopped (ADR-0053).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Three properties, and all three are the point:
+   *
+   *   IMMEDIATE — `cancel_case` is refused by nothing. Entering WINDING_DOWN
+   *     is unguarded, and `claimWork` stops offering this run any browser work
+   *     the moment the case is in it. No further consequential action.
+   *   DURABLE — the fact is a case event, not a flag. It survives the request,
+   *     the process and the database restart, like every other business fact
+   *     in this system.
+   *   IDEMPOTENT — a second cancellation of a case already winding down is
+   *     refused by the transition table (WINDING_DOWN goes one place only) and
+   *     answers `refused` rather than appending a second CaseCancelled.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * What it does NOT do is conclude the case. That waits until nothing is owed
+   * — see `#concludeCancellation`, and the guard in `checkTransition` that
+   * makes the ordering a rule rather than a habit.
+   */
+  async #cancel(
+    conversationId: string,
+    record: WorkflowRunRecord,
+    held: ApplicationCase,
+  ): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
+  > {
+    const now = this.#options.now();
+    const decided = decide(held, {
+      kind: "cancel_case",
+      // Their own words are not available here: a decision carries a kind and
+      // (for the others) a hash, and nothing else — deliberately, so a client
+      // cannot put text into the case log. The conversation log holds what they
+      // actually said, and this names where to find it.
+      reason: `The student stopped the application in conversation ${conversationId}.`,
+    });
+    if (!decided.accepted) return { ok: false, reason: "refused" };
+
+    await this.#appendToCase(
+      record.caseId,
+      held.sequence,
+      decided.events,
+      { conversationId, caseId: record.caseId },
+      now,
+    );
+
+    // Told after the case has recorded it, and for the ordering reason every
+    // other announcement in this driver follows: a crash between the two leaves
+    // a stopped case whose student was not told, which the next pass corrects.
+    // The other order would tell somebody their application had stopped when it
+    // had not.
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    const entry =
+      bound?.blueprintId === undefined || bound.blueprintId === null
+        ? null
+        : await this.#options.catalogue.find(bound.blueprintId);
+    if (entry !== null) {
+      const accounts = await this.#accountsOn(record, entry);
+      await this.#options.conversations.append({
+        conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: cancellationMessage(entry, accounts.length > 0),
+        },
+      });
+    }
+    return { ok: true };
+  }
+
   async #confirmValue(
     conversationId: string,
     state: RunState,
-    decision: StudentDecision,
+    decision: Extract<StudentDecision, { contentHash: string }>,
   ): Promise<
     { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
   > {
@@ -2412,6 +2585,107 @@ export class RunDriver {
     );
   }
 
+  /**
+   * What a stopped case does instead of advancing (ADR-0053).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `null` means "this case is not stopped, carry on". Anything else is the
+   * whole of what a stopped case does, and it is deliberately short:
+   *
+   *   - it does not walk the spine — `nextCaseHop` is never reached;
+   *   - it does not open a secure step, raise a handoff for anything new, or
+   *     void an outgrown authorisation;
+   *   - it DOES let the outstanding account handover finish, because ADR-0050
+   *     made that non-optional and stopping must not become a way around it;
+   *   - it concludes, once nothing is owed.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The handover itself still runs through the ordinary machinery below —
+   * `#raiseHandoff` and the student's `confirm_handoff` — because a cancelled
+   * student getting their account back is the same act as any other student
+   * getting theirs back. What changes is that nothing ELSE happens.
+   */
+  async #windDown(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    },
+    situation: { readonly state: RunState; readonly step: RunStep; readonly now: Date },
+  ): Promise<RunOutcome | null> {
+    const stoppedAt = (status: WorkflowStatus): RunOutcome => ({
+      ok: true,
+      position: {
+        runId: input.record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status,
+        phase: input.record.checkpoint.phase,
+        step: situation.step.kind,
+        revision: input.record.revision,
+        resumed: false,
+        concerns: [],
+      },
+    });
+
+    const events = await this.#options.stores.cases.read(input.caseId);
+    if (events.length === 0) return null;
+    const held = fold(events);
+    if (held.state !== "WINDING_DOWN") {
+      // A concluded cancellation stops here too, and says so rather than
+      // pretending the run is still going anywhere.
+      return held.state === "CANCELLED" ? stoppedAt("abandoned") : null;
+    }
+
+    const outstanding = await this.#outstandingObligations({
+      record: input.record,
+      entry: input.entry,
+      conversationId: input.conversationId,
+    });
+
+    if (outstanding.length > 0) {
+      // `situation.step` is already the account's — `#situation` substitutes
+      // it for a stopped run, so every reader agrees about what is left.
+      await this.#raiseHandoff({
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        step: situation.step,
+        now: situation.now,
+      });
+      return stoppedAt(input.record.status);
+    }
+
+    // Nothing owed. The guard in `checkTransition` agrees, and this is the
+    // first terminal state this system has ever been able to reach.
+    const decided = decide(held, {
+      kind: "transition",
+      to: "CANCELLED",
+      reason: "The student stopped it, and nothing is outstanding.",
+    });
+    if (decided.accepted) {
+      await this.#appendToCase(
+        input.caseId,
+        held.sequence,
+        decided.events,
+        { conversationId: input.conversationId, caseId: input.caseId },
+        situation.now,
+      );
+      // The run is `abandoned` only now. Leaving it `running` while winding
+      // down is the honest word: the automation IS still working, on the one
+      // thing it still owes. There is no "winding down" run status and this
+      // does not invent one — the CASE log says why, which is where the reason
+      // belongs.
+      await this.#options.stores.runs.saveCheckpoint({
+        runId: input.record.runId,
+        checkpoint: input.record.checkpoint,
+        expectedRevision: input.record.revision,
+        status: "abandoned",
+      });
+    }
+    return stoppedAt("abandoned");
+  }
+
   async #decideOnce(input: {
     readonly entry: CatalogueEntry;
     readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
@@ -2424,6 +2698,15 @@ export class RunDriver {
     const situation = await this.#situation(input);
     if (!situation.ok) return situation;
     const { step, now } = situation;
+
+    // ── A stopped case does not walk the spine ───────────────────────────
+    //
+    // ADR-0053. Before anything else, because everything below this line is
+    // "what should this case do next" and a cancelled case's answer is
+    // "nothing new". The only thing left is to finish what is owed, and to
+    // conclude once it is.
+    const stopped = await this.#windDown(input, situation);
+    if (stopped !== null) return stopped;
 
     // ── The one place a student is asked for a password ──────────────────
     //
@@ -2669,6 +2952,21 @@ export class RunDriver {
         studentRef: record.studentRef,
       });
       if (!situation.ok) continue;
+
+      // ── A stopped case is offered to nobody ──────────────────────────
+      //
+      // ADR-0053, and this is where "stop further consequential work
+      // IMMEDIATELY" is actually enforced. `execute` and `create_account` are
+      // the two things this system does to the outside world, and both arrive
+      // through here. A case winding down or concluded is skipped before its
+      // step is even consulted — so the moment `cancel_case` commits, the next
+      // runner to poll is offered nothing for this run.
+      //
+      // Read from the CASE, not from the run's status: the run stays `running`
+      // while it winds down, because the handover it still owes is real work.
+      const caseEvents = await this.#options.stores.cases.read(record.caseId);
+      const caseState = caseEvents.length === 0 ? null : fold(caseEvents).state;
+      if (caseState === "WINDING_DOWN" || caseState === "CANCELLED") continue;
 
       // The orchestrator's answer, not the checkpoint's hint and not a list of
       // step kinds kept here — see `browserWorkFor`.

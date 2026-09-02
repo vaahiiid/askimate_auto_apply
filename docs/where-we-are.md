@@ -2,8 +2,8 @@
 
 > ## ⚠️ Superseded below — this section is the state as of 2026-08-26
 >
-> **Updated 2026-09-02 (P14).** Everything from the headline to "Since then" is
-> the picture *before* P1–P14, and its numbers are long out of date — "620
+> **Updated 2026-09-02 (P15).** Everything from the headline to "Since then" is
+> the picture *before* P1–P15, and its numbers are long out of date — "620
 > tests" is far behind, and the state table below is missing four steps that
 > have since been built and one that has since been found. The current state is
 > at the **end of this file**. This section is kept rather than
@@ -390,3 +390,91 @@ Everything in the earlier lists still holds, with these corrections:
 - **The learning loop is still open.** `interventions.lifecycle` is only ever
   written `"captured"`; `canTransitionLifecycle` and `asReusable` have no
   production callers.
+
+---
+
+# Where we are — 2026-09-02 (P15)
+
+**Version:** `0.33.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**A student can stop.**
+
+Until now they could not, and P14 is what made that urgent rather than merely
+missing. Before P14 the client was the scheduler — `advance` had no route, so
+the only production trigger was the student's browser re-POSTing `/runs`, and
+**closing the tab was a de facto stop.** Undesigned, unrecorded, and the student
+was told nothing, but the system did stop acting. P14 removed it deliberately
+and correctly. Nothing replaced it.
+
+The sharpest evidence of the gap was an asymmetry we had built ourselves:
+ADR-0032 gave the student a way to cancel **one password prompt**, fully
+implemented and reachable. They could cancel the password prompt and not the
+application it was for.
+
+| Mechanism | Before P15 |
+|---|---|
+| `CaseCancelled` | defined and folded — **no producer** |
+| `CANCELLED` | terminal, permitted from almost everywhere — **unreachable**, not on `CASE_SPINE` |
+| `student_revoked` | a declared void reason — **never issued**, against 19 sites issuing `content_changed` |
+| a stop route | **none** among the six student-facing routes |
+
+## What P15 delivered (ADR-0053)
+
+Cancelling is **two acts separated in time**, and that is the whole design:
+
+```
+  any non-terminal state ──cancel_case──▶ WINDING_DOWN ──(nothing owed)──▶ CANCELLED
+```
+
+- **Stopping is immediate and unrefusable.** Entering `WINDING_DOWN` has no
+  guard — a stop button with a precondition is not a stop button — and
+  `claimWork` offers the run to no runner from that moment, which is where "no
+  further consequential action" is actually enforced.
+- **It does not strand the account.** `CANCELLED` is terminal, and `decide`
+  refuses every intent on a terminal case except `instruct_reapplication`. A
+  direct jump would have made `complete_handoff` permanently refusable and left
+  an account created in the student's name on a real portal with no way back —
+  defeating ADR-0050 while reporting success. The guard on `WINDING_DOWN →
+  CANCELLED` refuses to conclude while anything is owed.
+- **The approval is voided**, with `student_revoked` — the reason's first
+  writer.
+- **`CANCELLED` is the first terminal state this system can reach.** ADR-0050 §7
+  declined to make one reachable because `CONFIRMED` means a portal confirmed a
+  submission and submission is out of scope. That reasoning does not apply to
+  "the student stopped", which is a fact this system holds entirely.
+
+## The message, and why it is part of the phase
+
+Stopping does not undo what already happened in the world, and a message that
+said only *"I've stopped"* would let a student believe otherwise by omission.
+What they are told names all three limits: the account **still exists and is
+theirs**, what was already filled in **is still saved there**, nothing was
+submitted — and, load-bearing, that **erasure is a separate request** which goes
+to a person. Retention is not approved (0 policies, 12 unresolved), and a stop
+button that quietly implied deletion would be the most damaging thing this phase
+could have shipped.
+
+## Known limitations — what changed, and what did not
+
+- **Cancellation is not erasure**, and the system says so rather than implying
+  otherwise. Erasure remains blocked on the retention schedule.
+- **A specialist cannot cancel on a student's behalf.** ADR-0048 §3 already
+  decided this: `specialistId` is asserted, not authenticated, and a consent act
+  must not be recorded against an identity nobody verified. The condition that
+  would change it is the one ADR-0048 names — authenticated individual identity.
+- **Nothing un-fills a page.** Data written to a portal is in the portal.
+- **A student who abandons without cancelling still leaves an open case.** The
+  stop is explicit; there is no timeout that infers one, and inferring consent
+  from silence is the thing product rule 1 forbids.
+- Everything else from the P14 list still holds: no alerting transport, no
+  runner supervisor, no deployment infrastructure, documents blocked on
+  retention, and the learning loop still open.
+
+## What is next, on the evidence
+
+The **runner supervisor** — `runOneTurn` still has no loop. It was deliberately
+sequenced *after* this phase: building it first would have opened a window of
+autonomous consequential action with no way to close it. That window can now be
+closed, so the ordering argument is discharged.

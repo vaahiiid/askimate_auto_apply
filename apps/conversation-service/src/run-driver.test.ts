@@ -4029,6 +4029,571 @@ describeIfDatabase("the interview loop, closed", () => {
 // P. P13 — a correction after approval, and after filling (ADR-0051 §6, §7)
 // ───────────────────────────────────────────────────────────────────────────
 
+// ───────────────────────────────────────────────────────────────────────────
+// Q. P15 — a student can stop (ADR-0053)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the student stops", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000E0";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+  let mine = "";
+
+  async function caseEvents(): Promise<{ type: string; to: string | null; reason: string | null }[]> {
+    const rows = await pool.query<{ type: string; to: string | null; reason: string | null }>(
+      `SELECT event->>'type' AS type, event->>'to' AS to, event->>'reason' AS reason
+         FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [caseRef],
+    );
+    return rows.rows;
+  }
+
+  async function caseState(): Promise<string> {
+    const moves = (await caseEvents()).filter((event) => event.type === "CaseStateChanged");
+    return moves.at(-1)?.to ?? "INTAKE";
+  }
+
+  async function messages(): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e
+         JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.kind = 'message' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  /**
+   * Every run the pool will hand out right now.
+   *
+   * Several claims with a one-second lease, because this run is not the only
+   * candidate in the database and `claimWork` returns the oldest. Short leases
+   * so the pool is back to its original shape a second later.
+   */
+  async function offeredRuns(): Promise<readonly string[]> {
+    const instance = buildInstance(connectionString(), opener());
+    const seen: string[] = [];
+    try {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const offered = await instance.driver.claimWork({
+          holder: `runner-probe-${String(attempt)}`,
+          leaseSeconds: 60,
+        });
+        if (offered === null) break;
+        seen.push(offered.runId);
+      }
+    } finally {
+      await instance.pool.end();
+      // Deleted, because the clock is fixed and these leases would otherwise
+      // never lapse — leaving the pool empty and the next assertion vacuous.
+      await pool.query("DELETE FROM work_leases WHERE holder LIKE 'runner-probe-%'");
+    }
+    return seen;
+  }
+
+  /** A run standing at the authorisation, with a real account created. */
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-stop', true) RETURNING id",
+    );
+    mine = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      mine,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), mine);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}2`,
+          handle: `sh_${"d".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      // …and they approve it, so the cancellation has an authorisation to
+      // void. A student who changes their mind AFTER approving is the case
+      // `student_revoked` exists for.
+      const hash = await instance.driver.previewHashFor(runId, conversation);
+      const approved = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: hash ?? "" },
+      });
+      expect(approved, "approved before they changed their mind").toEqual({ ok: true });
+
+      // …and one more advance, because recording the authorisation does not
+      // move the RUN: its checkpoint phase reaches `filling` on the next
+      // decide, and `claimWork` selects candidates by phase. Without this the
+      // run is not in the work pool at all, and the control test below would
+      // pass for a reason that has nothing to do with stopping.
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "there is portal work to withhold").toBe("execute");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("is offered to a runner BEFORE the student stops — the control case", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Without this, the assertion below proves nothing.
+    //
+    // The first version of this group only checked that a stopped run is NOT
+    // offered, and it passed with the `claimWork` gate deleted — because by
+    // then the run's step produced no browser work anyway, so it was skipped
+    // for an unrelated reason. A deliberate regression caught the test, not
+    // the code. This establishes that there IS work to withhold.
+    // ═══════════════════════════════════════════════════════════════════
+    // Claimed repeatedly, because this run is not the only candidate in the
+    // database and `claimWork` hands out the oldest first. What matters is
+    // that it is IN the pool, not that it is at the head of it.
+    expect(await offeredRuns(), "there is real portal work outstanding").toContain(runId);
+  }, 300_000);
+
+  it("STOPS, whatever the run happened to be doing", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Every other decision asks "is the run at the step that was waiting for
+    // this?" and refuses `not_asked` if it is not. A cancellation never asks.
+    // The student did not have to be prompted to want to stop, and a stop
+    // button that only worked at certain steps would not be one.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const stopped = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(stopped).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    const log = await caseEvents();
+    expect(
+      log.filter((event) => event.type === "CaseCancelled"),
+      "the event nothing had ever produced",
+    ).toHaveLength(1);
+    expect(await caseState(), "winding down, NOT concluded").toBe("WINDING_DOWN");
+  }, 300_000);
+
+  it("VOIDS the approval, and names the student as the reason", async () => {
+    // ADR-0053 §2. `student_revoked` had been a declared reason with no writer.
+    const voided = (await caseEvents()).filter((event) => event.type === "AuthorisationVoided");
+    expect(voided).toHaveLength(1);
+    expect(voided[0]?.reason, "not content_changed, not expired").toBe("student_revoked");
+  }, 300_000);
+
+  it("tells the student the truth, including what stopping did NOT do", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0053 §4. The failure this asserts against is implication by
+    // omission: a message that said only "I've stopped" would let a student
+    // believe the account was gone and the data deleted. Both would be false.
+    // ═══════════════════════════════════════════════════════════════════
+    const said = (await messages()).at(-1) ?? "";
+    expect(said, "stopped").toContain("stopped work on your");
+    expect(said, "and will not start anything new").toContain("will not start anything new");
+    expect(said, "the account still exists and is theirs").toContain("still exists");
+    expect(said, "what was filled in is still there").toContain("still saved there");
+    expect(said, "nothing was submitted").toContain("Nothing was submitted");
+    // The load-bearing sentence: stopping is not deletion, and deletion is a
+    // separate request that goes to a person.
+    expect(said, "erasure is named as separate").toContain("separate request");
+  }, 300_000);
+
+  it("offers the run to NO runner from the moment it is stopped", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Where "stop further consequential work immediately" is actually
+    // enforced. `execute` and `create_account` are the two things this system
+    // does to the outside world and both arrive through `claimWork`.
+    // ═══════════════════════════════════════════════════════════════════
+    // The control test proved this run WAS in the pool. Its leases were one
+    // second and have lapsed, so the only thing withholding it now is the stop.
+    expect(await offeredRuns(), "nothing for a stopped run").not.toContain(runId);
+  }, 300_000);
+
+  it("does NOT conclude while the student is still owed their account", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The guard that makes cancellation two acts. CANCELLED is terminal and a
+    // terminal case refuses every intent except `instruct_reapplication`, so
+    // concluding here would make `complete_handoff` permanently refusable and
+    // strand an account created in this student's name on a real portal —
+    // defeating ADR-0050 while reporting success.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      for (let pass = 0; pass < 3; pass += 1) {
+        await instance.driver.advance({ runId, conversationId: conversation });
+      }
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(), "still owed an account").toBe("WINDING_DOWN");
+  }, 300_000);
+
+  it("STILL asks for the account back — stopping is not a way around ADR-0050", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Asserted on the STEP, not on a handoff count. Handoffs were raised
+    // before the cancellation too (the email verification), so counting them
+    // passes whether or not the handover is being pursued — a deliberate
+    // regression that removed the step substitution slipped straight through
+    // the first version of this test.
+    //
+    // `nextStep` consults the account after filling, which is right for a
+    // healthy run and wrong for a stopped one: this student stopped mid-fill,
+    // so their run's own next step is `execute`. If the situation still said
+    // that, `#raiseHandoff` would raise nothing and the account would be owed
+    // for ever.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const where = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!where.ok) expect.unreachable(`advance refused: ${where.refusal.kind}`);
+      expect(where.position.step, "the only thing left is the account").toBe("hand_over_account");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
+    expect(raised.length, "and the handover is being pursued").toBeGreaterThan(0);
+  }, 300_000);
+
+  it("survives a restart still stopped, because it is a fact and not a flag", async () => {
+    // Durability, asserted against a genuinely new process holding nothing.
+    const restarted = buildInstance(connectionString(), opener());
+    try {
+      await restarted.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await restarted.pool.end();
+    }
+    expect(await caseState()).toBe("WINDING_DOWN");
+    expect(
+      (await caseEvents()).filter((event) => event.type === "CaseCancelled"),
+      "and it did not stop twice",
+    ).toHaveLength(1);
+  }, 300_000);
+
+  it("is IDEMPOTENT — a second stop appends nothing", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const again = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(again, "already stopped").toEqual({ ok: false, reason: "refused" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await caseEvents()).filter((event) => event.type === "CaseCancelled")).toHaveLength(1);
+  }, 300_000);
+
+  it("stays wound down for as long as the account is owed", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The safety property, asserted over many passes rather than one. This
+    // student's account is `handover_due` and the handover is being pursued;
+    // until it completes the case must NOT conclude, because concluding makes
+    // `complete_handoff` permanently refusable and strands an account created
+    // in their name on a real portal.
+    //
+    // The full handover path is proved by the P12 group, which owns it.
+    // Re-proving it here would be testing somebody else's phase; what this
+    // group owns is that stopping does not let a case skip it. The clean
+    // conclusion path — a student who stops before any account exists — is the
+    // group below.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      for (let pass = 0; pass < 5; pass += 1) {
+        await instance.driver.advance({ runId, conversationId: conversation });
+      }
+      const owed = await instance.driver.mayConclude(runId, conversation);
+      expect(owed.may, "still ours to give back").toBe(false);
+      expect(owed.outstanding.join(" ")).toContain("has not been handed back");
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(), "and so it does not conclude").toBe("WINDING_DOWN");
+  }, 300_000);
+});
+
+describeIfDatabase("the student stops while an account is about to be created", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // THE CASE THE GUARD EXISTS FOR, and it took a deliberate regression to
+  // find it.
+  //
+  // Cancelling a run that has already been AUTHORISED withholds its fill work
+  // for a reason that has nothing to do with cancellation: the authorisation
+  // is voided, and an unapproved run is never offered fill work anyway
+  // (ADR-0051). Both of P15's own defences could be deleted and every test
+  // still passed.
+  //
+  // A run standing at `create_account` has no authorisation to void — the
+  // approval comes later — so nothing else withholds it. Without the guard, a
+  // runner polling one second after the student stopped would create a real
+  // account, in their name, at a university, for an application they had just
+  // cancelled. That is the single worst thing this phase could fail to
+  // prevent.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000G0";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+
+  /**
+   * Every run the pool would hand out right now, leaving the pool as it found
+   * it.
+   *
+   * The leases are DELETED afterwards, and that is not tidiness. The driver's
+   * clock is fixed at `NOW` in these tests, so a lease taken here never lapses
+   * — and the first version of this helper emptied the pool permanently, which
+   * made the "after they stop" assertion pass against an empty list rather
+   * than against the guard. A deliberate regression found it: the guard could
+   * be deleted and the test still passed.
+   */
+  async function offeredRuns(): Promise<readonly string[]> {
+    const instance = buildInstance(connectionString(), opener());
+    const seen: string[] = [];
+    try {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const offered = await instance.driver.claimWork({
+          holder: `probe-acct-${String(attempt)}`,
+          leaseSeconds: 60,
+        });
+        if (offered === null) break;
+        seen.push(offered.runId);
+      }
+    } finally {
+      await instance.pool.end();
+      await pool.query("DELETE FROM work_leases WHERE holder LIKE 'probe-acct-%'");
+    }
+    return seen;
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-acct', true) RETURNING id",
+    );
+    const student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      student,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      // The password is in. The account does NOT exist yet — this is the
+      // window between the student typing it and a runner using it.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          // The id the group's OWN opener minted: each `opener()` restarts its
+          // counter, so this is the first request in THIS conversation.
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"c".repeat(32)}`,
+        },
+      });
+      const at = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!at.ok) expect.unreachable(`advance refused: ${at.refusal.kind}`);
+      expect(at.position.step, "poised to create a real account").toBe("create_account");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("is offered as ACCOUNT-CREATION work before they stop", async () => {
+    expect(await offeredRuns(), "a runner would create the account").toContain(runId);
+  }, 300_000);
+
+  it("is offered to NOBODY the moment they stop, so no account is created", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const stopped = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(stopped).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await offeredRuns(), "no account is created for a stopped student").not.toContain(runId);
+
+    // And nothing in the ledger claims one was.
+    const intents = await pool.query(
+      `SELECT 1 FROM workflow_action_intents
+        WHERE run_id = $1 AND action = 'create_portal_account'`,
+      [runId],
+    );
+    expect(intents.rowCount, "no account creation was ever started").toBe(0);
+  }, 300_000);
+
+  it("concludes with nothing owed, because no account was ever made", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+    const rows = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [caseRef],
+    );
+    expect(rows.rows[0]?.to).toBe("CANCELLED");
+  }, 300_000);
+});
+
+describeIfDatabase("the student stops before anything was created", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The clean conclusion path, and the common one: somebody starts, is asked
+  // a question, and changes their mind. Nothing exists at a portal, so nothing
+  // is owed — and the case concludes in one act rather than winding down for
+  // ever waiting on an obligation it does not have.
+  //
+  // This is why `#outstandingObligations` is not `mayConclude`. That one
+  // answers "is this run FINISHED", and a healthy run with no account is not —
+  // so reusing it here would leave this student in WINDING_DOWN permanently,
+  // with nothing to point at as the reason.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000F0";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+
+  async function caseState(): Promise<string> {
+    const rows = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [caseRef],
+    );
+    return rows.rows[0]?.to ?? "INTAKE";
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-early', true) RETURNING id",
+    );
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      created.rows[0]!.id,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      // Nothing seeded: this student is still being interviewed.
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step, "mid-interview").toBe("interview");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("CONCLUDES, because nothing is owed", async () => {
+    // `CANCELLED` is the FIRST terminal state this system has ever been able
+    // to reach. ADR-0050 §7 declined to make one reachable because `CONFIRMED`
+    // means a portal confirmed a submission and submission is out of scope.
+    // That reasoning does not apply to "the student stopped", which is a fact
+    // this system holds entirely and can state truthfully.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const stopped = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(stopped).toEqual({ ok: true });
+      expect(await caseState(), "winding down first, always").toBe("WINDING_DOWN");
+
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await caseState(), "nothing owed, so it concludes").toBe("CANCELLED");
+
+    const status = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status, "and the run is abandoned").toBe("abandoned");
+  }, 300_000);
+
+  it("does not promise an account that never existed", async () => {
+    // ADR-0053 §4. The account sentence is conditional because the claim has to
+    // be TRUE — a student who stopped before any account exists must not be
+    // told one is waiting for them.
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e
+         JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.kind = 'message' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    const said = rows.rows[0]?.content ?? "";
+    expect(said).toContain("stopped work on your");
+    expect(said, "no account was created, so none is claimed").not.toContain("still exists");
+    expect(said, "and erasure is still named as separate").toContain("separate request");
+  }, 300_000);
+
+  it("stays concluded — a concluded case admits nothing further", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const again = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(again).toEqual({ ok: false, reason: "refused" });
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState()).toBe("CANCELLED");
+  }, 300_000);
+});
+
 describeIfDatabase("a correction the student makes late", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000D0";
   const caseRef = `case_${conversation.toLowerCase()}`;

@@ -322,7 +322,16 @@ export type CaseIntent =
   | { readonly kind: "attempt_submission" }
   | { readonly kind: "instruct_reapplication"; readonly instruction: ReapplicationInstruction; readonly newAttemptOrdinal: number }
   | { readonly kind: "escalate_for_recovery"; readonly escalation: RecoveryEscalation }
-  | { readonly kind: "resolve_recovery"; readonly resolution: RecoveryResolution; readonly resumeTo: CaseState };
+  | { readonly kind: "resolve_recovery"; readonly resolution: RecoveryResolution; readonly resumeTo: CaseState }
+  /**
+   * The student stopped it (ADR-0053).
+   *
+   * Carries their own words, for the reason `CaseOpened.requestEvidence` does:
+   * when somebody asks "why did this application stop?", the answer should be
+   * the student's sentence rather than a boolean. Product rule 1 is enforced
+   * at the start of a case; this is its counterpart at the end.
+   */
+  | { readonly kind: "cancel_case"; readonly reason: string };
 
 export type DecisionRefusal =
   | { readonly kind: "transition_refused"; readonly refusal: TransitionRefusal }
@@ -611,6 +620,62 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
           },
         ],
       };
+    }
+
+    case "cancel_case": {
+      // ═══════════════════════════════════════════════════════════════════
+      // A STOP THAT CANNOT BE REFUSED, AND CANNOT STRAND AN ACCOUNT.
+      //
+      // ADR-0053. Until P14 the client was the scheduler, so closing the tab
+      // WAS a stop — undesigned and unrecorded, but real. P14 gave the system
+      // its own clock and removed it. `CaseCancelled` has existed since the
+      // domain was written and nothing has ever produced one.
+      // ═══════════════════════════════════════════════════════════════════
+      //
+      // Entering WINDING_DOWN is deliberately unguarded beyond the transition
+      // table: a stop button with a precondition is not a stop button. The
+      // guard that matters is on the way OUT, in `checkTransition` — a
+      // cancellation concludes only once nothing is owed.
+      const moving = checkTransition(
+        applicationCase.state,
+        "WINDING_DOWN",
+        guardContextOf(applicationCase),
+      );
+      if (!moving.permitted) {
+        return { accepted: false, refusal: { kind: "transition_refused", refusal: moving.refusal } };
+      }
+
+      const events: CaseEventPayload[] = [
+        { type: "CaseCancelled", reason: intent.reason },
+      ];
+
+      // ── The void, WITHOUT the return transition ─────────────────────────
+      //
+      // `void_authorisation` emits the void AND the move back to
+      // AWAITING_STUDENT_AUTHORISATION, because on a healthy case the point of
+      // voiding is to ask the student again (ADR-0051 §7). Here there is
+      // nothing to ask: they have stopped. So the void is emitted directly and
+      // the transition in this act goes to WINDING_DOWN.
+      //
+      // `student_revoked` has been a declared void reason since the domain was
+      // written and nothing has ever issued one. This is its writer, and
+      // ADR-0053 §2 makes it the authoritative reason for a void on
+      // cancellation — never `expired`, never `content_changed`.
+      if (applicationCase.authorisedContentHash !== undefined) {
+        events.push({
+          type: "AuthorisationVoided",
+          previousContentHash: applicationCase.authorisedContentHash,
+          reason: "student_revoked",
+        });
+      }
+
+      events.push({
+        type: "CaseStateChanged",
+        from: applicationCase.state,
+        to: "WINDING_DOWN",
+        reason: "The student stopped the application.",
+      });
+      return { accepted: true, events };
     }
 
     case "attempt_submission": {

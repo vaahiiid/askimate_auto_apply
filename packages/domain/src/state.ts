@@ -106,7 +106,27 @@ export const CASE_STATES = [
    * work for this case at all.
    */
   "ROUTE_FALLBACK",
-  /** The student stopped it. TERMINAL. */
+  /**
+   * The student stopped it, and we are finishing what we still owe them.
+   *
+   * ADR-0053 §1. NOT terminal, and deliberately its own state rather than a
+   * reuse of `AWAITING_HANDOFF`: that one means "a healthy case is waiting on
+   * its account handover", and a reader could not then tell it from "the
+   * student stopped and we are meeting our remaining obligations". Those call
+   * for different messages, different urgency and different analytics — the
+   * argument ADR-0032 makes for `secret_cancelled` one level up.
+   *
+   * What it means, exactly: **no further consequential work will be started**,
+   * and the obligations already owed — today, the account handover ADR-0050
+   * made non-optional — are still being met.
+   *
+   * Entering it is never refused: a stop button with a precondition is not a
+   * stop button. Leaving it goes one place, `CANCELLED`, and that transition IS
+   * guarded. There is no way back; a student who changes their mind re-applies
+   * (ADR-0006).
+   */
+  "WINDING_DOWN",
+  /** The student stopped it, and nothing is outstanding. TERMINAL. */
   "CANCELLED",
   /** Unrecoverable. TERMINAL. */
   "FAILED_PERMANENT",

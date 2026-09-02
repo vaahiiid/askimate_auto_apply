@@ -54,33 +54,73 @@
 
 import { closedSetParser } from "./vocabulary.js";
 
-export const STUDENT_DECISIONS = ["authorise", "confirm_handoff", "confirm_value"] as const;
+export const STUDENT_DECISIONS = [
+  "authorise",
+  "confirm_handoff",
+  "confirm_value",
+  "cancel",
+] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
 export const parseStudentDecisionKind = closedSetParser(STUDENT_DECISIONS);
 
-/** What the student decided, and about exactly what. */
-export interface StudentDecision {
-  readonly kind: StudentDecisionKind;
-  /**
-   * The hash of the content they were shown.
-   *
-   * Not optional, and not defaulted. An authorisation that does not name what
-   * was authorised is the thing the ledger exists to make impossible: six
-   * months later the blueprint may be at version 3 and the profile corrected,
-   * and "they approved it" without a hash cannot be checked against anything.
-   *
-   * The service compares it against the preview it would render NOW, and
-   * refuses on a mismatch rather than recording an approval of something else.
-   *
-   * A `confirm_handoff` carries the hash of the message the student was shown
-   * when they were asked, for the same reason and with the same comparison. A
-   * handover message names the account, the portal and what is still
-   * outstanding; confirming one they cannot see any more is confirming
-   * something else.
-   */
-  readonly contentHash: string;
-}
+/**
+ * What the student decided, and about exactly what.
+ *
+ * ── Why this is a UNION and not an interface with an optional field ───────
+ *
+ * ADR-0053 §3. Three of the four members are agreement to something the student
+ * was SHOWN, and the hash binds which thing. `cancel` is not: it is a refusal
+ * of all of it, and there is no content to name.
+ *
+ * An optional `contentHash` would make two wrong shapes representable — a
+ * `cancel` carrying a hash that means nothing, and a `confirm_value` missing
+ * the one that means everything. A union makes both unrepresentable, and the
+ * exhaustiveness check at the bottom of this file makes forgetting a future
+ * member a compile error.
+ */
+export type StudentDecision =
+  | {
+      readonly kind: "authorise" | "confirm_handoff" | "confirm_value";
+      /**
+       * The hash of the content they were shown.
+       *
+       * Not optional, and not defaulted. An authorisation that does not name
+       * what was authorised is the thing the ledger exists to make impossible:
+       * six months later the blueprint may be at version 3 and the profile
+       * corrected, and "they approved it" without a hash cannot be checked
+       * against anything.
+       *
+       * The service compares it against the preview it would render NOW, and
+       * refuses on a mismatch rather than recording an approval of something
+       * else.
+       *
+       * A `confirm_handoff` carries the hash of the message the student was
+       * shown when they were asked, for the same reason and with the same
+       * comparison. A handover message names the account, the portal and what
+       * is still outstanding; confirming one they cannot see any more is
+       * confirming something else.
+       */
+      readonly contentHash: string;
+    }
+  | {
+      /**
+       * The student stopped (ADR-0053).
+       *
+       * ── Why no hash, and why that is not an inconsistency ───────────────
+       *
+       * Requiring one would mean a student could stop only immediately after
+       * the system had spoken, because the hash has to name something they
+       * were shown. A stop button that works only while the system is talking
+       * is not a stop button.
+       *
+       * Nothing is weakened by its absence. The hash exists so that an
+       * agreement names what was agreed; a cancellation agrees to nothing, and
+       * the fact it establishes — "this student asked to stop" — is fully
+       * carried by the authenticated session the decision arrives on.
+       */
+      readonly kind: "cancel";
+    };
 
 function readString(body: unknown, field: string): string | null {
   if (typeof body !== "object" || body === null) return null;
@@ -98,8 +138,13 @@ function readString(body: unknown, field: string): string | null {
  */
 export function parseStudentDecision(body: unknown): StudentDecision | null {
   const kind = parseStudentDecisionKind((body as Record<string, unknown> | null)?.["kind"]);
+  if (kind === null) return null;
+  // A cancellation names no content, and a hash sent with one is IGNORED
+  // rather than stored — the same rule every other parser here follows about
+  // fields a caller might send hopefully.
+  if (kind === "cancel") return { kind };
   const contentHash = readString(body, "contentHash");
-  if (kind === null || contentHash === null) return null;
+  if (contentHash === null) return null;
   return { kind, contentHash };
 }
 
@@ -117,6 +162,17 @@ type AssertNever<T extends never> = T;
  * sent the text back could send different text, and the ledger would store the
  * client's version of what it showed them.
  */
+type KeysOf<T> = T extends unknown ? keyof T : never;
+
+/**
+ * DISTRIBUTIVE over the union, and that matters.
+ *
+ * `keyof` on a union gives the keys COMMON to every member — which, since
+ * ADR-0053 made this a union, is `kind` alone. The constraint would still have
+ * compiled and would have been checking almost nothing: a `presentedText` added
+ * to one member only would have passed. `KeysOf` distributes, so every member
+ * is checked.
+ */
 export type A_DECISION_CARRIES_A_HASH_NOT_THE_CONTENT = AssertNever<
-  Extract<keyof StudentDecision, "presentedText" | "preview" | "content" | "values">
+  Extract<KeysOf<StudentDecision>, "presentedText" | "preview" | "content" | "values">
 >;

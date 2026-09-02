@@ -19,6 +19,76 @@ not shipped artefacts.
 
 ---
 
+## [0.33.0] — 2026-09-02
+
+**P15 — a student can stop. ADR-0053.**
+
+A student could start an application and could not stop one. `CaseCancelled`
+had no producer; `CANCELLED` was unreachable because it is not on `CASE_SPINE`;
+`student_revoked` was a declared void reason nothing had ever issued; and there
+was no stop among the six student-facing routes. Meanwhile ADR-0032 had given
+them a way to cancel one *password prompt*, fully implemented. **They could
+cancel the password prompt and not the application it was for.**
+
+P14 is what made this urgent. Until then the client was the scheduler, so
+closing the tab *was* a stop — undesigned and unrecorded, but real. P14 removed
+it deliberately and nothing replaced it.
+
+### Added
+
+- **`WINDING_DOWN`**, a new non-terminal case state: *no further consequential
+  work will be started; what is already owed is still being met.* Its own state
+  rather than a reuse of `AWAITING_HANDOFF`, which would have made "a healthy
+  case awaiting handover" and "the student stopped" indistinguishable.
+- **`cancel_case`**, which emits `CaseCancelled`, the move to `WINDING_DOWN`,
+  and — where one exists — `AuthorisationVoided` with **`student_revoked`**,
+  giving that reason its first writer.
+- **`cancel`** on the closed `StudentDecision` set, through the existing
+  decision route. No second surface.
+- **A guard on `WINDING_DOWN → CANCELLED`**, refusing to conclude while
+  anything is outstanding, with `GuardContext.outstandingObligations` supplied
+  by the driver from `mayConcludeCase`.
+- **`HandoverEvidence.runStopped`.** A stopped run's account is due back
+  immediately: the branch above it uses "the application is filled" because
+  handing an account back early would mean changing a password we are about to
+  sign in with, and that reasoning inverts when there will be no next sign-in.
+
+### Changed
+
+- **Every non-terminal state now reaches `WINDING_DOWN` rather than `CANCELLED`
+  directly.** That substitution is the decision: `decide` refuses every intent
+  on a terminal case except `instruct_reapplication`, so a direct jump would
+  have made `complete_handoff` permanently refusable and stranded an account
+  created in the student's name on a real portal — defeating ADR-0050 while
+  reporting success.
+- **`StudentDecision` is a discriminated union.** Three members carry the hash
+  of what the student was shown; `cancel` carries none, because a stop is a
+  refusal of all of it rather than agreement to any of it. An optional field
+  would have made a hashless confirmation and a hash-carrying cancellation both
+  representable.
+- **`A_DECISION_CARRIES_A_HASH_NOT_THE_CONTENT` is distributive.** `keyof` on a
+  union yields only the common keys, so the constraint had quietly become a
+  check on `kind` alone; it is now verified to fail on each member.
+- **`claimWork` offers nothing for a stopped case**, read from the case rather
+  than the run's status — the run stays `running` while winding down, because
+  the handover it still owes is real work.
+- **`CANCELLED` is the first terminal state this system can reach.** ADR-0050 §7
+  declined to make one reachable because `CONFIRMED` means a portal confirmed a
+  submission; that reasoning does not apply to "the student stopped", which is a
+  fact this system holds entirely.
+
+### Not built, deliberately
+
+- **No erasure.** A different request with a different lawful basis, bound up
+  with a retention schedule that is not approved. The student-facing message
+  names it as separate rather than letting "stopped" be heard as "deleted".
+- **No specialist cancellation.** ADR-0048 §3 already decides it:
+  `specialistId` is asserted, not authenticated, and a consent act must not be
+  recorded against an identity nobody verified.
+- **No un-fill.** Nothing reaches back into a portal to clear a page.
+
+---
+
 ## [0.32.0] — 2026-09-02
 
 **P14 — the system acts when nobody is watching. ADR-0052.**
