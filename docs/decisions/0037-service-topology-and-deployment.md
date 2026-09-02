@@ -4,6 +4,23 @@
 **Extends:** [ADR-0012](./0012-aws-region-eu-west-2.md) (region),
 [ADR-0030](./0030-the-secure-control-runs-on-its-own-origin.md) (origins)
 
+> ### ⚠️ A proposed amendment to this table exists — not yet in force
+>
+> [**ADR-0052**](./0052-the-system-acts-when-nobody-is-watching.md) (**Proposed**, 2026-09-02)
+> would add a **fifth deployable**, a background worker, because nothing in this system currently
+> runs when nobody is making a request: the lifecycle outbox is never drained, no secure request is
+> ever expired, and a case only advances while a student's browser is posting.
+>
+> **This ADR is unchanged until ADR-0052 is accepted.** Four deployables is still the decision, and
+> nothing may be built on the proposal. What ADR-0052 would change is the table below — it adds a
+> row and alters no existing one. The trust levels, the database separation, the mTLS topology and
+> the region are untouched by it.
+>
+> ADR-0052 also puts one question about **this ADR's** security property back to Vahid: the
+> separation below states that no process holds both databases' credentials, and where the worker's
+> secure-plane jobs live decides whether that stays true. See ADR-0052's *"The one thing this ADR
+> cannot settle"*.
+
 ## The decision
 
 **Four deployables, three trust levels, one region (eu-west-2).**
