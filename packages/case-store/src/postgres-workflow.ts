@@ -214,6 +214,29 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
     }
   }
 
+  public async reopenIntent(
+    runId: RunId,
+    idempotencyKey: ActionIdempotencyKey,
+    startedAt: Date,
+  ): Promise<boolean> {
+    // ONE statement, and the guard is in the WHERE rather than in a read
+    // beforehand. A check-then-update would let two callers both see
+    // `failed_cleanly` and both re-open — and while the work lease makes that
+    // race unreachable today, the database is the right place for a rule whose
+    // violation would create a second account on a real portal.
+    //
+    // `outcome = 'failed_cleanly'` is doing all the work: a `succeeded` row and
+    // an unfinished row are both left exactly as they are, and the caller is
+    // told `false`.
+    const updated = await this.pool.query(
+      `UPDATE workflow_action_intents
+          SET started_at = $1, outcome = NULL, completed_at = NULL
+        WHERE run_id = $2 AND idempotency_key = $3 AND outcome = 'failed_cleanly'`,
+      [startedAt, runId, idempotencyKey],
+    );
+    return updated.rowCount === 1;
+  }
+
   public async completeIntent(
     runId: RunId,
     idempotencyKey: ActionIdempotencyKey,

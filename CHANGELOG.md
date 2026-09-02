@@ -19,6 +19,77 @@ not shipped artefacts.
 
 ---
 
+## [0.35.0] — 2026-09-02
+
+**P17 — the intent is durable before the action. ADR-0054.**
+
+The safety follow-up to P16. `RunDriver.reportWork` wrote the
+`workflow_action_intents` row when the REPORT arrived, so a runner killed
+mid-action — SIGKILL, OOM, a rolling deploy — left no record that anything had
+been attempted: the lease lapsed, the run returned to the pool, and the next
+runner was handed it as new work. On `create_account` that is a second account,
+on a real university portal, in a student's name.
+
+ADR-0045 §4 already claimed this case was detectable; it was detectable only
+when the runner survived to report `uncertain`. `completeIntent` has always
+refused a completion with no intent, calling it *"the ordering the whole
+mechanism depends on"* — and `performOnce`, which implements that ordering
+correctly, still has no production caller. Vahid took option A on 2026-09-02.
+
+### Changed
+
+- `RunDriver.claimWork` opens the ledger row **after taking the lease and
+  before returning the work**, so no consequential action can begin without a
+  durable record that it was about to. It refuses the claim and releases the
+  lease if the ledger will not open, rather than handing out work whose attempt
+  could not be recorded.
+- `RunDriver.reportWork` no longer records; it only completes.
+- The claim and the report now derive the ledger target through one function,
+  so the row a report completes cannot drift from the row the claim opened.
+- A lapsing lease no longer means "retry" for consequential work. It means a
+  runner is gone, and `#unfinishedAction` — the guard that already existed —
+  stops the run and raises an intervention. **No new guard was added.**
+
+### Added
+
+- `WorkflowRunStore.reopenIntent`, on both implementations and in the shared
+  contract suite. One row per `(run, action, target)` is unchanged — it is the
+  ledger's primary key and what `interventions.idempotency_key` pairs with — so
+  a retry re-opens the row instead of adding one. **Guarded in SQL to
+  `outcome = 'failed_cleanly'`**: a `succeeded` action can never be handed out
+  again, and an unfinished one is never taken from the specialist it belongs to.
+- Crash proof against a real Conversation Service and a real PostgreSQL: the
+  attempt is durable while the browser is still inside it; the lease lapses and
+  a second runner is offered nothing; the run stops and a person is asked to
+  look; the corpse's later report is refused; and a cleanly failed attempt is
+  tried again by a different runner.
+- `docs/p17-regression-audit.md` — ten mutations, nine caught, one survivor now
+  tested, and the finding that `#unfinishedAction` and `reopenIntent`'s SQL
+  guard are layered rather than redundant: only the first raises the
+  intervention, and only it makes a stopped run visible.
+
+### Fixed
+
+- A run that failed cleanly and then succeeded **threw** inside `reportWork`:
+  it skipped recording because a row existed, then asked `completeIntent` to
+  turn a `failed_cleanly` into a `succeeded`, which is refused. The account
+  existed on the portal and the ledger said `failed_cleanly` for ever. No test
+  had ever driven a full second attempt; one does now.
+- `scripts/runner-supervisor.test.ts` (P16) bound port 4907, which is
+  `run-driver.test.ts`'s `PORT + 4`. Running the two together made a bootstrap
+  test reach the wrong service and fail with 401 instead of 404, depending on
+  file scheduling. The suite now binds 4980.
+- A long-standing intermittent failure in
+  `apps/chat-integration/src/two-origin.test.ts` — three composer tests, roughly
+  one run in four of that directory, on the committed tree since well before
+  this phase. Not a React re-render race, which is what it looks like and what
+  a ten-second poll failed to fix: under parallel browser load the page is
+  starved for longer than that. The draft assertions now poll at thirty
+  seconds, matching the waits the file already uses. Measurements in
+  `docs/p17-regression-audit.md` §5.
+
+---
+
 ## [0.34.0] — 2026-09-02
 
 **P16 — the Automation Runner's supervisor.**

@@ -726,11 +726,40 @@ describeIfDatabase("what the composer does around a secure step", () => {
     // arrive on the stream a render before the response resolves, and reading
     // once made this assertion depend on which won.
     await expect
-      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 10_000 })
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
       .toBe("");
     await page.close();
   }, 90_000);
 
+  // ── Reading `#chat-input`, and why these poll for THIRTY seconds ──────
+  //
+  // `#chat-input` is a controlled React input, so `fill` sets the DOM value and
+  // React re-renders from state. The obvious reading is that a one-shot
+  // `inputValue()` occasionally lands inside that re-render — and that reading
+  // is wrong, which is worth writing down because it cost a round to disprove.
+  //
+  // Measured, on the committed tree, before anything here changed:
+  //
+  //   this file alone, 4 runs        no failures
+  //   `apps/chat-integration`, 8 runs   2 failures, in 3 different tests
+  //   the same, polling at 10s, 8 runs  2 failures — the poll TIMED OUT
+  //   the same, polling at 30s, 6 runs  no failures
+  //
+  // A poll that runs out after ten seconds is not losing a re-render race. The
+  // page is STARVED: several Chromium instances run in parallel across this
+  // directory's suites, and under that load a page can take well over ten
+  // seconds to process an input event. The value does arrive. Thirty seconds
+  // matches the 20s `waitFor`s this file already uses everywhere else for the
+  // same reason.
+  //
+  // This is not new and it is not P16's or P17's: the failure reproduces on
+  // `318db36`, in `— Q9` as readily as in `— Q2`. It had been an intermittent
+  // red build that nobody could reproduce on demand.
+  //
+  // So every assertion that a draft IS something polls. Assertions that a field
+  // is EMPTY deliberately do not: polling for "" would pass on the first tick,
+  // before the value it is meant to rule out could ever appear, which is a test
+  // that cannot fail for the reason it exists.
   it("keeps typing live and blocks the send when a step opens mid-sentence — Q2", async () => {
     const conversation = await newConversation();
     const page = await chatPage(conversation);
@@ -747,9 +776,20 @@ describeIfDatabase("what the composer does around a secure step", () => {
     // freeze is what breaks the one-continuous-conversation requirement.
     expect(await page.locator("#chat-input").isDisabled()).toBe(false);
     // Q3: the draft is untouched. Nothing cleared it, nothing queued it.
-    expect(await page.locator("#chat-input").inputValue()).toBe("I was in the middle of this");
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
+      .toBe("I was in the middle of this");
     await page.locator("#chat-input").fill("and I can still type more");
-    expect(await page.locator("#chat-input").inputValue()).toBe("and I can still type more");
+    // Polled, for the reason at the top of this group: under parallel browser
+    // load this page can be starved for longer than ten seconds, and a one-shot
+    // read here observed the PREVIOUS draft — "expected 'I was in the middle of
+    // this' to be 'and I can still type more'".
+    //
+    // What is under test is that typing is not blocked, which is a property of
+    // the state a person actually ends up looking at.
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
+      .toBe("and I can still type more");
     await page.close();
   }, 90_000);
 
@@ -780,7 +820,7 @@ describeIfDatabase("what the composer does around a secure step", () => {
     // is what makes the assertion afterwards mean "the draft was KEPT" rather
     // than "there was nothing to lose".
     await expect
-      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 10_000 })
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
       .toBe(PASSWORD);
 
     // A real submit event, bubbling. React attaches its listeners at the root
@@ -798,7 +838,9 @@ describeIfDatabase("what the composer does around a secure step", () => {
     expect(sent.join("\n"), "the composer sent a message while blocked").not.toContain(PASSWORD);
     expect(sent).toHaveLength(0);
     // And the text is exactly where the student left it.
-    expect(await page.locator("#chat-input").inputValue()).toBe(PASSWORD);
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
+      .toBe(PASSWORD);
     expect(await page.locator('[data-testid="hint"]').textContent()).toContain("Held");
     // Nothing reached the log or the database either.
     expect(await durableKinds(conversation)).toEqual(["secret_requested"]);
@@ -869,7 +911,9 @@ describeIfDatabase("what the composer does around a secure step", () => {
 
     // The composer is live again and the draft survived.
     expect(await page.locator("#chat-send").isDisabled()).toBe(false);
-    expect(await page.locator("#chat-input").inputValue()).toBe(PASSWORD);
+    await expect
+      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
+      .toBe(PASSWORD);
     await page.close();
   }, 120_000);
 

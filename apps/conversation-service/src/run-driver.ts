@@ -2392,6 +2392,52 @@ export class RunDriver {
     });
   }
 
+  /**
+   * Records that a consequential action is about to be attempted.
+   *
+   * ADR-0054. Three states, and the middle one is why this is a method rather
+   * than a call to `recordIntent`:
+   *
+   *   nothing recorded      → record it. The ordinary first attempt.
+   *   completed cleanly     → re-open it. ADR-0047 decided that
+   *                           `already_done` + `failed_cleanly` is offered
+   *                           again, and the ledger must then say an attempt
+   *                           is in flight rather than keep describing the one
+   *                           before it. The store refuses to re-open anything
+   *                           else, so this cannot resurrect a `succeeded`.
+   *   anything else         → `false`. Unreachable through `claimWork`, which
+   *                           consults `#unfinishedAction` first — so reaching
+   *                           it means a race, and a race is not a licence.
+   *
+   * The row is ONE per (run, action, target), unchanged: it is the ledger's
+   * primary key and what `interventions.idempotency_key` pairs with, so a
+   * second attempt cannot become a second row without making it possible to
+   * raise a second intervention for one stuck action.
+   */
+  async #beginIntent(input: {
+    readonly runId: RunId;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly now: Date;
+  }): Promise<boolean> {
+    const key = idempotencyKeyFor({
+      runId: input.runId,
+      action: input.action,
+      target: input.target,
+    });
+    const found = await this.#options.stores.runs.findIntent(input.runId, key);
+    if (found === null) {
+      await this.#options.stores.runs.recordIntent(input.runId, {
+        idempotencyKey: key,
+        action: input.action,
+        target: input.target,
+        startedAt: input.now,
+      });
+      return true;
+    }
+    return await this.#options.stores.runs.reopenIntent(input.runId, key, input.now);
+  }
+
   /** What the ledger says about one consequential action on one target. */
   async #verdictFor(
     runId: RunId,
@@ -3044,6 +3090,41 @@ export class RunDriver {
       // try the next one rather than failing the poll.
       if (lease === null) continue;
 
+      // ── The intent is durable BEFORE the work is handed out ─────────────
+      //
+      // ADR-0054, and the ordering the whole mechanism depends on. Until P17
+      // this row was written when the REPORT arrived, which meant a runner
+      // killed mid-action — SIGKILL, OOM, a rolling deploy — left nothing at
+      // all: the lease lapsed, the run went back in the pool, and the next
+      // runner was handed it as new work. On `create_account` that is a second
+      // account, on a real portal, in a student's name.
+      //
+      // Written AFTER the lease deliberately. The lease is what makes "one
+      // attempt at a time" true, so an intent written before it could be
+      // written for work this runner then loses the race for — an unfinished
+      // action nobody ever attempted, and a specialist called out for it.
+      //
+      // No transaction spans the two, and none is needed. The only window that
+      // could hurt anybody is *work handed out with no durable intent*, and it
+      // does not exist: this returns after the write. The other order of
+      // failure — a lease taken and the intent write lost — hands out nothing,
+      // lapses on its own, and is retried.
+      const began = await this.#beginIntent({
+        runId: makeRunId(candidate.runId),
+        action: ACTION_FOR_WORK[kind],
+        target: intentTargetOf(candidate.runId, payload),
+        now,
+      });
+      if (!began) {
+        // The ledger will not have it. Something finished this action between
+        // `#unfinishedAction` above and here — a race the lease normally
+        // prevents — so give the lease back rather than hand out work whose
+        // attempt is unrecorded. Refusing costs a poll; proceeding costs an
+        // action nobody could later account for.
+        await leases.release({ runId: candidate.runId, leaseId: lease.leaseId, now });
+        continue;
+      }
+
       return {
         leaseId: lease.leaseId,
         expiresAt: lease.expiresAt.toISOString(),
@@ -3094,43 +3175,25 @@ export class RunDriver {
     const held = await leases.held(input.runId, now);
     if (held === null || held.leaseId !== input.report.leaseId) return false;
 
-    // ── The evidence, written where evidence about this goes ─────────────
+    // ── The evidence, COMPLETED here and opened at the claim ─────────────
     //
-    // ADR-0008. `recordIntent`/`completeIntent` is the existing mechanism for
-    // "a consequential action may have happened", and creating a real account
-    // on a real university portal is its first-named example. The key comes
-    // from the domain's own `idempotencyKeyFor` rather than being assembled
-    // here, so a second writer of the same fact cannot format it differently
-    // and record a second half-action.
+    // ADR-0008 for the mechanism, ADR-0054 for the ordering. Until P17 this
+    // method also RECORDED the intent, which meant nothing was durable until a
+    // runner came back to say so — and a runner that never came back left no
+    // trace of having tried. `claimWork` now opens the row before the work is
+    // handed out, so by the time a report arrives the row is already there and
+    // all that is left is to say how it ended.
+    //
+    // `completeIntent` has always refused a completion with no intent, calling
+    // it *"the ordering the whole mechanism depends on"*. That sentence
+    // describes the system now; before P17 this method was the reason it did
+    // not have to be true.
     const runId = makeRunId(input.runId);
     const action = ACTION_FOR_WORK[held.kind];
-    // The PAGE for a fill, the run for anything else. One intent per page is
-    // what makes "which pages are done" answerable at all (ADR-0047), and the
-    // page comes from the lease rather than from a re-derived plan — a plan
-    // that changed in between would complete an intent for a page the runner
-    // never touched.
-    const target =
-      held.pageRef === undefined
-        ? held.runId
-        : held.pageVersion === undefined
-          ? held.pageRef
-          : `${held.pageRef}@${held.pageVersion}`;
+    // The PAGE for a fill, the run for anything else — from the LEASE, and
+    // through the same function the claim used, so the two cannot drift.
+    const target = intentTargetOf(held.runId, held);
     const key = idempotencyKeyFor({ runId, action, target });
-
-    // The intent is written on REPORT rather than on claim, and the difference
-    // is what it would mean: an intent written at claim time says "this was
-    // attempted" about work a runner might never have started, which reads as
-    // more uncertainty than there is. Written here it says "a runner did this
-    // and here is how it ended" — and `startedAt` is when the lease was taken,
-    // which is when it actually began.
-    if ((await this.#options.stores.runs.findIntent(runId, key)) === null) {
-      await this.#options.stores.runs.recordIntent(runId, {
-        idempotencyKey: key,
-        action,
-        target,
-        startedAt: held.claimedAt,
-      });
-    }
 
     // ── Why `uncertain` completes nothing ────────────────────────────────
     //
@@ -3155,6 +3218,27 @@ export class RunDriver {
 
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
   }
+}
+
+/**
+ * The ledger target for a unit of work: the PAGE for a fill, the run otherwise.
+ *
+ * One function, used by both ends. `claimWork` derives it from the payload it
+ * is about to hand out and `reportWork` from the lease that comes back, and if
+ * those two ever disagreed the report would complete a different intent from
+ * the one the claim opened — leaving one row unfinished for ever and raising an
+ * intervention for an action that in fact completed.
+ *
+ * Deliberately NOT re-derived from a plan at report time: a plan that changed
+ * in between would key the intent to a page the runner never touched
+ * (ADR-0047, ADR-0051 §6).
+ */
+function intentTargetOf(
+  runId: string,
+  page: { readonly pageRef?: string; readonly pageVersion?: string },
+): string {
+  if (page.pageRef === undefined) return runId;
+  return page.pageVersion === undefined ? page.pageRef : `${page.pageRef}@${page.pageVersion}`;
 }
 
 /**

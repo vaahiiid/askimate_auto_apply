@@ -99,6 +99,18 @@ error, because a process can always die between an external success and our
 recording of it — which is precisely what `workflow_action_intents` was built to
 make detectable (ADR-0008).
 
+> **Amended by [ADR-0054](./0054-the-intent-is-durable-before-the-action.md),
+> 2026-09-02.** That paragraph was true only of a runner that *survived to
+> report* `uncertain`. When it was written, and until P17, the ledger row was
+> created when the report arrived — so a runner killed mid-action left no record
+> at all, the lease lapsed, and the work was handed to somebody else as new.
+> Exactly the case the sentence describes was the one case it did not cover.
+>
+> Since ADR-0054 the row is written at CLAIM time, before the work reaches a
+> runner, and the claim above is now true as stated. `uncertain` remains what a
+> runner says when it survives and cannot tell; a missing completion is what the
+> ledger says when it does not.
+
 ## Consequences
 
 **Good.** The runner keeps its single inbound port and its single outbound

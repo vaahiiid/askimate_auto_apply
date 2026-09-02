@@ -527,7 +527,8 @@ already accepted: *"Latency is a poll interval rather than a push."*
 ## Known limitations — what changed, and what did not
 
 - **The intent is written on report, not on claim, and a killed runner leaves
-  no trace.** This is the finding of the phase and it is **open**. A runner
+  no trace.** This was the finding of the phase. *(Closed by P17 and ADR-0054:
+  the row is now written at claim time.)* A runner
   killed mid-`create_account` records nothing, so the work returns to the pool
   and the next runner may create a second account in the student's name.
   ADR-0045 §4 claims the opposite property; `performOnce`
@@ -551,3 +552,82 @@ honest candidates are unchanged: deployment infrastructure (there is still no
 Dockerfile, no IaC and no service entry point anywhere), the alerting transport
 (needs a vendor decision), and the learning loop (needs real interventions to
 learn from).
+
+---
+
+# Where we are — 2026-09-02 (P17)
+
+**Version:** `0.35.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**A runner that dies mid-action can no longer cause a second account.**
+
+P16 shipped the runner supervisor and, in writing its crash test, found the gap
+that this phase closes. `RunDriver.reportWork` wrote the
+`workflow_action_intents` row **when the report arrived** — so a runner killed
+mid-action left nothing at all. The lease lapsed, the run went back in the pool,
+and the next runner was handed it as new work. On `create_account` that is a
+second account, on a real portal, in a student's name.
+
+Three things made it a decision rather than a bug:
+
+| | |
+|---|---|
+| **ADR-0045 §4 claimed the opposite** | *"a process can always die between an external success and our recording of it — which is precisely what `workflow_action_intents` was built to make detectable"*. True only of a runner that survived to say `uncertain`. |
+| **The store already refused that ordering** | `completeIntent` has always thrown on a completion with no intent, calling it *"the ordering the whole mechanism depends on"*. `reportWork` satisfied it by recording the intent one line earlier. |
+| **The safe ordering was already written and uncalled** | `performOnce`: *"The intent is durable BEFORE the action."* A seventh entry for ADR-0052's table of built-and-unreached machinery. |
+
+Vahid took option A on 2026-09-02. **ADR-0054** records it.
+
+## What P17 delivered
+
+| | |
+|---|---|
+| **The write moved to the claim** | `claimWork` opens the ledger row after taking the lease and before returning the work. `reportWork` no longer records; it only completes. |
+| **`reopenIntent`** | One row per `(run, action, target)` is unchanged — it is the ledger's primary key and what an intervention pairs with. A retry re-opens the row, **guarded in SQL to `outcome = 'failed_cleanly'`**, so a `succeeded` action can never be handed out again and an unfinished one is never taken from the specialist it belongs to. |
+| **No new guard** | `#unfinishedAction` → `#pause` → an intervention and a message to the student is the P10/ADR-0048 path, unchanged. All this phase did was make it reachable by a crash. |
+| **A defect fixed on the way** | `reportWork` used to skip recording when a row existed and then call `completeIntent` anyway — so a run that failed cleanly and then succeeded **threw**, leaving the account on the portal and the ledger saying `failed_cleanly` for ever. No test had ever driven a full second attempt. |
+
+## What the crash proof asserts, against a real plane
+
+`scripts/runner-supervisor.test.ts`, real Conversation Service, real PostgreSQL:
+
+- **the attempt is durable while the browser is still inside it** — asserted at
+  the instant a runner is mid-action;
+- **the lease lapses and a second runner is offered nothing** — no second
+  account, and it really did keep polling;
+- **the run stops and a person is asked to look** — one intervention, status
+  `uncertain`, through the mechanism that already existed;
+- **the corpse's later report is refused** and changes nothing;
+- **a cleanly failed attempt is tried again** by a different runner, one row,
+  re-opened and then completed.
+
+## Known limitations — what changed, and what did not
+
+- **A crash before the first portal request raises an intervention for nothing.**
+  A specialist looks, sees no account, and records that it did not happen —
+  `resolveIntervention` with `didHappen: false` is that path and already exists.
+  This is the accepted cost of the ordering, and the asymmetry is not close.
+- **A lapsing lease no longer means "retry"** for consequential work. It means a
+  runner is gone and a person must look.
+- **There is still no verifier.** `performOnce`'s `verify_first` branch wants
+  something that opens the portal and asks whether the account exists. Until
+  that is built, a person is the verifier.
+- **The ledger holds no attempt history.** It answers *did this action happen to
+  this target?*, not *how many times was it tried?*. A counter nobody reads
+  would be the mirror of the problem this phase fixed.
+- Everything else from the P14–P16 lists still holds: no alerting transport, no
+  deployment infrastructure, documents blocked on retention, the learning loop
+  still open.
+
+## What is next, on the evidence
+
+The safety gap P16 opened onto is closed, and with it the reason not to deploy.
+The honest candidates are now **deployment infrastructure** (there is still no
+Dockerfile, no IaC and no service entry point anywhere — five deployables and
+nothing to deploy them with), the **alerting transport** (needs a vendor
+decision from Vahid; the queue it would consume has been reliable since P14),
+and the **learning loop** (ADR-0008 part 2, which needs real interventions to
+learn from). A **portal verifier** would turn this phase's false positives into
+automatic answers, but it is worth building after there is traffic to measure.

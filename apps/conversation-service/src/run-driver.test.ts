@@ -31,6 +31,7 @@ import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
 import { PostgresInterventionStore } from "@askimate/aas-case-store/postgres-interventions";
 import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
+import type { WorkflowRunStore } from "@askimate/aas-case-store";
 import { InterventionAlreadyResolvedError } from "@askimate/aas-case-store/interventions";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import {
@@ -270,6 +271,41 @@ function connectionString(): string {
   const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${DATABASE}`;
   return url.toString();
+}
+
+/**
+ * Runs a PROBE that claims work, and puts the ledger back afterwards.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Since ADR-0054 a claim is not free. It opens a `workflow_action_intents`
+ * row before the work is handed out, which is the whole point of P17 — and it
+ * means a test helper that claims six times to ask *"would a runner be offered
+ * this run?"* now leaves six records saying an action was attempted. The next
+ * real claim would see an unfinished action, pause the run and raise an
+ * intervention, and the test that followed would fail for a reason that had
+ * nothing to do with what it was testing.
+ *
+ * Nothing in production probes. This exists because the tests do.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Restores by DIFFERENCE rather than by deleting everything: a probe must not
+ * quietly discard an intent that was already there and is the subject of the
+ * assertion about to run.
+ */
+async function probing<T>(run: () => Promise<T>): Promise<T> {
+  const before = await pool.query<{ run_id: string; idempotency_key: string }>(
+    "SELECT run_id, idempotency_key FROM workflow_action_intents",
+  );
+  const held = before.rows.map((row) => `${row.run_id}|${row.idempotency_key}`);
+  try {
+    return await run();
+  } finally {
+    await pool.query(
+      `DELETE FROM workflow_action_intents
+        WHERE (run_id || '|' || idempotency_key) <> ALL($1::text[])`,
+      [held],
+    );
+  }
 }
 
 /**
@@ -1403,6 +1439,24 @@ describeIfDatabase("leasing browser work to a runner", () => {
     );
   }
 
+  /**
+   * Makes a run claimable again WITHOUT touching the intent ledger.
+   *
+   * `restoreClaimable` deletes the intents, which is right where a test wants
+   * a clean slate. Since ADR-0054 several tests need the opposite: the ledger
+   * carries the fact under test and only the lease and the phase should move.
+   */
+  async function restoreClaimable2(run: string, phase: string): Promise<void> {
+    await pool.query("DELETE FROM work_leases WHERE run_id = $1", [run]);
+    await pool.query(
+      `UPDATE workflow_runs
+          SET status = 'running',
+              checkpoint = jsonb_set(checkpoint, '{phase}', $2::jsonb)
+        WHERE run_id = $1`,
+      [run, JSON.stringify(phase)],
+    );
+  }
+
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00070";
   let runId: string;
 
@@ -1540,23 +1594,80 @@ describeIfDatabase("leasing browser work to a runner", () => {
     }
   }, 60_000);
 
-  it("hands it to somebody else once the lease has LAPSED", async () => {
-    // Not by sleeping. The lease's expiry is a timestamp in a row, so the test
-    // ages the row rather than waiting on the clock — a test that waited two
-    // minutes for a two-minute lease would be a test nobody runs.
+  it("does NOT hand a LAPSED lease to anybody while the action it began is unfinished", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // P17, and the behaviour this phase deliberately changed. This test used
+    // to assert the opposite — *"a lapsed lease must return the run to the
+    // pool"* — and that was safe only while the ledger learned nothing until a
+    // runner came back to report. Since ADR-0054 the claim itself records that
+    // an account creation was about to be attempted, so a lapsed lease means a
+    // runner is GONE mid-action, not that the work is free.
     //
-    // BOTH timestamps move, because `expires_at > claimed_at` is a CHECK: a
-    // lease cannot be written already spent, and the first attempt at this test
-    // moved only the expiry and was refused by the database. That refusal is
-    // the constraint working, so the test was changed rather than the schema.
+    // Handing it out again is the duplicate account. The run stops instead,
+    // and a person is asked to look at the portal.
+    // ═══════════════════════════════════════════════════════════════════
+    //
+    // Aged rather than slept through. BOTH timestamps move, because
+    // `expires_at > claimed_at` is a CHECK: a lease cannot be written already
+    // spent, and the first attempt at this test moved only the expiry and was
+    // refused by the database.
     await pool.query(
       "UPDATE work_leases SET claimed_at = $1, expires_at = $2 WHERE run_id = $3",
       [new Date(NOW.getTime() - 600_000), new Date(NOW.getTime() - 1000), runId],
     );
+
+    // The claim from the first test in this group left this behind, and it is
+    // the whole reason the run is now protected.
+    const before = await pool.query<{ outcome: string | null }>(
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1",
+      [runId],
+    );
+    expect(before.rows, "the claim recorded that it was about to act").toHaveLength(1);
+    expect(before.rows[0]?.outcome, "and nothing completed it").toBeNull();
+
+    const instance = buildInstance(connectionString());
+    try {
+      expect(
+        await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 }),
+        "an account that may already exist is not work",
+      ).toBeNull();
+
+      // And it does not stop silently: the existing mechanism raises an
+      // intervention and tells the student, exactly as it does for any other
+      // unfinished action (P10, ADR-0048). No new guard was added for this.
+      const raised = await pool.query<{ reason: string }>(
+        "SELECT reason FROM interventions WHERE run_id = $1",
+        [runId],
+      );
+      expect(raised.rows, "a person is asked to look").toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("hands it out again once the attempt is recorded as CLEANLY FAILED", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The other half, and the one that keeps P17 from being a system that
+    // stops for ever. ADR-0047 already decided this: `already_done` +
+    // `failed_cleanly` means nothing happened out there, so the work is
+    // offered again.
+    //
+    // What ADR-0054 adds is that the row must then say an attempt is IN
+    // FLIGHT again rather than keep describing the one before it — otherwise
+    // the next report would try to complete an intent that already carries an
+    // outcome, and `completeIntent` refuses that.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM interventions WHERE run_id = $1", [runId]);
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly', completed_at = $2 WHERE run_id = $1",
+      [runId, new Date(NOW.getTime() - 300_000)],
+    );
+    await restoreClaimable2(runId, "creating_account");
+
     const instance = buildInstance(connectionString());
     try {
       const work = await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 });
-      if (work === null) expect.unreachable("a lapsed lease must return the run to the pool");
+      if (work === null) expect.unreachable("a cleanly failed attempt may be tried again");
       expect(work.runId).toBe(runId);
 
       const leases = await pool.query<{ holder: string; lease_id: string }>(
@@ -1568,6 +1679,99 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // A NEW lease id, so the runner that was superseded cannot close out work
       // the new holder is in the middle of.
       expect(leases.rows[0]?.lease_id).toBe(work.leaseId);
+
+      // ONE row still — the ledger holds one per (run, action, target), which
+      // is its primary key and what an intervention pairs with — and it is
+      // open again rather than still describing the failure.
+      const intents = await pool.query<{ outcome: string | null; started_at: Date }>(
+        "SELECT outcome, started_at FROM workflow_action_intents WHERE run_id = $1",
+        [runId],
+      );
+      expect(intents.rows, "re-opened, not duplicated").toHaveLength(1);
+      expect(intents.rows[0]?.outcome, "an attempt is in flight").toBeNull();
+      expect(intents.rows[0]?.started_at.getTime(), "and it started at THIS claim").toBe(
+        NOW.getTime(),
+      );
+    } finally {
+      await instance.pool.end();
+    }
+  }, 60_000);
+
+  it("REFUSES the claim, and gives the lease back, when the ledger will not open", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The race `#beginIntent`'s refusal exists for, and it needed building
+    // because nothing produces it naturally: `#unfinishedAction` runs first
+    // and normally refuses every case where the ledger would say no.
+    //
+    // It is reachable, though — between that check and the write, another
+    // process can finish the action — and what happens then is the whole
+    // question this phase is about. Handing the work out would be a
+    // consequential action with no durable record that it was attempted,
+    // which is precisely the hole ADR-0054 closes.
+    //
+    // Written after deliberate regression P17 Q4 deleted the refusal and every
+    // test still passed.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query(
+      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly', completed_at = $2 WHERE run_id = $1",
+      [runId, new Date(NOW.getTime() - 300_000)],
+    );
+    await restoreClaimable2(runId, "creating_account");
+
+    const racedPool = new pg.Pool({ connectionString: connectionString(), max: 4 });
+    try {
+      const runs = new PostgresWorkflowRunStore(racedPool);
+      // A DELEGATING wrapper, not `Object.create(runs)` and not `{ ...runs }`.
+      // Both of those keep the prototype's methods bound to the wrong receiver
+      // and every private field access throws — the same trap
+      // `consequential.test.ts` records having fallen into.
+      //
+      // Everything is real except the one call, which answers as it would if
+      // somebody else had completed the action a microsecond earlier.
+      const raced: WorkflowRunStore = {
+        start: (run) => runs.start(run),
+        load: (id) => runs.load(id),
+        saveCheckpoint: (save) => runs.saveCheckpoint(save),
+        recordIntent: (id, intent) => runs.recordIntent(id, intent),
+        completeIntent: (id, key, outcome, at) => runs.completeIntent(id, key, outcome, at),
+        reopenIntent: () => Promise.resolve(false),
+        findIntent: (id, key) => runs.findIntent(id, key),
+        findByCase: (id) => runs.findByCase(id),
+        discardCheckpoints: (id) => runs.discardCheckpoints(id),
+      };
+
+      const driver = new RunDriver({
+        stores: { cases: new PostgresCaseStore(racedPool), runs: raced },
+        bindings: new ApplicationBindingStore(racedPool),
+        catalogue: CATALOGUE,
+        model: new DeterministicModelClient(),
+        profiles: new PostgresConfirmedProfileStore(racedPool),
+        conversations: new ConversationEventStore(racedPool),
+        secureRequests: opener(),
+        leases: new WorkLeaseStore(racedPool),
+        interventions: new PostgresInterventionStore(racedPool),
+        now: () => NOW,
+      });
+
+      expect(
+        await driver.claimWork({ holder: "runner-raced", leaseSeconds: 120 }),
+        "no work is handed out whose attempt could not be recorded",
+      ).toBeNull();
+
+      // And the lease it took on the way is given back, rather than left to
+      // strand the run for its full duration.
+      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      expect(leases.rowCount, "the lease is released, not abandoned").toBe(0);
+    } finally {
+      await racedPool.end();
+    }
+
+    // Put it back the way the next test expects: claimable, and claimed.
+    await restoreClaimable2(runId, "creating_account");
+    const instance = buildInstance(connectionString());
+    try {
+      const work = await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 });
+      if (work === null) expect.unreachable("the run should still be claimable");
     } finally {
       await instance.pool.end();
     }
@@ -1582,11 +1786,16 @@ describeIfDatabase("leasing browser work to a runner", () => {
       });
       expect(accepted, "only the holder may report").toBe(false);
 
-      // And nothing was written about an action nobody is holding.
-      const intents = await pool.query("SELECT 1 FROM workflow_action_intents WHERE run_id = $1", [
-        runId,
-      ]);
-      expect(intents.rowCount).toBe(0);
+      // The intent exists — the CLAIM opened it (ADR-0054) — and what matters
+      // is that a non-holder's report did not COMPLETE it. Before P17 this
+      // asserted the row was absent, which was the same fact read through the
+      // ordering this phase changed.
+      const intents = await pool.query<{ outcome: string | null }>(
+        "SELECT outcome FROM workflow_action_intents WHERE run_id = $1",
+        [runId],
+      );
+      expect(intents.rows).toHaveLength(1);
+      expect(intents.rows[0]?.outcome, "nobody else may close out this action").toBeNull();
     } finally {
       await instance.pool.end();
     }
@@ -2516,12 +2725,28 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
       const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target });
+      // ── Since ADR-0054 a CLAIM already opens this row ──────────────────
+      //
+      // This helper predates P17, when the ledger learned nothing until a
+      // report arrived and the only way to manufacture an unfinished action
+      // was to write one. Now a page that was claimed and never reported is
+      // already in exactly that state, and writing a second row for the same
+      // key is refused by the primary key — correctly.
+      //
+      // So: create the row when there is none, and otherwise assert that what
+      // is there is the state this helper exists to produce. Deleting and
+      // rewriting it would hide a completed intent behind a fresh one.
+      const existing = await runs.findIntent(runRef, key);
+      if (existing !== null) {
+        expect(
+          existing.completed,
+          "leaveOpen wants an UNFINISHED action; this one has an outcome",
+        ).toBeUndefined();
+        return;
+      }
       await runs.recordIntent(runRef, {
-        idempotencyKey: idempotencyKeyFor({
-          runId: runRef,
-          action: "advance_portal_page",
-          target,
-        }),
+        idempotencyKey: key,
         action: "advance_portal_page",
         target,
         startedAt: NOW,
@@ -4074,14 +4299,18 @@ describeIfDatabase("the student stops", () => {
     const instance = buildInstance(connectionString(), opener());
     const seen: string[] = [];
     try {
-      for (let attempt = 0; attempt < 6; attempt += 1) {
-        const offered = await instance.driver.claimWork({
-          holder: `runner-probe-${String(attempt)}`,
-          leaseSeconds: 60,
-        });
-        if (offered === null) break;
-        seen.push(offered.runId);
-      }
+      // Wrapped, so the probe's own claims do not leave the ledger saying an
+      // action was attempted. See `probing`.
+      await probing(async () => {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const offered = await instance.driver.claimWork({
+            holder: `runner-probe-${String(attempt)}`,
+            leaseSeconds: 60,
+          });
+          if (offered === null) break;
+          seen.push(offered.runId);
+        }
+      });
     } finally {
       await instance.pool.end();
       // Deleted, because the clock is fixed and these leases would otherwise
@@ -4382,14 +4611,18 @@ describeIfDatabase("the student stops while an account is about to be created", 
     const instance = buildInstance(connectionString(), opener());
     const seen: string[] = [];
     try {
-      for (let attempt = 0; attempt < 6; attempt += 1) {
-        const offered = await instance.driver.claimWork({
-          holder: `probe-acct-${String(attempt)}`,
-          leaseSeconds: 60,
-        });
-        if (offered === null) break;
-        seen.push(offered.runId);
-      }
+      // Wrapped, so the probe's own claims do not leave the ledger saying an
+      // action was attempted. See `probing`.
+      await probing(async () => {
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const offered = await instance.driver.claimWork({
+            holder: `probe-acct-${String(attempt)}`,
+            leaseSeconds: 60,
+          });
+          if (offered === null) break;
+          seen.push(offered.runId);
+        }
+      });
     } finally {
       await instance.pool.end();
       await pool.query("DELETE FROM work_leases WHERE holder LIKE 'probe-acct-%'");

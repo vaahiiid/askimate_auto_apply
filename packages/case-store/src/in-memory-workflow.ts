@@ -138,6 +138,24 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     });
   }
 
+  public async reopenIntent(
+    runId: RunId,
+    idempotencyKey: ActionIntent["idempotencyKey"],
+    startedAt: Date,
+  ): Promise<boolean> {
+    await Promise.resolve();
+    const held = this.#runs.get(runId);
+    if (held === undefined) throw new RunNotFoundError(runId);
+    const record = held.intents.get(idempotencyKey);
+    // Missing, unfinished, or succeeded: all three answer `false`. See the
+    // interface — only a cleanly failed attempt may be tried again.
+    if (record?.completed?.outcome !== "failed_cleanly") return false;
+    held.intents.set(idempotencyKey, {
+      intent: { ...record.intent, startedAt: new Date(startedAt.getTime()) },
+    });
+    return true;
+  }
+
   public async completeIntent(
     runId: RunId,
     idempotencyKey: ActionIntent["idempotencyKey"],

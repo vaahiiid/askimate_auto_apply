@@ -344,6 +344,60 @@ export function runWorkflowStoreContract(
         await expect(store.recordIntent(id, intent(id))).rejects.toThrow();
       });
 
+      it("re-opens a CLEANLY FAILED intent, and the row says in-flight again", async () => {
+        // ADR-0054. The row is written before the action now, and ADR-0047
+        // already decided that `already_done` + `failed_cleanly` is offered
+        // again — so a retry needs the row to stop describing the attempt
+        // before it and start describing this one.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW);
+
+        const later = new Date(NOW.getTime() + 60_000);
+        expect(await store.reopenIntent(id, key(id), later)).toBe(true);
+
+        const found = await store.findIntent(id, key(id));
+        expect(found?.completed, "no completion; an attempt is in flight").toBeUndefined();
+        expect(found?.intent.startedAt.getTime(), "and it started NOW").toBe(later.getTime());
+
+        // And the completion that follows lands, rather than colliding with
+        // the outcome of the attempt before it.
+        await expect(store.completeIntent(id, key(id), "succeeded", later)).resolves.toBeUndefined();
+      });
+
+      it("REFUSES to re-open an action that succeeded", async () => {
+        // ═══════════════════════════════════════════════════════════════
+        // The single most dangerous thing this store could be asked to do.
+        // A `succeeded` intent means an account exists on a real portal, or a
+        // page was saved into a real application. Re-opening it would hand the
+        // action out again — the duplicate the whole mechanism exists to
+        // prevent — so the refusal is a WHERE clause, not a caller's care.
+        // ═══════════════════════════════════════════════════════════════
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "succeeded", NOW);
+
+        expect(await store.reopenIntent(id, key(id), new Date(NOW.getTime() + 60_000))).toBe(false);
+        const found = await store.findIntent(id, key(id));
+        expect(found?.completed?.outcome, "untouched").toBe("succeeded");
+      });
+
+      it("REFUSES to re-open an UNFINISHED intent, which is somebody's to adjudicate", async () => {
+        // The uncertainty window. Re-opening it would silently discard the one
+        // record that says a specialist should look at the portal.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+
+        expect(await store.reopenIntent(id, key(id), new Date(NOW.getTime() + 60_000))).toBe(false);
+        const found = await store.findIntent(id, key(id));
+        expect(found?.intent.startedAt.getTime(), "and its start is not moved").toBe(NOW.getTime());
+      });
+
+      it("answers false for an action nobody ever started", async () => {
+        await store.start(freshRun(id));
+        expect(await store.reopenIntent(id, key(id), NOW)).toBe(false);
+      });
+
       it("keeps one run's intents out of another's", async () => {
         await store.start(freshRun(id));
         const other = makeRunId(`${id}_other`);

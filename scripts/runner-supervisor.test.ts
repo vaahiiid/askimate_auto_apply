@@ -85,7 +85,18 @@ import {
   type SecureRequestOpener,
 } from "@askimate/aas-conversation-service";
 
-const PORT = 4907;
+/**
+ * Well clear of everything else, and that is not fussiness.
+ *
+ * `run-driver.test.ts` derives its servers from `PORT = 4903` as far as
+ * `PORT + 60`, and `journey.test.ts` from 4901 as far as `+ 20` — so 4901-4963
+ * is effectively reserved even though no file says so in one place. This suite
+ * first took 4907, which is `run-driver.test.ts`'s `PORT + 4`, and when the two
+ * files ran together one of its tests reached THIS service instead of its own
+ * and got a 401 where it expected a 404: a failure that appeared and vanished
+ * with the file scheduling, in a suite that is otherwise deterministic.
+ */
+const PORT = 4980;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const DATABASE = "aas_supervisor";
 const SESSION_SECRET = "a-supervisor-session-secret-long-enough";
@@ -141,6 +152,10 @@ let studentUuid: string;
  * latter.
  */
 let wire: { path: string; status: number }[] = [];
+
+/** The run whose runner is killed mid-action, shared across the P17 group. */
+let crashedRunId = "";
+let crashed: { supervisor: RunningSupervisor; turns: TurnResult[] };
 
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
   const response = await globalThis.fetch(input, init);
@@ -471,7 +486,7 @@ describeIfDatabase("P16 — two runners, one unit of work", () => {
   }, 120_000);
 });
 
-describeIfDatabase("P16 — a runner dies holding the work", () => {
+describeIfDatabase("P17 — a runner dies holding the work", () => {
   /**
    * Death, not shutdown.
    *
@@ -481,48 +496,62 @@ describeIfDatabase("P16 — a runner dies holding the work", () => {
    * schedules again. Modelled by a performer that never resolves, which leaves
    * the supervisor in exactly the state a SIGKILL leaves it in from the
    * plane's point of view: a lease with no one behind it.
+   *
+   * ── What P17 changed, and why this group was rewritten ────────────────
+   *
+   * It used to assert that an heir RECOVERED the work once the lease lapsed,
+   * and it passed — because the ledger was written on report, so a runner that
+   * died mid-action left no trace and the run looked untouched. P16's audit
+   * recorded that as the gap this system had, and left an assertion in this
+   * file saying so. Vahid took the decision (option A) and ADR-0054 moved the
+   * write to the claim.
+   *
+   * So the property under test is now the opposite one, and it is the reason
+   * the phase exists: **a second runner must not repeat an account creation
+   * that a crashed runner may already have performed.**
    */
   let release: () => void = () => undefined;
 
-  it("lets a second runner recover the work once the lease has LAPSED", async () => {
+  it("records that it was about to act BEFORE it acts", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0054, asserted at the only instant that matters: a runner is inside
+    // a real portal action right now. Before P17 this row did not exist until
+    // the runner came back, and a runner that never came back left nothing.
+    // ═══════════════════════════════════════════════════════════════════
     const { runId } = await seedRun();
+    crashedRunId = runId;
 
     const claimed: string[] = [];
-    const dead = runner("runner-dead", (work) => {
+    crashed = runner("runner-dead", (work) => {
       claimed.push(work.runId);
       return new Promise<PerformOutcome>((resolve) => {
         release = () => resolve({ kind: "succeeded" });
       });
     });
-
     await until("the doomed runner to claim", () => claimed.length === 1);
 
-    // ══ Stated because it is the load-bearing fact, and it is not a happy one ══
-    //
-    // At this instant a runner is inside a real portal action and the durable
-    // record of the system says NOTHING was attempted. The intent is written
-    // on report (`RunDriver.reportWork`), so a process that dies between the
-    // claim and the report leaves no trace of having tried.
-    //
-    // For the recovery below that is exactly what makes it work: the heir is
-    // handed the run because nothing says it was already being done. It is
-    // also the gap `docs/p16-regression-audit.md` §"What this phase found"
-    // records — `performOnce` in `packages/orchestrator/src/consequential.ts`
-    // implements the other ordering (*"The intent is durable BEFORE the
-    // action"*) and has no production caller. Which of the two orderings this
-    // system should use is Vahid's decision, and it is open.
-    //
-    // If this assertion ever fails, that decision has been taken. Read the
-    // audit before changing the number.
-    expect(await intentsFor(runId), "nothing records that a runner was inside this").toEqual([]);
+    const ledger = await intentsFor(runId);
+    expect(ledger, "the attempt is durable while the browser is still in it").toEqual([
+      { action: "create_portal_account", outcome: null },
+    ]);
+  }, 120_000);
 
-    // It holds the lease, and while it does nobody else may have the run.
-    const live = runner("runner-early", () =>
-      Promise.resolve({ kind: "succeeded" } as const),
-    );
+  it("refuses to hand the SAME work to a second runner once the lease lapses", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The point of the phase. The dead runner may or may not have created an
+    // account on a real portal in this student's name; nobody here can tell.
+    // `assessIntent` has no "retry it" branch, and this is where that absence
+    // does its work — through `#unfinishedAction`, the guard that already
+    // existed, with nothing new added beside it.
+    // ═══════════════════════════════════════════════════════════════════
+    const runId = crashedRunId;
+
+    // While the lease is live, nobody else may have it either — for the
+    // ordinary reason, which is worth separating from the one under test.
+    const early = runner("runner-early", () => Promise.resolve({ kind: "succeeded" } as const));
     await keepPolling(200);
-    expect(live.turns.every((t) => t.kind === "idle"), "a leased run is nobody else's").toBe(true);
-    await live.supervisor.stop();
+    expect(early.turns.every((t) => t.kind === "idle"), "a leased run is nobody else's").toBe(true);
+    await early.supervisor.stop();
 
     // ── The lease lapses ────────────────────────────────────────────────
     //
@@ -535,56 +564,117 @@ describeIfDatabase("P16 — a runner dies holding the work", () => {
     );
     expect(aged.rowCount, "the dead runner's lease should still be there").toBe(1);
 
-    // The heir is held INSIDE its turn, so that when the corpse wakes up the
-    // heir's lease is live rather than already given back. A first version of
-    // this test let the heir finish first, and then the revenant's report was
-    // refused merely because no lease existed at all — which proved nothing
-    // about whether one runner can settle another's work. P16 R9 found that:
-    // deleting the lease-id comparison in `reportWork` changed nothing.
-    const heirClaimed: string[] = [];
-    let releaseHeir: () => void = () => undefined;
-    const heirHeld = new Promise<void>((resolve) => {
-      releaseHeir = resolve;
+    const reached: string[] = [];
+    const heir = runner("runner-heir", (work) => {
+      reached.push(work.runId);
+      return Promise.resolve({ kind: "succeeded" } as const);
     });
-    const heir = runner("runner-heir", async (work) => {
-      heirClaimed.push(work.runId);
-      await heirHeld;
-      return { kind: "succeeded" };
-    });
-    await until("the heir to pick it up", () => heirClaimed.length === 1);
-    expect(heirClaimed, "the lapsed lease returned the run to the pool").toEqual([runId]);
-
-    // ── The corpse cannot close out the heir's work ─────────────────────
-    //
-    // The dead runner comes back — a paused VM, a machine that was not as dead
-    // as it looked — and reports against a lease somebody else now holds.
-    // Refused, because a slow runner must not be able to settle work another
-    // runner is in the middle of.
-    release();
-    await until("the revenant to report", () => dead.turns.length > 0);
-    expect(dead.turns[0], "its lease is not the live one").toEqual({
-      kind: "report_refused",
-      runId,
-    });
-    await dead.supervisor.stop();
-    expect(
-      await intentsFor(runId),
-      "and nothing was written about work the heir has not finished",
-    ).toEqual([]);
-
-    // Now the heir finishes, and its report is the one that counts.
-    releaseHeir();
     try {
-      await until("the heir to finish", () => heir.turns.some((t) => t.kind === "worked"));
+      await keepPolling(500);
     } finally {
       await heir.supervisor.stop();
     }
-    const worked = heir.turns.filter((t) => t.kind === "worked");
-    expect(worked).toHaveLength(1);
-    expect(worked[0]).toMatchObject({ runId });
-    expect(await intentsFor(runId), "one attempt recorded, not two").toEqual([
+
+    expect(reached, "no second account is created for this student").toEqual([]);
+    expect(heir.turns.length, "and it really did keep polling").toBeGreaterThan(5);
+    expect(heir.turns.every((t) => t.kind === "idle")).toBe(true);
+    expect(await intentsFor(runId), "still one attempt, still unfinished").toEqual([
+      { action: "create_portal_account", outcome: null },
+    ]);
+  }, 120_000);
+
+  it("stops the run and asks a person to look, through the mechanism that already existed", async () => {
+    // No new guard. `#unfinishedAction` → `#pause` → an intervention and a
+    // message to the student is the P10/ADR-0048 path, unchanged since before
+    // this phase; all P17 did was make it reachable by a crash.
+    const runId = crashedRunId;
+    const raised = await pool.query<{ reason: string; lifecycle: string }>(
+      "SELECT reason, lifecycle FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    expect(raised.rows, "one stuck action is one case, however many polls").toHaveLength(1);
+
+    const status = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status, "the run is not quietly still running").toBe("uncertain");
+  }, 120_000);
+
+  it("refuses the corpse's report, and its arrival changes nothing", async () => {
+    // The dead runner comes back — a paused VM, a machine that was not as dead
+    // as it looked — and reports against a lease that lapsed under it. Refused,
+    // because a runner that lost its lease must not be able to settle work the
+    // plane has already escalated to a person.
+    const runId = crashedRunId;
+    release();
+    await until("the revenant to report", () => crashed.turns.length > 0);
+    expect(crashed.turns[0], "its lease is gone").toEqual({ kind: "report_refused", runId });
+    await crashed.supervisor.stop();
+
+    expect(
+      await intentsFor(runId),
+      "the uncertainty window stays open for the specialist",
+    ).toEqual([{ action: "create_portal_account", outcome: null }]);
+  }, 120_000);
+});
+
+describeIfDatabase("P17 — a clean failure may be tried again", () => {
+  it("re-opens the ledger row rather than colliding with the attempt before it", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0047 decided that `already_done` + `failed_cleanly` means nothing
+    // happened out there, so the work is offered again. ADR-0054 moved the
+    // ledger write to the claim — which would have broken that retry outright
+    // if the row were simply left as it was: the second claim would hit the
+    // primary key, and a second report would ask `completeIntent` to turn a
+    // `failed_cleanly` into a `succeeded`, which it refuses.
+    //
+    // Worth stating plainly: the SECOND of those two was already broken before
+    // P17. `reportWork` skipped recording when a row existed and then called
+    // `completeIntent` anyway, so a run that failed cleanly and then succeeded
+    // threw — the account existed on the portal and the ledger said
+    // `failed_cleanly` for ever. Nothing tested the path, because no test ever
+    // drove a full second attempt. This one does.
+    // ═══════════════════════════════════════════════════════════════════
+    const { runId } = await seedRun();
+
+    let attempts = 0;
+    const flaky = (): Promise<PerformOutcome> => {
+      attempts += 1;
+      // The first attempt fails PROVABLY locally — `portal_refused` is a claim
+      // that the portal turned us away, which is what licenses a retry at all.
+      return Promise.resolve(
+        attempts === 1
+          ? ({ kind: "failed", failure: "portal_refused" } as const)
+          : ({ kind: "succeeded" } as const),
+      );
+    };
+
+    const first = runner("runner-flaky-1", flaky);
+    try {
+      await until("the first attempt to fail", () => first.turns.some((t) => t.kind === "worked"));
+    } finally {
+      await first.supervisor.stop();
+    }
+    expect(await intentsFor(runId), "recorded as a clean failure").toEqual([
+      { action: "create_portal_account", outcome: "failed_cleanly" },
+    ]);
+
+    // A different runner entirely, as it would be after a deploy.
+    const second = runner("runner-flaky-2", flaky);
+    try {
+      await until("the second attempt to land", () => second.turns.some((t) => t.kind === "worked"));
+    } finally {
+      await second.supervisor.stop();
+    }
+
+    expect(attempts, "two attempts, not one and not three").toBe(2);
+    expect(await intentsFor(runId), "ONE row, re-opened and then completed").toEqual([
       { action: "create_portal_account", outcome: "succeeded" },
     ]);
+    // And the second report was accepted, rather than refused by a throw
+    // inside the plane that the runner would have read as `report_refused`.
+    expect(second.turns.filter((t) => t.kind === "worked")).toHaveLength(1);
   }, 120_000);
 });
 

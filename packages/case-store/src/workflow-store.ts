@@ -140,6 +140,35 @@ export interface WorkflowRunStore {
   /** Records that a consequential action is ABOUT to happen. */
   recordIntent(runId: RunId, intent: ActionIntent): Promise<void>;
 
+  /**
+   * Re-opens a CLEANLY FAILED intent for a fresh attempt.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0054. The ledger holds ONE row per (run, action, target) — its
+   * primary key, and what `interventions.idempotency_key` pairs with — so a
+   * second attempt at a target cannot be a second row. Since ADR-0054 the row
+   * is written BEFORE the action, which means a retry needs the row to say
+   * "in flight" again rather than to keep describing the attempt before it.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * **Only `failed_cleanly`, and that restriction is the safety property.**
+   * ADR-0047 already decided what happens to each verdict: `already_done` +
+   * `failed_cleanly` means *"nothing happened out there"* and the work is
+   * offered again. `succeeded` is skipped and must NEVER be re-opened — doing
+   * so would hand out an action that has already reached a real portal, which
+   * is the duplicate account this whole mechanism exists to prevent. An
+   * unfinished intent must not be re-opened either: that is the uncertainty
+   * window, and it belongs to a specialist.
+   *
+   * Answers `false` when the intent is missing or is in any other state, so a
+   * caller learns it may not proceed rather than discovering it did.
+   */
+  reopenIntent(
+    runId: RunId,
+    idempotencyKey: ActionIntent["idempotencyKey"],
+    startedAt: Date,
+  ): Promise<boolean>;
+
   /** Records that it finished. Idempotent for the same outcome. */
   completeIntent(
     runId: RunId,
