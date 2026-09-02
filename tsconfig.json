@@ -26,6 +26,7 @@
     { "path": "./apps/secure-filler" },
     { "path": "./apps/browser-runner" },
     { "path": "./apps/chat-integration" },
+    { "path": "./apps/worker" },
     { "path": "./tsconfig.tools.json" }
   ]
 }

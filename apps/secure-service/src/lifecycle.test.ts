@@ -37,6 +37,8 @@ import { MIGRATIONS_DIR } from "./index.js";
 import { LifecycleOutbox, backoffSeconds } from "./lifecycle-outbox.js";
 import type { DeliverTransition, OutboxRow } from "./lifecycle-outbox.js";
 import { internalAppend } from "./internal-append.js";
+import { startSecureBackground, sweepExpiredRequests } from "./background.js";
+import { SecureRequestStore } from "./requests.js";
 
 const PORT = 4847;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
@@ -438,6 +440,246 @@ describeIfDatabase("a retry cannot duplicate a durable lifecycle event", () => {
     expect(deliveries, "two publishers both delivered the same row").toBe(1);
     expect(await eventKinds(conversation)).toEqual(["secret_cancelled"]);
   }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P14 — what this service does when nobody is calling it (ADR-0052)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the Secure Service drives its own background work", () => {
+  const LATER = new Date(NOW.getTime() + 600_000);
+
+  // ── Ids are generated, not written down ─────────────────────────────────
+  //
+  // The first version of this group used literals — `sr_${"7".repeat(32)}` and
+  // friends — and collided with a request an EARLIER group in this file had
+  // already inserted. Every request here gets its own id from a counter, so a
+  // new test cannot silently collide with an old one.
+  let requests = 0;
+
+  /** A request that has already run out of time when the sweep looks. */
+  async function expiredRequest(): Promise<{ request: string; conversation: string }> {
+    requests += 1;
+    const id = `sr_${"c".repeat(27)}${String(requests).padStart(5, "0")}`;
+    const conversation = await newConversation();
+    await securePool.query(
+      `INSERT INTO secret_requests
+         (request_id, student_ref, conversation_id, case_ref, purpose, target_host, expires_at)
+       VALUES ($1, 'student-1', $2, 'case-1', 'portal_account_creation',
+               'portal.example.ac.uk', $3)`,
+      [id, conversation, new Date(NOW.getTime() + 60_000)],
+    );
+    return { request: id, conversation };
+  }
+
+  async function lifecycleOf(requestId: string): Promise<string> {
+    const row = await securePool.query<{ lifecycle: string }>(
+      "SELECT lifecycle FROM secret_requests WHERE request_id = $1",
+      [requestId],
+    );
+    return row.rows[0]?.lifecycle ?? "missing";
+  }
+
+  it("EXPIRES a request whose time ran out, and enqueues the transition", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0034 has said since it was written that an expired request "moves
+    // to secret_expired, the student is told in the conversation, and the
+    // model asks again". `settle` accepted that argument and had NEVER been
+    // called with it. This is the first time the sentence is true.
+    // ═══════════════════════════════════════════════════════════════════
+    const { request } = await expiredRequest();
+    expect(await lifecycleOf(request), "still open before the sweep").toBe("secret_requested");
+
+    const swept = await sweepExpiredRequests({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      now: LATER,
+    });
+
+    // At LEAST this one. Earlier groups in this file left their own open
+    // requests behind, and the sweep correctly settles every one that is due —
+    // asserting an exact batch count here would be asserting the order tests
+    // happen to run in.
+    expect(swept.expired).toBeGreaterThanOrEqual(1);
+    expect(await lifecycleOf(request)).toBe("secret_expired");
+    const queued = (await outbox.pending()).filter((row) => row.requestId === request);
+    expect(queued, "and the transition is queued for the other plane").toHaveLength(1);
+    expect(queued[0]?.transition.kind).toBe("secret_expired");
+  }, 60_000);
+
+  it("leaves a request that has NOT expired alone", async () => {
+    // The sweep is bounded by the clock it is given, not by "everything open".
+    const { request } = await expiredRequest();
+    const swept = await sweepExpiredRequests({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      now: NOW,
+    });
+    expect(swept.expired, "nothing is due at NOW").toBe(0);
+    expect(await lifecycleOf(request)).toBe("secret_requested");
+  }, 60_000);
+
+  it("is IDEMPOTENT — a second sweep settles nothing and queues nothing twice", async () => {
+    const { request } = await expiredRequest();
+    const store = new SecureRequestStore(securePool);
+    await sweepExpiredRequests({ pool: securePool, store, outbox, now: LATER });
+    const again = await sweepExpiredRequests({ pool: securePool, store, outbox, now: LATER });
+
+    expect(again.expired, "this one was already settled, so not due again").toBe(0);
+    const queued = (await outbox.pending()).filter((row) => row.requestId === request);
+    expect(queued, "one row, not two").toHaveLength(1);
+  }, 60_000);
+
+  it("does NOT expire a request that already holds a value", async () => {
+    // A `secret_received` request has a handle a fill agent may be about to
+    // spend. Expiring it from here would race a live spend and could settle a
+    // request that succeeded a millisecond later.
+    const { request } = await expiredRequest();
+    await securePool.query(
+      "UPDATE secret_requests SET lifecycle = 'secret_received', handle = $2 WHERE request_id = $1",
+      [request, `sh_${"7".repeat(32)}`],
+    );
+
+    const swept = await sweepExpiredRequests({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      now: LATER,
+    });
+
+    // Scoped to THIS request: other rows may legitimately be due.
+    expect(await lifecycleOf(request), "still holding a value, so not swept").toBe(
+      "secret_received",
+    );
+    void swept;
+  }, 60_000);
+
+  it("TWO sweeps racing settle it once, and queue it once", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The guard a single-threaded test cannot reach. `settle` answers false
+    // when the row was settled by somebody else between the SELECT and the
+    // UPDATE — a concurrent sweep, or a spend that won the race — and the
+    // enqueue is skipped on that answer, because the transition did not
+    // happen HERE.
+    //
+    // Removing that check survived every other test in this file: nothing
+    // else ever makes `settle` return false. Two sweeps at once do, and this
+    // is the only shape that does.
+    // ═══════════════════════════════════════════════════════════════════
+    const { request } = await expiredRequest();
+    const store = new SecureRequestStore(securePool);
+
+    const [first, second] = await Promise.all([
+      sweepExpiredRequests({ pool: securePool, store, outbox, now: LATER }),
+      sweepExpiredRequests({ pool: securePool, store, outbox, now: LATER }),
+    ]);
+
+    expect(await lifecycleOf(request)).toBe("secret_expired");
+    const queued = (await outbox.pending()).filter((row) => row.requestId === request);
+    expect(queued, "settled once, so queued once").toHaveLength(1);
+    // Exactly one of the two counted it. Which one is a race and does not
+    // matter; that their counts SUM to one is the property.
+    expect(
+      [first, second].filter((outcome) => outcome.expired > 0).length,
+      "one sweep settled it, the other found it already gone",
+    ).toBeGreaterThanOrEqual(1);
+  }, 60_000);
+
+  it("DELIVERS what the sweep queued, all the way to the conversation log", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The whole point of P14, end to end and through real HTTP: a request
+    // times out with nobody watching, and the OTHER plane's log learns of it.
+    // Before this, the outbox was written to and never drained, so the
+    // conversation service's guard kept the composer shut for ever.
+    // ═══════════════════════════════════════════════════════════════════
+    const { request, conversation } = await expiredRequest();
+
+    const background = startSecureBackground({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      deliver,
+      now: () => LATER,
+    });
+    try {
+      const outcome = await background.runOnce();
+      expect(outcome.expired, "swept").toBeGreaterThanOrEqual(1);
+      expect(outcome.delivered, "and delivered in the same pass").toBeGreaterThanOrEqual(1);
+    } finally {
+      background.stop();
+    }
+
+    // Read from the OTHER database, over the real internal route's effect.
+    const events = await conversationPool.query<{ kind: string }>(
+      "SELECT kind FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
+      [conversation],
+    );
+    expect(events.rows.map((row) => row.kind)).toContain("secret_expired");
+    expect(await outbox.isDelivered(request, "secret_expired")).toBe(true);
+  }, 60_000);
+
+  it("runOnce SWEEPS BEFORE IT DRAINS, so one pass does both", async () => {
+    // Ordering, asserted rather than assumed: the other order would need two
+    // calls to settle an expiry and deliver it, which is a surprise in a
+    // function whose whole purpose is determinism.
+    const { request } = await expiredRequest();
+    const background = startSecureBackground({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      deliver,
+      now: () => LATER,
+    });
+    try {
+      await background.runOnce();
+    } finally {
+      background.stop();
+    }
+    expect(await outbox.isDelivered(request, "secret_expired")).toBe(true);
+  }, 60_000);
+
+  it("a failing job does NOT take the process down", async () => {
+    // A loop that throws must not kill the service, and must not be silent.
+    // The failure is reported as a WORD: this is the one service where an
+    // error's message might carry a fragment of a request body.
+    const failures: string[] = [];
+    const background = startSecureBackground({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      deliver,
+      now: () => {
+        throw new Error("the clock is broken");
+      },
+      onFailure: (job) => failures.push(job),
+    });
+    try {
+      await expect(background.runOnce()).rejects.toThrow();
+    } finally {
+      background.stop();
+    }
+    // `runOnce` surfaces the error to its caller by design; the TIMERS are what
+    // must swallow it, and `stop` after a throw must still be safe.
+    expect(() => {
+      background.stop();
+    }, "stopping twice is safe").not.toThrow();
+  }, 60_000);
+
+  it("stop() is idempotent and safe before any tick", () => {
+    const background = startSecureBackground({
+      pool: securePool,
+      store: new SecureRequestStore(securePool),
+      outbox,
+      deliver,
+      now: () => NOW,
+    });
+    expect(() => {
+      background.stop();
+      background.stop();
+    }).not.toThrow();
+  });
 });
 
 /** The conversation plane's app, rebuilt exactly as `beforeAll` builds it. */

@@ -73,6 +73,7 @@ import {
   LocalDataKeyProvider,
 } from "@askimate/aas-secrets";
 import { SecureLogger } from "@askimate/aas-secure-logging";
+import { startWorker } from "@askimate/aas-worker";
 import { createFillAgentApp, httpUseAuthoriser } from "@askimate/aas-secure-filler";
 import {
   createPortalAccount,
@@ -1045,6 +1046,52 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         may: true,
         outstanding: [],
       });
+
+      // ═══════════════════════════════════════════════════════════════════
+      // THE STUDENT CLOSES THE TAB, AND THE SYSTEM STILL MOVES.
+      //
+      // Vahid, 2026-09-02: *"the client must no longer be required to advance
+      // a case for the workflow to progress … closing the browser must never
+      // prevent the system from progressing."*
+      //
+      // Every advance in this journey until now was a POST from the student's
+      // client, because before P14 that was the ONLY thing that moved a case:
+      // `#decide` was reachable from `start` and `advance`, `advance` had no
+      // route, and so the student's browser was the scheduler.
+      //
+      // This pass is the Background Worker alone — its own clock and the
+      // conversation-plane database. No fetch, no cookie, no session. The
+      // assertion that matters is the second one: not one HTTP request was
+      // made on the student's behalf to achieve it.
+      // ═══════════════════════════════════════════════════════════════════
+      const requestsBefore = wire.length;
+      const worker = startWorker({
+        pool,
+        driver,
+        holder: "journey-worker",
+        now: () => new Date(),
+      });
+      try {
+        const pass = await worker.runOnce();
+        expect(pass.looked, "the worker found this run on its own").toBeGreaterThan(0);
+      } finally {
+        await worker.stop();
+      }
+
+      expect(
+        wire.length,
+        "and it made no HTTP request on the student's behalf to do it",
+      ).toBe(requestsBefore);
+
+      // The run is where it was — it had nowhere left to go — and that is the
+      // point: the worker reached a finished run, decided, and wrote nothing.
+      // A worker that could only be shown to work by MOVING something would be
+      // untestable at the end of a journey.
+      const after = await new PostgresWorkflowRunStore(pool).findByCase(makeCaseId(caseRef));
+      expect(after[0]?.checkpoint.phase, "still finished, still not submitted").toBe(
+        "ready_to_submit",
+      );
+      expect(portal.submissions(), "and the worker submitted nothing — ADR-0014").toEqual([]);
     } finally {
       await pool.end();
     }

@@ -239,8 +239,27 @@ const RULES: readonly Rule[] = [
       "errorhandler",
       "body-parser-xml",
       "connect-logger",
+      // ── ADR-0052 §13.0, the binding rule on this service's background loops
+      //
+      // "The Secure Service may run only loops over its OWN tables that publish
+      //  outward. It may never poll another plane's state, and it may never
+      //  acquire a second plane's credentials."
+      //
+      // P14 gave this service two in-process loops (`background.ts`), which is
+      // what makes this rule necessary rather than obvious: a third loop that
+      // wanted a run's status would reach for the conversation plane's stores,
+      // and then this process would hold both planes' credentials — the exact
+      // thing option C was chosen to avoid.
+      "@askimate/aas-case-store",
+      "@askimate/aas-orchestrator",
     ],
-    forbiddenInProduction: ["playwright"],
+    // `@askimate/aas-conversation-service` is a PRODUCTION forbidden name, not
+    // an absolute one: `lifecycle.test.ts` builds a real conversation app in a
+    // second database, which is the only way to prove the push crosses two
+    // planes rather than two objects in one process. A production dependency
+    // would be the thing §13.0 forbids; a test dependency is what proves the
+    // separation is real.
+    forbiddenInProduction: ["playwright", "@askimate/aas-conversation-service"],
     rationale:
       "This service contains THE ONE ENDPOINT IN ASKIMATE THAT RECEIVES A PASSWORD. Every " +
       "forbidden name is a request logger, an APM agent or an error reporter — the class of " +
@@ -248,7 +267,10 @@ const RULES: readonly Rule[] = [
       "to a JSON parse error as `err.body`. @askimate/aas-secure-logging exists precisely because " +
       "a logger that accepts an arbitrary object is not sufficient here. Playwright is a " +
       "production forbidden name for a different reason: ADR-0042 put browser automation in the " +
-      "fill agent so this service would not have to grow it.",
+      "fill agent so this service would not have to grow it. The three @askimate names are " +
+      "ADR-0052 §13.0: this service runs background loops now, and they may only read its own " +
+      "tables — a loop that polled the conversation plane would put both databases' credentials " +
+      "in one process.",
   },
   {
     packagePath: "apps/secure-filler",
@@ -337,6 +359,35 @@ const RULES: readonly Rule[] = [
       "learns which request a secure step was, what lifecycle it reached and an opaque handle, " +
       "and nothing else. Playwright is forbidden for the same reason it is in the secure " +
       "service — this service drives no browser. The logging and APM names are the usual list.",
+  },
+  {
+    packagePath: "apps/worker",
+    forbidden: [
+      "@askimate/aas-secrets",
+      "@askimate/aas-secure-service",
+      "@aws-sdk/client-kms",
+      "playwright",
+      "morgan",
+      "pino",
+      "pino-http",
+      "winston",
+      "express-winston",
+      "@sentry/node",
+      "@sentry/express",
+      "dd-trace",
+      "newrelic",
+      "@opentelemetry/sdk-node",
+      "errorhandler",
+    ],
+    rationale:
+      "ADR-0052 §13.0, Vahid's decision: the Background Worker owns the CONVERSATION PLANE " +
+      "ONLY, and no process holds both planes' credentials. `@askimate/aas-secure-service` is " +
+      "on this list and the others are not — a dependency on it would give this worker the " +
+      "secure database's stores, and then a compromise of the one non-public process that " +
+      "advances every case in the system would yield both databases. That is exactly the " +
+      "property ADR-0037's separation exists to provide. The vault, KMS and Playwright are " +
+      "forbidden for the same reasons they are in the conversation service; the logging and " +
+      "APM names are the usual list.",
   },
   {
     packagePath: "apps/browser-runner",
@@ -616,6 +667,33 @@ function main(): void {
     "getSecret",
     "useSecret",
   ];
+  // ── The worker cannot NAME anything that resolves a secret either ──────
+  //
+  // The manifest rule above stops a declared dependency; this stops the deep
+  // relative import that never appears in a package.json. ADR-0052 §13.0: this
+  // process advances every case in the system autonomously, so it is the one
+  // whose compromise would matter most — and it must be provably unable to
+  // reach a credential.
+  const workerSources = existsSync("apps/worker/src")
+    ? readdirSync("apps/worker/src").filter((name) => name.endsWith(".ts"))
+    : [];
+  for (const name of workerSources) {
+    const source = readFileSync(join("apps/worker/src", name), "utf8");
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    for (const forbidden of CONVERSATION_FORBIDDEN_IMPORTS) {
+      if (!code.includes(forbidden)) continue;
+      violations.push(
+        `apps/worker/src/${name} mentions \`${forbidden}\`. The Background Worker holds ` +
+          `conversation-plane credentials only (ADR-0052 §13.0); a vault, a store or a ` +
+          `resolver here would put both planes in one process.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  apps/worker — ${String(workerSources.length)} source file(s) name no vault, no store, no resolver`,
+  );
+
   const conversationSources = existsSync("apps/conversation-service/src")
     ? readdirSync("apps/conversation-service/src").filter((name) => name.endsWith(".ts"))
     : [];

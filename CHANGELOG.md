@@ -19,6 +19,66 @@ not shipped artefacts.
 
 ---
 
+## [0.32.0] — 2026-09-02
+
+**P14 — the system acts when nobody is watching. ADR-0052.**
+
+Nothing in this repository ran without a request. Six pieces of complete,
+tested machinery had no production caller: `LifecycleOutbox.publish`,
+`RunDriver.advance`, `runOneTurn`, `settle(…, "secret_expired")`,
+`interventions.announced_at`'s "next pass", and a partial index commented
+"expiry sweeps". The student's browser was the scheduler.
+
+### Added
+
+- **A fifth deployable, `apps/worker`** — the Background Worker (ADR-0052 §1).
+  No inbound listener at all. It advances every eligible run on its own clock
+  and tells students about interventions raised but never announced.
+- **`worker_leases`** (migration `0010`), keyed by **job kind** rather than by
+  run. `work_leases` stays for run execution work: its primary key is `run_id`
+  and that key is the property it exists for.
+- **Two in-process loops in the Secure Service** (`background.ts`) — the outbox
+  drain and the expiry sweep.
+- **`sweepExpiredRequests`**, which finally makes ADR-0034's sentence true:
+  *"the request moves to `secret_expired`, the student is told in the
+  conversation, and the model asks again."* The settle and the enqueue share one
+  transaction.
+- **`RunDriver.dueRuns` and `RunDriver.announcePending`**, so the worker holds
+  no SQL and composes no message of its own.
+- **`WorkLeaseStore.dueForWorker`**, beside `candidates` and deliberately: both
+  answer "which runs are live and unheld", and two implementations in different
+  files would be free to drift.
+
+### Changed
+
+- **The client is no longer required to advance a case.** `POST /runs` still
+  advances — as a latency optimisation, so a present student does not wait for
+  the next tick — but the worker is the only thing that *must* run. The journey
+  now proves the worker moves a run with **no HTTP request** made on the
+  student's behalf.
+- **Database and credential separation preserved** (ADR-0052 §13.0, Vahid's
+  option C). The worker holds conversation-plane credentials only; the Secure
+  Service drains its own outbox. **No process requires credentials for both
+  planes**, so ADR-0037's compromise analysis stands unchanged.
+- **`pnpm run boundaries` enforces both directions of that rule** — the worker
+  may not name a vault, a store or a resolver, and the Secure Service may not
+  depend on a conversation-plane store in production.
+- **ADR-0037 amended**: four deployables becomes five, in the decision line, the
+  table and a note. Nothing else in it changes.
+
+### Not built, deliberately
+
+- **No external notification transport.** ADR-0008 stays half-honoured: the
+  queue becomes reliable and current, nothing pushes. Email, SMS and webhooks
+  are later consumers of the same substrate.
+- **No runner supervisor.** `runOneTurn` still has no loop. Looping it from this
+  worker would put conversation-plane credentials in the process that drives a
+  browser, which ADR-0042 exists to prevent.
+- **No `LISTEN`/`NOTIFY`.** A missed notification is invisible; a poll that
+  finds nothing is cheap.
+
+---
+
 ## [0.31.0] — 2026-09-02
 
 **P13 — the student supplies through the conversation. ADR-0051.**

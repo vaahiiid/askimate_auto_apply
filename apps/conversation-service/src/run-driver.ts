@@ -1660,6 +1660,89 @@ export class RunDriver {
   }
 
   /**
+   * The runs the Background Worker should advance, oldest first (ADR-0052 §6).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Derived, never queued. There is no table of pending work and there must
+   * never be one: the run's own status and checkpoint already say what is
+   * live, and a queue here would be a second opinion able to disagree with
+   * them (ADR-0041).
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * `running` and `suspended` — the exact set `WorkLeaseStore.candidates`
+   * selects for runner work, deliberately. The worker must not hold a second
+   * opinion about which runs are live.
+   *
+   *   `uncertain` and `escalated` wait for a PERSON by design. Advancing one
+   *   would be the blind retry `assessIntent` refuses, and they leave those
+   *   states when a specialist adjudicates the intent (ADR-0048).
+   *   `completed` and `abandoned` are terminal.
+   *
+   * A run currently leased to a runner is excluded: the runner is mid-operation
+   * against a real portal, and deciding underneath it would decide from a
+   * position that is about to change.
+   *
+   * Lives here rather than in the worker so the worker holds no SQL of its own
+   * — a second query answering "which runs are live" is the thing this comment
+   * exists to prevent.
+   */
+  public async dueRuns(
+    limit = 25,
+  ): Promise<readonly { readonly runId: string; readonly conversationId: string }[]> {
+    const leases = this.#options.leases;
+    if (leases === undefined) return [];
+    return await leases.dueForWorker({ now: this.#options.now(), limit });
+  }
+
+  /**
+   * Tells students about interventions raised but never announced (ADR-0052 §7).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `announced_at`'s own column comment has said since P10: *"NULL means they
+   * have not been, and the next pass will tell them — so a crash between
+   * raising and announcing cannot leave a paused run whose student never hears
+   * about it."* There was no next pass. `markAnnounced` is reached from
+   * `#pause`, which is reached from `claimWork`, which only runs when a runner
+   * polls — and no runner process loops. This is that pass.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The message is `pauseMessage`, the same function `#pause` uses. Composing a
+   * second one in the worker would be two implementations of one conversation
+   * decision, which ADR-0041 exists to prevent — and the student would be told
+   * two different things depending on which path got there first.
+   *
+   * Idempotent by `announcedAt`: an intervention already announced is skipped,
+   * so a worker crash between the message and the mark costs one repeated
+   * message rather than a student who is never told.
+   */
+  public async announcePending(limit = 25): Promise<{ readonly announced: number }> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return { announced: 0 };
+
+    let announced = 0;
+    for (const held of (await interventions.open()).slice(0, limit)) {
+      if (held.announcedAt !== undefined) continue;
+      const conversationId = await this.#options.bindings.conversationForCase(held.caseId);
+      if (conversationId === null) continue;
+      const bound = await this.#options.bindings.caseFor(conversationId);
+      if (bound === null || bound.blueprintId === null) continue;
+      const entry = await this.#options.catalogue.find(bound.blueprintId);
+      if (entry === null) continue;
+
+      // Message first, mark second — the order `#pause` uses, and for the same
+      // reason: a crash between them re-tells somebody, which is a much smaller
+      // failure than a paused run whose student never hears.
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: pauseMessage(entry) },
+      });
+      await interventions.markAnnounced(held.interventionId, this.#options.now());
+      announced += 1;
+    }
+    return { announced };
+  }
+
+  /**
    * Answers a student's message by interviewing them (ADR-0051).
    *
    * ═══════════════════════════════════════════════════════════════════════

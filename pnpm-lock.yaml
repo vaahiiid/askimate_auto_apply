@@ -86,6 +86,9 @@ importers:
       '@askimate/aas-secure-service':
         specifier: workspace:*
         version: link:apps/secure-service
+      '@askimate/aas-worker':
+        specifier: workspace:*
+        version: link:apps/worker
       '@aws-sdk/client-bedrock':
         specifier: ^3.1118.0
         version: 3.1118.0
@@ -397,6 +400,28 @@ importers:
       playwright:
         specifier: ^1.49.1
         version: 1.62.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  apps/worker:
+    dependencies:
+      '@askimate/aas-case-store':
+        specifier: workspace:*
+        version: link:../../packages/case-store
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@askimate/aas-conversation-service':
+        specifier: workspace:*
+        version: link:../conversation-service
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)

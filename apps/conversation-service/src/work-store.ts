@@ -116,6 +116,47 @@ export class WorkLeaseStore {
   }
 
   /**
+   * The runs the Background Worker should advance, oldest first (ADR-0052 §6).
+   *
+   * The sibling of `candidates`, and deliberately beside it: both answer "which
+   * runs are live and unheld", and two implementations of that question in
+   * different files would be free to drift. The differences are exactly two —
+   * this one does not filter by phase, because the worker advances a case
+   * wherever it is rather than looking for browser work, and it returns the
+   * conversation because `advance` is keyed on the pair.
+   *
+   * `running` and `suspended` only. `uncertain` and `escalated` are waiting for
+   * a person by design; `completed` and `abandoned` are terminal.
+   *
+   * A run leased to a runner is excluded: the runner is mid-operation against a
+   * real portal, and deciding underneath it would decide from a position that
+   * is about to change.
+   *
+   * `ORDER BY updated_at ASC` for the reason `candidates` uses it, and it is
+   * also what keeps the batch fair: an advance that changes anything writes a
+   * checkpoint, `saveCheckpoint` sets `updated_at`, and the run rotates to the
+   * back by construction (ADR-0052 §13.4).
+   */
+  public async dueForWorker(input: {
+    readonly now: Date;
+    readonly limit: number;
+  }): Promise<readonly { readonly runId: string; readonly conversationId: string }[]> {
+    const rows = await this.#pool.query<{ run_id: string; conversation_id: string }>(
+      `SELECT r.run_id, c.id AS conversation_id
+         FROM workflow_runs r
+         JOIN conversations c ON c.case_id = r.case_id
+         LEFT JOIN work_leases l
+           ON l.run_id = r.run_id AND l.expires_at > $1
+        WHERE r.status IN ('running', 'suspended')
+          AND l.run_id IS NULL
+        ORDER BY r.updated_at ASC
+        LIMIT $2`,
+      [input.now, input.limit],
+    );
+    return rows.rows.map((row) => ({ runId: row.run_id, conversationId: row.conversation_id }));
+  }
+
+  /**
    * Takes the lease on a run, or answers `null` because somebody else holds it.
    *
    * One statement, because two would be a race with itself: an existence check

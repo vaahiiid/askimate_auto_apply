@@ -49,6 +49,17 @@ export type { InternalAppendOptions } from "./internal-append.js";
 export { internalAppend } from "./internal-append.js";
 
 
+// ── What this service does when nobody is calling it (ADR-0052) ───────────
+
+export type { SecureBackground, SecureBackgroundOptions } from "./background.js";
+export {
+  DEFAULT_DRAIN_MS,
+  DEFAULT_SWEEP_MS,
+  startSecureBackground,
+  sweepExpiredRequests,
+} from "./background.js";
+
+
 // ── The HTTP surface ──────────────────────────────────────────────────────
 
 // Re-exported rather than defined here: the logging discipline moved to

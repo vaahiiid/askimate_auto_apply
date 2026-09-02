@@ -76,6 +76,15 @@ export type {
 } from "./run-driver.js";
 export { RunDriver } from "./run-driver.js";
 
+// ── The background worker's claiming mechanism (ADR-0052 §3) ──────────────
+
+export type { WorkerJob, WorkerLease } from "./worker-leases.js";
+export {
+  DEFAULT_WORKER_LEASE_SECONDS,
+  WORKER_JOBS,
+  WorkerLeaseStore,
+} from "./worker-leases.js";
+
 // ── ADR-0044: the confirmed profile has its own store ───────────────────────
 export { PostgresConfirmedProfileStore } from "./profile-store.js";
 

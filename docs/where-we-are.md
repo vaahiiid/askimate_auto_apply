@@ -2,12 +2,11 @@
 
 > ## ⚠️ Superseded below — this section is the state as of 2026-08-26
 >
-> **Updated 2026-09-02 (P13).** Everything from the headline to "Since then" is
-> the picture *before* P1–P13, and its numbers are long out of date — "620
-> tests" is now 1782, and the state table below is missing four steps that have
-> since been built and one that has since been found. The current state is at
-> the **end of this file**, under *Where we are — 2026-09-02*. This section is
-> kept rather than
+> **Updated 2026-09-02 (P14).** Everything from the headline to "Since then" is
+> the picture *before* P1–P14, and its numbers are long out of date — "620
+> tests" is far behind, and the state table below is missing four steps that
+> have since been built and one that has since been found. The current state is
+> at the **end of this file**. This section is kept rather than
 > rewritten because it is the record of a real milestone, and overwriting it
 > would lose what Stage D actually proved.
 
@@ -298,3 +297,96 @@ additions:
   the student re-approves content that changed. The system never implies a
   corrected value reached the portal — the fill intent for that page is a
   different intent, so the page is offered again.
+
+---
+
+# Where we are — 2026-09-02 (later)
+
+**Version:** `0.32.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**The system now acts when nobody is watching.**
+
+Until P14 it could not. Nothing in this repository ran without a request, and
+six pieces of complete, tested machinery had no production caller at all:
+
+| Machinery | Callers before P14 |
+|---|---|
+| `LifecycleOutbox.publish` — backoff, retry, `FOR UPDATE SKIP LOCKED` | tests only |
+| `RunDriver.advance` — 20+ tests | no route reached it |
+| `settle(…, "secret_expired")` | never called with that argument |
+| `interventions.announced_at` — *"the next pass will tell them"* | there was no next pass |
+| `secret_requests_expiring` — an index commented *"expiry sweeps"* | there was no sweep |
+| `runOneTurn` | nothing loops it — **still true**, see below |
+
+Three real failures followed. A student's composer stayed shut for ever,
+because the secure service enqueued a lifecycle transition and nothing drained
+the outbox — the two-origin browser test passed only because *the test* called
+`publish` itself. A secure request that timed out never settled, so ADR-0034's
+sentence about `secret_expired` described behaviour the system could not
+perform. And a case only moved while a browser was posting: **the student's
+browser was the scheduler.**
+
+## What P14 delivered (ADR-0052)
+
+| | |
+|---|---|
+| **A fifth deployable** | `apps/worker`, with no inbound listener at all. It advances every eligible run on its own clock and announces interventions the student was never told about. |
+| **`worker_leases`** | Keyed by **job kind**, not by run. Holds no business fact: drop the table and nothing about any case, run, request or student is lost. |
+| **Two Secure-Service loops** | The outbox drain and the expiry sweep, in-process — where `publish`'s own comment always assumed they would be. |
+| **The client stops being load-bearing** | `POST /runs` still advances, as a latency optimisation. The worker is the only thing that *must* run. |
+
+## The property worth knowing about
+
+The journey now proves the thing Vahid's decision asked for: **the worker moves
+a run with no HTTP request made on the student's behalf.** Every advance in that
+test until this point was a POST from the student's client, because before P14
+that was the only thing that moved a case.
+
+## Database separation, preserved
+
+Vahid chose **option C** (ADR-0052 §13.0). The worker owns the Conversation
+Plane; the Secure Service drains its own outbox and expires its own requests.
+**No process requires credentials for both planes**, so ADR-0037's statement
+that a full compromise of the conversation database yields no secret metadata
+stands unchanged.
+
+`pnpm run boundaries` enforces both directions: the worker may not name a vault,
+a store or a resolver, and the Secure Service may not depend on a
+conversation-plane store in production.
+
+## Known limitations — what changed, and what did not
+
+Everything in the earlier lists still holds, with these corrections:
+
+- **The alerting transport is still not built.** ADR-0008 is now *half*
+  honoured rather than not at all: the intervention queue is reliable and
+  current, and a student whose run paused is told without a runner having to
+  poll. **Nothing pushes.** Email, SMS and webhooks are later consumers of this
+  substrate and each needs a vendor decision.
+- **The Automation Runner still has no supervisor.** `runOneTurn` runs one turn
+  and nothing loops it. Looping it from the worker would put conversation-plane
+  credentials in the process that drives a browser, which is the widening
+  ADR-0042 exists to prevent. It is its own smaller piece of work.
+- **A permanently-failed outbox row still holds one student's composer shut.**
+  It is recorded with `last_error` and surfaced within the secure plane, but it
+  is not raised as an intervention — `interventions` is a conversation-plane
+  table and §13.0 forbids the Secure Service from opening one. Stated as a
+  limitation rather than solved (ADR-0052 §4).
+- **Autonomous advancement widens the blast radius.** The system can now create
+  an account on a real portal while nobody is watching. Every guard that made
+  this safe already existed and none was relaxed — request evidence on
+  `CaseOpened`, the authorisation gate, the mandatory-review guard,
+  `assessIntent`'s refusal to retry a consequential action. But until P14 a bug
+  in one of them needed a student with a browser open to reach anything. That is
+  why P14 is wiring and adds no new capability.
+- **Still no deployment infrastructure.** No Dockerfile, no IaC, no service
+  entry point. Five deployables now exist as libraries with composition roots
+  and tests; turning any of them into a running container is its own phase.
+- **Cancellation is still unreachable.** `CaseCancelled` has no producer,
+  `CANCELLED` is unreachable, and `student_revoked` is a declared void reason
+  nothing issues. A real consent gap, and not this phase's.
+- **The learning loop is still open.** `interventions.lifecycle` is only ever
+  written `"captured"`; `canTransitionLifecycle` and `asReusable` have no
+  production callers.

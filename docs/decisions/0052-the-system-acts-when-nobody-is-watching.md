@@ -168,11 +168,28 @@ semantics**, which are already correct and tested:
   purpose** — giving up must not look like success, because "delivered" is what tells the guard the
   step is settled.
 
-What P14 adds is the caller and one operational property the current design lacks: **a row that is
+What P14 adds is the caller, and one operational property the current design lacks: **a row that is
 neither delivered nor retryable is invisible**. A permanently-failed transition holds a student's
-composer shut for ever with nobody informed. P14 raises such a row as an intervention through the
-existing `interventions` mechanism — the same durable, pull-discoverable channel as every other
-thing a person must look at (§7). No new escalation concept.
+composer shut for ever with nobody informed.
+
+**It is surfaced within the secure plane, not as an intervention.** An earlier draft of this section
+said P14 would raise such a row through the `interventions` mechanism. That is impossible under
+option C and the contradiction is recorded rather than quietly removed: `interventions` is a
+**conversation-plane** table, and §13.0's rule forbids the Secure Service from opening another
+plane's database for any reason. A design that needed to break that rule on its first job would be
+evidence the rule was wrong; instead it is evidence the earlier draft was.
+
+So a stuck row is surfaced where it lives. `LifecycleOutbox.pending()` already returns every
+undelivered row with its `attempts` count, and `last_error` already records why the last attempt
+failed — the data exists and nothing reads it. P14 adds a **read-only count on the Secure Service's
+own internal surface**, so an operator can see "three transitions are stuck" without opening a
+database, and a later monitoring transport has something to poll.
+
+The student-facing consequence is unchanged and is stated as a limitation, not solved here: a
+permanently-failed transition leaves that student's composer shut until a person intervenes. That is
+the fail-closed direction (`lifecycle-outbox.ts`: *"a composer that stays blocked — never one that
+opens early"*), and turning it into something the student is told about needs a message the
+Conversation Service composes, which is a cross-plane concern P14 does not open.
 
 ### §5 · Job — expiring secure requests, and writing `secret_expired` *(Secure Service, in-process)*
 
