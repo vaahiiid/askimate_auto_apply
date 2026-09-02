@@ -1,7 +1,8 @@
 # ADR-0052 — The system acts when nobody is watching
 
-**Status:** **Proposed** — drafted 2026-09-02 on four decisions Vahid settled before drafting.
-Not to be acted on until approved. ·
+**Status:** **Accepted** — Vahid, 2026-09-02. Four decisions were settled before drafting; the
+plane-separation question was settled as **option C** after it, and the five implementation
+parameters were delegated and are decided in §13. ·
 **Amends:** [ADR-0037](./0037-service-topology-and-deployment.md) (the deployable table) ·
 **Completes:** [ADR-0008](./0008-recovery-first-escalation-and-the-learning-loop.md) part 1 (the alert), and
 [ADR-0034](./0034-the-vault-is-ephemeral.md) (the expiry it describes) ·
@@ -67,6 +68,11 @@ Conversation Service is the one plane that faces the public internet behind the 
 autonomously advances every case in the system — opening secure steps, creating accounts on real
 university portals — should not be reachable, even in principle, from the same request path that
 serves a browser. Separate task, separate role, no inbound listener at all.
+
+**The worker holds conversation-plane credentials only** (option C, §13.0). It never opens the
+secure database, never reaches the vault, and the boundary check is extended to fail the build if
+`apps/worker` names a vault, a store or a resolver — the same rule that already guards
+`apps/conversation-service`.
 
 ADR-0037's table is amended from four deployables to five. The amendment is in §11.
 
@@ -145,10 +151,13 @@ There is no `worker_jobs` table with a `pending` status, and there must never be
 business work would be a second opinion about what the system should do next, and the answer already
 exists in four places that cannot disagree with themselves.
 
-### §4 · Job — draining the lifecycle outbox
+### §4 · Job — draining the lifecycle outbox *(Secure Service, in-process)*
 
-`LifecycleOutbox.publish` is called on an interval. **No change to its semantics**, which are
-already correct and tested:
+**This job runs inside the Secure Service, not in the worker** (option C, §13.0). It reads and
+writes the secure database, and no process may hold both planes' credentials.
+
+`LifecycleOutbox.publish` is called on an interval by the Secure Service itself. **No change to its
+semantics**, which are already correct and tested:
 
 - `FOR UPDATE SKIP LOCKED`, so several worker instances do not deliver the same row;
 - `backoffSeconds(attempts) = min(2^min(attempts,6), 60)` — capped deliberately, because *"a
@@ -165,7 +174,10 @@ composer shut for ever with nobody informed. P14 raises such a row as an interve
 existing `interventions` mechanism — the same durable, pull-discoverable channel as every other
 thing a person must look at (§7). No new escalation concept.
 
-### §5 · Job — expiring secure requests, and writing `secret_expired`
+### §5 · Job — expiring secure requests, and writing `secret_expired` *(Secure Service, in-process)*
+
+**Also inside the Secure Service** (option C, §13.0), for the same reason: `secret_requests` and
+`lifecycle_outbox` are its tables and nothing else may open them.
 
 For each `secret_requests` row still `secret_requested` (or `secret_received`) whose `expires_at`
 has passed, in **one transaction**:
@@ -189,7 +201,7 @@ The vault is untouched. Its TTL is the cache's own (ADR-0034) and nothing here r
 worker in this plane holds no vault, no store and no resolver, and the boundary check will be
 extended to say so.
 
-### §6 · Job — autonomous `RunDriver.advance`
+### §6 · Job — autonomous `RunDriver.advance` *(Worker)*
 
 **Settled by Vahid, 2026-09-02.** The worker becomes the authoritative owner of autonomous
 progression. Closing the browser must never prevent the system from progressing.
@@ -215,7 +227,7 @@ process exists. P14 makes the comment true rather than deleting it.
 **Not every run, every tick.** The candidate query is ordered by `updated_at ASC` and limited, as
 `candidates` already is, so a large backlog is worked oldest-first rather than all at once.
 
-### §7 · Job — intervention discoverability
+### §7 · Job — intervention discoverability *(Worker)*
 
 **Settled by Vahid, 2026-09-02.** No email, no SMS, no external vendor in P14. Open interventions
 become durably discoverable through a worker-driven pull mechanism; notification transports become
@@ -314,11 +326,29 @@ ADR-0037's **deployable** table gains a row:
 
 | Service | Origin | Network | Holds |
 |---|---|---|---|
-| **worker** | none | Private only. **No inbound listener at all** — not an authenticated one, not a firewalled one | Nothing. It derives everything it does from the stores it is credentialed for |
+| **worker** | none | Private only. **No inbound listener at all** — not an authenticated one, not a firewalled one | Nothing durable. **Conversation-plane credentials only**; no secure-database credential, no KMS grant, no route to the vault's cache |
 
-Its task role, security group and scaling are its own (§1). It reaches the Conversation Service's
-internal API the same way the fill agent reaches the secure service's — mTLS on a private subnet,
-its own client certificate — and it terminates no TLS of its own because it listens on nothing.
+Its task role, security group and scaling are its own (§1), and it terminates no TLS because it
+listens on nothing.
+
+**Three trust levels, still.** The worker sits at the Conversation Plane's level and adds no fourth
+— which is exactly what option C buys (§13.0). Had it held both planes' credentials it would have
+been a new level of its own, above both, and ADR-0037's compromise analysis would have needed
+rewriting rather than extending.
+
+**Which process does what, in one table**, because "background work lives in the worker" is no
+longer a single sentence:
+
+| Job | Process | Database it opens |
+|---|---|---|
+| `drain_outbox` | **Secure Service**, in-process | secure only |
+| `sweep_expiries` | **Secure Service**, in-process | secure only |
+| `advance_runs` | **Worker** | conversation only |
+| `announce_interventions` | **Worker** | conversation only |
+
+No row spans two databases, and no process appears in two rows of the second column with different
+credentials. That is the property, and §13.0's binding rule is what keeps it true as jobs are
+added.
 
 The health-check-gated deploy ADR-0037 requires for the secure service applies here too: a rolling
 restart must not interrupt a job mid-transaction. Since every job is idempotent and re-derived, the
@@ -346,69 +376,135 @@ student's password.
   its own phase.
 - **No `LISTEN`/`NOTIFY`**, per §2.
 
-## The one thing this ADR cannot settle — Vahid's decision required
+### §13 · The decisions that were open when this ADR was drafted
 
-**Which process drains the secure plane's outbox and expires its requests?**
+#### §13.0 · Where the secure plane's background work lives — **option C**
 
-The four decisions settled the worker's existence, its claiming model, its ownership of
-advancement, and its alerting scope. They did not settle this, and it cannot be settled by
-engineering judgement alone because it trades one of ADR-0037's stated security properties against
-the simplicity of one worker.
+**Decided by Vahid, 2026-09-02.** The Worker owns the **Conversation Plane only**. The Secure
+Service drains its own outbox and expires its own requests **in-process**. Database and credential
+separation is preserved exactly: **no process requires credentials for both planes.**
 
-ADR-0037 is explicit:
+ADR-0037's property survives unweakened:
 
-> *"Two Postgres databases … with separate credentials and no cross-database access. The conversation
-> service cannot read `secret_requests` … A full compromise of the conversation database therefore
-> yields no secret metadata beyond ids and lifecycle words."*
+> *"Two Postgres databases … with separate credentials and no cross-database access … A full
+> compromise of the conversation database therefore yields no secret metadata beyond ids and
+> lifecycle words."*
 
-Draining the outbox and sweeping expiries are **secure-plane** operations: they read and write
-`secret_requests` and `lifecycle_outbox` in the secure database. Advancing runs is a
-**conversation-plane** operation. A single worker doing all three holds both sets of credentials —
-and then a full compromise of that one process yields both, which is precisely the property the
-separation was built to provide.
+The two rejected options and why, recorded so the choice is not re-litigated from memory:
 
-Three options. I recommend **C**.
+- **One worker holding both credentials.** One deployable and one loop, but the worker becomes the
+  single process whose compromise yields both databases. The property above would have had to be
+  rewritten from *"no process holds both"* to *"one non-public process holds both"*, which is a
+  reduction in fact and not in wording.
+- **Two workers, one per plane.** Preserves the separation exactly, at six deployables, two
+  composition roots and two task definitions — and exceeds the fifth deployable that was settled.
 
-**A — One worker, both credentials.** Simplest: one deployable, one loop, five services. Cost: the
-worker becomes the single process whose compromise yields both databases. ADR-0037's stated property
-would have to be rewritten from "no process holds both" to "one non-public process holds both", and
-that is a real reduction, not a wording change.
+Option C also matches what the code already assumes. `publish`'s own comment reads: *"`FOR UPDATE
+SKIP LOCKED` because **there are several instances of this service and they all run this loop**."*
+The loop was designed to live in the Secure Service. It was simply never started.
 
-**B — Two workers, one per plane.** Preserves the separation exactly: `worker-conversation` and
-`worker-secure`, each with one database's credentials. Cost: six deployables rather than five, two
-composition roots, two sets of task definitions — and it exceeds the "fifth deployable" that was
-settled, so it needs your explicit agreement rather than my inference.
+**The rule option C requires, and it is binding.** "Background work lives in the worker" is no
+longer one sentence, so the boundary is stated as a rule rather than left to a reader's judgement:
 
-**C — One worker (conversation plane), and the Secure Service drains its own outbox in-process.**
-The separation is preserved with five deployables, and the evidence says this was the original
-design intent. `publish`'s own comment reads: *"`FOR UPDATE SKIP LOCKED` because **there are several
-instances of this service and they all run this loop**."* The loop was designed to live in the
-secure service; it was simply never started. Your instruction was that the worker must not be hidden
-inside the **Conversation Service** — the Secure Service is a different plane, and the mechanism it
-would drive is its own.
+> **The Secure Service may run only loops over its own tables that publish outward. It may never
+> poll another plane's state, and it may never acquire a second plane's credentials.**
+>
+> Concretely: draining `lifecycle_outbox` and sweeping `secret_requests` are permitted, because both
+> are its own tables and both only ever push a transition out through the internal append. Reading
+> `workflow_runs`, `cases`, `interventions` or `conversation_events` is not, in any loop, for any
+> reason. A future job that needs to read another plane's state belongs in that plane's process.
 
-Cost, stated honestly: "background work lives in the worker" stops being a single sentence. There
-would be one background *deployable* and one in-process loop, and a future reader must not conclude
-the Secure Service is therefore a fine place to put arbitrary background work. If C is chosen, this
-ADR must state the boundary as a rule: **the Secure Service may run only loops over its own tables
-that publish outward; it may never poll another plane's state.**
+This rule is enforced, not merely written: `pnpm run boundaries` fails the build if the Secure
+Service names a conversation-plane store, mirroring the existing rule that fails it if the
+Conversation Service names a vault.
 
-## Unresolved implementation details — smaller, but yours to confirm
+#### §13.1 · Poll intervals
 
-1. **Poll intervals.** Proposed: outbox 1s, expiry sweep 30s, advance 5s, announce 10s. These are
-   defaults to be tuned against a real deployment, not decided facts. The outbox interval is the one
-   a student can feel.
-2. **Lease duration and renewal.** Proposed: 30s lease, renewed every 10s. Long enough that a slow
-   `advance` does not lose its lease, short enough that a crashed worker's job restarts quickly.
-3. **Where `worker_leases` lives.** Follows directly from the A/B/C decision above: under C it is a
-   new numbered migration in the conversation plane, since that is the only database the worker
-   holds.
-4. **Backlog fairness.** `ORDER BY updated_at ASC LIMIT n` may starve a run that keeps being
-   advanced. Probably not real at this scale; named so it is a known limitation rather than a
-   surprise.
-5. **Whether the worker advances runs in terminal or escalated statuses.** Proposed: no — a run that
-   is `escalated` waits for a specialist by design, and a worker retrying it would be the "retry
-   blindly" behaviour `assessIntent` exists to prevent.
+Delegated by Vahid and decided here. Each is injected with a default, never a literal at a call
+site, so a test drives the loop by advancing a clock.
+
+| Loop | Process | Default | Why this number |
+|---|---|---|---|
+| `drain_outbox` | Secure Service | **1 000 ms** | The one interval a student can feel: it holds their composer shut. Matches `DEFAULT_POLL_MS` in `routes.ts:220`, which is the SSE drain and is the repository's existing answer to "how often for something a person is waiting on". |
+| `sweep_expiries` | Secure Service | **30 000 ms** | Nobody is waiting on a sweep. Read-time expiry (`expires_at > $now`) already makes the request unusable the instant it lapses, so this interval only decides how quickly the student is *told*, and thirty seconds against a five-minute TTL ceiling (ADR-0034) is well inside it. |
+| `advance_runs` | Worker | **5 000 ms** | The perceptible case is a student who has just acted, and their own request already advances the run synchronously (§8). This interval is what an *absent* student's run waits, where seconds do not matter. Slower than the outbox because an advance is a much heavier operation. |
+| `announce_interventions` | Worker | **10 000 ms** | A paused run's student should hear promptly, but the intervention is already durable and discoverable the moment it is raised; this only decides when they are told. |
+
+#### §13.2 · Lease duration, and why there is no renewal
+
+**60-second lease, re-claimed on each tick, and no renewal mechanism.**
+
+The tempting design is a short lease with a background renewal — 30 s held, renewed every 10 s. It
+is rejected because renewal is a mechanism whose only purpose is to keep holding something that
+correctness does not depend on. §9 is explicit: the lease is an efficiency and an operational
+signal, never the correctness argument, and any job whose correctness depended on holding its lease
+would already be wrong, because a lease can always lapse under a slow query.
+
+So the lease is simply longer than any job is expected to take, and each tick re-claims it — which
+extends it as a side effect of doing the work. A worker that dies stops ticking, and its lease
+lapses within sixty seconds. That is the whole of crash recovery (§10), and it needs no second
+timer.
+
+Sixty seconds rather than the runner's `DEFAULT_LEASE_SECONDS = 120` (`routes.ts:151`) because a
+runner's lease covers a browser driving a real portal, and a worker job is a handful of queries. The
+lease should be short enough that a crash is corrected quickly and long enough that a slow tick
+never loses it; a factor of twelve over the slowest interval is both.
+
+#### §13.3 · Where `worker_leases` lives
+
+**A new numbered migration in `apps/conversation-service/migrations/`** — `0010_worker_leases.sql`.
+
+It follows from §13.0: the worker holds conversation-plane credentials only, so this is the only
+database it can use. Within that database the choice is between the conversation-service migration
+set and `packages/case-store`'s, and the conversation-service set is right because it already owns
+this database's *operational* tables — `work_leases` is `0005` in exactly that set, and
+`worker_leases` is its sibling in purpose. `packages/case-store` owns the **business** records:
+`case_events`, `workflow_runs`, `interventions`.
+
+A third migration set for a new `apps/worker` was considered and rejected. `0005_work_leases.sql`
+already gives the reason, about a foreign key it declined to declare:
+
+> *"a foreign key from this file to that table would make these two migration sets ordered with
+> respect to each other — which the registry, keyed by filename, does not promise."*
+
+Two sets in one database is already the arrangement; a third would add another pair to reason about
+for no gain. The worker runs no migrations of its own — it consumes a schema the Conversation
+Service owns.
+
+#### §13.4 · Backlog fairness
+
+**`ORDER BY updated_at ASC`, `LIMIT` a batch, and the whole batch is worked each tick** — the same
+shape `RunDriver.claimWork` already uses, which loops over every candidate rather than taking the
+first.
+
+Starvation is mostly self-correcting and it is worth saying exactly why: an advance that changes
+anything writes a checkpoint, and `saveCheckpoint` sets `updated_at = $4`
+(`postgres-workflow.ts:163`), so a run that moved rotates to the back of the ordering by
+construction. Only a run that advances to *no effect* keeps its position at the head.
+
+The residual case, stated as a known limitation rather than engineered around: a run that can never
+advance costs one wasted `advance` per tick and blocks nothing, because the batch is worked in full.
+It could only starve others if more than a batch of runs were simultaneously and permanently stuck —
+and a run that cannot advance is, by definition, one a person needs to look at, which is the
+intervention mechanism's job rather than the scheduler's.
+
+#### §13.5 · Which runs the worker advances
+
+**`running` and `suspended` only** — the exact set `WorkLeaseStore.candidates` already selects
+(`work-store.ts:104`).
+
+The worker must not disagree with the existing candidate query about which runs are live; two
+answers to that question is the failure ADR-0041 exists to prevent, and there is no reason for a
+second one here.
+
+The exclusions, each for its own reason:
+
+- **`uncertain` and `escalated`** are waiting for a person, by design. Advancing one would be the
+  blind retry `assessIntent` refuses — *"a `create_portal_account` that was started and never
+  completed may have created an account on a real portal, and handing it out again would create a
+  second one."* A run leaves these states when a specialist adjudicates the intent, and that path
+  already exists (ADR-0048).
+- **`completed` and `abandoned`** are terminal.
 
 ## Consequences
 
@@ -432,6 +528,9 @@ that publish outward; it may never poll another plane's state.**
   guards grows, because until now a bug needed a student with a browser open to reach anything.
   That is the strongest argument for keeping P14 to *wiring* and adding no new capability.
 - ADR-0008 remains half-honoured. The queue becomes reliable; nothing pushes.
+- Background work now lives in two places rather than one, which is the price of keeping ADR-0037's
+  credential separation intact (§13.0). The binding rule in §13.0 and the table in §11 exist so that
+  price is paid once, in writing, rather than repeatedly by every future reader.
 
 ## Alternatives rejected
 
@@ -447,7 +546,11 @@ that publish outward; it may never poll another plane's state.**
 - **`LISTEN`/`NOTIFY` as the trigger.** Rejected by §2: a missed notification is invisible.
 - **Building the alert transport now.** Rejected by Vahid: a transport over an unreliable queue
   delivers unreliable alerts.
+- **One worker holding both planes' credentials**, and **two workers, one per plane.** Both rejected
+  by Vahid in favour of option C — see §13.0 for what each would have cost.
+- **A short worker lease with a renewal timer.** Rejected by §13.2: renewal is a mechanism whose
+  only purpose is to hold something correctness does not depend on.
 
 ---
 
-*Nothing in this ADR is implemented. It is a draft for a decision, not a decision.*
+*Accepted 2026-09-02. P14 implements it.*

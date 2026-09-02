@@ -4,26 +4,33 @@
 **Extends:** [ADR-0012](./0012-aws-region-eu-west-2.md) (region),
 [ADR-0030](./0030-the-secure-control-runs-on-its-own-origin.md) (origins)
 
-> ### ⚠️ A proposed amendment to this table exists — not yet in force
+> ### Amended by ADR-0052 — a fifth deployable
 >
-> [**ADR-0052**](./0052-the-system-acts-when-nobody-is-watching.md) (**Proposed**, 2026-09-02)
-> would add a **fifth deployable**, a background worker, because nothing in this system currently
-> runs when nobody is making a request: the lifecycle outbox is never drained, no secure request is
-> ever expired, and a case only advances while a student's browser is posting.
+> [**ADR-0052**](./0052-the-system-acts-when-nobody-is-watching.md) (**Accepted**, 2026-09-02) adds a
+> **background worker** as a fifth deployable, because nothing in this system ran when nobody was
+> making a request: the lifecycle outbox was never drained, no secure request was ever expired, and
+> a case only advanced while a student's browser was posting.
 >
-> **This ADR is unchanged until ADR-0052 is accepted.** Four deployables is still the decision, and
-> nothing may be built on the proposal. What ADR-0052 would change is the table below — it adds a
-> row and alters no existing one. The trust levels, the database separation, the mTLS topology and
-> the region are untouched by it.
+> **What changed here:** one row added to the table below. Nothing else. The trust levels, the
+> database separation, the service-to-service topology, the compute choice and the region are
+> unchanged.
 >
-> ADR-0052 also puts one question about **this ADR's** security property back to Vahid: the
-> separation below states that no process holds both databases' credentials, and where the worker's
-> secure-plane jobs live decides whether that stays true. See ADR-0052's *"The one thing this ADR
-> cannot settle"*.
+> | Service | Origin | Network | Holds |
+> |---|---|---|---|
+> | **worker** | none | Private only. No inbound listener at all | Nothing durable. **Conversation-plane credentials only** |
+>
+> **The separation below is preserved exactly, and ADR-0052 §13.0 is why.** The worker owns the
+> Conversation Plane; the Secure Service drains its own outbox and expires its own requests
+> in-process. **No process requires credentials for both planes**, so this ADR's statement that a
+> full compromise of the conversation database yields no secret metadata remains true as written.
+>
+> ADR-0052 §13.0 carries a binding rule that keeps it true as jobs are added: *the Secure Service
+> may run only loops over its own tables that publish outward; it may never poll another plane's
+> state, and it may never acquire a second plane's credentials.* `pnpm run boundaries` enforces it.
 
 ## The decision
 
-**Four deployables, three trust levels, one region (eu-west-2).**
+**~~Four~~ five deployables, three trust levels, one region (eu-west-2).** *(The fifth — the worker — was added by ADR-0052; the original four and the three trust levels are unchanged.)*
 
 | Service | Origin | Network | Holds |
 |---|---|---|---|
@@ -31,6 +38,7 @@
 | **secure** | `secure.askimate.com` | Public for the control and submit; **internal API on a private subnet with no public route** | Secret requests, the vault, handle minting and spending |
 | **fill agent** | none | Private only. Reachable from the runner alone, over mTLS | The ONE browser operation that types a credential ([ADR-0042](./0042-the-credential-is-consumed-inside-the-secure-plane.md)) |
 | **runner** | none | Private only. No inbound from the internet, plus a CDP endpoint reachable by the fill agent alone | Browser automation against portals |
+| **worker** | none | Private only. **No inbound listener at all.** Reaches nothing but its own database ([ADR-0052](./0052-the-system-acts-when-nobody-is-watching.md)) | Nothing durable. Conversation-plane credentials only — no secure-database credential, no KMS grant, no route to the vault's cache |
 
 ### Data stores
 

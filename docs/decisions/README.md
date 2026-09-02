@@ -73,6 +73,6 @@ ADR status uses exactly that vocabulary:
 | [0049](./0049-the-run-driver-drives-the-case-machine.md) | The run driver drives the case state machine, and a student's authorisation is captured through it | Accepted |
 | [0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) | The account lifecycle completes through the student's own decision, and a case can finally conclude | Accepted |
 | [0051](./0051-the-student-supplies-through-the-conversation.md) | The student answers in the conversation, and a correction can reach the portal | Accepted |
-| [0052](./0052-the-system-acts-when-nobody-is-watching.md) | The system acts when nobody is watching: a background worker owns autonomous progression | **Proposed** |
+| [0052](./0052-the-system-acts-when-nobody-is-watching.md) | The system acts when nobody is watching: a background worker owns autonomous progression | Accepted |
 
-Forty-seven are **Accepted** and one is **Proposed** — a proposed ADR is a draft for a decision, not a decision, and nothing may be built on it until it is accepted. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 would amend ADR-0037's deployable table. Reversing any accepted one requires a new ADR that supersedes it.
+Forty-eight are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 amends ADR-0037's deployable table. Reversing any of them requires a new ADR that supersedes it.
