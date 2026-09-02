@@ -24,6 +24,8 @@
 import express from "express";
 import type { Express, NextFunction, Request, Response } from "express";
 
+import type { ConversationEvent } from "@askimate/aas-contracts";
+
 import type { ConversationEventStore } from "./event-store.js";
 import { createConversationRoutes, type ConversationRoutesOptions } from "./routes.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
@@ -121,7 +123,24 @@ export function createConversationApp(options: ConversationAppOptions): Express 
       ...(options.authoriseService === undefined
         ? {}
         : { authoriseService: options.authoriseService }),
-      ...(options.answer === undefined ? {} : { answer: options.answer }),
+      // ── Who answers a student's message ─────────────────────────────
+      //
+      // The run driver interviews them (ADR-0051). An explicit `answer` still
+      // wins, so a deployment or a test can substitute one — but the DEFAULT
+      // is the interview, because a service that appended the student's words
+      // and did nothing with them is what P13 exists to end.
+      ...(options.answer !== undefined
+        ? { answer: options.answer }
+        : options.runs === undefined
+          ? {}
+          : {
+              answer: async (input: {
+                readonly conversationId: string;
+                readonly event: ConversationEvent;
+              }): Promise<void> => {
+                await options.runs?.answerStudent(input);
+              },
+            }),
       ...(options.pollIntervalMs === undefined
         ? {}
         : { pollIntervalMs: options.pollIntervalMs }),

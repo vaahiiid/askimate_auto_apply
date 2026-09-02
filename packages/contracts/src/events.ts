@@ -101,12 +101,64 @@ export interface SecretRejectedEvent extends EventBase {
   readonly reason: RejectionReason;
 }
 
+/**
+ * A reading the agent understood from what the student said (ADR-0051).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * NOT a fact about the application. It is a fact about the CONVERSATION: this
+ * is what we understood, and this is what we showed you. It becomes a fact
+ * about the application only when the student agrees, and then it lives in the
+ * confirmed profile — which is why this is on the conversation log and not the
+ * case log (ADR-0031).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `playbackHash` names the message the student is being asked to agree to. The
+ * confirmation carries the same hash, so "what exactly did I agree to?" is
+ * answerable from two events and the message between them.
+ */
+export interface ValueProposedEvent extends EventBase {
+  readonly kind: "value_proposed";
+  readonly fieldKey: string;
+  /**
+   * The structured reading, tagged for transport.
+   *
+   * Stored rather than re-parsed from the playback on confirmation: re-parsing
+   * would depend on `render ∘ parse` being lossless for every field spec, and
+   * that fails silently. It carries no more of the student's data than the
+   * playback message beside it already does.
+   */
+  readonly proposal: unknown;
+  readonly playbackHash: string;
+}
+
+/** The student agreed to exactly the reading `playbackHash` names. */
+export interface ValueConfirmedEvent extends EventBase {
+  readonly kind: "value_confirmed";
+  readonly fieldKey: string;
+  readonly playbackHash: string;
+}
+
+/**
+ * The student did not agree.
+ *
+ * A rejection closes the exchange without writing anything. The next thing
+ * they say is a fresh answer, and it produces a fresh proposal — a correction
+ * is never a confirmation of something else.
+ */
+export interface ValueRejectedEvent extends EventBase {
+  readonly kind: "value_rejected";
+  readonly fieldKey: string;
+}
+
 export type ConversationEvent =
   | MessageEvent
   | SecretRequestedEvent
   | SecretReceivedEvent
   | SecretSettledEvent
-  | SecretRejectedEvent;
+  | SecretRejectedEvent
+  | ValueProposedEvent
+  | ValueConfirmedEvent
+  | ValueRejectedEvent;
 
 /**
  * COMPILE-TIME: only `message` may have a `content` field.
@@ -236,6 +288,27 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const reason = parseRejectionReason(source["reason"]);
       if (requestId === null || reason === null) return null;
       return { ...base, kind: "secret_rejected", requestId, reason };
+    }
+    case "value_proposed": {
+      const fieldKey = readString(source, "fieldKey");
+      const playbackHash = readString(source, "playbackHash");
+      // `proposal` is `unknown` on purpose: its shape is the profile package's
+      // and this package may not depend on it (ADR-0040). What is checked here
+      // is that it is PRESENT — a proposal with nothing proposed is not one.
+      const proposal = source["proposal"];
+      if (fieldKey === null || playbackHash === null || proposal === undefined) return null;
+      return { ...base, kind: "value_proposed", fieldKey, proposal, playbackHash };
+    }
+    case "value_confirmed": {
+      const fieldKey = readString(source, "fieldKey");
+      const playbackHash = readString(source, "playbackHash");
+      if (fieldKey === null || playbackHash === null) return null;
+      return { ...base, kind: "value_confirmed", fieldKey, playbackHash };
+    }
+    case "value_rejected": {
+      const fieldKey = readString(source, "fieldKey");
+      if (fieldKey === null) return null;
+      return { ...base, kind: "value_rejected", fieldKey };
     }
     default:
       return null;

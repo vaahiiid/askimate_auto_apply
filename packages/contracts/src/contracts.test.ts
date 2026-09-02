@@ -26,6 +26,8 @@ import {
   PROBLEM_CODES,
   REJECTION_REASONS,
   SECRET_LIFECYCLES,
+  PROPOSAL_EVENT_KINDS,
+  isSecureEventKind,
   SECURE_EVENT_KINDS,
   isTerminalLifecycleWord,
   parseRejectionReason,
@@ -398,9 +400,43 @@ describe("the wire vocabulary is internally coherent", () => {
     for (const word of SECRET_LIFECYCLES) {
       expect(EVENT_KINDS as readonly string[], word).toContain(word);
     }
+    // Every kind is one of three families and nothing else: the secure
+    // lifecycle, the interview's proposal exchange (ADR-0051), and the two
+    // that belong to neither. Written as the whole set rather than as
+    // "lifecycle plus two", because that phrasing stopped being true the
+    // moment a second family existed — and the version of this assertion that
+    // said it silently passed nothing.
     expect([...EVENT_KINDS].sort()).toEqual(
-      [...SECRET_LIFECYCLES, "message", "secret_rejected"].sort(),
+      [...SECRET_LIFECYCLES, ...PROPOSAL_EVENT_KINDS, "message", "secret_rejected"].sort(),
     );
+
+    // The two families are disjoint. A proposal is not a secure event, and the
+    // guard that decides which is which is `SECURE_EVENT_KINDS` — an explicit
+    // list since ADR-0051, because it used to be "everything that is not a
+    // message" and that complement would have swept these in.
+    for (const kind of PROPOSAL_EVENT_KINDS) {
+      expect(SECURE_EVENT_KINDS as readonly string[], kind).not.toContain(kind);
+    }
+  });
+
+  it("answers isSecureEventKind from the LIST, not from 'is it a message'", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The predicate, not just the array. Two callers outside this package had
+    // written the complement — `kind === "message" ? … : it has a requestId` —
+    // and every one of them was correct until a third family of kinds existed.
+    // Asserting only that the array omits the proposal kinds leaves the
+    // complement free to come back inside the function.
+    // ═══════════════════════════════════════════════════════════════════
+    for (const kind of SECURE_EVENT_KINDS) {
+      expect(isSecureEventKind(kind), kind).toBe(true);
+    }
+    for (const kind of [...PROPOSAL_EVENT_KINDS, "message"]) {
+      expect(isSecureEventKind(kind), `${kind} is not a secure event`).toBe(false);
+    }
+    // And every kind in the vocabulary is decided one way or the other.
+    for (const kind of EVENT_KINDS) {
+      expect(typeof isSecureEventKind(kind), kind).toBe("boolean");
+    }
   });
 
   it("has three terminal words and marks exactly those terminal", () => {

@@ -813,12 +813,24 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // have this populated too.
     expect(application.personalStatement, "page two is not done yet").toBe("");
 
-    // And the ledger records that page, by name (ADR-0047).
+    // ── And the ledger records that page, AND what was on it ───────────
+    //
+    // ADR-0047 keyed an intent on the page. ADR-0051 §6 keys it on the page AND
+    // the content, because the page alone cannot answer "was the CORRECTED
+    // value written?" — and a student who fixes a typo after the portal is
+    // filled would otherwise be told their application is ready with the
+    // correction never typed.
+    //
+    // The page is asserted by name and the version by shape: the hash is a
+    // fact about the plan, and pinning its digits here would make this test
+    // fail whenever a fixture answer changed, for no property.
     const intents = await conversationPool.query<{ target: string; outcome: string | null }>(
       "SELECT target, outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page'",
       [runId],
     );
-    expect(intents.rows).toEqual([{ target: "page-application", outcome: "succeeded" }]);
+    expect(intents.rows).toHaveLength(1);
+    expect(intents.rows[0]?.outcome).toBe("succeeded");
+    expect(intents.rows[0]?.target).toMatch(/^page-application@sha256:[0-9a-f]{64}$/);
 
     // Still nothing submitted. Filling is not submitting (ADR-0014).
     expect(portal.submissions()).toEqual([]);
@@ -876,10 +888,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           WHERE run_id = $1 AND action = 'advance_portal_page' ORDER BY target`,
         [runId],
       );
-      expect(intents.rows).toEqual([
-        { target: "page-application", outcome: "succeeded" },
-        { target: "page-study", outcome: "succeeded" },
-      ]);
+      expect(intents.rows.map((row) => row.outcome)).toEqual(["succeeded", "succeeded"]);
+      expect(intents.rows[0]?.target).toMatch(/^page-application@sha256:[0-9a-f]{64}$/);
+      expect(intents.rows[1]?.target).toMatch(/^page-study@sha256:[0-9a-f]{64}$/);
     } finally {
       await restarted.close();
     }

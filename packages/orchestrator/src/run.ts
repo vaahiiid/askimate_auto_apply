@@ -35,6 +35,8 @@
  * exists not to do (ADR-0007).
  */
 
+import { createHash } from "node:crypto";
+
 import type {
   AuthenticationApproach,
   AuthenticationPlan,
@@ -72,7 +74,7 @@ import {
 import { nextAction } from "@askimate/aas-interview";
 import type { ModelClient } from "@askimate/aas-llm";
 import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
-import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import type {
   AuthorisablePreview,
   AuthorisationRecord,
@@ -813,6 +815,69 @@ export function handoverChecklistFrom(
 }
 
 /**
+ * What an `advance_portal_page` intent acts on: the page, AND the content.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0051 §6, amending ADR-0047 §1: one intent per page VERSION, not per
+ * page.
+ *
+ * Without the content, the ledger can say *that* a page was saved and not
+ * *what* was saved — so a student who corrects a confirmed value after the
+ * portal is filled gets `ready_to_submit` with the correction never typed, and
+ * is told their application is ready. That is the one outcome ADR-0051 exists
+ * to make impossible, and it cannot be detected without this.
+ *
+ * ADR-0047 is not broken by it. No written intent is mutated, and "page P with
+ * content C₁ was saved" stays true forever; the ledger remains the single
+ * record of what happened to a run. A page whose content has changed simply
+ * has no successful intent for what it now holds.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── The hash, and the "never a value" rule ────────────────────────────────
+ *
+ * `ActionIntent.target` is documented "a host, a field ref, a document id.
+ * Never a value." A hash is not a value: it is one-way, it reveals nothing
+ * readable, and `AuthorisationCaptured` already stores one in a durable log.
+ * Said out loud here rather than left for a reader to decide.
+ *
+ * Per PAGE rather than per application, so a correction re-types the page it
+ * changed and leaves the others alone. `buildPreview`'s whole-application hash
+ * would re-fill every page for a typo on one.
+ */
+export function pageFillTarget(input: {
+  readonly pageRef: string;
+  /**
+   * What this page will hold, already rendered.
+   *
+   * Rendered text rather than a `FillPlan`, because the same target has to be
+   * computable on both sides of the transport: the Application Plane holds a
+   * `FillPlan` and the lease payload holds a `StoredFillPlan`, and a target
+   * that differed between them would complete an intent for content nobody
+   * typed. `textOf` and `StoredFillValue.text` are the same string by
+   * construction.
+   */
+  readonly values: readonly { readonly fieldRef: string; readonly text: string }[];
+}): string {
+  const parts = input.values
+    .map((value) => `${value.fieldRef}=${value.text}`)
+    // Sorted, because instruction order is an artefact of how `planFill` walks
+    // fields and must not change the identity of the content.
+    .sort();
+  const digest = createHash("sha256").update(parts.join("\u0000")).digest("hex");
+  return `${input.pageRef}@sha256:${digest}`;
+}
+
+/** The page's values out of a live plan, for `pageFillTarget`. */
+export function pageValuesOf(
+  plan: FillPlan,
+  fieldRefs: ReadonlySet<string>,
+): readonly { readonly fieldRef: string; readonly text: string }[] {
+  return plan.instructions
+    .filter((instruction) => fieldRefs.has(instruction.fieldRef))
+    .map((instruction) => ({ fieldRef: instruction.fieldRef, text: textOf(instruction.value) }));
+}
+
+/**
  * A stable handoff token for a case and a kind.
  *
  * Derived, not minted, for the reason `idempotencyKeyFor` is: the run raises a
@@ -1076,6 +1141,22 @@ export function requiresSecureRequest(
 export function handoffFor(step: RunStep): HandoffKind | null {
   if (step.kind === "student_handoff") return step.reason;
   return step.kind === "hand_over_account" ? step.awaiting : null;
+}
+
+/**
+ * The `InterviewAction` an `interview` step carries, or `null`.
+ *
+ * A NARROWING, like `accountWorkOf` and `executePlanOf` beside it. The step
+ * vocabulary is this package's; a coordinator that reached into a step for its
+ * action would be keeping its own copy of which kinds have one.
+ *
+ * The action is the whole point of an `interview` step and was being thrown
+ * away: `nextStep` composed it and the Run Driver returned only `step:
+ * "interview"` to its caller, so the question never left the service
+ * (ADR-0051).
+ */
+export function interviewActionOf(step: RunStep): InterviewAction | null {
+  return step.kind === "interview" ? step.action : null;
 }
 
 /** What the student is told for a handoff step. The text a hash is taken over. */

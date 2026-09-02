@@ -2,11 +2,11 @@
 
 > ## ⚠️ Superseded below — this section is the state as of 2026-08-26
 >
-> **Updated 2026-09-01 (P10).** Everything from the headline to "Since then" is
-> the picture *before* P1–P10, and its numbers are long out of date — "620
-> tests" is now 1715, and the state table below is missing four steps that have
+> **Updated 2026-09-02 (P13).** Everything from the headline to "Since then" is
+> the picture *before* P1–P13, and its numbers are long out of date — "620
+> tests" is now 1782, and the state table below is missing four steps that have
 > since been built and one that has since been found. The current state is at
-> the **end of this file**, under *Where we are — 2026-09-01*. This section is
+> the **end of this file**, under *Where we are — 2026-09-02*. This section is
 > kept rather than
 > rewritten because it is the record of a real milestone, and overwriting it
 > would lose what Stage D actually proved.
@@ -179,7 +179,7 @@ never from the beginning.
 | 1 | Discovery | ✅ | Read-only. The *live run* is still blocked on egress. |
 | 2 | Application Blueprint | ✅ | Draft → specialist review → executable. |
 | 3 | Requirements | 🟡 | Model and evidence bar built. **The Requirements Service and its curated content are not** (ADR-0019). |
-| 4 | Conversational interview | ✅ | A capability of AskiMate Chat (ADR-0015). |
+| 4 | Conversational interview | ✅ | A capability of AskiMate Chat (ADR-0015). **Only actually true since P13** — before it, `answer` was a hook nothing filled and no student could put one field into this system. |
 | 5 | Confirmed profile | ✅ | **Postgres, behind `ConfirmedProfileStore`** (ADR-0044) — no longer in memory. |
 | 6 | Documents | ✅ | Vault, deterministic validity, extraction with the grounding rule. |
 | 7 | Field mapping | ✅ | Reviewed data pinned to a blueprint version. |
@@ -203,7 +203,6 @@ never from the beginning.
   performs is verifiable, so `verify_first` is the only verdict the integration
   path produces. The branch is correct and enumerated directly.
 - **`route_fallback` is refused, not implemented** (ADR-0048 §4).
-- **Account hand-over is unreachable**, as above.
 - **`generated_ephemeral` accounts cannot yet be handed over.** Nothing in this
   service holds that credential — the runner mints it, uses it and lets it
   expire — so nothing here can truthfully say it is destroyed. The account stays
@@ -223,3 +222,79 @@ never from the beginning.
   account handed back, and "concludable" is `mayConcludeCase` answering `true`.
   Decided by Vahid, 2026-09-01; see ADR-0050 §7.
 - **No live run.** Blocked on portal egress and a sandbox account.
+
+---
+
+# Where we are — 2026-09-02
+
+**Version:** `0.31.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**A student can now put a value into this system by typing it.**
+
+Until P13 they could not. The orchestrator composed interview questions, and
+the run driver threw them away: `newInterview(…)` was rebuilt on every request,
+so `pending` and `attempts` were always empty, `applyConfirmation` and
+`ConfirmedProfileStore.save` had **no production caller at all**, and every
+green test seeded the profile from the test process. The nine phases before
+this one executed applications built from data no student had ever supplied.
+
+That loop is closed, through the message path that already existed — the
+`answer` hook on `POST /v1/conversations/{id}/messages`. There is no second
+student-facing surface and ADR-0051 forbids one: a separate interview endpoint
+is a form with an HTTP shape, which is the thing ADR-0007 and ADR-0015 both
+refuse.
+
+## What P13 delivered (ADR-0051)
+
+| | What it delivered |
+|---|---|
+| **The interview value loop** | The student answers in the conversation; the reading is put back to them; they confirm it as a `StudentDecision`, not as a parsed "yes"; the value is written through `applyConfirmation` — the only function that mints a `ConfirmedValue`. |
+| **Pending proposals in the log** | Three new event kinds — `value_proposed`, `value_confirmed`, `value_rejected` — so a pending reading survives the request that created it, and a restart. The `open_value_proposals` view answers "which is open" in SQL, beside `open_secret_requests`. |
+| **Re-authorisation** | `void_authorisation` is now the true mirror of `capture_authorisation`: it emits `AuthorisationVoided` **and** the move back to `AWAITING_STUDENT_AUTHORISATION`, **through `checkTransition`**. |
+| **Content-aware fill intents** | An `advance_portal_page` intent is keyed on the page **and** its content — `page-ref@sha256:…` — so the ledger can answer "was the *corrected* value written?", which ADR-0047 §1 named and could not answer. |
+
+## The two things worth understanding
+
+**The reader with no writer, again.** `#withAuthorisationIfCaptured` had
+consumed `AuthorisationVoided` since the domain was written, and nothing ever
+produced one. That is the same shape `HandoffRequired` had before P12, and the
+second time in two phases that a defined-and-unused mechanism turned out to be
+the missing capability rather than dead weight.
+
+**The forward-only spine was not relaxed to fix it.** `nextCaseHop` still walks
+`CASE_SPINE` forward only. Invalidation is not a healthy case going backwards —
+it is a separate deliberate act, which ADR-0049 §1 had already named. Routing
+the way back through `checkTransition` makes the guards *stronger*, not weaker:
+a correction that introduces financial evidence, or that reveals a minor, is
+**reviewed again** before the student can be asked to approve the corrected
+content. `packages/domain/src/machine.test.ts` proves both halves — that the
+case is put back, and that it is **refused** while a mandatory review is
+outstanding.
+
+## Known limitations — what changed, and what did not
+
+Everything in the 2026-09-01 list still holds except the interview, with these
+additions:
+
+- **Document intake is not built, and is blocked — not deferred.** A student
+  cannot supply a document through the conversation, and no upload surface
+  exists. `pnpm run retention-status` reports governing version
+  `v0.2026-08-26`: **0 policies, 12 unresolved**, stamped *"UNAPPROVED — this
+  version exists to record what is open, not to permit storage"*. `requirePolicy`
+  throws, so no placeholder period can enter production code. This is an
+  external product-policy dependency, and inventing a retention period to
+  unblock it would be the worst available outcome. See ADR-0051 §8.
+- **An unreadable answer leaves no event, so it does not count as an attempt.**
+  `MAX_ATTEMPTS_PER_FIELD` counts proposals that were superseded or rejected.
+  Recording an unreadable answer would need a fourth event kind whose only
+  purpose is a counter. Stated rather than hidden: the escalation now fires on
+  the case that matters — three readings a student kept saying no to — where
+  before it fired on nothing at all.
+- **Tasks stay dormant.** The `Task` model, its intents and its guards remain
+  defined and uncalled. P13 deliberately did not wire them; nothing was removed.
+- **A correction after authorisation costs the approval.** That is the point:
+  the student re-approves content that changed. The system never implies a
+  corrected value reached the portal — the fill intent for that page is a
+  different intent, so the page is offered again.

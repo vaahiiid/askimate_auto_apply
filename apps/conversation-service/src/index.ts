@@ -26,6 +26,9 @@ export const SCHEMA_EVENT_KINDS = [
   "secret_expired",
   "secret_cancelled",
   "secret_rejected",
+  "value_proposed",
+  "value_confirmed",
+  "value_rejected",
 ] as const;
 
 export const SCHEMA_ACTORS = ["student", "assistant", "mentor", "system"] as const;

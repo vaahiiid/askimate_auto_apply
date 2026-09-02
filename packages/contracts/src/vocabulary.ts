@@ -36,13 +36,58 @@ export const EVENT_KINDS = [
   "secret_expired",
   "secret_cancelled",
   "secret_rejected",
+  // ── The interview's own exchange (ADR-0051) ──────────────────────────
+  //
+  // A reading the agent understood, put to the student, and their answer to it.
+  // On this log rather than the case log because a proposal is NOT yet a fact
+  // about the application — and beside the playback message it is about,
+  // because the confirmation is bound by a hash of that message and the two
+  // need one ordinal sequence to be ordered by.
+  "value_proposed",
+  "value_confirmed",
+  "value_rejected",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
-/** Every kind that is NOT a message. None of these may carry free text. */
-export const SECURE_EVENT_KINDS = EVENT_KINDS.filter(
-  (kind): kind is Exclude<EventKind, "message"> => kind !== "message",
-);
+/**
+ * The kinds that belong to a SECURE REQUEST's lifecycle.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * An explicit list, not "everything that is not a message".
+ *
+ * It was the complement, and the complement was correct only while every
+ * non-message kind happened to be a secure one. ADR-0051 added three that are
+ * not, and the derived version would have quietly called a value proposal a
+ * secure event — which is the failure-by-omission this repository keeps
+ * finding. A new kind now has to be classified deliberately.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export const SECURE_EVENT_KINDS = [
+  "secret_requested",
+  "secret_received",
+  "secret_consumed",
+  "secret_expired",
+  "secret_cancelled",
+  "secret_rejected",
+] as const satisfies readonly EventKind[];
+
+/**
+ * True for a kind in a secure request's lifecycle.
+ *
+ * Exported because two places outside this package had written the complement —
+ * `kind === "message" ? … : it has a requestId` — which stopped being true the
+ * moment a third family of kinds existed. One predicate, one list.
+ */
+export function isSecureEventKind(kind: string): boolean {
+  return (SECURE_EVENT_KINDS as readonly string[]).includes(kind);
+}
+
+/** The kinds that carry the interview's proposal exchange (ADR-0051). */
+export const PROPOSAL_EVENT_KINDS = [
+  "value_proposed",
+  "value_confirmed",
+  "value_rejected",
+] as const satisfies readonly EventKind[];
 
 /** Who a message is from. Not an identity — a role in the conversation. */
 export const ACTORS = ["student", "assistant", "mentor", "system"] as const;

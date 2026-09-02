@@ -98,7 +98,13 @@ import type {
   WorkflowRunRecord,
   WorkflowStatus,
 } from "@askimate/aas-domain";
-import { newInterview } from "@askimate/aas-interview";
+import type { InterviewState } from "@askimate/aas-interview";
+import {
+  newInterview,
+  nextAction,
+  receiveAnswer,
+  receiveConfirmation,
+} from "@askimate/aas-interview";
 import { createHash } from "node:crypto";
 
 import type { ModelClient } from "@askimate/aas-llm";
@@ -111,6 +117,9 @@ import {
   beginRun,
   handoffFor,
   handoffMessageOf,
+  interviewActionOf,
+  pageFillTarget,
+  pageValuesOf,
   handoffTokenFor,
   browserWorkFor,
   caseStateForStep,
@@ -135,7 +144,12 @@ import type {
   RunStep,
 } from "@askimate/aas-orchestrator";
 import { isFinancialField, resolveField } from "@askimate/aas-profile";
-import type { ConfirmedProfileStore } from "@askimate/aas-profile";
+import type {
+  ConfirmedProfile,
+  ConfirmedProfileStore,
+  ProfileFieldKey,
+} from "@askimate/aas-profile";
+import { toStoredEntry } from "@askimate/aas-profile";
 
 import { latestSecretRequest } from "@askimate/aas-conversation";
 
@@ -152,6 +166,9 @@ import type {
 import { WORK_APPROACHES } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
+import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { ProposedValue } from "@askimate/aas-domain";
+
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import type { WorkLeaseStore } from "./work-store.js";
@@ -385,6 +402,153 @@ function reviewMessage(entry: CatalogueEntry): string {
  * followed a verification link by Friday has not lost the right to.
  */
 const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * The field an `interview` step is asking about, or `null`.
+ *
+ * A NARROWING, for the reason `requiresSecureRequest` and `handoffFor` are:
+ * the step vocabulary is the orchestrator's, and a coordinator matching on
+ * `step.kind` would keep its own copy of it. This one reaches one level
+ * further in, to the `InterviewAction` the step carries, because only an `ask`
+ * has a field for the student to answer — `confirm`, `complete` and `escalate`
+ * are not questions about a value.
+ */
+function interviewAsk(step: RunStep): ProfileFieldKey | null {
+  const action = interviewActionOf(step);
+  return action !== null && action.kind === "ask" ? action.fieldKey : null;
+}
+
+/**
+ * The interview, rebuilt from the conversation log (ADR-0051).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * This used to be `newInterview(…)` on every request, which meant `pending`,
+ * `attempts` and `transcript` were ALWAYS EMPTY. Two consequences, and the
+ * second is the worse one: a pending confirmation could not survive the
+ * request that created it, and `MAX_ATTEMPTS_PER_FIELD` could never be
+ * reached — so the `information_unobtainable` escalation ADR-0007 requires had
+ * never once fired.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Derived, not stored, like everything else this driver reconstructs
+ * (ADR-0041, ADR-0047). The profile comes from its own store; the rest comes
+ * from the log the exchange happened in.
+ */
+function interviewFrom(input: {
+  readonly studentRef: StudentId;
+  readonly profile: ConfirmedProfile;
+  readonly requiredFields: readonly ProfileFieldKey[];
+  readonly requiredDocuments: readonly string[];
+  readonly events: readonly ConversationEvent[];
+}): InterviewState {
+  const base = newInterview({
+    studentRef: input.studentRef,
+    profile: input.profile,
+    requiredFields: input.requiredFields,
+    requiredDocuments: input.requiredDocuments,
+  });
+
+  const open = openProposal(input.events);
+  return {
+    ...base,
+    attempts: attemptsFrom(input.events),
+    // The last few turns, so a re-asked question fits the conversation. Only
+    // messages: a proposal is not something anybody said.
+    transcript: input.events
+      .filter((event) => event.kind === "message" && event.content !== null)
+      .slice(-6)
+      .map((event) => `${event.kind === "message" ? event.actor : "system"}: ${
+        event.kind === "message" ? (event.content ?? "") : ""
+      }`),
+    ...(open === null
+      ? {}
+      : {
+          pending: {
+            fieldKey: open.fieldKey as ProfileFieldKey,
+            proposed: open.proposal as ProposedValue<unknown>,
+          },
+        }),
+  };
+}
+
+/**
+ * The open proposal on this log, or `null`.
+ *
+ * The last `value_proposed` with no `value_confirmed` or `value_rejected`
+ * after it — the same reading `latestSecretRequest` makes of the secure
+ * lifecycle, and the same reading the `open_value_proposals` view makes in SQL.
+ * Derived here as well as in the view because `#situation` already holds every
+ * event and a second round trip would answer the same question more slowly.
+ */
+export function openProposal(
+  events: readonly ConversationEvent[],
+): { fieldKey: string; proposal: unknown; playbackHash: string } | null {
+  let open: { fieldKey: string; proposal: unknown; playbackHash: string } | null = null;
+  for (const event of events) {
+    if (event.kind === "value_proposed") {
+      open = {
+        fieldKey: event.fieldKey,
+        proposal: event.proposal,
+        playbackHash: event.playbackHash,
+      };
+      continue;
+    }
+    if (event.kind === "value_confirmed" || event.kind === "value_rejected") open = null;
+  }
+  return open;
+}
+
+/**
+ * How many times each field has been read and not accepted.
+ *
+ * ── What this counts, and what it does not ────────────────────────────────
+ *
+ * A proposal that was superseded or rejected is a failed attempt. An answer
+ * the model could not read AT ALL leaves no event, so it does not count —
+ * which makes the escalation less eager than `MAX_ATTEMPTS_PER_FIELD` intends.
+ *
+ * Stated rather than hidden. Recording an unreadable answer would need a
+ * fourth event kind whose only purpose is a counter, and the escalation now
+ * fires on the case that matters — three readings a student kept saying no to
+ * — where before it fired on nothing at all.
+ */
+function attemptsFrom(events: readonly ConversationEvent[]): ReadonlyMap<ProfileFieldKey, number> {
+  const attempts = new Map<ProfileFieldKey, number>();
+  const bump = (key: string): void => {
+    const field = key as ProfileFieldKey;
+    attempts.set(field, (attempts.get(field) ?? 0) + 1);
+  };
+  let outstanding: string | null = null;
+  for (const event of events) {
+    if (event.kind === "value_proposed") {
+      // A second proposal for a field replaces the first: the first was read
+      // and did not become a confirmed value.
+      if (outstanding !== null) bump(outstanding);
+      outstanding = event.fieldKey;
+      continue;
+    }
+    if (event.kind === "value_rejected") {
+      bump(event.fieldKey);
+      outstanding = null;
+      continue;
+    }
+    if (event.kind === "value_confirmed") outstanding = null;
+  }
+  return attempts;
+}
+
+/**
+ * The page an `advance_portal_page` target names, without its content version.
+ *
+ * A target is `page-ref@sha256:…` since ADR-0051 §6, because one intent per
+ * page could not answer "was the CORRECTED value written?". The hash belongs
+ * in the ledger, which identifies actions; it does not belong in front of a
+ * specialist, who has to open a portal and look at a page.
+ */
+function pageOf(target: string): string {
+  const at = target.indexOf("@");
+  return at === -1 ? target : target.slice(0, at);
+}
 
 /**
  * The hash of a message the student is asked to confirm.
@@ -815,11 +979,12 @@ export class RunDriver {
           studentPresentAtCreation: true,
         },
         profile,
-        interview: newInterview({
+        interview: interviewFrom({
           studentRef: input.studentRef,
           profile,
           requiredFields: requiredFieldsFor(input.entry.blueprint, usable.mappingSet),
           requiredDocuments: input.entry.requiredDocuments,
+          events,
         }),
       }),
       input.record,
@@ -991,7 +1156,7 @@ export class RunDriver {
     // a page whose save may or may not have landed would be acting on a portal
     // state nobody knows.
     const targets =
-      kind === "execute" ? entry.blueprint.pages.map((page) => page.pageRef) : [runId as string];
+      kind === "execute" ? await this.#pageTargets(runId, entry) : [runId as string];
     for (const target of targets) {
       const verdict = await this.#verdictFor(runId, ACTION_FOR_WORK[kind], target);
       if (verdict.kind === "verify_first" || verdict.kind === "escalate") {
@@ -1207,7 +1372,7 @@ export class RunDriver {
         portal: portalOf(input.entry),
         courseId: makeCourseId(input.entry.courseRef),
         blueprintVersion: blueprintVersion(input.entry.blueprint.version),
-        ...(input.action === "advance_portal_page" ? { page: input.target } : {}),
+        ...(input.action === "advance_portal_page" ? { page: pageOf(input.target) } : {}),
       },
     });
 
@@ -1257,7 +1422,12 @@ export class RunDriver {
       checkpoint: {
         blueprintVersion: blueprintVersion(input.entry.blueprint.version),
         action: input.action,
-        target: input.target,
+        // The PAGE, not the content version. The ledger identifies the action
+        // it is about; this tells a PERSON where to look, and
+        // `page-application@sha256:c544…` is not somewhere anybody can look
+        // (ADR-0048 §5 — a checkpoint records a position the system can
+        // truthfully state, for a specialist to read).
+        target: pageOf(input.target),
         phase: input.record.checkpoint.phase,
         pagesCompleted: [],
         capturedAt: now,
@@ -1340,6 +1510,16 @@ export class RunDriver {
     // What the run is asking for, and the text it asked with. Both from the
     // orchestrator and the case — never from the decision, which carries a
     // hash and a kind and nothing else (ADR-0050).
+    // ── A confirmed reading is not a case event ─────────────────────────
+    //
+    // It ends in the confirmed profile, through `applyConfirmation` — the one
+    // minter of a `ConfirmedValue` — and in the conversation log that recorded
+    // the exchange. Nothing about it belongs in the case log, so it returns
+    // before `decide` is reached (ADR-0051 §5).
+    if (input.decision.kind === "confirm_value") {
+      return await this.#confirmValue(input.conversationId, situation.state, input.decision);
+    }
+
     const intent =
       input.decision.kind === "authorise"
         ? this.#authorisationIntent(situation.step, input.decision)
@@ -1414,6 +1594,47 @@ export class RunDriver {
   }
 
   /**
+   * Records the student's agreement to a reading (ADR-0051).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The hash is compared against the OPEN PROPOSAL's playback hash, which the
+   * service wrote when it put the reading to them. Not against a re-render: a
+   * re-render would ask the model again and could differ from what they read,
+   * and then they would have agreed to one thing and another would be stored.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The value goes in through `receiveConfirmation`, which calls
+   * `applyConfirmation` — the only function that mints a `ConfirmedValue`. This
+   * coordinator does not construct one and could not: the boundary check
+   * forbids the cast outside `packages/profile`.
+   */
+  async #confirmValue(
+    conversationId: string,
+    state: RunState,
+    decision: StudentDecision,
+  ): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly reason: DecisionRefusalReason }
+  > {
+    const events = await this.#options.conversations.since(conversationId, 0);
+    const open = openProposal(events);
+    if (open === null) return { ok: false, reason: "not_asked" };
+    if (open.playbackHash !== decision.contentHash) {
+      return { ok: false, reason: "content_changed" };
+    }
+
+    const outcome = receiveConfirmation(state.interview, { agreed: true }, this.#options.now());
+    if (outcome.kind !== "confirmed") return { ok: false, reason: "refused" };
+
+    const fieldKey = open.fieldKey as ProfileFieldKey;
+    await this.#persist(outcome.state, fieldKey);
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "value_confirmed", fieldKey, playbackHash: open.playbackHash },
+    });
+    return { ok: true };
+  }
+
+  /**
    * The hash of the message a student is being asked to confirm.
    *
    * Public because the client needs the same number to send back, and it must
@@ -1436,6 +1657,166 @@ export class RunDriver {
     if (!situation.ok) return null;
     const message = handoffMessageOf(situation.step);
     return message === null ? null : hashOfText(message);
+  }
+
+  /**
+   * Answers a student's message by interviewing them (ADR-0051).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * THE LOOP THAT WAS NEVER CLOSED.
+   *
+   * `applyConfirmation` and `ConfirmedProfileStore.save` had no production
+   * caller before this. The orchestrator composed questions and the run driver
+   * threw them away; every test seeded the profile from the test process. No
+   * real student could put one field into this system.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Wired to the existing `answer` hook, on the existing message route. There
+   * is no second student-facing surface, and there must never be one: a
+   * separate interview endpoint is a form with an HTTP shape, which is the
+   * thing ADR-0007 and ADR-0015 both refuse.
+   *
+   * Silent on anything that is not a student's message on a conversation with
+   * a run that is asking. A student talking during a secure step, or before
+   * they have started an application, is not answering an interview question.
+   */
+  public async answerStudent(input: {
+    readonly conversationId: string;
+    readonly event: ConversationEvent;
+  }): Promise<void> {
+    const said = input.event;
+    if (said.kind !== "message" || said.actor !== "student" || said.content === null) return;
+
+    const situated = await this.#interviewSituation(input.conversationId);
+    if (situated === null) return;
+    const now = this.#options.now();
+
+    // ── A pending reading makes this a CORRECTION, not a new answer ──────
+    //
+    // "no, it's the 3rd" is not agreement and is not a fresh field. It goes
+    // through `receiveConfirmation`'s corrected branch, which produces a new
+    // proposal that must itself be confirmed — a correction is never a
+    // confirmation of something else.
+    const open = openProposal(await this.#options.conversations.since(input.conversationId, 0));
+    if (open !== null) {
+      await this.#correct(input.conversationId, situated.state.interview, said.content, now);
+      return;
+    }
+
+    const asking = interviewAsk(situated.step);
+    if (asking === null) return;
+
+    const outcome = await receiveAnswer(
+      situated.state.interview,
+      asking,
+      said.content,
+      this.#options.model,
+    );
+    if (outcome.kind !== "understood") {
+      // Not read at all. The next decide re-asks — `nextAction` composes a
+      // fresh question with the attempt count it can see. Nothing is written,
+      // because nothing was understood.
+      return;
+    }
+    await this.#putToTheStudent(input.conversationId, outcome.state);
+  }
+
+  /**
+   * Everything `answerStudent` and `recordDecision` need about a conversation,
+   * or `null` when it is not in an interview at all.
+   */
+  async #interviewSituation(conversationId: string): Promise<{
+    readonly entry: CatalogueEntry;
+    readonly record: WorkflowRunRecord;
+    readonly state: RunState;
+    readonly step: RunStep;
+  } | null> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return null;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return null;
+    // The conversation's own run. A conversation owns at most one case and a
+    // case at most one run, so the first is the only.
+    const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    const record = runs[0];
+    if (record === undefined) return null;
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok) return null;
+    return { entry, record, state: situation.state, step: situation.step };
+  }
+
+  /**
+   * Puts a reading to the student, deterministically.
+   *
+   * Two writes: the structured proposal, so the confirmation can apply exactly
+   * what was shown, and the playback message, which is what they read. In that
+   * order, so a crash between them leaves a proposal with no playback — which
+   * the next decide re-plays rather than a playback nothing can confirm.
+   */
+  async #putToTheStudent(conversationId: string, state: InterviewState): Promise<void> {
+    const pending = state.pending;
+    if (pending === undefined) return;
+    const action = await nextAction(state, this.#options.model);
+    if (action.kind !== "confirm") return;
+
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "value_proposed",
+        fieldKey: pending.fieldKey,
+        proposal: pending.proposed,
+        playbackHash: hashOfText(action.say),
+      },
+    });
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: action.say },
+    });
+  }
+
+  /** The student said the reading was wrong. Their words are the correction. */
+  async #correct(
+    conversationId: string,
+    state: InterviewState,
+    correction: string,
+    now: Date,
+  ): Promise<void> {
+    const pending = state.pending;
+    if (pending === undefined) return;
+    const outcome = receiveConfirmation(state, { agreed: false, correction }, now);
+    // The old reading is closed either way: it was put to them and they did
+    // not agree to it. What happens next depends on whether the correction
+    // could be read.
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "value_rejected", fieldKey: pending.fieldKey },
+    });
+    if (outcome.kind !== "corrected") return;
+
+    // A corrected value IS confirmed — the student supplied it themselves —
+    // so it is already in `outcome.state.profile`. Persist it and say so.
+    await this.#persist(outcome.state, pending.fieldKey);
+    await this.#options.conversations.append({
+      conversationId,
+      event: {
+        kind: "value_confirmed",
+        fieldKey: pending.fieldKey,
+        playbackHash: hashOfText(correction),
+      },
+    });
+  }
+
+  /** Writes one confirmed field through the sanctioned store. */
+  async #persist(state: InterviewState, fieldKey: ProfileFieldKey): Promise<void> {
+    const entry = state.profile.entries.get(fieldKey);
+    if (entry === undefined) return;
+    await this.#options.profiles.save(state.studentRef, toStoredEntry(fieldKey, entry));
   }
 
   /**
@@ -1663,6 +2044,30 @@ export class RunDriver {
   }
 
   /**
+   * Voids an authorisation the content has outgrown, and puts the case back.
+   *
+   * Idempotent by construction: once voided, `fold` clears
+   * `authorisedContentHash`, so a second pass finds nothing to void and
+   * `decide` refuses — which is why the refusal is not an error here.
+   */
+  async #voidOutgrownAuthorisation(
+    caseId: CaseId,
+    conversationId: string,
+    step: RunStep,
+    now: Date,
+  ): Promise<void> {
+    if (!awaitsStudentAuthorisation(step)) return;
+    const events = await this.#options.stores.cases.read(caseId);
+    if (events.length === 0) return;
+    const held = fold(events);
+    if (held.authorisedContentHash === undefined) return;
+
+    const decision = decide(held, { kind: "void_authorisation", reason: "content_changed" });
+    if (!decision.accepted) return;
+    await this.#appendToCase(caseId, held.sequence, decision.events, { conversationId, caseId }, now);
+  }
+
+  /**
    * Raises the handoff this step is waiting on, and tells the student once.
    *
    * ═══════════════════════════════════════════════════════════════════════
@@ -1748,6 +2153,35 @@ export class RunDriver {
   }
 
   /**
+   * Every page's CURRENT content target, in blueprint order (ADR-0051 §6).
+   *
+   * Built from the plan the run has now. A page whose content changed since it
+   * was filled therefore has a target with no successful intent — which is how
+   * a stale page becomes visible at all, and why an unfinished-action check
+   * that used bare page refs could not see one.
+   */
+  async #pageTargets(runId: RunId, entry: CatalogueEntry): Promise<readonly string[]> {
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    if (!usable.usable) return [];
+    const profile = await this.#options.profiles.load(
+      // The run's own student. `findByCase` is not needed: the ledger is keyed
+      // by run and the plan by profile, and both belong to the same student.
+      (await this.#options.stores.runs.load(runId))?.studentRef ?? "",
+      this.#options.now(),
+    );
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    return entry.blueprint.pages.map((page) =>
+      pageFillTarget({
+        pageRef: page.pageRef,
+        values: pageValuesOf(
+          plan,
+          new Set(page.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))),
+        ),
+      }),
+    );
+  }
+
+  /**
    * The page this run should fill next, or `null` because none remains.
    *
    * ADR-0047. The first page in BLUEPRINT order that has fields to fill, has no
@@ -1773,7 +2207,14 @@ export class RunDriver {
       if (fields.some((field) => credentialFields.has(field.fieldRef))) continue;
       if (!fields.some((field) => wanted.has(field.fieldRef))) continue;
 
-      const verdict = await this.#verdictFor(runId, "advance_portal_page", page.pageRef);
+      const verdict = await this.#verdictFor(
+        runId,
+        "advance_portal_page",
+        pageFillTarget({
+          pageRef: page.pageRef,
+          values: pageValuesOf(plan, new Set(fields.map((f) => f.fieldRef))),
+        }),
+      );
       // `failed_cleanly` is a claim that nothing happened out there, so the page
       // is offered again. `already_done` + `succeeded` is skipped. The unfinished
       // verdicts never reach here — `#unfinishedAction` stopped the run.
@@ -1870,7 +2311,17 @@ export class RunDriver {
     // least one page has actually been saved.
     const saved = await Promise.all(
       entry.blueprint.pages.map(async (page) =>
-        this.#verdictFor(runId, "advance_portal_page", page.pageRef),
+        this.#verdictFor(
+          runId,
+          "advance_portal_page",
+          pageFillTarget({
+            pageRef: page.pageRef,
+            values: pageValuesOf(
+              plan,
+              new Set(page.sections.flatMap((section) => section.fields.map((f) => f.fieldRef))),
+            ),
+          }),
+        ),
       ),
     );
     return saved.some(
@@ -1953,6 +2404,16 @@ export class RunDriver {
         now,
       });
     }
+
+    // ── An approval the content outgrew (ADR-0051 §7) ────────────────────
+    //
+    // The run is standing at `authorise` while the case still holds one. The
+    // orchestrator decided that — `stillCovers` is its function, and this
+    // coordinator only observes the step it was handed. Voiding is what puts
+    // the case back where a corrected preview can be approved; without it the
+    // student is refused forever, because `capture_authorisation` requires
+    // AWAITING_STUDENT_AUTHORISATION and the spine cannot walk backwards.
+    await this.#voidOutgrownAuthorisation(input.caseId, input.conversationId, step, now);
 
     // ── The one thing only the student can do (ADR-0050) ─────────────────
     //
@@ -2191,6 +2652,10 @@ export class RunDriver {
         // The lease names the page it holds, so the report keys the right
         // intent without re-deriving a plan that may have changed (ADR-0047).
         ...(payload.pageRef === undefined ? {} : { pageRef: payload.pageRef }),
+        // ...and the CONTENT version of it (ADR-0051 §6), so the report
+        // completes the intent for what the runner actually typed rather than
+        // for whatever the page holds by the time it answers.
+        ...(payload.pageVersion === undefined ? {} : { pageVersion: payload.pageVersion }),
         now,
         leaseSeconds: input.leaseSeconds,
       });
@@ -2263,7 +2728,12 @@ export class RunDriver {
     // page comes from the lease rather than from a re-derived plan — a plan
     // that changed in between would complete an intent for a page the runner
     // never touched.
-    const target = held.pageRef ?? held.runId;
+    const target =
+      held.pageRef === undefined
+        ? held.runId
+        : held.pageVersion === undefined
+          ? held.pageRef
+          : `${held.pageRef}@${held.pageVersion}`;
     const key = idempotencyKeyFor({ runId, action, target });
 
     // The intent is written on REPORT rather than on claim, and the difference
@@ -2623,6 +3093,7 @@ function workPayloadFor(
   | {
       readonly portalHost: string;
       readonly pageRef?: string;
+      readonly pageVersion?: string;
       readonly carries: Partial<
         Pick<ClaimedWork, "registration" | "plan" | "formUrl" | "advanceLocator">
       >;
@@ -2687,6 +3158,16 @@ function workPayloadFor(
   return {
     portalHost,
     pageRef: page.pageRef,
+    // The SAME target the ledger check builds, from the plan as transported.
+    // `StoredFillValue.text` and `textOf` are the same string by construction,
+    // so the two sides cannot disagree about what this page holds.
+    pageVersion: pageFillTarget({
+      pageRef: page.pageRef,
+      values: instructions.map((instruction) => ({
+        fieldRef: instruction.fieldRef,
+        text: instruction.value.text,
+      })),
+    }).slice(page.pageRef.length + 1),
     carries: {
       plan: toWirePlan({ ...transported.plan, instructions }),
       formUrl: at,

@@ -66,6 +66,7 @@ import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aa
 import { parseClaimedWork, parseConversationRun } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
 import { createConversationApp } from "./app.js";
@@ -350,6 +351,35 @@ async function captureAuthorisation(
       authorisedAt: NOW,
     },
   ]);
+}
+
+/**
+ * The CONTENT target for a gated-portal page (ADR-0051 §6).
+ *
+ * Module level, so the two groups that write page intents share one
+ * derivation: an intent is keyed on the page AND what it holds, and a test
+ * that assembled the key differently would be recording a save of content the
+ * run does not have.
+ */
+async function targetForPage(page: string, forStudent: string = studentId_): Promise<string> {
+  const instance = buildInstance(connectionString());
+  try {
+    const usable = checkUsable(GATED_ENTRY.mappingSet, GATED_ENTRY.blueprint);
+    if (!usable.usable) expect.unreachable("the gated mapping set is reviewed");
+    const profile = await new PostgresConfirmedProfileStore(instance.pool).load(forStudent, NOW);
+    const plan = planFill(GATED_ENTRY.blueprint, usable.mappingSet, profile);
+    const found = GATED_ENTRY.blueprint.pages.find((candidate) => candidate.pageRef === page);
+    if (found === undefined) expect.unreachable(`no page ${page}`);
+    return pageFillTarget({
+      pageRef: page,
+      values: pageValuesOf(
+        plan,
+        new Set(found.sections.flatMap((section) => section.fields.map((f) => f.fieldRef))),
+      ),
+    });
+  } finally {
+    await instance.pool.end();
+  }
 }
 
 /** The six answers the gated run needs before it can ask for a password. */
@@ -2117,10 +2147,19 @@ describeIfDatabase("which page a multi-page run does next", () => {
   }
 
   /** Records a page's `advance_portal_page` intent, exactly as `reportWork` does. */
+  /**
+   * The CONTENT target for a page, as the ledger now keys it (ADR-0051 §6).
+   *
+   * An intent is one per page VERSION, so a test that wrote `page-study` would
+   * record a save of content the run does not have and the page would be
+   * offered again — which is exactly the behaviour the change exists to
+   * produce, and exactly the wrong thing to assert here.
+   */
   async function recordPage(
     page: string,
     outcome: "succeeded" | "failed_cleanly" | null,
   ): Promise<void> {
+    const target = await targetForPage(page);
     const instance = buildInstance(connectionString());
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
@@ -2128,13 +2167,13 @@ describeIfDatabase("which page a multi-page run does next", () => {
       const key = idempotencyKeyFor({
         runId: runRef,
         action: "advance_portal_page",
-        target: page,
+        target,
       });
       if ((await runs.findIntent(runRef, key)) === null) {
         await runs.recordIntent(runRef, {
           idempotencyKey: key,
           action: "advance_portal_page",
-          target: page,
+          target,
           startedAt: NOW,
         });
       }
@@ -2222,7 +2261,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     // right answer, and it is a different answer from the uncertain case below.
     await pool.query("DELETE FROM work_leases");
     await pool.query(
-      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly' WHERE run_id = $1 AND target = 'page-study'",
+      "UPDATE workflow_action_intents SET outcome = 'failed_cleanly' WHERE run_id = $1 AND target LIKE 'page-study@%'",
       [runId],
     );
     // The checkpoint is a cache of position, and this test has just moved the
@@ -2352,7 +2391,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
     await pool.query(
-      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target = 'page-study'",
+      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target LIKE 'page-study@%'",
       [runId],
     );
     // The checkpoint is a cache of position, and this test has just moved the
@@ -2376,11 +2415,11 @@ describeIfDatabase("which page a multi-page run does next", () => {
     // be acting on a portal state nobody knows — so the whole run stops.
     await pool.query("DELETE FROM work_leases");
     await pool.query(
-      "UPDATE workflow_action_intents SET outcome = 'succeeded', completed_at = $2 WHERE run_id = $1 AND target = 'page-study'",
+      "UPDATE workflow_action_intents SET outcome = 'succeeded', completed_at = $2 WHERE run_id = $1 AND target LIKE 'page-study@%'",
       [runId, NOW],
     );
     await pool.query(
-      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target = 'page-application'",
+      "UPDATE workflow_action_intents SET outcome = NULL, completed_at = NULL WHERE run_id = $1 AND target LIKE 'page-application@%'",
       [runId],
     );
     // The checkpoint is a cache of position, and this test has just moved the
@@ -2469,6 +2508,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 
   /** Leaves a page's intent OPEN — started, never completed. The uncertainty. */
   async function leaveOpen(page: string): Promise<void> {
+    // The CONTENT target, as the ledger keys it since ADR-0051 §6. An intent
+    // written against a bare page ref would be an unfinished action for
+    // content this run does not have, which is not the uncertainty under test.
+    const target = await targetForPage(page);
     const instance = buildInstance(connectionString());
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
@@ -2477,10 +2520,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
         idempotencyKey: idempotencyKeyFor({
           runId: runRef,
           action: "advance_portal_page",
-          target: page,
+          target,
         }),
         action: "advance_portal_page",
-        target: page,
+        target,
         startedAt: NOW,
       });
     } finally {
@@ -2634,7 +2677,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 
     // The fact, in the one place that holds facts.
     const intent = await pool.query<{ outcome: string | null }>(
-      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target = 'page-application'",
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target LIKE 'page-application@%'",
       [runId],
     );
     expect(intent.rows[0]?.outcome).toBe("succeeded");
@@ -2710,7 +2753,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     // again now". `assessIntent` returns `already_done` for both outcomes and
     // has no verdict meaning retry; a fresh attempt is somebody's decision.
     const intent = await pool.query<{ outcome: string | null }>(
-      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target = 'page-study'",
+      "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND target LIKE 'page-study@%'",
       [runId],
     );
     expect(intent.rows[0]?.outcome).toBe("failed_cleanly");
@@ -3735,5 +3778,465 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
     } finally {
       await instance.pool.end();
     }
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// O. P13 — the student supplies a value (ADR-0051)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the interview loop, closed", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000C0";
+  let student = "";
+
+  async function events(): Promise<{ kind: string; field: string | null; content: string | null }[]> {
+    const rows = await pool.query<{ kind: string; field: string | null; content: string | null }>(
+      `SELECT e.kind, e.field_key AS field, b.content
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  /** What the student says, through the real message path's hook. */
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p13', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      student,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      // NOTHING is seeded. That is the point: every other group in this file
+      // writes the profile from the test process because no production path
+      // could, and this one proves there is one now.
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step, "nothing is known yet").toBe("interview");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("writes NOTHING when it could not read the answer at all", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // A student who says "I don't know" has not supplied a value, and the log
+    // must not pretend otherwise. No proposal, no profile entry — the next
+    // decide re-asks, rephrased, with the attempt count `composeQuestion` can
+    // see. This is also the branch that documents an honest limitation: an
+    // unreadable answer leaves no event, so it does NOT count towards
+    // `MAX_ATTEMPTS_PER_FIELD` (ADR-0051 §2).
+    // ═══════════════════════════════════════════════════════════════════
+    await say("I don't know");
+
+    const log = await events();
+    expect(
+      log.filter((event) => event.kind !== "message"),
+      "nothing structured was written",
+    ).toHaveLength(0);
+    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
+      student,
+    ]);
+    expect(stored.rowCount, "and nothing reached the profile").toBe(0);
+  }, 300_000);
+
+  it("puts what it understood back to the student, deterministically", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The reading does NOT enter the profile. It becomes a pending proposal
+    // and a playback, and the playback is rendered from the structured value —
+    // never paraphrased by a model, or the student would agree to one thing
+    // and another would be stored (ADR-0015, ADR-0051 §2).
+    // ═══════════════════════════════════════════════════════════════════
+    // The FIRST field the gated blueprint needs, as `requiredFieldsFor`
+    // derives it from the blueprint and the reviewed mapping set. Answering a
+    // different one would prove nothing: the interview asks one thing at a
+    // time and this is the thing it asked.
+    await say("niloofar@example.test");
+
+    const log = await events();
+    const proposed = log.filter((event) => event.kind === "value_proposed");
+    expect(proposed, "one reading, put once").toHaveLength(1);
+    expect(proposed[0]?.field).toBe("contact.email");
+
+    const playback = log.filter((event) => event.kind === "message" && event.content !== null);
+    expect(playback.at(-1)?.content, "the playback names the value").toContain(
+      "niloofar@example.test",
+    );
+
+    // And nothing is confirmed yet.
+    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
+      student,
+    ]);
+    expect(stored.rowCount, "a reading is not a confirmation").toBe(0);
+  }, 300_000);
+
+  it("REFUSES a confirmation whose hash is not the playback they were shown", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const runs = await new PostgresWorkflowRunStore(instance.pool).findByCase(
+        makeCaseId(`case_${conversation.toLowerCase()}`),
+      );
+      const refused = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId: runs[0]?.runId ?? "",
+        decision: { kind: "confirm_value", contentHash: "sha256:not-what-they-read" },
+      });
+      expect(refused).toEqual({ ok: false, reason: "content_changed" });
+    } finally {
+      await instance.pool.end();
+    }
+    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
+      student,
+    ]);
+    expect(stored.rowCount, "and nothing was written").toBe(0);
+  }, 300_000);
+
+  it("writes the value through the sanctioned path when they agree", async () => {
+    const log = await events();
+    const playback = log.filter((event) => event.kind === "message" && event.content !== null);
+    const shown = playback.at(-1)?.content ?? "";
+    const hash = `sha256:${createHash("sha256").update(shown).digest("hex")}`;
+
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const runs = await new PostgresWorkflowRunStore(instance.pool).findByCase(
+        makeCaseId(`case_${conversation.toLowerCase()}`),
+      );
+      const done = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId: runs[0]?.runId ?? "",
+        decision: { kind: "confirm_value", contentHash: hash },
+      });
+      expect(done).toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    // ── In the profile, with the provenance that made it confirmed ──────
+    const stored = await pool.query<{ field_key: string; provenance: unknown }>(
+      "SELECT field_key, provenance FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
+    expect(stored.rows.map((row) => row.field_key)).toEqual(["contact.email"]);
+    expect(stored.rows[0]?.provenance, "confirmed, not merely stored").not.toBeNull();
+
+    // ── And the exchange is closed on the log ───────────────────────────
+    const confirmed = (await events()).filter((event) => event.kind === "value_confirmed");
+    expect(confirmed).toHaveLength(1);
+    expect(confirmed[0]?.field).toBe("contact.email");
+  }, 300_000);
+
+  it("asks the NEXT question, because the first is answered", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const runs = await new PostgresWorkflowRunStore(instance.pool).findByCase(
+        makeCaseId(`case_${conversation.toLowerCase()}`),
+      );
+      const advanced = await instance.driver.advance({
+        runId: runs[0]?.runId ?? "",
+        conversationId: conversation,
+      });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "still interviewing, one field further on").toBe("interview");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("survives a restart with the pending reading intact", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `InterviewState` used to be `newInterview(…)` on every request, so
+    // `pending` was ALWAYS empty and a reading could not outlive the request
+    // that produced it. Derived from the log, it does — and a fresh process
+    // holding nothing reaches the same answer.
+    // ═══════════════════════════════════════════════════════════════════
+    // The next field in the same derived order. Its identity does not matter
+    // to this test — what matters is that the reading survives a process that
+    // holds nothing.
+    await say("Niloofar");
+    const before = (await events()).filter((event) => event.kind === "value_proposed");
+    expect(before, "a second reading is pending").toHaveLength(2);
+
+    const restarted = buildInstance(connectionString(), opener());
+    try {
+      // A brand-new instance, holding nothing. It must not re-ask, and it must
+      // not propose a second time.
+      const runs = await new PostgresWorkflowRunStore(restarted.pool).findByCase(
+        makeCaseId(`case_${conversation.toLowerCase()}`),
+      );
+      await restarted.driver.advance({
+        runId: runs[0]?.runId ?? "",
+        conversationId: conversation,
+      });
+    } finally {
+      await restarted.pool.end();
+    }
+    const after = (await events()).filter((event) => event.kind === "value_proposed");
+    expect(after, "the pending reading survived; nothing was re-proposed").toHaveLength(2);
+  }, 300_000);
+
+  it("treats what they say next as a CORRECTION, never as agreement", async () => {
+    // "no, it's Hosseinpour" is not a yes. It closes the reading and produces
+    // a new one — agreement only ever arrives on the decision route, with a
+    // hash (ADR-0051 §3).
+    const pendingBefore = (await events()).filter((event) => event.kind === "value_proposed");
+    const field = pendingBefore.at(-1)?.field ?? "";
+    expect(field, "there is a reading outstanding").not.toBe("");
+
+    await say("Niloofarah");
+
+    const log = await events();
+    const rejected = log.filter((event) => event.kind === "value_rejected");
+    expect(rejected, "the reading they did not agree to is closed").toHaveLength(1);
+    expect(rejected[0]?.field).toBe(field);
+
+    // A correction the student supplied IS confirmed — they gave the value
+    // themselves, so there is nothing left to put back to them.
+    const stored = await pool.query<{ field_key: string }>(
+      "SELECT field_key FROM profile_entries WHERE student_id = $1 ORDER BY field_key",
+      [student],
+    );
+    expect(
+      stored.rows.map((row) => row.field_key),
+      "a correction the student supplied is theirs, and is confirmed",
+    ).toContain(field);
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P. P13 — a correction after approval, and after filling (ADR-0051 §6, §7)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a correction the student makes late", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000D0";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+  /**
+   * This group's OWN student.
+   *
+   * A profile is per student and outlives a run. The mandatory-review group
+   * confirms a financial field onto the shared student, which holds every
+   * later case at PREPARING — and a case that never reaches the student
+   * cannot demonstrate anything about re-approving.
+   */
+  let mine = "";
+
+  async function caseEvents(): Promise<{ type: string; to: string | null }[]> {
+    const rows = await pool.query<{ type: string; to: string | null }>(
+      `SELECT event->>'type' AS type, event->>'to' AS to
+         FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+      [caseRef],
+    );
+    return rows.rows;
+  }
+
+  /** The run, standing at the authorisation with its account created. */
+  async function toTheAuthorisation(): Promise<void> {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p13-late', true) RETURNING id",
+    );
+    mine = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      conversation,
+      mine,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), mine);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"e".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("authorise");
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function authorise(): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const hash = await instance.driver.previewHashFor(runId, conversation);
+      const done = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: hash ?? "" },
+      });
+      expect(done, "approved").toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("VOIDS the approval and puts the case back when the content changes", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The deadlock ADR-0051 §7 fixes. `capture_authorisation` refuses unless
+    // the case is in AWAITING_STUDENT_AUTHORISATION, and the spine walks
+    // FORWARD ONLY — so before this, a student who corrected anything after
+    // approving could never approve again. 404, permanently.
+    //
+    // The spine is not relaxed. Invalidation is a separate, deliberate act,
+    // and `void_authorisation` — which the domain has always had and nothing
+    // performed — is what carries it.
+    // ═══════════════════════════════════════════════════════════════════
+    await toTheAuthorisation();
+    await authorise();
+
+    expect(
+      (await caseEvents()).some((event) => event.type === "CaseStateChanged" && event.to === "AUTHORISED"),
+      "approved, and the case moved with it",
+    ).toBe(true);
+
+    // The student corrects a confirmed answer. The preview hash changes with it.
+    const changing = buildInstance(connectionString(), opener());
+    try {
+      await confirmInto(
+        new PostgresConfirmedProfileStore(changing.pool),
+        "identity.given_name",
+        "Niloofarah",
+        "Niloofarah",
+        mine,
+      );
+      const after = await changing.driver.advance({ runId, conversationId: conversation });
+      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      expect(after.position.step, "asked again, because it is different content").toBe("authorise");
+    } finally {
+      await changing.pool.end();
+    }
+
+    const log = await caseEvents();
+    expect(
+      log.some((event) => event.type === "AuthorisationVoided"),
+      "the approval that no longer covers anything is voided",
+    ).toBe(true);
+    expect(
+      log.filter((event) => event.type === "CaseStateChanged").at(-1)?.to,
+      "and the case is back where the student can be asked",
+    ).toBe("AWAITING_STUDENT_AUTHORISATION");
+  }, 300_000);
+
+  it("lets the student approve the CORRECTED application", async () => {
+    // The whole point. Before ADR-0051 §7 this was a permanent 404.
+    await authorise();
+    const log = await caseEvents();
+    expect(
+      log.filter((event) => event.type === "AuthorisationCaptured"),
+      "approved twice: once for each version they were shown",
+    ).toHaveLength(2);
+    expect(log.filter((event) => event.type === "CaseStateChanged").at(-1)?.to).toBe("AUTHORISED");
+  }, 300_000);
+
+  it("offers a filled page AGAIN when its content changed", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0051 §6, amending ADR-0047 §1. An intent is one per page VERSION.
+    // With one per PAGE, the ledger could say a page was saved and not what
+    // was saved — so a corrected value would never be typed and the run would
+    // answer `ready_to_submit` anyway. The student would be told their
+    // application was ready with the correction missing from it.
+    // ═══════════════════════════════════════════════════════════════════
+    const filled = await targetForPage("page-application", mine);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({
+        runId: runRef,
+        action: "advance_portal_page",
+        target: filled,
+      });
+      await runs.recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "advance_portal_page",
+        target: filled,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, key, "succeeded", NOW);
+    } finally {
+      await instance.pool.end();
+    }
+
+    // That page is done, for THIS content.
+    const now = await targetForPage("page-application", mine);
+    expect(now, "nothing changed yet").toBe(filled);
+
+    // The student corrects something on it. The page's target changes with it,
+    // so the ledger holds no successful intent for what the page must now say.
+    const changing = buildInstance(connectionString(), opener());
+    try {
+      await confirmInto(
+        new PostgresConfirmedProfileStore(changing.pool),
+        "identity.given_name",
+        "Niloofarina",
+        "Niloofarina",
+        mine,
+      );
+    } finally {
+      await changing.pool.end();
+    }
+
+    const after = await targetForPage("page-application", mine);
+    expect(after, "a different page version").not.toBe(filled);
+
+    const stale = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM workflow_action_intents WHERE run_id = $1 AND target = $2",
+      [runId, after],
+    );
+    expect(
+      stale.rows[0]?.n,
+      "and NOTHING says the corrected content was ever written to the portal",
+    ).toBe("0");
   }, 300_000);
 });

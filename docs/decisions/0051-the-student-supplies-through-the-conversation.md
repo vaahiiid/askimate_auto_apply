@@ -1,7 +1,6 @@
 # ADR-0051 — The student answers in the conversation, and a correction can reach the portal
 
-**Status:** **Proposed** — drafted 2026-09-01, revised the same day after Vahid settled five open
-points. Not to be acted on until approved. ·
+**Status:** **Accepted** — Vahid, 2026-09-01, after settling five open points on the draft ·
 **Amends:** [ADR-0047](./0047-page-progress-lives-in-the-intent-ledger.md) §1 ·
 **Narrows:** [ADR-0015](./0015-interview-is-a-capability-of-askimate-chat.md) ·
 **Defers:** [ADR-0001](./0001-integration-via-https-api-and-signed-webhooks.md) ·

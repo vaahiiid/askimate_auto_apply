@@ -48,6 +48,15 @@ export interface WorkLease {
    * the right intent without re-deriving the plan.
    */
   readonly pageRef?: string;
+  /**
+   * The CONTENT version of that page, when the work is a fill (ADR-0051 §6).
+   *
+   * Beside the page rather than folded into it: `pageRef` means "which page",
+   * and the intent's target is rebuilt from the pair. 0007 already gave the
+   * reason it cannot be re-derived at report time, and named this case — "a
+   * plan that had changed in between — a corrected answer …".
+   */
+  readonly pageVersion?: string;
   readonly claimedAt: Date;
   readonly expiresAt: Date;
 }
@@ -121,20 +130,23 @@ export class WorkLeaseStore {
     readonly kind: WorkKind;
     readonly holder: string;
     readonly pageRef?: string;
+    readonly pageVersion?: string;
     readonly now: Date;
     readonly leaseSeconds: number;
   }): Promise<WorkLease | null> {
     const expiresAt = new Date(input.now.getTime() + input.leaseSeconds * 1000);
     const rows = await this.#pool.query<{ claimed_at: Date; expires_at: Date }>(
-      `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_ref)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_ref,
+                                page_version)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (run_id) DO UPDATE
               SET lease_id = EXCLUDED.lease_id,
                   kind = EXCLUDED.kind,
                   holder = EXCLUDED.holder,
                   claimed_at = EXCLUDED.claimed_at,
                   expires_at = EXCLUDED.expires_at,
-                  page_ref = EXCLUDED.page_ref
+                  page_ref = EXCLUDED.page_ref,
+                  page_version = EXCLUDED.page_version
             WHERE work_leases.expires_at <= $5
         RETURNING claimed_at, expires_at`,
       [
@@ -145,6 +157,7 @@ export class WorkLeaseStore {
         input.now,
         expiresAt,
         input.pageRef ?? null,
+        input.pageVersion ?? null,
       ],
     );
     const row = rows.rows[0];
@@ -167,10 +180,11 @@ export class WorkLeaseStore {
       kind: string;
       holder: string;
       page_ref: string | null;
+      page_version: string | null;
       claimed_at: Date;
       expires_at: Date;
     }>(
-      `SELECT lease_id, kind, holder, page_ref, claimed_at, expires_at
+      `SELECT lease_id, kind, holder, page_ref, page_version, claimed_at, expires_at
          FROM work_leases WHERE run_id = $1 AND expires_at > $2`,
       [runId, now],
     );
@@ -182,6 +196,7 @@ export class WorkLeaseStore {
       kind: row.kind as WorkKind,
       holder: row.holder,
       ...(row.page_ref === null ? {} : { pageRef: row.page_ref }),
+      ...(row.page_version === null ? {} : { pageVersion: row.page_version }),
       claimedAt: row.claimed_at,
       expiresAt: row.expires_at,
     };

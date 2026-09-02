@@ -554,19 +554,64 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
         ],
       };
 
-    case "void_authorisation":
+    case "void_authorisation": {
       if (applicationCase.authorisedContentHash === undefined) {
         return {
           accepted: false,
           refusal: { kind: "invalid_intent", detail: "There is no authorisation to void." },
         };
       }
+      const voided: CaseEventPayload = {
+        type: "AuthorisationVoided",
+        previousContentHash: applicationCase.authorisedContentHash,
+        reason: intent.reason,
+      };
+
+      // ── The counterpart to capture, and why it moves the case ─────────
+      //
+      // ═══════════════════════════════════════════════════════════════════
+      // `capture_authorisation` emits the approval AND the transition to
+      // AUTHORISED in one decided act. Voiding is its mirror: the approval is
+      // gone, so the case is no longer authorised, and leaving it in
+      // AUTHORISED would mean a case that claims an approval its own log says
+      // was voided.
+      //
+      // This is also the ONLY way back. `nextCaseHop` walks the spine forward
+      // only (ADR-0049 §1) and must keep doing so — a healthy case does not go
+      // backwards. Invalidation is not a healthy case going backwards; it is a
+      // separate, deliberate act, which ADR-0049 §1 named and nothing
+      // performed until ADR-0051.
+      // ═══════════════════════════════════════════════════════════════════
+      //
+      // Through `checkTransition`, so every guard runs on the way back — the
+      // mandatory-review guard included. A correction that introduces
+      // financial evidence, or that reveals a minor, is reviewed again before
+      // the student can be asked. That is the difference between this and any
+      // shortcut that let `capture_authorisation` accept from AUTHORISED.
+      if (applicationCase.state !== "AUTHORISED") {
+        return { accepted: true, events: [voided] };
+      }
+      const back = checkTransition(
+        applicationCase.state,
+        "AWAITING_STUDENT_AUTHORISATION",
+        guardContextOf(applicationCase),
+      );
+      if (!back.permitted) {
+        return { accepted: false, refusal: { kind: "transition_refused", refusal: back.refusal } };
+      }
       return {
         accepted: true,
         events: [
-          { type: "AuthorisationVoided", previousContentHash: applicationCase.authorisedContentHash, reason: intent.reason },
+          voided,
+          {
+            type: "CaseStateChanged",
+            from: applicationCase.state,
+            to: "AWAITING_STUDENT_AUTHORISATION",
+            reason: `The approved content changed (${intent.reason}); the authorisation no longer covers it.`,
+          },
         ],
       };
+    }
 
     case "attempt_submission": {
       // ── The duplicate-submission guard ───────────────────────────────

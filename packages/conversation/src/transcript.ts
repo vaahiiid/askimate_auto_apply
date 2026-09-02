@@ -81,6 +81,17 @@ export function renderKey(position: Position): string {
 }
 
 export type TranscriptItem =
+  /**
+   * An event that is real, ordered and durable — and that the student reads
+   * nothing of.
+   *
+   * The interview's proposal exchange (ADR-0051) is the first: what the student
+   * reads is the playback MESSAGE beside it, and rendering the structured
+   * record too would show one reading twice. `nothing` rather than dropping the
+   * event, because the ordinal is real and a consumer counting positions must
+   * still see it.
+   */
+  | { readonly render: "nothing"; readonly position: Position }
   | {
       readonly render: "message";
       readonly position: Position;
@@ -126,6 +137,16 @@ export type TranscriptItem =
  */
 export function projectEvent(event: UnpositionedEvent, position: Position): TranscriptItem {
   switch (event.kind) {
+    // ── The interview's proposal exchange renders as NOTHING ───────────
+    //
+    // ADR-0051. What the student reads is the playback MESSAGE, which is an
+    // ordinary message event beside these. The proposal is the structured
+    // record that makes their confirmation applicable; rendering it too would
+    // show the same reading twice, once in prose and once as data.
+    case "value_proposed":
+    case "value_confirmed":
+    case "value_rejected":
+      return { render: "nothing", position };
     case "message":
       return { render: "message", position, actor: event.actor, content: event.content };
     case "secret_requested":

@@ -44,6 +44,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import type { ConversationEvent, Ordinal, RejectionReason } from "@askimate/aas-contracts";
+import { PROPOSAL_EVENT_KINDS, SECURE_EVENT_KINDS } from "@askimate/aas-contracts";
 
 /** PostgreSQL's unique-violation SQLSTATE. */
 const UNIQUE_VIOLATION = "23505";
@@ -64,7 +65,18 @@ export type AppendableEvent =
   | { readonly kind: "secret_consumed" | "secret_expired" | "secret_cancelled";
       readonly requestId: string }
   | { readonly kind: "secret_rejected"; readonly requestId: string;
-      readonly reason: RejectionReason };
+      readonly reason: RejectionReason }
+  // ── The interview's proposal exchange (ADR-0051) ──────────────────────
+  //
+  // Appended by the SERVICE, never by a client: no route parses one, and
+  // `parseSecureAppend` has no branch for it. What a student sends is a
+  // message, or a decision on the decision route — both of which the service
+  // turns into these.
+  | { readonly kind: "value_proposed"; readonly fieldKey: string;
+      readonly proposal: unknown; readonly playbackHash: string }
+  | { readonly kind: "value_confirmed"; readonly fieldKey: string;
+      readonly playbackHash: string }
+  | { readonly kind: "value_rejected"; readonly fieldKey: string };
 
 /**
  * COMPILE-TIME: nothing appendable may name its own position.
@@ -104,6 +116,20 @@ export class IdempotencyConflictError extends Error {
         "result would hide the difference rather than surface it.",
     );
   }
+}
+
+/** True for a secure request's lifecycle events. Explicit, never a complement. */
+function isSecureEvent(
+  event: AppendableEvent,
+): event is Extract<AppendableEvent, { kind: (typeof SECURE_EVENT_KINDS)[number] }> {
+  return (SECURE_EVENT_KINDS as readonly string[]).includes(event.kind);
+}
+
+/** True for the interview's proposal exchange (ADR-0051). */
+function isProposalEvent(
+  event: AppendableEvent,
+): event is Extract<AppendableEvent, { kind: (typeof PROPOSAL_EVENT_KINDS)[number] }> {
+  return (PROPOSAL_EVENT_KINDS as readonly string[]).includes(event.kind);
 }
 
 function rowToEvent(row: Record<string, unknown>): ConversationEvent {
@@ -151,12 +177,34 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
     case "secret_expired":
     case "secret_cancelled":
       return { kind, ordinal, createdAt, requestId: requestId ?? "" };
+
+    // ── The interview's proposal exchange (ADR-0051) ────────────────────
+    case "value_proposed":
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        proposal: row["proposal"],
+        playbackHash: row["playback_hash"] as string,
+      };
+    case "value_confirmed":
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        playbackHash: row["playback_hash"] as string,
+      };
+    case "value_rejected":
+      return { kind, ordinal, createdAt, fieldKey: row["field_key"] as string };
   }
 }
 
 const SELECT_EVENT = `
   SELECT e.ordinal, e.created_at, e.kind, e.actor, e.request_id, e.handle,
-         e.reason_code, e.channel, e.expires_at, b.content, b.redacted_at
+         e.reason_code, e.channel, e.expires_at, e.field_key, e.proposal,
+         e.playback_hash, b.content, b.redacted_at
     FROM conversation_events e
     LEFT JOIN message_bodies b ON b.id = e.body_id
 `;
@@ -277,21 +325,29 @@ export class ConversationEventStore {
     const written = await client.query(
       `INSERT INTO conversation_events
          (conversation_id, ordinal, kind, actor, body_id, request_id, handle,
-          reason_code, channel, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          reason_code, channel, expires_at, field_key, proposal, playback_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
        RETURNING ordinal, created_at, kind, actor, request_id, handle, reason_code,
-                 channel, expires_at`,
+                 channel, expires_at, field_key, proposal, playback_hash`,
       [
         conversationId,
         ordinal,
         event.kind,
         event.kind === "message" ? event.actor : null,
         bodyId,
-        event.kind === "message" ? null : event.requestId,
+        // A secure event names its request; a message and a proposal never do.
+        // The CHECK in migration 0008 enforces the same partition, so a caller
+        // that got this wrong is refused by the database rather than trusted.
+        isSecureEvent(event) ? event.requestId : null,
         event.kind === "secret_received" ? event.handle : null,
         event.kind === "secret_rejected" ? event.reason : null,
         event.kind === "secret_requested" ? event.channel : null,
         event.kind === "secret_requested" ? event.expiresAt : null,
+        isProposalEvent(event) ? event.fieldKey : null,
+        event.kind === "value_proposed" ? JSON.stringify(event.proposal) : null,
+        event.kind === "value_proposed" || event.kind === "value_confirmed"
+          ? event.playbackHash
+          : null,
       ],
     );
 

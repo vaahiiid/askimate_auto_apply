@@ -144,6 +144,14 @@ export function ChatView(props: ChatViewProps): JSX.Element {
         */}
         {state.items.map((item) => {
           switch (item.render) {
+            // ── Real, ordered, and nothing to read ──────────────────────
+            //
+            // The interview's proposal exchange (ADR-0051). The student reads
+            // the playback message beside it; the structured record is what
+            // makes their confirmation applicable, and showing it too would
+            // render one reading twice.
+            case "nothing":
+              return null;
             case "message":
               return (
                 <div key={renderKey(item.position)} className={`turn ${item.actor}`} data-testid="turn">

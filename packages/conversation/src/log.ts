@@ -46,6 +46,7 @@
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
+import { PROPOSAL_EVENT_KINDS } from "@askimate/aas-contracts";
 
 import { openSecretRequest } from "./openness.js";
 import type { TranscriptItem } from "./transcript.js";
@@ -78,14 +79,28 @@ export const EMPTY_LOG: ConversationLog = { durable: [], provisional: [] };
  * event retire the provisional one without the client tracking a correlation id
  * through an endpoint that has no field for one.
  */
+/** True for the interview's own proposal exchange (ADR-0051). */
+function isProposalEvent(
+  event: UnpositionedEvent,
+): event is Extract<UnpositionedEvent, { kind: (typeof PROPOSAL_EVENT_KINDS)[number] }> {
+  return (PROPOSAL_EVENT_KINDS as readonly string[]).includes(event.kind);
+}
+
 export function describesSame(a: UnpositionedEvent, b: UnpositionedEvent): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "message") {
     return b.kind === "message" && a.actor === b.actor && a.content === b.content;
   }
-  // Narrowed by the two lines above: `a` is a secure event, and `b` shares its
+  // A value-proposal exchange is never provisional: the client does not
+  // propose readings, the SERVICE does, so there is no optimistic copy to
+  // retire against a durable one (ADR-0051). Answering `false` says exactly
+  // that — two proposals are never "the same pending item" for the purpose of
+  // replacing one with the other.
+  if (isProposalEvent(a)) return false;
+
+  // Narrowed by the lines above: `a` is a secure event, and `b` shares its
   // kind. Re-testing `b` would be a cast wearing a guard's clothes.
-  return b.kind !== "message" && a.requestId === b.requestId;
+  return !isProposalEvent(b) && b.kind !== "message" && a.requestId === b.requestId;
 }
 
 function unposition(event: ConversationEvent): UnpositionedEvent {

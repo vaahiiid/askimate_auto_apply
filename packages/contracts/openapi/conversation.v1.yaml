@@ -622,6 +622,9 @@ components:
         - { $ref: "#/components/schemas/SecretReceivedEvent" }
         - { $ref: "#/components/schemas/SecretSettledEvent" }
         - { $ref: "#/components/schemas/SecretRejectedEvent" }
+        - { $ref: "#/components/schemas/ValueProposedEvent" }
+        - { $ref: "#/components/schemas/ValueConfirmedEvent" }
+        - { $ref: "#/components/schemas/ValueRejectedEvent" }
       discriminator:
         propertyName: kind
         mapping:
@@ -632,6 +635,62 @@ components:
           secret_expired: "#/components/schemas/SecretSettledEvent"
           secret_cancelled: "#/components/schemas/SecretSettledEvent"
           secret_rejected: "#/components/schemas/SecretRejectedEvent"
+          value_proposed: "#/components/schemas/ValueProposedEvent"
+          value_confirmed: "#/components/schemas/ValueConfirmedEvent"
+          value_rejected: "#/components/schemas/ValueRejectedEvent"
+
+    ValueProposedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey, proposal, playbackHash]
+      description: >
+        A reading the agent understood from what the student said, and the
+        deterministic playback it was shown as (ADR-0051).
+
+        NOT a fact about the application. It is a fact about the conversation —
+        this is what we understood and this is what we showed you — and it
+        becomes a fact about the application only when the student agrees, at
+        which point it lives in the confirmed profile.
+      properties:
+        kind: { type: string, enum: [value_proposed] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+        proposal:
+          description: >
+            The structured reading. Its shape belongs to the profile package and
+            is deliberately not described here: this document is the wire
+            contract, and a second description of a type would be a second
+            place for it to drift.
+        playbackHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+
+    ValueConfirmedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey, playbackHash]
+      description: >
+        The student agreed to exactly the reading `playbackHash` names. The
+        value itself is in the confirmed profile; nothing about it is repeated
+        here.
+      properties:
+        kind: { type: string, enum: [value_confirmed] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+        playbackHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+
+    ValueRejectedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey]
+      description: >
+        The student did not agree. The exchange closes without writing
+        anything; what they say next is a fresh answer.
+      properties:
+        kind: { type: string, enum: [value_rejected] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
 
     MessageEvent:
       type: object

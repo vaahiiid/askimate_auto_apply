@@ -442,6 +442,69 @@ describe("decide — authorisation", () => {
       }
     }
   });
+
+  // ── Voiding is the counterpart to capture, not a flag ──────────────────
+  //
+  // `capture_authorisation` emits the approval AND the move to AUTHORISED. If
+  // voiding emitted only the void, the case would sit in AUTHORISED claiming an
+  // approval its own log says is gone, and `capture_authorisation` — which only
+  // accepts from AWAITING_STUDENT_AUTHORISATION — could never be asked again.
+  // That deadlock is what ADR-0051 §7 exists to fix.
+  it("PUTS THE CASE BACK, so the student can be asked again", () => {
+    const decision = decide(authorisedCase(), { kind: "void_authorisation", reason: "content_changed" });
+
+    expect(decision.accepted).toBe(true);
+    if (!decision.accepted) return;
+    expect(decision.events.map((event) => event.type)).toEqual([
+      "AuthorisationVoided",
+      "CaseStateChanged",
+    ]);
+    const [, moved] = decision.events;
+    if (moved?.type === "CaseStateChanged") {
+      expect(moved.from).toBe("AUTHORISED");
+      expect(moved.to).toBe("AWAITING_STUDENT_AUTHORISATION");
+    }
+  });
+
+  // ── The guards must not become decorative ──────────────────────────────
+  //
+  // The whole point of routing the way back through `checkTransition`. A
+  // correction that raises a mandatory trigger — financial evidence, a minor —
+  // must be reviewed again BEFORE the student is asked to approve the corrected
+  // content. A shortcut that let the case slide back to
+  // AWAITING_STUDENT_AUTHORISATION without the gate would skip that review,
+  // which is exactly the check ADR-0002 §2.5 makes unconditional.
+  it("REFUSES to put the case back while a mandatory review is outstanding", () => {
+    const raised = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "Gathering requirements." },
+        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "Requirements resolved." },
+        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "Eligible." },
+        { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "Filling." },
+        { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "Rendered for review." },
+        {
+          type: "AuthorisationCaptured",
+          contentHash: "sha256:content-v1",
+          hashAlgorithm: "sha256",
+          authorisedAt: new Date("2026-08-26T11:00:00Z"),
+        },
+        { type: "CaseStateChanged", from: "AWAITING_STUDENT_AUTHORISATION", to: "AUTHORISED", reason: "Student authorised." },
+        // The correction brought financial evidence into the application.
+        { type: "HumanReviewRequested", triggers: ["financial_evidence"], mandatory: true },
+      ]),
+    );
+
+    const decision = decide(raised, { kind: "void_authorisation", reason: "content_changed" });
+
+    expect(decision.accepted).toBe(false);
+    if (!decision.accepted) {
+      expect(decision.refusal.kind).toBe("transition_refused");
+      if (decision.refusal.kind === "transition_refused") {
+        expect(decision.refusal.refusal.kind).toBe("mandatory_review_outstanding");
+      }
+    }
+  });
 });
 
 describe("decide — tasks", () => {

@@ -28,6 +28,7 @@ import type { ConversationEvent, ProblemCode } from "@askimate/aas-contracts";
 import {
   PROBLEM_STATUS,
   PROBLEM_TITLES,
+  isSecureEventKind,
   SSE_HEARTBEAT_LINE,
   SSE_RESPONSE_HEADERS,
   parseLastEventId,
@@ -103,6 +104,18 @@ export interface RunCoordinator {
     readonly runId: string;
     readonly report: WorkReport;
   }): Promise<boolean>;
+  /**
+   * Interviews the student in answer to their message. ADR-0051.
+   *
+   * Returns nothing and refuses nothing: a message that is not an answer to an
+   * outstanding question is an ordinary message, and the route has already
+   * durably placed it. This is the capability the conversation calls, not a
+   * second surface it goes through.
+   */
+  answerStudent(input: {
+    readonly conversationId: string;
+    readonly event: ConversationEvent;
+  }): Promise<void>;
   /** Records a decision only the student can make. ADR-0049. */
   recordDecision(input: {
     readonly conversationId: string;
@@ -747,10 +760,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           // client-generated key, because the secure service has no reason to
           // invent one and the transition is already unique.
           // `event` is narrowed to the secure kinds by `parseSecureAppend`,
-          // but TypeScript keeps the whole union here — and `message` has no
-          // `requestId`. Reading it off a narrowed local rather than casting:
-          // a cast would also silence a genuine mistake later.
-          const requestId = event.kind === "message" ? null : event.requestId;
+          // but TypeScript keeps the whole union here. Asked through
+          // `isSecureEventKind` rather than as "not a message": that
+          // complement was correct only while every non-message kind was a
+          // secure one, and ADR-0051 added three that are not.
+          const requestId = isSecureEventKind(event.kind) && "requestId" in event
+            ? event.requestId
+            : null;
           const already =
             requestId === null
               ? undefined

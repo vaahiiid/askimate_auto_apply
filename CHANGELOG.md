@@ -19,6 +19,64 @@ not shipped artefacts.
 
 ---
 
+## [0.31.0] — 2026-09-02
+
+**P13 — the student supplies through the conversation. ADR-0051.**
+
+The loop that was never closed. `applyConfirmation` and
+`ConfirmedProfileStore.save` had no production caller: the orchestrator composed
+interview questions and the run driver threw them away, rebuilding
+`newInterview(…)` on every request so that `pending` and `attempts` were always
+empty. Every green test seeded the profile from the test process. No real
+student could put one field into this system.
+
+### Added
+
+- **The interview runs through the existing message path.** `RunDriver.answerStudent`
+  fills the `answer` hook on `POST /v1/conversations/{id}/messages`. There is no
+  second student-facing surface, and ADR-0051 §1 forbids one.
+- **Three conversation-log event kinds** — `value_proposed`, `value_confirmed`,
+  `value_rejected` — so a pending reading survives the request that created it,
+  and a restart. `value_proposed` is the one non-message event that may carry a
+  structured value, and the migration says why in full.
+- **`open_value_proposals`**, a view beside `open_secret_requests`: "which
+  proposal is open" is a rule about the log, and a rule written in the
+  application is a rule each caller can get subtly wrong.
+- **`confirm_value`** joins the closed `StudentDecision` set. A confirmation is
+  a decision carrying the hash of the playback the student read — never a parsed
+  "yes".
+- **`work_leases.page_version`**, so a lease names the page *version* it holds.
+
+### Changed
+
+- **`void_authorisation` is now the mirror of `capture_authorisation`.** It emits
+  `AuthorisationVoided` **and** the move back to `AWAITING_STUDENT_AUTHORISATION`,
+  **through `checkTransition`** — so the mandatory-review guard re-fires and a
+  correction that introduces financial evidence, or reveals a minor, is reviewed
+  again before the student is asked. `#withAuthorisationIfCaptured` had consumed
+  `AuthorisationVoided` since the domain was written and nothing produced one:
+  the same reader-with-no-writer shape `HandoffRequired` had before P12.
+  The forward-only spine (ADR-0049 §1) is **not** relaxed.
+- **`advance_portal_page` intents are content-aware.** A target is
+  `page-ref@sha256:…`, so the ledger answers "was the *corrected* value
+  written?" — which ADR-0047 §1 named and could not answer. `pageOf()` strips
+  the version for anything a person reads.
+- **`SECURE_EVENT_KINDS` is an explicit list**, not `EVENT_KINDS.filter(k => k !== "message")`.
+  The complement stopped being true the moment a third family of kinds existed;
+  `isSecureEventKind()` is now the one predicate.
+
+### Not built, deliberately
+
+- **Document intake and any upload surface.** Blocked on the retention schedule,
+  not deferred by preference: `pnpm run retention-status` reports 0 policies and
+  12 unresolved questions under an **UNAPPROVED** governing version, and
+  `requirePolicy` throws. Inventing a period to unblock it is the worst
+  available outcome. ADR-0051 §8.
+- **Tasks.** The model, intents and guards stay defined and uncalled. Nothing
+  was removed.
+
+---
+
 ## [0.30.0] — 2026-09-01
 
 **P12 — the account lifecycle completes through the student's own decision, and

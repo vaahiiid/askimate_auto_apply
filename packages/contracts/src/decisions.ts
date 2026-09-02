@@ -41,11 +41,20 @@
  *
  * It also means `mfa`, `otp`, `captcha` and `payment` need no new member when
  * their turn comes. They are already reachable.
+ *
+ * ── `confirm_value` follows the same rule, one level down ────────────────
+ *
+ * ADR-0051. The student agrees to a READING the agent understood from what
+ * they said, and the hash names the deterministic playback they were shown.
+ * What was read, and which field it was about, come from the open proposal on
+ * the conversation log — never from the client, for the same reason: a client
+ * that could name the field could confirm a date of birth the student never
+ * gave.
  */
 
 import { closedSetParser } from "./vocabulary.js";
 
-export const STUDENT_DECISIONS = ["authorise", "confirm_handoff"] as const;
+export const STUDENT_DECISIONS = ["authorise", "confirm_handoff", "confirm_value"] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
 export const parseStudentDecisionKind = closedSetParser(STUDENT_DECISIONS);

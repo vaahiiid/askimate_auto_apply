@@ -56,6 +56,17 @@ export function buildModelRequest(input: {
 
   for (const event of input.events) {
     switch (event.kind) {
+      // ── The proposal exchange is NOT history the model gets ───────────
+      //
+      // ADR-0051. The playback the student read is an ordinary assistant
+      // message and reaches the model as one. The structured record beside it
+      // would be the same reading a second time, in a shape the model would
+      // try to explain — and `value_proposed` carries the confirmed-value
+      // candidate itself, which has no business in a prompt.
+      case "value_proposed":
+      case "value_confirmed":
+      case "value_rejected":
+        break;
       case "message": {
         // A redacted body is not "an empty message" — it is a message whose
         // text no longer exists. Sending the model a blank turn would put a

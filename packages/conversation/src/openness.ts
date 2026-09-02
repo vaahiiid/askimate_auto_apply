@@ -39,6 +39,13 @@ export function openSecretRequest(events: readonly UnpositionedEvent[]): string 
   let open: string | null = null;
   for (const event of events) {
     switch (event.kind) {
+      // A value proposal is not a secure step and must not settle or open one
+      // (ADR-0051). Named rather than defaulted: a `default:` here would make
+      // the next kind added settle a live secure request by accident.
+      case "value_proposed":
+      case "value_confirmed":
+      case "value_rejected":
+        break;
       case "secret_requested":
         open = event.requestId;
         break;
@@ -100,6 +107,10 @@ export function latestSecretRequest(events: readonly UnpositionedEvent[]): {
 
   for (const event of events) {
     switch (event.kind) {
+      case "value_proposed":
+      case "value_confirmed":
+      case "value_rejected":
+        break;
       case "secret_requested":
         // A new request supersedes the last. Its handle does not carry over:
         // a handle belongs to the request it was minted for.

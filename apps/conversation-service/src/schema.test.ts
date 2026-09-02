@@ -98,6 +98,8 @@ beforeAll(async () => {
     "0005_work_leases",
     "0006_execute_work",
     "0007_lease_page",
+    "0008_value_proposals",
+    "0009_lease_page_version",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -206,6 +208,24 @@ describeIfDatabase("the database refuses a word it does not know", () => {
         );
         continue;
       }
+      // ── The interview's proposal exchange (ADR-0051) ────────────────
+      //
+      // Not a secure event: it names no request, and migration 0008 rewrote
+      // `secure_events_name_a_request` from "everything that is not a message"
+      // to an explicit list precisely so this row is legal and a secure event
+      // still cannot be written without one.
+      if (kind === "value_proposed" || kind === "value_confirmed" || kind === "value_rejected") {
+        const proposal = kind === "value_proposed" ? { value: "x" } : null;
+        const playback =
+          kind === "value_rejected" ? null : `sha256:${"a".repeat(64)}`;
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, field_key, proposal, playback_hash)
+           VALUES ($1, $2, $3, 'identity.given_name', $4::jsonb, $5)`,
+          [conversation, ordinal, kind, proposal === null ? null : JSON.stringify(proposal), playback],
+        );
+        continue;
+      }
       const columns: Record<string, unknown> = { request_id: requestId };
       if (kind === "secret_requested") {
         columns["channel"] = "secure_control";
@@ -226,6 +246,75 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       [conversation],
     );
     expect(Number(written.rows[0]!.n)).toBe(SCHEMA_EVENT_KINDS.length);
+  });
+
+  // ── The proposal exchange's own rules (ADR-0051, migration 0008) ───────
+  //
+  // Written as refusals rather than as a comment on the migration, because a
+  // CHECK nothing ever violates in a test is a CHECK that can be loosened
+  // without anything noticing. Each of these three was loosened deliberately
+  // and only these tests failed.
+
+  it("refuses a confirmation that carries a value of its own", async () => {
+    // What was agreed is the proposal the hash names. A confirmation carrying
+    // its own value would be a second place the agreed value lives, able to
+    // disagree with the proposal the student actually read.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T50");
+    await refuses(
+      `INSERT INTO conversation_events
+         (conversation_id, ordinal, kind, field_key, proposal, playback_hash)
+       VALUES ($1, 1, 'value_confirmed', 'identity.given_name', '{"value":"x"}'::jsonb, $2)`,
+      [conversation, `sha256:${"a".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "only_a_proposal_carries_a_value" },
+    );
+  });
+
+  it("refuses a proposal with no value at all", async () => {
+    // The other half: the constraint is an equivalence, so it must also refuse
+    // a proposal that proposes nothing.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T51");
+    await refuses(
+      `INSERT INTO conversation_events
+         (conversation_id, ordinal, kind, field_key, playback_hash)
+       VALUES ($1, 1, 'value_proposed', 'identity.given_name', $2)`,
+      [conversation, `sha256:${"a".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "only_a_proposal_carries_a_value" },
+    );
+  });
+
+  it("refuses a proposal exchange that names no field", async () => {
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T52");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind)
+       VALUES ($1, 1, 'value_rejected')`,
+      [conversation],
+      { code: CHECK_VIOLATION, constraint: "a_proposal_exchange_names_a_field" },
+    );
+  });
+
+  it("refuses a MESSAGE that names a field", async () => {
+    // The equivalence again, from the other side: `field_key` belongs to the
+    // exchange and to nothing else.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T53");
+    const body = await newBody("hello");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, actor, body_id, field_key)
+       VALUES ($1, 1, 'message', 'student', $2, 'identity.given_name')`,
+      [conversation, body],
+      { code: CHECK_VIOLATION, constraint: "a_proposal_exchange_names_a_field" },
+    );
+  });
+
+  it("refuses a rejection that carries a playback hash", async () => {
+    // A rejection answers a playback but is not itself one. The hash pairs a
+    // proposal with the confirmation that agreed to it.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T54");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, playback_hash)
+       VALUES ($1, 1, 'value_rejected', 'identity.given_name', $2)`,
+      [conversation, `sha256:${"a".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "a_playback_hash_belongs_to_the_exchange" },
+    );
   });
 
   it("refuses an actor outside the closed set, and matches the contract", async () => {
@@ -667,6 +756,18 @@ describeIfDatabase("a lease names a page only when it is holding one", () => {
     ).rejects.toThrow(/work_leases_only_fill_names_a_page/);
   });
 
+  it("refuses a page VERSION on a lease that names no page", async () => {
+    // ADR-0051 §6. A content hash with no page is a claim about content on no
+    // page at all, and the target is rebuilt from the pair.
+    await expect(
+      pool.query(
+        `INSERT INTO work_leases (run_id, lease_id, kind, holder, claimed_at, expires_at, page_version)
+              VALUES ($1, 'wl_v', 'create_account', 'runner', now(), now() + interval '2 minutes', $2)`,
+        [run, `sha256:${"a".repeat(64)}`],
+      ),
+    ).rejects.toThrow(/work_leases_a_version_belongs_to_a_page/);
+  });
+
   it("accepts a fill lease that names one, and an account lease that does not", async () => {
     // Both halves, so the constraint is shown to admit what it should as well
     // as refuse what it should — a rule that refuses everything passes the test
@@ -702,6 +803,8 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0005_work_leases",
         "0006_execute_work",
         "0007_lease_page",
+        "0008_value_proposals",
+        "0009_lease_page_version",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -740,6 +843,8 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0005_work_leases",
       "0006_execute_work",
       "0007_lease_page",
+      "0008_value_proposals",
+      "0009_lease_page_version",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.
