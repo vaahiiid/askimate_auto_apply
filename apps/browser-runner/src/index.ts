@@ -90,6 +90,15 @@ export type {
 } from "./work-intake.js";
 export { httpWorkIntake, runOneTurn } from "./work-intake.js";
 
+// ── The loop `runOneTurn` never had (ADR-0052 §12, ADR-0045) ──────────────
+
+export type { RunnerSupervisorOptions, RunningSupervisor } from "./supervisor.js";
+export {
+  DEFAULT_BUSY_MS,
+  DEFAULT_IDLE_MS,
+  startRunnerSupervisor,
+} from "./supervisor.js";
+
 // ── P6: the first consequential action, on somebody else's website ────────
 export type { CreateAccountDeps } from "./create-account.js";
 export { createPortalAccount } from "./create-account.js";

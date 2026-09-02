@@ -19,6 +19,54 @@ not shipped artefacts.
 
 ---
 
+## [0.34.0] — 2026-09-02
+
+**P16 — the Automation Runner's supervisor.**
+
+`runOneTurn` had been complete since P5 and nothing had ever looped it. It was
+the last of the six pieces of machinery ADR-0052 listed as having no production
+caller, and the only one P14 deliberately left alone — looping it from the
+worker would have put conversation-plane credentials in the process that drives
+a browser, the exact widening ADR-0042 exists to prevent. **No new ADR:**
+ADR-0052 §12 settles where the loop goes and ADR-0045 settles how it works.
+
+### Added
+
+- `apps/browser-runner/src/supervisor.ts` — `startRunnerSupervisor`, a serial
+  loop around `runOneTurn`. One turn at a time; prompt (`DEFAULT_BUSY_MS`,
+  250ms) after work and patient (`DEFAULT_IDLE_MS`, 5s) after nothing; a `stop`
+  that **awaits** the turn in flight, because abandoning a browser mid-portal-
+  action is the situation `assessIntent` refuses to retry. It holds no opinion
+  about what may be worked on — every stop condition is enforced on the other
+  side of the intake and inherited by performing only what it is handed.
+- `apps/browser-runner/src/supervisor.test.ts` — 14 tests, against a controlled
+  intake. Two of them exist because a deliberate regression survived: a refused
+  report must not send the runner back at the busy interval, and a supervisor
+  stopped *while busy* must schedule nothing when its turn finishes.
+- `scripts/runner-supervisor.test.ts` — the integration proof, against a real
+  Conversation Service and a real PostgreSQL over real HTTP: a run advances with
+  no client connected; two competing runners polling every 15ms yield one 200,
+  many 204s and exactly one browser; a dead runner's lease lapses, an heir
+  recovers the run, and the corpse's later report is refused while the heir
+  still holds the lease; and a cancelled case reaches no browser at all.
+- `docs/p16-regression-audit.md` — twelve mutations, nine caught first time,
+  three survivors each written up and now tested.
+
+### Known limitation — open, and named
+
+`RunDriver.reportWork` writes the `workflow_action_intents` row **on report**,
+so a runner killed mid-`create_account` leaves no record that anything was
+attempted: the lease lapses, the run returns to the pool, and the next runner
+may create a second account in the student's name. ADR-0045 §4 claims this is
+detectable; `performOnce` in `packages/orchestrator/src/consequential.ts`
+implements the safe ordering (*"the intent is durable BEFORE the action"*) and
+has no production caller. P16 makes the window live by making the runner a
+long-lived process. Nothing is deployed, so nothing is at risk today — and this
+must not be deployed while it is open. Options and a recommendation are in
+`docs/p16-regression-audit.md` §4; the decision is Vahid's.
+
+---
+
 ## [0.33.0] — 2026-09-02
 
 **P15 — a student can stop. ADR-0053.**

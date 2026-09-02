@@ -91,6 +91,12 @@ const DATABASE_BACKED = [
   // Four planes, two databases, a real browser and a real portal. Nothing else
   // in the repository crosses all of them at once.
   "scripts/journey.test.ts",
+  // P16: the runner supervisor against a real plane — competing runners,
+  // duplicate polling, a lease that lapses under a dead runner, and a report
+  // refused because somebody else now holds the run. Every one of those is a
+  // property of `ON CONFLICT … WHERE expires_at <= now` resolving two racing
+  // claimants, which is PostgreSQL's to decide and not a fake's.
+  "scripts/runner-supervisor.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

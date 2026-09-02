@@ -27,6 +27,12 @@
 #                            password into the Secure Plane, and a runner creates
 #                            their account on a real portal. Nothing else in the
 #                            repository crosses all of them at once.
+#   scripts/runner-supervisor — P16. Two real runner supervisors against one
+#                            real Conversation Service: competing claims,
+#                            duplicate polling, a lease lapsing under a dead
+#                            runner, and a report refused because somebody else
+#                            now holds the run. All four are decided by
+#                            PostgreSQL, which is why a fake proves none of them.
 #   packages/case-store    — optimistic concurrency and duplicate-submission
 #                            prevention. Both are enforced by CONSTRAINTS
 #                            (PRIMARY KEY), so a fake would be re-implementing
@@ -39,7 +45,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts
   exit $?
 fi
 
@@ -91,4 +97,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts

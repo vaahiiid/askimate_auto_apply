@@ -318,7 +318,7 @@ six pieces of complete, tested machinery had no production caller at all:
 | `settle(…, "secret_expired")` | never called with that argument |
 | `interventions.announced_at` — *"the next pass will tell them"* | there was no next pass |
 | `secret_requests_expiring` — an index commented *"expiry sweeps"* | there was no sweep |
-| `runOneTurn` | nothing loops it — **still true**, see below |
+| `runOneTurn` | nothing loops it — **still true here; closed by P16** |
 
 Three real failures followed. A student's composer stayed shut for ever,
 because the secure service enqueued a lifecycle transition and nothing drained
@@ -368,7 +368,8 @@ Everything in the earlier lists still holds, with these corrections:
 - **The Automation Runner still has no supervisor.** `runOneTurn` runs one turn
   and nothing loops it. Looping it from the worker would put conversation-plane
   credentials in the process that drives a browser, which is the widening
-  ADR-0042 exists to prevent. It is its own smaller piece of work.
+  ADR-0042 exists to prevent. It is its own smaller piece of work. *(Closed by
+  P16: the loop lives in the runner.)*
 - **A permanently-failed outbox row still holds one student's composer shut.**
   It is recorded with `last_error` and surfaced within the secure plane, but it
   is not raised as an intervention — `interventions` is a conversation-plane
@@ -478,3 +479,75 @@ The **runner supervisor** — `runOneTurn` still has no loop. It was deliberatel
 sequenced *after* this phase: building it first would have opened a window of
 autonomous consequential action with no way to close it. That window can now be
 closed, so the ordering argument is discharged.
+
+---
+
+# Where we are — 2026-09-02 (later still)
+
+**Version:** `0.34.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**The runner loops, and the last of ADR-0052's unreached machinery has a
+caller.**
+
+`runOneTurn` had been complete since P5 and nothing had ever looped it. It was
+the sixth row of the table above, and the only one P14 deliberately left alone:
+looping it from the worker would have put conversation-plane credentials in the
+process that drives a browser, which is the widening ADR-0042 exists to prevent.
+So the loop lives in the runner, where ADR-0052 §12 put it.
+
+**No new ADR.** ADR-0052 §12 settles where it goes and ADR-0045 settles how it
+works — *"the runner PULLS leased work; nothing calls into it"* — with the cost
+already accepted: *"Latency is a poll interval rather than a push."*
+
+## What P16 delivered
+
+| | |
+|---|---|
+| **`startRunnerSupervisor`** | A serial loop around `runOneTurn`. One turn at a time, prompt (250ms) after work and patient (5s) after nothing, and a `stop` that **waits** for a browser mid-action. |
+| **No opinions** | It holds no view about what may be worked on. Every stop condition — a cancelled case, an `uncertain` or `escalated` run, a run somebody else holds, an action that may already have happened — is enforced on the other side of the intake, and the loop inherits all of them by performing only what it is handed. |
+| **An integration proof** | `scripts/runner-supervisor.test.ts`: two real supervisors, real `httpWorkIntake`, a real Conversation Service and a real PostgreSQL. |
+
+## What the integration proof actually asserts
+
+- **A run advances with no client connected.** After the seed, nothing calls
+  `advance`, nothing POSTs `/runs`, and there is no session cookie. The only
+  requests on the wire are the runner's own claim and report.
+- **Two runners, one unit of work.** Both poll every 15ms while a 150ms
+  performer holds the lease: **one 200, many 204s, one browser opened.**
+- **A runner dies holding the work.** Its lease is aged, an heir picks the run
+  up, and when the corpse wakes and reports against the lease it no longer holds
+  the report is **refused** — while the heir is still working, so the lease-id
+  comparison is the only thing standing between them.
+- **A stopped case reaches no browser.** A control proves the run *was* in the
+  pool; `cancel_case` commits; the same loop, unchanged and untold, is handed
+  nothing from that moment.
+
+## Known limitations — what changed, and what did not
+
+- **The intent is written on report, not on claim, and a killed runner leaves
+  no trace.** This is the finding of the phase and it is **open**. A runner
+  killed mid-`create_account` records nothing, so the work returns to the pool
+  and the next runner may create a second account in the student's name.
+  ADR-0045 §4 claims the opposite property; `performOnce`
+  (`packages/orchestrator/src/consequential.ts`) implements the safe ordering
+  and has no production caller. Options, and a recommendation, are in
+  [`p16-regression-audit.md` §4](./p16-regression-audit.md). **It is not
+  dangerous in this repository — there is still no deployment — and it must not
+  be deployed while it is open.**
+- **Concurrency is one turn per runner, deliberately.** How many browsers may
+  drive one university's portal at once is not an engineering detail, and
+  nothing has asked for throughput yet.
+- Everything else from the P14 and P15 lists still holds: no alerting
+  transport, no deployment infrastructure, documents blocked on retention, and
+  the learning loop still open.
+
+## What is next, on the evidence
+
+**The intent ordering**, if Vahid takes option A — it is small, the machinery
+exists, and it closes the one gap this phase opened onto. After that the
+honest candidates are unchanged: deployment infrastructure (there is still no
+Dockerfile, no IaC and no service entry point anywhere), the alerting transport
+(needs a vendor decision), and the learning loop (needs real interventions to
+learn from).
