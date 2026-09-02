@@ -72,6 +72,6 @@ ADR status uses exactly that vocabulary:
 | [0048](./0048-a-specialist-resolution-completes-an-intent.md) | A specialist resolution completes an intent; the operator CLI is only its first interface | Accepted |
 | [0049](./0049-the-run-driver-drives-the-case-machine.md) | The run driver drives the case state machine, and a student's authorisation is captured through it | Accepted |
 | [0050](./0050-the-account-lifecycle-completes-through-the-students-own-decision.md) | The account lifecycle completes through the student's own decision, and a case can finally conclude | Accepted |
-| [0051](./0051-the-student-supplies-through-the-conversation.md) | The student supplies everything through the conversation, and a correction can be re-authorised | **Proposed** |
+| [0051](./0051-the-student-supplies-through-the-conversation.md) | The student answers in the conversation, and a correction can reach the portal | **Proposed** |
 
 Forty-six are **Accepted** and one is **Proposed** — a proposed ADR is a draft for a decision, not a decision, and nothing may be built on it until it is accepted. ADR-0013 supersedes the gate design in ADR-0011. Reversing any accepted one requires a new ADR that supersedes it.
