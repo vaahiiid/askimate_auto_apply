@@ -710,3 +710,77 @@ through the session, the SSE stream and the secure-plane bootstrap) and **a
 production catalogue** (where reviewed blueprints live, and a validated parse
 that cannot mint an artefact nobody reviewed). Either is a phase. After them,
 packaging and infrastructure can consume this foundation.
+
+---
+
+# Where we are — 2026-09-03 (P19)
+
+## What P19 delivered
+
+**The verified-email guard that ADR-0038 described and nothing implemented.**
+
+`students.email_verified` existed from migration `0001`. Its comment said a
+secure step required it. ADR-0038 said so too. The column was written `true` by
+test fixtures and read by **nothing** — so the one place in this system where a
+student types a password had no verification gate on it, and two accepted
+documents said it had one. That is what P19 fixes, and finding it is what
+reordered the roadmap in the first place.
+
+- **ADR-0056** — verification is established at authenticated login from a
+  signature-verified ID token, persisted server-side, and enforced from that
+  persisted state. Deliberately **not** a live provider re-read at each step:
+  that would mean holding a provider access token in the conversation plane for
+  no other purpose. ADR-0038 carries an explicit amendment saying so, and
+  migration `0011` rewrites the column comment that claimed otherwise.
+- **`packages/oidc`** — Authorization Code + PKCE (S256) behind a port that
+  returns identity **facts** and never a token. Every endpoint comes from the
+  provider's discovery document; no Cognito URL template is written down.
+- **Four outcomes, one of which opens a step.** `verified`, `unverified`,
+  `no_email`, `no_verification_claim`. All four still sign the student **in** —
+  they are authenticated, and refusing them a session would leave them unable to
+  reach the conversation that explains why a secure step is closed. The secure
+  step is what refuses, with `email_not_verified` (403).
+
+## The finding of the phase
+
+The adapter's first version read `email` and `email_verified` from the ID token
+alone. OIDC Core §5.4 returns a scope's claims from the **UserInfo endpoint**
+when an access token was issued, so against a certified provider it reported
+`no_email` for **every student, verified ones included**. Cognito does the other
+legitimate thing and puts them in the ID token — so this would have been
+invisible in production and total against anything else.
+
+Worse: the four "expects false" tests all passed while it was broken. They were
+right for the wrong reason. Only the *verified* case failing exposed it. The
+suite now runs **two** provider shapes and one case where the two sources
+disagree, because the ID-token block alone would still pass against an adapter
+that read UserInfo only.
+
+## Standing limitations — what changed, and what did not
+
+- **Chromium/browser resource contention is still UNRESOLVED.** Unchanged from
+  P18, and repeated because it stays true: the P17 fix raised polls to 30s, and
+  three green runs are not evidence that the underlying contention is gone. They
+  are evidence that a longer timeout hides it.
+- **A student who verifies their address later must sign in again.** Accepted,
+  not a defect: it is the direct consequence of ADR-0056's choice, and it is
+  stated in the ADR rather than left for someone to discover.
+- **One deliberate regression (R5) is not reachable.** The UserInfo response is
+  bound to the ID token's subject, and no conforming provider can be made to
+  break that binding — `oidc-provider` forces `sub` after the account's claims.
+  The check is correct and kept; it is untested, and saying so is better than a
+  test that passes for an unrelated reason. See `docs/p19-regression-audit.md`.
+- Everything from the P14–P18 lists still holds: no alerting transport, the
+  learning loop still open, documents blocked on retention, and P17's accepted
+  cost — a crashed runner raises a specialist intervention.
+
+## What is next, on the evidence
+
+Identity is no longer a blocker. **A production catalogue** is the one that
+remains: where reviewed blueprints live, and a validated parse that cannot mint
+an artefact nobody reviewed. After it, packaging and infrastructure can consume
+this foundation.
+
+Identity itself is deliberately *narrow* rather than finished — MFA policy,
+specialist identity and guest conversations were all left out of P19 by
+agreement, and each is a phase of its own when it is wanted.

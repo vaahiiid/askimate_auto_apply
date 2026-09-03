@@ -102,6 +102,13 @@ const DATABASE_BACKED = [
   // its last group needs a real Redis, so a run without either would report
   // green over the proof that the accepted topology works.
   "scripts/p18-startup.test.ts",
+  // P19: signing in against a REAL OpenID Provider on loopback, in two
+  // standard shapes — claims from UserInfo, and claims in the ID token — and
+  // what each of the four verification outcomes persists. It writes and reads
+  // `students.email_verified`, which is the value the secure step's guard
+  // consults, so a run without a database would report green over the proof
+  // that a student who never verified an address cannot reach a password.
+  "scripts/p19-identity.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

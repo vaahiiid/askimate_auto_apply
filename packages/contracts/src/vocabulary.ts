@@ -174,6 +174,11 @@ export const PROBLEM_CODES = [
   "intervention_already_resolved",
   "content_changed",
   "secret_request_open",
+  // ADR-0056. The student is authenticated and their email address is not
+  // verified, so a secure step is refused. Its own code rather than a generic
+  // `forbidden` because it is the one refusal here the STUDENT can clear
+  // themselves, and a client that cannot tell it apart cannot say how.
+  "email_not_verified",
   "rate_limited",
   "internal_error",
   "service_unavailable",

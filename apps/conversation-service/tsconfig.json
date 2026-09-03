@@ -50,5 +50,5 @@
     {
       "path": "../../packages/config"
     }
-  ]
+  , { "path": "../../packages/oidc" }]
 }

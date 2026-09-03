@@ -110,3 +110,9 @@ export type { CatalogueSource, ConversationConfig } from "./config.js";
 export { MIN_SESSION_SECRET, conversationConfigFrom } from "./config.js";
 export type { DriverWiring } from "./wiring.js";
 export { buildRunDriver, conversationStore, fixtureCatalogue } from "./wiring.js";
+
+// ── P19 / ADR-0056: identity ──────────────────────────────────────────────
+export type { AuthRoutesOptions } from "./auth-routes.js";
+export { LOGIN_COOKIE, createAuthRoutes } from "./auth-routes.js";
+export type { ResolvedStudent } from "./identity-store.js";
+export { StudentIdentityStore } from "./identity-store.js";

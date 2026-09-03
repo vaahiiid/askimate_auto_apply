@@ -22,6 +22,7 @@
     { "path": "./packages/secure-logging" },
     { "path": "./packages/browser-fill" },
     { "path": "./packages/migrate" },
+    { "path": "./packages/oidc" },
     { "path": "./packages/conversation" },
     { "path": "./apps/conversation-service" },
     { "path": "./apps/secure-service" },

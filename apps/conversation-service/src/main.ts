@@ -23,9 +23,12 @@ import { installShutdown, reportStartupFailure, type Log } from "@askimate/aas-c
 import { migrateExclusive, pendingMigrations } from "@askimate/aas-migrate";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 
+import { discoverAdapter } from "@askimate/aas-oidc";
+
 import { createConversationApp } from "./app.js";
 import { conversationConfigFrom, type ConversationConfig } from "./config.js";
 import { MIGRATIONS_DIR } from "./index.js";
+import { StudentIdentityStore } from "./identity-store.js";
 import { httpSecureRequestOpener } from "./secure-requests.js";
 import { buildRunDriver, conversationStore, fixtureCatalogue } from "./wiring.js";
 
@@ -93,11 +96,47 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       baseUrl: config.secureInternalUrl,
       serviceToken: config.secureServiceToken,
     });
+    const identities = new StudentIdentityStore(pool);
     const driver = buildRunDriver(
-      // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
-      { pool, catalogue: fixtureCatalogue(), secureRequests, now: () => new Date() },
+      {
+        pool,
+        catalogue: fixtureCatalogue(),
+        secureRequests,
+        identities,
+        // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+        now: () => new Date(),
+      },
       store,
     );
+
+    // ── The provider, reached at STARTUP ─────────────────────────────────
+    //
+    // Its discovery document is fetched here, so a provider that cannot be
+    // reached is a process that refuses to start rather than a student meeting
+    // a 500 on the sign-in button (ADR-0055). Every endpoint comes from that
+    // document; nothing in this repository writes a Cognito URL down.
+    const auth =
+      config.oidc === undefined
+        ? undefined
+        : {
+            adapter: await discoverAdapter({
+              issuer: config.oidc.issuer,
+              clientId: config.oidc.clientId,
+              clientSecret: config.oidc.clientSecret,
+              redirectUri: config.oidc.redirectUri,
+              allowInsecureHttp: config.oidc.allowInsecureHttp,
+            }),
+            sessionSecret: config.sessionSecret,
+            resolve: async (claims: Parameters<StudentIdentityStore["resolve"]>[0]) =>
+              await identities.resolve(claims),
+            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+            now: (): Date => new Date(),
+            onFailure: (reason: string): void => {
+              // A WORD, never the error: a failed exchange can carry a
+              // provider error body, and this line reaches the log.
+              options.log(`sign-in failed: ${reason}`);
+            },
+          };
 
     const app = createConversationApp({
       store,
@@ -123,6 +162,7 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       runs: driver,
       secureRequests,
       secureOrigin: config.secureOrigin,
+      ...(auth === undefined ? {} : { auth }),
       ...(config.publicDir === undefined ? {} : { publicDir: config.publicDir }),
       // PROVISIONAL and refused in production by `conversationConfigFrom`.
       ...(config.devSession
@@ -138,7 +178,8 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     });
     options.log(
       `conversation service listening on ${String(config.port)} ` +
-        `(catalogue=${config.catalogue}, dev-session=${String(config.devSession)})`,
+        `(catalogue=${config.catalogue}, dev-session=${String(config.devSession)}, ` +
+        `identity=${config.oidc === undefined ? "none" : "oidc"})`,
     );
 
     const close = async (): Promise<void> => {

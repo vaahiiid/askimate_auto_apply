@@ -40,6 +40,33 @@ Concretely:
 - Email verification state is read from the provider and re-checked server-side at every secure step,
   never trusted from a client claim.
 
+> ### ⚠️ Amended by [ADR-0056](./0056-verification-is-established-at-login.md), 2026-09-03
+>
+> **The bullet above overstated what this system does, and when it was written nothing implemented
+> any of it.** Measured on `7519c30`: `students.email_verified` was written `true` only by test
+> fixtures and read by nothing, and `#openSecureStep` checked no property of the student at all.
+> There was no guard.
+>
+> **What P19 built, and what this bullet now means:**
+>
+> `email_verified` is taken from the **ID token returned by the server-side code exchange**, whose
+> signature is verified against the provider's JWKS. It is persisted to `students.email_verified`,
+> and **every secure step reads that persisted server-side state.** The "never trusted from a client
+> claim" half is exactly true and is enforced: the browser's only role is carrying a redirect.
+>
+> **The "re-checked at every secure step" half is deliberately NOT a live provider lookup.** Vahid,
+> 2026-09-03: *"I do not want provider access tokens stored in the conversation plane simply to
+> re-check `email_verified` at every secure step."* A live re-read requires holding and refreshing a
+> provider access token per student — new long-lived sensitive state in the plane that holds student
+> identity, for one boolean. It was weighed and declined.
+>
+> **The consequence, stated plainly:** verification is as fresh as the student's last sign-in. A
+> student who verifies their email afterwards must sign in again before a secure step will open, and
+> is told so. The error direction is refusal.
+>
+> This was a choice, not an approximation. Changing it back means deciding about token storage in a
+> new ADR, not editing this line.
+
 ## Recommendation on vendor
 
 **Amazon Cognito**, on the grounds that it is in the account and region already established by

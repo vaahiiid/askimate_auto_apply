@@ -19,6 +19,70 @@ not shipped artefacts.
 
 ---
 
+## [0.37.0] — 2026-09-03
+
+**P19 — verification is established at login. ADR-0056.**
+
+ADR-0038 said a secure step required a verified email address. The
+`students.email_verified` column said so too, in its own comment. Neither was
+true: the column was written `true` only by test fixtures and read by nothing at
+all, and the one place in this system where a student types a password had no
+verification gate on it. The investigation that opened this phase found it by
+looking for readers of a column everybody assumed was load-bearing.
+
+The guard now exists, and the architecture says what the system actually
+guarantees rather than what it once intended.
+
+### The decision, and what was deliberately not chosen
+
+Verification is taken from a **signature-verified provider response at
+authenticated login**, persisted server-side, and read from that persisted state
+at every secure step. It is **not** a live provider lookup on each step, which
+would mean holding a provider access token in the conversation plane for no other
+purpose. A student who verifies their address after signing in must sign in again
+before this system recognises it. ADR-0038 carries an explicit amendment saying
+so, and migration `0011` rewrites the column comment that claimed otherwise.
+
+### Four outcomes, and only one of them opens a step
+
+`verified` | `unverified` | `no_email` | `no_verification_claim` — a closed set,
+because an optional boolean has a fourth state nobody handles and it is the
+dangerous one. Only `verified` opens a secure step; absence is never consent. A
+non-boolean `email_verified` (the string `"true"`, say) is `no_verification_claim`
+and refuses, because deciding a security question by string coercion is not a
+decision.
+
+### Added
+
+- `packages/oidc` — Authorization Code + PKCE (S256) behind a port that returns
+  identity **facts** and never a token. Every endpoint comes from the provider's
+  discovery document; no Cognito URL template is written down anywhere.
+- `apps/conversation-service` — `GET /auth/login` and `GET /auth/callback`, a
+  `StudentIdentityStore` that upserts on the provider's `sub`, and the
+  `email_not_verified` refusal on `#openSecureStep`. All four outcomes still sign
+  the student **in**; the secure step is what refuses.
+- `scripts/p19-identity.test.ts` — 20 tests against a real certified OpenID
+  Provider on loopback, in **both** standard claim shapes.
+
+### Fixed
+
+- The adapter read `email` and `email_verified` from the ID token alone. OIDC
+  Core §5.4 returns a scope's claims from the **UserInfo endpoint** when an
+  access token was issued, so against a conforming provider this reported
+  `no_email` for every student — verified ones included. Cognito puts them in the
+  ID token, so the defect would have been invisible in production and total
+  against anything else. The ID token is now authoritative and UserInfo fills
+  only what it did not carry; the two are proved against separate providers, and
+  against one case where they disagree.
+
+### Notes
+
+`docs/p19-regression-audit.md` — eleven mutations, ten caught. The eleventh is
+not reachable against any conforming provider and the test written to reach it
+was deleted rather than kept passing for the wrong reason.
+
+---
+
 ## [0.36.0] — 2026-09-03
 
 **P18 — a process refuses to start when it is not safe. ADR-0055.**

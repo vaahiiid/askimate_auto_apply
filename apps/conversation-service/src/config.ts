@@ -36,6 +36,16 @@ export interface ConversationConfig {
   readonly serviceCertSecure: string;
   readonly serviceCertRunner: string;
   readonly catalogue: CatalogueSource;
+  /** ADR-0038's provider. Absent means this deployment has no way to sign in. */
+  readonly oidc:
+    | {
+        readonly issuer: string;
+        readonly clientId: string;
+        readonly clientSecret: string;
+        readonly redirectUri: string;
+        readonly allowInsecureHttp: boolean;
+      }
+    | undefined;
   readonly publicDir: string | undefined;
   readonly devSession: boolean;
   readonly production: boolean;
@@ -76,6 +86,43 @@ export function conversationConfigFrom(
       );
     }
 
+    // ── Identity (ADR-0038) ────────────────────────────────────────────
+    //
+    // All four together or none: a half-configured provider is a login button
+    // that fails at the redirect rather than at startup. `issuer` is the only
+    // one that names Cognito, and only because a Cognito issuer URL contains
+    // the pool id — every endpoint is read from its discovery document.
+    const issuer = r.optionalUrl("AAS_OIDC_ISSUER", { httpsInProduction: true });
+    const clientId = r.optionalString("AAS_OIDC_CLIENT_ID");
+    const clientSecret = r.optionalString("AAS_OIDC_CLIENT_SECRET");
+    const redirectUri = r.optionalUrl("AAS_OIDC_REDIRECT_URI", { httpsInProduction: true });
+    const allowInsecureHttp = r.flag("AAS_OIDC_ALLOW_INSECURE_HTTP");
+    const supplied = [issuer, clientId, clientSecret, redirectUri].filter(
+      (value) => value !== undefined,
+    ).length;
+    if (supplied > 0 && supplied < 4) {
+      r.refuse(
+        "AAS_OIDC_ISSUER",
+        "identity needs AAS_OIDC_ISSUER, AAS_OIDC_CLIENT_ID, AAS_OIDC_CLIENT_SECRET and " +
+          "AAS_OIDC_REDIRECT_URI together. A partial configuration is a sign-in button that " +
+          "fails at the redirect instead of at startup.",
+      );
+    }
+    if (supplied === 0 && r.production) {
+      r.refuse(
+        "AAS_OIDC_ISSUER",
+        "is required in production. Without an identity provider there is no way for a student " +
+          "to sign in, and AAS_DEV_SESSION is refused here (ADR-0038).",
+      );
+    }
+    if (allowInsecureHttp && r.production) {
+      r.refuse(
+        "AAS_OIDC_ALLOW_INSECURE_HTTP",
+        "permits an http:// issuer and must never be set in production. It exists so the " +
+          "protocol tests can run against a real provider on loopback.",
+      );
+    }
+
     return {
       port: r.int("AAS_PORT", { min: 1, max: 65_535 }),
       databaseUrl: r.url("AAS_CONVERSATION_DATABASE_URL", { schemes: ["postgres:", "postgresql:"] }),
@@ -86,6 +133,13 @@ export function conversationConfigFrom(
       serviceCertSecure: r.string("AAS_SERVICE_CERT_SECURE"),
       serviceCertRunner: r.string("AAS_SERVICE_CERT_RUNNER"),
       catalogue,
+      oidc:
+        issuer !== undefined &&
+        clientId !== undefined &&
+        clientSecret !== undefined &&
+        redirectUri !== undefined
+          ? { issuer, clientId, clientSecret, redirectUri, allowInsecureHttp }
+          : undefined,
       publicDir: r.optionalString("AAS_PUBLIC_DIR"),
       devSession,
       production: r.production,

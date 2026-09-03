@@ -77,6 +77,7 @@ import {
   ConversationEventStore,
   PostgresConfirmedProfileStore,
   RunDriver,
+  StudentIdentityStore,
   WorkLeaseStore,
   createConversationApp,
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
@@ -331,6 +332,7 @@ beforeAll(async () => {
     profiles: new PostgresConfirmedProfileStore(pool),
     conversations: events,
     secureRequests,
+    identities: new StudentIdentityStore(pool),
     leases: new WorkLeaseStore(pool),
     interventions: new PostgresInterventionStore(pool),
     // A REAL clock. Every question in this file is about time — a lease that

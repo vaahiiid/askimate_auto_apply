@@ -74,6 +74,7 @@ import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
+import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
 import { WorkLeaseStore } from "./work-store.js";
 import { RunDriver, statusForVerdict } from "./run-driver.js";
@@ -216,6 +217,17 @@ function buildInstance(
   secureRequests: SecureRequestOpener | null = null,
   /** Overridden only where a test needs a differently-deployed blueprint. */
   catalogue: ApplicationCatalogue = CATALOGUE,
+  /**
+   * `"none"` builds a driver with no identity store at all; an object stands
+   * one in whose answer the test chooses.
+   *
+   * Only ADR-0056's guard tests use either. Everything else gets the real
+   * store, reading the real column.
+   */
+  identityStore:
+    | "wired"
+    | "none"
+    | { verificationOf(studentId: string): Promise<boolean | null> } = "wired",
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -238,6 +250,15 @@ function buildInstance(
     ...(secureRequests === null ? {} : { secureRequests }),
     // ADR-0045. Present in every instance, because the claim path answering
     // "nothing to do" and the claim path not existing must not look alike.
+    // ADR-0056's guard reads from here. The fixtures insert students with
+    // `email_verified = true`, so an ordinary test is unaffected — and a driver
+    // built WITHOUT this refuses every secure step, which is the point.
+    ...(identityStore === "none"
+      ? {}
+      : {
+          identities:
+            identityStore === "wired" ? new StudentIdentityStore(instancePool) : identityStore,
+        }),
     leases: new WorkLeaseStore(instancePool),
     // ADR-0048. Present in every instance for the same reason `leases` is: a
     // run that stops silently and a run that stops and says so must not be
@@ -1379,6 +1400,151 @@ describeIfDatabase("opening a secure step, and recording it authoritatively", ()
     }
   }, 120_000);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0056 — the verified-email guard on the one place a student types a
+  // password.
+  //
+  // These three run against the SAME student whose interview this group
+  // confirmed, because a run belonging to anyone else stops at `interview` and
+  // never reaches the password at all — the trap the `secure_plane_unavailable`
+  // test above records having fallen into. The column is flipped and restored
+  // rather than a second student introduced, so what differs between the
+  // refusal and the control is verification and nothing else.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** Sets the shared student's verification, and says what it was. */
+  async function setVerified(value: boolean): Promise<void> {
+    await pool.query("UPDATE students SET email_verified = $1 WHERE id = $2", [value, studentId_]);
+  }
+
+  it("REFUSES the secure step when the student's address is NOT verified", async () => {
+    const unverified = "01JBXQ8Z9WKTQ6M4H2NPC00066";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      unverified,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await setVerified(false);
+      const outcome = await instance.driver.start({
+        conversationId: unverified,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
+
+      // ── The assertions that make this a guard rather than a message ────
+      //
+      // The refusal above says what the driver ANSWERED. These say what it
+      // did: the Secure Plane was never asked to open a request, so no secure
+      // control was ever mintable for this student, and nothing was written to
+      // a log about a password nobody was asked for.
+      expect(secure.opens, "the Secure Plane is never asked").toHaveLength(0);
+      const events = await pool.query(
+        "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+        [unverified],
+      );
+      expect(events.rowCount, "nothing is logged for a step that did not open").toBe(0);
+      const moved = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events
+          WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
+        [`case_${unverified.toLowerCase()}`],
+      );
+      expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe("0");
+    } finally {
+      await setVerified(true);
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("asks the SAME student for a password once their address IS verified", async () => {
+    // The control. Without it the refusal above would pass just as well if
+    // this student could never reach a password for some unrelated reason —
+    // and a guard proved only by a failure is not proved at all.
+    const verified = "01JBXQ8Z9WKTQ6M4H2NPC00067";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      verified,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await setVerified(true);
+      const outcome = await instance.driver.start({
+        conversationId: verified,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!outcome.ok) expect.unreachable(`refused: ${outcome.refusal.kind}`);
+      expect(outcome.position.step).toBe("request_secret");
+      expect(secure.opens, "the same student, now asked").toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("REFUSES a student the identity store has never heard of", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `verificationOf` has THREE answers, not two: `true`, `false`, and
+    // `null` for a student this plane has no row for. The guard compares
+    // against `true` rather than against `false` precisely so the third one
+    // refuses — and only a store that actually answers `null` can tell the
+    // two spellings apart. The real store cannot be made to answer `null`
+    // here: the conversation's `student_id` is a foreign key, so a
+    // conversation whose student does not exist cannot be created.
+    // ═══════════════════════════════════════════════════════════════════
+    const unknown = "01JBXQ8Z9WKTQ6M4H2NPC00069";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      unknown,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure, CATALOGUE, {
+      verificationOf: () => Promise.resolve(null),
+    });
+    try {
+      await setVerified(true);
+      const outcome = await instance.driver.start({
+        conversationId: unknown,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
+      expect(secure.opens, "an unknown student is not a verified one").toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("REFUSES when the driver has no identity store at all", async () => {
+    // ADR-0056: a guard that disappears when its dependency is absent is not a
+    // guard. A deployment that forgot to wire identity must not be a
+    // deployment where every student is treated as verified — so the missing
+    // store is the refusal, and this asserts the direction of that default.
+    const unwired = "01JBXQ8Z9WKTQ6M4H2NPC00068";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      unwired,
+      studentId_,
+    ]);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure, CATALOGUE, "none");
+    try {
+      await setVerified(true);
+      const outcome = await instance.driver.start({
+        conversationId: unwired,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      // Verified in the database, and still refused: the store the guard reads
+      // is not there, and the guard does not fall open.
+      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
+      expect(secure.opens).toHaveLength(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
   it("REFUSES when the Secure Plane cannot open the request", async () => {
     const refusing: SecureRequestOpener = {
       open: () => Promise.resolve(null),
@@ -1748,6 +1914,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
         profiles: new PostgresConfirmedProfileStore(racedPool),
         conversations: new ConversationEventStore(racedPool),
         secureRequests: opener(),
+        identities: new StudentIdentityStore(racedPool),
         leases: new WorkLeaseStore(racedPool),
         interventions: new PostgresInterventionStore(racedPool),
         now: () => NOW,

@@ -29,6 +29,7 @@ import type { ConversationEvent } from "@askimate/aas-contracts";
 import type { ConversationEventStore } from "./event-store.js";
 import { createConversationRoutes, type ConversationRoutesOptions } from "./routes.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
+import { createAuthRoutes, type AuthRoutesOptions } from "./auth-routes.js";
 import { readSession, setSession } from "./session.js";
 
 export interface ConversationAppOptions {
@@ -78,6 +79,14 @@ export interface ConversationAppOptions {
    * left on by default.
    */
   readonly issueSessionFor?: (req: Request) => string | null;
+  /**
+   * Sign-in, when this deployment has an identity provider (ADR-0038).
+   *
+   * Optional so every existing test can build an app without one. A deployment
+   * WITHOUT it has no way for a student to sign in at all, which is why
+   * `conversationConfigFrom` requires it in production.
+   */
+  readonly auth?: AuthRoutesOptions;
 }
 
 export function createConversationApp(options: ConversationAppOptions): Express {
@@ -92,6 +101,12 @@ export function createConversationApp(options: ConversationAppOptions): Express 
   // Before the routes: the JSON body parser, with the same limit the contract
   // declares. `413` from here is the contract's `payload_too_large`.
   app.use(express.json({ limit: "64kb" }));
+
+  // Before the session-authenticated routes: signing in cannot require a
+  // session. Mounted only when configured.
+  if (options.auth !== undefined) {
+    app.use(createAuthRoutes(options.auth));
+  }
 
   if (options.issueSessionFor !== undefined) {
     app.post("/dev/session", (req: Request, res: Response): void => {

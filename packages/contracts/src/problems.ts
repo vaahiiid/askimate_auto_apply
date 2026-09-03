@@ -51,6 +51,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   intervention_already_resolved: "This intervention has already been adjudicated",
   content_changed: "The content changed since it was shown; it must be re-approved",
   secret_request_open: "A secure step is open on this conversation",
+  email_not_verified: "Verify your email address, then sign in again",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
   service_unavailable: "Service unavailable",
@@ -74,6 +75,11 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // student never saw.
   content_changed: 409,
   secret_request_open: 409,
+  // 403: authenticated, and not permitted to open this step yet. Its own code
+  // rather than a bare `forbidden` so a client can say what to do about it —
+  // and the title is the instruction, because this is the one refusal on this
+  // path a student can act on without anybody's help.
+  email_not_verified: 403,
   rate_limited: 429,
   internal_error: 500,
   service_unavailable: 503,
@@ -207,6 +213,12 @@ export function parseProblem(raw: unknown): Problem | null {
     // parse as one that carries none, and the field would go missing rather
     // than fail. The linter's exhaustiveness rule caught it. Listing every
     // member means adding one forces a decision at this switch.
+    //
+    // `email_not_verified` is among them deliberately. It carries NO extension
+    // members: WHY the address is unverified — not verified, no address, no
+    // claim — is not on the wire. The three are one refusal to the student and
+    // one instruction, and distinguishing them publicly would tell an
+    // unauthenticated caller what a provider returned about somebody's account.
     case "unauthenticated":
     case "forbidden":
     case "not_found":
@@ -215,6 +227,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "idempotency_key_conflict":
     case "intervention_already_resolved":
     case "content_changed":
+    case "email_not_verified":
     case "internal_error":
     case "service_unavailable":
       return { ...base, code };

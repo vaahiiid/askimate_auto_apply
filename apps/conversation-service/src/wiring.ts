@@ -78,6 +78,14 @@ export interface DriverWiring {
   readonly pool: Pool;
   readonly catalogue: ApplicationCatalogue;
   readonly secureRequests: SecureRequestOpener;
+  /**
+   * The trusted email-verification state (ADR-0056).
+   *
+   * Threaded through here so the Conversation Service and the Worker build the
+   * SAME driver — a worker that advanced a run past a secure step the service
+   * would have refused would be the second opinion ADR-0041 forbids.
+   */
+  readonly identities?: { verificationOf(studentId: string): Promise<boolean | null> };
   readonly now: () => Date;
 }
 
@@ -102,6 +110,7 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     profiles: new PostgresConfirmedProfileStore(wiring.pool),
     conversations: store,
     secureRequests: wiring.secureRequests,
+    ...(wiring.identities === undefined ? {} : { identities: wiring.identities }),
     leases: new WorkLeaseStore(wiring.pool),
     interventions: new PostgresInterventionStore(wiring.pool),
     now: wiring.now,

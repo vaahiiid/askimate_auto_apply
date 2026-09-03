@@ -284,6 +284,18 @@ export type RunRefusal =
    * loudly instead of opening a request the secure service will reject.
    */
   | { readonly kind: "purpose_not_supported" }
+  /**
+   * The student's email address is not verified, so a secure step is refused.
+   *
+   * ADR-0038 required this guard and ADR-0056 decides where the answer comes
+   * from: `students.email_verified`, established at login from a
+   * signature-verified ID token. Every ambiguous case — no address, no claim —
+   * is stored as `false`, so this refusal covers all three.
+   *
+   * It is a refusal rather than a pause: nothing is stuck, and the student can
+   * clear it themselves by verifying and signing in again.
+   */
+  | { readonly kind: "email_not_verified" }
   | { readonly kind: "unknown_blueprint" }
   | { readonly kind: "unusable_mapping_set"; readonly detail: string }
   | { readonly kind: "unknown_conversation" }
@@ -618,6 +630,17 @@ export interface RunDriverOptions {
   readonly stores: DurableStores;
   readonly bindings: ApplicationBindingStore;
   readonly catalogue: ApplicationCatalogue;
+  /**
+   * Where the trusted email-verification state is read from (ADR-0056).
+   *
+   * OPTIONAL, and its absence is a refusal rather than a bypass: see
+   * `#openSecureStep`. A driver wired without it cannot open a secure step at
+   * all, which is the safe direction for a guard that protects the one place a
+   * student types a password.
+   */
+  readonly identities?: {
+    verificationOf(studentId: string): Promise<boolean | null>;
+  };
   /** The interview's model. Injected; this service decides nothing with it. */
   readonly model: ModelClient;
   /**
@@ -2886,6 +2909,29 @@ export class RunDriver {
     const opener = this.#options.secureRequests;
     if (opener === undefined) {
       return { ok: false, refusal: { kind: "secure_plane_unavailable" } };
+    }
+
+    // ── The guard ADR-0038 described and nothing implemented ─────────────
+    //
+    // Until P19 this method checked the request purpose and whether the Secure
+    // Plane was reachable, and nothing at all about the student — while
+    // ADR-0038 and the `students.email_verified` column comment both said a
+    // verified email was required. The one place a student types a password
+    // had no verification gate and two accepted documents said it had one.
+    //
+    // The value is the one established at login from a signature-verified ID
+    // token (ADR-0056). It is NOT re-read from the provider here, deliberately,
+    // and it is `false` for every ambiguous case — so this single comparison
+    // covers "unverified", "no address" and "the provider did not say".
+    //
+    // A missing store is a REFUSAL, not a skip. A guard that disappears when
+    // its dependency is absent is not a guard.
+    const identities = this.#options.identities;
+    if (identities === undefined) {
+      return { ok: false, refusal: { kind: "email_not_verified" } };
+    }
+    if ((await identities.verificationOf(input.studentRef)) !== true) {
+      return { ok: false, refusal: { kind: "email_not_verified" } };
     }
 
     // Narrowed, not cast. See `purpose_not_supported` above for the drift this

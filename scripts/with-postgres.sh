@@ -33,6 +33,9 @@
 #                            runner, and a report refused because somebody else
 #                            now holds the run. All four are decided by
 #                            PostgreSQL, which is why a fake proves none of them.
+#   scripts/p19-identity   — P19. A REAL OpenID Provider on loopback, in both
+#                            standard claim shapes, and what each of the four
+#                            verification outcomes persists.
 #   scripts/p18-startup    — P18. The five deployables started as REAL child
 #                            processes: what they refuse, what they print, and
 #                            the Secure Service and Fill Agent sharing one
@@ -49,7 +52,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts
   exit $?
 fi
 
@@ -101,4 +104,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts

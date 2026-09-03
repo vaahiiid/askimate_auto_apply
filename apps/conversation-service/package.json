@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-conversation-service",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -21,6 +21,7 @@
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",
     "@askimate/aas-migrate": "workspace:*",
+    "@askimate/aas-oidc": "workspace:*",
     "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
     "express": "^5.1.0",

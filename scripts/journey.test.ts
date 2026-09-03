@@ -91,6 +91,7 @@ import {
   ConversationEventStore,
   PostgresConfirmedProfileStore,
   RunDriver,
+  StudentIdentityStore,
   WorkLeaseStore,
   createConversationApp,
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
@@ -284,6 +285,7 @@ beforeAll(async () => {
     profiles: new PostgresConfirmedProfileStore(conversationPool),
     conversations: store,
     secureRequests: journeySecureRequests,
+    identities: new StudentIdentityStore(conversationPool),
     leases: new WorkLeaseStore(conversationPool),
     now: () => new Date(),
   });

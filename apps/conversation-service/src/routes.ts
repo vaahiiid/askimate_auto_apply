@@ -540,6 +540,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               // not sign in to.
               problem(res, "service_unavailable");
               return;
+            case "email_not_verified":
+              // ADR-0038's guard, ADR-0056's semantics. The student is signed
+              // in; their address is not verified, or the provider gave us no
+              // address or no answer. All three are stored as `false` and all
+              // three are cleared the same way: verify, then sign in again.
+              problem(res, "email_not_verified");
+              return;
             case "unusable_mapping_set":
               // A specialist's problem, not the student's, and the detail names
               // fields of a university's form — so it stays out of the body.

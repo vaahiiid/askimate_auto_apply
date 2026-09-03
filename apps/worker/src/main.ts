@@ -13,6 +13,7 @@ import { installShutdown, reportStartupFailure, type Log } from "@askimate/aas-c
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import {
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
+  StudentIdentityStore,
   buildRunDriver,
   conversationStore,
   fixtureCatalogue,
@@ -60,6 +61,10 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
           baseUrl: config.secureInternalUrl,
           serviceToken: config.secureServiceToken,
         }),
+        // The same guard the service applies. A worker advancing a run past a
+        // secure step the service would refuse is the second opinion ADR-0041
+        // exists to prevent (ADR-0056).
+        identities: new StudentIdentityStore(pool),
         // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
         now: () => new Date(),
       },
