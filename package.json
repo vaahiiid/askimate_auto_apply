@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -28,6 +28,13 @@
     "analyse-journey": "tsx scripts/analyse-journey.ts",
     "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",
     "verify:integration": "bash scripts/with-postgres.sh",
+    "start:conversation": "tsx apps/conversation-service/src/bin.ts",
+    "start:secure": "tsx apps/secure-service/src/bin.ts",
+    "start:agent": "tsx apps/secure-filler/src/bin.ts",
+    "start:runner": "tsx apps/browser-runner/src/bin.ts",
+    "start:worker": "tsx apps/worker/src/bin.ts",
+    "migrate:conversation": "tsx apps/conversation-service/src/bin.ts migrate",
+    "migrate:secure": "tsx apps/secure-service/src/bin.ts migrate",
     "version:check": "tsx scripts/version.ts check",
     "version:set": "tsx scripts/version.ts set",
     "version:bump": "tsx scripts/version.ts bump"
@@ -69,6 +76,7 @@
     "@types/semver": "^7.8.0",
     "esbuild": "0.21.5",
     "eslint": "^9.18.0",
+    "ioredis": "^6.0.0",
     "js-yaml": "^4.3.1",
     "pg": "^8.20.0",
     "playwright": "^1.49.1",

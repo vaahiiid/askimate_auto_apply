@@ -97,6 +97,11 @@ const DATABASE_BACKED = [
   // property of `ON CONFLICT … WHERE expires_at <= now` resolving two racing
   // claimants, which is PostgreSQL's to decide and not a fake's.
   "scripts/runner-supervisor.test.ts",
+  // P18: the five deployables started as real child processes. Its refusals
+  // are about a real database (pending migrations, an unreachable server) and
+  // its last group needs a real Redis, so a run without either would report
+  // green over the proof that the accepted topology works.
+  "scripts/p18-startup.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {
@@ -114,6 +119,25 @@ describe("CI still runs the database-backed security suites", () => {
 
   it("points that job at a database URL", () => {
     expect(ci).toMatch(/AAS_TEST_DATABASE_URL:\s*postgres/);
+  });
+
+  it("supplies a REDIS, and requires it", () => {
+    // ADR-0042's topology — the Secure Service and the Fill Agent sharing one
+    // cache — is only proved when there is a cache to share. Without
+    // AAS_REQUIRE_REDIS the suite warns and moves on, which is exactly the
+    // silence this whole file exists to prevent.
+    expect(ci).toMatch(/AAS_TEST_REDIS_URL:\s*redis:/);
+    expect(ci).toMatch(/AAS_REQUIRE_REDIS:\s*"1"/);
+  });
+
+  it("starts that Redis with the flags §3.2 requires", () => {
+    // A stock redis image has RDB save points on, and `verify()` refuses a
+    // cache that would write ciphertext to disk. If this line loses its flags
+    // the integration job fails — but it would fail confusingly, so this says
+    // why in the place somebody edits.
+    expect(ci).toContain("--save");
+    expect(ci).toContain("--appendonly no");
+    expect(ci).toContain("--maxmemory-policy noeviction");
   });
 
   it("runs the WHOLE suite there, rather than a list of paths that can go stale", () => {

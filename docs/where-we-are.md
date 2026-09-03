@@ -631,3 +631,82 @@ decision from Vahid; the queue it would consume has been reliable since P14),
 and the **learning loop** (ADR-0008 part 2, which needs real interventions to
 learn from). A **portal verifier** would turn this phase's false positives into
 automatic answers, but it is worth building after there is traffic to measure.
+
+---
+
+# Where we are — 2026-09-03 (P18)
+
+**Version:** `0.36.0` · **Trunk:** `main` · **CI:** green
+
+## The headline
+
+**The system can be run outside a test for the first time.**
+
+Five deployables existed and **not one had an entry point.** `createConversationApp`,
+`createSecureApp`, `createFillAgentApp`, `startWorker`, `startSecureBackground`
+and `startRunnerSupervisor` had, between them, zero production call sites. It was
+ADR-0052's reader-with-no-writer shape one level up: P14, P16 and P17 gave those
+six pieces of machinery their callers, and nothing called the callers.
+
+| Was | Now |
+|---|---|
+| no entry points | five processes an operator starts, and a sixth was deliberately NOT created |
+| **no configuration layer at all** — zero production `process.env` reads | `@askimate/aas-config`, dependency-free, reporting every problem at once and echoing no value |
+| `migrate()` had no non-test caller | `migrate` is a command mode of the two services that own the two databases, under an advisory lock; every start refuses a pending migration |
+| the only `EnvelopeCache` was in-process | `RedisEnvelopeCache`, so ADR-0042's two deployables actually share one |
+| `assertVaultIsProductionGrade` had no process to stop | `keyProviderFor` makes the choice and the refusal one function |
+| `/dev/session` fenced by a comment | refused by configuration, with `NODE_ENV=production` |
+
+## What the proof actually runs
+
+`scripts/p18-startup.test.ts` spawns each entry point as a **real child process**
+against a real PostgreSQL and a real Redis, and reads what it printed and what it
+exited with. The last group starts the Secure Service and the Fill Agent as two
+operating-system processes sharing one cache — the topology ADR-0042 has
+described since it was written, working for the first time.
+
+## The most important consequence, stated plainly
+
+**A production start is currently impossible, on purpose.** With
+`NODE_ENV=production` the Conversation Service refuses, naming two reasons:
+there is no identity provider (ADR-0038's OIDC is unbuilt, so `/dev/session`
+would be the only way in and it is refused), and there is no production
+catalogue. That is the honest state, and a service that started in production
+and quietly served nobody would be worse. The startup validator is now the
+executable form of the deployment checklist.
+
+## Standing limitations — carried forward, and one added
+
+- **Chromium/browser resource contention is UNRESOLVED.** P17 raised three
+  composer assertions in `apps/chat-integration/src/two-origin.test.ts` from
+  one-shot reads to 30-second polls, and that improves reliability **under the
+  workload measured there and nothing more**. The underlying problem is that
+  several Chromium instances run in parallel across that directory's suites and
+  a page can be starved for many seconds; a longer timeout tolerates the
+  contention, it does not remove it. **Three green runs are not evidence that
+  the contention is solved** — the failure rate before the change was roughly
+  one run in four, so a handful of passes is well within what the old code would
+  also have produced. Expect it to resurface on slower runners, under a heavier
+  suite, or in tests nobody has adjusted. The real fixes — limiting browser
+  concurrency, or giving these suites a serial lane — are not done.
+  Measurements: `p17-regression-audit.md` §5.
+- **`KmsDataKeyProvider` has never run against a live key.** The configuration
+  path is real and tested; the first `GenerateDataKey` is an operator's
+  first-run check (`secure-plane-deployment.md` §3.1).
+- **No production catalogue**, and no blueprint parser to build one safely.
+- **No identity.** Deferred to its own phase by decision, 2026-09-03.
+- **No packaging.** Entry points run through `tsx`, as every operational command
+  in this repository does. Bundling belongs with the container work.
+- Everything from the P14–P17 lists still holds: no alerting transport (the
+  operator CLI is the pull surface and suffices for one operator), the learning
+  loop still open with nothing to learn from, documents blocked on retention,
+  and P17's accepted cost — a crashed runner raises a specialist intervention.
+
+## What is next, on the evidence
+
+Two things now block a real deployment, and they are the two P18 deliberately
+did not smuggle in: **identity** (ADR-0038 — which provider, and wiring it
+through the session, the SSE stream and the secure-plane bootstrap) and **a
+production catalogue** (where reviewed blueprints live, and a validated parse
+that cannot mint an artefact nobody reviewed). Either is a phase. After them,
+packaging and infrastructure can consume this foundation.

@@ -36,6 +36,8 @@
 
 import { KMSClient, GenerateDataKeyCommand, DecryptCommand } from "@aws-sdk/client-kms";
 
+import { LocalDataKeyProvider, assertVaultIsProductionGrade } from "./vault.js";
+
 import type { DataKey, DataKeyProvider } from "./vault.js";
 
 export interface KmsKeyProviderOptions {
@@ -101,4 +103,32 @@ export class KmsDataKeyProvider implements DataKeyProvider {
       return null;
     }
   }
+}
+
+/**
+ * Chooses the data key provider, and refuses an unsafe one.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0055. `assertVaultIsProductionGrade` had no production caller until P18,
+ * and when it first got one it was still not load-bearing: a deliberate
+ * regression (P18 S5) deleted the call and every test passed, because the
+ * Secure Service's CONFIGURATION already refuses a production start without
+ * `AAS_SECURE_KMS_KEY_ID`. Two checks, one reachable.
+ *
+ * So the choice and the refusal live together, here, in one tested function
+ * that both secure-plane processes call. The configuration's refusal stays —
+ * it gives an operator the problem alongside every other one, in a single
+ * message — but THIS is the control, and it is the one a mutation now breaks.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function keyProviderFor(
+  input: { readonly keyId: string | undefined; readonly region: string },
+  environment: string | undefined,
+): DataKeyProvider {
+  const provider: DataKeyProvider =
+    input.keyId === undefined
+      ? new LocalDataKeyProvider()
+      : new KmsDataKeyProvider({ keyId: input.keyId, region: input.region });
+  assertVaultIsProductionGrade(provider, environment);
+  return provider;
 }

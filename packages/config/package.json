@@ -1,0 +1,15 @@
+{
+  "name": "@askimate/aas-config",
+  "version": "0.36.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

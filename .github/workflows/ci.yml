@@ -94,7 +94,7 @@ jobs:
   # AAS_REQUIRE_DATABASE=1 turns a skip into a failure. Without it, a CI run
   # with a broken Postgres service would report green while checking nothing.
   integration:
-    name: Integration (Postgres)
+    name: Integration (Postgres + Redis)
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -124,6 +124,31 @@ jobs:
         # apps/chat-integration drives the secure control in a real browser.
         run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
 
+      # ── The SHARED envelope cache (ADR-0034, ADR-0042) ───────────────────
+      #
+      # The Secure Service PUTs an envelope and the Fill Agent TAKEs it, and
+      # since P18 they are two real processes doing that through this. Without
+      # a Redis here, `p18-startup.test.ts` would skip the one proof that the
+      # accepted topology works at all, and `AAS_REQUIRE_REDIS` below turns
+      # that skip into a failure.
+      #
+      # Started with `docker run` rather than as a service container BECAUSE OF
+      # THE FLAGS. `RedisEnvelopeCache.verify()` refuses a cache that would
+      # write ciphertext to disk or evict an envelope under memory pressure
+      # (secure-plane-deployment.md §3.2), and a stock `redis:7-alpine` has RDB
+      # save points on by default — so it would, correctly, be refused. A
+      # service container cannot override the command; this can, which also
+      # makes this file an executable statement of what §3.2 requires.
+      - name: Start Redis for the shared envelope cache
+        run: |
+          docker run -d --name aas-redis -p 6379:6379 redis:7-alpine \
+            redis-server --save "" --appendonly no --maxmemory-policy noeviction
+          for _ in $(seq 1 30); do
+            docker exec aas-redis redis-cli ping >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec aas-redis redis-cli ping
+
       # The WHOLE suite, not a list of paths.
       #
       # This used to name three directories. A list is a thing that goes stale:
@@ -142,3 +167,5 @@ jobs:
         env:
           AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
           AAS_REQUIRE_DATABASE: "1"
+          AAS_TEST_REDIS_URL: redis://localhost:6379
+          AAS_REQUIRE_REDIS: "1"

@@ -1,20 +1,54 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
-  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
   "references": [
-    { "path": "../../packages/account" },
-    { "path": "../../packages/blueprint" },
-    { "path": "../../packages/case-store" },
-    { "path": "../../packages/contracts" },
-    { "path": "../../packages/conversation" },
-    { "path": "../../packages/domain" },
-    { "path": "../../packages/interview" },
-    { "path": "../../packages/llm" },
-    { "path": "../../packages/mapping" },
-    { "path": "../../packages/migrate" },
-    { "path": "../../packages/orchestrator" },
-    { "path": "../../packages/preparation" },
-    { "path": "../../packages/profile" }
+    {
+      "path": "../../packages/account"
+    },
+    {
+      "path": "../../packages/blueprint"
+    },
+    {
+      "path": "../../packages/case-store"
+    },
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/conversation"
+    },
+    {
+      "path": "../../packages/domain"
+    },
+    {
+      "path": "../../packages/interview"
+    },
+    {
+      "path": "../../packages/llm"
+    },
+    {
+      "path": "../../packages/mapping"
+    },
+    {
+      "path": "../../packages/migrate"
+    },
+    {
+      "path": "../../packages/orchestrator"
+    },
+    {
+      "path": "../../packages/preparation"
+    },
+    {
+      "path": "../../packages/profile"
+    },
+    {
+      "path": "../../packages/config"
+    }
   ]
 }

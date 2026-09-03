@@ -19,6 +19,77 @@ not shipped artefacts.
 
 ---
 
+## [0.36.0] — 2026-09-03
+
+**P18 — a process refuses to start when it is not safe. ADR-0055.**
+
+Five deployables existed and not one had an entry point: `createConversationApp`,
+`createSecureApp`, `createFillAgentApp`, `startWorker`, `startSecureBackground`
+and `startRunnerSupervisor` had zero production call sites between them. There
+was also no configuration layer at all — outside the runner's Chromium path and
+test helpers this repository read no environment variables — no non-test caller
+for `migrate()`, and no `EnvelopeCache` that two processes could share.
+
+### Added
+
+- `@askimate/aas-config` — dependency-free, like `@askimate/aas-contracts` and
+  for a related reason: all five deployables import it, including the one that
+  receives a password. It reports **every** configuration problem at once, and
+  **never echoes a value** — these variables carry a session secret and two
+  database URLs with credentials in them.
+- Entry points for all five deployables, plus `installShutdown` (one clean stop,
+  a bounded grace period, and a second signal ignored rather than escalated —
+  what it would interrupt is a browser mid-portal-action or an outbox flush).
+- `@askimate/aas-envelope-cache-redis` — the shared ciphertext cache ADR-0042
+  requires. Its own package, because `packages/secrets` holds the only plaintext
+  in the system and a client in its dependency tree would be a supply-chain path
+  into it. `take` is `GETDEL`, one command; `verify()` refuses a server that
+  would evict under memory pressure or write ciphertext to disk, and refuses one
+  that will not answer `CONFIG GET` at all.
+- `migrateExclusive` and `pendingMigrations`. Migrating is a **command mode** of
+  the two services that own the two databases — a separate migrator would need
+  both planes' credentials — and every ordinary start refuses a pending
+  migration rather than serving a schema it was not built for.
+- `keyProviderFor`, which makes choosing the data key provider and asserting it
+  one function. See "Fixed" below.
+- `scripts/p18-startup.test.ts` — every entry point spawned as a **real child
+  process**, including the Secure Service and the Fill Agent sharing one real
+  Redis in two operating-system processes.
+- `docs/deployables.md` — the five processes, their configuration, startup
+  checks and shutdown behaviour, and why two of them deliberately have no health
+  endpoint (ADR-0045 and ADR-0052 give them no inbound surface).
+- `docs/p18-regression-audit.md` — ten mutations, eight caught, two survivors.
+
+### Changed
+
+- CI runs a Redis, started with `--save "" --appendonly no --maxmemory-policy
+  noeviction`. A stock image has RDB save points on and would, correctly, be
+  refused; `ci-guard.test.ts` now asserts the flags and `AAS_REQUIRE_REDIS`.
+- `/dev/session` and `AAS_CATALOGUE=fixtures` are refused by configuration under
+  `NODE_ENV=production`, not by a comment.
+
+### Fixed
+
+- **`assertVaultIsProductionGrade` was not actually a control.** Called from the
+  Secure Service's entry point, deleting the call changed nothing — the
+  service's configuration already refused a production start without
+  `AAS_SECURE_KMS_KEY_ID`. Two checks, one reachable, and the one being relied
+  on was not the one the requirement named. The control now lives inside the
+  choice it guards.
+- **A "clean" shutdown that closed nothing passed every assertion.** Exit code
+  zero and the right log lines describe what a process said, not what it did.
+  The worker's shutdown releases its `worker_leases`, which is observable after
+  the process exits, and that is now the assertion.
+
+### Known limitation — a production start is currently impossible, on purpose
+
+With `NODE_ENV=production` the Conversation Service refuses: ADR-0038's OIDC
+provider is not built, so there is no way to sign a student in, and there is no
+production catalogue adapter. Both are deferred to their own phases by decision.
+A service that started in production and quietly served nobody would be worse.
+
+---
+
 ## [0.35.0] — 2026-09-02
 
 **P17 — the intent is durable before the action. ADR-0054.**

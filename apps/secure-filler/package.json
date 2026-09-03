@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-secure-filler",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,7 +12,9 @@
   "dependencies": {
     "@askimate/aas-blueprint": "workspace:*",
     "@askimate/aas-browser-fill": "workspace:*",
+    "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
+    "@askimate/aas-envelope-cache-redis": "workspace:*",
     "@askimate/aas-secrets": "workspace:*",
     "@askimate/aas-secure-logging": "workspace:*",
     "express": "^5.1.0",

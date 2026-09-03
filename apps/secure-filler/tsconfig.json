@@ -15,5 +15,5 @@
     { "path": "../../packages/contracts" },
     { "path": "../../packages/secrets" },
     { "path": "../../packages/secure-logging" }
-  ]
+  , { "path": "../../packages/config" }, { "path": "../../packages/envelope-cache-redis" }]
 }

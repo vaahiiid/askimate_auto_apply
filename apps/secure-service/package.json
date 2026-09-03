@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-secure-service",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,12 +10,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
+    "@askimate/aas-envelope-cache-redis": "workspace:*",
     "@askimate/aas-migrate": "workspace:*",
-    "pg": "^8.20.0",
     "@askimate/aas-secrets": "workspace:*",
+    "@askimate/aas-secure-logging": "workspace:*",
     "express": "^5.1.0",
-    "@askimate/aas-secure-logging": "workspace:*"
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@askimate/aas-browser-runner": "workspace:*",

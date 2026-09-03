@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-conversation-service",
-  "version": "0.35.0",
+  "version": "0.36.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,6 +13,7 @@
     "@askimate/aas-account": "workspace:*",
     "@askimate/aas-blueprint": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
+    "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-conversation": "workspace:*",
     "@askimate/aas-domain": "workspace:*",

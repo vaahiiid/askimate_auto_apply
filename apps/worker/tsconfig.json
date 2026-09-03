@@ -9,5 +9,5 @@
     { "path": "../../packages/case-store" },
     { "path": "../../packages/contracts" },
     { "path": "../conversation-service" }
-  ]
+  , { "path": "../../packages/config" }]
 }

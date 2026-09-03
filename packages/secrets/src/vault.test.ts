@@ -205,3 +205,37 @@ describe("comparing a secret with its confirmation", () => {
     expect(confirmationMatches("aaaaaaaa", "aaaaaaab")).toBe(false);
   });
 });
+
+describe("choosing the data key provider (ADR-0055)", () => {
+  it("REFUSES a production process that would use a local master key", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The control, in the one place that is actually decisive.
+    //
+    // Written after a deliberate regression (P18 S5) deleted
+    // `assertVaultIsProductionGrade`'s call from the Secure Service's entry
+    // point and EVERY test still passed: the service's configuration already
+    // refuses a production start without a KMS key id, so the assertion was
+    // shadowed. Two checks, one reachable, and the one being relied on was
+    // not the one anybody would name.
+    //
+    // Choice and refusal now live together, and this is what breaks if the
+    // refusal goes.
+    // ═══════════════════════════════════════════════════════════════════
+    const { keyProviderFor } = await import("./kms-key-provider.js");
+    expect(() => keyProviderFor({ keyId: undefined, region: "eu-west-2" }, "production")).toThrow(
+      /REFUSING TO START/,
+    );
+  });
+
+  it("allows a local master key outside production, because a developer has no KMS", async () => {
+    const { keyProviderFor } = await import("./kms-key-provider.js");
+    expect(keyProviderFor({ keyId: undefined, region: "eu-west-2" }, undefined).kind).toBe("local");
+  });
+
+  it("chooses KMS when a key is configured", async () => {
+    const { keyProviderFor } = await import("./kms-key-provider.js");
+    expect(
+      keyProviderFor({ keyId: "alias/aas-secure", region: "eu-west-2" }, "production").kind,
+    ).toBe("kms");
+  });
+});

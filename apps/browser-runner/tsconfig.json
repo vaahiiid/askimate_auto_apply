@@ -18,5 +18,5 @@
     { "path": "../../packages/execution" },
     { "path": "../../packages/mapping" },
     { "path": "../../packages/profile" }
-  ]
+  , { "path": "../../packages/config" }]
 }

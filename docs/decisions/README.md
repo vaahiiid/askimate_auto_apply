@@ -76,5 +76,6 @@ ADR status uses exactly that vocabulary:
 | [0052](./0052-the-system-acts-when-nobody-is-watching.md) | The system acts when nobody is watching: a background worker owns autonomous progression | Accepted |
 | [0053](./0053-a-student-can-stop.md) | A student can stop: cancellation is reachable, and it does not strand their account | Accepted |
 | [0054](./0054-the-intent-is-durable-before-the-action.md) | The intent is durable before the action, not after it | Accepted |
+| [0055](./0055-a-process-refuses-to-start-when-it-is-not-safe.md) | A process refuses to start when it is not safe | Accepted |
 
-Fifty are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 amends ADR-0037's deployable table; ADR-0053 makes `CANCELLED` the first reachable terminal state; ADR-0054 amends ADR-0045 §4, which claimed a crash was detectable when it was not. Reversing any of them requires a new ADR that supersedes it.
+Fifty-one are **Accepted**. ADR-0013 supersedes the gate design in ADR-0011; ADR-0051 narrows ADR-0015 and amends ADR-0047 §1; ADR-0052 amends ADR-0037's deployable table; ADR-0053 makes `CANCELLED` the first reachable terminal state; ADR-0054 amends ADR-0045 §4, which claimed a crash was detectable when it was not; ADR-0055 makes ADR-0037's five deployables and ADR-0042's shared cache runnable rather than merely described. Reversing any of them requires a new ADR that supersedes it.

@@ -10,3 +10,6 @@
 
 export type { Migration } from "./runner.js";
 export { MigrationChangedError, loadMigrations, migrate } from "./runner.js";
+
+// ── P18: the two things a DEPLOYED service needs (ADR-0055) ───────────────
+export { migrateExclusive, pendingMigrations } from "./production.js";

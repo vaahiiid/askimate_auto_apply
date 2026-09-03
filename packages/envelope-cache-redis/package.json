@@ -1,0 +1,20 @@
+{
+  "name": "@askimate/aas-envelope-cache-redis",
+  "version": "0.36.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@askimate/aas-secrets": "workspace:*",
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9",
+    "ioredis": "^6.0.0"
+  }
+}
