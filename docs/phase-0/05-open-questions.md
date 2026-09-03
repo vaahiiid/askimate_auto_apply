@@ -72,6 +72,11 @@ Phase 1 encodes this explicitly, so I would rather have it confirmed than guess.
 `INTAKE` → `PROFILE_INCOMPLETE` → `DOCUMENTS_PENDING` → `REQUIREMENTS_RESOLUTION` →
 `ELIGIBILITY_REVIEW` → `BLUEPRINT_REQUIRED` → `READY_TO_PREPARE`
 
+> **Superseded by [ADR-0058](../decisions/0058-a-case-opens-from-an-offer-the-student-accepted.md).**
+> The three middle states were removed: no phase ever mapped to the first two, and the third was
+> never entered. A case now walks `INTAKE` → `READY_TO_PREPARE` directly, because the target is
+> resolved and validated before the case exists.
+
 **Execution**
 `PREPARING` → `VALIDATION_FAILED` (recoverable) → `AWAITING_HANDOFF` (MFA / OTP / CAPTCHA /
 payment) → `AWAITING_HUMAN_REVIEW` → `AWAITING_STUDENT_AUTHORISATION` → `AUTHORISED`

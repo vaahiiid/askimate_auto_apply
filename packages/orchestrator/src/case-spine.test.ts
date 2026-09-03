@@ -49,8 +49,7 @@ describe("the case spine", () => {
   });
 
   it("moves ONE state at a time, however far away the target is", () => {
-    expect(nextCaseHop("INTAKE", "AUTHORISED")).toBe("REQUIREMENTS_RESOLUTION");
-    expect(nextCaseHop("REQUIREMENTS_RESOLUTION", "AUTHORISED")).toBe("ELIGIBILITY_REVIEW");
+    expect(nextCaseHop("INTAKE", "AUTHORISED")).toBe("READY_TO_PREPARE");
     expect(nextCaseHop("PREPARING", "AUTHORISED")).toBe("AWAITING_STUDENT_AUTHORISATION");
   });
 

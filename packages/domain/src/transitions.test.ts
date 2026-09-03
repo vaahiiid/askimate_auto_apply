@@ -98,6 +98,34 @@ describe("the transition table", () => {
     if (!check.permitted) expect(check.refusal.kind).toBe("not_allowed");
   });
 
+  it("refuses INTAKE straight to PREPARING — a case is READY before it prepares", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // A SHADOWED CONTROL, found by mutation during P21.
+    //
+    // Widening `ALLOWED_TRANSITIONS.INTAKE` to permit `PREPARING` was caught by
+    // nothing: `nextCaseHop` only ever proposes the NEXT element of
+    // `CASE_SPINE`, so a wider allow-list permits something no caller
+    // attempts. The table's restrictiveness is load-bearing only for callers
+    // other than the spine walk — `decide()` invoked directly with a
+    // transition, which is how a specialist recovery moves a case.
+    //
+    // An allow-list is permissive by nature, so it can only be tested by
+    // asserting what it REFUSES. This does that directly, at the table.
+    // ═══════════════════════════════════════════════════════════════════
+    expect(isTransitionAllowed("INTAKE", "PREPARING")).toBe(false);
+    const check = checkTransition("INTAKE", "PREPARING", EMPTY_CONTEXT);
+    expect(check.permitted).toBe(false);
+    if (!check.permitted) expect(check.refusal.kind).toBe("not_allowed");
+  });
+
+  it("refuses INTAKE straight to student authorisation", () => {
+    // The same shape, and the one that matters most: the authorisation gate is
+    // where mandatory review is enforced, so a case must not be able to arrive
+    // there without passing through preparation.
+    expect(isTransitionAllowed("INTAKE", "AWAITING_STUDENT_AUTHORISATION")).toBe(false);
+    expect(isTransitionAllowed("READY_TO_PREPARE", "AWAITING_STUDENT_AUTHORISATION")).toBe(false);
+  });
+
   it("allows a handoff to resume straight into submission", () => {
     // The final-submission handoff resumes into SUBMITTING, not PREPARING.
     expect(isTransitionAllowed("AWAITING_HANDOFF", "SUBMITTING")).toBe(true);

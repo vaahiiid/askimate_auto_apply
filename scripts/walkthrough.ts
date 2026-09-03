@@ -210,8 +210,9 @@ async function main(): Promise<void> {
     blocksProgress: true,
   });
 
-  await apply("Resolve requirements", { kind: "transition", to: "REQUIREMENTS_RESOLUTION", reason: "Checking Leeds requirements." });
-  await apply("Check eligibility", { kind: "transition", to: "ELIGIBILITY_REVIEW", reason: "Comparing profile to requirements." });
+  // ADR-0058: the target was resolved and validated before this case opened, so
+  // there is no requirements hop and no eligibility hop to walk.
+  await apply("Ready to prepare", { kind: "transition", to: "READY_TO_PREPARE", reason: "Everything needed to prepare is present." });
   await apply("Mark ready", { kind: "transition", to: "READY_TO_PREPARE", reason: "Blueprint available." });
 
   blocked("Attempting to start filling while the passport is missing:");

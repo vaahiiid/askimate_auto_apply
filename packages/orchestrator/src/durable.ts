@@ -81,8 +81,11 @@ import type { RunState, RunStep } from "./run.js";
  */
 export const CASE_SPINE: readonly CaseState[] = [
   "INTAKE",
-  "REQUIREMENTS_RESOLUTION",
-  "ELIGIBILITY_REVIEW",
+  // Directly, since ADR-0058. Two waypoints used to sit here —
+  // `REQUIREMENTS_RESOLUTION` and `ELIGIBILITY_REVIEW` — and no phase mapped
+  // to either: `nextCaseHop` walks one element at a time, so every case
+  // travelling to `READY_TO_PREPARE` stepped through them and `HOP_REASONS`
+  // gave each a plausible sentence. They described the walk, not the case.
   "READY_TO_PREPARE",
   "PREPARING",
   "AWAITING_STUDENT_AUTHORISATION",

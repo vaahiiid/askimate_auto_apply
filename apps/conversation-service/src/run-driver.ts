@@ -3412,9 +3412,6 @@ function confirmedDateOfBirth(state: RunState): Date | null {
  * the reason is what somebody reads in a year when they ask why a case moved.
  */
 const HOP_REASONS: Readonly<Record<string, string>> = {
-  REQUIREMENTS_RESOLUTION:
-    "Requirements come from the reviewed blueprint this run was started against (ADR-0017).",
-  ELIGIBILITY_REVIEW: "The blueprint and mapping set were checked usable for this student.",
   READY_TO_PREPARE: "Everything needed to prepare is present.",
   PREPARING: "Preparing the application from the confirmed profile.",
   AWAITING_STUDENT_AUTHORISATION:

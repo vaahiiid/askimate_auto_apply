@@ -3476,8 +3476,6 @@ describeIfDatabase("the case walks with the run", () => {
     // `checkTransition`.
     const moves = events.filter((event) => event.type === "CaseStateChanged").map((e) => e.to);
     expect(moves, "in spine order, one hop at a time").toEqual([
-      "REQUIREMENTS_RESOLUTION",
-      "ELIGIBILITY_REVIEW",
       "READY_TO_PREPARE",
       "PREPARING",
     ]);

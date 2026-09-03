@@ -77,9 +77,7 @@ const OPENED = openCase({ submissionIdentity: IDENTITY, requestEvidence: EVIDENC
 /** A case that has reached PREPARING with real progress behind it. */
 const PREPARING_LOG: readonly CaseEventPayload[] = [
   OPENED,
-  { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-  { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-  { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+  { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
   { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
 ];
 
@@ -142,7 +140,7 @@ describe("pausing at the point of failure", () => {
 
   it("can be reached from every execution state", () => {
     // A failure can happen anywhere, so pausing must be available anywhere.
-    for (const from of ["PREPARING", "VALIDATION_FAILED", "AWAITING_HANDOFF", "SUBMITTING", "BLUEPRINT_REQUIRED"] as const) {
+    for (const from of ["PREPARING", "VALIDATION_FAILED", "AWAITING_HANDOFF", "SUBMITTING", "AWAITING_STUDENT_AUTHORISATION"] as const) {
       expect(isTransitionAllowed(from, "AWAITING_SPECIALIST_RECOVERY")).toBe(true);
     }
   });

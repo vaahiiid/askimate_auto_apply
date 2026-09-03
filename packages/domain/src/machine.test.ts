@@ -58,9 +58,7 @@ function authorisedCase(hash = "sha256:content-v1"): ApplicationCase {
   return fold(
     buildLog([
       OPENED,
-      { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "Gathering requirements." },
-      { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "Requirements resolved." },
-      { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "Eligible." },
+      { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "Gathering requirements." },
       { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "Filling." },
       { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "Rendered for review." },
       { type: "AuthorisationCaptured", contentHash: hash, hashAlgorithm: "sha256", authorisedAt: new Date("2026-08-26T11:00:00Z") },
@@ -180,7 +178,7 @@ describe("FAILURE SCENARIO — recovery after a worker crash mid-run (brief §10
     // nothing but the event log — no in-memory state, no checkpoint file.
     const log = buildLog([
       OPENED,
-      { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "Gathering." },
+      { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "Gathering." },
       { type: "TaskRaised", taskId: taskId("tsk_1"), taskKind: "provide_document", description: "Bank statement", blocksProgress: true },
       { type: "HumanReviewRequested", triggers: ["financial_evidence"], mandatory: true },
       // ← worker crashes here
@@ -190,7 +188,7 @@ describe("FAILURE SCENARIO — recovery after a worker crash mid-run (brief §10
     const afterRestart = fold(log); // fresh process, same log
 
     expect(afterRestart).toEqual(beforeCrash);
-    expect(afterRestart.state).toBe("REQUIREMENTS_RESOLUTION");
+    expect(afterRestart.state).toBe("READY_TO_PREPARE");
     expect(afterRestart.activeTriggers).toContain("financial_evidence");
     expect(afterRestart.tasks.filter((t) => t.status === "open")).toHaveLength(1);
   });
@@ -201,9 +199,7 @@ describe("FAILURE SCENARIO — recovery after a worker crash mid-run (brief §10
     // start a second one.
     const log = buildLog([
       OPENED,
-      { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-      { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-      { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+      { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
       { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
       { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "x" },
       { type: "AuthorisationCaptured", contentHash: "sha256:v1", hashAlgorithm: "sha256", authorisedAt: new Date() },
@@ -234,9 +230,7 @@ describe("FAILURE SCENARIO — duplicate submission (brief §4, §10)", () => {
     const afterAttempt = fold([
       ...buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
         { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "x" },
         { type: "AuthorisationCaptured", contentHash: "sha256:content-v1", hashAlgorithm: "sha256", authorisedAt: new Date() },
@@ -259,9 +253,7 @@ describe("FAILURE SCENARIO — duplicate submission (brief §4, §10)", () => {
     const prepared = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
       ]),
     );
@@ -289,9 +281,7 @@ describe("FAILURE SCENARIO — missing document blocks progress (brief §10)", (
         OPENED,
         { type: "CaseStateChanged", from: "INTAKE", to: "DOCUMENTS_PENDING", reason: "Need a passport." },
         { type: "TaskRaised", taskId: taskId("tsk_1"), taskKind: "provide_document", description: "Passport", blocksProgress: true },
-        { type: "CaseStateChanged", from: "DOCUMENTS_PENDING", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "DOCUMENTS_PENDING", to: "READY_TO_PREPARE", reason: "x" },
       ]),
     );
 
@@ -308,9 +298,7 @@ describe("FAILURE SCENARIO — missing document blocks progress (brief §10)", (
     const blocked = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "TaskRaised", taskId: taskId("tsk_1"), taskKind: "provide_document", description: "Passport", blocksProgress: true },
       ]),
     );
@@ -338,9 +326,7 @@ describe("FAILURE SCENARIO — missing document blocks progress (brief §10)", (
     const withNonBlocking = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "TaskRaised", taskId: taskId("tsk_1"), taskKind: "revalidate_requirement", description: "Refresh", blocksProgress: false },
       ]),
     );
@@ -392,12 +378,12 @@ describe("FAILURE SCENARIO — portal layout change (brief §10)", () => {
     const derived = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "BlueprintDriftDetected", blueprintVersion: "leeds-direct-v3" as never, description: "Funding section moved to step 4." },
       ]),
     );
 
-    expect(derived.state).toBe("REQUIREMENTS_RESOLUTION");
+    expect(derived.state).toBe("READY_TO_PREPARE");
     expect(derived.sequence).toBe(3);
   });
 });
@@ -407,9 +393,7 @@ describe("decide — authorisation", () => {
     const awaiting = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "x" },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "x" },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "x" },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "x" },
         { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "x" },
         { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "x" },
       ]),
@@ -484,9 +468,7 @@ describe("decide — authorisation", () => {
     const raised = fold(
       buildLog([
         OPENED,
-        { type: "CaseStateChanged", from: "INTAKE", to: "REQUIREMENTS_RESOLUTION", reason: "Gathering requirements." },
-        { type: "CaseStateChanged", from: "REQUIREMENTS_RESOLUTION", to: "ELIGIBILITY_REVIEW", reason: "Requirements resolved." },
-        { type: "CaseStateChanged", from: "ELIGIBILITY_REVIEW", to: "READY_TO_PREPARE", reason: "Eligible." },
+        { type: "CaseStateChanged", from: "INTAKE", to: "READY_TO_PREPARE", reason: "Gathering requirements." },
         { type: "CaseStateChanged", from: "READY_TO_PREPARE", to: "PREPARING", reason: "Filling." },
         { type: "CaseStateChanged", from: "PREPARING", to: "AWAITING_STUDENT_AUTHORISATION", reason: "Rendered for review." },
         {

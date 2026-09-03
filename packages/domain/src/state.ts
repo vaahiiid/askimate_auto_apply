@@ -18,13 +18,29 @@ export const CASE_STATES = [
   "PROFILE_INCOMPLETE",
   /** Waiting on the student for one or more required documents. */
   "DOCUMENTS_PENDING",
-  /** Resolving what this institution/course actually requires. */
-  "REQUIREMENTS_RESOLUTION",
-  /** Checking the student against those requirements, with reasoning recorded. */
-  "ELIGIBILITY_REVIEW",
-  /** No blueprint exists for this target and route; discovery must run first. */
-  "BLUEPRINT_REQUIRED",
-  /** Everything needed is present and confirmed. Ready to fill. */
+  /**
+   * Everything needed is present and confirmed. Ready to fill.
+   *
+   * ── Three states used to sit above this line, and do not any more ──────
+   *
+   * `REQUIREMENTS_RESOLUTION`, `ELIGIBILITY_REVIEW` and `BLUEPRINT_REQUIRED`
+   * were removed by ADR-0058. Not renamed — removed, and the reason is worth
+   * keeping because it is the test every state here has to pass.
+   *
+   * `caseStateFor(phase)` is total over `WorkflowPhase` and mapped NO phase to
+   * the first two. They were entered only because `nextCaseHop` walks the
+   * spine one element at a time, so a case travelling `INTAKE` →
+   * `READY_TO_PREPARE` passed THROUGH them. They were traversal waypoints
+   * with a plausible sentence attached, not transitions any decision made.
+   *
+   * Since ADR-0058 the target is resolved, approved and validated BEFORE
+   * `CaseOpened` exists, so a case cannot be in the act of resolving one.
+   * `BLUEPRINT_REQUIRED` was never entered at all, and a target this system
+   * cannot execute does not become a case.
+   *
+   * A state machine describes business transitions. Keeping a state so an
+   * existing name has somewhere to live is how it stops doing that.
+   */
   "READY_TO_PREPARE",
 
   // ── Execution ────────────────────────────────────────────────────────────
