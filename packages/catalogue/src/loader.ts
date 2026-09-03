@@ -26,6 +26,7 @@ import { checkExecutable } from "@askimate/aas-blueprint";
 import { checkUsable } from "@askimate/aas-mapping";
 
 import { toCanonical, type ReviewedCatalogueEntry } from "./entry.js";
+import { targetOf, type ReviewedTarget } from "./target.js";
 import { parseReviewedEntryText, type ParseRefusal } from "./parse.js";
 import { hashOf, type Approval, type ApprovalRegistry } from "./registry.js";
 
@@ -161,6 +162,51 @@ export class ReviewedCatalogue {
   /** What this catalogue serves, for a startup log line and an operator. */
   public inventory(): readonly { readonly blueprintId: string; readonly contentHash: string }[] {
     return [...this.#hashes].map(([blueprintId, contentHash]) => ({ blueprintId, contentHash }));
+  }
+
+  /**
+   * Every reviewed target this catalogue can execute against, as a person
+   * reads it.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * GATE 1 (ADR-0058), and it needs almost no code because ADR-0057 already
+   * did the work: `loadCatalogueDirectory` runs `checkExecutable` and
+   * `checkUsable` on every entry and FAILS THE WHOLE LOAD if any refuses. So
+   * this map cannot contain an unreviewed, retired, superseded or unusable
+   * target — the process would have refused to start.
+   *
+   * A listing is therefore a read-only view over artefacts an approval
+   * registry already vouched for. **Listing something neither creates nor
+   * implies approval**, and there is no second, unreviewed catalogue anywhere
+   * for a target to arrive from.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Sorted, so two calls agree and a client cannot infer meaning from order.
+   */
+  public targets(): readonly ReviewedTarget[] {
+    const out: ReviewedTarget[] = [];
+    for (const [blueprintId, entry] of this.#entries) {
+      const contentHash = this.#hashes.get(blueprintId);
+      /* c8 ignore next -- unreachable: both maps are filled from one list */
+      if (contentHash === undefined) continue;
+      out.push(
+        targetOf({
+          entry,
+          contentHash,
+          ...(entry.portalOrigin === undefined ? {} : { portalOrigin: entry.portalOrigin }),
+        }),
+      );
+    }
+    return out.sort((a, b) =>
+      `${a.institutionName}${a.courseName}${a.intakeRef}${a.route}`.localeCompare(
+        `${b.institutionName}${b.courseName}${b.intakeRef}${b.route}`,
+      ),
+    );
+  }
+
+  /** The content hash of one entry, for binding an offer to it. */
+  public hashOf(blueprintId: string): string | null {
+    return this.#hashes.get(blueprintId) ?? null;
   }
 
   public get size(): number {

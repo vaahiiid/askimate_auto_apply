@@ -27,6 +27,7 @@ import {
   REJECTION_REASONS,
   SECRET_LIFECYCLES,
   PROPOSAL_EVENT_KINDS,
+  TARGET_EVENT_KINDS,
   isSecureEventKind,
   SECURE_EVENT_KINDS,
   isTerminalLifecycleWord,
@@ -401,14 +402,20 @@ describe("the wire vocabulary is internally coherent", () => {
     for (const word of SECRET_LIFECYCLES) {
       expect(EVENT_KINDS as readonly string[], word).toContain(word);
     }
-    // Every kind is one of three families and nothing else: the secure
-    // lifecycle, the interview's proposal exchange (ADR-0051), and the two
-    // that belong to neither. Written as the whole set rather than as
-    // "lifecycle plus two", because that phrasing stopped being true the
-    // moment a second family existed — and the version of this assertion that
-    // said it silently passed nothing.
+    // Every kind is one of FOUR families and nothing else: the secure
+    // lifecycle, the interview's proposal exchange (ADR-0051), the target
+    // exchange (ADR-0058), and the two that belong to none of them. Written as
+    // the whole set rather than as "lifecycle plus two", because that phrasing
+    // stopped being true the moment a second family existed — and the version
+    // of this assertion that said it silently passed nothing.
     expect([...EVENT_KINDS].sort()).toEqual(
-      [...SECRET_LIFECYCLES, ...PROPOSAL_EVENT_KINDS, "message", "secret_rejected"].sort(),
+      [
+        ...SECRET_LIFECYCLES,
+        ...PROPOSAL_EVENT_KINDS,
+        ...TARGET_EVENT_KINDS,
+        "message",
+        "secret_rejected",
+      ].sort(),
     );
 
     // The two families are disjoint. A proposal is not a secure event, and the

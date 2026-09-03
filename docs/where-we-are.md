@@ -855,3 +855,94 @@ The largest remaining *engineering* question is one this phase did not create
 and did not touch: `packages/requirements` implements ADR-0009 and ADR-0019 in
 full and **has no callers at all**. That is a product-scope decision about
 whether the requirements half of the system is in scope, not a defect.
+
+---
+
+# Where we are — 2026-09-03 (later)
+
+**Date:** 2026-09-03 · **Phase:** P21 · **ADR:** ADR-0058
+
+## The headline
+
+**A student can start an application, and cannot start one any other way.**
+
+Every phase from P4 to P20 built something downstream of a step nobody could
+take. The run-start endpoint took a `blueprintId` — a string a client chose,
+which proves nothing about what a person was shown. That is now gone.
+
+```
+list reviewed targets → the server puts ONE to the student, rendered
+→ the student names the hash of THAT offer → the case opens
+```
+
+Two gates stand between a conversation and a case:
+
+- **Gate 1** — an offer can only be built from a **reviewed catalogue entry**.
+  It needs almost no code, because P20's loader already refuses to start a
+  process on an entry no approval covers.
+- **Gate 2** — a case opens only when the authenticated student names the hash
+  of an offer **this server made to them, in this conversation**, and that
+  offer still rebuilds from the catalogue as it is now.
+
+## What P21 delivered
+
+**Stage A (`f89cbf2`) — three case states removed.** `REQUIREMENTS_RESOLUTION`,
+`ELIGIBILITY_REVIEW` and `BLUEPRINT_REQUIRED`. Not renamed: `caseStateFor` was
+total over `WorkflowPhase` and mapped **no phase** to the first two. They were
+entered only because the spine walk steps through one element at a time — they
+described the walk, not the case. The third was never entered at all.
+
+**Stage B — the journey.** `GET /v1/application-targets`,
+`POST /v1/conversations/{id}/target-offers`, and a run-start route that reads an
+`offerHash` and **does not read `blueprintId` at all**. Migration `0012` adds
+`target_offered` and `target_requested`, the CHECK constraints that keep each
+column meaning one thing, and `conversation_target_exchange` — the view the run
+route reads Gate 2's first condition from.
+
+## The three things worth understanding
+
+**Gate 2 has two conditions and needs both.** The hash must be in this
+conversation's log *and* must still rebuild from the live catalogue. The log
+alone would honour an offer whose target was retired or re-reviewed;
+re-derivation alone would honour a hash a client computed for itself. Removing
+either is a deliberate regression that the P21 suite catches, on different
+tests.
+
+**No clock is involved, and that is the point.** An offer stays valid exactly as
+long as the thing it describes is unchanged. A timeout would refuse unchanged
+offers and accept changed ones inside the window.
+
+**Ambiguity is a safety refusal, not a UX preference.** `submissionKey` is
+`(student, institution, course, intake, attempt)` and does **not** contain the
+blueprint, so two reviewed routes to the same course and intake produce the same
+key: starting one permanently blocks the other for that student. The choice is
+irreversible, so nothing picks a default, a best match, or the first one found.
+
+## Known limitations — what changed, and what did not
+
+- **P21 does not enable a production run either.** The journey is real and the
+  gates are real; what is missing is a reviewed artefact to point them at.
+- **No real university artefact exists.** Unchanged from P20. Discovery is
+  network-blocked and nothing has been through two people. The P21 suite loads
+  a catalogue over the gated **test** portal this repository owns.
+- **One case per conversation is a real constraint.** A student who requests a
+  second, different target in the same conversation gets the existing case back.
+  The request *is* recorded, so running into the constraint is visible rather
+  than silently dropped. A multi-application-per-conversation design is a
+  product decision, out of scope here.
+- **`requestEvidence.channel` was false and is now true.** It said
+  `askimate_chat` unconditionally; since ADR-0051 this system's own conversation
+  is the surface. `aas_conversation` names it.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- **The requirements boundary is unchanged.** Nothing here consumes requirement
+  knowledge and no student data leaves. ADR-0009's service stays unwired —
+  which the C1 investigation concluded is where the boundary belongs.
+- Everything from the P14–P20 lists still holds.
+
+## What is next, on the evidence
+
+Unchanged from P20, and unchanged *because* it was never engineering:
+
+1. **Discovery access** — one command, blocked by network policy.
+2. **A second reviewer** — enforced structurally; there is no second person.
+3. **Retention determination** — externally owned, by design.

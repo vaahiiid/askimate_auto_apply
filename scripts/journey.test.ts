@@ -58,6 +58,7 @@ import {
   toStoredEntry,
 } from "@askimate/aas-profile";
 import { DeterministicModelClient } from "@askimate/aas-llm";
+import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { buildPreview } from "@askimate/aas-preparation";
 import { caseId as makeCaseId } from "@askimate/aas-domain";
@@ -156,7 +157,27 @@ let casePage: Page;
 /** The profile as the interview confirmed it. The preview hashes this one. */
 let journeyProfile: ConfirmedProfile;
 /** Held so a restarted instance can be rebuilt from the same reviewed inputs. */
-let journeyCatalogue: ApplicationCatalogue;
+/** The catalogue, and the directory Gate 1 (ADR-0058) offers targets from. */
+let journeyCatalogue: ApplicationCatalogue & { targets(): readonly ReviewedTarget[] };
+
+/**
+ * The offer this journey's student accepted, made ONCE at the start.
+ *
+ * Every later call to `POST /runs` is a resume of the same request, so it names
+ * the same offer. Re-offering would put a second `target_offered` in the log
+ * and say the student was asked twice, which is not what happened.
+ */
+let journeyOffer = "";
+
+/**
+ * A fabricated content hash for the journey's compiled-in entry.
+ *
+ * The journey builds its catalogue entry in TypeScript rather than loading it
+ * through P20's registry, so there is no real approval to carry. Named as
+ * fabricated so nobody reads it as one — `scripts/p21-target-selection.test.ts`
+ * exercises the real registry-backed path.
+ */
+const JOURNEY_CONTENT_HASH = `sha256:${"b".repeat(64)}`;
 let journeySecureRequests: ReturnType<typeof httpSecureRequestOpener>;
 
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
@@ -266,6 +287,9 @@ beforeAll(async () => {
   };
   journeyCatalogue = {
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
+    targets: () => [
+      targetOf({ entry, contentHash: JOURNEY_CONTENT_HASH, portalOrigin: portal.baseUrl }),
+    ],
   };
 
   const store = new ConversationEventStore(conversationPool);
@@ -302,6 +326,8 @@ beforeAll(async () => {
       req.header("x-service-cert") === RUNNER_CERT,
     now: () => new Date(),
     runs: driver,
+    // Gate 1: the same catalogue the driver executes against.
+    targets: journeyCatalogue,
     secureRequests: journeySecureRequests,
     secureOrigin: SECURE,
   });
@@ -504,6 +530,7 @@ async function restartedInstance(): Promise<{
     authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
     now: () => new Date(),
     runs: driver,
+    targets: journeyCatalogue,
     secureRequests: journeySecureRequests,
     secureOrigin: SECURE,
   });
@@ -560,11 +587,41 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     wire = [];
     logLines = [];
 
+    // ══════════════════════════════════════════════════════════════════
+    // GATE 1 (ADR-0058). Before anything can be started, the server resolves
+    // the chosen reviewed target and puts it to the student. Nothing here is
+    // consequential — no case, no run — and the hash it returns is the only
+    // thing the request below can name.
+    // ══════════════════════════════════════════════════════════════════
+    const offered = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/target-offers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ blueprintId: BLUEPRINT }),
+      },
+    );
+    expect(offered.status, await offered.clone().text()).toBe(201);
+    const offer = (await offered.json()) as { offerHash: string; rendered: string };
+    journeyOffer = offer.offerHash;
+    expect(journeyOffer).toMatch(/^sha256:[0-9a-f]{64}$/);
+    // What the student read, deterministic and model-free: the institution,
+    // the course, the intake and the portal it will actually be applied
+    // through. "What exactly did I agree to?" has an answer.
+    expect(offer.rendered).toContain("Course: MSc Controlled Studies");
+    expect(offer.rendered).toContain(portal.host);
+
+    // Nothing was opened by being offered something.
+    const noCase = await conversationPool.query<{ case_id: string | null }>(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [CONVERSATION],
+    );
+    expect(noCase.rows[0]?.case_id ?? null, "an offer is not a case").toBeNull();
 
     const started = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", cookie: devCookie },
-      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
     });
     expect(started.status, await started.clone().text()).toBe(201);
     const run = (await started.json()) as { runId: string; step: string; phase: string };
@@ -579,8 +636,16 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       "SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
       [CONVERSATION],
     );
-    expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
-    expect(events.rows[0]?.request_id).toMatch(/^sr_[0-9a-f]{32}$/);
+    // The whole progression, in order, in one log: the server offered, the
+    // student read it, the student asked for THAT offer, and only then did a
+    // secure step open. ADR-0058's journey, as evidence rather than as prose.
+    expect(events.rows.map((row) => row.kind)).toEqual([
+      "target_offered",
+      "message",
+      "target_requested",
+      "secret_requested",
+    ]);
+    expect(events.rows[3]?.request_id).toMatch(/^sr_[0-9a-f]{32}$/);
   }, 300_000);
 
   it("takes the student's password without the conversation plane seeing it", async () => {
@@ -600,8 +665,10 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       expect(row, "the conversation plane may not hold the password").not.toContain(PASSWORD);
       expect(row.toLowerCase()).not.toContain("password");
     }
+    // target_offered · message (the rendered offer) · target_requested ·
+    // secret_requested · secret_received.
     const kinds = rows.rows.length;
-    expect(kinds).toBe(2);
+    expect(kinds).toBe(5);
   }, 300_000);
 
   it("advances to account creation, and offers it to a runner as work", async () => {
@@ -610,7 +677,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       {
         method: "POST",
         headers: { "Content-Type": "application/json", cookie: devCookie },
-        body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
       },
     );
     expect(advanced.status).toBe(200);
@@ -679,7 +746,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       {
         method: "POST",
         headers: { "Content-Type": "application/json", cookie: devCookie },
-        body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
       },
     );
     expect(advanced.status).toBe(200);
@@ -743,7 +810,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       {
         method: "POST",
         headers: { "Content-Type": "application/json", cookie: devCookie },
-        body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
       },
     );
     const run = (await advanced.json()) as { step: string; phase: string };
@@ -915,7 +982,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         {
           method: "POST",
           headers: { "Content-Type": "application/json", cookie: devCookie },
-          body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+          body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
         },
       );
       const run = (await advanced.json()) as { step: string; phase: string };
@@ -1001,7 +1068,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         {
           method: "POST",
           headers: { "Content-Type": "application/json", cookie: devCookie },
-          body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+          body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
         },
       );
       return (await response.json()) as { step: string };
@@ -1105,7 +1172,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     const again = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", cookie: devCookie },
-      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
     });
     expect(again.status).toBe(200);
     const run = (await again.json()) as { step: string };

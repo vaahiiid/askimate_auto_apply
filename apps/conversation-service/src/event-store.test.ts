@@ -94,6 +94,7 @@ beforeAll(async () => {
     "0009_lease_page_version",
     "0010_worker_leases",
       "0011_verification_is_established_at_login",
+    "0012_target_offers",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
@@ -384,6 +385,46 @@ describeIfDatabase("reading the log", () => {
     expect(events[3]).toMatchObject({ reason: "already_submitted" });
     // No secure event carries text — the CHECK constraint and the union agree.
     for (const event of events.slice(1)) expect("content" in event).toBe(false);
+  }, 60_000);
+
+  it("round-trips the TARGET exchange with its hashes intact", async () => {
+    // ADR-0058. These two reach a client through `since` and the SSE stream,
+    // and the contract publishes `offerHash` on both. A read that dropped it
+    // would hand a client an event the contract's own parser refuses — and
+    // would do it silently, because nothing else in the row would change.
+    const conversation = await newConversation();
+    const offerHash = `sha256:${"e".repeat(64)}`;
+    const contentHash = `sha256:${"f".repeat(64)}`;
+    await store.append({
+      conversationId: conversation,
+      event: {
+        kind: "target_offered",
+        offerHash,
+        targetBlueprintId: "bp-gated-portal",
+        targetContentHash: contentHash,
+      },
+    });
+    await store.append({
+      conversationId: conversation,
+      event: { kind: "target_requested", offerHash },
+    });
+
+    const events = await store.since(conversation, 0);
+    expect(events.map((event) => event.kind)).toEqual(["target_offered", "target_requested"]);
+    expect(events[0]).toMatchObject({
+      offerHash,
+      targetBlueprintId: "bp-gated-portal",
+      targetContentHash: contentHash,
+    });
+    // The request names the offer and restates nothing about it.
+    expect(events[1]).toMatchObject({ offerHash });
+    expect("targetBlueprintId" in (events[1] ?? {})).toBe(false);
+
+    // And the exchange view agrees with the log it is a view over.
+    expect(await store.targetExchange(conversation)).toEqual([
+      { kind: "target_offered", offerHash },
+      { kind: "target_requested", offerHash },
+    ]);
   }, 60_000);
 
   it("returns only what comes after the cursor, which is what a resume needs", async () => {

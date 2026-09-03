@@ -46,6 +46,15 @@ export const EVENT_KINDS = [
   "value_proposed",
   "value_confirmed",
   "value_rejected",
+  // ── The target exchange (ADR-0058) ───────────────────────────────────
+  //
+  // The server put a REVIEWED target to the student, and the student asked to
+  // apply to that exact offer. On this log for the same reason the proposal
+  // exchange is: an offer is not yet a fact about an application, and the
+  // request that accepts it is bound by the offer's hash, so the two need one
+  // ordinal sequence to be ordered by.
+  "target_offered",
+  "target_requested",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
@@ -81,6 +90,12 @@ export const SECURE_EVENT_KINDS = [
 export function isSecureEventKind(kind: string): boolean {
   return (SECURE_EVENT_KINDS as readonly string[]).includes(kind);
 }
+
+/** The kinds that carry the target exchange (ADR-0058). */
+export const TARGET_EVENT_KINDS = [
+  "target_offered",
+  "target_requested",
+] as const satisfies readonly EventKind[];
 
 /** The kinds that carry the interview's proposal exchange (ADR-0051). */
 export const PROPOSAL_EVENT_KINDS = [

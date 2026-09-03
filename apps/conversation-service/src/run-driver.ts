@@ -719,6 +719,20 @@ export class RunDriver {
    */
   public async start(input: {
     readonly conversationId: string;
+    /**
+     * The reviewed target, already resolved and verified by Gate 2.
+     *
+     * ── Why this is not a `blueprintId` any more (ADR-0058) ─────────────
+     *
+     * It was, and an identifier alone is exactly what must not be able to open
+     * a case: `bp-gated-portal` is not something a student can consent to, and
+     * nothing about receiving one proves they were shown what it means.
+     *
+     * The caller resolves an offer the student accepted and passes the
+     * blueprint that offer named. The catalogue is still consulted here — this
+     * is the driver, and it needs the entry — but the DECISION about which
+     * target this case is for was made and audited before this call.
+     */
     readonly blueprintId: string;
     /**
      * What the student actually said.
@@ -788,7 +802,8 @@ export class RunDriver {
                   },
                   requestEvidence: {
                     requestedAt: now,
-                    channel: "askimate_chat",
+                    // The surface this request actually arrived on (ADR-0058).
+                    channel: "aas_conversation",
                     conversationRef: externalRef(input.conversationId),
                     studentStatement: input.studentStatement,
                   },

@@ -97,14 +97,18 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       serviceToken: config.secureServiceToken,
     });
     const identities = new StudentIdentityStore(pool);
+    // Resolved ONCE and shared: the driver executes against it and the offer
+    // path lists from it, so a target a student can be offered and a target a
+    // run can execute are the same set by construction (ADR-0041).
+    const catalogue = await resolveCatalogue({
+      source: config.catalogue,
+      ...(config.catalogueDir === undefined ? {} : { directory: config.catalogueDir }),
+      portalOrigins: config.portalOrigins,
+    });
     const driver = buildRunDriver(
       {
         pool,
-        catalogue: await resolveCatalogue({
-          source: config.catalogue,
-          ...(config.catalogueDir === undefined ? {} : { directory: config.catalogueDir }),
-          portalOrigins: config.portalOrigins,
-        }),
+        catalogue,
         secureRequests,
         identities,
         // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
@@ -154,6 +158,10 @@ export async function start(options: StartOptions): Promise<RunningService | nul
         );
         return owned.rowCount === 1;
       },
+      // Gate 1 (ADR-0058): the SAME catalogue the driver executes against, so
+      // "what a student may be offered" and "what a run may execute" cannot
+      // diverge.
+      targets: catalogue,
       // Two certificates, each for its own endpoints (ADR-0037, ADR-0045).
       // Written as one predicate because the per-endpoint split belongs to the
       // deployment's mesh policy rather than to this app.

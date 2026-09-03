@@ -25,6 +25,14 @@ import { toCanonical, type ReviewedCatalogueEntry } from "./entry.js";
 import { loadReviewedEntry, ReviewedCatalogue } from "./loader.js";
 import { parseReviewedEntry, parseReviewedEntryText } from "./parse.js";
 import { InMemoryApprovalRegistry, approveContent, hashOf } from "./registry.js";
+import {
+  ambiguousGroups,
+  isAmbiguous,
+  offerFor,
+  renderOffer,
+  targetOf,
+  type ReviewedTarget,
+} from "./target.js";
 
 /** The reviewed half of a catalogue entry for the gated TEST portal. */
 const ENTRY: ReviewedCatalogueEntry = {
@@ -506,5 +514,123 @@ describe("the catalogue that gets served", () => {
     const catalogue = new ReviewedCatalogue([]);
     expect(catalogue.size).toBe(0);
     expect(await catalogue.find("bp-gated-portal")).toBeNull();
+  });
+});
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0058 — what an offer hash binds, and what it refuses to conflate
+//
+// Tested HERE, at the function, and not only through the HTTP path. On the
+// route, a conversation belongs to exactly one student, so the conversation
+// binding reaches every case the student binding would — and a test that only
+// went through HTTP would report the student binding as covered while never
+// touching it. That is precisely the shadowed control this repository keeps
+// finding, so the three fields are asserted one at a time, directly.
+// ───────────────────────────────────────────────────────────────────────────
+
+const A_HASH = `sha256:${"a".repeat(64)}`;
+const B_HASH = `sha256:${"b".repeat(64)}`;
+
+function aTarget(over: Partial<ReviewedTarget> = {}): ReviewedTarget {
+  return {
+    ...targetOf({ entry: ENTRY, contentHash: A_HASH }),
+    ...over,
+  };
+}
+
+describe("the offer a student is asked to accept", () => {
+  it("is DETERMINISTIC — the same three inputs always give the same hash", () => {
+    const target = aTarget();
+    const one = offerFor({ target, studentId: "stu-1", conversationId: "conv-1" });
+    const two = offerFor({ target, studentId: "stu-1", conversationId: "conv-1" });
+    expect(two.offerHash).toBe(one.offerHash);
+    expect(one.offerHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("binds to the STUDENT — the same target in the same conversation", () => {
+    // Deliberately holding the conversation FIXED. An offer made to one
+    // student is not an offer to another, and this is the only place that can
+    // be asserted without the conversation binding answering first.
+    const target = aTarget();
+    const mine = offerFor({ target, studentId: "stu-1", conversationId: "conv-1" });
+    const theirs = offerFor({ target, studentId: "stu-2", conversationId: "conv-1" });
+    expect(theirs.offerHash).not.toBe(mine.offerHash);
+  });
+
+  it("binds to the CONVERSATION — the same target for the same student", () => {
+    const target = aTarget();
+    const here = offerFor({ target, studentId: "stu-1", conversationId: "conv-1" });
+    const there = offerFor({ target, studentId: "stu-1", conversationId: "conv-2" });
+    expect(there.offerHash).not.toBe(here.offerHash);
+  });
+
+  it("binds to the REVIEWED CONTENT — same identity, different artefact", () => {
+    // ADR-0057: an approval covers the content that was reviewed, not the
+    // identifier. So an offer over re-reviewed content is a different offer,
+    // even though every visible field is the same.
+    const before = offerFor({
+      target: aTarget(),
+      studentId: "stu-1",
+      conversationId: "conv-1",
+    });
+    const after = offerFor({
+      target: aTarget({ contentHash: B_HASH }),
+      studentId: "stu-1",
+      conversationId: "conv-1",
+    });
+    expect(after.offerHash).not.toBe(before.offerHash);
+  });
+
+  it("binds to the ROUTE and the PORTAL, which is what tells two offers apart", () => {
+    const direct = offerFor({ target: aTarget(), studentId: "s", conversationId: "c" });
+    const partner = offerFor({
+      target: aTarget({ blueprintId: "bp-gated-partner", route: "partner_portal" }),
+      studentId: "s",
+      conversationId: "c",
+    });
+    expect(partner.offerHash).not.toBe(direct.offerHash);
+  });
+
+  it("renders what the student is agreeing to, deterministically", () => {
+    const offer = offerFor({ target: aTarget(), studentId: "s", conversationId: "c" });
+    const rendered = renderOffer(offer);
+    expect(rendered).toBe(renderOffer(offer));
+    // The four facts that identify an application: where, what, when, and
+    // through which portal. The last one is what distinguishes two reviewed
+    // routes to the same course.
+    expect(rendered).toContain("Gated University");
+    expect(rendered).toContain("MSc Controlled Studies");
+    expect(rendered).toContain("2026-09");
+    expect(rendered).toContain("direct portal");
+    expect(rendered).toContain("gated.portal.test");
+  });
+});
+
+describe("two reviewed routes to the same course", () => {
+  const direct = aTarget();
+  const partner = aTarget({ blueprintId: "bp-gated-partner", route: "partner_portal" });
+  const other = aTarget({ blueprintId: "bp-gated-other", courseRef: "course-other" });
+
+  it("is AMBIGUOUS, because the submission key cannot tell them apart", () => {
+    // `submissionKey` is (student, institution, course, intake, attempt) and
+    // does NOT contain the blueprint. Starting one permanently blocks the
+    // other for that student, so the choice is theirs to make.
+    expect(isAmbiguous(direct, [direct, partner, other])).toBe(true);
+    expect(isAmbiguous(partner, [direct, partner, other])).toBe(true);
+  });
+
+  it("leaves a target with its own course unambiguous", () => {
+    expect(isAmbiguous(other, [direct, partner, other])).toBe(false);
+  });
+
+  it("groups exactly the colliding ones, and nothing on its own", () => {
+    const groups = ambiguousGroups([direct, partner, other]);
+    expect(groups.size).toBe(1);
+    expect([...groups.values()][0]?.map((t) => t.blueprintId).sort()).toEqual([
+      "bp-gated-partner",
+      "bp-gated-portal",
+    ]);
+    expect(ambiguousGroups([other]).size).toBe(0);
   });
 });

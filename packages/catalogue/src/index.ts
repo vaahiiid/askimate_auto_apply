@@ -28,6 +28,16 @@ export { parseBlueprint, parseMappingSet, parseReviewedEntry, parseReviewedEntry
 export type { Approval, ApprovalRefusal, ApprovalRegistry, ApprovalResult } from "./registry.js";
 export { InMemoryApprovalRegistry, approveContent, hashOf } from "./registry.js";
 
+export type { ReviewedTarget, TargetOffer } from "./target.js";
+export {
+  ambiguousGroups,
+  isAmbiguous,
+  offerCanonical,
+  offerFor,
+  renderOffer,
+  targetOf,
+} from "./target.js";
+
 export type { DeployedCatalogueEntry, LoadRefusal, LoadResult } from "./loader.js";
 export { ReviewedCatalogue, loadReviewedEntry } from "./loader.js";
 

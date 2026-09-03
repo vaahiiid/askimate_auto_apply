@@ -89,13 +89,19 @@ import {
 /**
  * Well clear of everything else, and that is not fussiness.
  *
- * `run-driver.test.ts` derives its servers from `PORT = 4903` as far as
- * `PORT + 60`, and `journey.test.ts` from 4901 as far as `+ 20` — so 4901-4963
- * is effectively reserved even though no file says so in one place. This suite
- * first took 4907, which is `run-driver.test.ts`'s `PORT + 4`, and when the two
- * files ran together one of its tests reached THIS service instead of its own
- * and got a 401 where it expected a 404: a failure that appeared and vanished
- * with the file scheduling, in a suite that is otherwise deterministic.
+ * `journey.test.ts` derives its servers from 4901 as far as `+ 20`. This suite
+ * first took 4907, which was then `run-driver.test.ts`'s `PORT + 4`, and when
+ * the two files ran together one of its tests reached THIS service instead of
+ * its own and got a 401 where it expected a 404: a failure that appeared and
+ * vanished with the file scheduling, in a suite that is otherwise
+ * deterministic.
+ *
+ * **It happened twice.** `run-driver.test.ts` also had `PORT + 3` on 4906,
+ * `journey.test.ts`'s CDP port, and that one lay dormant until P21 changed the
+ * timing enough for the two files to overlap. It has since moved to 5100-5180
+ * and says so at the top of the file. The rule the two incidents share: a
+ * derived port is a claim on a RANGE, and the ranges have to be disjoint by
+ * construction rather than by scheduling luck.
  */
 const PORT = 4980;
 const BASE = `http://127.0.0.1:${String(PORT)}`;

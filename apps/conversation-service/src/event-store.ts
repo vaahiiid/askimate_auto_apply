@@ -44,7 +44,7 @@
 import type { Pool, PoolClient } from "pg";
 
 import type { ConversationEvent, Ordinal, RejectionReason } from "@askimate/aas-contracts";
-import { PROPOSAL_EVENT_KINDS, SECURE_EVENT_KINDS } from "@askimate/aas-contracts";
+import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS, SECURE_EVENT_KINDS } from "@askimate/aas-contracts";
 
 /** PostgreSQL's unique-violation SQLSTATE. */
 const UNIQUE_VIOLATION = "23505";
@@ -76,6 +76,17 @@ export type AppendableEvent =
       readonly proposal: unknown; readonly playbackHash: string }
   | { readonly kind: "value_confirmed"; readonly fieldKey: string;
       readonly playbackHash: string }
+  // ── The target exchange (ADR-0058) ────────────────────────────────────
+  //
+  // Appended by the SERVICE, never by a client, for the same reason the
+  // proposal exchange is: `parseSecureAppend` has no branch for either, and
+  // what a student sends is a message or a request on a decision route.
+  //
+  // An offer carries the target it resolved; a request names only the offer.
+  // `only_an_offer_carries_a_target` enforces that in the schema.
+  | { readonly kind: "target_offered"; readonly offerHash: string;
+      readonly targetBlueprintId: string; readonly targetContentHash: string }
+  | { readonly kind: "target_requested"; readonly offerHash: string }
   | { readonly kind: "value_rejected"; readonly fieldKey: string };
 
 /**
@@ -130,6 +141,13 @@ function isProposalEvent(
   event: AppendableEvent,
 ): event is Extract<AppendableEvent, { kind: (typeof PROPOSAL_EVENT_KINDS)[number] }> {
   return (PROPOSAL_EVENT_KINDS as readonly string[]).includes(event.kind);
+}
+
+/** True for the target exchange (ADR-0058). */
+function isTargetEvent(
+  event: AppendableEvent,
+): event is Extract<AppendableEvent, { kind: (typeof TARGET_EVENT_KINDS)[number] }> {
+  return (TARGET_EVENT_KINDS as readonly string[]).includes(event.kind);
 }
 
 function rowToEvent(row: Record<string, unknown>): ConversationEvent {
@@ -188,6 +206,17 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         proposal: row["proposal"],
         playbackHash: row["playback_hash"] as string,
       };
+    case "target_offered":
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        offerHash: row["offer_hash"] as string,
+        targetBlueprintId: row["target_blueprint_id"] as string,
+        targetContentHash: row["target_content_hash"] as string,
+      };
+    case "target_requested":
+      return { kind, ordinal, createdAt, offerHash: row["offer_hash"] as string };
     case "value_confirmed":
       return {
         kind,
@@ -204,7 +233,8 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
 const SELECT_EVENT = `
   SELECT e.ordinal, e.created_at, e.kind, e.actor, e.request_id, e.handle,
          e.reason_code, e.channel, e.expires_at, e.field_key, e.proposal,
-         e.playback_hash, b.content, b.redacted_at
+         e.playback_hash, e.offer_hash, e.target_blueprint_id,
+         e.target_content_hash, b.content, b.redacted_at
     FROM conversation_events e
     LEFT JOIN message_bodies b ON b.id = e.body_id
 `;
@@ -325,10 +355,13 @@ export class ConversationEventStore {
     const written = await client.query(
       `INSERT INTO conversation_events
          (conversation_id, ordinal, kind, actor, body_id, request_id, handle,
-          reason_code, channel, expires_at, field_key, proposal, playback_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+          reason_code, channel, expires_at, field_key, proposal, playback_hash,
+          offer_hash, target_blueprint_id, target_content_hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13,
+               $14, $15, $16)
        RETURNING ordinal, created_at, kind, actor, request_id, handle, reason_code,
-                 channel, expires_at, field_key, proposal, playback_hash`,
+                 channel, expires_at, field_key, proposal, playback_hash,
+                 offer_hash, target_blueprint_id, target_content_hash`,
       [
         conversationId,
         ordinal,
@@ -348,6 +381,12 @@ export class ConversationEventStore {
         event.kind === "value_proposed" || event.kind === "value_confirmed"
           ? event.playbackHash
           : null,
+        // The target exchange (ADR-0058). Both halves name the offer;
+        // `a_target_exchange_names_an_offer` enforces that in the schema.
+        isTargetEvent(event) ? event.offerHash : null,
+        // Only the OFFER carries the target, per `only_an_offer_carries_a_target`.
+        event.kind === "target_offered" ? event.targetBlueprintId : null,
+        event.kind === "target_offered" ? event.targetContentHash : null,
       ],
     );
 
@@ -373,6 +412,36 @@ export class ConversationEventStore {
       [conversationId, afterOrdinal, limit],
     );
     return rows.rows.map((row) => rowToEvent(row as Record<string, unknown>));
+  }
+
+  /**
+   * The target exchange of one conversation: what was offered, and what was
+   * asked for.
+   *
+   * ══════════════════════════════════════════════════════════════════════
+   * Gate 2's first condition (ADR-0058). Reads the VIEW from migration 0012
+   * rather than filtering the log in the caller, for the reason
+   * `openSecretRequest` reads a view: which rows count is a rule about the
+   * log, and a rule written in a handler is a rule the next handler gets
+   * subtly wrong.
+   *
+   * Scoped to one conversation by the query itself, so an offer made
+   * elsewhere cannot appear here however the caller asks.
+   * ══════════════════════════════════════════════════════════════════════
+   */
+  public async targetExchange(
+    conversationId: string,
+  ): Promise<readonly { readonly kind: "target_offered" | "target_requested"; readonly offerHash: string }[]> {
+    const rows = await this.#pool.query<{ kind: string; offer_hash: string }>(
+      `SELECT kind, offer_hash FROM conversation_target_exchange
+        WHERE conversation_id = $1
+        ORDER BY ordinal ASC`,
+      [conversationId],
+    );
+    return rows.rows.map((row) => ({
+      kind: row.kind as "target_offered" | "target_requested",
+      offerHash: row.offer_hash,
+    }));
   }
 
   /**

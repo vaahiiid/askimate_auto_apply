@@ -75,10 +75,49 @@ export interface CaseOpened {
   readonly requestEvidence: RequestEvidence;
 }
 
+/**
+ * The surfaces a request can arrive on.
+ *
+ * A named closed set rather than an inline union, so it is greppable and so a
+ * test can assert what the driver actually WRITES rather than what the type
+ * would permit. There is deliberately no cross-surface drift guard for it:
+ * `requestEvidence` appears on no published API and in no CHECK constraint —
+ * the case log is jsonb — so a guard would compare this list to itself.
+ * `p21-target-selection.test.ts` asserts the consequence instead.
+ */
+export const REQUEST_CHANNELS = [
+  /** This system's own authenticated conversation (ADR-0051, ADR-0058). */
+  "aas_conversation",
+  /** AskiMate Chat, over ADR-0001's boundary. Deferred, not withdrawn. */
+  "askimate_chat",
+  "askimate_ui",
+  "specialist_recorded",
+] as const;
+export type RequestChannel = (typeof REQUEST_CHANNELS)[number];
+
 /** Proof that the student explicitly asked to apply (brief §2.1). */
 export interface RequestEvidence {
   readonly requestedAt: Date;
-  readonly channel: "askimate_chat" | "askimate_ui" | "specialist_recorded";
+  /**
+   * The surface the request actually arrived on.
+   *
+   * ── `aas_conversation` was added because the field was FALSE ───────────
+   *
+   * ADR-0058. The vocabulary was written when ADR-0001's topology was the
+   * plan: AskiMate would open cases in this system over the integration
+   * boundary. ADR-0051 deferred that in full and made THIS system's own
+   * conversation the student surface — and the driver went on writing
+   * `askimate_chat` unconditionally, so every case it opened asserted in an
+   * audit field that the request arrived through a product that did not
+   * receive it.
+   *
+   * That is a correctness defect in an audit trail, not documentation drift:
+   * the question this field exists to answer is *"through which surface did
+   * they ask?"*, and it was answering it wrongly. The AskiMate members are
+   * kept — ADR-0001 is deferred, not withdrawn, and they become true the day
+   * a second system opens a case.
+   */
+  readonly channel: RequestChannel;
   /** The conversation the request was made in, for traceability back to AskiMate. */
   readonly conversationRef?: ExternalRef;
   readonly messageRef?: ExternalRef;

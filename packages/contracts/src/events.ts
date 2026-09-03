@@ -150,6 +150,37 @@ export interface ValueRejectedEvent extends EventBase {
   readonly fieldKey: string;
 }
 
+/**
+ * The server resolved a REVIEWED target and put it to the student (ADR-0058).
+ *
+ * Content-free by construction: the prose the student reads is a `message`
+ * beside this, and what this carries is the identity that prose describes —
+ * which offer, which blueprint, and which reviewed catalogue content supported
+ * it. `contentHash` is recorded rather than re-derived so that a later change
+ * to the artefact is detectable instead of silently reinterpreted.
+ */
+export interface TargetOfferedEvent extends EventBase {
+  readonly kind: "target_offered";
+  /** `sha256:<hex>` over the canonical offer. What a request must name. */
+  readonly offerHash: string;
+  readonly targetBlueprintId: string;
+  /** ADR-0057's content hash for the catalogue entry behind the offer. */
+  readonly targetContentHash: string;
+}
+
+/**
+ * The student explicitly asked to apply to that exact offer.
+ *
+ * The event immediately before `CaseOpened`, and the first consequential act in
+ * the journey. It names the offer and nothing else: what was offered is the
+ * offer's to state, and repeating it here would let two rows disagree about one
+ * fact.
+ */
+export interface TargetRequestedEvent extends EventBase {
+  readonly kind: "target_requested";
+  readonly offerHash: string;
+}
+
 export type ConversationEvent =
   | MessageEvent
   | SecretRequestedEvent
@@ -158,7 +189,9 @@ export type ConversationEvent =
   | SecretRejectedEvent
   | ValueProposedEvent
   | ValueConfirmedEvent
-  | ValueRejectedEvent;
+  | ValueRejectedEvent
+  | TargetOfferedEvent
+  | TargetRequestedEvent;
 
 /**
  * COMPILE-TIME: only `message` may have a `content` field.

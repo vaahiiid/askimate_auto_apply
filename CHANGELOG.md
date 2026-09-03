@@ -19,6 +19,101 @@ not shipped artefacts.
 
 ---
 
+## [0.39.0] — 2026-09-03
+
+**P21 — a student chooses a reviewed target, and asks for it. ADR-0058.**
+
+Every phase from P4 to P20 built something downstream of a step nobody could
+take. The run-start endpoint took a `blueprintId`: a string a client chose,
+which proves nothing about what a person was shown. `bp-gated-portal` is not a
+sentence anybody can consent to.
+
+Two gates now stand between a conversation and a case.
+
+**Gate 1 — an offer can only be built from a reviewed catalogue entry.** It
+needs almost no code, because P20's loader already refuses to start a process on
+an entry no approval covers. `GET /v1/application-targets` is a read-only view
+over artefacts an approval registry vouched for; listing one neither creates nor
+implies approval.
+
+**Gate 2 — a case opens only when the authenticated student names the hash of an
+offer this server made to them, in this conversation.** Two independent
+conditions, and neither is sufficient:
+
+- the hash is in **this conversation's log** as a `target_offered` event, and
+- some reviewed target, **rebuilt from the catalogue as it is now** for this
+  student and this conversation, hashes to it.
+
+The log alone would honour an offer whose target was retired or re-reviewed.
+Re-derivation alone would honour a hash a client computed for itself. The first
+draft of ADR-0058 had only the second; writing the refusal tests made the gap
+visible, and the ADR was corrected rather than left to disagree with the code.
+
+No clock is involved anywhere, and that is the point: an offer stays valid
+exactly as long as the thing it describes is unchanged. A timeout would refuse
+unchanged offers and accept changed ones inside the window.
+
+### Added
+
+- `packages/catalogue/src/target.ts` — `ReviewedTarget`, `offerCanonical`,
+  `offerFor`, `renderOffer`, `ambiguousGroups`, `isAmbiguous`. Pure; no
+  knowledge of runs, cases or HTTP.
+- `ReviewedCatalogue.targets()` and `.hashOf()`.
+- `apps/conversation-service/src/target-offers.ts` — `makeOffer` and
+  `verifyRequest`, the two gates as decisions with refusals as outcomes.
+- `GET /v1/application-targets` — authenticated; carries neither `contentHash`
+  nor `blueprintVersion`.
+- `POST /v1/conversations/{id}/target-offers` — resolves a chosen target and
+  puts it to the student. Opens nothing: no case, no run.
+- Migration `0012_target_offers` — the `target_offered` / `target_requested`
+  events, two CHECK constraints, and `conversation_target_exchange`, the view
+  the run route reads Gate 2's first condition from.
+- `scripts/p21-target-selection.test.ts` — 23 tests against a real PostgreSQL
+  and a catalogue loaded from **files** through P20's registry.
+
+### Changed
+
+- **`POST /v1/conversations/{id}/runs` takes an `offerHash` and no longer reads
+  `blueprintId` at all.** A breaking change to an endpoint with no production
+  caller and no deployment — verified by search. The old contract cannot survive
+  as a second path around Gate 2, because a body carrying only a `blueprintId`
+  is answered as one that named no offer.
+- `requestEvidence.channel` said `askimate_chat` unconditionally. Since ADR-0051
+  this system's own conversation is the student surface, so **every case ever
+  opened asserted in an audit field that the request arrived through a product
+  that did not receive it.** `REQUEST_CHANNELS` is now a closed set and the
+  driver writes `aas_conversation`.
+- `target_requested` is written **once per offer**, not once per call: a log
+  that grew one on every retry would say the student asked to apply five times
+  when they asked once.
+
+### Removed
+
+- `REQUIREMENTS_RESOLUTION`, `ELIGIBILITY_REVIEW` and `BLUEPRINT_REQUIRED`
+  (Stage A, `f89cbf2`). `caseStateFor` was total over `WorkflowPhase` and mapped
+  **no phase** to the first two; they were entered only because the spine walk
+  steps through one element at a time. They described the walk, not the case.
+  The third was never entered at all.
+
+### Proved
+
+Eighteen deliberate regressions on Stage B, sixteen caught on the first pass.
+Two survived, both shadowed controls, both now caught:
+
+- the **student** binding in the offer hash was shadowed by the **conversation**
+  binding, because a conversation belongs to exactly one student. It is now
+  asserted at the function, holding the conversation fixed.
+- reading `blueprintId` from the request body survived because no test sent both
+  a valid offer *and* a competing id. One now does, and asserts which blueprint
+  the `cases` row was bound to.
+
+A third case is recorded because it is new: moving the log read to the
+`conversation_target_exchange` view — a better design — orphaned the only thing
+exercising the column in `SELECT_EVENT`, turning a hard failure into an
+invisible one. `event-store.test.ts` now round-trips the exchange directly.
+
+---
+
 ## [0.38.0] — 2026-09-03
 
 **P20 — the catalogue loads a reviewed artefact, and can prove that is what it

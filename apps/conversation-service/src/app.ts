@@ -70,6 +70,13 @@ export interface ConversationAppOptions {
   /** Starts and advances application runs (P1). Omit to serve conversations alone. */
   readonly runs?: ConversationRoutesOptions["runs"];
   /**
+   * The reviewed targets a student may be offered (ADR-0058, Gate 1).
+   *
+   * Omit and no target can be offered, so no case can open — which is the safe
+   * direction for a deployment that has not resolved a catalogue.
+   */
+  readonly targets?: ConversationRoutesOptions["targets"];
+  /**
    * Mints a session for a subject. PROVISIONAL, and mounted only when supplied.
    *
    * ADR-0038 delegates identity to a managed OIDC provider, so there is no
@@ -176,6 +183,7 @@ export function createConversationApp(options: ConversationAppOptions): Express 
             }),
       ...(options.secureOrigin === undefined ? {} : { secureOrigin: options.secureOrigin }),
       ...(options.runs === undefined ? {} : { runs: options.runs }),
+      ...(options.targets === undefined ? {} : { targets: options.targets }),
     }),
   );
 

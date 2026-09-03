@@ -16,7 +16,12 @@
 
 import type { Pool } from "pg";
 
-import { loadCatalogueDirectory, type DeployedCatalogueEntry } from "@askimate/aas-catalogue";
+import {
+  loadCatalogueDirectory,
+  targetOf,
+  type DeployedCatalogueEntry,
+  type ReviewedTarget,
+} from "@askimate/aas-catalogue";
 
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
@@ -49,7 +54,18 @@ import { WorkLeaseStore } from "./work-store.js";
  * one of the two things that still block production, and it is its own phase.
  * ═══════════════════════════════════════════════════════════════════════════
  */
-export function fixtureCatalogue(portalOrigin?: string): ApplicationCatalogue {
+/**
+ * A catalogue that can also list what it holds.
+ *
+ * The offer path needs the listing (ADR-0058, Gate 1) and the driver needs the
+ * lookup, and both must see ONE set — so `resolveCatalogue` returns both
+ * capabilities on one object rather than letting a deployment wire two.
+ */
+export interface ServableCatalogue extends ApplicationCatalogue {
+  targets(): readonly ReviewedTarget[];
+}
+
+export function fixtureCatalogue(portalOrigin?: string): ServableCatalogue {
   const entry: CatalogueEntry = {
     blueprint: GATED_PORTAL_BLUEPRINT,
     mappingSet: GATED_PORTAL_MAPPING_SET,
@@ -73,7 +89,21 @@ export function fixtureCatalogue(portalOrigin?: string): ApplicationCatalogue {
     },
     passwordDelivery: "askimate_secure_channel",
   };
-  return { find: (id) => Promise.resolve(id === "bp-gated-portal" ? entry : null) };
+  // A stable, fabricated content hash. The fixture never went through an
+  // approval registry — it is compiled in — so there is no real hash to carry.
+  // Named as fabricated so nobody mistakes it for one, and harmless because
+  // `AAS_CATALOGUE=fixtures` is refused in production.
+  const fixtureContentHash = `sha256:${"f".repeat(64)}`;
+  return {
+    find: (id) => Promise.resolve(id === "bp-gated-portal" ? entry : null),
+    targets: () => [
+      targetOf({
+        entry,
+        contentHash: fixtureContentHash,
+        ...(portalOrigin === undefined ? {} : { portalOrigin }),
+      }),
+    ],
+  };
 }
 
 /**
@@ -97,7 +127,7 @@ export async function resolveCatalogue(input: {
   readonly source: "fixtures" | "registry";
   readonly directory?: string;
   readonly portalOrigins?: Readonly<Record<string, string>>;
-}): Promise<ApplicationCatalogue> {
+}): Promise<ServableCatalogue> {
   if (input.source === "fixtures") {
     // A single origin override is meaningful here because the fixture serves
     // exactly one blueprint.

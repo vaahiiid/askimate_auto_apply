@@ -101,7 +101,8 @@ beforeAll(async () => {
     "0008_value_proposals",
     "0009_lease_page_version",
     "0010_worker_leases",
-      "0011_verification_is_established_at_login",
+    "0011_verification_is_established_at_login",
+    "0012_target_offers",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -216,6 +217,29 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       // `secure_events_name_a_request` from "everything that is not a message"
       // to an explicit list precisely so this row is legal and a secure event
       // still cannot be written without one.
+      // ── The target exchange (ADR-0058) ─────────────────────────────
+      //
+      // Also not a secure event, and also not a proposal: it names an OFFER.
+      // `only_an_offer_carries_a_target` means the offer row must carry the
+      // blueprint and the reviewed content hash and the request row must not.
+      if (kind === "target_offered" || kind === "target_requested") {
+        const offerHash = `sha256:${"d".repeat(64)}`;
+        if (kind === "target_offered") {
+          await pool.query(
+            `INSERT INTO conversation_events
+               (conversation_id, ordinal, kind, offer_hash, target_blueprint_id, target_content_hash)
+             VALUES ($1, $2, $3, $4, 'bp-gated-portal', $5)`,
+            [conversation, ordinal, kind, offerHash, `sha256:${"e".repeat(64)}`],
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO conversation_events (conversation_id, ordinal, kind, offer_hash)
+             VALUES ($1, $2, $3, $4)`,
+            [conversation, ordinal, kind, offerHash],
+          );
+        }
+        continue;
+      }
       if (kind === "value_proposed" || kind === "value_confirmed" || kind === "value_rejected") {
         const proposal = kind === "value_proposed" ? { value: "x" } : null;
         const playback =
@@ -316,6 +340,69 @@ describeIfDatabase("the database refuses a word it does not know", () => {
        VALUES ($1, 1, 'value_rejected', 'identity.given_name', $2)`,
       [conversation, `sha256:${"a".repeat(64)}`],
       { code: CHECK_VIOLATION, constraint: "a_playback_hash_belongs_to_the_exchange" },
+    );
+  });
+
+  // ── ADR-0058's two columns, and what the database will not let them say ──
+
+  it("refuses a target event that names no offer", async () => {
+    // Both halves of the exchange are ABOUT an offer. One that names none is
+    // not a weaker record of the same fact; it is a row nobody can trace to
+    // what the student was shown.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T60");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind)
+       VALUES ($1, 1, 'target_requested')`,
+      [conversation],
+      { code: CHECK_VIOLATION, constraint: "a_target_exchange_names_an_offer" },
+    );
+  });
+
+  it("refuses an offer hash on an event that is not part of the exchange", async () => {
+    // The equivalence from the other side: `offer_hash` belongs to the target
+    // exchange and to nothing else, for the reason `playback_hash` belongs to
+    // the value exchange and to nothing else.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T61");
+    const body = await newBody("hello");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, actor, body_id, offer_hash)
+       VALUES ($1, 1, 'message', 'student', $2, $3)`,
+      [conversation, body, `sha256:${"a".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "a_target_exchange_names_an_offer" },
+    );
+  });
+
+  it("refuses a REQUEST that restates what was offered", async () => {
+    // The request names the offer; what was offered is the offer's to state.
+    // Duplicating it here would make two rows able to disagree about one fact.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T62");
+    await refuses(
+      `INSERT INTO conversation_events
+         (conversation_id, ordinal, kind, offer_hash, target_blueprint_id, target_content_hash)
+       VALUES ($1, 1, 'target_requested', $2, 'bp-x', $3)`,
+      [conversation, `sha256:${"a".repeat(64)}`, `sha256:${"b".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "only_an_offer_carries_a_target" },
+    );
+  });
+
+  it("refuses an OFFER that does not say what it offered", async () => {
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T63");
+    await refuses(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, offer_hash)
+       VALUES ($1, 1, 'target_offered', $2)`,
+      [conversation, `sha256:${"a".repeat(64)}`],
+      { code: CHECK_VIOLATION, constraint: "only_an_offer_carries_a_target" },
+    );
+  });
+
+  it("refuses an offer hash that is not a SHA-256", async () => {
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T64");
+    await refuses(
+      `INSERT INTO conversation_events
+         (conversation_id, ordinal, kind, offer_hash, target_blueprint_id, target_content_hash)
+       VALUES ($1, 1, 'target_offered', 'offer-1', 'bp-x', $2)`,
+      [conversation, `sha256:${"b".repeat(64)}`],
+      { code: CHECK_VIOLATION },
     );
   });
 
@@ -662,6 +749,44 @@ describeIfDatabase("the open-request view is the fail-closed guard", () => {
     );
     expect(definition.rows[0]!.definition).not.toMatch(/\bnow\(\)|CURRENT_TIMESTAMP/i);
   });
+
+  it("shows the target exchange, and NOTHING else, with no clock either", async () => {
+    // ADR-0058. `conversation_target_exchange` is what the run route reads to
+    // answer Gate 2's first condition, so what it admits IS the gate's input.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T65");
+    const body = await newBody("an ordinary message");
+    const offer = `sha256:${"a".repeat(64)}`;
+    await pool.query(
+      `INSERT INTO conversation_events
+         (conversation_id, ordinal, kind, offer_hash, target_blueprint_id, target_content_hash)
+       VALUES ($1, 1, 'target_offered', $2, 'bp-x', $3)`,
+      [conversation, offer, `sha256:${"b".repeat(64)}`],
+    );
+    await pool.query(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, actor, body_id)
+       VALUES ($1, 2, 'message', 'assistant', $2)`,
+      [conversation, body],
+    );
+    await pool.query(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, offer_hash)
+       VALUES ($1, 3, 'target_requested', $2)`,
+      [conversation, offer],
+    );
+
+    const rows = await pool.query<{ kind: string; offer_hash: string }>(
+      "SELECT kind, offer_hash FROM conversation_target_exchange WHERE conversation_id = $1 ORDER BY ordinal",
+      [conversation],
+    );
+    expect(rows.rows.map((row) => row.kind)).toEqual(["target_offered", "target_requested"]);
+    expect(new Set(rows.rows.map((row) => row.offer_hash))).toEqual(new Set([offer]));
+
+    // No clock: an offer does not expire, and a view that read one would make
+    // Gate 2's answer untestable for no benefit.
+    const definition = await pool.query<{ definition: string }>(
+      "SELECT pg_get_viewdef('conversation_target_exchange'::regclass, true) AS definition",
+    );
+    expect(definition.rows[0]!.definition).not.toMatch(/\bnow\(\)|CURRENT_TIMESTAMP/i);
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -808,7 +933,8 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0008_value_proposals",
         "0009_lease_page_version",
     "0010_worker_leases",
-      "0011_verification_is_established_at_login",
+    "0011_verification_is_established_at_login",
+    "0012_target_offers",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -850,7 +976,8 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0008_value_proposals",
       "0009_lease_page_version",
     "0010_worker_leases",
-      "0011_verification_is_established_at_login",
+    "0011_verification_is_established_at_login",
+    "0012_target_offers",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

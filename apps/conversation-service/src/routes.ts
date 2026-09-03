@@ -65,6 +65,10 @@ import {
   ResolutionOutcomeNotImplementedError,
 } from "@askimate/aas-case-store/interventions";
 
+import type { ReviewedTarget } from "@askimate/aas-catalogue";
+import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
+import { makeOffer, verifyRequest } from "./target-offers.js";
+
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
 import type { RunOutcome } from "./run-driver.js";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
@@ -82,10 +86,33 @@ export interface Caller {
  * run skip a step, change its status or set its phase directly. What a run does
  * next is the orchestrator's decision, reached through `nextStep`.
  */
+/**
+ * The reviewed targets a student may be offered, and nothing else.
+ *
+ * GATE 1 (ADR-0058). A narrow port: this path never needs a blueprint or a
+ * mapping set, and one that could hand it either would invite the offer to
+ * describe things a student cannot check.
+ *
+ * Optional on the routes, and its absence is a REFUSAL rather than a bypass —
+ * the same shape as ADR-0056's identity guard. A deployment without a
+ * directory cannot offer a target, so it cannot open a case.
+ */
+export interface TargetDirectoryPort {
+  targets(): readonly ReviewedTarget[];
+}
+
 export interface RunCoordinator {
   start(input: {
     readonly conversationId: string;
-    readonly blueprintId: string;
+    /**
+     * The blueprint the ACCEPTED OFFER named.
+     *
+     * An internal implementation identity since ADR-0058, not a student-facing
+     * authority: the route resolves it from a verified offer hash and a
+     * student-supplied `blueprintId` cannot reach it. `p21-target-selection`
+     * proves there is no second path.
+     */
+     readonly blueprintId: string;
     readonly studentStatement: string;
   }): Promise<RunOutcome>;
   /**
@@ -158,6 +185,13 @@ export interface ConversationRoutesOptions {
   readonly authorise: (caller: Caller, conversationId: string) => Promise<boolean>;
   /** True when the caller presented a permitted service certificate (mTLS). */
   readonly authoriseService?: (req: Request) => boolean;
+  /**
+   * The reviewed targets a student may be offered (ADR-0058, Gate 1).
+   *
+   * Absent means no target can be offered and therefore no case can open —
+   * a refusal, not a bypass.
+   */
+  readonly targets?: TargetDirectoryPort;
   readonly now: () => Date;
   /** Answers a message. Replies arrive as events on the stream, not inline. */
   readonly answer?: (input: {
@@ -370,6 +404,16 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
     return authenticated;
   }
 
+  /** Authenticates only. For a surface that is not about one conversation. */
+  async function session(req: Request, res: Response): Promise<Caller | null> {
+    const authenticated = await options.authenticate(req);
+    if (authenticated === null) {
+      problem(res, "unauthenticated");
+      return null;
+    }
+    return authenticated;
+  }
+
   // ── POST /v1/conversations/:id/messages ─────────────────────────────────
   router.post(
     "/v1/conversations/:conversationId/messages",
@@ -460,6 +504,158 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
     },
   );
 
+  // ── GET /v1/application-targets ─────────────────────────────────────────
+  //
+  // What this system can actually apply to. GATE 1 (ADR-0058).
+  //
+  // A read-only view over artefacts an approval registry already vouched for:
+  // P20's loader runs `checkExecutable` and `checkUsable` on every entry and
+  // refuses to START if any fails, so this list cannot contain an unreviewed,
+  // retired, superseded or unusable target. **Listing an approved artefact
+  // neither creates nor implies approval**, and there is no second, unreviewed
+  // catalogue anywhere for a target to arrive from.
+  //
+  // Authenticated, because it is part of a student's journey rather than public
+  // reference data, and because an unauthenticated reader could enumerate which
+  // institutions this system has relationships with.
+  router.get(
+    "/v1/application-targets",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const who = await session(req, res);
+        if (who === null) return;
+        if (options.targets === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const targets = options.targets.targets();
+        const ambiguous = ambiguousGroups(targets);
+        res.status(200).json({
+          targets: targets.map((target) => ({
+            blueprintId: target.blueprintId,
+            institutionName: target.institutionName,
+            ...(target.campus === undefined ? {} : { campus: target.campus }),
+            courseName: target.courseName,
+            intake: target.intake,
+            intakeRef: target.intakeRef,
+            route: target.route,
+            portalHost: target.portalHost,
+            requiredDocuments: target.requiredDocuments,
+            // So a client can present the choice rather than pick one.
+            needsDisambiguation: isAmbiguous(target, targets),
+          })),
+          ambiguousCount: ambiguous.size,
+        });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/:id/target-offers ────────────────────────────
+  //
+  // The server resolves a chosen reviewed target and puts it to the student.
+  //
+  // NOT consequential: no case, no run, nothing the student is committed to.
+  // What it produces is an offer — a deterministic rendering of exactly what
+  // would be applied for, and the hash that a later explicit request must name.
+  //
+  // The body carries a `blueprintId`, and that is a LOOKUP KEY rather than an
+  // authority: every field of the offer is taken from the catalogue entry it
+  // resolves to, so a client sending a different id gets a different offer
+  // rather than an offer it authored.
+  router.post(
+    "/v1/conversations/:conversationId/target-offers",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+        if (options.targets === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const blueprintId = readString(req.body, "blueprintId");
+        if (blueprintId === null) {
+          problem(res, "validation_failed", { pointers: ["/blueprintId"] });
+          return;
+        }
+        const disambiguated = req.body !== null && typeof req.body === "object"
+          ? (req.body as Record<string, unknown>)["disambiguated"] === true
+          : false;
+
+        const made = makeOffer({
+          directory: options.targets,
+          chosenBlueprintId: blueprintId,
+          studentId: who.studentId,
+          conversationId,
+          ...(disambiguated ? { disambiguated: true } : {}),
+        });
+
+        if (!made.ok) {
+          if (made.refusal.kind === "unknown_target") {
+            // Honest, and deliberately NOT a case. An unavailable target does
+            // not become an application (ADR-0058); the student's message and
+            // this reply are already the durable record of the demand.
+            problem(res, "not_found");
+            return;
+          }
+          // Ambiguity is a 409: the request is well-formed and the state of the
+          // world is what prevents it, and the body names the alternatives so
+          // the student can choose one.
+          res.status(409).type("application/problem+json").json({
+            type: "about:blank",
+            title: "Several reviewed targets match",
+            status: 409,
+            code: "validation_failed",
+            detail: made.refusal.detail,
+            candidates: made.refusal.candidates.map((candidate) => ({
+              blueprintId: candidate.blueprintId,
+              route: candidate.route,
+              portalHost: candidate.portalHost,
+            })),
+          });
+          return;
+        }
+
+        // Durable, in the conversation the offer was made in. This is the audit
+        // — evidence that this target was put to this student, and of which
+        // reviewed content supported it — not the authority the request checks
+        // against. See `verifyRequest`.
+        await options.store.append({
+          conversationId,
+          event: {
+            kind: "target_offered",
+            offerHash: made.offer.offerHash,
+            targetBlueprintId: made.offer.target.blueprintId,
+            targetContentHash: made.offer.target.contentHash,
+          },
+        });
+        // The prose the student reads, as an ordinary message beside it.
+        await options.store.append({
+          conversationId,
+          event: { kind: "message", actor: "assistant", content: made.rendered },
+        });
+
+        res.status(201).json({
+          offerHash: made.offer.offerHash,
+          rendered: made.rendered,
+          target: {
+            blueprintId: made.offer.target.blueprintId,
+            institutionName: made.offer.target.institutionName,
+            ...(made.offer.target.campus === undefined
+              ? {}
+              : { campus: made.offer.target.campus }),
+            courseName: made.offer.target.courseName,
+            intake: made.offer.target.intake,
+            intakeRef: made.offer.target.intakeRef,
+            route: made.offer.target.route,
+            portalHost: made.offer.target.portalHost,
+          },
+        });
+      })().catch(next);
+    },
+  );
+
   // ── POST /v1/conversations/:id/runs ─────────────────────────────────────
   //
   // The student's starting action: "apply to this, for me". It creates the case
@@ -491,10 +687,28 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           return;
         }
 
-        const blueprintId = readString(req.body, "blueprintId");
+        if (options.targets === undefined) {
+          // A deployment with no target directory cannot have made an offer,
+          // so it cannot verify one. A REFUSAL, not a bypass — the same shape
+          // as ADR-0056's identity guard.
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // GATE 2 (ADR-0058). The body carries an OFFER HASH, never a
+        // `blueprintId`: an identifier alone is exactly what must not open a
+        // case, because nothing about receiving one proves the student was
+        // shown what it means.
+        //
+        // `blueprintId` is deliberately NOT read here. A caller that sends one
+        // is answered as if it sent nothing, so the old contract cannot
+        // survive as a second path around this gate.
+        // ══════════════════════════════════════════════════════════════
+        const offerHash = readString(req.body, "offerHash");
         const statement = readString(req.body, "studentStatement");
-        if (blueprintId === null || blueprintId.length === 0) {
-          problem(res, "validation_failed", { pointers: ["/blueprintId"] });
+        if (offerHash === null || !/^sha256:[0-9a-f]{64}$/.test(offerHash)) {
+          problem(res, "validation_failed", { pointers: ["/offerHash"] });
           return;
         }
         // Required, because `openCase` refuses to build a case without request
@@ -506,9 +720,69 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           return;
         }
 
+        // Every offer THIS conversation's log says was made. Gate 2's first
+        // condition: a request may only accept an offer that was actually put
+        // to this student here. Read from the log rather than trusted from the
+        // body, and scoped to this conversation by the query itself.
+        const exchange = await options.store.targetExchange(conversationId);
+        const stored = exchange
+          .filter((event) => event.kind === "target_offered")
+          .map((event) => event.offerHash);
+        const alreadyRequested = exchange.some(
+          (event) => event.kind === "target_requested" && event.offerHash === offerHash,
+        );
+
+        const verified = verifyRequest({
+          directory: options.targets,
+          offerHash,
+          studentId: who.studentId,
+          conversationId,
+          stored,
+        });
+        if (!verified.ok) {
+          // 409 for an offer that WAS made and no longer holds: the request is
+          // well-formed and the world moved. 404 for one that names nothing
+          // here — the same answer another student's conversation gets, so a
+          // probe cannot tell "wrong owner" from "no such offer".
+          if (verified.refusal.kind === "offer_no_longer_valid") {
+            res.status(409).type("application/problem+json").json({
+              type: "about:blank",
+              title: "That offer no longer describes an available target",
+              status: 409,
+              code: "content_changed",
+              detail: verified.refusal.detail,
+            });
+          } else {
+            problem(res, "not_found");
+          }
+          return;
+        }
+
+        // ── The student's explicit act, in the log, BEFORE the case exists ──
+        //
+        // Written once per offer, not once per call. This route is deliberately
+        // idempotent — a conversation owns at most one case, so a client that
+        // retries a timed-out start is asking the same question — and a log
+        // that grew a `target_requested` on every retry would say the student
+        // asked to apply five times when they asked once.
+        //
+        // Keyed on the OFFER, not on "has anything been requested here": a
+        // request naming a DIFFERENT offer is a different fact and is recorded,
+        // even though the conversation's existing case is what comes back. That
+        // the log then shows a request the system did not act on is the point
+        // — one case per conversation is a real constraint, and a student
+        // running into it should be visible rather than silently dropped.
+        if (!alreadyRequested) {
+          await options.store.append({
+            conversationId,
+            event: { kind: "target_requested", offerHash },
+          });
+        }
+
         const outcome = await options.runs.start({
           conversationId,
-          blueprintId,
+          // From the VERIFIED offer, never from the request body.
+          blueprintId: verified.target.blueprintId,
           studentStatement: statement,
         });
 

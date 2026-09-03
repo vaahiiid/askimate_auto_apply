@@ -62,6 +62,7 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
+import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import { parseClaimedWork, parseConversationRun } from "@askimate/aas-contracts";
@@ -82,7 +83,23 @@ import type { SecureRequestInput, SecureRequestOpener } from "./secure-requests.
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { issueSession } from "./session.js";
 
-const PORT = 4903;
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * This file derives ports up to PORT+80, so it OWNS 5100-5180.
+ *
+ * It used to start at 4903, which put PORT+3 on 4906 — `journey.test.ts`'s CDP
+ * port — and its `PORT + 60` block on top of `runner-supervisor.test.ts`'s
+ * 4980. Both collisions had been in the source since the files were written
+ * and neither showed, because vitest happened not to run them at the same
+ * moment. When it finally did, the bootstrap test fetched a server that was
+ * not this one and asserted on a 404 from somewhere else entirely.
+ *
+ * A derived port is a claim on a RANGE, and the ranges have to be disjoint by
+ * construction rather than by luck: journey 4901-4906, p21 4907-4909,
+ * supervisor 4980, p19 4990-4993, and this file well clear of all of them.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const PORT = 5100;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const SECRET = "a-test-session-secret-that-is-long-enough";
 const DATABASE = "aas_conversation_runs";
@@ -183,7 +200,30 @@ const REGISTER_FIELDS = new Set([
   "account_password_confirm",
 ]);
 
-const CATALOGUE: ApplicationCatalogue = {
+/**
+ * A stable, fabricated content hash for the test entries.
+ *
+ * They are compiled in rather than loaded through P20's registry, so there is
+ * no real approval hash to carry. Named as fabricated so nobody reads it as
+ * one; `p21-target-selection.test.ts` exercises the real thing.
+ */
+const TEST_CONTENT_HASH = `sha256:${"a".repeat(64)}`;
+
+/** A catalogue that can also serve Gate 1's listing. */
+type TestCatalogue = ApplicationCatalogue & { targets(): readonly ReviewedTarget[] };
+
+/**
+ * The catalogue, and the target directory Gate 1 reads.
+ *
+ * `VERIFYING_ENTRY` is deliberately NOT offered. It is `GATED_ENTRY` with one
+ * observed-authentication flag changed, so it carries the same blueprint and
+ * would appear as a second target indistinguishable from the first. It is
+ * reached through `driver.start` — the internal API, where a blueprint id is
+ * an identity rather than a student's choice.
+ */
+const CATALOGUE: TestCatalogue = {
+  targets: () =>
+    [ENTRY, GATED_ENTRY].map((entry) => targetOf({ entry, contentHash: TEST_CONTENT_HASH })),
   find: (id) =>
     Promise.resolve(
       id === BLUEPRINT
@@ -216,7 +256,7 @@ function buildInstance(
   connectionString: string,
   secureRequests: SecureRequestOpener | null = null,
   /** Overridden only where a test needs a differently-deployed blueprint. */
-  catalogue: ApplicationCatalogue = CATALOGUE,
+  catalogue: TestCatalogue = CATALOGUE,
   /**
    * `"none"` builds a driver with no identity store at all; an object stands
    * one in whose answer the test chooses.
@@ -279,6 +319,9 @@ function buildInstance(
     },
     now: () => NOW,
     runs: driver,
+    // Gate 1 (ADR-0058): the same catalogue the driver executes against, so a
+    // test cannot offer one target and execute against another.
+    targets: catalogue,
     // P4: one client for the secure plane. The driver opens requests through
     // it and the bootstrap endpoint mints frame tokens through it, so a test
     // cannot accidentally prove the wiring against two different services.
@@ -813,15 +856,47 @@ describeIfDatabase("the Run Driver coordinates, and the orchestrator decides", (
 // ───────────────────────────────────────────────────────────────────────────
 
 describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
+  /**
+   * Gate 1: ask the server to put a target to this student, and take the hash
+   * it produced.
+   *
+   * Every start below goes through here, because since ADR-0058 there is no
+   * other way in: the run route reads an `offerHash` and does not read a
+   * `blueprintId` at all.
+   */
+  async function anOffer(
+    conversationId: string,
+    subject: string,
+    blueprintId: string = BLUEPRINT,
+  ): Promise<string> {
+    const response = await fetch(
+      `${BASE}/v1/conversations/${conversationId}/target-offers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+        body: JSON.stringify({ blueprintId }),
+      },
+    );
+    expect(response.status, "the offer should have been made").toBe(201);
+    const made = (await response.json()) as { offerHash: string };
+    return made.offerHash;
+  }
+
   async function startRun(
     conversationId: string,
     subject: string,
-    body: Record<string, unknown> = { blueprintId: BLUEPRINT, studentStatement: STATEMENT },
+    body?: Record<string, unknown>,
   ): Promise<{ status: number; body: unknown }> {
+    const payload =
+      body ??
+      {
+        offerHash: await anOffer(conversationId, subject),
+        studentStatement: STATEMENT,
+      };
     const response = await fetch(`${BASE}/v1/conversations/${conversationId}/runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
     return { status: response.status, body: await response.json() };
   }
@@ -859,7 +934,14 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   it("REFUSES another student's conversation, with 404 rather than 403", async () => {
     // A 403 confirms the conversation exists, which is a fact about another
     // student. The same rule every other route on this service follows.
-    const { status, body } = await startRun(CONVERSATION, otherStudentId);
+    // The offer is this student's, made properly. What is refused is the other
+    // student spending it — and the refusal is about the CONVERSATION, which
+    // is why the body is supplied rather than offered as them.
+    const offerHash = await anOffer(CONVERSATION, studentId_);
+    const { status, body } = await startRun(CONVERSATION, otherStudentId, {
+      offerHash,
+      studentStatement: STATEMENT,
+    });
     expect(status).toBe(404);
     expect(body).toMatchObject({ code: "not_found" });
 
@@ -871,10 +953,11 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
   });
 
   it("REFUSES an unauthenticated caller", async () => {
+    const offerHash = await anOffer(CONVERSATION, studentId_);
     const response = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
     });
     expect(response.status).toBe(401);
   });
@@ -883,18 +966,37 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     // A case cannot be opened without request evidence: explicit request before
     // consequential action, and silence is not consent.
     const { status, body } = await startRun(CONVERSATION, studentId_, {
-      blueprintId: BLUEPRINT,
+      offerHash: await anOffer(CONVERSATION, studentId_),
     });
     expect(status).toBe(400);
     expect(body).toMatchObject({ code: "validation_failed", pointers: ["/studentStatement"] });
   });
 
-  it("REFUSES a start with no blueprint", async () => {
+  it("REFUSES a start with no offer", async () => {
     const { status, body } = await startRun(CONVERSATION, studentId_, {
       studentStatement: STATEMENT,
     });
     expect(status).toBe(400);
-    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/blueprintId"] });
+    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/offerHash"] });
+  });
+
+  it("REFUSES a start that names only a blueprint — the OLD contract", async () => {
+    // ADR-0058. The pre-P21 body. It must not work, and it must not work by
+    // accident either: `blueprintId` is not read at all, so this is answered
+    // as a request that named no offer.
+    const { status, body } = await startRun(CONVERSATION, studentId_, {
+      blueprintId: BLUEPRINT,
+      studentStatement: STATEMENT,
+    });
+    expect(status).toBe(400);
+    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/offerHash"] });
+
+    // And no case was bound by it.
+    const bound = await pool.query<{ case_id: string | null }>(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [OTHER_CONVERSATION],
+    );
+    expect(bound.rows[0]?.case_id ?? null).toBeNull();
   });
 
   it("carries no free text at all in the response", async () => {
@@ -933,10 +1035,20 @@ describeIfDatabase("a run survives the process that started it", () => {
     const firstServer = await new Promise<Server>((resolve) => {
       const listening = first.app.listen(PORT + 1, "127.0.0.1", () => resolve(listening));
     });
+    const offered = await fetch(
+      `http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/target-offers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId_) },
+        body: JSON.stringify({ blueprintId: BLUEPRINT }),
+      },
+    );
+    expect(offered.status).toBe(201);
+    const { offerHash } = (await offered.json()) as { offerHash: string };
     const started = await fetch(`http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId_) },
-      body: JSON.stringify({ blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
+      body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
     });
     expect(started.status).toBe(201);
     const before = parseConversationRun(await started.json());
@@ -2254,7 +2366,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
     );
-    const sandbox: ApplicationCatalogue = {
+    // Overrides `find` only; see `elsewhere` below for why the directory is
+    // empty rather than inherited.
+    const sandbox: TestCatalogue = {
+      targets: () => [],
       find: (id) =>
         Promise.resolve(
           id === GATED_BLUEPRINT ? { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" } : null,
@@ -2297,7 +2412,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
       [runId],
     );
 
-    const elsewhere: ApplicationCatalogue = {
+    // Overrides `find` only. Nothing here starts a run over HTTP, so the
+    // directory Gate 1 would read is deliberately empty rather than lying
+    // about what this instance can offer.
+    const elsewhere: TestCatalogue = {
+      targets: () => [],
       find: (id) =>
         Promise.resolve(
           id !== GATED_BLUEPRINT
@@ -2671,7 +2790,11 @@ describeIfDatabase("which page a multi-page run does next", () => {
       noFillablePage,
       studentId_,
     ]);
-    const registrationOnly: ApplicationCatalogue = {
+    // Overrides `find` only. Nothing here starts a run over HTTP, so the
+    // directory Gate 1 would read is deliberately empty rather than lying
+    // about what this instance can offer.
+    const registrationOnly: TestCatalogue = {
+      targets: () => [],
       find: (id) =>
         Promise.resolve(
           id !== GATED_BLUEPRINT

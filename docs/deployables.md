@@ -66,6 +66,11 @@ right monitor for a process that listens on nothing.
 internal work API the runner pulls from. The only plane a browser session
 authenticates against.
 
+**Since P21 (ADR-0058)** it also serves the reviewed target listing and makes the
+offers a student accepts. Both read the same catalogue the run driver executes
+against, so a deployment cannot offer one target and run another; a deployment
+with no catalogue answers `503` on both rather than falling back.
+
 | Variable | Required | Notes |
 |---|---|---|
 | `AAS_CONVERSATION_DATABASE_URL` | yes | conversation plane only. Never the secure database. |
@@ -83,7 +88,14 @@ authenticates against.
 **Startup checks, in order.** Configuration parses and every problem is reported
 at once → `NODE_ENV=production` rejects `AAS_DEV_SESSION` and a non-https secure
 origin → the database is reachable → **there are no pending migrations** → the
-catalogue source resolves → then, and only then, `listen`.
+catalogue source resolves (and with `AAS_CATALOGUE=registry`, every entry must be
+covered by an approval, executable and usable, or the load fails and the process
+exits) → then, and only then, `listen`.
+
+Because that check happens before `listen`, the target listing is a read-only
+view over artefacts an approval registry already vouched for. **Listing an
+approved artefact neither creates nor implies approval**, and there is no second,
+unreviewed catalogue anywhere for a target to arrive from.
 
 **Shutdown.** `SIGTERM`/`SIGINT` → stop accepting connections → let in-flight
 requests finish (bounded) → end the pool → exit 0.
@@ -221,3 +233,11 @@ quietly do nothing.
    document types, 12 unresolved questions. Externally blocked, by design.
 
 Items 1 and 2 are the next two phases' subjects. Neither is smuggled into P18.
+
+**Updated after P19, P20 and P21.** Item 1 is closed as engineering: ADR-0056's
+standards-only OIDC adapter signs a student in and establishes `email_verified`
+at login. Item 2's *loader* is closed by P20 and its *input* is not — no real
+artefact exists. P21 added the journey on top of both, and changes nothing about
+this list: a student can now start an application, against a catalogue that is
+still empty in production. What blocks production is items 3 and 4 plus item 2's
+input, and none of the three is code.

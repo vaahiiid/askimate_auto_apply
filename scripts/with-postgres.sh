@@ -35,6 +35,10 @@
 #                            PostgreSQL, which is why a fake proves none of them.
 #   scripts/p20-catalogue  — P20. A catalogue on disk, and real processes that
 #                            refuse to start on an entry nobody approved.
+#   scripts/p21-target-selection — P21. The two gates (ADR-0058) over a real
+#                            catalogue loaded through P20's registry: a case
+#                            opens only when the student names the hash of an
+#                            offer this server actually made them, here.
 #   scripts/p19-identity   — P19. A REAL OpenID Provider on loopback, in both
 #                            standard claim shapes, and what each of the four
 #                            verification outcomes persists.
@@ -54,7 +58,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts
   exit $?
 fi
 
@@ -106,4 +110,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts

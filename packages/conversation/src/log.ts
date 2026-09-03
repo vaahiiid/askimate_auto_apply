@@ -46,7 +46,7 @@
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { PROPOSAL_EVENT_KINDS } from "@askimate/aas-contracts";
+import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS } from "@askimate/aas-contracts";
 
 import { openSecretRequest } from "./openness.js";
 import type { TranscriptItem } from "./transcript.js";
@@ -98,9 +98,25 @@ export function describesSame(a: UnpositionedEvent, b: UnpositionedEvent): boole
   // replacing one with the other.
   if (isProposalEvent(a)) return false;
 
+  // Nor is a target exchange (ADR-0058). Same reasoning: the SERVER makes an
+  // offer, so there is no optimistic client copy to retire against it, and two
+  // offers are never "the same pending item".
+  if (isTargetEvent(a)) return false;
+
   // Narrowed by the lines above: `a` is a secure event, and `b` shares its
   // kind. Re-testing `b` would be a cast wearing a guard's clothes.
-  return !isProposalEvent(b) && b.kind !== "message" && a.requestId === b.requestId;
+  return (
+    !isProposalEvent(b) &&
+    !isTargetEvent(b) &&
+    b.kind !== "message" &&
+    a.requestId === b.requestId
+  );
+}
+
+function isTargetEvent(
+  event: UnpositionedEvent,
+): event is Extract<UnpositionedEvent, { kind: (typeof TARGET_EVENT_KINDS)[number] }> {
+  return (TARGET_EVENT_KINDS as readonly string[]).includes(event.kind);
 }
 
 function unposition(event: ConversationEvent): UnpositionedEvent {

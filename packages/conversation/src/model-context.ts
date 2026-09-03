@@ -67,6 +67,18 @@ export function buildModelRequest(input: {
       case "value_confirmed":
       case "value_rejected":
         break;
+      // ── Nor is the target exchange (ADR-0058) ─────────────────────────
+      //
+      // Same reasoning, and one more that is specific to it: the rendered
+      // offer the student read is already in the log as an assistant message
+      // and reaches the model that way. What these two carry beyond it are
+      // HASHES — an offer hash and a content hash — and a model that saw one
+      // could repeat it into prose the student would then be invited to treat
+      // as a thing they can act on. The gate is a server-side check on a
+      // server-issued value; nothing about it belongs in a prompt.
+      case "target_offered":
+      case "target_requested":
+        break;
       case "message": {
         // A redacted body is not "an empty message" — it is a message whose
         // text no longer exists. Sending the model a blank turn would put a

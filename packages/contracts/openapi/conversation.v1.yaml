@@ -233,6 +233,88 @@ paths:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /application-targets:
+    get:
+      operationId: listApplicationTargets
+      tags: [runs]
+      summary: The reviewed application targets this system can execute against.
+      description: >-
+        GATE 1 (ADR-0058). A read-only view over artefacts an approval registry
+        already vouched for.
+
+        P20's loader runs `checkExecutable` and `checkUsable` on every entry and
+        refuses to START if any fails, so this list cannot contain an
+        unreviewed, retired, superseded or unusable target. Listing an approved
+        artefact neither creates nor implies approval, and there is no second
+        unreviewed catalogue for a target to arrive from.
+
+        Authenticated: it is part of a student's journey, and an anonymous
+        reader could otherwise enumerate this system's institutional
+        relationships.
+      responses:
+        "200":
+          description: Every target a student may be offered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApplicationTargetList" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "503":
+          description: No catalogue is resolved, so nothing can be offered.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /conversations/{conversationId}/target-offers:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: createTargetOffer
+      tags: [runs]
+      summary: Put a chosen reviewed target to the student, deterministically.
+      description: >-
+        NOT consequential. No case, no run, nothing the student is committed
+        to — what it produces is an offer: a deterministic rendering of exactly
+        what would be applied for, and the hash a later explicit request must
+        name.
+
+        `blueprintId` here is a LOOKUP KEY, not an authority. Every field of the
+        offer is taken from the catalogue entry it resolves to, so a client
+        sending a different id receives a different offer rather than one it
+        authored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTargetOfferRequest" }
+      responses:
+        "201":
+          description: The offer, its rendering, and the hash to accept.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TargetOffer" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: >-
+            No reviewed target with that id, or the conversation is not this
+            student's. One answer for both, so a probe cannot tell them apart.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "409":
+          description: >-
+            Several reviewed targets share this institution, course and intake
+            and differ by route. A SAFETY refusal: the submission key does not
+            include the blueprint, so applying through one permanently rules out
+            the others for this student. The student disambiguates; the server
+            never picks a default.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "503":
+          description: No catalogue is resolved, so nothing can be offered.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
   /conversations/{conversationId}/runs:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
@@ -286,11 +368,27 @@ paths:
             composite foreign key, not by a check in a handler.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
-        "404": { $ref: "#/components/responses/NotFound" }
+        "404":
+          description: >-
+            The conversation is not this student's, or the offer hash names
+            nothing this server offered them here. DELIBERATELY the same answer
+            to both, so a probe cannot tell "wrong owner" from "no such offer".
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "409":
+          description: >-
+            The offer WAS made in this conversation and no longer describes an
+            available target — it was retired, or the reviewed content behind it
+            changed. `code` is `content_changed`. A fresh offer is needed;
+            nothing about this is recoverable by retrying.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "503":
           description: >-
-            This deployment carries no run driver, or the blueprint's mapping set
-            is not usable. The second is a specialist's problem and its detail
+            This deployment carries no run driver, no target directory, or the
+            blueprint's mapping set is not usable. A deployment with no
+            directory could not have made an offer, so it refuses rather than
+            skipping the gate. The second is a specialist's problem and its detail
             names fields of a university's form, so the detail stays out of the
             body.
           content:
@@ -537,20 +635,112 @@ components:
     # A closed oneOf discriminated by `kind`. Exactly one member has a
     # `content` field. The others do not have it set to null or made optional —
     # `additionalProperties: false` means the field cannot be present at all.
+    ApplicationTargetList:
+      type: object
+      additionalProperties: false
+      required: [targets, ambiguousCount]
+      properties:
+        targets:
+          type: array
+          items: { $ref: "#/components/schemas/ApplicationTarget" }
+        ambiguousCount:
+          type: integer
+          minimum: 0
+          description: >-
+            How many groups of targets share an institution, course and intake.
+            A client should present those choices rather than pick one.
+
+    ApplicationTarget:
+      type: object
+      additionalProperties: false
+      required:
+        [blueprintId, institutionName, courseName, intake, intakeRef, route,
+         portalHost, requiredDocuments, needsDisambiguation]
+      description: >-
+        A reviewed, executable target as a person reads it. Every field comes
+        from the reviewed catalogue entry; none is derived from prose.
+      properties:
+        blueprintId: { type: string, minLength: 1, maxLength: 128 }
+        institutionName: { type: string }
+        campus: { type: string }
+        courseName: { type: string }
+        intake:
+          type: string
+          description: The label, e.g. "September 2026".
+        intakeRef:
+          type: string
+          pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+          description: >-
+            `YYYY-MM`. The submission identity, never a prose label.
+        route:
+          type: string
+          description: How the application is reached — direct, partner, or assisted.
+        portalHost:
+          type: string
+          description: >-
+            The host the application is actually made against. Part of the
+            identity a student must see: two reviewed targets can share
+            institution, course and intake and differ only in route and portal.
+        requiredDocuments:
+          type: array
+          items: { type: string }
+        needsDisambiguation:
+          type: boolean
+          description: >-
+            True when another reviewed target shares this one's submission
+            identity, so an offer for it refuses until the student chooses.
+
+    CreateTargetOfferRequest:
+      type: object
+      additionalProperties: false
+      required: [blueprintId]
+      properties:
+        blueprintId: { type: string, minLength: 1, maxLength: 128 }
+        disambiguated:
+          type: boolean
+          description: >-
+            Set once the student has been shown the alternatives and picked this
+            one. Without it, an ambiguous target refuses with 409.
+
+    TargetOffer:
+      type: object
+      additionalProperties: false
+      required: [offerHash, rendered, target]
+      properties:
+        offerHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+          description: >-
+            Binds the authenticated student, the conversation, the target's
+            identity and the reviewed catalogue entry's own content hash. An
+            offer made to one student in one conversation cannot be spent by
+            another, or elsewhere.
+        rendered:
+          type: string
+          description: >-
+            What the student is shown, rendered deterministically from the
+            target. Model-free: a model may compose prose around an offer, but
+            the sentence naming what is agreed to must be reproducible.
+        target: { $ref: "#/components/schemas/ApplicationTarget" }
+
     StartRunRequest:
       type: object
       additionalProperties: false
-      required: [blueprintId, studentStatement]
+      required: [offerHash, studentStatement]
       properties:
-        blueprintId:
+        offerHash:
           type: string
-          minLength: 1
-          maxLength: 128
+          pattern: "^sha256:[0-9a-f]{64}$"
           description: >-
-            Which reviewed blueprint to apply against. Resolved through a
-            catalogue port rather than a table: which portals AskiMate can apply
-            to is decided by discovery and two-person review, and a table of
-            blueprints would be a place for an unreviewed one to arrive.
+            The hash of the server-generated offer the student is accepting
+            (ADR-0058, Gate 2).
+
+            NOT a `blueprintId`. An identifier alone cannot open a case: nothing
+            about receiving one proves the student was shown what it means. The
+            server re-derives every candidate offer from the live catalogue and
+            compares, so possession of a hash is never sufficient — a retired
+            target, changed reviewed content, another student's offer or another
+            conversation's offer all refuse.
         studentStatement:
           type: string
           minLength: 1
@@ -625,6 +815,8 @@ components:
         - { $ref: "#/components/schemas/ValueProposedEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
+        - { $ref: "#/components/schemas/TargetOfferedEvent" }
+        - { $ref: "#/components/schemas/TargetRequestedEvent" }
       discriminator:
         propertyName: kind
         mapping:
@@ -638,6 +830,46 @@ components:
           value_proposed: "#/components/schemas/ValueProposedEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
+          target_offered: "#/components/schemas/TargetOfferedEvent"
+          target_requested: "#/components/schemas/TargetRequestedEvent"
+
+    TargetOfferedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, offerHash, targetBlueprintId, targetContentHash]
+      description: >
+        The server resolved a REVIEWED application target and put it to the
+        student (ADR-0058).
+
+        Content-free: the prose the student reads is an ordinary message beside
+        this, and what this carries is the identity that prose describes.
+        `targetContentHash` is the reviewed catalogue entry's own content hash
+        (ADR-0057), recorded rather than re-derived so a later change to the
+        artefact is detectable instead of silently reinterpreted.
+      properties:
+        kind: { type: string, enum: [target_offered] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        offerHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+        targetBlueprintId: { type: string, minLength: 1, maxLength: 128 }
+        targetContentHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+
+    TargetRequestedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, offerHash]
+      description: >
+        The student explicitly asked to apply to exactly the offer `offerHash`
+        names — the first consequential act in the journey, and the event
+        immediately before the case is opened.
+
+        It names the offer and nothing else. What was offered is the offer's to
+        state, and repeating it here would let two rows disagree about one fact.
+      properties:
+        kind: { type: string, enum: [target_requested] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        offerHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
 
     ValueProposedEvent:
       type: object

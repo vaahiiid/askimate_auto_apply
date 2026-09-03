@@ -114,6 +114,12 @@ const DATABASE_BACKED = [
   // point of the phase, and a run without a database would report green over
   // the proof that unreviewed bytes cannot become a served artefact.
   "scripts/p20-catalogue.test.ts",
+  // P21. The two gates, against a registry-backed catalogue loaded from FILES:
+  // what may be offered, and what may open a case. Both refusals that matter —
+  // an offer never made here, and one whose reviewed content moved — are
+  // decided by reading a real conversation log and rebuilding from a real
+  // catalogue, so a fake would be re-implementing the thing under test.
+  "scripts/p21-target-selection.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

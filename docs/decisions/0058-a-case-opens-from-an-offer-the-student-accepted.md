@@ -84,15 +84,32 @@ and the third is why the request **re-derives** rather than trusting.
 
 ### The request re-derives; possession is never sufficient
 
-The request handler resolves the target from the live catalogue, rebuilds the offer, and compares.
-That single mechanism answers all six integrity questions without any expiry logic:
+The request handler checks **two independent conditions**, and neither is sufficient alone.
+
+1. **The offer is in this conversation's log** — a `target_offered` event carrying that hash. This
+   is what makes progression structural rather than conventional: a request can only accept
+   something that was actually offered here, so *recommendation ≠ selection* is enforced by
+   evidence.
+2. **Some reviewed target, rebuilt from the catalogue as it is now for this student and this
+   conversation, hashes to it.** This is what makes possession insufficient.
+
+The log alone would accept an offer whose target has since been retired or re-reviewed.
+Re-derivation alone would accept a hash a client **computed for itself** and was never offered —
+the fields are server-side today, but a gate that holds only because a listing withholds two
+columns is not a gate. Requiring both costs one array lookup.
+
+*Amended during implementation.* The first draft of this ADR treated the stored event as audit only
+and let re-derivation decide alone. Writing the refusal tests made the gap visible; the log check
+went in and the ADR was corrected rather than the code being left to disagree with it.
+
+Condition 2 answers all six integrity questions without any expiry logic:
 
 | Question | Answer |
 |---|---|
 | Target retired after the offer? | It is no longer in the catalogue, so the rebuild fails. **Refused.** |
 | Catalogue content changed or superseded? | The rebuild produces a different hash. **Refused.** |
 | Does an offer expire? | **No, and it needs no clock.** An offer stays valid exactly as long as the thing it describes is unchanged, which is the property that actually matters. A timeout would refuse unchanged offers and accept changed ones within the window. |
-| May an offer be replayed? | The rebuild-and-compare passes, so the request is accepted — and then the one-case-per-conversation schema makes the second case impossible, returning the first. A replay is therefore **idempotent, not a second application.** |
+| May an offer be replayed? | Both conditions still hold, so the request is accepted — and then the one-case-per-conversation schema makes the second case impossible, returning the first. A replay is therefore **idempotent, not a second application.** The `target_requested` event is written **once per offer**, not once per call: a log that grew one on every retry would say the student asked to apply five times when they asked once. A request naming a *different* offer is a different fact and *is* recorded, even though the existing case is what comes back — one case per conversation is a real constraint, and a student running into it should be visible rather than silently dropped. |
 | Another student? | The hash covers the student id. **Refused.** |
 | Another conversation? | The hash covers the conversation id. **Refused.** |
 
@@ -145,12 +162,30 @@ with `PROFILE_INCOMPLETE` and `DOCUMENTS_PENDING` remaining as branches, which i
 So today this is a code change over zero rows. After first production use it would need a permanent
 alias in the reducer and a decision about what a specialist reading an old log is shown.
 
+## What was built, and where it lives
+
+| Piece | Where | What it is |
+|---|---|---|
+| `ReviewedTarget`, `offerCanonical`, `offerFor`, `renderOffer` | `packages/catalogue/src/target.ts` | Gate 1's output and Gate 2's input. Pure; no knowledge of runs, cases or HTTP. |
+| `ambiguousGroups`, `isAmbiguous` | same | The submission-key collision, as a function. |
+| `ReviewedCatalogue.targets()`, `.hashOf()` | `packages/catalogue/src/loader.ts` | Gate 1. Needs almost no code because ADR-0057 already refuses to start on an unreviewed entry. |
+| `makeOffer`, `verifyRequest` | `apps/conversation-service/src/target-offers.ts` | The two gates as decisions, with refusals as outcomes rather than exceptions. |
+| `GET /v1/application-targets` | `routes.ts` | Authenticated listing. Carries neither `contentHash` nor `blueprintVersion`. |
+| `POST /v1/conversations/{id}/target-offers` | `routes.ts` | Resolves a chosen target and puts it to the student. Opens nothing. |
+| `POST /v1/conversations/{id}/runs` | `routes.ts` | Reads `offerHash`; **does not read `blueprintId` at all**. |
+| `target_offered`, `target_requested` | migration `0012` | Two events, two CHECK constraints, and `conversation_target_exchange` — the view the run route reads Gate 2's first condition from. |
+
+The listing withholding `contentHash` is defence in depth, not the gate. The gate is condition 1.
+
 ## Consequences
 
 - **A student can, for the first time, start an application through the product.** Every phase from
   P4 to P20 built something downstream of a step nobody could take.
 - **`blueprintId` leaves the run-start contract.** A breaking change to an endpoint with no
-  production caller and no deployment.
+  production caller and no deployment — verified by search, not assumed: no source outside the two
+  test suites that exercise the route ever posted one, and `apps/chat-integration` never called the
+  route at all. The old contract does not survive as a second path, because the route does not read
+  the field: a body carrying only a `blueprintId` is answered as one that named no offer.
 - **Starting a case still authorises nothing.** Filling requires `authorise` against the preview's
   content hash; nothing submits at all (ADR-0014). Those boundaries are untouched by this ADR.
 - **The requirements boundary is unchanged.** Nothing here consumes requirement knowledge, and no

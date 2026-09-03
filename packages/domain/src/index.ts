@@ -126,6 +126,7 @@ export type {
   HumanReviewCompleted,
   HumanReviewRequested,
   ReapplicationInstructed,
+  RequestChannel,
   RequestEvidence,
   RouteFallbackTriggered,
   SubmissionAttempted,
@@ -134,7 +135,7 @@ export type {
   TaskCompleted,
   TaskRaised,
 } from "./events.js";
-export { HANDOFF_KINDS, isEventOfType } from "./events.js";
+export { HANDOFF_KINDS, REQUEST_CHANNELS, isEventOfType } from "./events.js";
 
 export type { InformationSource, Task, TaskKind, TaskOwner, TaskStatus } from "./tasks.js";
 export {

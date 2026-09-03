@@ -147,6 +147,15 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     case "value_confirmed":
     case "value_rejected":
       return { render: "nothing", position };
+    // ── The target exchange renders as NOTHING, for the same reason ────
+    //
+    // ADR-0058. What the student reads is the rendered offer, which is an
+    // ordinary message beside these. `target_offered` is the structured
+    // record that makes their request bindable, and `target_requested` is the
+    // act itself; rendering either would show the offer twice.
+    case "target_offered":
+    case "target_requested":
+      return { render: "nothing", position };
     case "message":
       return { render: "message", position, actor: event.actor, content: event.content };
     case "secret_requested":
