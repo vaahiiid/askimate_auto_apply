@@ -16,6 +16,8 @@
 
 import type { Pool } from "pg";
 
+import { loadCatalogueDirectory, type DeployedCatalogueEntry } from "@askimate/aas-catalogue";
+
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
 import { PostgresInterventionStore } from "@askimate/aas-case-store/postgres-interventions";
@@ -73,6 +75,62 @@ export function fixtureCatalogue(portalOrigin?: string): ApplicationCatalogue {
   };
   return { find: (id) => Promise.resolve(id === "bp-gated-portal" ? entry : null) };
 }
+
+/**
+ * The catalogue a deployment actually serves.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Here, beside `buildRunDriver`, for the reason that function is here: the
+ * Conversation Service and the Worker must serve the SAME catalogue. A worker
+ * advancing a run against a blueprint the service would not offer is the
+ * second opinion ADR-0041 exists to prevent — and with P20 it would be worse
+ * than a disagreement, because one of the two would be running an artefact
+ * whose approval the other could not find.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Throws on failure, and the message lists EVERY problem. This is called from
+ * a composition root during startup, where a process that cannot build a
+ * trustworthy catalogue must refuse to start rather than serve a smaller one
+ * (ADR-0055).
+ */
+export async function resolveCatalogue(input: {
+  readonly source: "fixtures" | "registry";
+  readonly directory?: string;
+  readonly portalOrigins?: Readonly<Record<string, string>>;
+}): Promise<ApplicationCatalogue> {
+  if (input.source === "fixtures") {
+    // A single origin override is meaningful here because the fixture serves
+    // exactly one blueprint.
+    return fixtureCatalogue(input.portalOrigins?.["bp-gated-portal"]);
+  }
+
+  if (input.directory === undefined) {
+    throw new Error("AAS_CATALOGUE=registry needs AAS_CATALOGUE_DIR; nothing else can supply one");
+  }
+
+  const load = await loadCatalogueDirectory({
+    directory: input.directory,
+    ...(input.portalOrigins === undefined ? {} : { portalOrigins: input.portalOrigins }),
+  });
+  if (!load.ok) {
+    throw new Error(
+      `the catalogue at ${input.directory} cannot be served:\n` +
+        load.problems.map((problem) => `  ${problem.source}: ${problem.detail}`).join("\n"),
+    );
+  }
+  return load.catalogue;
+}
+
+/**
+ * COMPILE-TIME: what the catalogue package produces is what the driver needs.
+ *
+ * `packages/catalogue` must not import from an app, so it cannot reference
+ * `CatalogueEntry` directly — it rebuilds the shape and this assignment is what
+ * keeps the two honest. A field added to one and not the other fails here,
+ * which is the only place both are in scope.
+ */
+const _entryShapesAgree: (entry: DeployedCatalogueEntry) => CatalogueEntry = (entry) => entry;
+void _entryShapesAgree;
 
 export interface DriverWiring {
   readonly pool: Pool;

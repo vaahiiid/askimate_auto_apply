@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -21,6 +21,7 @@
     "verify-bedrock": "tsx scripts/verify-bedrock.ts",
     "inspect-discovery": "tsx scripts/inspect-discovery.ts",
     "retention-status": "tsx scripts/retention-status.ts",
+    "catalogue": "tsx scripts/catalogue.ts",
     "interventions": "tsx scripts/interventions.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
     "verify": "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run version:check && pnpm run test",
@@ -45,6 +46,7 @@
     "@askimate/aas-browser-fill": "workspace:*",
     "@askimate/aas-browser-runner": "workspace:*",
     "@askimate/aas-case-store": "workspace:*",
+    "@askimate/aas-catalogue": "workspace:*",
     "@askimate/aas-chat-integration": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-conversation": "workspace:*",

@@ -109,6 +109,11 @@ const DATABASE_BACKED = [
   // consults, so a run without a database would report green over the proof
   // that a student who never verified an address cannot reach a password.
   "scripts/p19-identity.test.ts",
+  // P20: a catalogue on disk, and the real Conversation Service and Worker
+  // refusing to start on an entry no approval covers. The refusal is the whole
+  // point of the phase, and a run without a database would report green over
+  // the proof that unreviewed bytes cannot become a served artefact.
+  "scripts/p20-catalogue.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

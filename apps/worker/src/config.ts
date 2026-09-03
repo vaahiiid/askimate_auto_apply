@@ -16,15 +16,13 @@
  */
 
 import { readConfig, type Reader } from "@askimate/aas-config";
+import { readCatalogueConfig, type CatalogueConfig } from "@askimate/aas-catalogue";
 
-export type CatalogueSource = "fixtures";
-
-export interface WorkerConfig {
+export interface WorkerConfig extends CatalogueConfig {
   readonly databaseUrl: string;
   readonly holder: string;
   readonly secureInternalUrl: string;
   readonly secureServiceToken: string;
-  readonly catalogue: CatalogueSource;
   readonly advanceIntervalMs: number | undefined;
   readonly announceIntervalMs: number | undefined;
   readonly batch: number | undefined;
@@ -35,22 +33,15 @@ export function workerConfigFrom(
   env: Readonly<Record<string, string | undefined>>,
 ): WorkerConfig {
   return readConfig(env, (r: Reader): WorkerConfig => {
-    // One member today, so there is nothing to compare against: EVERY value
-    // this accepts is a fixture set, which is the point being refused.
-    const catalogue = r.choice("AAS_CATALOGUE", ["fixtures"] as const);
-    if (r.production) {
-      r.refuse(
-        "AAS_CATALOGUE",
-        "is 'fixtures', which is the gated TEST portal. There is no production catalogue " +
-          "adapter yet (docs/deployables.md), and this worker acts on real runs autonomously.",
-      );
-    }
+    // Read by the SHARED reader, so this worker and the Conversation Service
+    // cannot hold two opinions about which artefacts exist (ADR-0041).
+    const catalogueConfig = readCatalogueConfig(r);
     return {
       databaseUrl: r.url("AAS_CONVERSATION_DATABASE_URL", { schemes: ["postgres:", "postgresql:"] }),
       holder: r.string("AAS_WORKER_HOLDER"),
       secureInternalUrl: r.url("AAS_SECURE_INTERNAL_URL", { httpsInProduction: true }),
       secureServiceToken: r.string("AAS_SECURE_SERVICE_TOKEN"),
-      catalogue,
+      ...catalogueConfig,
       advanceIntervalMs: r.optionalInt("AAS_WORKER_ADVANCE_MS", 0, { min: 100 }) || undefined,
       announceIntervalMs: r.optionalInt("AAS_WORKER_ANNOUNCE_MS", 0, { min: 100 }) || undefined,
       batch: r.optionalInt("AAS_WORKER_BATCH", 0, { min: 1, max: 500 }) || undefined,

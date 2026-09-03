@@ -12,6 +12,7 @@
     { "path": "./packages/llm" },
     { "path": "./packages/interview" },
     { "path": "./packages/extraction" },
+    { "path": "./packages/catalogue" },
     { "path": "./packages/mapping" },
     { "path": "./packages/preparation" },
     { "path": "./packages/orchestrator" },

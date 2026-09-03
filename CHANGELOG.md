@@ -19,6 +19,68 @@ not shipped artefacts.
 
 ---
 
+## [0.38.0] — 2026-09-03
+
+**P20 — the catalogue loads a reviewed artefact, and can prove that is what it
+loaded. ADR-0057.**
+
+`docs/deployables.md` recorded the blocker as *"there is no blueprint parser"*.
+That was true and it was not the danger. Measured before a line of P20 was
+written, with a blueprint and a mapping set invented from JSON — no discovery
+run, no reviewer, a portal that does not exist:
+
+```
+checkExecutable  -> EXECUTABLE
+checkUsable      -> USABLE
+authoredAt is a  -> [object String]
+```
+
+Both review gates passed. They check a document's internal consistency, which
+they do correctly — but `status`, `reviewedBy` and `reviewedAt` are fields
+**inside the artefact**, and an artefact is not evidence about itself. A parser
+is therefore what *creates* the hole, not what closes it, and the integrity
+model had to be designed with it.
+
+### The decision
+
+Production decides an artefact is reviewed by one question: does an independent
+registry hold an approval for the hash of this exact content? Nothing the
+document says about itself is consulted.
+
+### Added
+
+- `packages/catalogue` — validated parsers that rebuild field by field (with
+  real `Date` coercion), a canonical form, a SHA-256 content hash, an
+  `ApprovalRegistry` port, and a loader that refuses anything the registry does
+  not vouch for. The two-person rule now lives on the **approval**, where it is
+  a record of what people did rather than a document's claim about itself.
+- `AAS_CATALOGUE=registry` with `AAS_CATALOGUE_DIR`, read by a **shared**
+  config reader so the Conversation Service and the Worker cannot hold two
+  opinions about which artefacts exist (ADR-0041). `fixtures` remains refused in
+  production.
+- `AAS_PORTAL_ORIGINS` — which deployment of a portal to run against. Applied
+  after hashing and deliberately outside the reviewed artefact, so one approved
+  entry runs against a university's UAT environment without a second approval.
+- `pnpm run catalogue` — `hash`, `show` and `check`. There is deliberately no
+  `approve`: a CLI that writes an approval on request manufactures the evidence
+  it is meant to record.
+- 28 unit tests and 11 against real files and real processes, including the
+  Conversation Service and the Worker each refusing to start on an entry no
+  approval covers.
+
+### Notes
+
+`docs/p20-regression-audit.md` — twelve mutations, ten caught on the first pass.
+Both survivors are recorded: one was a control shadowed by an identical control,
+the sixth consecutive phase in which that shape has appeared.
+
+**This does not enable a production run.** Discovery remains network-blocked and
+document retention remains unapproved, so P20 delivers a trustworthy loader for
+artefacts that do not exist yet. The gated portal fixture is used as the
+controlled test artefact and stays labelled as one.
+
+---
+
 ## [0.37.0] — 2026-09-03
 
 **P19 — verification is established at login. ADR-0056.**

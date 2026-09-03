@@ -784,3 +784,74 @@ this foundation.
 Identity itself is deliberately *narrow* rather than finished — MFA policy,
 specialist identity and guest conversations were all left out of P19 by
 agreement, and each is a phase of its own when it is wanted.
+
+---
+
+# Where we are — 2026-09-03 (P20)
+
+## What P20 delivered
+
+**A catalogue that can prove what it loaded was reviewed.**
+
+The recorded blocker was *"there is no blueprint parser"*. The investigation
+that opened this phase measured something worse: the two gates between an
+artefact and a real run — `checkExecutable` and `checkUsable` — passed a
+blueprint and a mapping set invented from JSON, because `status: "reviewed"`
+and `reviewedBy` are fields **inside the artefact**. A parser was therefore the
+thing that would create the hole, not close it.
+
+- **ADR-0057** — an approval binds to CONTENT. Production asks one question:
+  does an independent registry hold an approval for the hash of this exact
+  canonical artefact? Nothing the document says about itself is consulted.
+- **`packages/catalogue`** — parsers that rebuild field by field with real
+  `Date` coercion, a canonical form, a SHA-256 content hash, an
+  `ApprovalRegistry` **port**, and a loader whose central refusal is
+  `not_approved`.
+- **The two-person rule moved.** It lives on the approval, where it records what
+  people did, rather than on two fields written by whoever wrote the document.
+
+## The proof
+
+Take an approved artefact, alter anything the system acts on — a credential
+field's purpose, a date's format pattern, which profile field feeds a portal
+field, a locator, the intake, whether the portal demands MFA, the page order —
+and leave every reviewer-looking field untouched. All seven are refused on hash
+mismatch. The reverse holds too: a document sharing id, version, author,
+reviewer and every descriptive field with an approved one, differing only in a
+removed mapping, is refused.
+
+Both the Conversation Service and the Worker refuse to **start** on a catalogue
+holding an entry no approval covers.
+
+## Standing limitations — what changed, and what did not
+
+- **P20 does not enable a production run, and must not be read as if it does.**
+  It delivers a trustworthy loader for artefacts that do not exist yet.
+- **No real university artefact exists.** Discovery is still network-blocked
+  (measured 2026-09-03: `CONNECT tunnel failed, response 403` for the target
+  hosts), and nothing has been through two people. A production catalogue
+  directory today holds an empty registry, which refuses everything — correctly.
+- **Document retention is still UNAPPROVED** — 0 of 10 types, 12 unresolved
+  questions. A real entry requiring documents would block there regardless.
+- **The registry is deliberately local.** Vahid's decision: establish the
+  cryptographic and governance truth in this repository first. `ApprovalRegistry`
+  is a port precisely so an AskiMate-KB-backed adapter can be added later
+  without touching the parse, the canonical form, the hash or the loader.
+- **Chromium/browser resource contention is still UNRESOLVED.** Unchanged, and
+  repeated because it stays true.
+- Everything from the P14–P19 lists still holds.
+
+## What is next, on the evidence
+
+Both recorded deployment blockers are now closed as *engineering*. What remains
+is not code:
+
+1. **Discovery access** — one command, blocked by network policy.
+2. **A second reviewer** — the two-person rule is enforced structurally and
+   there is no second named person.
+3. **Retention determination** — externally owned, by design.
+
+The largest remaining *engineering* question is one this phase did not create
+and did not touch: `packages/requirements` implements ADR-0009 and ADR-0019 in
+full and **has no callers at all**. That is a product-scope decision about
+whether the requirements half of the system is in scope, not a defect.

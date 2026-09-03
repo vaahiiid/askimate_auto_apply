@@ -204,12 +204,16 @@ quietly do nothing.
    implements it. `AAS_DEV_SESSION` is refused in production, so a production
    Conversation Service has no way to sign a student in. Vahid's decision,
    2026-09-03: OIDC is its own phase.
-2. **No production catalogue.** `ApplicationCatalogue` has no production adapter
-   and there is no blueprint parser, so reviewed artefacts cannot be loaded from
-   anywhere. `AAS_CATALOGUE=fixtures` is refused in production. Deliberately NOT
-   solved in P18: a safe loader needs a validated parse of a large reviewed type,
-   and minting unreviewed artefacts from arbitrary JSON is what ADR-0004 and
-   ADR-0009 exist to prevent.
+2. ~~**No production catalogue.**~~ **Closed by P20 (ADR-0057).**
+   `AAS_CATALOGUE=registry` loads reviewed entries from `AAS_CATALOGUE_DIR` and
+   serves only those whose canonical content hash an independent approval
+   registry vouches for. The artefact's own `status`/`reviewedBy` are not
+   consulted. `AAS_CATALOGUE=fixtures` is still refused in production.
+
+   **What remains open is not the loader but its input:** no real university
+   artefact exists to load. Discovery is network-blocked and no artefact has
+   been through two people, so a production catalogue directory today is an
+   empty registry — which refuses everything, correctly.
 3. **KMS has never been exercised against a live key** (`secure-plane-deployment.md`
    §3.1). The configuration path is now real; the first `GenerateDataKey` is
    still an operator's first-run check.

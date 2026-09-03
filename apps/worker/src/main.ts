@@ -16,7 +16,7 @@ import {
   StudentIdentityStore,
   buildRunDriver,
   conversationStore,
-  fixtureCatalogue,
+  resolveCatalogue,
   httpSecureRequestOpener,
 } from "@askimate/aas-conversation-service";
 import { pendingMigrations } from "@askimate/aas-migrate";
@@ -56,7 +56,11 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
     const driver = buildRunDriver(
       {
         pool,
-        catalogue: fixtureCatalogue(),
+        catalogue: await resolveCatalogue({
+          source: config.catalogue,
+          ...(config.catalogueDir === undefined ? {} : { directory: config.catalogueDir }),
+          portalOrigins: config.portalOrigins,
+        }),
         secureRequests: httpSecureRequestOpener({
           baseUrl: config.secureInternalUrl,
           serviceToken: config.secureServiceToken,

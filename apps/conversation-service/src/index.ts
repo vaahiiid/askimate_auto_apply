@@ -106,10 +106,10 @@ export type { WorkCandidate, WorkLease } from "./work-store.js";
 export { WorkLeaseStore } from "./work-store.js";
 
 // ── P18 / ADR-0055: starting this service, and the worker's shared wiring ──
-export type { CatalogueSource, ConversationConfig } from "./config.js";
+export type { ConversationConfig } from "./config.js";
 export { MIN_SESSION_SECRET, conversationConfigFrom } from "./config.js";
 export type { DriverWiring } from "./wiring.js";
-export { buildRunDriver, conversationStore, fixtureCatalogue } from "./wiring.js";
+export { buildRunDriver, conversationStore, fixtureCatalogue, resolveCatalogue } from "./wiring.js";
 
 // ── P19 / ADR-0056: identity ──────────────────────────────────────────────
 export type { AuthRoutesOptions } from "./auth-routes.js";

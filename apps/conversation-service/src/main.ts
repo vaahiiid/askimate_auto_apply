@@ -30,7 +30,7 @@ import { conversationConfigFrom, type ConversationConfig } from "./config.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { httpSecureRequestOpener } from "./secure-requests.js";
-import { buildRunDriver, conversationStore, fixtureCatalogue } from "./wiring.js";
+import { buildRunDriver, conversationStore, resolveCatalogue } from "./wiring.js";
 
 /**
  * Both schemas, in the order they must be applied.
@@ -100,7 +100,11 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     const driver = buildRunDriver(
       {
         pool,
-        catalogue: fixtureCatalogue(),
+        catalogue: await resolveCatalogue({
+          source: config.catalogue,
+          ...(config.catalogueDir === undefined ? {} : { directory: config.catalogueDir }),
+          portalOrigins: config.portalOrigins,
+        }),
         secureRequests,
         identities,
         // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made

@@ -16,15 +16,23 @@
  *                      Conversation Service has no way to sign a student in and
  *                      MUST NOT pretend otherwise.
  *
- *   `AAS_CATALOGUE`    `fixtures` serves the gated test portal. There is no
- *                      production catalogue adapter yet (see
- *                      `docs/deployables.md`), so this refuses rather than
- *                      quietly serving a fixture to a real student.
+ *   `AAS_CATALOGUE`    `fixtures` serves the gated TEST portal and is refused in
+ *                      production. `registry` loads reviewed entries from
+ *                      `AAS_CATALOGUE_DIR`, and serves only those an approval
+ *                      registry independently vouches for (ADR-0057).
+ *
+ *   `AAS_CATALOGUE_DIR`      required by `registry`. Holds `approvals.json` and
+ *                            `entries/*.json`.
+ *   `AAS_PORTAL_ORIGINS`     optional `blueprintId=origin` pairs, comma
+ *                            separated. A DEPLOYMENT fact — which instance of a
+ *                            portal to run against — deliberately outside the
+ *                            reviewed artefact and outside its hash, so the
+ *                            same approved entry runs against a university's
+ *                            UAT environment without being rewritten.
  */
 
 import { readConfig, type Reader } from "@askimate/aas-config";
-
-export type CatalogueSource = "fixtures";
+import { readCatalogueConfig, type CatalogueSource } from "@askimate/aas-catalogue";
 
 export interface ConversationConfig {
   readonly port: number;
@@ -36,6 +44,10 @@ export interface ConversationConfig {
   readonly serviceCertSecure: string;
   readonly serviceCertRunner: string;
   readonly catalogue: CatalogueSource;
+  /** Where reviewed entries and their approvals live. Required by `registry`. */
+  readonly catalogueDir?: string;
+  /** `blueprintId` → the deployment origin to run it against. Not reviewed data. */
+  readonly portalOrigins: Readonly<Record<string, string>>;
   /** ADR-0038's provider. Absent means this deployment has no way to sign in. */
   readonly oidc:
     | {
@@ -74,17 +86,7 @@ export function conversationConfigFrom(
       );
     }
 
-    // One member today, so there is nothing to compare against: EVERY value
-    // this accepts is a fixture set, which is the point being refused.
-    const catalogue = r.choice("AAS_CATALOGUE", ["fixtures"] as const);
-    if (r.production) {
-      r.refuse(
-        "AAS_CATALOGUE",
-        "is 'fixtures', which serves the gated TEST portal. There is no production " +
-          "catalogue adapter yet (docs/deployables.md), so a production start would offer a " +
-          "real student a fixture.",
-      );
-    }
+    const catalogueConfig = readCatalogueConfig(r);
 
     // ── Identity (ADR-0038) ────────────────────────────────────────────
     //
@@ -132,7 +134,7 @@ export function conversationConfigFrom(
       secureServiceToken: r.string("AAS_SECURE_SERVICE_TOKEN"),
       serviceCertSecure: r.string("AAS_SERVICE_CERT_SECURE"),
       serviceCertRunner: r.string("AAS_SERVICE_CERT_RUNNER"),
-      catalogue,
+      ...catalogueConfig,
       oidc:
         issuer !== undefined &&
         clientId !== undefined &&
