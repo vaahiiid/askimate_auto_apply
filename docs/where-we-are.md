@@ -946,3 +946,71 @@ Unchanged from P20, and unchanged *because* it was never engineering:
 1. **Discovery access** — one command, blocked by network policy.
 2. **A second reviewer** — enforced structurally; there is no second person.
 3. **Retention determination** — externally owned, by design.
+
+---
+
+# Where we are — 2026-09-04
+
+**Date:** 2026-09-04 · **Phase:** P22 · **ADR:** ADR-0059
+
+## The headline
+
+**The student can now read what they are approving — and until this phase, nobody outside the test
+suite could.**
+
+P21 made the journey startable. This is the gate in the middle of it. The measurement that produced
+the phase:
+
+| Fact | Evidence |
+|---|---|
+| The preview was rendered | the orchestrator's `authorise` step carries `presentedText` |
+| The driver could read it | `previewHashFor`, *"a read, for a surface that has to render the preview"* |
+| Its only callers were tests | four, all in `run-driver.test.ts` |
+| **No route published it** | the service's route list had no preview resource |
+| **The stop was silent** | every other pause appends a message; this one appended none |
+| The decision needed a hash no client could get | `journey.test.ts` rebuilt the preview in-process |
+
+The last row is the finding. The authorisation gate — the one place the whole safety design rests
+on — was passable by a test that held the blueprint, the mapping set and the plan, and by nothing a
+browser could do.
+
+## What P22 delivered
+
+`GET /v1/conversations/{id}/runs/{runId}/preview`, returning the rendered application and its
+content hash from **one** read of the step, so what is displayed and what is authorised cannot come
+from two different renderings. `no-store`, owner-checked, never persisted, never logged.
+
+One assistant message when the case reaches `AWAITING_STUDENT_AUTHORISATION` — a pointer carrying no
+part of the application, written off the single hop into that state so it is said once.
+
+And the published contract gained the `POST .../runs/{runId}/decision` path, which it had never
+documented, alongside the `StudentDecision` union.
+
+## The one thing worth understanding
+
+**The preview is a projection, never a stored message.** Three reasons, all of which the code
+already stated: `SubmissionPreview.toJSON()` throws precisely to keep the plaintext out of logs and
+events, and a conversation event is an event; a stored copy goes stale silently, because the
+decision route compares against what would be rendered *now*; and a second plaintext copy of the
+student's data would need its own retention answer, which does not exist.
+
+## Known limitations — what changed, and what did not
+
+- **The React client still cannot reach any run endpoint.** It implements the conversation and the
+  secure turn and nothing else — no target listing, no offer, no run start, no preview, no decision.
+  That is the next phase, and it was impossible before this one: a UI cannot render a preview no
+  route serves.
+- **P22 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P21 lists still holds.
+
+## What is next, on the evidence
+
+The student-facing client is now the largest actionable gap: every consequential decision from P11
+to P22 exists over HTTP and none of them is reachable from the only surface a student has. Nothing
+about it needs an external fact or a product decision — the journey, the contracts and the refusals
+are all settled.
+
+The three standing blockers are unchanged, and none is engineering: discovery access, a second
+reviewer, and the retention determination.

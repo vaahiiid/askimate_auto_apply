@@ -394,6 +394,92 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /conversations/{conversationId}/runs/{runId}/preview:
+    parameters:
+      - { $ref: "#/components/parameters/ConversationId" }
+      - { $ref: "#/components/parameters/RunId" }
+    get:
+      operationId: readRunPreview
+      tags: [runs]
+      summary: Exactly what will be submitted, for the student to read.
+      description: >-
+        ADR-0059. The application as it stands, rendered for the person who has
+        to approve it, with the hash their approval will name.
+
+        `presentedText` and `contentHash` come from ONE reading of the
+        orchestrator's authorisation step, so what is displayed and what is
+        authorised cannot come from two different renderings.
+
+        A PROJECTION, never a stored message. The preview holds the student's
+        data in plain text because that is its purpose — it exists to be read
+        and checked — and it must not reach a log, an event, a trace or an audit
+        record. It is computed for this request, served `no-store`, and written
+        nowhere. It also cannot go stale: the decision below compares the hash
+        against the preview the orchestrator would render at that moment, so a
+        copy stored earlier would be read by a student whose approval is then
+        refused for a mismatch they cannot see.
+      responses:
+        "200":
+          description: The application, as it will be sent.
+          headers:
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/RunPreview" } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: >-
+            No such conversation for this student, no such run, or this run is
+            not asking for an authorisation. DELIBERATELY one answer: a client
+            able to tell them apart could probe which of another student's runs
+            exist, and a student has nothing to do differently in either case.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment carries no run driver.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /conversations/{conversationId}/runs/{runId}/decision:
+    parameters:
+      - { $ref: "#/components/parameters/ConversationId" }
+      - { $ref: "#/components/parameters/RunId" }
+    post:
+      operationId: recordStudentDecision
+      tags: [runs]
+      summary: A decision only the student can make.
+      description: >-
+        ADR-0049 §5. `authorise`, `confirm_handoff` and `confirm_value` each
+        carry the hash of exactly what the student was shown; `cancel` carries
+        none, because requiring one would mean a student could stop only
+        immediately after the system had spoken (ADR-0053).
+
+        The hash is compared against what the orchestrator would render NOW, and
+        a mismatch is refused rather than recorded: an authorisation of content
+        that has since changed is what the void-and-re-ask path exists to catch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StudentDecision" }
+      responses:
+        "204": { description: Recorded. }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            The case machine refused it — the run is not at a point where this
+            decision is legitimate, or the hash does not name what would be
+            shown now.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment carries no run driver.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /internal/v1/conversations/{conversationId}/events:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
@@ -575,6 +661,12 @@ components:
       required: true
       schema: { type: string, pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }
       description: A ULID. Sortable by creation time and not guessable in sequence.
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+      description: The run's identifier, as returned when it was started.
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -770,6 +862,87 @@ components:
         resumed:
           type: boolean
           description: True when the call resumed an existing run rather than creating one.
+
+    RunPreview:
+      type: object
+      additionalProperties: false
+      required: [contentHash, hashAlgorithm, presentedText]
+      description: >-
+        ADR-0059. Exactly what will be submitted, in the words the student
+        reads, and the hash their authorisation names.
+
+        This is the ONE schema in this document that carries the student's own
+        data in plain text, and it is deliberate: a redacted preview cannot be
+        checked, so the control is not redaction but WHERE the plaintext is
+        allowed to go. It goes to the student. It is served `no-store`, is not
+        persisted, and its body is not logged. It still cannot carry a secret —
+        a credential field appears in the application as a field that WILL be
+        filled by the Secure Plane, never as a value.
+      properties:
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+          description: >-
+            Over the canonical content of the preview. This is what the student
+            sends back with an `authorise` decision, and what the run driver
+            re-derives and compares before recording anything.
+        hashAlgorithm: { type: string, const: sha256 }
+        presentedText:
+          type: string
+          description: >-
+            The complete application, field by field, in the order the portal
+            asks — including every value that will be sent, any document that
+            will be attached, and anything the student will complete themselves.
+
+            Deterministic and model-free: `renderPreview` is a pure function of
+            the preview, so what a student agreed to is reproducible from the
+            data rather than from whatever a model happened to say.
+
+            Complete on purpose. There is no "and 14 other fields", because a
+            summary is not what they are authorising.
+          maxLength: 200000
+
+    StudentDecision:
+      description: >-
+        ADR-0049 §5. What only the student can decide, and about exactly what.
+
+        A discriminated union rather than one object with optional fields: three
+        of the four members REQUIRE the hash of what was shown, and an optional
+        field would let a caller omit it.
+      oneOf:
+        - $ref: "#/components/schemas/HashedStudentDecision"
+        - $ref: "#/components/schemas/CancelDecision"
+
+    HashedStudentDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, contentHash]
+      properties:
+        kind:
+          type: string
+          enum: [authorise, confirm_handoff, confirm_value]
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+          description: >-
+            The hash of what the student was shown when they were asked —
+            the preview for `authorise`, the handover message for
+            `confirm_handoff`, the deterministic playback for `confirm_value`.
+            Confirming something they can no longer see is confirming something
+            else, so a mismatch is refused rather than recorded.
+
+    CancelDecision:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      description: >-
+        ADR-0053. No hash, and that is not an inconsistency: requiring one would
+        mean a student could stop only immediately after the system had spoken,
+        and a stop button that works only while the system is talking is not a
+        stop button. What a cancellation establishes — that this student asked
+        to stop — is carried by the authenticated session it arrives on.
+      properties:
+        kind: { type: string, const: cancel }
 
     RunStatus:
       type: string

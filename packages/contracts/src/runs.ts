@@ -148,3 +148,49 @@ export function parseConversationRun(value: unknown): ConversationRun | null {
     resumed: record["resumed"],
   };
 }
+
+
+/**
+ * What the student is asked to authorise. ADR-0059.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A SEPARATE resource from `ConversationRun`, and the constraint above is why.
+ * `NO_RUN_FIELD_IS_FREE_TEXT` says in as many words that *"a `say`, a `detail`
+ * or a `preview` added later makes this stop being `never` and fails the build
+ * naming the field"*. That was written before anything needed a preview, and it
+ * was right: position and free text are different kinds of fact, and a run's
+ * wire form is polled, cached and logged in ways this must not be.
+ *
+ * So the preview is its own read, with its own posture — `no-store`, never
+ * persisted, never logged — rather than a field smuggled onto a shape that
+ * deliberately has no room for one.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface RunPreview {
+  /** `sha256:<hex>` over the canonical content. What an authorisation names. */
+  readonly contentHash: string;
+  readonly hashAlgorithm: "sha256";
+  /**
+   * The complete application, as the student reads it.
+   *
+   * Deterministic and model-free. Carries values that will be SENT and never a
+   * credential: a credential field appears in the application as a field the
+   * Secure Plane will fill, and `renderPreview` does not render the credential
+   * list at all (ADR-0043).
+   */
+  readonly presentedText: string;
+}
+
+/** Bytes from the network to a preview, or `null`. */
+export function parseRunPreview(value: unknown): RunPreview | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const contentHash = record["contentHash"];
+  const presentedText = record["presentedText"];
+  if (typeof contentHash !== "string" || !/^sha256:[0-9a-f]{64}$/.test(contentHash)) return null;
+  if (record["hashAlgorithm"] !== "sha256") return null;
+  // Length, not emptiness: a preview with no text is a rendering bug, and
+  // accepting it would put an empty page in front of a student to approve.
+  if (typeof presentedText !== "string" || presentedText.length === 0) return null;
+  return { contentHash, hashAlgorithm: "sha256", presentedText };
+}

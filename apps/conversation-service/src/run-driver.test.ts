@@ -65,7 +65,7 @@ import {
 import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
-import { parseClaimedWork, parseConversationRun } from "@askimate/aas-contracts";
+import { parseClaimedWork, parseConversationRun, parseRunPreview } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
@@ -3722,9 +3722,9 @@ describeIfDatabase("the decision only the student can make", () => {
       if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
       expect(asked.position.step).toBe("authorise");
 
-      // The hash of exactly what the student is shown, from the orchestrator.
-      const situation = await instance.driver.previewHashFor(runId, conversation);
-      contentHash = situation ?? "";
+      // Exactly what the student is shown, and its hash, from the orchestrator.
+      const situation = await instance.driver.previewFor(runId, conversation);
+      contentHash = situation?.contentHash ?? "";
       expect(contentHash).not.toBe("");
     } finally {
       await instance.pool.end();
@@ -3763,8 +3763,187 @@ describeIfDatabase("the decision only the student can make", () => {
     }
   }
 
-  it("REFUSES a decision from someone else's session", async () => {
+  /** The preview route, over real HTTP, on the same run. */
+  async function get(
+    path: string,
+    cookie: string,
+  ): Promise<{ status: number; body: unknown; cacheControl: string | null }> {
+    const instance = buildInstance(connectionString(), opener());
+    nextPort += 1;
+    const port = nextPort;
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: async (subject, conversationId) => {
+        const owned = await instance.pool.query(
+          "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+          [conversationId, subject],
+        );
+        return owned.rowCount === 1;
+      },
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${String(port)}${path}`, {
+        headers: { cookie },
+      });
+      return {
+        status: response.status,
+        body: await response.json().catch(() => null),
+        cacheControl: response.headers.get("cache-control"),
+      };
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }
+
+  it("SHOWS the student what they are being asked to authorise", async () => {
     await aRunAtTheAuthorisation();
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0059. Until this route existed, the only code in the repository
+    // that could complete an authorisation was a test that rebuilt the
+    // preview from the blueprint, the mapping set and the plan — none of
+    // which a browser holds. This is the same question asked the way a client
+    // has to ask it.
+    // ═══════════════════════════════════════════════════════════════════
+    const { status, body, cacheControl } = await get(
+      `/v1/conversations/${conversation}/runs/${runId}/preview`,
+      cookieFor(studentId_),
+    );
+    expect(status).toBe(200);
+
+    // Parsed by the CONTRACT's own parser, not an ad-hoc cast.
+    const preview = parseRunPreview(body);
+    if (preview === null) expect.unreachable(`not a RunPreview: ${JSON.stringify(body)}`);
+
+    // The hash the student will send back is the one the driver would compare
+    // against — obtained here the way a client obtains it, not derived.
+    expect(preview.contentHash).toBe(contentHash);
+    expect(preview.hashAlgorithm).toBe("sha256");
+
+    // What they read: the application, completely, ending in the reference
+    // that ties it to the hash.
+    expect(preview.presentedText).toContain(GATED_PORTAL_BLUEPRINT.institutionName);
+    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
+    expect(preview.presentedText).toContain(`Reference: ${contentHash}`);
+
+    // A capability in a cache outlives the page that asked for it; so does a
+    // student's application. Same posture as the secure bootstrap.
+    expect(cacheControl).toBe("no-store");
+  }, 300_000);
+
+  it("carries NO credential, even as a field name", async () => {
+    // ADR-0043: a credential is mapped to the Secure Plane and the preview's
+    // credential list is never rendered. The gated portal's blueprint HAS
+    // password fields, so this is a real absence rather than a vacuous one.
+    const registerFields = [...REGISTER_FIELDS];
+    expect(registerFields.length, "the fixture really does have credentials").toBeGreaterThan(0);
+
+    const { body } = await get(
+      `/v1/conversations/${conversation}/runs/${runId}/preview`,
+      cookieFor(studentId_),
+    );
+    const text = (parseRunPreview(body)?.presentedText ?? "").toLowerCase();
+    expect(text).not.toContain("password");
+    // Nor the field refs the credential mapping names, which is the shape a
+    // rendered credential list would take.
+    for (const field of registerFields) expect(text).not.toContain(field.toLowerCase());
+  }, 300_000);
+
+  it("REFUSES another student, with 404 rather than 403", async () => {
+    const { status } = await get(
+      `/v1/conversations/${conversation}/runs/${runId}/preview`,
+      cookieFor(otherStudentId),
+    );
+    expect(status).toBe(404);
+  }, 300_000);
+
+  it("REFUSES an unauthenticated reader", async () => {
+    const { status } = await get(
+      `/v1/conversations/${conversation}/runs/${runId}/preview`,
+      "",
+    );
+    expect(status).toBe(401);
+  }, 300_000);
+
+  it("answers 404 for a run that EXISTS but is not at the gate", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after the mutation that made `previewFor` return a preview for
+    // any run SURVIVED. The only test that had covered it named a run that
+    // does not exist — so the "no such run" check answered first and the
+    // named control, `awaitsStudentAuthorisation`, was never reached.
+    //
+    // This one is a real run, of this student, in a conversation they own,
+    // which has simply not got as far as asking. There is nothing to approve,
+    // and "nothing to approve" must not render as an empty application.
+    // ═══════════════════════════════════════════════════════════════════
+    const early = "01JBXQ8Z9WKTQ6M4H2NPC000C7";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      early,
+      studentId_,
+    ]);
+    const instance = buildInstance(connectionString(), opener());
+    let earlyRun = "";
+    try {
+      const started = await instance.driver.start({
+        conversationId: early,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      earlyRun = started.position.runId;
+      expect(started.position.step, "nowhere near the authorisation").not.toBe("authorise");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const { status } = await get(
+      `/v1/conversations/${early}/runs/${earlyRun}/preview`,
+      cookieFor(studentId_),
+    );
+    expect(status).toBe(404);
+  }, 300_000);
+
+  it("answers 404 for a run that does not exist", async () => {
+    // Deliberately the SAME answer as the case above: a client able to tell
+    // them apart could probe which of another student's runs exist, and a
+    // student has nothing to do differently in either case.
+    const { status } = await get(
+      `/v1/conversations/${conversation}/runs/run_does_not_exist/preview`,
+      cookieFor(studentId_),
+    );
+    expect(status).toBe(404);
+  }, 300_000);
+
+  it("told the student, once, that there is something to approve", async () => {
+    // ADR-0059. Every other pause announces itself; this one did not, so a
+    // student watching the conversation saw it fall silent at the one moment
+    // it needed them. Written off the single hop into the state, so a second
+    // advance does not repeat it.
+    const said = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    const ready = said.rows.filter((row) => row.content.startsWith("Your application is ready."));
+    expect(ready, "said once, not once per advance").toHaveLength(1);
+
+    // And it is a POINTER, not a copy: no part of the application is in it.
+    expect(ready[0]?.content).not.toContain("This is exactly what will be submitted.");
+    expect(ready[0]?.content).not.toContain(contentHash);
+  }, 300_000);
+
+  it("REFUSES a decision from someone else's session", async () => {
+    // The run is already standing at the gate — the preview group above set it
+    // up, and setting it up twice would try to open a second case for one
+    // conversation.
     // The one decision that is the student's alone. Another student's cookie is
     // not "a caller who may act on their behalf" — it is a different person.
     // 404, not 403: `caller()` answers `not_found` for a conversation that is
@@ -3980,8 +4159,9 @@ describeIfDatabase("the mandatory-review guard, now that something drives it", (
     // ═══════════════════════════════════════════════════════════════════
     const instance = buildInstance(connectionString(), opener());
     try {
-      const hash = await instance.driver.previewHashFor(runId, conversation);
-      expect(hash, "the run really is asking").not.toBeNull();
+      const shown = await instance.driver.previewFor(runId, conversation);
+      expect(shown, "the run really is asking").not.toBeNull();
+      const hash = shown?.contentHash ?? null;
       const recorded = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,
@@ -4658,7 +4838,7 @@ describeIfDatabase("the student stops", () => {
       // …and they approve it, so the cancellation has an authorisation to
       // void. A student who changes their mind AFTER approving is the case
       // `student_revoked` exists for.
-      const hash = await instance.driver.previewHashFor(runId, conversation);
+      const hash = (await instance.driver.previewFor(runId, conversation))?.contentHash ?? null;
       const approved = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,
@@ -5195,7 +5375,7 @@ describeIfDatabase("a correction the student makes late", () => {
   async function authorise(): Promise<void> {
     const instance = buildInstance(connectionString(), opener());
     try {
-      const hash = await instance.driver.previewHashFor(runId, conversation);
+      const hash = (await instance.driver.previewFor(runId, conversation))?.contentHash ?? null;
       const done = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,

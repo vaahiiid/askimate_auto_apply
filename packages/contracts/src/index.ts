@@ -146,6 +146,7 @@ export {
 
 export type {
   ConversationRun,
+  RunPreview,
   NO_RUN_FIELD_IS_FREE_TEXT,
   RunPhase,
   RunRefusalCode,
@@ -158,6 +159,7 @@ export {
   RUN_STATUSES,
   RUN_STEP_KINDS,
   parseConversationRun,
+  parseRunPreview,
 } from "./runs.js";
 
 // ── ADR-0045: the internal work API the Automation Runner pulls from ───────

@@ -35,6 +35,7 @@ import {
   parseSecretLifecycle,
 } from "./vocabulary.js";
 import { parseStudentDecision } from "./decisions.js";
+import { parseRunPreview } from "./runs.js";
 
 const MARKER = "SECRET-PASSWORD-DO-NOT-LEAK-123!";
 const REQUEST_ID = `sr_${"a".repeat(32)}`;
@@ -495,6 +496,63 @@ describe("the wire vocabulary is internally coherent", () => {
       ["PROBLEM_CODES", PROBLEM_CODES],
     ] as const) {
       expect(new Set(members).size, name).toBe(members.length);
+    }
+  });
+});
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// The preview a student authorises (ADR-0059)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("bytes from the network to a run preview", () => {
+  const GOOD = {
+    contentHash: `sha256:${"a".repeat(64)}`,
+    hashAlgorithm: "sha256",
+    presentedText: "University — Course, September 2026\n\nName: Niloofar",
+  };
+
+  it("accepts the published shape", () => {
+    const parsed = parseRunPreview(GOOD);
+    expect(parsed?.contentHash).toBe(GOOD.contentHash);
+    expect(parsed?.presentedText).toBe(GOOD.presentedText);
+  });
+
+  it("REFUSES a preview with no text", () => {
+    // Not pedantry. An empty rendering is a bug in whatever produced it, and
+    // accepting it would put a blank page in front of a student to approve —
+    // an authorisation of nothing, carrying a hash that says otherwise.
+    expect(parseRunPreview({ ...GOOD, presentedText: "" })).toBeNull();
+    expect(parseRunPreview({ ...GOOD, presentedText: null })).toBeNull();
+    const { presentedText: _omitted, ...without } = GOOD;
+    expect(parseRunPreview(without)).toBeNull();
+  });
+
+  it("REFUSES a hash that is not the shape every hash here is written in", () => {
+    // The hash is what the student's approval NAMES. A client that accepted
+    // any string would send one back, and the mismatch would surface as a
+    // refusal at the decision route rather than here, where it is cheap.
+    for (const bad of [
+      "not-a-hash",
+      "sha256:tooshort",
+      `sha256:${"A".repeat(64)}`,
+      `sha512:${"a".repeat(64)}`,
+      `sha256:${"a".repeat(63)}`,
+      "",
+    ]) {
+      expect(parseRunPreview({ ...GOOD, contentHash: bad }), bad).toBeNull();
+    }
+  });
+
+  it("REFUSES a different algorithm, or none", () => {
+    expect(parseRunPreview({ ...GOOD, hashAlgorithm: "sha512" })).toBeNull();
+    const { hashAlgorithm: _omitted, ...without } = GOOD;
+    expect(parseRunPreview(without)).toBeNull();
+  });
+
+  it("REFUSES anything that is not an object", () => {
+    for (const bad of [null, undefined, "", 0, [], true]) {
+      expect(parseRunPreview(bad)).toBeNull();
     }
   });
 });

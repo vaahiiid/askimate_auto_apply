@@ -19,6 +19,64 @@ not shipped artefacts.
 
 ---
 
+## [0.40.0] — 2026-09-04
+
+**P22 — the student can read what they are authorising. ADR-0059.**
+
+The brief's rule is that nothing is typed into a university's form until the student has seen
+exactly what will be sent and said yes. Measured at `4b22a99`, after P21 made the journey
+startable:
+
+- the orchestrator rendered the preview and carried it on the `authorise` step;
+- `RunDriver.previewHashFor` could read it, and said in its own comment that it existed *"for a
+  surface that has to render the preview and send the hash back"*;
+- **no route published either**, and the `authorise` stop appended no message — the only pause in
+  the system that announced nothing;
+- `POST .../runs/{runId}/decision` requires a `contentHash` a client had no way to obtain.
+
+So **the only code in this repository that could complete an authorisation was a test that rebuilt
+the preview in-process** from the blueprint, the mapping set and the plan — three things a browser
+will never hold and must never be given. The gate was passable by the test suite and by nothing
+else.
+
+### Added
+
+- `GET /v1/conversations/{conversationId}/runs/{runId}/preview` — the application as it will be
+  sent, in the words the student reads, with the hash their approval names. `Cache-Control:
+  no-store`; owner-checked; 404 both for a run that does not exist and for one that is not asking,
+  deliberately the same answer.
+- `RunPreview` and `parseRunPreview` in `@askimate/aas-contracts`, and the schema in
+  `conversation.v1.yaml`.
+- `StudentDecision`, `HashedStudentDecision` and `CancelDecision` schemas, and the
+  `POST .../runs/{runId}/decision` path — which the published contract had never documented at all.
+- One assistant message when the case first reaches `AWAITING_STUDENT_AUTHORISATION`. A **pointer,
+  not a copy**: it carries no part of the application.
+
+### Changed
+
+- `RunDriver.previewHashFor` → `previewFor`, returning `{ contentHash, presentedText }` from **one**
+  read of the step. Two reads that recomputed the same situation could answer differently after a
+  change between them; one cannot.
+- `journey.test.ts` obtains the hash from the route instead of re-deriving it. It still re-derives
+  one independently — but now only to assert the route served the same content the run fills from.
+
+### Why the preview is a projection and not a message
+
+`SubmissionPreview.toJSON()` throws on purpose: the plaintext may go to the student and to no log,
+event, trace or audit record. A conversation event is an event. A stored copy would also go stale
+silently — the decision route compares against what would be rendered *now*, so a student reading
+yesterday's message would be refused for a mismatch they cannot see. And `NO_RUN_FIELD_IS_FREE_TEXT`
+in `runs.ts` had already anticipated this, naming *"a `preview` added later"* as a build failure.
+
+### Proved
+
+Thirteen deliberate regressions, ten caught on the first pass. Three survived and are now caught:
+a refusal test that reached the guard through a run that did not exist, so the guard in front
+answered first; and a contract parser exercised only on its accepting path, leaving both its
+refusals — an empty rendering, a malformed hash — unasserted.
+
+---
+
 ## [0.39.0] — 2026-09-03
 
 **P21 — a student chooses a reviewed target, and asks for it. ADR-0058.**

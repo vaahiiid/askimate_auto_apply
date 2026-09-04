@@ -397,6 +397,43 @@ describe("where a submission preview is allowed to go", () => {
     expect(text).toContain("02/04/1999");
   });
 
+  it("renders no CREDENTIAL, even though the preview carries the list", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0043, and it matters more since ADR-0059 put this text on an HTTP
+    // response. `PreviewCredential` never holds a value, so nothing here
+    // COULD leak one — but a future `renderPreview` that helpfully listed the
+    // credential fields would put "password" into a body the contract's
+    // secret-bearing walk cannot see, because that walk reads field NAMES and
+    // this is one free-text field.
+    //
+    // So the rendering is asserted to omit the list entirely. A student is
+    // told what the Secure Plane will fill by the secure step itself, not by
+    // an application preview.
+    // ═══════════════════════════════════════════════════════════════════
+    // The fixture plan carries no credential, so rendering IT would prove
+    // nothing — an absence that is only the fixture's. One is put in.
+    const carrying: SubmissionPreview = {
+      ...built(),
+      credentials: [
+        {
+          fieldRef: "account.password",
+          label: "Password",
+          purpose: "portal_account_creation",
+          explanation: "You will type this into the secure box; AskiMate never sees it.",
+        },
+      ],
+    };
+    expect(carrying.credentials, "the preview really is carrying one").toHaveLength(1);
+
+    const text = renderPreview(carrying).toLowerCase();
+    expect(text).not.toContain("password");
+    expect(text).not.toContain("credential");
+    expect(text).not.toContain("account.password");
+    // And the rest of the rendering is unaffected — this is an omission, not
+    // a renderer that gave up.
+    expect(text).toContain("niloofar");
+  });
+
   it("REFUSES JSON.stringify — the usual route into a log", () => {
     expect(() => JSON.stringify(built())).toThrow(PreviewSerialisationError);
   });

@@ -143,6 +143,20 @@ export interface RunCoordinator {
     readonly conversationId: string;
     readonly event: ConversationEvent;
   }): Promise<void>;
+  /**
+   * What the student is being asked to authorise, and its hash. ADR-0059.
+   *
+   * `null` when this run is not standing at the authorisation gate — there is
+   * nothing to show, which is not the same fact as an empty application.
+   *
+   * Both halves come from ONE read of the orchestrator's `authorise` step, so
+   * the text the student sees and the hash they send back cannot come from two
+   * different renderings.
+   */
+  previewFor(
+    runId: string,
+    conversationId: string,
+  ): Promise<{ readonly contentHash: string; readonly presentedText: string } | null>;
   /** Records a decision only the student can make. ADR-0049. */
   recordDecision(input: {
     readonly conversationId: string;
@@ -1135,6 +1149,67 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
   // on a service credential would make approving a real university application
   // something the operator could do on the student's behalf, which is the
   // opposite of what the authorisation ledger is for.
+    // ── GET /v1/conversations/:id/runs/:runId/preview ───────────────────────
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0059. What the student is about to authorise, in the words they will
+  // read, with the hash that binds their approval to it.
+  //
+  // The gate this serves is the most consequential one in the system, and
+  // until now it had no surface at all: the orchestrator rendered the preview,
+  // the driver could read it, and no route published either — so the only code
+  // that could complete an authorisation was a test that REBUILT the preview
+  // from the blueprint, the mapping set and the plan. A browser holds none of
+  // those and must not.
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // ── Why this is a projection and not a stored message ─────────────────
+  //
+  // `SubmissionPreview.toJSON()` throws on purpose: the plaintext may go to the
+  // student and to no log, event, trace or audit record. A conversation event
+  // is an event. So the preview is computed for this request and written
+  // nowhere, `no-store`, and the response body is never logged.
+  //
+  // It also cannot go stale. `recordDecision` compares the hash against the
+  // preview the orchestrator would render NOW, so a copy stored yesterday
+  // would be read by a student whose approval is then refused for a mismatch
+  // they cannot see. Reading and hashing are one act here.
+  router.get(
+    "/v1/conversations/:conversationId/runs/:runId/preview",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const preview = await options.runs.previewFor(
+          String(req.params["runId"]),
+          conversationId,
+        );
+        // 404 for "this run is not asking you to approve anything" as well as
+        // for "no such run". Deliberately the same answer: a client that could
+        // tell them apart could probe which of another student's runs exist,
+        // and a student has nothing to do differently in either case.
+        if (preview === null) {
+          problem(res, "not_found");
+          return;
+        }
+        // The student's own data in plain text, by design (it is what they are
+        // checking). It gets the same posture as the secure bootstrap: not
+        // cached, not stored, not shared.
+        res.setHeader("Cache-Control", "no-store");
+        res.status(200).json({
+          contentHash: preview.contentHash,
+          hashAlgorithm: "sha256",
+          presentedText: preview.presentedText,
+        });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/:id/runs/:runId/decision ──────────────────────
   router.post(
     "/v1/conversations/:conversationId/runs/:runId/decision",
     (req: Request, res: Response, next: NextFunction): void => {

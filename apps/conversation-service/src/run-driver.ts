@@ -1303,6 +1303,7 @@ export class RunDriver {
         to: hop,
         reason: reasonFor(hop),
       });
+      // Announced off the HOP, below, once it is accepted and written.
       if (!decision.accepted) {
         return {
           ok: false,
@@ -1318,6 +1319,35 @@ export class RunDriver {
         // identity across a bundling boundary — the same reason `#decide`
         // matches `RunConcurrencyError` by name.
         if (!(error instanceof Error) || error.name !== "ConcurrencyConflictError") throw error;
+        // The hop was somebody else's. Theirs to announce, not this caller's.
+        continue;
+      }
+
+      // ── The one pause that used to say nothing ────────────────────────
+      //
+      // ADR-0059. Every other stop in this system announces itself —
+      // `pauseMessage`, `resumeMessage`, `reviewMessage`, a handoff's own
+      // message, an interview question. The authorisation gate did not, so a
+      // student watching the conversation saw it fall silent at the single
+      // moment it needed them.
+      //
+      // Hung off the ACCEPTED HOP rather than off the step, because the hop
+      // into this state happens exactly once: a re-advance finds `hop === null`
+      // and returns above, and a lost race `continue`s without announcing. That
+      // is what makes this idempotent without a marker column.
+      //
+      // It carries NO preview content. The preview is a live projection served
+      // by its own route and written nowhere — putting it in a message is the
+      // act `SubmissionPreview.toJSON()` throws to prevent.
+      if (hop === "AWAITING_STUDENT_AUTHORISATION") {
+        await this.#options.conversations.append({
+          conversationId: input.conversationId,
+          event: {
+            kind: "message",
+            actor: "assistant",
+            content: READY_TO_APPROVE,
+          },
+        });
       }
     }
     return { ok: true };
@@ -1521,14 +1551,34 @@ export class RunDriver {
   }
 
   /**
-   * The hash of what this run would show the student right now, or `null`.
+   * What this run would show the student right now, and its hash — or `null`.
    *
-   * A read, for a surface that has to render the preview and send the hash
-   * back. It computes nothing of its own: the hash is the orchestrator's, off
-   * the same `AuthorisablePreview` the step carries, so what is rendered and
-   * what is authorised cannot come from two different renderings.
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0059. The read behind `GET .../runs/{runId}/preview`, and the reason
+   * it returns BOTH halves from ONE call: `presentedText` and `contentHash`
+   * come off the same `authorise` step, so what the student reads and what
+   * they authorise cannot come from two different renderings.
+   *
+   * It was `previewHashFor`, returning the hash alone. Nothing in production
+   * called it — only tests — and the tests that completed an authorisation
+   * did so by REBUILDING the preview themselves from the blueprint, the
+   * mapping set and the plan. A browser holds none of those and must not, so
+   * the gate was passable by the test suite and by nothing else.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * `presentedText` is the orchestrator's own `renderPreview` output, carried
+   * on the step. This method renders nothing: a second rendering here is
+   * exactly the drift the single-call shape exists to prevent.
+   *
+   * `null` means there is nothing to show — no case, no run, or a run that is
+   * not standing at the authorisation gate. Callers report that as a 404
+   * rather than an empty preview, because "there is nothing to approve" and
+   * "here is an empty application" are different facts.
    */
-  public async previewHashFor(runId: string, conversationId: string): Promise<string | null> {
+  public async previewFor(
+    runId: string,
+    conversationId: string,
+  ): Promise<{ readonly contentHash: string; readonly presentedText: string } | null> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
     const entry = await this.#options.catalogue.find(bound.blueprintId);
@@ -1542,7 +1592,10 @@ export class RunDriver {
       studentRef: record.studentRef,
     });
     if (!situation.ok || !awaitsStudentAuthorisation(situation.step)) return null;
-    return situation.step.preview.contentHash;
+    return {
+      contentHash: situation.step.preview.contentHash,
+      presentedText: situation.step.presentedText,
+    };
   }
 
   /**
@@ -3417,6 +3470,22 @@ function confirmedDateOfBirth(state: RunState): Date | null {
   const value = unwrapConfirmed(held);
   return Number.isNaN(value.getTime()) ? null : value;
 }
+
+/**
+ * What the student is told when their application is ready for them to approve.
+ *
+ * A pointer, not a copy. It says where to look and what the decision is; the
+ * application itself is fetched from `GET .../runs/{runId}/preview` and lives
+ * nowhere else (ADR-0059).
+ *
+ * Deliberately plain about what happens next, because this is the last moment
+ * before anything is typed into a university's form and a student should not
+ * have to infer that from a cheerful sentence.
+ */
+const READY_TO_APPROVE =
+  "Your application is ready. Before anything is entered on the university's website, please " +
+  "read it through and check every answer is right — it is exactly what will be sent. Nothing " +
+  "is submitted by this system either way; approving it lets me fill the form in for you.";
 
 /**
  * Why a hop happened, for the case log a person reads later.

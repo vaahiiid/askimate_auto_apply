@@ -66,6 +66,7 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
+import { parseRunPreview } from "@askimate/aas-contracts";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import {
@@ -778,10 +779,34 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     const cases = new PostgresCaseStore(conversationPool);
     const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
 
-    // The hash of exactly what will be sent. Taken from the preview the
-    // orchestrator built, never invented here: an authorisation whose hash did
-    // not match the plan is an authorisation for something else.
-    const preview = previewForThisRun();
+    // ══════════════════════════════════════════════════════════════════
+    // ADR-0059. Until P22 this test obtained the hash by REBUILDING the
+    // preview in-process — `checkUsable` + `planFill` + `buildPreview` over the
+    // blueprint, the mapping set and the plan. A browser holds none of those
+    // and must not, so the authorisation gate was passable by this suite and by
+    // nothing else. It now asks the way a client has to.
+    // ══════════════════════════════════════════════════════════════════
+    const shown = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/preview`,
+      { headers: { cookie: devCookie } },
+    );
+    expect(shown.status, await shown.clone().text()).toBe(200);
+    expect(shown.headers.get("cache-control"), "not cached, not stored").toBe("no-store");
+    const preview = parseRunPreview(await shown.json());
+    if (preview === null) expect.unreachable("the preview did not match the published contract");
+
+    // What the student actually reads: this university, this course, and the
+    // values that will be typed — ending in the reference their approval names.
+    expect(preview.presentedText).toContain("Gated University");
+    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
+    expect(preview.presentedText).toContain(`Reference: ${preview.contentHash}`);
+
+    // And it is the SAME content the orchestrator would fill from. Re-derived
+    // independently here — the old path — purely to prove the route did not
+    // hand the student a different application from the one that gets typed.
+    expect(preview.contentHash, "read and filled are one rendering").toBe(
+      previewForThisRun().contentHash,
+    );
 
     const decided = await recordingFetch(
       `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
