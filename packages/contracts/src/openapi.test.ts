@@ -56,7 +56,8 @@ function resolve(spec: Json, node: unknown, seen = new Set<string>()): unknown {
   const record = node as Json;
   const ref = record["$ref"];
   if (typeof ref !== "string") return node;
-  if (!ref.startsWith("#/")) throw new Error(`external $ref not allowed: ${ref}`);
+  if (!ref.startsWith("#/"))
+    throw new Error(`external $ref not allowed: ${ref}`);
   if (seen.has(ref)) return {};
   seen.add(ref);
   let cursor: unknown = spec;
@@ -68,7 +69,11 @@ function resolve(spec: Json, node: unknown, seen = new Set<string>()): unknown {
 }
 
 /** Every property name declared anywhere under a schema, refs followed. */
-function propertyNames(spec: Json, node: unknown, seen = new Set<unknown>()): string[] {
+function propertyNames(
+  spec: Json,
+  node: unknown,
+  seen = new Set<unknown>(),
+): string[] {
   const resolved = resolve(spec, node);
   if (typeof resolved !== "object" || resolved === null) return [];
   if (seen.has(resolved)) return [];
@@ -85,12 +90,14 @@ function propertyNames(spec: Json, node: unknown, seen = new Set<unknown>()): st
     }
   }
   for (const key of ["items", "additionalProperties", "not"]) {
-    if (record[key] !== undefined) found.push(...propertyNames(spec, record[key], seen));
+    if (record[key] !== undefined)
+      found.push(...propertyNames(spec, record[key], seen));
   }
   for (const key of ["oneOf", "anyOf", "allOf"]) {
     const branch = record[key];
     if (Array.isArray(branch)) {
-      for (const child of branch) found.push(...propertyNames(spec, child, seen));
+      for (const child of branch)
+        found.push(...propertyNames(spec, child, seen));
     }
   }
   return found;
@@ -109,8 +116,15 @@ function operations(): Operation[] {
   for (const [specName, spec] of SPECS) {
     for (const [path, item] of Object.entries(spec["paths"] as Json)) {
       for (const [method, operation] of Object.entries(item as Json)) {
-        if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
-        found.push({ spec, specName, path, method, operation: operation as Json });
+        if (!["get", "post", "put", "patch", "delete"].includes(method))
+          continue;
+        found.push({
+          spec,
+          specName,
+          path,
+          method,
+          operation: operation as Json,
+        });
       }
     }
   }
@@ -129,7 +143,8 @@ function bodySchemas(spec: Json, container: unknown): unknown[] {
 }
 
 /** Names that would mean a field holds, or describes, a secret value. */
-const SECRET_BEARING = /^(secret|password|passphrase|plaintext|credential|pwd|confirmation)$/i;
+const SECRET_BEARING =
+  /^(secret|password|passphrase|plaintext|credential|pwd|confirmation)$/i;
 
 // ───────────────────────────────────────────────────────────────────────────
 // 1. Drift
@@ -147,18 +162,24 @@ function enumOf(spec: Json, schemaName: string): string[] {
 describe("the published contract and the code do not drift", () => {
   it("agrees on the rejection reasons, in both documents and both directions", () => {
     for (const [name, spec] of SPECS) {
-      expect(enumOf(spec, "RejectionReason").sort(), name).toEqual([...REJECTION_REASONS].sort());
+      expect(enumOf(spec, "RejectionReason").sort(), name).toEqual(
+        [...REJECTION_REASONS].sort(),
+      );
     }
   });
 
   it("agrees on the problem codes", () => {
     for (const [name, spec] of SPECS) {
-      expect(enumOf(spec, "ProblemCode").sort(), name).toEqual([...PROBLEM_CODES].sort());
+      expect(enumOf(spec, "ProblemCode").sort(), name).toEqual(
+        [...PROBLEM_CODES].sort(),
+      );
     }
   });
 
   it("agrees on the lifecycle words", () => {
-    expect(enumOf(SECURE, "SecretLifecycle").sort()).toEqual([...SECRET_LIFECYCLES].sort());
+    expect(enumOf(SECURE, "SecretLifecycle").sort()).toEqual(
+      [...SECRET_LIFECYCLES].sort(),
+    );
   });
 
   it("agrees on the event kinds, via the discriminator mapping", () => {
@@ -186,8 +207,11 @@ describe("the published contract and the code do not drift", () => {
         for (const schema of bodySchemas(spec, operation["requestBody"])) {
           propertyNames(spec, schema);
         }
-        for (const response of Object.values((operation["responses"] ?? {}) as Json)) {
-          for (const schema of bodySchemas(spec, response)) propertyNames(spec, schema);
+        for (const response of Object.values(
+          (operation["responses"] ?? {}) as Json,
+        )) {
+          for (const schema of bodySchemas(spec, response))
+            propertyNames(spec, schema);
         }
       }, where).not.toThrow();
     }
@@ -203,24 +227,32 @@ describe("no contract can carry a secret outside the one endpoint that takes one
     const accepting: string[] = [];
     for (const { spec, specName, path, method, operation } of operations()) {
       for (const schema of bodySchemas(spec, operation["requestBody"])) {
-        if (propertyNames(spec, schema).some((name) => SECRET_BEARING.test(name))) {
+        if (
+          propertyNames(spec, schema).some((name) => SECRET_BEARING.test(name))
+        ) {
           accepting.push(`${specName} ${method.toUpperCase()} ${path}`);
         }
       }
     }
     // Counted, not asserted in prose. A second endpoint added later fails here.
-    expect(accepting).toEqual(["secure.v1.yaml POST /v1/secret-requests/{requestId}/secret"]);
+    expect(accepting).toEqual([
+      "secure.v1.yaml POST /v1/secret-requests/{requestId}/secret",
+    ]);
   });
 
   it("has NO response, anywhere, that can carry a secret value back", () => {
     // The strongest single property of the design: there is no read path.
     const leaking: string[] = [];
     for (const { spec, specName, path, method, operation } of operations()) {
-      for (const [status, response] of Object.entries((operation["responses"] ?? {}) as Json)) {
+      for (const [status, response] of Object.entries(
+        (operation["responses"] ?? {}) as Json,
+      )) {
         for (const schema of bodySchemas(spec, response)) {
           for (const name of propertyNames(spec, schema)) {
             if (SECRET_BEARING.test(name)) {
-              leaking.push(`${specName} ${method.toUpperCase()} ${path} → ${status} (${name})`);
+              leaking.push(
+                `${specName} ${method.toUpperCase()} ${path} → ${status} (${name})`,
+              );
             }
           }
         }
@@ -234,7 +266,9 @@ describe("no contract can carry a secret outside the one endpoint that takes one
       if (specName !== "conversation.v1.yaml") continue;
       for (const schema of bodySchemas(spec, operation["requestBody"])) {
         expect(
-          propertyNames(spec, schema).filter((name) => SECRET_BEARING.test(name)),
+          propertyNames(spec, schema).filter((name) =>
+            SECRET_BEARING.test(name),
+          ),
           `${method.toUpperCase()} ${path}`,
         ).toEqual([]);
       }
@@ -245,7 +279,10 @@ describe("no contract can carry a secret outside the one endpoint that takes one
     // A blunt instrument, deliberately. The conversation plane has no business
     // naming a password in a schema, an example, or a parameter — and a grep
     // catches shapes the walk above does not, such as an example payload.
-    const source = readFileSync(join(OPENAPI_DIR, "conversation.v1.yaml"), "utf8");
+    const source = readFileSync(
+      join(OPENAPI_DIR, "conversation.v1.yaml"),
+      "utf8",
+    );
     const schemas = (CONVERSATION["components"] as Json)["schemas"] as Json;
     for (const name of Object.keys(schemas)) {
       expect(SECRET_BEARING.test(name), `schema ${name}`).toBe(false);
@@ -268,19 +305,25 @@ describe("no contract can carry a secret outside the one endpoint that takes one
     const opened = ((SECURE["components"] as Json)["schemas"] as Json)[
       "OpenedSecretRequest"
     ] as Json;
-    expect(((opened["properties"] as Json)["frameToken"] as Json)["writeOnly"]).toBe(true);
+    expect(
+      ((opened["properties"] as Json)["frameToken"] as Json)["writeOnly"],
+    ).toBe(true);
   });
 });
 
 describe("the event model is structurally content-free outside a message", () => {
   it("gives ONLY MessageEvent a content property", () => {
     const schemas = (CONVERSATION["components"] as Json)["schemas"] as Json;
-    const eventSchemas = Object.keys(schemas).filter((name) => name.endsWith("Event"));
+    const eventSchemas = Object.keys(schemas).filter((name) =>
+      name.endsWith("Event"),
+    );
     // Guard against the check going inert if the schemas are ever renamed.
     expect(eventSchemas.length).toBeGreaterThanOrEqual(5);
 
     for (const name of eventSchemas) {
-      const properties = Object.keys((schemas[name] as Json)["properties"] ?? {});
+      const properties = Object.keys(
+        (schemas[name] as Json)["properties"] ?? {},
+      );
       if (name === "MessageEvent") {
         expect(properties).toContain("content");
       } else {
@@ -300,7 +343,8 @@ describe("the event model is structurally content-free outside a message", () =>
     // property it needs is a different one, and it is the next test.
     const schemas = (CONVERSATION["components"] as Json)["schemas"] as Json;
     const members = Object.keys(schemas).filter(
-      (key) => key.endsWith("Event") && (schemas[key] as Json)["type"] === "object",
+      (key) =>
+        key.endsWith("Event") && (schemas[key] as Json)["type"] === "object",
     );
     expect(members.length).toBeGreaterThanOrEqual(5);
     for (const name of members) {
@@ -328,7 +372,10 @@ describe("the event model is structurally content-free outside a message", () =>
     );
     for (const [kind, target] of Object.entries(mapping)) {
       expect(branches, `mapping ${kind}`).toContain(String(target));
-      expect(() => resolve(CONVERSATION, { $ref: target }), `mapping ${kind}`).not.toThrow();
+      expect(
+        () => resolve(CONVERSATION, { $ref: target }),
+        `mapping ${kind}`,
+      ).not.toThrow();
     }
   });
 
@@ -359,18 +406,81 @@ describe("authentication is declared on every endpoint that needs it", () => {
     // bootstrap establishes who is asking. The bootstrap exchange is the thing
     // that CREATES a session, so it cannot require one — it is protected by a
     // single-use token plus an Origin and Sec-Fetch-Site check instead.
+    //
+    // P27 corrected the first entry and added the third: the conversation
+    // document published `/health`, which no process serves — the real one is
+    // `/healthz` — and the secure plane serves one too and published nothing.
     expect(open.sort()).toEqual([
-      "conversation.v1.yaml GET /health",
+      "conversation.v1.yaml GET /healthz",
       "secure.v1.yaml GET /control/{requestId}",
+      "secure.v1.yaml GET /healthz",
       "secure.v1.yaml POST /v1/frame-sessions",
     ]);
   });
 
+  it("resolves EVERY operation to a real requirement, or to a deliberate opening", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after P27 found `security: [{ secureSession: [] }]` indented
+    // INSIDE `components:` in the secure document, where OpenAPI has no such
+    // field and every generator ignores it. That document therefore declared
+    // no authentication at all on its three student-facing operations —
+    // including `POST /v1/secret-requests/{requestId}/secret`, the one
+    // endpoint in this system that carries a secret.
+    //
+    // The service always authenticated them. The CONTRACT did not say so, and
+    // the contract is what a reviewer and a generated client read.
+    //
+    // The test above did not catch it because it looks for an explicit
+    // `security: []`, and these declared NOTHING — a different shape, and the
+    // more dangerous one, because absence reads as an oversight rather than a
+    // decision. This asserts the resolved requirement instead: an operation
+    // either names one, or inherits a document default that actually exists.
+    // ═══════════════════════════════════════════════════════════════════
+    for (const spec of [CONVERSATION, SECURE]) {
+      const documentDefault = spec["security"];
+      for (const { specName, path, method, operation } of operations()) {
+        if (
+          specName !==
+          (spec === CONVERSATION ? "conversation.v1.yaml" : "secure.v1.yaml")
+        ) {
+          continue;
+        }
+        const own = operation["security"];
+        const resolved = own ?? documentDefault;
+        expect(
+          Array.isArray(resolved),
+          `${specName} ${method.toUpperCase()} ${path} resolves to no security field at all`,
+        ).toBe(true);
+        if ((resolved as unknown[]).length === 0) continue; // A deliberate opening.
+        expect(
+          JSON.stringify(resolved),
+          `${specName} ${method.toUpperCase()} ${path} names an empty requirement`,
+        ).toMatch(/(conversationSession|secureSession|serviceMutualTls)/);
+      }
+    }
+  });
+
+  it("declares the document default where OpenAPI reads it, not inside components", () => {
+    // The specific misplacement, asserted directly. `components.security` is
+    // not a field; a scheme parked there is a scheme nothing applies.
+    for (const spec of [CONVERSATION, SECURE]) {
+      expect(Array.isArray(spec["security"])).toBe(true);
+      expect(
+        (spec["components"] as Json)["security"],
+        "a default under `components` is silently ignored",
+      ).toBeUndefined();
+    }
+  });
+
   it("puts every internal operation behind mutual TLS, and nothing else there", () => {
-    const internal = operations().filter(({ path }) => path.startsWith("/internal/"));
+    const internal = operations().filter(({ path }) =>
+      path.startsWith("/internal/"),
+    );
     expect(internal.length).toBeGreaterThan(0);
     for (const { path, operation } of internal) {
-      expect(JSON.stringify(operation["security"]), path).toContain("serviceMutualTls");
+      expect(JSON.stringify(operation["security"]), path).toContain(
+        "serviceMutualTls",
+      );
     }
   });
 
@@ -380,24 +490,32 @@ describe("authentication is declared on every endpoint that needs it", () => {
     // arrived — correctly. What matters is not how many schemes exist but that
     // each surface uses the right one: a cookie for the student, mutual TLS
     // for a service, and never the reverse.
-    const schemes = (CONVERSATION["components"] as Json)["securitySchemes"] as Json;
+    const schemes = (CONVERSATION["components"] as Json)[
+      "securitySchemes"
+    ] as Json;
     const scheme = schemes["conversationSession"] as Json;
     expect(scheme["type"]).toBe("apiKey");
     expect(scheme["in"]).toBe("cookie");
     expect(scheme["name"]).toMatch(/^__Host-/);
 
-    const OPEN = new Set(["/health"]);
+    const OPEN = new Set(["/healthz"]);
     for (const { specName, path, method, operation } of operations()) {
       if (specName !== "conversation.v1.yaml") continue;
       if (OPEN.has(path)) continue;
-      const declared = JSON.stringify(operation["security"] ?? "inherits the document default");
+      const declared = JSON.stringify(
+        operation["security"] ?? "inherits the document default",
+      );
       if (path.startsWith("/internal/")) {
         expect(declared, `${method} ${path}`).toContain("serviceMutualTls");
-        expect(declared, `${method} ${path}`).not.toContain("conversationSession");
+        expect(declared, `${method} ${path}`).not.toContain(
+          "conversationSession",
+        );
       } else {
         // No per-operation override means it inherits the document-level
         // `security: [{ conversationSession: [] }]`.
-        expect(declared, `${method} ${path}`).toBe('"inherits the document default"');
+        expect(declared, `${method} ${path}`).toBe(
+          '"inherits the document default"',
+        );
       }
     }
   });
@@ -457,9 +575,9 @@ describe("no capability travels in a URL", () => {
         expect.unreachable(`frameToken appears in a URL template: ${line}`);
       }
     }
-    const bootstrap = (
-      (SECURE["paths"] as Json)["/v1/frame-sessions"] as Json
-    )["post"] as Json;
+    const bootstrap = ((SECURE["paths"] as Json)["/v1/frame-sessions"] as Json)[
+      "post"
+    ] as Json;
     const [schema] = bodySchemas(SECURE, bootstrap["requestBody"]);
     expect(propertyNames(SECURE, schema)).toContain("frameToken");
   });

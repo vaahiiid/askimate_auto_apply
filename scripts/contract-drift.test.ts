@@ -41,13 +41,25 @@ import {
   parseWireResolutionOutcome,
 } from "@askimate/aas-contracts";
 import { AUTHENTICATION_APPROACHES } from "@askimate/aas-account";
-import { RESOLUTION_OUTCOMES, WORKFLOW_PHASES, WORKFLOW_STATUSES } from "@askimate/aas-domain";
+import {
+  RESOLUTION_OUTCOMES,
+  WORKFLOW_PHASES,
+  WORKFLOW_STATUSES,
+} from "@askimate/aas-domain";
 import type { RunStep } from "@askimate/aas-orchestrator";
 import { phaseFor } from "@askimate/aas-orchestrator";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { load } from "js-yaml";
+import pg from "pg";
+
+import {
+  ConversationEventStore,
+  createConversationApp,
+} from "@askimate/aas-conversation-service";
+import { createSecureApp } from "@askimate/aas-secure-service";
+import { createFillAgentApp } from "@askimate/aas-secure-filler";
 
 import {
   CREDENTIAL_PURPOSES,
@@ -61,9 +73,24 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
-import { proposeValue, provenanceOf, studentId, unwrapConfirmed } from "@askimate/aas-domain";
-import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
-import { SECRET_LIFECYCLE, SECRET_PURPOSES, canTransition, isTerminalLifecycle } from "@askimate/aas-secrets";
+import {
+  proposeValue,
+  provenanceOf,
+  studentId,
+  unwrapConfirmed,
+} from "@askimate/aas-domain";
+import {
+  applyConfirmation,
+  confirmField,
+  emptyProfile,
+  isDeclined,
+} from "@askimate/aas-profile";
+import {
+  SECRET_LIFECYCLE,
+  SECRET_PURPOSES,
+  canTransition,
+  isTerminalLifecycle,
+} from "@askimate/aas-secrets";
 import type { SecretLifecycle } from "@askimate/aas-secrets";
 
 describe("the wire vocabulary and the domain do not drift", () => {
@@ -75,8 +102,14 @@ describe("the wire vocabulary and the domain do not drift", () => {
     // The contract calls a request "settled" on exactly the words the domain
     // calls terminal. If the domain made one non-terminal, a client would keep
     // a composer released against a request the server considered live.
-    const domainTerminal = SECRET_LIFECYCLE.filter((word) => isTerminalLifecycle(word)).sort();
-    expect(domainTerminal).toEqual(["secret_cancelled", "secret_consumed", "secret_expired"]);
+    const domainTerminal = SECRET_LIFECYCLE.filter((word) =>
+      isTerminalLifecycle(word),
+    ).sort();
+    expect(domainTerminal).toEqual([
+      "secret_cancelled",
+      "secret_consumed",
+      "secret_expired",
+    ]);
   });
 
   it("keeps cancellation reachable only from a request nobody has answered", () => {
@@ -150,11 +183,26 @@ describe("the credential purposes, and a drift between three closed sets", () =>
   function contractPurposes(): readonly string[] {
     const spec = load(
       readFileSync(
-        join(import.meta.dirname, "..", "packages", "contracts", "openapi", "secure.v1.yaml"),
+        join(
+          import.meta.dirname,
+          "..",
+          "packages",
+          "contracts",
+          "openapi",
+          "secure.v1.yaml",
+        ),
         "utf8",
       ),
-    ) as { components: { schemas: Record<string, { properties: Record<string, { enum: string[] }> }> } };
-    return spec.components.schemas["OpenSecretRequest"]!.properties["purpose"]!.enum;
+    ) as {
+      components: {
+        schemas: Record<
+          string,
+          { properties: Record<string, { enum: string[] }> }
+        >;
+      };
+    };
+    return spec.components.schemas["OpenSecretRequest"]!.properties["purpose"]!
+      .enum;
   }
 
   it("keeps CREDENTIAL_PURPOSES equal to the published contract's enum", () => {
@@ -164,7 +212,9 @@ describe("the credential purposes, and a drift between three closed sets", () =>
     // against the DOCUMENT rather than against a literal: the first version of
     // this test asserted the two words inline, which would have passed while
     // the contract said something else entirely.
-    expect([...CREDENTIAL_PURPOSES].sort()).toEqual([...contractPurposes()].sort());
+    expect([...CREDENTIAL_PURPOSES].sort()).toEqual(
+      [...contractPurposes()].sort(),
+    );
   });
 
   it("RECORDS the drift between the domain and the contract, rather than hiding it", () => {
@@ -184,14 +234,14 @@ describe("the credential purposes, and a drift between three closed sets", () =>
     const domain = [...SECRET_PURPOSES].sort();
     const contract = [...contractPurposes()].sort();
 
-    expect(domain, "the domain's purposes changed — decide about the contract").toEqual([
-      "portal_account_creation",
-      "portal_sign_in",
-    ]);
-    expect(contract, "the contract's purposes changed — decide about the domain").toEqual([
-      "portal_account_creation",
-      "portal_password_reset",
-    ]);
+    expect(
+      domain,
+      "the domain's purposes changed — decide about the contract",
+    ).toEqual(["portal_account_creation", "portal_sign_in"]);
+    expect(
+      contract,
+      "the contract's purposes changed — decide about the domain",
+    ).toEqual(["portal_account_creation", "portal_password_reset"]);
 
     // The one they agree on is the only one a run can currently reach.
     const shared = domain.filter((purpose) => contract.includes(purpose));
@@ -205,7 +255,9 @@ describe("the work vocabulary and the domain do not drift", () => {
     // no dependencies and one here would be a dependency in the secure control
     // bundle too (ADR-0040). This is the price of that, paid here: two closed
     // sets, compared in both directions, so the duplication cannot drift.
-    expect([...WORK_APPROACHES].sort()).toEqual([...AUTHENTICATION_APPROACHES].sort());
+    expect([...WORK_APPROACHES].sort()).toEqual(
+      [...AUTHENTICATION_APPROACHES].sort(),
+    );
   });
 
   it("hands out every browser step the orchestrator can produce", () => {
@@ -222,7 +274,10 @@ describe("the work vocabulary and the domain do not drift", () => {
     // ═══════════════════════════════════════════════════════════════════
     expect([...WORK_KINDS].sort()).toEqual(["create_account", "execute"]);
     for (const kind of WORK_KINDS) {
-      expect(RUN_STEP_KINDS, `${kind} is not a step the orchestrator produces`).toContain(kind);
+      expect(
+        RUN_STEP_KINDS,
+        `${kind} is not a step the orchestrator produces`,
+      ).toContain(kind);
     }
   });
 });
@@ -252,11 +307,16 @@ describe("a plan survives the round trip to the runner and back", () => {
         respondedAt: now,
       },
     });
-    if (isDeclined(confirmed)) expect.unreachable("it should have been accepted");
+    if (isDeclined(confirmed))
+      expect.unreachable("it should have been accepted");
     const profile = confirmField(emptyProfile(student, now), confirmed, now);
 
-    const usable = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
-    if (!usable.usable) expect.unreachable(`the gated mapping set should be usable`);
+    const usable = checkUsable(
+      GATED_PORTAL_MAPPING_SET,
+      GATED_PORTAL_BLUEPRINT,
+    );
+    if (!usable.usable)
+      expect.unreachable(`the gated mapping set should be usable`);
     const plan = planFill(GATED_PORTAL_BLUEPRINT, usable.mappingSet, profile);
 
     // A real plan against a real blueprint has blockers while the profile is
@@ -268,7 +328,8 @@ describe("a plan survives the round trip to the runner and back", () => {
       blockers: [],
     };
     const taken = toStoredPlan(transportable);
-    if (!taken.ok) expect.unreachable(`a plan with no uploads is transportable`);
+    if (!taken.ok)
+      expect.unreachable(`a plan with no uploads is transportable`);
     expect(taken.plan.instructions.length).toBeGreaterThan(0);
 
     const back = rehydratePlan(taken.plan);
@@ -276,7 +337,8 @@ describe("a plan survives the round trip to the runner and back", () => {
 
     for (const [at, instruction] of back.instructions.entries()) {
       const original = transportable.instructions[at];
-      if (original === undefined) expect.unreachable("same length, same indices");
+      if (original === undefined)
+        expect.unreachable("same length, same indices");
       expect(instruction.fieldRef).toBe(original.fieldRef);
       expect(instruction.locators).toEqual(original.locators);
       expect(textOf(instruction.value)).toBe(textOf(original.value));
@@ -307,16 +369,25 @@ describe("a plan survives the round trip to the runner and back", () => {
       mappingSetId: "ms",
       instructions: [],
       uploads: [
-        { fieldRef: "passport", label: "Passport", documentRef: "doc-1", locators: [] },
+        {
+          fieldRef: "passport",
+          label: "Passport",
+          documentRef: "doc-1",
+          locators: [],
+        },
       ],
       handoffs: [],
       credentials: [],
       blockers: [],
     };
     expect(toStoredPlan(empty)).toEqual({ ok: false, refusal: "has_uploads" });
-    expect(toStoredPlan({ ...empty, uploads: [], blockers: [
-      { kind: "no_mapping", fieldRef: "x", label: "X" },
-    ] as never })).toEqual({ ok: false, refusal: "has_blockers" });
+    expect(
+      toStoredPlan({
+        ...empty,
+        uploads: [],
+        blockers: [{ kind: "no_mapping", fieldRef: "x", label: "X" }] as never,
+      }),
+    ).toEqual({ ok: false, refusal: "has_blockers" });
   });
 });
 
@@ -331,9 +402,13 @@ describe("resolution outcomes, on the wire and in the domain", () => {
     // is deliberate — and this is the test that stops them drifting apart
     // silently in either direction.
     for (const outcome of WIRE_RESOLUTION_OUTCOMES) {
-      expect(RESOLUTION_OUTCOMES, `the wire invented "${outcome}"`).toContain(outcome);
+      expect(RESOLUTION_OUTCOMES, `the wire invented "${outcome}"`).toContain(
+        outcome,
+      );
     }
-    expect(WIRE_RESOLUTION_OUTCOMES.length).toBeLessThan(RESOLUTION_OUTCOMES.length);
+    expect(WIRE_RESOLUTION_OUTCOMES.length).toBeLessThan(
+      RESOLUTION_OUTCOMES.length,
+    );
   });
 
   it("names exactly what is NOT implemented, so building it is a deliberate act", () => {
@@ -341,7 +416,8 @@ describe("resolution outcomes, on the wire and in the domain", () => {
     // lists have to be reconciled — and ADR-0048 says that needs its own ADR
     // and a complete implementation, not an entry added here.
     const missing = RESOLUTION_OUTCOMES.filter(
-      (outcome) => !(WIRE_RESOLUTION_OUTCOMES as readonly string[]).includes(outcome),
+      (outcome) =>
+        !(WIRE_RESOLUTION_OUTCOMES as readonly string[]).includes(outcome),
     );
     expect(missing).toEqual(["route_fallback"]);
   });
@@ -350,5 +426,246 @@ describe("resolution outcomes, on the wire and in the domain", () => {
     expect(parseWireResolutionOutcome("resume")).toBe("resume");
     expect(parseWireResolutionOutcome("abandon")).toBe("abandon");
     expect(parseWireResolutionOutcome("route_fallback")).toBeNull();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0063 — the published contract names the routes that exist
+// ───────────────────────────────────────────────────────────────────────────
+
+type Doc = Record<string, unknown>;
+
+/**
+ * Just enough of an Express app to read its route table.
+ *
+ * Structural rather than `import type { Express }`, because `express` is not a
+ * declared dependency of the tools project and adding one to compare two lists
+ * of strings would be an undeclared dependency wearing a passing test's
+ * clothes — the mistake this file's own header was written about.
+ */
+type RoutedApp = {
+  readonly router?: { readonly stack?: unknown[] };
+  readonly _router?: { readonly stack?: unknown[] };
+};
+
+const METHODS = new Set(["get", "post", "put", "patch", "delete"]);
+
+function specNamed(file: string): Doc {
+  return load(
+    readFileSync(
+      join(import.meta.dirname, "..", "packages", "contracts", "openapi", file),
+      "utf8",
+    ),
+  ) as Doc;
+}
+
+/**
+ * Every route the real Express app registers, as `METHOD /path`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Walked off the ROUTER, not parsed out of the source. A regex over
+ * `router.get("…")` reads what a file says; this reads what the process would
+ * actually serve — including anything a nested router mounts that no grep
+ * would attribute to the right prefix.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Express 5 keeps the layer stack on `app.router`, 4 kept it on `app._router`.
+ * Both are read, and an absent or empty stack THROWS rather than returning an
+ * empty set: an empty set would make every comparison below pass by comparing
+ * the contract against nothing, which is the failure mode this whole guard
+ * exists to prevent.
+ */
+function routesOf(app: RoutedApp): readonly string[] {
+  const stack = app.router?.stack ?? app._router?.stack;
+  if (!Array.isArray(stack) || stack.length === 0) {
+    throw new Error(
+      "Express exposed no layer stack, so this guard would compare the contract " +
+        "against nothing. Failing instead.",
+    );
+  }
+  const found: string[] = [];
+  const walk = (layers: readonly unknown[]): void => {
+    for (const layer of layers) {
+      const item = layer as {
+        route?: { path?: unknown; methods?: Record<string, boolean> };
+        handle?: { stack?: unknown[] };
+      };
+      if (item.route !== undefined && typeof item.route.path === "string") {
+        for (const [method, on] of Object.entries(item.route.methods ?? {})) {
+          if (on && METHODS.has(method))
+            found.push(`${method.toUpperCase()} ${item.route.path}`);
+        }
+        continue;
+      }
+      if (Array.isArray(item.handle?.stack)) walk(item.handle.stack);
+    }
+  };
+  walk(stack);
+  return [...new Set(found)].sort();
+}
+
+/** `:conversationId` → `{conversationId}`, so the two notations can be compared. */
+function asContractPath(route: string): string {
+  return route.replace(/:([A-Za-z0-9_]+)/g, "{$1}");
+}
+
+/** Every `METHOD /path` a document publishes. */
+function publishedIn(spec: Doc): readonly string[] {
+  const published: string[] = [];
+  for (const [path, item] of Object.entries(spec["paths"] as Doc)) {
+    for (const [method, operation] of Object.entries(item as Doc)) {
+      if (METHODS.has(method) && operation !== undefined) {
+        published.push(`${method.toUpperCase()} ${path}`);
+      }
+    }
+  }
+  return published.sort();
+}
+
+/**
+ * Routes that exist and are deliberately NOT in the wire contract.
+ *
+ * Named one at a time with the reason, rather than skipped by a pattern. A
+ * pattern would silently swallow the next route that matched it, which is
+ * precisely how the gaps this guard was written to find got in.
+ */
+const UNPUBLISHED: Readonly<Record<string, string>> = {
+  // ADR-0056. Redirect endpoints: no JSON request body, no JSON response, and
+  // "the browser's only role in the flow is carrying a redirect". A generated
+  // client cannot call either meaningfully — following the redirect chain and
+  // holding the resulting cookie is the browser's own job.
+  "GET /auth/login":
+    "ADR-0056 — a redirect the browser follows, not an operation",
+  "GET /auth/callback":
+    "ADR-0056 — a redirect the browser follows, not an operation",
+  // ADR-0038. Mounted only when `AAS_DEV_SESSION` is set, and configuration
+  // REFUSES that flag in production. Publishing a route that mints a session
+  // for any subject named in its body would put an attack in the contract.
+  "POST /dev/session":
+    "ADR-0038 — refused in production; never a published operation",
+};
+
+/**
+ * The Conversation Plane's app, with EVERY optional surface supplied.
+ *
+ * The route set depends on configuration — `auth`, `issueSessionFor` and
+ * `publicDir` each mount something — so the guard builds the maximal app. A
+ * route that exists under any supported configuration is a route that exists,
+ * and checking the minimal app would let an unpublished surface hide behind an
+ * unset option.
+ *
+ * Nothing connects: `pg.Pool` opens no socket until a query, and no handler
+ * runs here. What is being read is the router, not the behaviour.
+ */
+/**
+ * Enough of the auth wiring to make `createAuthRoutes` mount. Nothing calls it:
+ * the guard reads the route table and never dispatches a request.
+ */
+const AUTH_ROUTES_ARE_MOUNTED = {} as unknown as NonNullable<
+  Parameters<typeof createConversationApp>[0]["auth"]
+>;
+
+function conversationPlaneApp(): RoutedApp {
+  return createConversationApp({
+    store: new ConversationEventStore(
+      new pg.Pool({ connectionString: "postgresql://unused" }),
+    ),
+    sessionSecret: "a-secret-long-enough-for-the-session-signer",
+    authorise: async () => await Promise.resolve(true),
+    now: () => new Date(),
+    auth: AUTH_ROUTES_ARE_MOUNTED,
+    issueSessionFor: () => "student",
+  });
+}
+
+/** The Secure Plane is TWO processes, and the document covers the plane. */
+function securePlaneRoutes(): readonly string[] {
+  const service = createSecureApp({
+    store: {} as unknown as Parameters<typeof createSecureApp>[0]["store"],
+    vault: {} as unknown as Parameters<typeof createSecureApp>[0]["vault"],
+    outbox: {} as unknown as Parameters<typeof createSecureApp>[0]["outbox"],
+    now: () => new Date(),
+    selfOrigin: "https://secure.test",
+    parentOrigin: "https://app.test",
+  });
+  const filler = createFillAgentApp({
+    vault: {} as unknown as Parameters<typeof createFillAgentApp>[0]["vault"],
+    authorise: async () => await Promise.resolve({} as never),
+    connect: () => {
+      throw new Error("the guard reads the route table; it dispatches nothing");
+    },
+    now: () => new Date(),
+  });
+  return [...new Set([...routesOf(service), ...routesOf(filler)])].sort();
+}
+
+describe("the published contract names the routes that exist", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Written after an audit found FIVE path discrepancies that had accumulated
+  // silently — a published `/health` that no process serves, a public
+  // browser-facing route with no schema at all, and three internal routes
+  // never published while three others were.
+  //
+  // They accumulated because this file loaded the OpenAPI documents and read
+  // only their ENUMS. It never read `paths`. Everything below is the check
+  // that was missing, and it compares against the real router rather than
+  // against a list, so it cannot be satisfied by updating a literal.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("publishes every route the Conversation Plane serves, and serves every one it publishes", () => {
+    const served = routesOf(conversationPlaneApp()).map(asContractPath);
+    const published = publishedIn(specNamed("conversation.v1.yaml"));
+
+    const expectedPublic = served.filter(
+      (route) => UNPUBLISHED[route] === undefined,
+    );
+    expect([...published].sort(), "published, but nothing serves it").toEqual(
+      [...expectedPublic].sort(),
+    );
+  });
+
+  it("publishes every route the Secure Plane serves, and serves every one it publishes", () => {
+    // TWO processes: the Secure Interaction Service and the Fill Agent. The
+    // document says so itself of `/internal/v1/secret-fills` — "Served by the
+    // Secure Plane's FILL AGENT, not by this service" — so the comparison is
+    // against the plane, which is what the document describes.
+    const served = securePlaneRoutes().map(asContractPath);
+    const published = publishedIn(specNamed("secure.v1.yaml"));
+    expect(
+      [...published].sort(),
+      "published, but nothing in the plane serves it",
+    ).toEqual([...served].sort());
+  });
+
+  it("REFUSES to pass when it is looking at no routes", () => {
+    // The vacuity guard. A comparison against an empty set would agree with an
+    // empty contract, and both halves of this test would go green while the
+    // service served whatever it liked.
+    expect(() => routesOf({})).toThrow(/no layer stack/);
+    expect(
+      routesOf(conversationPlaneApp()).length,
+      "the plane still has routes",
+    ).toBeGreaterThan(10);
+    expect(
+      securePlaneRoutes().length,
+      "and so does the secure one",
+    ).toBeGreaterThan(5);
+  });
+
+  it("names every deliberately unpublished route, with the decision that made it so", () => {
+    // The exceptions are DATA, so an exception that stops being true fails
+    // here rather than silently covering a route nobody meant to hide.
+    const served = new Set(
+      routesOf(conversationPlaneApp()).map(asContractPath),
+    );
+    for (const [route, reason] of Object.entries(UNPUBLISHED)) {
+      expect(
+        served.has(route),
+        `${route} is excepted but no longer served`,
+      ).toBe(true);
+      expect(reason, `${route} needs a decision, not a shrug`).toMatch(
+        /ADR-\d{4}/,
+      );
+    }
   });
 });

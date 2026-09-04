@@ -46,7 +46,39 @@ tags:
   - name: secret
   - name: internal
 
+# ── The document-level default ──────────────────────────────────────────────
+#
+# It lived under `components:` until P27, indented two spaces, where OpenAPI has
+# no such field and every generator ignored it. The document therefore declared
+# NO authentication on the three student-facing `/v1/secret-requests/…`
+# operations — including the one endpoint in this system that carries a secret.
+#
+# The service always authenticated them; the CONTRACT did not say so, which is
+# the thing a reviewer or a generated client reads. `openapi.test.ts` had not
+# caught it because it looked for an explicit `security: []` and these declared
+# nothing at all — a shape now asserted against directly (ADR-0063).
+security:
+  - secureSession: []
+
 paths:
+  /healthz:
+    get:
+      operationId: getSecureHealth
+      tags: [internal]
+      security: []
+      summary: Liveness. Reveals nothing, and is the only unauthenticated read.
+      description: >-
+        PUBLISHED IN P27. Served by BOTH processes of this plane — the Secure
+        Interaction Service and the Fill Agent — and named in
+        `docs/deployables.md` as the liveness surface of each. It was the one
+        route in this document's plane that nothing described.
+      responses:
+        "200":
+          description: The process is up. The body is the literal `ok`.
+          content:
+            text/plain:
+              schema: { type: string, enum: ["ok"] }
+
   /control/{requestId}:
     parameters: [{ $ref: "#/components/parameters/RequestId" }]
     get:
@@ -282,6 +314,65 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /internal/v1/secret-requests/{requestId}/frame-tokens:
+    parameters:
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: mintFrameToken
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: A fresh bootstrap capability for a request that is already open.
+      description: >-
+        ADR-0033. PUBLISHED IN P27, having been served since P4 and called by
+        the Conversation Service on every frame mount.
+
+        A NEW token is minted rather than the original reissued, because a page
+        mounts the frame again after a refresh and a capability that could be
+        replayed from a previous mount would outlive the page that earned it.
+
+        The request body is empty: the request id in the path identifies which
+        open request, and there is nothing else to say. Naming a request that is
+        unknown, settled or expired gets one answer — 404 — as everywhere else
+        on this service.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        "201":
+          description: A single-use capability, for this request only.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [requestId, frameToken]
+                properties:
+                  requestId: { type: string }
+                  frameToken:
+                    type: string
+                    writeOnly: false
+                    description: >-
+                      Handed straight to the page that asked. The Conversation
+                      Service stores it nowhere — a capability at rest in that
+                      plane would be a capability in the one place ADR-0037
+                      keeps free of them.
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404":
+          description: Unknown, settled or expired. One answer for all three.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /internal/v1/secret-uses:
     post:
       operationId: useSecret
@@ -393,9 +484,6 @@ components:
         The runner may reach /internal/v1/secret-fills and NOTHING else — it has
         no certificate permitting /internal/v1/secret-uses, because the authority
         to settle a use belongs to the process that performs it.
-
-  security:
-    - secureSession: []
 
   parameters:
     RequestId:

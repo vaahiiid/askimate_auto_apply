@@ -53,6 +53,10 @@ one on the two processes whose whole design is that they have none. So:
 | Conversation Service | `GET /healthz` | startup checks passed before `listen` |
 | Secure Interaction Service | `GET /healthz` | as above |
 | Fill Agent | `GET /healthz` | as above |
+
+Since P27 all three are in the published contract under that name. The
+conversation document had described a `/health` no process serves, and the
+secure plane's was described nowhere — see ADR-0063.
 | Automation Runner | **the process is alive** | it exits non-zero if it cannot start |
 | Background Worker | **the process is alive** | it exits non-zero if it cannot start |
 

@@ -17,7 +17,6 @@ export {
   interviewActionOf,
   handoffMessageOf,
   handoffTokenFor,
-  handoverChecklistFrom,
   browserWorkFor,
   executePlanOf,
   markFilled,

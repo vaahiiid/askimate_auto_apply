@@ -19,6 +19,91 @@ not shipped artefacts.
 
 ---
 
+## [0.45.0] — 2026-09-04
+
+**P27 — the published contract names the routes that exist. ADR-0063.**
+
+`scripts/contract-drift.test.ts` has guarded the seam between the contracts package and the domain
+since P13. It loads both OpenAPI documents. **It never read `paths`.** Every check in it compares an
+enum, so while the vocabulary was pinned in three directions at once, the route table drifted for
+twenty-three phases with nothing looking at it.
+
+Six discrepancies had accumulated:
+
+- `GET /health` was published; the real endpoint is `GET /healthz` at the app root. A generated
+  client would have called `…/v1/health` and got a 404.
+- The server base was `…/v1` while internal paths carried their own `/internal/v1`, so they resolved
+  to `…/v1/internal/v1/…`, which nothing serves — and `/healthz`, at the root, could not be
+  expressed at all.
+- `GET /v1/conversations/{id}/secure-requests/{id}/bootstrap` — a **public, session-authenticated**
+  route — had no schema at all. Served since P4.
+- Three `/internal/v1` review and intervention routes were unpublished while three other internal
+  routes were published, so "internal means unpublished" was not the explanation.
+- The Secure Plane's `POST /internal/v1/secret-requests/{id}/frame-tokens` and its `GET /healthz`
+  were unpublished too.
+
+A seventh, found by reading the resulting diff rather than by the new guard: `secure.v1.yaml`'s
+`security` default was indented **inside `components:`**, where OpenAPI has no such field and every
+generator ignores it. As published, that document declared no authentication at all on its three
+student-facing operations — including `POST /v1/secret-requests/{requestId}/secret`, the one
+endpoint in this system that carries a secret. Proved pre-existing against `git show HEAD`. Nothing
+was ever exposed — the service authenticates them with the `__Host-` secure cookie, and the
+two-origin browser suite proves it — but the contract is what a reviewer reads.
+
+### Added
+
+- A path-level guard in `contract-drift.test.ts` that walks the **real Express layer stack** rather
+  than parsing `router.get("…")` out of the source, and compares it against both documents. Built
+  with every optional surface supplied — `auth`, `issueSessionFor`, `publicDir` — because the route
+  set depends on configuration and the minimal app would let a surface hide behind an unset option.
+  An absent or empty stack throws: an empty set would agree with an empty contract.
+- Schemas and operations for the four undescribed routes, written from the handlers rather than
+  invented: `SecureStepBootstrap`, `HumanReview`, `OpenIntervention`, `ResolutionSubmission`.
+- `GET /healthz` in both documents, and `POST /internal/v1/secret-requests/{id}/frame-tokens` in the
+  secure one.
+- `UNPUBLISHED` — the three routes that are deliberately not operations, each with the ADR that
+  decided it, asserted as **data**: an exception naming an unserved route fails, and so does one
+  whose reason cites no ADR.
+
+### Changed
+
+- `conversation.v1.yaml`'s server base is now the origin and every path is literally the path the
+  process serves — the shape `secure.v1.yaml` already used and was right about. That is what makes a
+  mechanical comparison possible at all.
+- `openapi.test.ts`'s intended-open list corrects `/health` to `/healthz` and gains the secure
+  plane's. No authentication boundary moved: every newly published internal route declares
+  `serviceMutualTls`, and the bootstrap inherits the `__Host-` cookie default.
+- `secure.v1.yaml`'s `security` default moved from inside `components:` to the document level, plus
+  two assertions that close the class: every operation must resolve to a real requirement — its own
+  or a document default that exists — and `components.security` must be undefined. The existing
+  test looked for an explicit `security: []` and so could not see an operation declaring nothing.
+
+### Removed
+
+- `ConversationEventStore.isOrdinalCollision` and the `UNIQUE_VIOLATION` constant that fed only it.
+  Zero callers anywhere including tests, no ADR reserving it, and the store's own design comment
+  says the `UPDATE` takes the lock first so the 23505 it detects is a backstop the design avoids
+  triggering. The other collision retry in the file uses `ON CONFLICT DO NOTHING`, not the code.
+- The barrel export of `handoverChecklistFrom`. No importer anywhere; the function stays with its
+  one internal caller.
+
+### Proved
+
+Fourteen deliberate regressions, all caught. Recorded honestly in
+[`docs/p27-regression-audit.md`](./docs/p27-regression-audit.md): fourteen of fourteen measures
+controls built and tested in the same phase, and the real finding is the seven discrepancies found
+before any mutation existed. The mutation worth naming is R7, which adds a route and publishes
+nothing — the exact P4 and P11 failure, replayed, and now caught. The audit also records a harness
+hazard that nearly cost the security fix: a stale snapshot silently reverted it, and only reading
+the file back from disk caught that.
+
+### Not changed, deliberately
+
+`withAccount` is barrel-exported and imported only by `orchestrator.test.ts`. That is a real caller,
+so it is exported-for-test rather than dead, and removing it was out of scope for a contract phase.
+
+---
+
 ## [0.44.0] — 2026-09-04
 
 **P26 — the question the run is waiting on is in the log. ADR-0062.**

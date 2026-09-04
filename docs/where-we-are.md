@@ -1286,3 +1286,93 @@ The journey is now walkable end to end in a browser with nothing missing that a 
 notice. The three standing blockers are unchanged and none of them is engineering: a reviewed
 catalogue artefact for a real institution, a retention decision, and discovery evidence for a real
 portal.
+
+---
+
+# Where we are — 2026-09-04 (P27)
+
+**Date:** 2026-09-04 · **Phase:** P27 · **ADR:** ADR-0063
+
+## The headline
+
+**The published contract is now checked against the routes that exist**, by walking the real Express
+layer stack rather than by reading the source. Six discrepancies had accumulated behind a guard that
+loaded both OpenAPI documents and read only their enums — and reading the resulting diff found a
+seventh, in the secure document's authentication default.
+
+## What was actually wrong
+
+`scripts/contract-drift.test.ts` has pinned the wire vocabulary against the domain since P13 — three
+lists checked against each other rather than one trusted three times. It loads the YAML. **It never
+read `paths`.**
+
+So the vocabulary could not drift and the route table drifted for twenty-three phases:
+
+| Discrepancy | Since |
+|---|---|
+| `GET /health` published; the real endpoint is `GET /healthz` at the app root | always |
+| Server base `…/v1` with internal paths carrying their own `/internal/v1` → `…/v1/internal/v1/…` | always |
+| The bootstrap route — **public, session-authenticated** — had no schema at all | P4 |
+| Three `/internal/v1` review and intervention routes unpublished | P11 |
+| The secure plane's frame-token route, and its `/healthz`, unpublished | P4 |
+| `secure.v1.yaml`'s `security` default indented inside `components:`, where OpenAPI ignores it | always |
+
+Two findings matter more than the rest.
+
+**The bootstrap route**: public, session-authenticated, handing out a capability, served for
+twenty-three phases with nothing describing it.
+
+**The misplaced security default**: `security` under `components:` is not a field, so the secure
+document declared no authentication on its three student-facing operations — including
+`POST /v1/secret-requests/{requestId}/secret`, the one endpoint in this system that carries a
+secret. Proved pre-existing against `git show HEAD`. Nothing was ever exposed — the service
+authenticates them with the `__Host-` secure cookie and the two-origin browser suite proves it — but
+the contract is what a reviewer reads and a generated client builds against. The path guard would
+never have found this one; reading the diff did.
+
+## What P27 delivered
+
+- **A guard that reads the router.** A regex over `router.get("…")` reads what a file says; the
+  layer walk reads what the process would dispatch against. Built with every optional surface
+  supplied, because the route set depends on configuration. An empty stack throws — an empty set
+  would agree with an empty contract.
+- **A corrected base URL.** The conversation document now names the origin and every path is
+  literally the path served, matching `secure.v1.yaml`, which was already right. That is what makes
+  the comparison possible at all.
+- **Four operations described from their handlers**, not invented, plus `/healthz` in both documents
+  and the secure plane's frame-token route.
+- **Three deliberate exceptions as data** — the two OIDC redirects and `/dev/session` — each citing
+  the ADR that decided it, so the list cannot grow to cover a new surface silently.
+
+## The measurement worth keeping
+
+Fourteen regressions, fourteen caught — and the audit says plainly that this is a weak number,
+because every mutation targets a control written in the same phase. The real measure of P27 is that
+seven discrepancies existed and nothing was looking.
+
+The one worth naming is R7: it adds a route to `routes.ts` and publishes nothing, which is exactly
+what happened in P4 and P11. It fails now because the guard reads the router.
+
+A harness hazard is recorded too, because it nearly cost the security fix: `run.py`'s `save()` skips
+when a snapshot exists, so R13 restored a `secure.v1.yaml` taken before the fix and silently
+reverted it. Only reading the file back from disk caught that — the same trap as P25, and the same
+lesson: a restore is trustworthy only when what it restored is read back and checked.
+
+## Known limitations — what changed, and what did not
+
+- **No authentication boundary moved, and one was restored to the document.** Every newly published
+  internal route declares `serviceMutualTls`; the bootstrap inherits the `__Host-` cookie default;
+  and the secure plane's default now sits where OpenAPI reads it. Four regressions check these,
+  including both directions on the newly published routes.
+- **The OIDC redirects are excepted, not schema-checked.** They have no request or response body,
+  and ADR-0056's own tests cover the flow.
+- **P27 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P26 lists still holds.
+
+## What is next, on the evidence
+
+The route table and the event vocabulary are both pinned now. The remaining blockers are the same
+three, and none is engineering: a reviewed catalogue artefact for a real institution, a retention
+decision, and discovery evidence for a real portal.

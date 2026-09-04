@@ -23,9 +23,21 @@ info:
   license: { name: UNLICENSED }
 
 servers:
-  - url: https://app.askimate.com/v1
+  # ── The ORIGIN, not a versioned base ──────────────────────────────────
+  #
+  # It was `…/v1`, and the document then mixed two conventions under it: the
+  # student paths were written WITHOUT `/v1` (correct against that base) while
+  # the internal ones carried their own `/internal/v1` and resolved to
+  # `…/v1/internal/v1/…`, which nothing serves. `/healthz` is at the root and
+  # could not be expressed at all.
+  #
+  # So the base is the origin and every path below is literally the path the
+  # process serves — the same shape `secure.v1.yaml` already uses. That is
+  # also what lets `contract-drift.test.ts` compare this document against the
+  # real Express router mechanically rather than by eye (ADR-0063).
+  - url: https://app.askimate.com
     description: Production
-  - url: https://app.staging.askimate.com/v1
+  - url: https://app.staging.askimate.com
     description: Staging
 
 security:
@@ -37,7 +49,7 @@ tags:
   - name: messages
 
 paths:
-  /health:
+  /healthz:
     get:
       operationId: getHealth
       tags: [conversations]
@@ -55,7 +67,7 @@ paths:
                 properties:
                   status: { type: string, const: ok }
 
-  /conversations:
+  /v1/conversations:
     post:
       operationId: createConversation
       tags: [conversations]
@@ -100,7 +112,7 @@ paths:
             application/json: { schema: { $ref: "#/components/schemas/ConversationPage" } }
         "401": { $ref: "#/components/responses/Unauthenticated" }
 
-  /conversations/{conversationId}:
+  /v1/conversations/{conversationId}:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     get:
       operationId: getConversation
@@ -116,7 +128,66 @@ paths:
         # another student.
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /conversations/{conversationId}/events:
+  /v1/conversations/{conversationId}/secure-requests/{requestId}/bootstrap:
+    parameters:
+      - $ref: "#/components/parameters/ConversationId"
+      - name: requestId
+        in: path
+        required: true
+        schema: { type: string }
+        description: >-
+          The OPEN secure request in this conversation's own log. An identifier,
+          not a capability: naming somebody else's request answers 404, because
+          the service checks the id against this conversation before it mints
+          anything.
+    get:
+      operationId: bootstrapSecureStep
+      tags: [secure]
+      summary: The capability that lets this page start the secure frame.
+      description: >-
+        ADR-0033. PUBLISHED IN P27, having been served since P4 with no schema
+        at all — the one public, session-authenticated route this document did
+        not describe.
+
+        The token is delivered in a RESPONSE BODY over an authenticated
+        same-origin fetch, never in a URL, where it would reach the Referer
+        header, browser history, an access log and any shared screenshot.
+
+        Three checks before it is minted: the caller owns the conversation, the
+        request is open IN THIS CONVERSATION'S OWN LOG, and the secure service
+        still considers it live. The middle one is what stops a student asking
+        for a bootstrap into somebody else's secure step by naming its id.
+
+        Nothing is stored: the conversation plane asks the Secure Interaction
+        Service at the moment a page mounts the frame and hands the answer
+        straight on. A capability at rest here would be a capability in the one
+        plane ADR-0037 keeps free of them.
+      responses:
+        "200":
+          description: A single-use capability, and where to send it.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: >-
+                A capability in a cache is a capability that outlives the page
+                that asked for it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SecureStepBootstrap" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: >-
+            No such open request in this conversation, or the secure service no
+            longer considers it live. Deliberately the same answer for both, and
+            for a request belonging to somebody else.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment has no secure plane wired to it.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/conversations/{conversationId}/events:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     get:
       operationId: listConversationEvents
@@ -141,7 +212,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /conversations/{conversationId}/stream:
+  /v1/conversations/{conversationId}/stream:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     get:
       operationId: streamConversationEvents
@@ -201,7 +272,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /conversations/{conversationId}/messages:
+  /v1/conversations/{conversationId}/messages:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
       operationId: sendMessage
@@ -249,7 +320,7 @@ paths:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
-  /application-targets:
+  /v1/application-targets:
     get:
       operationId: listApplicationTargets
       tags: [runs]
@@ -280,7 +351,7 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
 
-  /conversations/{conversationId}/target-offers:
+  /v1/conversations/{conversationId}/target-offers:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
       operationId: createTargetOffer
@@ -331,7 +402,7 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
 
-  /conversations/{conversationId}/runs:
+  /v1/conversations/{conversationId}/runs:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     get:
       operationId: readConversationRun
@@ -460,7 +531,7 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
-  /conversations/{conversationId}/runs/{runId}/preview:
+  /v1/conversations/{conversationId}/runs/{runId}/preview:
     parameters:
       - { $ref: "#/components/parameters/ConversationId" }
       - { $ref: "#/components/parameters/RunId" }
@@ -507,7 +578,7 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
-  /conversations/{conversationId}/runs/{runId}/decision:
+  /v1/conversations/{conversationId}/runs/{runId}/decision:
     parameters:
       - { $ref: "#/components/parameters/ConversationId" }
       - { $ref: "#/components/parameters/RunId" }
@@ -543,6 +614,132 @@ paths:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "503":
           description: This deployment carries no run driver.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/cases/{caseId}/review:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: completeReview
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: A specialist records the outcome of a mandatory review.
+      description: >-
+        ADR-0048, ADR-0049 §4. PUBLISHED IN P27, having been served since P11.
+
+        Shipped alongside trigger-raising because raising a mandatory trigger
+        with no way to clear it would deadlock every case involving a minor or
+        money — a worse failure than the one being fixed.
+
+        `reviewerId` is ASSERTED, not authenticated: the service admits this
+        call on the internal service credential, so this records who CLAIMED to
+        review it. Vahid approved that for the current single-operator model and
+        named what ends it — a second specialist existing at all.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HumanReview" }
+      responses:
+        "204":
+          description: Recorded. The case moves according to the outcome.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/interventions:
+    get:
+      operationId: listInterventions
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: What is waiting for a specialist.
+      description: >-
+        ADR-0048 §1. PUBLISHED IN P27, having been served since P11.
+
+        PULL, not push. "Open" is DERIVED from the store rather than from
+        anything a notification did or did not deliver, so no case can be lost
+        because an alert failed to send.
+      responses:
+        "200":
+          description: Every open intervention, and nothing about any secret.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [interventions]
+                properties:
+                  interventions:
+                    type: array
+                    items: { $ref: "#/components/schemas/OpenIntervention" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment drives no runs.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /internal/v1/interventions/{interventionId}/resolution:
+    parameters:
+      - name: interventionId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: resolveIntervention
+      tags: [internal]
+      security: [{ serviceMutualTls: [] }]
+      summary: A specialist adjudicates an intervention.
+      description: >-
+        ADR-0048 §3. PUBLISHED IN P27, having been served since P11.
+
+        `didHappen` is the whole question: `assessIntent` stopped the run
+        because it could not answer whether the action actually took effect, and
+        this is the answer going back into the one place that holds it. Not a
+        suggestion and not a preference — a person opened the portal and looked.
+
+        `specialistId` is ASSERTED, not authenticated, on the same terms as the
+        review above.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResolutionSubmission" }
+      responses:
+        "200":
+          description: The intervention as it now stands.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [intervention]
+                properties:
+                  intervention: { $ref: "#/components/schemas/OpenIntervention" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: Client certificate missing or not permitted.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Already resolved. A second adjudication is not an update.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment drives no runs.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
@@ -1685,6 +1882,136 @@ components:
         - rate_limited
         - internal_error
         - service_unavailable
+
+    SecureStepBootstrap:
+      type: object
+      additionalProperties: false
+      required: [requestId, frameToken, secureOrigin, expiresAt]
+      description: >-
+        What a page needs to mount the secure frame, and nothing else. ADR-0033.
+      properties:
+        requestId: { type: string }
+        frameToken:
+          type: string
+          description: >-
+            Single-use, short-lived, and exchanged by the secure origin for its
+            own `__Host-` cookie. A CAPABILITY, not a secret of the student's —
+            which is why it may appear in this response at all, while the
+            secure document marks its own copy writeOnly so no generator emits
+            it there. It is never put in a URL (see the `no capability travels
+            in a URL` guard).
+        secureOrigin:
+          type: string
+          description: >-
+            Where the frame is loaded from, and the origin the page checks every
+            postMessage against. Never `*`.
+        expiresAt: { type: string, format: date-time }
+
+    HumanReview:
+      type: object
+      additionalProperties: false
+      required: [reviewerId, outcome, triggers]
+      description: >-
+        A specialist's review of a case that a mandatory trigger stopped.
+      properties:
+        reviewerId:
+          type: string
+          description: >-
+            A named individual, never a shared account — ASSERTED on the
+            internal credential rather than authenticated (ADR-0048 §3).
+        outcome: { type: string, enum: [approved, rejected, changes_requested] }
+        triggers:
+          type: array
+          minItems: 1
+          description: >-
+            Which triggers this review clears. At least one: a review that
+            cleared nothing would leave the case exactly where it was.
+          items:
+            type: string
+            enum:
+              - financial_evidence
+              - involves_minor
+              - low_confidence
+              - conflicting_information
+              - stale_requirement_data
+              - blueprint_drift
+              - unexpected_portal_behaviour
+              - information_unobtainable
+        notes: { type: string }
+
+    OpenIntervention:
+      type: object
+      additionalProperties: false
+      required:
+        - interventionId
+        - runId
+        - caseId
+        - studentRef
+        - priority
+        - reason
+        - action
+        - target
+        - portal
+        - phase
+        - encountered
+        - expected
+        - raisedAt
+        - announced
+      description: >-
+        One open intervention, as a specialist reads it. A PROJECTION, not the
+        record: the stored context and the resolution's prose stay on the
+        server, and nothing shaped like a position is here to be honoured by a
+        caller (ADR-0048 §5).
+      properties:
+        interventionId: { type: string }
+        runId: { type: string }
+        caseId: { type: string }
+        studentRef: { type: string }
+        priority: { type: string, description: "`high` or `critical`." }
+        reason: { type: string }
+        action: { type: string, description: The consequential action in flight. }
+        target:
+          type: string
+          description: What it acted on — a portal host, a page reference. Never a value.
+        portal: { type: string }
+        phase: { type: string }
+        encountered: { type: string, description: In the words a specialist can act on. }
+        expected: { type: string }
+        raisedAt: { type: string, format: date-time }
+        announced: { type: boolean, description: Whether the student has been told. }
+
+    ResolutionSubmission:
+      type: object
+      additionalProperties: false
+      required:
+        - specialistId
+        - actionsTaken
+        - resolution
+        - outcome
+        - didHappen
+        - scope
+        - kind
+        - signature
+      description: >-
+        What a specialist submits. Deliberately absent from every field: the
+        intervention's id, the run, the resolution time and any position. They
+        are not read, so they cannot become authoritative.
+      properties:
+        specialistId:
+          type: string
+          description: ASSERTED, not authenticated (ADR-0048 §3).
+        actionsTaken: { type: string }
+        resolution: { type: string }
+        outcome: { type: string, enum: [resume, abandon] }
+        didHappen:
+          type: boolean
+          description: >-
+            The whole question. `assessIntent` stopped the run because it could
+            not answer whether the action took effect; this is a person having
+            opened the portal and looked.
+        scope: { type: string, description: How widely the fix applies. Narrow by default. }
+        kind: { type: string }
+        signature: { type: string }
 
   responses:
     Unauthenticated:

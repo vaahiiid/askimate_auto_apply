@@ -810,7 +810,10 @@ const NO_HANDOVER_EVIDENCE: HandoverEvidence = {
  * handover handoff is what puts the account, its portal and how to get in front
  * of the student. Telling them is the act; their reply is a different item.
  */
-export function handoverChecklistFrom(
+// Not exported. It has one caller, `accountCreated` below, and the barrel
+// published it to nobody for long enough that P27's audit found it — a public
+// name with no consumer is a promise this package cannot be held to.
+function handoverChecklistFrom(
   evidence: HandoverEvidence,
   plan: AuthenticationPlan,
 ): HandoverChecklist {

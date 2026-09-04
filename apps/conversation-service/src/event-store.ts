@@ -50,9 +50,6 @@ import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS, SECURE_EVENT_KINDS } from "@a
 
 import { ulid } from "./ulid.js";
 
-/** PostgreSQL's unique-violation SQLSTATE. */
-const UNIQUE_VIOLATION = "23505";
-
 /**
  * An event as a caller may ask for it: with no ordinal and no timestamp.
  *
@@ -708,10 +705,5 @@ export class ConversationEventStore {
 
   #notify(conversationId: string, event: ConversationEvent): void {
     for (const listener of this.#listeners.get(conversationId) ?? []) listener(event);
-  }
-
-  /** For a caller that wants to distinguish a race from a real failure. */
-  public static isOrdinalCollision(error: unknown): boolean {
-    return (error as { code?: string }).code === UNIQUE_VIOLATION;
   }
 }
