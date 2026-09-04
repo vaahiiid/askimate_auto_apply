@@ -1088,6 +1088,7 @@ components:
         - { $ref: "#/components/schemas/SecretReceivedEvent" }
         - { $ref: "#/components/schemas/SecretSettledEvent" }
         - { $ref: "#/components/schemas/SecretRejectedEvent" }
+        - { $ref: "#/components/schemas/ValueAskedEvent" }
         - { $ref: "#/components/schemas/ValueProposedEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
@@ -1103,6 +1104,7 @@ components:
           secret_expired: "#/components/schemas/SecretSettledEvent"
           secret_cancelled: "#/components/schemas/SecretSettledEvent"
           secret_rejected: "#/components/schemas/SecretRejectedEvent"
+          value_asked: "#/components/schemas/ValueAskedEvent"
           value_proposed: "#/components/schemas/ValueProposedEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
@@ -1186,6 +1188,22 @@ components:
         createdAt: { type: string, format: date-time }
         fieldKey: { type: string }
         playbackHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+
+    ValueAskedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey]
+      description: >
+        The service put a question about this field to the student (ADR-0062).
+        The words they read are the assistant message beside it; this carries
+        no prose, so the log can answer "is a question outstanding?" without
+        reading any. It carries no hash either: nothing is confirmed against a
+        question — what the student agrees to is the reading, later.
+      properties:
+        kind: { type: string, enum: [value_asked] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
 
     ValueRejectedEvent:
       type: object

@@ -44,7 +44,8 @@ export function openSecretRequest(events: readonly UnpositionedEvent[]): string 
       // (ADR-0058) — both happen before a case exists and long before any
       // secure step. Named rather than defaulted: a `default:` here would make
       // the next kind added settle a live secure request by accident.
-      case "value_proposed":
+      case "value_asked":
+case "value_proposed":
       case "value_confirmed":
       case "value_rejected":
       case "target_offered":
@@ -111,7 +112,8 @@ export function latestSecretRequest(events: readonly UnpositionedEvent[]): {
 
   for (const event of events) {
     switch (event.kind) {
-      case "value_proposed":
+      case "value_asked":
+case "value_proposed":
       case "value_confirmed":
       case "value_rejected":
       case "target_offered":

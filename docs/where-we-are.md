@@ -1214,3 +1214,75 @@ The interview gap above is the first thing the journey now visibly lacks, and it
 server-side change of anything outstanding: the question the run is waiting on has no representation
 a client can read. Everything else that remains is one of the three standing non-engineering
 blockers.
+
+---
+
+# Where we are — 2026-09-04 (P26)
+
+**Date:** 2026-09-04 · **Phase:** P26 · **ADR:** ADR-0062
+
+## The headline
+
+**The interview has two voices.** The question the run is waiting on is in the conversation log, so
+a student can read it, and a client can render it with no workflow knowledge at all.
+
+P25 found this by being the first thing to look. Driving the page through a full case, the interview
+stop drew a blank screen: a position to render, and nothing to answer.
+
+## What was actually wrong
+
+One line in `packages/orchestrator/src/run.ts`:
+
+```ts
+return { kind: "interview", action: await nextAction(state.interview, model) };
+```
+
+`nextAction` composes the question. The step carries it. The run driver threw it away.
+
+That is the shape ADR-0051 opened with — *"the orchestrator composed questions and the run driver
+threw them away"* — and the fix then went half the distance: the student's *answer* got a durable
+home, and the *question* never did. Every test that exercised the interview supplied the answer from
+the test process, so nothing needed the question to exist.
+
+## What P26 delivered
+
+- **`value_asked`**, a conversation event naming the field. Content-free: the words beside it are
+  the step's own, never a second composition, because a driver that asked the model again could ask
+  something other than what the run is waiting on.
+- **`openQuestion`** and the `open_value_questions` view — one rule, written once, read in both
+  places. The gate that makes asking idempotent without a marker column.
+- **Three call sites**, each somewhere the driver already writes. The one that matters is
+  `#confirmValue`: a client that has just confirmed a reading re-READS the run rather than advancing
+  it, and a read must not append — so the next question has to be drawn by the confirmation itself
+  or the journey stalls.
+
+## The measurement worth keeping
+
+Eleven regressions, all caught, but two needed a second attempt and **both faults were in the
+harness rather than the code**. One mutation built a shadow object and discarded it, so it never
+executed. One was run against the test suite when the control is a lint rule no test can observe.
+
+Fixing the first is what mattered: it exposed an assertion that said "a message was written", which
+any message satisfies and which proved nothing about where the words came from — while the entire
+point of the ADR is that they are the step's. The question's text is now asserted against the
+field's own label.
+
+## Known limitations — what changed, and what did not
+
+- **The interview gap P25 recorded is closed.** The browser test asserts the question in the
+  transcript rather than working around its absence.
+- **The attempt count is unchanged.** An answer the model could not read still leaves no proposal
+  and does not count towards `MAX_ATTEMPTS_PER_FIELD`. `value_asked` could carry that counter now;
+  making it do so would change when `information_unobtainable` fires, which is a behavioural change
+  to an escalation and not this phase's.
+- **P26 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P25 lists still holds.
+
+## What is next, on the evidence
+
+The journey is now walkable end to end in a browser with nothing missing that a student would
+notice. The three standing blockers are unchanged and none of them is engineering: a reviewed
+catalogue artefact for a real institution, a retention decision, and discovery evidence for a real
+portal.

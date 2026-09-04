@@ -102,6 +102,28 @@ export interface SecretRejectedEvent extends EventBase {
 }
 
 /**
+ * The service put a question about one field to the student (ADR-0062).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Content-free by construction. The words the student reads are the assistant
+ * `message` beside this — the orchestrator's own composition, carried on the
+ * step — and what this carries is which field the question is about.
+ *
+ * It exists so the log can answer "is a question outstanding?" without reading
+ * prose. An assistant message is not distinguishable as a question: pauses,
+ * playbacks and the authorisation announcement are all assistant messages too.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * No `playbackHash`, deliberately. Nothing is confirmed against a question —
+ * what the student agrees to is the READING, later — and a hash here would
+ * invite a client to offer them a way to "confirm" being asked.
+ */
+export interface ValueAskedEvent extends EventBase {
+  readonly kind: "value_asked";
+  readonly fieldKey: string;
+}
+
+/**
  * A reading the agent understood from what the student said (ADR-0051).
  *
  * ═══════════════════════════════════════════════════════════════════════════
@@ -187,6 +209,7 @@ export type ConversationEvent =
   | SecretReceivedEvent
   | SecretSettledEvent
   | SecretRejectedEvent
+  | ValueAskedEvent
   | ValueProposedEvent
   | ValueConfirmedEvent
   | ValueRejectedEvent
@@ -337,6 +360,11 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const playbackHash = readString(source, "playbackHash");
       if (fieldKey === null || playbackHash === null) return null;
       return { ...base, kind: "value_confirmed", fieldKey, playbackHash };
+    }
+    case "value_asked": {
+      const fieldKey = readString(source, "fieldKey");
+      if (fieldKey === null) return null;
+      return { ...base, kind: "value_asked", fieldKey };
     }
     case "value_rejected": {
       const fieldKey = readString(source, "fieldKey");

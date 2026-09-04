@@ -569,6 +569,40 @@ export function openProposal(
 }
 
 /**
+ * The question outstanding on this log, or `null`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0062. The last `value_asked` with nothing after it that answers or
+ * supersedes it. The same reading `openProposal` makes, and the same reading
+ * the `open_value_questions` view makes in SQL — derived here as well because
+ * `#situation` already holds every event and a second round trip would answer
+ * the same question more slowly.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A student MESSAGE closes it, even one nothing could be read from. They
+ * answered; the reading failed; they are owed a fresh question rather than the
+ * same one standing open for ever with the service silent.
+ */
+export function openQuestion(events: readonly ConversationEvent[]): { fieldKey: string } | null {
+  let open: { fieldKey: string } | null = null;
+  for (const event of events) {
+    if (event.kind === "value_asked") {
+      open = { fieldKey: event.fieldKey };
+      continue;
+    }
+    if (
+      event.kind === "value_proposed" ||
+      event.kind === "value_confirmed" ||
+      event.kind === "value_rejected" ||
+      (event.kind === "message" && event.actor === "student")
+    ) {
+      open = null;
+    }
+  }
+  return open;
+}
+
+/**
  * How many times each field has been read and not accepted.
  *
  * ── What this counts, and what it does not ────────────────────────────────
@@ -2067,6 +2101,12 @@ export class RunDriver {
       conversationId,
       event: { kind: "value_confirmed", fieldKey, playbackHash: open.playbackHash },
     });
+    // The field is settled, so the interview wants the next one. Asked here
+    // rather than left to the next advance, because a client that has just
+    // confirmed a reading does not advance the run — it re-READS it (ADR-0060),
+    // and a read must not append. Without this the journey stalls on a screen
+    // that says `interviewing` and asks nothing.
+    await this.#askAfterWriting(conversationId);
     return { ok: true };
   }
 
@@ -2207,9 +2247,11 @@ export class RunDriver {
       this.#options.model,
     );
     if (outcome.kind !== "understood") {
-      // Not read at all. The next decide re-asks — `nextAction` composes a
-      // fresh question with the attempt count it can see. Nothing is written,
-      // because nothing was understood.
+      // Not read at all. Nothing is written about the ANSWER, because nothing
+      // was understood — but the student is owed the question again, composed
+      // fresh with the attempt count `nextAction` can see. Their message closed
+      // the outstanding one (ADR-0062), so this asks rather than no-ops.
+      await this.#askTheStudent(input.conversationId, situated.step);
       return;
     }
     await this.#putToTheStudent(input.conversationId, outcome.state);
@@ -2272,6 +2314,69 @@ export class RunDriver {
       conversationId,
       event: { kind: "message", actor: "assistant", content: action.say },
     });
+  }
+
+  /**
+   * Puts the outstanding question to the student (ADR-0062).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `nextAction` composed this question during step derivation and the step
+   * carries it. Before ADR-0062 the driver threw it away, so a student at
+   * `interviewing` saw a screen with nothing on it to answer: the interview
+   * was a conversation with one voice.
+   *
+   * The text is the STEP's own. Composing a second one here would risk asking
+   * a different question from the one the step is waiting on — the drift
+   * ADR-0059 refused for the preview and ADR-0051 refused for the playback.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Two writes, in the order `#putToTheStudent` uses: the structured record
+   * first, then the words. A crash between them leaves a `value_asked` with no
+   * message, which the next advance cannot re-ask — so the marker is written
+   * only where the message is about to be, and the reverse order would leave a
+   * question the log does not know was asked.
+   *
+   * Under the conversation's row lock with the log re-read INSIDE it, for the
+   * reason `#openSecureStep` takes that lock: two callers advancing the same
+   * conversation can both hold a valid run revision — the second loads the
+   * record after the first has checkpointed, so the optimistic lock never
+   * fires — and both would otherwise find no open question and both ask.
+   */
+  async #askTheStudent(conversationId: string, step: RunStep): Promise<void> {
+    const action = interviewActionOf(step);
+    if (action === null || action.kind !== "ask") return;
+
+    await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
+      const events = await this.#options.conversations.since(conversationId, 0);
+      // A question already stands, or a reading is waiting to be confirmed.
+      // Either way this run is not short of something for the student to do,
+      // and asking again would be the service talking over itself.
+      if (openQuestion(events) !== null || openProposal(events) !== null) return null;
+
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "value_asked", fieldKey: action.fieldKey },
+      });
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content: action.say },
+      });
+      return null;
+    });
+  }
+
+  /**
+   * Re-derives where the interview stands and asks, if it is asking.
+   *
+   * For the two callers that have just WRITTEN something the interview turns
+   * on — a confirmed reading, or a student message that could not be read. The
+   * step they were handed is the one from before that write, so it has to be
+   * derived again or the question would be about the field just finished.
+   */
+  async #askAfterWriting(conversationId: string): Promise<void> {
+    const situated = await this.#interviewSituation(conversationId);
+    if (situated === null) return;
+    await this.#askTheStudent(conversationId, situated.step);
   }
 
   /** The student said the reading was wrong. Their words are the correction. */
@@ -3077,6 +3182,14 @@ export class RunDriver {
       step,
       now,
     });
+
+    // ── The other thing only the student can do (ADR-0062) ───────────────
+    //
+    // The interview's question, put to them in the conversation. Beside the
+    // handoff and for the same reasons: after the case walk, and idempotent by
+    // what the log already holds, so the ordinary case — a poll of a run
+    // already waiting on an answer — writes nothing.
+    await this.#askTheStudent(input.conversationId, step);
 
     const revision = await checkpointAfter({
       stores: this.#options.stores,

@@ -604,9 +604,22 @@ describeIfDatabase("POST /v1/conversations/{id}/runs — the explicit request", 
     expect(run.resumed).toBe(false);
 
     // ── The request is in the log, BEFORE the case existed ────────────
+    //
+    // The request is the last thing about the TARGET, not the last thing in
+    // the log: since ADR-0062 the run reaches the interview in the same call
+    // and puts its first question to the student, so a `value_asked` and its
+    // message follow. What this asserts is the request's position relative to
+    // the exchange it closes, which is the claim that matters.
     const kinds = await kindsIn(CONVERSATION);
-    expect(kinds.at(-1)).toBe("target_requested");
     expect(kinds.filter((kind) => kind === "target_requested")).toHaveLength(1);
+    expect(
+      kinds.lastIndexOf("target_requested"),
+      "the request comes after the offer it names",
+    ).toBeGreaterThan(kinds.lastIndexOf("target_offered"));
+    expect(
+      kinds.slice(kinds.lastIndexOf("target_requested") + 1),
+      "and the interview follows it — nothing else about a target does",
+    ).toEqual(["value_asked", "message"]);
 
     // ── And the case is bound to the target the OFFER named ───────────
     //

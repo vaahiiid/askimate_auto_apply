@@ -52,20 +52,32 @@ import {
   applyConfirmation,
   confirmField,
   emptyProfile,
+  FIELD_LABELS,
   isDeclined,
   resolveField,
   toStoredEntry,
 } from "@askimate/aas-profile";
 import { DeterministicModelClient } from "@askimate/aas-llm";
-import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
+import {
+  FIXTURE_BLUEPRINT,
+  FIXTURE_MAPPING_SET,
+} from "@askimate/aas-mapping/fixtures";
 import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
 import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
 import { migrate } from "@askimate/aas-migrate";
-import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
-import { parseClaimedWork, parseConversationRun, parseRunPreview } from "@askimate/aas-contracts";
+import {
+  announceSkip,
+  databaseReachable,
+  TEST_DATABASE_URL,
+} from "@askimate/aas-migrate/testing";
+import {
+  parseClaimedWork,
+  parseConversationRun,
+  parseRunPreview,
+} from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
@@ -79,7 +91,10 @@ import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
 import { WorkLeaseStore } from "./work-store.js";
 import { RunDriver, statusForVerdict } from "./run-driver.js";
-import type { SecureRequestInput, SecureRequestOpener } from "./secure-requests.js";
+import type {
+  SecureRequestInput,
+  SecureRequestOpener,
+} from "./secure-requests.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { issueSession } from "./session.js";
 
@@ -210,7 +225,9 @@ const REGISTER_FIELDS = new Set([
 const TEST_CONTENT_HASH = `sha256:${"a".repeat(64)}`;
 
 /** A catalogue that can also serve Gate 1's listing. */
-type TestCatalogue = ApplicationCatalogue & { targets(): readonly ReviewedTarget[] };
+type TestCatalogue = ApplicationCatalogue & {
+  targets(): readonly ReviewedTarget[];
+};
 
 /**
  * The catalogue, and the target directory Gate 1 reads.
@@ -223,7 +240,9 @@ type TestCatalogue = ApplicationCatalogue & { targets(): readonly ReviewedTarget
  */
 const CATALOGUE: TestCatalogue = {
   targets: () =>
-    [ENTRY, GATED_ENTRY].map((entry) => targetOf({ entry, contentHash: TEST_CONTENT_HASH })),
+    [ENTRY, GATED_ENTRY].map((entry) =>
+      targetOf({ entry, contentHash: TEST_CONTENT_HASH }),
+    ),
   find: (id) =>
     Promise.resolve(
       id === BLUEPRINT
@@ -297,14 +316,17 @@ function buildInstance(
       ? {}
       : {
           identities:
-            identityStore === "wired" ? new StudentIdentityStore(instancePool) : identityStore,
+            identityStore === "wired"
+              ? new StudentIdentityStore(instancePool)
+              : identityStore,
         }),
     leases: new WorkLeaseStore(instancePool),
     // ADR-0048. Present in every instance for the same reason `leases` is: a
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
     interventions: new PostgresInterventionStore(instancePool),
-    newInterventionId: (runId, key) => `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
+    newInterventionId: (runId, key) =>
+      `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
     now: () => NOW,
   });
   const app = createConversationApp({
@@ -398,7 +420,12 @@ async function confirmInto<K extends ProfileFieldKey>(
 ): Promise<void> {
   const result = applyConfirmation({
     key,
-    proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
+    proposed: proposeValue({
+      value,
+      origin: "conversation",
+      verbatim,
+      confidence: 1,
+    }),
     confirmation: {
       studentRef: studentId(forStudent),
       presentedText: "Is that right?",
@@ -406,10 +433,16 @@ async function confirmInto<K extends ProfileFieldKey>(
       respondedAt: NOW,
     },
   });
-  if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
-  const profile = confirmField(emptyProfile(studentId(forStudent), NOW), result, NOW);
+  if (isDeclined(result))
+    expect.unreachable(`${key} should have been accepted`);
+  const profile = confirmField(
+    emptyProfile(studentId(forStudent), NOW),
+    result,
+    NOW,
+  );
   const entry = profile.entries.get(key);
-  if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
+  if (entry === undefined)
+    expect.unreachable(`${key} should be in the profile`);
   await store.save(forStudent, toStoredEntry(key, entry));
 }
 
@@ -431,20 +464,27 @@ async function captureAuthorisation(
   const existing = await cases.read(caseRef);
   const usable = checkUsable(entry.mappingSet, entry.blueprint);
   if (!usable.usable) expect.unreachable("the mapping set should be reviewed");
-  const profile = await new PostgresConfirmedProfileStore(instancePool).load(studentId_, NOW);
+  const profile = await new PostgresConfirmedProfileStore(instancePool).load(
+    studentId_,
+    NOW,
+  );
   const preview = buildPreview(
     entry.blueprint,
     planFill(entry.blueprint, usable.mappingSet, profile),
     new Map(),
   );
-  if (!preview.built) expect.unreachable(`preview refused: ${preview.refusal.kind}`);
+  if (!preview.built)
+    expect.unreachable(`preview refused: ${preview.refusal.kind}`);
   await cases.append(caseRef, existing.length, [
     {
       eventId: makeEventId(`evt_${caseRef}_auth`),
       caseId: caseRef,
       sequence: existing.length + 1,
       occurredAt: NOW,
-      actor: { kind: "student", externalRef: externalRef(`student:${studentId_}`) },
+      actor: {
+        kind: "student",
+        externalRef: externalRef(`student:${studentId_}`),
+      },
       type: "AuthorisationCaptured",
       contentHash: preview.preview.contentHash,
       hashAlgorithm: "sha256",
@@ -461,20 +501,32 @@ async function captureAuthorisation(
  * that assembled the key differently would be recording a save of content the
  * run does not have.
  */
-async function targetForPage(page: string, forStudent: string = studentId_): Promise<string> {
+async function targetForPage(
+  page: string,
+  forStudent: string = studentId_,
+): Promise<string> {
   const instance = buildInstance(connectionString());
   try {
     const usable = checkUsable(GATED_ENTRY.mappingSet, GATED_ENTRY.blueprint);
     if (!usable.usable) expect.unreachable("the gated mapping set is reviewed");
-    const profile = await new PostgresConfirmedProfileStore(instance.pool).load(forStudent, NOW);
+    const profile = await new PostgresConfirmedProfileStore(instance.pool).load(
+      forStudent,
+      NOW,
+    );
     const plan = planFill(GATED_ENTRY.blueprint, usable.mappingSet, profile);
-    const found = GATED_ENTRY.blueprint.pages.find((candidate) => candidate.pageRef === page);
+    const found = GATED_ENTRY.blueprint.pages.find(
+      (candidate) => candidate.pageRef === page,
+    );
     if (found === undefined) expect.unreachable(`no page ${page}`);
     return pageFillTarget({
       pageRef: page,
       values: pageValuesOf(
         plan,
-        new Set(found.sections.flatMap((section) => section.fields.map((f) => f.fieldRef))),
+        new Set(
+          found.sections.flatMap((section) =>
+            section.fields.map((f) => f.fieldRef),
+          ),
+        ),
       ),
     });
   } finally {
@@ -487,12 +539,48 @@ async function confirmTheInterview(
   store: PostgresConfirmedProfileStore,
   forStudent: string = studentId_,
 ): Promise<void> {
-  await confirmInto(store, "identity.given_name", "Niloofar", "Niloofar", forStudent);
-  await confirmInto(store, "identity.family_name", "Hosseini", "Hosseini", forStudent);
-  await confirmInto(store, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999", forStudent);
-  await confirmInto(store, "identity.nationality", "Iranian", "Iranian", forStudent);
-  await confirmInto(store, "contact.email", "niloofar@example.test", "niloofar@example.test", forStudent);
-  await confirmInto(store, "study.personal_statement", "Because it is the course I want.", "…", forStudent);
+  await confirmInto(
+    store,
+    "identity.given_name",
+    "Niloofar",
+    "Niloofar",
+    forStudent,
+  );
+  await confirmInto(
+    store,
+    "identity.family_name",
+    "Hosseini",
+    "Hosseini",
+    forStudent,
+  );
+  await confirmInto(
+    store,
+    "identity.date_of_birth",
+    new Date("1999-04-02T00:00:00Z"),
+    "2 April 1999",
+    forStudent,
+  );
+  await confirmInto(
+    store,
+    "identity.nationality",
+    "Iranian",
+    "Iranian",
+    forStudent,
+  );
+  await confirmInto(
+    store,
+    "contact.email",
+    "niloofar@example.test",
+    "niloofar@example.test",
+    forStudent,
+  );
+  await confirmInto(
+    store,
+    "study.personal_statement",
+    "Because it is the course I want.",
+    "…",
+    forStudent,
+  );
 }
 
 /**
@@ -521,7 +609,8 @@ function opener(delayMs = 0): SecureRequestOpener & {
       // passes whether or not the ordering below is right.
       opens.push(input);
       n += 1;
-      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (delayMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       return {
         requestId: `sr_${String(n).padStart(32, "0")}`,
         expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
@@ -561,18 +650,20 @@ beforeAll(async () => {
   );
   otherStudentId = other.rows[0]!.id;
 
-  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-    CONVERSATION,
-    studentId_,
-  ]);
-  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-    OTHER_CONVERSATION,
-    otherStudentId,
-  ]);
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+    [CONVERSATION, studentId_],
+  );
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+    [OTHER_CONVERSATION, otherStudentId],
+  );
 
   const instance = buildInstance(connectionString());
   server = await new Promise<Server>((resolve) => {
-    const listening = instance.app.listen(PORT, "127.0.0.1", () => resolve(listening));
+    const listening = instance.app.listen(PORT, "127.0.0.1", () =>
+      resolve(listening),
+    );
   });
 }, 180_000);
 
@@ -586,270 +677,318 @@ afterAll(async () => {
 // A. The schema
 // ───────────────────────────────────────────────────────────────────────────
 
-describeIfDatabase("the conversation ↔ case binding is the database's rule", () => {
-  it("applies migration 0002, and records it as forward-only", async () => {
-    const applied = await pool.query<{ version: string }>(
-      "SELECT version FROM schema_migrations ORDER BY version",
-    );
-    const versions = applied.rows.map((row) => row.version);
-    expect(versions).toContain("0002_application_runs");
-    // Both schemas in one database, with no collision between their 0001s.
-    expect(versions).toContain("0001_conversation_log");
-    expect(versions).toContain("0001_case_events");
+describeIfDatabase(
+  "the conversation ↔ case binding is the database's rule",
+  () => {
+    it("applies migration 0002, and records it as forward-only", async () => {
+      const applied = await pool.query<{ version: string }>(
+        "SELECT version FROM schema_migrations ORDER BY version",
+      );
+      const versions = applied.rows.map((row) => row.version);
+      expect(versions).toContain("0002_application_runs");
+      // Both schemas in one database, with no collision between their 0001s.
+      expect(versions).toContain("0001_conversation_log");
+      expect(versions).toContain("0001_case_events");
 
-    // Re-running is a no-op, and a CHANGED file would throw. That is the
-    // forward-only rule, exercised rather than described.
-    const again = await migrate(pool, MIGRATIONS_DIR);
-    expect(again).toEqual([]);
-  });
-
-  it("binds a conversation to a case its own student owns", async () => {
-    const bindings = new ApplicationBindingStore(pool);
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      "01JBXQ8Z9WKTQ6M4H2NPC00010",
-      studentId_,
-    ]);
-    const bound = await bindings.withBinding(
-      {
-        conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
-        caseId: "case-bindable",
-        blueprintId: BLUEPRINT,
-        now: NOW,
-      },
-      (boundCase, created) => Promise.resolve({ boundCase, created }),
-    );
-    expect(bound.created).toBe(true);
-    expect(bound.boundCase).toEqual({
-      caseId: "case-bindable",
-      studentId: studentId_,
-      blueprintId: BLUEPRINT,
+      // Re-running is a no-op, and a CHANGED file would throw. That is the
+      // forward-only rule, exercised rather than described.
+      const again = await migrate(pool, MIGRATIONS_DIR);
+      expect(again).toEqual([]);
     });
 
-    // Idempotent: the same question, the same answer, no second case.
-    const again = await bindings.withBinding(
-      {
-        conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
-        caseId: "case-something-else",
+    it("binds a conversation to a case its own student owns", async () => {
+      const bindings = new ApplicationBindingStore(pool);
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        ["01JBXQ8Z9WKTQ6M4H2NPC00010", studentId_],
+      );
+      const bound = await bindings.withBinding(
+        {
+          conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
+          caseId: "case-bindable",
+          blueprintId: BLUEPRINT,
+          now: NOW,
+        },
+        (boundCase, created) => Promise.resolve({ boundCase, created }),
+      );
+      expect(bound.created).toBe(true);
+      expect(bound.boundCase).toEqual({
+        caseId: "case-bindable",
+        studentId: studentId_,
         blueprintId: BLUEPRINT,
-        now: NOW,
-      },
-      (boundCase, created) => Promise.resolve({ boundCase, created }),
-    );
-    expect(again.created).toBe(false);
-    expect(again.boundCase.caseId).toBe("case-bindable");
-  });
+      });
 
-  it("REFUSES, in the database, a case belonging to a different student", async () => {
-    // The composite foreign key over (student_id, case_id). A plain reference
-    // to `cases (case_id)` would accept this row: the case would exist and the
-    // ownership would be wrong.
-    await pool.query("INSERT INTO cases (case_id, student_id) VALUES ($1, $2)", [
-      "case-of-another-student",
-      otherStudentId,
-    ]);
-    await expect(
-      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
-        "case-of-another-student",
-        CONVERSATION,
-      ]),
-    ).rejects.toMatchObject({ code: "23503" });
-  });
+      // Idempotent: the same question, the same answer, no second case.
+      const again = await bindings.withBinding(
+        {
+          conversationId: "01JBXQ8Z9WKTQ6M4H2NPC00010",
+          caseId: "case-something-else",
+          blueprintId: BLUEPRINT,
+          now: NOW,
+        },
+        (boundCase, created) => Promise.resolve({ boundCase, created }),
+      );
+      expect(again.created).toBe(false);
+      expect(again.boundCase.caseId).toBe("case-bindable");
+    });
 
-  it("REFUSES a case that does not exist at all", async () => {
-    await expect(
-      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
-        "case-never-created",
-        CONVERSATION,
-      ]),
-    ).rejects.toMatchObject({ code: "23503" });
-  });
+    it("REFUSES, in the database, a case belonging to a different student", async () => {
+      // The composite foreign key over (student_id, case_id). A plain reference
+      // to `cases (case_id)` would accept this row: the case would exist and the
+      // ownership would be wrong.
+      await pool.query(
+        "INSERT INTO cases (case_id, student_id) VALUES ($1, $2)",
+        ["case-of-another-student", otherStudentId],
+      );
+      await expect(
+        pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+          "case-of-another-student",
+          CONVERSATION,
+        ]),
+      ).rejects.toMatchObject({ code: "23503" });
+    });
 
-  it("REFUSES a second conversation claiming one case", async () => {
-    // "Which conversation authorised this?" must have one answer, and that
-    // question is the whole reason the binding exists.
-    await pool.query("INSERT INTO cases (case_id, student_id) VALUES ($1, $2)", [
-      "case-contested",
-      studentId_,
-    ]);
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      "01JBXQ8Z9WKTQ6M4H2NPC00011",
-      studentId_,
-    ]);
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      "01JBXQ8Z9WKTQ6M4H2NPC00012",
-      studentId_,
-    ]);
-    await pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
-      "case-contested",
-      "01JBXQ8Z9WKTQ6M4H2NPC00011",
-    ]);
-    await expect(
-      pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+    it("REFUSES a case that does not exist at all", async () => {
+      await expect(
+        pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+          "case-never-created",
+          CONVERSATION,
+        ]),
+      ).rejects.toMatchObject({ code: "23503" });
+    });
+
+    it("REFUSES a second conversation claiming one case", async () => {
+      // "Which conversation authorised this?" must have one answer, and that
+      // question is the whole reason the binding exists.
+      await pool.query(
+        "INSERT INTO cases (case_id, student_id) VALUES ($1, $2)",
+        ["case-contested", studentId_],
+      );
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        ["01JBXQ8Z9WKTQ6M4H2NPC00011", studentId_],
+      );
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        ["01JBXQ8Z9WKTQ6M4H2NPC00012", studentId_],
+      );
+      await pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
         "case-contested",
-        "01JBXQ8Z9WKTQ6M4H2NPC00012",
-      ]),
-    ).rejects.toMatchObject({ code: "23505" });
-  });
+        "01JBXQ8Z9WKTQ6M4H2NPC00011",
+      ]);
+      await expect(
+        pool.query("UPDATE conversations SET case_id = $1 WHERE id = $2", [
+          "case-contested",
+          "01JBXQ8Z9WKTQ6M4H2NPC00012",
+        ]),
+      ).rejects.toMatchObject({ code: "23505" });
+    });
 
-  it("lets a conversation exist with no case at all", async () => {
-    // MATCH SIMPLE: a NULL case_id satisfies the composite key, so a
-    // conversation that has not started an application is the normal case
-    // rather than an exception the schema has to tolerate.
-    const none = await pool.query(
-      "SELECT case_id FROM conversations WHERE id = $1",
-      [OTHER_CONVERSATION],
-    );
-    expect(none.rows[0]).toEqual({ case_id: null });
-  });
-});
+    it("lets a conversation exist with no case at all", async () => {
+      // MATCH SIMPLE: a NULL case_id satisfies the composite key, so a
+      // conversation that has not started an application is the normal case
+      // rather than an exception the schema has to tolerate.
+      const none = await pool.query(
+        "SELECT case_id FROM conversations WHERE id = $1",
+        [OTHER_CONVERSATION],
+      );
+      expect(none.rows[0]).toEqual({ case_id: null });
+    });
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // B. The Run Driver
 // ───────────────────────────────────────────────────────────────────────────
 
-describeIfDatabase("the Run Driver coordinates, and the orchestrator decides", () => {
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00020";
+describeIfDatabase(
+  "the Run Driver coordinates, and the orchestrator decides",
+  () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00020";
 
-  it("starts a run, and the ORCHESTRATOR chose the step", async () => {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
-    const { driver, pool: instancePool } = buildInstance(connectionString());
-    try {
-      const outcome = await driver.start({
-        conversationId: conversation,
-        blueprintId: BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!outcome.ok) expect.unreachable(`start refused: ${outcome.refusal.kind}`);
+    it("starts a run, and the ORCHESTRATOR chose the step", async () => {
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [conversation, studentId_],
+      );
+      const { driver, pool: instancePool } = buildInstance(connectionString());
+      try {
+        const outcome = await driver.start({
+          conversationId: conversation,
+          blueprintId: BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!outcome.ok)
+          expect.unreachable(`start refused: ${outcome.refusal.kind}`);
 
-      // `interview` is not a word this service chose. `nextStep` reached it by
-      // finding the fill plan blocked on an empty profile — the assertion is
-      // therefore that the orchestrator ran, not merely that a field was set.
-      expect(outcome.position.step).toBe("interview");
-      expect(outcome.position.phase).toBe("interviewing");
-      expect(outcome.position.status).toBe("running");
-      expect(outcome.position.resumed).toBe(false);
-      expect(outcome.position.caseId).toBe(`case_${conversation.toLowerCase()}`);
-    } finally {
-      await instancePool.end();
-    }
-  });
+        // `interview` is not a word this service chose. `nextStep` reached it by
+        // finding the fill plan blocked on an empty profile — the assertion is
+        // therefore that the orchestrator ran, not merely that a field was set.
+        expect(outcome.position.step).toBe("interview");
+        expect(outcome.position.phase).toBe("interviewing");
+        expect(outcome.position.status).toBe("running");
+        expect(outcome.position.resumed).toBe(false);
+        expect(outcome.position.caseId).toBe(
+          `case_${conversation.toLowerCase()}`,
+        );
+      } finally {
+        await instancePool.end();
+      }
+    });
 
-  it("writes the case's first event, with the student's own sentence", async () => {
-    // `openCase` refuses to build without request evidence. This is where
-    // "the student asked" stops being an assumption.
-    const events = await pool.query<{ event: { type: string; requestEvidence?: { studentStatement?: string } } }>(
-      `SELECT event FROM case_events WHERE case_id = $1 ORDER BY "sequence"`,
-      [`case_${conversation.toLowerCase()}`],
-    );
-    expect(events.rows.map((row) => row.event.type)).toEqual(["CaseOpened"]);
-    expect(events.rows[0]?.event.requestEvidence?.studentStatement).toBe(STATEMENT);
-  });
-
-  it("checkpoints the decision durably", async () => {
-    const runs = await pool.query<{ run_id: string; checkpoint: { phase: string }; revision: number }>(
-      "SELECT run_id, checkpoint, revision FROM workflow_runs WHERE case_id = $1",
-      [`case_${conversation.toLowerCase()}`],
-    );
-    expect(runs.rowCount).toBe(1);
-    expect(runs.rows[0]?.checkpoint.phase).toBe("interviewing");
-    // Advanced past its start, so the checkpoint was actually written rather
-    // than merely created with the run.
-    expect(runs.rows[0]?.revision).toBeGreaterThan(0);
-  });
-
-  it("RESUMES rather than restarting, and creates no second run", async () => {
-    const { driver, pool: instancePool } = buildInstance(connectionString());
-    try {
-      const again = await driver.start({
-        conversationId: conversation,
-        blueprintId: BLUEPRINT,
-        studentStatement: "Any second thoughts are still the same request.",
-      });
-      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
-      expect(again.position.resumed).toBe(true);
-
-      const runs = await pool.query("SELECT run_id FROM workflow_runs WHERE case_id = $1", [
-        `case_${conversation.toLowerCase()}`,
-      ]);
-      expect(runs.rowCount, "a second run would give one case two positions").toBe(1);
-
-      // And the case log did not gain a second CaseOpened.
-      const events = await pool.query(`SELECT 1 FROM case_events WHERE case_id = $1`, [
-        `case_${conversation.toLowerCase()}`,
-      ]);
-      expect(events.rowCount).toBe(1);
-    } finally {
-      await instancePool.end();
-    }
-  });
-
-  it("refuses a blueprint the catalogue does not have", async () => {
-    const { driver, pool: instancePool } = buildInstance(connectionString());
-    try {
-      const outcome = await driver.start({
-        conversationId: OTHER_CONVERSATION,
-        blueprintId: "bp-not-reviewed",
-        studentStatement: STATEMENT,
-      });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "unknown_blueprint" } });
-      // Nothing was bound: a refused start must not leave a case behind.
-      const bound = await pool.query("SELECT case_id FROM conversations WHERE id = $1", [
-        OTHER_CONVERSATION,
-      ]);
-      expect(bound.rows[0]).toEqual({ case_id: null });
-    } finally {
-      await instancePool.end();
-    }
-  });
-
-  it("refuses to advance a run that belongs to another conversation", async () => {
-    const { driver, pool: instancePool } = buildInstance(connectionString());
-    try {
-      const runs = await pool.query<{ run_id: string }>(
-        "SELECT run_id FROM workflow_runs WHERE case_id = $1",
+    it("writes the case's first event, with the student's own sentence", async () => {
+      // `openCase` refuses to build without request evidence. This is where
+      // "the student asked" stops being an assumption.
+      const events = await pool.query<{
+        event: {
+          type: string;
+          requestEvidence?: { studentStatement?: string };
+        };
+      }>(
+        `SELECT event FROM case_events WHERE case_id = $1 ORDER BY "sequence"`,
         [`case_${conversation.toLowerCase()}`],
       );
-      const runId = runs.rows[0]!.run_id;
-      const outcome = await driver.advance({ runId, conversationId: OTHER_CONVERSATION });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "unknown_conversation" } });
-    } finally {
-      await instancePool.end();
-    }
-  });
+      expect(events.rows.map((row) => row.event.type)).toEqual(["CaseOpened"]);
+      expect(events.rows[0]?.event.requestEvidence?.studentStatement).toBe(
+        STATEMENT,
+      );
+    });
 
-  it("does not create two cases when two starts race", async () => {
-    // `bind` takes a row lock. Without it both callers read case_id = NULL and
-    // both insert, and one gets a unique violation the student sees as a 500.
-    const racing = "01JBXQ8Z9WKTQ6M4H2NPC00021";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      racing,
-      studentId_,
-    ]);
-    const a = buildInstance(connectionString());
-    const b = buildInstance(connectionString());
-    try {
-      const [first, second] = await Promise.all([
-        a.driver.start({ conversationId: racing, blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
-        b.driver.start({ conversationId: racing, blueprintId: BLUEPRINT, studentStatement: STATEMENT }),
-      ]);
-      expect(first.ok && second.ok, "both starts should succeed").toBe(true);
-      const cases = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [
-        `case_${racing.toLowerCase()}`,
-      ]);
-      expect(cases.rowCount).toBe(1);
-      const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = $1", [
-        `case_${racing.toLowerCase()}`,
-      ]);
-      expect(runs.rowCount, "one conversation, one case, one live run").toBe(1);
-    } finally {
-      await a.pool.end();
-      await b.pool.end();
-    }
-  });
-});
+    it("checkpoints the decision durably", async () => {
+      const runs = await pool.query<{
+        run_id: string;
+        checkpoint: { phase: string };
+        revision: number;
+      }>(
+        "SELECT run_id, checkpoint, revision FROM workflow_runs WHERE case_id = $1",
+        [`case_${conversation.toLowerCase()}`],
+      );
+      expect(runs.rowCount).toBe(1);
+      expect(runs.rows[0]?.checkpoint.phase).toBe("interviewing");
+      // Advanced past its start, so the checkpoint was actually written rather
+      // than merely created with the run.
+      expect(runs.rows[0]?.revision).toBeGreaterThan(0);
+    });
+
+    it("RESUMES rather than restarting, and creates no second run", async () => {
+      const { driver, pool: instancePool } = buildInstance(connectionString());
+      try {
+        const again = await driver.start({
+          conversationId: conversation,
+          blueprintId: BLUEPRINT,
+          studentStatement: "Any second thoughts are still the same request.",
+        });
+        if (!again.ok)
+          expect.unreachable(`resume refused: ${again.refusal.kind}`);
+        expect(again.position.resumed).toBe(true);
+
+        const runs = await pool.query(
+          "SELECT run_id FROM workflow_runs WHERE case_id = $1",
+          [`case_${conversation.toLowerCase()}`],
+        );
+        expect(
+          runs.rowCount,
+          "a second run would give one case two positions",
+        ).toBe(1);
+
+        // And the case log did not gain a second CaseOpened.
+        const events = await pool.query(
+          `SELECT 1 FROM case_events WHERE case_id = $1`,
+          [`case_${conversation.toLowerCase()}`],
+        );
+        expect(events.rowCount).toBe(1);
+      } finally {
+        await instancePool.end();
+      }
+    });
+
+    it("refuses a blueprint the catalogue does not have", async () => {
+      const { driver, pool: instancePool } = buildInstance(connectionString());
+      try {
+        const outcome = await driver.start({
+          conversationId: OTHER_CONVERSATION,
+          blueprintId: "bp-not-reviewed",
+          studentStatement: STATEMENT,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "unknown_blueprint" },
+        });
+        // Nothing was bound: a refused start must not leave a case behind.
+        const bound = await pool.query(
+          "SELECT case_id FROM conversations WHERE id = $1",
+          [OTHER_CONVERSATION],
+        );
+        expect(bound.rows[0]).toEqual({ case_id: null });
+      } finally {
+        await instancePool.end();
+      }
+    });
+
+    it("refuses to advance a run that belongs to another conversation", async () => {
+      const { driver, pool: instancePool } = buildInstance(connectionString());
+      try {
+        const runs = await pool.query<{ run_id: string }>(
+          "SELECT run_id FROM workflow_runs WHERE case_id = $1",
+          [`case_${conversation.toLowerCase()}`],
+        );
+        const runId = runs.rows[0]!.run_id;
+        const outcome = await driver.advance({
+          runId,
+          conversationId: OTHER_CONVERSATION,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "unknown_conversation" },
+        });
+      } finally {
+        await instancePool.end();
+      }
+    });
+
+    it("does not create two cases when two starts race", async () => {
+      // `bind` takes a row lock. Without it both callers read case_id = NULL and
+      // both insert, and one gets a unique violation the student sees as a 500.
+      const racing = "01JBXQ8Z9WKTQ6M4H2NPC00021";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [racing, studentId_],
+      );
+      const a = buildInstance(connectionString());
+      const b = buildInstance(connectionString());
+      try {
+        const [first, second] = await Promise.all([
+          a.driver.start({
+            conversationId: racing,
+            blueprintId: BLUEPRINT,
+            studentStatement: STATEMENT,
+          }),
+          b.driver.start({
+            conversationId: racing,
+            blueprintId: BLUEPRINT,
+            studentStatement: STATEMENT,
+          }),
+        ]);
+        expect(first.ok && second.ok, "both starts should succeed").toBe(true);
+        const cases = await pool.query(
+          "SELECT 1 FROM cases WHERE case_id = $1",
+          [`case_${racing.toLowerCase()}`],
+        );
+        expect(cases.rowCount).toBe(1);
+        const runs = await pool.query(
+          "SELECT 1 FROM workflow_runs WHERE case_id = $1",
+          [`case_${racing.toLowerCase()}`],
+        );
+        expect(runs.rowCount, "one conversation, one case, one live run").toBe(
+          1,
+        );
+      } finally {
+        await a.pool.end();
+        await b.pool.end();
+      }
+    });
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // C. The route
@@ -873,7 +1012,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
       `${BASE}/v1/conversations/${conversationId}/target-offers`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookieFor(subject),
+        },
         body: JSON.stringify({ blueprintId }),
       },
     );
@@ -887,17 +1029,21 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     subject: string,
     body?: Record<string, unknown>,
   ): Promise<{ status: number; body: unknown }> {
-    const payload =
-      body ??
+    const payload = body ?? {
+      offerHash: await anOffer(conversationId, subject),
+      studentStatement: STATEMENT,
+    };
+    const response = await fetch(
+      `${BASE}/v1/conversations/${conversationId}/runs`,
       {
-        offerHash: await anOffer(conversationId, subject),
-        studentStatement: STATEMENT,
-      };
-    const response = await fetch(`${BASE}/v1/conversations/${conversationId}/runs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
-      body: JSON.stringify(payload),
-    });
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookieFor(subject),
+        },
+        body: JSON.stringify(payload),
+      },
+    );
     return { status: response.status, body: await response.json() };
   }
 
@@ -908,7 +1054,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     // Parsed by the CONTRACT's own parser, not by an ad-hoc cast. A response
     // that drifted from `conversation.v1.yaml` fails here.
     const run = parseConversationRun(body);
-    if (run === null) expect.unreachable(`the response is not a ConversationRun: ${JSON.stringify(body)}`);
+    if (run === null)
+      expect.unreachable(
+        `the response is not a ConversationRun: ${JSON.stringify(body)}`,
+      );
     expect(run.conversationId).toBe(CONVERSATION);
     expect(run.step).toBe("interview");
     expect(run.resumed).toBe(false);
@@ -919,7 +1068,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
       [CONVERSATION],
     );
     expect(bound.rows[0]?.case_id).toBe(run.caseId);
-    const runs = await pool.query("SELECT run_id FROM workflow_runs WHERE run_id = $1", [run.runId]);
+    const runs = await pool.query(
+      "SELECT run_id FROM workflow_runs WHERE run_id = $1",
+      [run.runId],
+    );
     expect(runs.rowCount).toBe(1);
   });
 
@@ -927,7 +1079,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     const { status, body } = await startRun(CONVERSATION, studentId_);
     expect(status).toBe(200);
     expect(parseConversationRun(body)?.resumed).toBe(true);
-    const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)", [CONVERSATION]);
+    const runs = await pool.query(
+      "SELECT 1 FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)",
+      [CONVERSATION],
+    );
     expect(runs.rowCount).toBe(1);
   });
 
@@ -946,19 +1101,23 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
     expect(body).toMatchObject({ code: "not_found" });
 
     // And nothing was started for them.
-    const theirs = await pool.query("SELECT case_id FROM conversations WHERE id = $1", [
-      OTHER_CONVERSATION,
-    ]);
+    const theirs = await pool.query(
+      "SELECT case_id FROM conversations WHERE id = $1",
+      [OTHER_CONVERSATION],
+    );
     expect(theirs.rows[0]).toEqual({ case_id: null });
   });
 
   it("REFUSES an unauthenticated caller", async () => {
     const offerHash = await anOffer(CONVERSATION, studentId_);
-    const response = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/runs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
-    });
+    const response = await fetch(
+      `${BASE}/v1/conversations/${CONVERSATION}/runs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
+      },
+    );
     expect(response.status).toBe(401);
   });
 
@@ -969,7 +1128,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
       offerHash: await anOffer(CONVERSATION, studentId_),
     });
     expect(status).toBe(400);
-    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/studentStatement"] });
+    expect(body).toMatchObject({
+      code: "validation_failed",
+      pointers: ["/studentStatement"],
+    });
   });
 
   it("REFUSES a start with no offer", async () => {
@@ -977,7 +1139,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
       studentStatement: STATEMENT,
     });
     expect(status).toBe(400);
-    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/offerHash"] });
+    expect(body).toMatchObject({
+      code: "validation_failed",
+      pointers: ["/offerHash"],
+    });
   });
 
   it("REFUSES a start that names only a blueprint — the OLD contract", async () => {
@@ -989,7 +1154,10 @@ describeIfDatabase("POST /v1/conversations/{id}/runs", () => {
       studentStatement: STATEMENT,
     });
     expect(status).toBe(400);
-    expect(body).toMatchObject({ code: "validation_failed", pointers: ["/offerHash"] });
+    expect(body).toMatchObject({
+      code: "validation_failed",
+      pointers: ["/offerHash"],
+    });
 
     // And no case was bound by it.
     const bound = await pool.query<{ case_id: string | null }>(
@@ -1025,34 +1193,46 @@ describeIfDatabase("a run survives the process that started it", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00040";
 
   it("resumes the SAME case and the SAME run, from a wholly new instance", async () => {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
 
     // ── Instance one ────────────────────────────────────────────────────
     const first = buildInstance(connectionString());
     const firstServer = await new Promise<Server>((resolve) => {
-      const listening = first.app.listen(PORT + 1, "127.0.0.1", () => resolve(listening));
+      const listening = first.app.listen(PORT + 1, "127.0.0.1", () =>
+        resolve(listening),
+      );
     });
     const offered = await fetch(
       `http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/target-offers`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId_) },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookieFor(studentId_),
+        },
         body: JSON.stringify({ blueprintId: BLUEPRINT }),
       },
     );
     expect(offered.status).toBe(201);
     const { offerHash } = (await offered.json()) as { offerHash: string };
-    const started = await fetch(`http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/runs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: cookieFor(studentId_) },
-      body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
-    });
+    const started = await fetch(
+      `http://127.0.0.1:${String(PORT + 1)}/v1/conversations/${conversation}/runs`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookieFor(studentId_),
+        },
+        body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
+      },
+    );
     expect(started.status).toBe(201);
     const before = parseConversationRun(await started.json());
-    if (before === null) expect.unreachable("the first instance should have started a run");
+    if (before === null)
+      expect.unreachable("the first instance should have started a run");
 
     // ── The interruption ────────────────────────────────────────────────
     //
@@ -1069,11 +1249,15 @@ describeIfDatabase("a run survives the process that started it", () => {
         runId: before.runId,
         conversationId: conversation,
       });
-      if (!resumed.ok) expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
+      if (!resumed.ok)
+        expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
 
       expect(resumed.position.runId, "the same run").toBe(before.runId);
       expect(resumed.position.caseId, "the same case").toBe(before.caseId);
-      expect(resumed.position.conversationId, "still bound to the conversation").toBe(conversation);
+      expect(
+        resumed.position.conversationId,
+        "still bound to the conversation",
+      ).toBe(conversation);
       expect(resumed.position.resumed).toBe(true);
 
       // ── The run did NOT restart from zero ─────────────────────────────
@@ -1091,11 +1275,19 @@ describeIfDatabase("a run survives the process that started it", () => {
 
       // One case, one run, one CaseOpened. A restart that re-opened the case
       // would show a second event or a second run here.
-      const cases = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [before.caseId]);
+      const cases = await pool.query("SELECT 1 FROM cases WHERE case_id = $1", [
+        before.caseId,
+      ]);
       expect(cases.rowCount).toBe(1);
-      const runs = await pool.query("SELECT 1 FROM workflow_runs WHERE case_id = $1", [before.caseId]);
+      const runs = await pool.query(
+        "SELECT 1 FROM workflow_runs WHERE case_id = $1",
+        [before.caseId],
+      );
       expect(runs.rowCount).toBe(1);
-      const events = await pool.query(`SELECT 1 FROM case_events WHERE case_id = $1`, [before.caseId]);
+      const events = await pool.query(
+        `SELECT 1 FROM case_events WHERE case_id = $1`,
+        [before.caseId],
+      );
       expect(events.rowCount).toBe(1);
     } finally {
       await second.pool.end();
@@ -1131,7 +1323,8 @@ describeIfDatabase("a run survives the process that started it", () => {
         runId: runs.rows[0]!.run_id,
         conversationId: conversation,
       });
-      if (!again.ok) expect.unreachable("a discarded checkpoint must not lose the run");
+      if (!again.ok)
+        expect.unreachable("a discarded checkpoint must not lose the run");
       expect(again.position.caseId).toBe(caseRef);
     } finally {
       await instance.pool.end();
@@ -1143,549 +1336,617 @@ describeIfDatabase("a run survives the process that started it", () => {
 // E. The confirmed profile survives too — ADR-0044
 // ───────────────────────────────────────────────────────────────────────────
 
-describeIfDatabase("the confirmed profile is reconstructed from its own store", () => {
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00050";
+describeIfDatabase(
+  "the confirmed profile is reconstructed from its own store",
+  () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00050";
 
-  it("moves a run OFF interviewing once every answer is stored", async () => {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
-
-    // ── Instance one: start the run, and answer the interview ───────────
-    const first = buildInstance(connectionString(), opener());
-    let before: string;
-    try {
-      const started = await first.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
-      // Nothing is confirmed yet, so the orchestrator wants the interview.
-      expect(started.position.phase).toBe("interviewing");
-      before = started.position.runId;
-
-      await confirmTheInterview(new PostgresConfirmedProfileStore(first.pool));
-    } finally {
-      await first.pool.end();
-    }
-
-    // ── Instance two: nothing carried over but the database ─────────────
-    const second = buildInstance(connectionString(), opener());
-    try {
-      const resumed = await second.driver.advance({ runId: before, conversationId: conversation });
-      if (!resumed.ok) expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
-
-      // THE assertion. Before ADR-0044 the driver called `emptyProfile` on
-      // every request, so this run could never leave `interviewing` — each
-      // call re-derived a profile with nothing in it and `planFill` reported
-      // the same blockers as the call before.
-      expect(
-        resumed.position.phase,
-        "a resumed run with a complete profile must move past the interview",
-      ).not.toBe("interviewing");
-      expect(resumed.position.runId).toBe(before);
-
-      // The gated portal needs an account, so this is where it goes next.
-      expect(resumed.position.phase).toBe("awaiting_secret");
-      expect(resumed.position.step).toBe("request_secret");
-    } finally {
-      await second.pool.end();
-    }
-  }, 120_000);
-
-  it("keeps the value AND its provenance across the restart", async () => {
-    const instance = buildInstance(connectionString());
-    try {
-      const store = new PostgresConfirmedProfileStore(instance.pool);
-      const profile = await store.load(studentId_, NOW);
-
-      const name = resolveField(profile, "identity.given_name");
-      expect(unwrapConfirmed(name as never)).toBe("Niloofar");
-      // The half a careless store loses. Without it the value is one nobody
-      // confirmed, which is what ADR-0004 exists to prevent.
-      expect(provenanceOf(name as never).source).toBe("student_stated");
-
-      // And a Date is still a Date, not the string a plain JSON round-trip
-      // would have left — the minor-detection safeguard calls `.getTime()`.
-      const dob = unwrapConfirmed(resolveField(profile, "identity.date_of_birth") as never);
-      expect(dob).toBeInstanceOf(Date);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 60_000);
-
-  it("does not hand one student another student's profile", async () => {
-    const instance = buildInstance(connectionString());
-    try {
-      const store = new PostgresConfirmedProfileStore(instance.pool);
-      const theirs = await store.load(otherStudentId, NOW);
-      expect(theirs.entries.size).toBe(0);
-      expect(resolveField(theirs, "identity.given_name")).toMatchObject({
-        kind: "field_unavailable",
-      });
-    } finally {
-      await instance.pool.end();
-    }
-  }, 60_000);
-
-  it("survives the checkpoint being thrown away", async () => {
-    // Rule 3 of the approved architecture: discarding every checkpoint must
-    // lose no business fact. A confirmed profile IS a business fact, so it is
-    // not a checkpoint and is never discarded with one.
-    const instance = buildInstance(connectionString());
-    try {
-      const runs = await pool.query<{ run_id: string }>(
-        "SELECT run_id FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)",
-        [conversation],
+    it("moves a run OFF interviewing once every answer is stored", async () => {
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [conversation, studentId_],
       );
-      const runs_ = new PostgresWorkflowRunStore(instance.pool);
-      await runs_.discardCheckpoints(makeRunId(runs.rows[0]!.run_id));
 
-      const store = new PostgresConfirmedProfileStore(instance.pool);
-      const profile = await store.load(studentId_, NOW);
-      expect(profile.entries.size).toBe(6);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 60_000);
-});
+      // ── Instance one: start the run, and answer the interview ───────────
+      const first = buildInstance(connectionString(), opener());
+      let before: string;
+      try {
+        const started = await first.driver.start({
+          conversationId: conversation,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!started.ok)
+          expect.unreachable(`start refused: ${started.refusal.kind}`);
+        // Nothing is confirmed yet, so the orchestrator wants the interview.
+        expect(started.position.phase).toBe("interviewing");
+        before = started.position.runId;
+
+        await confirmTheInterview(
+          new PostgresConfirmedProfileStore(first.pool),
+        );
+      } finally {
+        await first.pool.end();
+      }
+
+      // ── Instance two: nothing carried over but the database ─────────────
+      const second = buildInstance(connectionString(), opener());
+      try {
+        const resumed = await second.driver.advance({
+          runId: before,
+          conversationId: conversation,
+        });
+        if (!resumed.ok)
+          expect.unreachable(`resume refused: ${resumed.refusal.kind}`);
+
+        // THE assertion. Before ADR-0044 the driver called `emptyProfile` on
+        // every request, so this run could never leave `interviewing` — each
+        // call re-derived a profile with nothing in it and `planFill` reported
+        // the same blockers as the call before.
+        expect(
+          resumed.position.phase,
+          "a resumed run with a complete profile must move past the interview",
+        ).not.toBe("interviewing");
+        expect(resumed.position.runId).toBe(before);
+
+        // The gated portal needs an account, so this is where it goes next.
+        expect(resumed.position.phase).toBe("awaiting_secret");
+        expect(resumed.position.step).toBe("request_secret");
+      } finally {
+        await second.pool.end();
+      }
+    }, 120_000);
+
+    it("keeps the value AND its provenance across the restart", async () => {
+      const instance = buildInstance(connectionString());
+      try {
+        const store = new PostgresConfirmedProfileStore(instance.pool);
+        const profile = await store.load(studentId_, NOW);
+
+        const name = resolveField(profile, "identity.given_name");
+        expect(unwrapConfirmed(name as never)).toBe("Niloofar");
+        // The half a careless store loses. Without it the value is one nobody
+        // confirmed, which is what ADR-0004 exists to prevent.
+        expect(provenanceOf(name as never).source).toBe("student_stated");
+
+        // And a Date is still a Date, not the string a plain JSON round-trip
+        // would have left — the minor-detection safeguard calls `.getTime()`.
+        const dob = unwrapConfirmed(
+          resolveField(profile, "identity.date_of_birth") as never,
+        );
+        expect(dob).toBeInstanceOf(Date);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 60_000);
+
+    it("does not hand one student another student's profile", async () => {
+      const instance = buildInstance(connectionString());
+      try {
+        const store = new PostgresConfirmedProfileStore(instance.pool);
+        const theirs = await store.load(otherStudentId, NOW);
+        expect(theirs.entries.size).toBe(0);
+        expect(resolveField(theirs, "identity.given_name")).toMatchObject({
+          kind: "field_unavailable",
+        });
+      } finally {
+        await instance.pool.end();
+      }
+    }, 60_000);
+
+    it("survives the checkpoint being thrown away", async () => {
+      // Rule 3 of the approved architecture: discarding every checkpoint must
+      // lose no business fact. A confirmed profile IS a business fact, so it is
+      // not a checkpoint and is never discarded with one.
+      const instance = buildInstance(connectionString());
+      try {
+        const runs = await pool.query<{ run_id: string }>(
+          "SELECT run_id FROM workflow_runs WHERE case_id = (SELECT case_id FROM conversations WHERE id = $1)",
+          [conversation],
+        );
+        const runs_ = new PostgresWorkflowRunStore(instance.pool);
+        await runs_.discardCheckpoints(makeRunId(runs.rows[0]!.run_id));
+
+        const store = new PostgresConfirmedProfileStore(instance.pool);
+        const profile = await store.load(studentId_, NOW);
+        expect(profile.entries.size).toBe(6);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 60_000);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // F. P4 — the Conversation Service opens the secure step
 // ───────────────────────────────────────────────────────────────────────────
 
-describeIfDatabase("opening a secure step, and recording it authoritatively", () => {
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00060";
+describeIfDatabase(
+  "opening a secure step, and recording it authoritatively",
+  () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00060";
 
-  /** Drives a run to the point where it wants a password. */
-  async function toTheSecureStep(
-    secure: SecureRequestOpener,
-  ): Promise<{ runId: string }> {
-    const instance = buildInstance(connectionString(), secure);
-    try {
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
+    /** Drives a run to the point where it wants a password. */
+    async function toTheSecureStep(
+      secure: SecureRequestOpener,
+    ): Promise<{ runId: string }> {
+      const instance = buildInstance(connectionString(), secure);
+      try {
+        const started = await instance.driver.start({
+          conversationId: conversation,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!started.ok)
+          expect.unreachable(`start refused: ${started.refusal.kind}`);
+        return { runId: started.position.runId };
+      } finally {
+        await instance.pool.end();
+      }
+    }
+
+    it("asks the Secure Plane, and appends the authoritative event", async () => {
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [conversation, studentId_],
+      );
+      // The profile the gated run needs, stored the way the interview stores it.
+      const seeding = buildInstance(connectionString());
+      try {
+        await confirmTheInterview(
+          new PostgresConfirmedProfileStore(seeding.pool),
+        );
+      } finally {
+        await seeding.pool.end();
+      }
+
+      const secure = opener();
+      await toTheSecureStep(secure);
+
+      // ── What crossed to the Secure Plane ───────────────────────────────
+      expect(secure.opens).toHaveLength(1);
+      const asked = secure.opens[0];
+      if (asked === undefined)
+        expect.unreachable("a request should have been opened");
+      expect(asked.conversationId).toBe(conversation);
+      expect(asked.studentRef).toBe(studentId_);
+      // From the case and the blueprint, never from model output.
+      expect(asked.purpose).toBe("portal_account_creation");
+      expect(asked.targetHost).toBe("gated.portal.test");
+      expect(asked.ttlSeconds).toBeLessThanOrEqual(300);
+
+      // ── What the conversation log now holds ────────────────────────────
+      const events = await pool.query<{
+        kind: string;
+        request_id: string | null;
+      }>(
+        `SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal`,
+        [conversation],
+      );
+      expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+      // The id in the log is the one the Secure Plane minted, not one this plane
+      // invented: a request the secure service has never heard of would settle
+      // nothing, and the composer would stay locked forever.
+      expect(events.rows[0]?.request_id).toBe(`sr_${"0".repeat(31)}1`);
+    }, 120_000);
+
+    it("mints the frame capability through the SAME port that opened the request", async () => {
+      // The endpoint has existed since the cross-origin phase with no production
+      // wiring behind it. This is that wiring, exercised over real HTTP: the page
+      // asks its own origin, its own origin asks the secure plane, and the
+      // capability comes back in a body rather than in a URL.
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure);
+      const port = PORT + 3;
+      const listening = await new Promise<Server>((resolve) => {
+        const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
-      return { runId: started.position.runId };
-    } finally {
-      await instance.pool.end();
-    }
-  }
+      try {
+        const requestId = `sr_${"0".repeat(31)}1`;
+        const response = await fetch(
+          `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/${requestId}/bootstrap`,
+          { headers: { cookie: cookieFor(studentId_) } },
+        );
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as Record<string, unknown>;
 
-  it("asks the Secure Plane, and appends the authoritative event", async () => {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
-    // The profile the gated run needs, stored the way the interview stores it.
-    const seeding = buildInstance(connectionString());
-    try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(seeding.pool));
-    } finally {
-      await seeding.pool.end();
-    }
+        // It came from the opener, not from anywhere in this plane.
+        expect(secure.tokens).toEqual([requestId]);
+        expect(body["frameToken"]).toBe(`ft_fresh_${requestId}`);
+        expect(body["secureOrigin"]).toBe("https://secure.test");
 
-    const secure = opener();
-    await toTheSecureStep(secure);
+        // A capability in a cache outlives the page that asked for it.
+        expect(response.headers.get("cache-control")).toBe("no-store");
 
-    // ── What crossed to the Secure Plane ───────────────────────────────
-    expect(secure.opens).toHaveLength(1);
-    const asked = secure.opens[0];
-    if (asked === undefined) expect.unreachable("a request should have been opened");
-    expect(asked.conversationId).toBe(conversation);
-    expect(asked.studentRef).toBe(studentId_);
-    // From the case and the blueprint, never from model output.
-    expect(asked.purpose).toBe("portal_account_creation");
-    expect(asked.targetHost).toBe("gated.portal.test");
-    expect(asked.ttlSeconds).toBeLessThanOrEqual(300);
+        // And nothing resembling a secret came back with it.
+        expect(Object.keys(body).sort()).toEqual([
+          "expiresAt",
+          "frameToken",
+          "requestId",
+          "secureOrigin",
+        ]);
+      } finally {
+        await new Promise<void>((resolve) => listening.close(() => resolve()));
+        await instance.pool.end();
+      }
+    }, 120_000);
 
-    // ── What the conversation log now holds ────────────────────────────
-    const events = await pool.query<{ kind: string; request_id: string | null }>(
-      `SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal`,
-      [conversation],
-    );
-    expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
-    // The id in the log is the one the Secure Plane minted, not one this plane
-    // invented: a request the secure service has never heard of would settle
-    // nothing, and the composer would stay locked forever.
-    expect(events.rows[0]?.request_id).toBe(`sr_${"0".repeat(31)}1`);
-  }, 120_000);
+    it("refuses a bootstrap for a request that is NOT open in this conversation", async () => {
+      // Without this check a student could ask for a bootstrap into someone
+      // else's secure step simply by naming its id.
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure);
+      const port = PORT + 4;
+      const listening = await new Promise<Server>((resolve) => {
+        const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
+      });
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/sr_${"c".repeat(32)}/bootstrap`,
+          { headers: { cookie: cookieFor(studentId_) } },
+        );
+        expect(response.status).toBe(404);
+        // The secure plane was never even asked. The conversation's own log is
+        // the authority on which request belongs to it.
+        expect(secure.tokens).toEqual([]);
+      } finally {
+        await new Promise<void>((resolve) => listening.close(() => resolve()));
+        await instance.pool.end();
+      }
+    }, 120_000);
 
-  it("mints the frame capability through the SAME port that opened the request", async () => {
-    // The endpoint has existed since the cross-origin phase with no production
-    // wiring behind it. This is that wiring, exercised over real HTTP: the page
-    // asks its own origin, its own origin asks the secure plane, and the
-    // capability comes back in a body rather than in a URL.
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
-    const port = PORT + 3;
-    const listening = await new Promise<Server>((resolve) => {
-      const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
-    });
-    try {
-      const requestId = `sr_${"0".repeat(31)}1`;
-      const response = await fetch(
-        `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/${requestId}/bootstrap`,
-        { headers: { cookie: cookieFor(studentId_) } },
-      );
-      expect(response.status).toBe(200);
-      const body = (await response.json()) as Record<string, unknown>;
-
-      // It came from the opener, not from anywhere in this plane.
-      expect(secure.tokens).toEqual([requestId]);
-      expect(body["frameToken"]).toBe(`ft_fresh_${requestId}`);
-      expect(body["secureOrigin"]).toBe("https://secure.test");
-
-      // A capability in a cache outlives the page that asked for it.
-      expect(response.headers.get("cache-control")).toBe("no-store");
-
-      // And nothing resembling a secret came back with it.
-      expect(Object.keys(body).sort()).toEqual([
-        "expiresAt",
-        "frameToken",
-        "requestId",
-        "secureOrigin",
-      ]);
-    } finally {
-      await new Promise<void>((resolve) => listening.close(() => resolve()));
-      await instance.pool.end();
-    }
-  }, 120_000);
-
-  it("refuses a bootstrap for a request that is NOT open in this conversation", async () => {
-    // Without this check a student could ask for a bootstrap into someone
-    // else's secure step simply by naming its id.
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
-    const port = PORT + 4;
-    const listening = await new Promise<Server>((resolve) => {
-      const s_ = instance.app.listen(port, "127.0.0.1", () => resolve(s_));
-    });
-    try {
-      const response = await fetch(
-        `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/sr_${"c".repeat(32)}/bootstrap`,
-        { headers: { cookie: cookieFor(studentId_) } },
-      );
-      expect(response.status).toBe(404);
-      // The secure plane was never even asked. The conversation's own log is
-      // the authority on which request belongs to it.
-      expect(secure.tokens).toEqual([]);
-    } finally {
-      await new Promise<void>((resolve) => listening.close(() => resolve()));
-      await instance.pool.end();
-    }
-  }, 120_000);
-
-  it("puts NO text about a password in the conversation's durable log", async () => {
-    // The contract stores the title and explanation on the secure origin and
-    // does not return them, so this plane has nothing to hold. Asserted against
-    // the database rather than against the shape of a type.
-    const bodies = await pool.query<{ n: string }>(
-      `SELECT count(*) AS n
+    it("puts NO text about a password in the conversation's durable log", async () => {
+      // The contract stores the title and explanation on the secure origin and
+      // does not return them, so this plane has nothing to hold. Asserted against
+      // the database rather than against the shape of a type.
+      const bodies = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n
          FROM conversation_events e
          LEFT JOIN message_bodies mb ON mb.id = e.body_id
         WHERE e.conversation_id = $1 AND mb.content IS NOT NULL`,
-      [conversation],
-    );
-    expect(Number(bodies.rows[0]!.n)).toBe(0);
-
-    // And a scan of the rows themselves, not just of the bodies table. The
-    // title this plane composed ("Choose a password for …") and the model's
-    // explanation both crossed to the secure service; neither may be here.
-    const rows = await pool.query<{ row: string }>(
-      "SELECT e::text AS row FROM conversation_events e WHERE e.conversation_id = $1",
-      [conversation],
-    );
-    expect(rows.rows).not.toHaveLength(0);
-    for (const { row } of rows.rows) {
-      expect(row.toLowerCase(), "no text about a password may reach this log").not.toContain(
-        "password",
+        [conversation],
       );
-    }
-  }, 60_000);
+      expect(Number(bodies.rows[0]!.n)).toBe(0);
 
-  it("does NOT open a second request while the first is live", async () => {
-    // `secretStepFor` refuses to ask twice, and `latestSecretRequest` is how the
-    // driver knows. Asking again would replace a box the student may be typing
-    // into — the failure the orchestrator's own comment names.
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
-    try {
-      const again = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
-      expect(again.position.step).toBe("request_secret");
-      expect(secure.opens, "a live request must not be re-opened").toHaveLength(0);
-    } finally {
-      await instance.pool.end();
-    }
+      // And a scan of the rows themselves, not just of the bodies table. The
+      // title this plane composed ("Choose a password for …") and the model's
+      // explanation both crossed to the secure service; neither may be here.
+      const rows = await pool.query<{ row: string }>(
+        "SELECT e::text AS row FROM conversation_events e WHERE e.conversation_id = $1",
+        [conversation],
+      );
+      expect(rows.rows).not.toHaveLength(0);
+      for (const { row } of rows.rows) {
+        expect(
+          row.toLowerCase(),
+          "no text about a password may reach this log",
+        ).not.toContain("password");
+      }
+    }, 60_000);
 
-    const events = await pool.query<{ kind: string }>(
-      `SELECT kind FROM conversation_events WHERE conversation_id = $1`,
-      [conversation],
-    );
-    expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
-  }, 120_000);
-
-  it("opens ONE request when two starts race for the same conversation", async () => {
-    // The checkpoint is the run's optimistic lock, and the secure request is
-    // opened after it is won — so the same lock that stops two cases being
-    // created stops two password prompts being opened. Without that order both
-    // racers read a log with no live request and both ask.
-    const racing = "01JBXQ8Z9WKTQ6M4H2NPC00063";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      racing,
-      studentId_,
-    ]);
-    const shared = opener(150);
-    const a = buildInstance(connectionString(), shared);
-    const b = buildInstance(connectionString(), shared);
-    try {
-      const [first, second] = await Promise.all([
-        a.driver.start({
-          conversationId: racing,
+    it("does NOT open a second request while the first is live", async () => {
+      // `secretStepFor` refuses to ask twice, and `latestSecretRequest` is how the
+      // driver knows. Asking again would replace a box the student may be typing
+      // into — the failure the orchestrator's own comment names.
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure);
+      try {
+        const again = await instance.driver.start({
+          conversationId: conversation,
           blueprintId: GATED_BLUEPRINT,
           studentStatement: STATEMENT,
-        }),
-        b.driver.start({
-          conversationId: racing,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        }),
-      ]);
-      expect(first.ok && second.ok, "both starts should succeed").toBe(true);
-      expect(shared.opens, "a student must be asked for a password once").toHaveLength(1);
+        });
+        if (!again.ok)
+          expect.unreachable(`resume refused: ${again.refusal.kind}`);
+        expect(again.position.step).toBe("request_secret");
+        expect(
+          secure.opens,
+          "a live request must not be re-opened",
+        ).toHaveLength(0);
+      } finally {
+        await instance.pool.end();
+      }
 
       const events = await pool.query<{ kind: string }>(
-        "SELECT kind FROM conversation_events WHERE conversation_id = $1",
-        [racing],
+        `SELECT kind FROM conversation_events WHERE conversation_id = $1`,
+        [conversation],
       );
       expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
-    } finally {
-      await a.pool.end();
-      await b.pool.end();
-    }
-  }, 120_000);
+    }, 120_000);
 
-  it("REFUSES rather than skipping when the plane is unreachable", async () => {
-    // A run that carried on past a password it could not ask for would create an
-    // account nobody can sign in to.
-    const other = "01JBXQ8Z9WKTQ6M4H2NPC00061";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      other,
-      // The student whose interview THIS group confirmed. A first P11 draft
-      // moved it to the second student to keep the profiles apart, and the run
-      // then stopped at `interview` and returned `{ok: true}` — the refusal
-      // under test never happened, because the run never reached the password.
-      // A refusal test needs the run to actually get there.
-      studentId_,
-    ]);
-    const instance = buildInstance(connectionString(), null);
-    try {
-      const outcome = await instance.driver.start({
-        conversationId: other,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "secure_plane_unavailable" } });
+    it("opens ONE request when two starts race for the same conversation", async () => {
+      // The checkpoint is the run's optimistic lock, and the secure request is
+      // opened after it is won — so the same lock that stops two cases being
+      // created stops two password prompts being opened. Without that order both
+      // racers read a log with no live request and both ask.
+      const racing = "01JBXQ8Z9WKTQ6M4H2NPC00063";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [racing, studentId_],
+      );
+      const shared = opener(150);
+      const a = buildInstance(connectionString(), shared);
+      const b = buildInstance(connectionString(), shared);
+      try {
+        const [first, second] = await Promise.all([
+          a.driver.start({
+            conversationId: racing,
+            blueprintId: GATED_BLUEPRINT,
+            studentStatement: STATEMENT,
+          }),
+          b.driver.start({
+            conversationId: racing,
+            blueprintId: GATED_BLUEPRINT,
+            studentStatement: STATEMENT,
+          }),
+        ]);
+        expect(first.ok && second.ok, "both starts should succeed").toBe(true);
+        expect(
+          shared.opens,
+          "a student must be asked for a password once",
+        ).toHaveLength(1);
 
-      // And the case did not move on the strength of a run that got nowhere.
-      // The case state is a claim about the real world; a run that could not
-      // ask for a password has made none of the progress a hop would assert.
-      // This is what pins the walk to AFTER the secure step in `#decideOnce`.
-      const moved = await pool.query<{ n: string }>(
-        `SELECT count(*) AS n FROM case_events
+        const events = await pool.query<{ kind: string }>(
+          "SELECT kind FROM conversation_events WHERE conversation_id = $1",
+          [racing],
+        );
+        expect(events.rows.map((row) => row.kind)).toEqual([
+          "secret_requested",
+        ]);
+      } finally {
+        await a.pool.end();
+        await b.pool.end();
+      }
+    }, 120_000);
+
+    it("REFUSES rather than skipping when the plane is unreachable", async () => {
+      // A run that carried on past a password it could not ask for would create an
+      // account nobody can sign in to.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC00061";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [
+          other,
+          // The student whose interview THIS group confirmed. A first P11 draft
+          // moved it to the second student to keep the profiles apart, and the run
+          // then stopped at `interview` and returned `{ok: true}` — the refusal
+          // under test never happened, because the run never reached the password.
+          // A refusal test needs the run to actually get there.
+          studentId_,
+        ],
+      );
+      const instance = buildInstance(connectionString(), null);
+      try {
+        const outcome = await instance.driver.start({
+          conversationId: other,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "secure_plane_unavailable" },
+        });
+
+        // And the case did not move on the strength of a run that got nowhere.
+        // The case state is a claim about the real world; a run that could not
+        // ask for a password has made none of the progress a hop would assert.
+        // This is what pins the walk to AFTER the secure step in `#decideOnce`.
+        const moved = await pool.query<{ n: string }>(
+          `SELECT count(*) AS n FROM case_events
           WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
-        [`case_${other.toLowerCase()}`],
+          [`case_${other.toLowerCase()}`],
+        );
+        expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe(
+          "0",
+        );
+      } finally {
+        await instance.pool.end();
+      }
+    }, 120_000);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ADR-0056 — the verified-email guard on the one place a student types a
+    // password.
+    //
+    // These three run against the SAME student whose interview this group
+    // confirmed, because a run belonging to anyone else stops at `interview` and
+    // never reaches the password at all — the trap the `secure_plane_unavailable`
+    // test above records having fallen into. The column is flipped and restored
+    // rather than a second student introduced, so what differs between the
+    // refusal and the control is verification and nothing else.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** Sets the shared student's verification, and says what it was. */
+    async function setVerified(value: boolean): Promise<void> {
+      await pool.query(
+        "UPDATE students SET email_verified = $1 WHERE id = $2",
+        [value, studentId_],
       );
-      expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe("0");
-    } finally {
-      await instance.pool.end();
     }
-  }, 120_000);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // ADR-0056 — the verified-email guard on the one place a student types a
-  // password.
-  //
-  // These three run against the SAME student whose interview this group
-  // confirmed, because a run belonging to anyone else stops at `interview` and
-  // never reaches the password at all — the trap the `secure_plane_unavailable`
-  // test above records having fallen into. The column is flipped and restored
-  // rather than a second student introduced, so what differs between the
-  // refusal and the control is verification and nothing else.
-  // ═══════════════════════════════════════════════════════════════════════
-
-  /** Sets the shared student's verification, and says what it was. */
-  async function setVerified(value: boolean): Promise<void> {
-    await pool.query("UPDATE students SET email_verified = $1 WHERE id = $2", [value, studentId_]);
-  }
-
-  it("REFUSES the secure step when the student's address is NOT verified", async () => {
-    const unverified = "01JBXQ8Z9WKTQ6M4H2NPC00066";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      unverified,
-      studentId_,
-    ]);
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
-    try {
-      await setVerified(false);
-      const outcome = await instance.driver.start({
-        conversationId: unverified,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
-
-      // ── The assertions that make this a guard rather than a message ────
-      //
-      // The refusal above says what the driver ANSWERED. These say what it
-      // did: the Secure Plane was never asked to open a request, so no secure
-      // control was ever mintable for this student, and nothing was written to
-      // a log about a password nobody was asked for.
-      expect(secure.opens, "the Secure Plane is never asked").toHaveLength(0);
-      const events = await pool.query(
-        "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
-        [unverified],
+    it("REFUSES the secure step when the student's address is NOT verified", async () => {
+      const unverified = "01JBXQ8Z9WKTQ6M4H2NPC00066";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [unverified, studentId_],
       );
-      expect(events.rowCount, "nothing is logged for a step that did not open").toBe(0);
-      const moved = await pool.query<{ n: string }>(
-        `SELECT count(*) AS n FROM case_events
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure);
+      try {
+        await setVerified(false);
+        const outcome = await instance.driver.start({
+          conversationId: unverified,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "email_not_verified" },
+        });
+
+        // ── The assertions that make this a guard rather than a message ────
+        //
+        // The refusal above says what the driver ANSWERED. These say what it
+        // did: the Secure Plane was never asked to open a request, so no secure
+        // control was ever mintable for this student, and nothing was written to
+        // a log about a password nobody was asked for.
+        expect(secure.opens, "the Secure Plane is never asked").toHaveLength(0);
+        const events = await pool.query(
+          "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+          [unverified],
+        );
+        expect(
+          events.rowCount,
+          "nothing is logged for a step that did not open",
+        ).toBe(0);
+        const moved = await pool.query<{ n: string }>(
+          `SELECT count(*) AS n FROM case_events
           WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
-        [`case_${unverified.toLowerCase()}`],
+          [`case_${unverified.toLowerCase()}`],
+        );
+        expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe(
+          "0",
+        );
+      } finally {
+        await setVerified(true);
+        await instance.pool.end();
+      }
+    }, 120_000);
+
+    it("asks the SAME student for a password once their address IS verified", async () => {
+      // The control. Without it the refusal above would pass just as well if
+      // this student could never reach a password for some unrelated reason —
+      // and a guard proved only by a failure is not proved at all.
+      const verified = "01JBXQ8Z9WKTQ6M4H2NPC00067";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [verified, studentId_],
       );
-      expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe("0");
-    } finally {
-      await setVerified(true);
-      await instance.pool.end();
-    }
-  }, 120_000);
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure);
+      try {
+        await setVerified(true);
+        const outcome = await instance.driver.start({
+          conversationId: verified,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!outcome.ok) expect.unreachable(`refused: ${outcome.refusal.kind}`);
+        expect(outcome.position.step).toBe("request_secret");
+        expect(secure.opens, "the same student, now asked").toHaveLength(1);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 120_000);
 
-  it("asks the SAME student for a password once their address IS verified", async () => {
-    // The control. Without it the refusal above would pass just as well if
-    // this student could never reach a password for some unrelated reason —
-    // and a guard proved only by a failure is not proved at all.
-    const verified = "01JBXQ8Z9WKTQ6M4H2NPC00067";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      verified,
-      studentId_,
-    ]);
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
-    try {
-      await setVerified(true);
-      const outcome = await instance.driver.start({
-        conversationId: verified,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!outcome.ok) expect.unreachable(`refused: ${outcome.refusal.kind}`);
-      expect(outcome.position.step).toBe("request_secret");
-      expect(secure.opens, "the same student, now asked").toHaveLength(1);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 120_000);
-
-  it("REFUSES a student the identity store has never heard of", async () => {
-    // ═══════════════════════════════════════════════════════════════════
-    // `verificationOf` has THREE answers, not two: `true`, `false`, and
-    // `null` for a student this plane has no row for. The guard compares
-    // against `true` rather than against `false` precisely so the third one
-    // refuses — and only a store that actually answers `null` can tell the
-    // two spellings apart. The real store cannot be made to answer `null`
-    // here: the conversation's `student_id` is a foreign key, so a
-    // conversation whose student does not exist cannot be created.
-    // ═══════════════════════════════════════════════════════════════════
-    const unknown = "01JBXQ8Z9WKTQ6M4H2NPC00069";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      unknown,
-      studentId_,
-    ]);
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure, CATALOGUE, {
-      verificationOf: () => Promise.resolve(null),
-    });
-    try {
-      await setVerified(true);
-      const outcome = await instance.driver.start({
-        conversationId: unknown,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
-      expect(secure.opens, "an unknown student is not a verified one").toHaveLength(0);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 120_000);
-
-  it("REFUSES when the driver has no identity store at all", async () => {
-    // ADR-0056: a guard that disappears when its dependency is absent is not a
-    // guard. A deployment that forgot to wire identity must not be a
-    // deployment where every student is treated as verified — so the missing
-    // store is the refusal, and this asserts the direction of that default.
-    const unwired = "01JBXQ8Z9WKTQ6M4H2NPC00068";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      unwired,
-      studentId_,
-    ]);
-    const secure = opener();
-    const instance = buildInstance(connectionString(), secure, CATALOGUE, "none");
-    try {
-      await setVerified(true);
-      const outcome = await instance.driver.start({
-        conversationId: unwired,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      // Verified in the database, and still refused: the store the guard reads
-      // is not there, and the guard does not fall open.
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "email_not_verified" } });
-      expect(secure.opens).toHaveLength(0);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 120_000);
-
-  it("REFUSES when the Secure Plane cannot open the request", async () => {
-    const refusing: SecureRequestOpener = {
-      open: () => Promise.resolve(null),
-      mintFrameToken: () => Promise.resolve(null),
-    };
-    const another = "01JBXQ8Z9WKTQ6M4H2NPC00062";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      another,
-      studentId_,
-    ]);
-    const instance = buildInstance(connectionString(), refusing);
-    try {
-      const outcome = await instance.driver.start({
-        conversationId: another,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      expect(outcome).toEqual({ ok: false, refusal: { kind: "secure_plane_unavailable" } });
-      // And nothing was written to the log for a request that does not exist.
-      const events = await pool.query(
-        "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
-        [another],
+    it("REFUSES a student the identity store has never heard of", async () => {
+      // ═══════════════════════════════════════════════════════════════════
+      // `verificationOf` has THREE answers, not two: `true`, `false`, and
+      // `null` for a student this plane has no row for. The guard compares
+      // against `true` rather than against `false` precisely so the third one
+      // refuses — and only a store that actually answers `null` can tell the
+      // two spellings apart. The real store cannot be made to answer `null`
+      // here: the conversation's `student_id` is a foreign key, so a
+      // conversation whose student does not exist cannot be created.
+      // ═══════════════════════════════════════════════════════════════════
+      const unknown = "01JBXQ8Z9WKTQ6M4H2NPC00069";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [unknown, studentId_],
       );
-      expect(events.rowCount).toBe(0);
-    } finally {
-      await instance.pool.end();
-    }
-  }, 120_000);
-});
+      const secure = opener();
+      const instance = buildInstance(connectionString(), secure, CATALOGUE, {
+        verificationOf: () => Promise.resolve(null),
+      });
+      try {
+        await setVerified(true);
+        const outcome = await instance.driver.start({
+          conversationId: unknown,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "email_not_verified" },
+        });
+        expect(
+          secure.opens,
+          "an unknown student is not a verified one",
+        ).toHaveLength(0);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 120_000);
+
+    it("REFUSES when the driver has no identity store at all", async () => {
+      // ADR-0056: a guard that disappears when its dependency is absent is not a
+      // guard. A deployment that forgot to wire identity must not be a
+      // deployment where every student is treated as verified — so the missing
+      // store is the refusal, and this asserts the direction of that default.
+      const unwired = "01JBXQ8Z9WKTQ6M4H2NPC00068";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [unwired, studentId_],
+      );
+      const secure = opener();
+      const instance = buildInstance(
+        connectionString(),
+        secure,
+        CATALOGUE,
+        "none",
+      );
+      try {
+        await setVerified(true);
+        const outcome = await instance.driver.start({
+          conversationId: unwired,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        // Verified in the database, and still refused: the store the guard reads
+        // is not there, and the guard does not fall open.
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "email_not_verified" },
+        });
+        expect(secure.opens).toHaveLength(0);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 120_000);
+
+    it("REFUSES when the Secure Plane cannot open the request", async () => {
+      const refusing: SecureRequestOpener = {
+        open: () => Promise.resolve(null),
+        mintFrameToken: () => Promise.resolve(null),
+      };
+      const another = "01JBXQ8Z9WKTQ6M4H2NPC00062";
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [another, studentId_],
+      );
+      const instance = buildInstance(connectionString(), refusing);
+      try {
+        const outcome = await instance.driver.start({
+          conversationId: another,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        expect(outcome).toEqual({
+          ok: false,
+          refusal: { kind: "secure_plane_unavailable" },
+        });
+        // And nothing was written to the log for a request that does not exist.
+        const events = await pool.query(
+          "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+          [another],
+        );
+        expect(events.rowCount).toBe(0);
+      } finally {
+        await instance.pool.end();
+      }
+    }, 120_000);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // G. P5 — the work the Automation Runner pulls (ADR-0045)
@@ -1707,7 +1968,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
    */
   async function restoreClaimable(run: string, phase: string): Promise<void> {
     await pool.query("DELETE FROM interventions WHERE run_id = $1", [run]);
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [run]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      run,
+    ]);
     await pool.query(
       `UPDATE workflow_runs
           SET status = 'running',
@@ -1748,27 +2011,31 @@ describeIfDatabase("leasing browser work to a runner", () => {
    * actually get there.
    */
   async function driveToAccountCreation(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const secure = opener();
     const instance = buildInstance(connectionString(), secure);
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step).toBe("request_secret");
       runId = started.position.runId;
 
       // The student types a password into the secure control. The Secure Plane
       // reports it; this plane learns a handle exists and never more than that.
       const requested = secure.opens[0];
-      if (requested === undefined) expect.unreachable("a request should have been opened");
+      if (requested === undefined)
+        expect.unreachable("a request should have been opened");
       await new ConversationEventStore(instance.pool).append({
         conversationId: conversation,
         event: {
@@ -1778,7 +2045,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
         },
       });
 
-      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      const next = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
       if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
       expect(next.position.step).toBe("create_account");
       expect(next.position.phase).toBe("creating_account");
@@ -1792,7 +2062,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
     const instance = buildInstance(connectionString());
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-1", leaseSeconds: 120 });
+      const work = await instance.driver.claimWork({
+        holder: "runner-1",
+        leaseSeconds: 120,
+      });
       if (work === null) expect.unreachable("there should be work to claim");
 
       expect(work.kind).toBe("create_account");
@@ -1812,8 +2085,15 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // to be, and this says what actually crossed. The student's confirmed
       // answers are in this plane's database and none of them is here.
       const wire = JSON.stringify(work);
-      for (const secret of ["Niloofar", "Hosseini", "Iranian", "Because it is the course"]) {
-        expect(wire, `${secret} must not reach the runner`).not.toContain(secret);
+      for (const secret of [
+        "Niloofar",
+        "Hosseini",
+        "Iranian",
+        "Because it is the course",
+      ]) {
+        expect(wire, `${secret} must not reach the runner`).not.toContain(
+          secret,
+        );
       }
       expect(Object.keys(work).sort()).toEqual([
         "approach",
@@ -1838,7 +2118,8 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // "Password" also matches "Confirm password", and on this one field an
       // ambiguous locator is the bug that types a credential into the wrong box.
       const registration = work.registration;
-      if (registration === undefined) expect.unreachable("account work carries its targets");
+      if (registration === undefined)
+        expect.unreachable("account work carries its targets");
       expect(registration.url).toBe("https://gated.portal.test/register");
       expect(registration.emailLocator).toEqual({
         strategy: "label",
@@ -1863,7 +2144,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
     try {
       // The first claim is still live from the test above — the lease outlives
       // the process that took it, which is the point of storing it.
-      const second = await b.driver.claimWork({ holder: "runner-2", leaseSeconds: 120 });
+      const second = await b.driver.claimWork({
+        holder: "runner-2",
+        leaseSeconds: 120,
+      });
       expect(second, "a leased run is not claimable").toBeNull();
       void a;
     } finally {
@@ -1891,7 +2175,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // refused by the database.
     await pool.query(
       "UPDATE work_leases SET claimed_at = $1, expires_at = $2 WHERE run_id = $3",
-      [new Date(NOW.getTime() - 600_000), new Date(NOW.getTime() - 1000), runId],
+      [
+        new Date(NOW.getTime() - 600_000),
+        new Date(NOW.getTime() - 1000),
+        runId,
+      ],
     );
 
     // The claim from the first test in this group left this behind, and it is
@@ -1900,13 +2188,19 @@ describeIfDatabase("leasing browser work to a runner", () => {
       "SELECT outcome FROM workflow_action_intents WHERE run_id = $1",
       [runId],
     );
-    expect(before.rows, "the claim recorded that it was about to act").toHaveLength(1);
+    expect(
+      before.rows,
+      "the claim recorded that it was about to act",
+    ).toHaveLength(1);
     expect(before.rows[0]?.outcome, "and nothing completed it").toBeNull();
 
     const instance = buildInstance(connectionString());
     try {
       expect(
-        await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 }),
+        await instance.driver.claimWork({
+          holder: "runner-3",
+          leaseSeconds: 120,
+        }),
         "an account that may already exist is not work",
       ).toBeNull();
 
@@ -1944,8 +2238,12 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
     const instance = buildInstance(connectionString());
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 });
-      if (work === null) expect.unreachable("a cleanly failed attempt may be tried again");
+      const work = await instance.driver.claimWork({
+        holder: "runner-3",
+        leaseSeconds: 120,
+      });
+      if (work === null)
+        expect.unreachable("a cleanly failed attempt may be tried again");
       expect(work.runId).toBe(runId);
 
       const leases = await pool.query<{ holder: string; lease_id: string }>(
@@ -1961,15 +2259,19 @@ describeIfDatabase("leasing browser work to a runner", () => {
       // ONE row still — the ledger holds one per (run, action, target), which
       // is its primary key and what an intervention pairs with — and it is
       // open again rather than still describing the failure.
-      const intents = await pool.query<{ outcome: string | null; started_at: Date }>(
+      const intents = await pool.query<{
+        outcome: string | null;
+        started_at: Date;
+      }>(
         "SELECT outcome, started_at FROM workflow_action_intents WHERE run_id = $1",
         [runId],
       );
       expect(intents.rows, "re-opened, not duplicated").toHaveLength(1);
       expect(intents.rows[0]?.outcome, "an attempt is in flight").toBeNull();
-      expect(intents.rows[0]?.started_at.getTime(), "and it started at THIS claim").toBe(
-        NOW.getTime(),
-      );
+      expect(
+        intents.rows[0]?.started_at.getTime(),
+        "and it started at THIS claim",
+      ).toBe(NOW.getTime());
     } finally {
       await instance.pool.end();
     }
@@ -1996,7 +2298,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
     );
     await restoreClaimable2(runId, "creating_account");
 
-    const racedPool = new pg.Pool({ connectionString: connectionString(), max: 4 });
+    const racedPool = new pg.Pool({
+      connectionString: connectionString(),
+      max: 4,
+    });
     try {
       const runs = new PostgresWorkflowRunStore(racedPool);
       // A DELEGATING wrapper, not `Object.create(runs)` and not `{ ...runs }`.
@@ -2011,7 +2316,8 @@ describeIfDatabase("leasing browser work to a runner", () => {
         load: (id) => runs.load(id),
         saveCheckpoint: (save) => runs.saveCheckpoint(save),
         recordIntent: (id, intent) => runs.recordIntent(id, intent),
-        completeIntent: (id, key, outcome, at) => runs.completeIntent(id, key, outcome, at),
+        completeIntent: (id, key, outcome, at) =>
+          runs.completeIntent(id, key, outcome, at),
         reopenIntent: () => Promise.resolve(false),
         findIntent: (id, key) => runs.findIntent(id, key),
         findByCase: (id) => runs.findByCase(id),
@@ -2039,7 +2345,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
       // And the lease it took on the way is given back, rather than left to
       // strand the run for its full duration.
-      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      const leases = await pool.query(
+        "SELECT 1 FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
       expect(leases.rowCount, "the lease is released, not abandoned").toBe(0);
     } finally {
       await racedPool.end();
@@ -2049,8 +2358,12 @@ describeIfDatabase("leasing browser work to a runner", () => {
     await restoreClaimable2(runId, "creating_account");
     const instance = buildInstance(connectionString());
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-3", leaseSeconds: 120 });
-      if (work === null) expect.unreachable("the run should still be claimable");
+      const work = await instance.driver.claimWork({
+        holder: "runner-3",
+        leaseSeconds: 120,
+      });
+      if (work === null)
+        expect.unreachable("the run should still be claimable");
     } finally {
       await instance.pool.end();
     }
@@ -2074,7 +2387,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
         [runId],
       );
       expect(intents.rows).toHaveLength(1);
-      expect(intents.rows[0]?.outcome, "nobody else may close out this action").toBeNull();
+      expect(
+        intents.rows[0]?.outcome,
+        "nobody else may close out this action",
+      ).toBeNull();
     } finally {
       await instance.pool.end();
     }
@@ -2086,14 +2402,22 @@ describeIfDatabase("leasing browser work to a runner", () => {
       [runId],
     );
     const leaseId = held.rows[0]?.lease_id;
-    if (leaseId === undefined) expect.unreachable("the run should still be leased");
+    if (leaseId === undefined)
+      expect.unreachable("the run should still be leased");
 
     const instance = buildInstance(connectionString());
     try {
-      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "succeeded" } }))
-        .toBe(true);
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "succeeded" },
+        }),
+      ).toBe(true);
 
-      const intents = await pool.query<{ action: string; outcome: string | null }>(
+      const intents = await pool.query<{
+        action: string;
+        outcome: string | null;
+      }>(
         "SELECT action, outcome FROM workflow_action_intents WHERE run_id = $1",
         [runId],
       );
@@ -2103,7 +2427,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
       expect(intents.rows[0]?.action).toBe("create_portal_account");
       expect(intents.rows[0]?.outcome).toBe("succeeded");
 
-      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      const leases = await pool.query(
+        "SELECT 1 FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
       expect(leases.rowCount, "a reported lease is given back").toBe(0);
     } finally {
       await instance.pool.end();
@@ -2120,17 +2447,27 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // ═══════════════════════════════════════════════════════════════════
     const instance = buildInstance(connectionString(), opener());
     try {
-      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
-      expect(advanced.position.step, "the account exists; do not make another").not.toBe(
-        "create_account",
-      );
+      const advanced = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(
+        advanced.position.step,
+        "the account exists; do not make another",
+      ).not.toBe("create_account");
       expect(advanced.position.phase).not.toBe("creating_account");
 
       // And there is no work to claim, because there is nothing left to do in a
       // browser — which is the same fact, read through the other door.
       await pool.query("DELETE FROM work_leases");
-      expect(await instance.driver.claimWork({ holder: "runner-again", leaseSeconds: 120 })).toBeNull();
+      expect(
+        await instance.driver.claimWork({
+          holder: "runner-again",
+          leaseSeconds: 120,
+        }),
+      ).toBeNull();
     } finally {
       await instance.pool.end();
     }
@@ -2149,7 +2486,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // the run stops, visibly, for a specialist.
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      runId,
+    ]);
     await pool.query(
       `INSERT INTO workflow_action_intents (run_id, idempotency_key, action, target, started_at)
             VALUES ($1, $2, 'create_portal_account', $1, $3)`,
@@ -2163,17 +2502,27 @@ describeIfDatabase("leasing browser work to a runner", () => {
     const instance = buildInstance(connectionString(), opener());
     try {
       expect(
-        await instance.driver.claimWork({ holder: "runner-unfinished", leaseSeconds: 120 }),
+        await instance.driver.claimWork({
+          holder: "runner-unfinished",
+          leaseSeconds: 120,
+        }),
         "an unfinished consequential action is not work",
       ).toBeNull();
       const leases = await pool.query("SELECT 1 FROM work_leases");
-      expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
+      expect(
+        leases.rowCount,
+        "and no lease is taken on the way to refusing",
+      ).toBe(0);
 
       // The run has not silently acquired an account either — nothing here
       // knows whether one exists, and pretending otherwise is the other half of
       // the same mistake.
-      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      const advanced = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
       expect(advanced.position.step).toBe("create_account");
     } finally {
       await instance.pool.end();
@@ -2192,13 +2541,22 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
     const instance = buildInstance(connectionString(), opener());
     try {
-      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
-      expect(advanced.position.step, "a failed creation is not an account").toBe("create_account");
+      const advanced = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(
+        advanced.position.step,
+        "a failed creation is not an account",
+      ).toBe("create_account");
     } finally {
       await instance.pool.end();
     }
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      runId,
+    ]);
   }, 180_000);
 
   it("leaves the uncertainty window OPEN when the runner could not tell", async () => {
@@ -2213,26 +2571,43 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
     const instance = buildInstance(connectionString());
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-4", leaseSeconds: 120 });
-      if (work === null) expect.unreachable("the run should be claimable again");
+      const work = await instance.driver.claimWork({
+        holder: "runner-4",
+        leaseSeconds: 120,
+      });
+      if (work === null)
+        expect.unreachable("the run should be claimable again");
 
       expect(
         await instance.driver.reportWork({
           runId,
-          report: { leaseId: work.leaseId, outcome: "uncertain", failure: "runner_fault" },
+          report: {
+            leaseId: work.leaseId,
+            outcome: "uncertain",
+            failure: "runner_fault",
+          },
         }),
       ).toBe(true);
 
-      const intents = await pool.query<{ outcome: string | null; completed_at: Date | null }>(
+      const intents = await pool.query<{
+        outcome: string | null;
+        completed_at: Date | null;
+      }>(
         "SELECT outcome, completed_at FROM workflow_action_intents WHERE run_id = $1",
         [runId],
       );
       expect(intents.rows).toHaveLength(1);
-      expect(intents.rows[0]?.outcome, "uncertain completes nothing").toBeNull();
+      expect(
+        intents.rows[0]?.outcome,
+        "uncertain completes nothing",
+      ).toBeNull();
       expect(intents.rows[0]?.completed_at).toBeNull();
 
       // And the lease is still given back — the runner is gone either way.
-      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      const leases = await pool.query(
+        "SELECT 1 FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
       expect(leases.rowCount).toBe(0);
     } finally {
       await instance.pool.end();
@@ -2286,7 +2661,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
         [runId],
       );
       expect(rows.rows).toHaveLength(1);
-      expect(rows.rows[0]?.lease_id, "the first holder keeps it").toBe("wl_first");
+      expect(rows.rows[0]?.lease_id, "the first holder keeps it").toBe(
+        "wl_first",
+      );
       expect(rows.rows[0]?.holder).toBe("runner-a");
       await pool.query("DELETE FROM work_leases");
     } finally {
@@ -2307,10 +2684,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // contrived state: it is the state the reconciliation exists for.
     // ═══════════════════════════════════════════════════════════════════
     const stale = "01JBXQ8Z9WKTQ6M4H2NPC00072";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      stale,
-      otherStudentId,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [stale, otherStudentId],
+    );
     await pool.query("DELETE FROM work_leases");
     // The run from the tests above is still sitting in `creating_account` and
     // is genuinely claimable. Moved out of the way, so that "no work" below
@@ -2330,7 +2707,8 @@ describeIfDatabase("leasing browser work to a runner", () => {
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step).toBe("interview");
 
       // The checkpoint is made to lie. Nothing else changes.
@@ -2339,10 +2717,16 @@ describeIfDatabase("leasing browser work to a runner", () => {
         [started.position.runId],
       );
 
-      const work = await instance.driver.claimWork({ holder: "runner-stale", leaseSeconds: 120 });
+      const work = await instance.driver.claimWork({
+        holder: "runner-stale",
+        leaseSeconds: 120,
+      });
       expect(work, "the orchestrator decides, not the checkpoint").toBeNull();
       const leases = await pool.query("SELECT 1 FROM work_leases");
-      expect(leases.rowCount, "and no lease is taken on the way to finding out").toBe(0);
+      expect(
+        leases.rowCount,
+        "and no lease is taken on the way to finding out",
+      ).toBe(0);
     } finally {
       await instance.pool.end();
     }
@@ -2361,7 +2745,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // a long way from the configuration that caused it.
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      runId,
+    ]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
@@ -2372,15 +2758,23 @@ describeIfDatabase("leasing browser work to a runner", () => {
       targets: () => [],
       find: (id) =>
         Promise.resolve(
-          id === GATED_BLUEPRINT ? { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" } : null,
+          id === GATED_BLUEPRINT
+            ? { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" }
+            : null,
         ),
     };
     const instance = buildInstance(connectionString(), null, sandbox);
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-sandbox", leaseSeconds: 120 });
-      if (work === null) expect.unreachable("a sandboxed blueprint is still claimable work");
+      const work = await instance.driver.claimWork({
+        holder: "runner-sandbox",
+        leaseSeconds: 120,
+      });
+      if (work === null)
+        expect.unreachable("a sandboxed blueprint is still claimable work");
       expect(work.registration?.url).toBe("http://127.0.0.1:45999/register");
-      expect(work.portalHost, "the bound host moves with the form").toBe("127.0.0.1:45999");
+      expect(work.portalHost, "the bound host moves with the form").toBe(
+        "127.0.0.1:45999",
+      );
       // The reviewed locators are untouched. Only the origin moved.
       expect(work.registration?.passwordLocators).toEqual([
         { strategy: "name", value: "password" },
@@ -2406,7 +2800,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // have looked at, so the run stops here instead.
     // ═══════════════════════════════════════════════════════════════════
     await pool.query("DELETE FROM work_leases");
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      runId,
+    ]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
@@ -2427,7 +2823,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
                   ...GATED_PORTAL_BLUEPRINT,
                   pages: GATED_PORTAL_BLUEPRINT.pages.map((page) =>
                     page.pageRef === "page-register"
-                      ? { ...page, url: "https://someone-elses.portal.test/register" }
+                      ? {
+                          ...page,
+                          url: "https://someone-elses.portal.test/register",
+                        }
                       : page,
                   ),
                 },
@@ -2436,10 +2835,16 @@ describeIfDatabase("leasing browser work to a runner", () => {
     };
     const instance = buildInstance(connectionString(), null, elsewhere);
     try {
-      const work = await instance.driver.claimWork({ holder: "runner-x", leaseSeconds: 120 });
+      const work = await instance.driver.claimWork({
+        holder: "runner-x",
+        leaseSeconds: 120,
+      });
       expect(work, "a form on another host is not work").toBeNull();
       const leases = await pool.query("SELECT 1 FROM work_leases");
-      expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
+      expect(
+        leases.rowCount,
+        "and no lease is taken on the way to refusing",
+      ).toBe(0);
     } finally {
       await instance.pool.end();
     }
@@ -2465,11 +2870,14 @@ describeIfDatabase("leasing browser work to a runner", () => {
       const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
     });
     try {
-      const response = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/work/claims`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ holder: "an-unauthenticated-runner" }),
-      });
+      const response = await fetch(
+        `http://127.0.0.1:${String(port)}/internal/v1/work/claims`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ holder: "an-unauthenticated-runner" }),
+        },
+      );
       expect(response.status).toBe(403);
       const leases = await pool.query("SELECT 1 FROM work_leases");
       expect(leases.rowCount, "a refused claim must take no lease").toBe(0);
@@ -2484,7 +2892,9 @@ describeIfDatabase("leasing browser work to a runner", () => {
     // a poll that finds nothing answers 204 with no body, a poll that finds
     // work answers 200 with a parseable item, and a report answers 204.
     await pool.query("DELETE FROM work_leases");
-    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [runId]);
+    await pool.query("DELETE FROM workflow_action_intents WHERE run_id = $1", [
+      runId,
+    ]);
     await pool.query(
       "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
       [runId],
@@ -2504,7 +2914,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
       const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
     });
     const base = `http://127.0.0.1:${String(port)}`;
-    const headers = { "content-type": "application/json", "x-service-cert": "runner" };
+    const headers = {
+      "content-type": "application/json",
+      "x-service-cert": "runner",
+    };
     try {
       const claimed = await fetch(`${base}/internal/v1/work/claims`, {
         method: "POST",
@@ -2514,7 +2927,8 @@ describeIfDatabase("leasing browser work to a runner", () => {
       expect(claimed.status).toBe(200);
       expect(claimed.headers.get("cache-control")).toBe("no-store");
       const work = parseClaimedWork(await claimed.json());
-      if (work === null) expect.unreachable("the claim must be a legal work item");
+      if (work === null)
+        expect.unreachable("the claim must be a legal work item");
       expect(work.runId).toBe(runId);
 
       // A report from a lease nobody holds is refused, over HTTP too.
@@ -2528,7 +2942,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
       const reported = await fetch(`${base}/internal/v1/work/${runId}/report`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ leaseId: work.leaseId, outcome: "failed", failure: "portal_drift" }),
+        body: JSON.stringify({
+          leaseId: work.leaseId,
+          outcome: "failed",
+          failure: "portal_drift",
+        }),
       });
       expect(reported.status).toBe(204);
 
@@ -2541,7 +2959,10 @@ describeIfDatabase("leasing browser work to a runner", () => {
       });
       expect(half.status).toBe(400);
 
-      const leases = await pool.query("SELECT 1 FROM work_leases WHERE run_id = $1", [runId]);
+      const leases = await pool.query(
+        "SELECT 1 FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
       expect(leases.rowCount).toBe(0);
     } finally {
       await new Promise<void>((resolve) => listening.close(() => resolve()));
@@ -2559,10 +2980,16 @@ describeIfDatabase("leasing browser work to a runner", () => {
         "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"interviewing\"') WHERE run_id = $1",
         [runId],
       );
-      const work = await instance.driver.claimWork({ holder: "runner-5", leaseSeconds: 120 });
+      const work = await instance.driver.claimWork({
+        holder: "runner-5",
+        leaseSeconds: 120,
+      });
       expect(work, "a run that needs no browser is not work").toBeNull();
       const leases = await pool.query("SELECT 1 FROM work_leases");
-      expect(leases.rowCount, "a poll that finds nothing must leave no lease").toBe(0);
+      expect(
+        leases.rowCount,
+        "a poll that finds nothing must leave no lease",
+      ).toBe(0);
     } finally {
       await instance.pool.end();
     }
@@ -2587,20 +3014,23 @@ describeIfDatabase("which page a multi-page run does next", () => {
    * derived from the ledger by the code these tests are about.
    */
   async function aRunReadyToFill(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const secure = opener();
     const instance = buildInstance(connectionString(), secure);
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -2611,7 +3041,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
           handle: `sh_${"e".repeat(32)}`,
         },
       });
-      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      const next = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
       if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
       expect(next.position.step).toBe("create_account");
 
@@ -2633,9 +3066,15 @@ describeIfDatabase("which page a multi-page run does next", () => {
 
       await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
 
-      const filling = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
-      expect(filling.position.step, "everything before the fill is done").toBe("execute");
+      const filling = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!filling.ok)
+        expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "everything before the fill is done").toBe(
+        "execute",
+      );
     } finally {
       await instance.pool.end();
     }
@@ -2674,7 +3113,8 @@ describeIfDatabase("which page a multi-page run does next", () => {
       }
       // `null` leaves it OPEN — the uncertain case, which is what an intent
       // with a start and no completion means (ADR-0008).
-      if (outcome !== null) await runs.completeIntent(runRef, key, outcome, NOW);
+      if (outcome !== null)
+        await runs.completeIntent(runRef, key, outcome, NOW);
     } finally {
       await instance.pool.end();
     }
@@ -2683,7 +3123,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
   async function claim(): Promise<ClaimedWork | null> {
     const instance = buildInstance(connectionString());
     try {
-      return await instance.driver.claimWork({ holder: "runner-pages", leaseSeconds: 120 });
+      return await instance.driver.claimWork({
+        holder: "runner-pages",
+        leaseSeconds: 120,
+      });
     } finally {
       await instance.pool.end();
     }
@@ -2694,7 +3137,8 @@ describeIfDatabase("which page a multi-page run does next", () => {
     await pool.query("DELETE FROM work_leases");
 
     const work = await claim();
-    if (work === null) expect.unreachable("a run at `execute` has a page to fill");
+    if (work === null)
+      expect.unreachable("a run at `execute` has a page to fill");
     expect(work.formUrl).toBe("https://gated.portal.test/apply");
     expect(
       work.plan?.instructions.map((instruction) => instruction.fieldRef),
@@ -2706,7 +3150,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
       "SELECT page_ref, kind FROM work_leases WHERE run_id = $1",
       [runId],
     );
-    expect(leases.rows[0]).toEqual({ page_ref: "page-application", kind: "execute" });
+    expect(leases.rows[0]).toEqual({
+      page_ref: "page-application",
+      kind: "execute",
+    });
   }, 300_000);
 
   it("offers the SECOND page once the first is recorded, and never the first again", async () => {
@@ -2716,9 +3163,9 @@ describeIfDatabase("which page a multi-page run does next", () => {
     const work = await claim();
     if (work === null) expect.unreachable("page two is still to do");
     expect(work.formUrl).toBe("https://gated.portal.test/study");
-    expect(work.plan?.instructions.map((instruction) => instruction.fieldRef)).toEqual([
-      "personal_statement",
-    ]);
+    expect(
+      work.plan?.instructions.map((instruction) => instruction.fieldRef),
+    ).toEqual(["personal_statement"]);
     const leases = await pool.query<{ page_ref: string | null }>(
       "SELECT page_ref FROM work_leases WHERE run_id = $1",
       [runId],
@@ -2734,8 +3181,12 @@ describeIfDatabase("which page a multi-page run does next", () => {
 
     const instance = buildInstance(connectionString(), opener());
     try {
-      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      const advanced = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
       // ── Not `ready_to_submit`, and that is P12 (ADR-0050) ──────────────
       //
       // The application is done and the account is still OURS. Handing it back
@@ -2743,9 +3194,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
       // that reported itself ready to submit while still holding the student's
       // credentials would have skipped it. `mayConcludeCase` refuses a
       // `handover_due` account by name for the same reason.
-      expect(advanced.position.step, "filled, and the account is still ours").toBe(
-        "hand_over_account",
-      );
+      expect(
+        advanced.position.step,
+        "filled, and the account is still ours",
+      ).toBe("hand_over_account");
     } finally {
       await instance.pool.end();
     }
@@ -2770,7 +3222,8 @@ describeIfDatabase("which page a multi-page run does next", () => {
     );
 
     const work = await claim();
-    if (work === null) expect.unreachable("a cleanly failed page is offered again");
+    if (work === null)
+      expect.unreachable("a cleanly failed page is offered again");
     expect(work.formUrl).toBe("https://gated.portal.test/study");
   }, 300_000);
 
@@ -2786,10 +3239,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
     // is ready to send.
     // ═══════════════════════════════════════════════════════════════════
     const noFillablePage = "01JBXQ8Z9WKTQ6M4H2NPC00081";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      noFillablePage,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [noFillablePage, studentId_],
+    );
     // Overrides `find` only. Nothing here starts a run over HTTP, so the
     // directory Gate 1 would read is deliberately empty rather than lying
     // about what this instance can offer.
@@ -2816,8 +3269,8 @@ describeIfDatabase("which page a multi-page run does next", () => {
                 // mapping layer doing its job.
                 mappingSet: {
                   ...GATED_PORTAL_MAPPING_SET,
-                  mappings: GATED_PORTAL_MAPPING_SET.mappings.filter((mapping) =>
-                    REGISTER_FIELDS.has(mapping.fieldRef),
+                  mappings: GATED_PORTAL_MAPPING_SET.mappings.filter(
+                    (mapping) => REGISTER_FIELDS.has(mapping.fieldRef),
                   ),
                 },
               },
@@ -2825,16 +3278,22 @@ describeIfDatabase("which page a multi-page run does next", () => {
     };
 
     const trimmed = await registrationOnly.find(GATED_BLUEPRINT);
-    if (trimmed === null) expect.unreachable("the trimmed entry should be found");
+    if (trimmed === null)
+      expect.unreachable("the trimmed entry should be found");
 
-    const instance = buildInstance(connectionString(), opener(), registrationOnly);
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      registrationOnly,
+    );
     try {
       const started = await instance.driver.start({
         conversationId: noFillablePage,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
 
       // Everything before the fill, so that `markFilled` is the only thing left
       // deciding whether this run is ready. Without that, the run stops at
@@ -2868,7 +3327,8 @@ describeIfDatabase("which page a multi-page run does next", () => {
         runId: started.position.runId,
         conversationId: noFillablePage,
       });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
       expect(
         advanced.position.step,
         "no page was ever saved, so nothing is ready to submit",
@@ -2905,7 +3365,10 @@ describeIfDatabase("which page a multi-page run does next", () => {
 
     expect(await claim(), "an unfinished page is not work").toBeNull();
     const leases = await pool.query("SELECT 1 FROM work_leases");
-    expect(leases.rowCount, "and no lease is taken on the way to refusing").toBe(0);
+    expect(
+      leases.rowCount,
+      "and no lease is taken on the way to refusing",
+    ).toBe(0);
   }, 300_000);
 
   it("stops the run for an EARLIER page's uncertainty, not just the next one", async () => {
@@ -2931,13 +3394,20 @@ describeIfDatabase("which page a multi-page run does next", () => {
       [runId],
     );
 
-    expect(await claim(), "an earlier page's uncertainty stops everything").toBeNull();
+    expect(
+      await claim(),
+      "an earlier page's uncertainty stops everything",
+    ).toBeNull();
 
     // And the run has NOT quietly become filled on the strength of page two.
     const instance = buildInstance(connectionString(), opener());
     try {
-      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      const advanced = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
       expect(advanced.position.step).not.toBe("ready_to_submit");
     } finally {
       await instance.pool.end();
@@ -2955,19 +3425,22 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 
   /** Everything up to `execute`, exactly as group H builds it. */
   async function aRunReadyToFill(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -2978,7 +3451,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
           handle: `sh_${"f".repeat(32)}`,
         },
       });
-      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      const next = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
       if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
 
       const runRef = makeRunId(runId);
@@ -2997,8 +3473,12 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
       await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
 
-      const filling = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      const filling = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!filling.ok)
+        expect.unreachable(`advance refused: ${filling.refusal.kind}`);
       expect(filling.position.step).toBe("execute");
     } finally {
       await instance.pool.end();
@@ -3015,7 +3495,11 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
       const runRef = makeRunId(runId);
-      const key = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target });
+      const key = idempotencyKeyFor({
+        runId: runRef,
+        action: "advance_portal_page",
+        target,
+      });
       // ── Since ADR-0054 a CLAIM already opens this row ──────────────────
       //
       // This helper predates P17, when the ledger learned nothing until a
@@ -3049,7 +3533,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
   async function claim(): Promise<ClaimedWork | null> {
     const instance = buildInstance(connectionString());
     try {
-      return await instance.driver.claimWork({ holder: "runner-p10", leaseSeconds: 120 });
+      return await instance.driver.claimWork({
+        holder: "runner-p10",
+        leaseSeconds: 120,
+      });
     } finally {
       await instance.pool.end();
     }
@@ -3099,17 +3586,25 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     await pool.query("DELETE FROM work_leases");
     await leaveOpen("page-application");
 
-    expect(await statusOf(), "still running before anybody polls").toBe("running");
+    expect(await statusOf(), "still running before anybody polls").toBe(
+      "running",
+    );
 
     // Three polls, because a runner polls continuously. Before P10 this run
     // simply fell out of the pool with its status untouched; the bug this
     // guards against is the opposite one — a queue filling with copies of a
     // single stuck page, and a student told about it over and over.
-    expect(await claim(), "a run with an unfinished action is not work").toBeNull();
+    expect(
+      await claim(),
+      "a run with an unfinished action is not work",
+    ).toBeNull();
     expect(await claim()).toBeNull();
     expect(await claim()).toBeNull();
 
-    expect(await statusOf(), "verify_first — somebody could establish this").toBe("uncertain");
+    expect(
+      await statusOf(),
+      "verify_first — somebody could establish this",
+    ).toBe("uncertain");
 
     const open = await openInterventions();
     expect(open, "one problem, one case").toHaveLength(1);
@@ -3121,7 +3616,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     const said = await messages();
     const paused = said.filter((text) => text.includes("I have paused"));
     expect(paused, "told once, not once per poll").toHaveLength(1);
-    expect(paused[0], "no portal internals a student cannot act on").not.toContain("page-application");
+    expect(
+      paused[0],
+      "no portal internals a student cannot act on",
+    ).not.toContain("page-application");
   }, 300_000);
 
   it("raises ONE intervention even if the pause is interrupted before the status write", async () => {
@@ -3142,7 +3640,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     if (before === undefined) expect.unreachable("the run is paused");
 
     // The interruption: the status write never landed.
-    await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+    await pool.query(
+      "UPDATE workflow_runs SET status = 'running' WHERE run_id = $1",
+      [runId],
+    );
     await pool.query("DELETE FROM work_leases");
 
     for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -3150,15 +3651,23 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     }
 
     const after = await openInterventions();
-    expect(after, "one stuck action is one case, however many times it is polled").toHaveLength(1);
-    expect(after[0]?.interventionId, "and it is the SAME one").toBe(before.interventionId);
+    expect(
+      after,
+      "one stuck action is one case, however many times it is polled",
+    ).toHaveLength(1);
+    expect(after[0]?.interventionId, "and it is the SAME one").toBe(
+      before.interventionId,
+    );
 
     const said = await messages();
     expect(
       said.filter((text) => text.includes("I have paused")),
       "and the student is still told exactly once",
     ).toHaveLength(1);
-    expect(await statusOf(), "and the status write completes on the retry").toBe("uncertain");
+    expect(
+      await statusOf(),
+      "and the status write completes on the retry",
+    ).toBe("uncertain");
   }, 300_000);
 
   it("offers NO work while it is paused", async () => {
@@ -3183,7 +3692,11 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
           resolvedAt: NOW,
           outcome: "resume",
         },
-        reusability: { scope: "this_case_only", kind: "guidance", signature: "gated:page-one" },
+        reusability: {
+          scope: "this_case_only",
+          kind: "guidance",
+          signature: "gated:page-one",
+        },
         didHappen: true,
       });
     } finally {
@@ -3206,12 +3719,15 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     await pool.query("DELETE FROM work_leases");
     const work = await claim();
     if (work === null) expect.unreachable("page two is still to do");
-    expect(work.formUrl, "resumed from the failure point, not the beginning").toBe(
-      "https://gated.portal.test/study",
-    );
+    expect(
+      work.formUrl,
+      "resumed from the failure point, not the beginning",
+    ).toBe("https://gated.portal.test/study");
 
     const said = await messages();
-    expect(said.filter((text) => text.includes("moving again"))).toHaveLength(1);
+    expect(said.filter((text) => text.includes("moving again"))).toHaveLength(
+      1,
+    );
   }, 300_000);
 
   it("a SECOND resolution is refused, and the first one stands", async () => {
@@ -3258,7 +3774,10 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
       await instance.pool.end();
     }
 
-    const stored = await pool.query<{ specialist_id: string; resolution_outcome: string }>(
+    const stored = await pool.query<{
+      specialist_id: string;
+      resolution_outcome: string;
+    }>(
       "SELECT specialist_id, resolution_outcome FROM interventions WHERE intervention_id = $1",
       [held.interventionId],
     );
@@ -3285,19 +3804,22 @@ describeIfDatabase("the internal specialist routes", () => {
   let interventionId = "";
 
   async function aPausedRun(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -3308,9 +3830,14 @@ describeIfDatabase("the internal specialist routes", () => {
           handle: `sh_${"a".repeat(32)}`,
         },
       });
-      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      const next = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
       if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
-      expect(next.position.step, "standing at the account creation").toBe("create_account");
+      expect(next.position.step, "standing at the account creation").toBe(
+        "create_account",
+      );
 
       // An account creation started and never finished: the uncertainty.
       const runs = new PostgresWorkflowRunStore(instance.pool);
@@ -3338,7 +3865,10 @@ describeIfDatabase("the internal specialist routes", () => {
       await pool.query("DELETE FROM work_leases");
       let open: readonly StoredIntervention[] = [];
       for (let attempt = 0; attempt < 12 && open.length === 0; attempt += 1) {
-        await instance.driver.claimWork({ holder: `r${String(attempt)}`, leaseSeconds: 600 });
+        await instance.driver.claimWork({
+          holder: `r${String(attempt)}`,
+          leaseSeconds: 600,
+        });
         open = (await instance.driver.openInterventions()).filter(
           (item) => item.runId === runId,
         );
@@ -3356,9 +3886,7 @@ describeIfDatabase("the internal specialist routes", () => {
   // `listen` race the old socket and surface as an unexplained "fetch failed".
   let nextPort = PORT + 20;
 
-  async function withServer<T>(
-    task: (base: string) => Promise<T>,
-  ): Promise<T> {
+  async function withServer<T>(task: (base: string) => Promise<T>): Promise<T> {
     const instance = buildInstance(connectionString());
     nextPort += 1;
     const port = nextPort;
@@ -3381,11 +3909,15 @@ describeIfDatabase("the internal specialist routes", () => {
     }
   }
 
-  const CERT = { "content-type": "application/json", "x-service-cert": "operator" };
+  const CERT = {
+    "content-type": "application/json",
+    "x-service-cert": "operator",
+  };
 
   const goodBody = {
     specialistId: "specialist_vahid",
-    actionsTaken: "Signed in to the portal; no account exists for that address.",
+    actionsTaken:
+      "Signed in to the portal; no account exists for that address.",
     resolution: "The submit never reached the portal.",
     outcome: "resume",
     didHappen: false,
@@ -3400,9 +3932,13 @@ describeIfDatabase("the internal specialist routes", () => {
       const denied = await fetch(`${base}/internal/v1/interventions`);
       expect(denied.status, "the internal plane is not open").toBe(403);
 
-      const listed = await fetch(`${base}/internal/v1/interventions`, { headers: CERT });
+      const listed = await fetch(`${base}/internal/v1/interventions`, {
+        headers: CERT,
+      });
       expect(listed.status).toBe(200);
-      const body = (await listed.json()) as { interventions: Record<string, unknown>[] };
+      const body = (await listed.json()) as {
+        interventions: Record<string, unknown>[];
+      };
       const mine = body.interventions.filter((item) => item["runId"] === runId);
       expect(mine).toHaveLength(1);
       expect(mine[0]?.["action"]).toBe("create_portal_account");
@@ -3439,12 +3975,19 @@ describeIfDatabase("the internal specialist routes", () => {
     await withServer(async (base) => {
       const refused = await fetch(
         `${base}/internal/v1/interventions/${interventionId}/resolution`,
-        { method: "POST", headers: CERT, body: JSON.stringify({ ...goodBody, outcome: "route_fallback" }) },
+        {
+          method: "POST",
+          headers: CERT,
+          body: JSON.stringify({ ...goodBody, outcome: "route_fallback" }),
+        },
       );
       expect(refused.status).toBe(400);
     });
 
-    const after = await pool.query<{ resolved_at: Date | null; status: string }>(
+    const after = await pool.query<{
+      resolved_at: Date | null;
+      status: string;
+    }>(
       `SELECT i.resolved_at, r.status
          FROM interventions i JOIN workflow_runs r ON r.run_id = i.run_id
         WHERE i.intervention_id = $1`,
@@ -3481,15 +4024,26 @@ describeIfDatabase("the internal specialist routes", () => {
         {
           method: "POST",
           headers: CERT,
-          body: JSON.stringify({ ...goodBody, specialistId: "specialist_other", didHappen: true }),
+          body: JSON.stringify({
+            ...goodBody,
+            specialistId: "specialist_other",
+            didHappen: true,
+          }),
         },
       );
-      expect(second.status, "not silently accepted — somebody answered first").toBe(409);
+      expect(
+        second.status,
+        "not silently accepted — somebody answered first",
+      ).toBe(409);
       const problem = (await second.json()) as Record<string, unknown>;
       expect(problem["code"]).toBe("intervention_already_resolved");
     });
 
-    const stored = await pool.query<{ specialist_id: string; status: string; outcome: string }>(
+    const stored = await pool.query<{
+      specialist_id: string;
+      status: string;
+      outcome: string;
+    }>(
       `SELECT i.specialist_id, r.status, a.outcome
          FROM interventions i
          JOIN workflow_runs r ON r.run_id = i.run_id
@@ -3500,17 +4054,24 @@ describeIfDatabase("the internal specialist routes", () => {
     expect(stored.rows[0]?.specialist_id, "the first adjudication stands").toBe(
       "specialist_vahid",
     );
-    expect(stored.rows[0]?.status, "and the run is going again").toBe("running");
-    expect(stored.rows[0]?.outcome, "the fact, from didHappen: false").toBe("failed_cleanly");
+    expect(stored.rows[0]?.status, "and the run is going again").toBe(
+      "running",
+    );
+    expect(stored.rows[0]?.outcome, "the fact, from didHappen: false").toBe(
+      "failed_cleanly",
+    );
   }, 300_000);
 
   it("answers 404 for an intervention nobody raised", async () => {
     await withServer(async (base) => {
-      const missing = await fetch(`${base}/internal/v1/interventions/iv_nope/resolution`, {
-        method: "POST",
-        headers: CERT,
-        body: JSON.stringify(goodBody),
-      });
+      const missing = await fetch(
+        `${base}/internal/v1/interventions/iv_nope/resolution`,
+        {
+          method: "POST",
+          headers: CERT,
+          body: JSON.stringify(goodBody),
+        },
+      );
       expect(missing.status).toBe(404);
     });
   }, 300_000);
@@ -3544,7 +4105,9 @@ describe("which status a stopped run takes", () => {
     // `completed` are terminal, and a stop that landed on one would be a run
     // no specialist could ever release.
     for (const verdict of ["verify_first", "escalate"] as const) {
-      expect(canTransitionStatus(statusForVerdict(verdict), "running")).toBe(true);
+      expect(canTransitionStatus(statusForVerdict(verdict), "running")).toBe(
+        true,
+      );
       expect(isTerminalWorkflowStatus(statusForVerdict(verdict))).toBe(false);
     }
   });
@@ -3572,32 +4135,39 @@ describeIfDatabase("the case walks with the run", () => {
   }
 
   it("walks the spine as the run advances, and never writes a state itself", async () => {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
     } finally {
       await instance.pool.end();
     }
 
     const events = await caseEvents();
-    expect(events[0]?.type, "the log still opens with the case").toBe("CaseOpened");
+    expect(events[0]?.type, "the log still opens with the case").toBe(
+      "CaseOpened",
+    );
 
     // Every move is a CaseStateChanged the DOMAIN produced from a `transition`
     // intent. This coordinator appends no state of its own — that is the whole
     // point of ADR-0049, and a state written here would be a state that skipped
     // `checkTransition`.
-    const moves = events.filter((event) => event.type === "CaseStateChanged").map((e) => e.to);
+    const moves = events
+      .filter((event) => event.type === "CaseStateChanged")
+      .map((e) => e.to);
     expect(moves, "in spine order, one hop at a time").toEqual([
       "READY_TO_PREPARE",
       "PREPARING",
@@ -3626,17 +4196,27 @@ describeIfDatabase("the case walks with the run", () => {
     // It is kept because the invariant is worth a standing check and the check
     // is cheap: if a future phase mapping ever leaves a claimable run's case
     // behind, this is what notices.
-    const before = await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events");
+    const before = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM case_events",
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      const looked = await instance.driver.claimWork({ holder: "runner-looking", leaseSeconds: 120 });
+      const looked = await instance.driver.claimWork({
+        holder: "runner-looking",
+        leaseSeconds: 120,
+      });
       // The poll really did find a run and reach `#situation` for it. Without
       // this the test would pass on an empty pool, having looked at nothing.
-      expect(looked, "the poll must actually have looked at a run").not.toBeNull();
+      expect(
+        looked,
+        "the poll must actually have looked at a run",
+      ).not.toBeNull();
     } finally {
       await instance.pool.end();
     }
-    const after = await pool.query<{ n: string }>("SELECT count(*) AS n FROM case_events");
+    const after = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM case_events",
+    );
     expect(after.rows[0]?.n, "a look is not a move").toBe(before.rows[0]?.n);
   }, 300_000);
 
@@ -3678,19 +4258,22 @@ describeIfDatabase("the decision only the student can make", () => {
   let nextPort = PORT + 40;
 
   async function aRunAtTheAuthorisation(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -3718,8 +4301,12 @@ describeIfDatabase("the decision only the student can make", () => {
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
 
-      const asked = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      const asked = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!asked.ok)
+        expect.unreachable(`advance refused: ${asked.refusal.kind}`);
       expect(asked.position.step).toBe("authorise");
 
       // Exactly what the student is shown, and its hash, from the orchestrator.
@@ -3754,7 +4341,11 @@ describeIfDatabase("the decision only the student can make", () => {
     try {
       const response = await fetch(
         `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/runs/${runId}/decision`,
-        { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) },
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie },
+          body: JSON.stringify(body),
+        },
       );
       return response.status;
     } finally {
@@ -3832,9 +4423,12 @@ describeIfDatabase("the decision only the student can make", () => {
     expect(status).toBe(200);
     const read = (body as { run: unknown }).run;
     const run = parseConversationRun(read);
-    if (run === null) expect.unreachable(`not a ConversationRun: ${JSON.stringify(read)}`);
+    if (run === null)
+      expect.unreachable(`not a ConversationRun: ${JSON.stringify(read)}`);
     expect(run.runId).toBe(runId);
-    expect(run.step, "the orchestrator's answer, not a cached one").toBe("authorise");
+    expect(run.step, "the orchestrator's answer, not a cached one").toBe(
+      "authorise",
+    );
     expect(run.conversationId).toBe(conversation);
     // Never false from a GET: a client that saw `resumed: false` here could
     // reasonably conclude the read had started something.
@@ -3846,42 +4440,57 @@ describeIfDatabase("the decision only the student can make", () => {
     // The whole point of the read: a client learns which decision to offer
     // and the hash to send with it, without inspecting the transcript and
     // without computing a hash of its own.
-    const pending = (body as { pending: { decision: string; contentHash: string } | null })
-      .pending;
+    const pending = (
+      body as { pending: { decision: string; contentHash: string } | null }
+    ).pending;
     expect(pending?.decision).toBe("authorise");
-    expect(pending?.contentHash, "the same hash the preview route serves").toBe(contentHash);
+    expect(pending?.contentHash, "the same hash the preview route serves").toBe(
+      contentHash,
+    );
 
     // ── And it did NOTHING ────────────────────────────────────────────
     const after = await pool.query<{ revision: string; checkpoint: unknown }>(
       "SELECT revision, checkpoint FROM workflow_runs WHERE run_id = $1",
       [runId],
     );
-    expect(after.rows[0]?.revision, "no checkpoint was written").toBe(before.rows[0]?.revision);
+    expect(after.rows[0]?.revision, "no checkpoint was written").toBe(
+      before.rows[0]?.revision,
+    );
     expect(after.rows[0]?.checkpoint).toEqual(before.rows[0]?.checkpoint);
     const eventsAfter = await pool.query<{ count: string }>(
       "SELECT count(*) AS count FROM conversation_events WHERE conversation_id = $1",
       [conversation],
     );
-    expect(eventsAfter.rows[0]?.count, "no event was appended").toBe(eventsBefore.rows[0]?.count);
+    expect(eventsAfter.rows[0]?.count, "no event was appended").toBe(
+      eventsBefore.rows[0]?.count,
+    );
     const caseAfter = await pool.query<{ count: string }>(
       `SELECT count(*) AS count FROM case_events WHERE case_id = $1`,
       [`case_${conversation.toLowerCase()}`],
     );
-    expect(caseAfter.rows[0]?.count, "the case did not move").toBe(caseBefore.rows[0]?.count);
+    expect(caseAfter.rows[0]?.count, "the case did not move").toBe(
+      caseBefore.rows[0]?.count,
+    );
   }, 300_000);
 
   it("answers run:null for a conversation that has not started one", async () => {
     // A real answer, and a different fact from 404 — which stays reserved for
     // a conversation that is not yours.
     const fresh = "01JBXQ8Z9WKTQ6M4H2NPC000C8";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      fresh,
-      studentId_,
-    ]);
-    const { status, body } = await get(`/v1/conversations/${fresh}/runs`, cookieFor(studentId_));
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [fresh, studentId_],
+    );
+    const { status, body } = await get(
+      `/v1/conversations/${fresh}/runs`,
+      cookieFor(studentId_),
+    );
     expect(status).toBe(200);
     expect((body as { run: unknown }).run).toBeNull();
-    expect((body as { pending: unknown }).pending, "nothing to wait for either").toBeNull();
+    expect(
+      (body as { pending: unknown }).pending,
+      "nothing to wait for either",
+    ).toBeNull();
   }, 300_000);
 
   it("REFUSES the run read on another student's conversation", async () => {
@@ -3908,7 +4517,8 @@ describeIfDatabase("the decision only the student can make", () => {
 
     // Parsed by the CONTRACT's own parser, not an ad-hoc cast.
     const preview = parseRunPreview(body);
-    if (preview === null) expect.unreachable(`not a RunPreview: ${JSON.stringify(body)}`);
+    if (preview === null)
+      expect.unreachable(`not a RunPreview: ${JSON.stringify(body)}`);
 
     // The hash the student will send back is the one the driver would compare
     // against — obtained here the way a client obtains it, not derived.
@@ -3917,8 +4527,12 @@ describeIfDatabase("the decision only the student can make", () => {
 
     // What they read: the application, completely, ending in the reference
     // that ties it to the hash.
-    expect(preview.presentedText).toContain(GATED_PORTAL_BLUEPRINT.institutionName);
-    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
+    expect(preview.presentedText).toContain(
+      GATED_PORTAL_BLUEPRINT.institutionName,
+    );
+    expect(preview.presentedText).toContain(
+      "This is exactly what will be submitted.",
+    );
     expect(preview.presentedText).toContain(`Reference: ${contentHash}`);
 
     // A capability in a cache outlives the page that asked for it; so does a
@@ -3931,7 +4545,10 @@ describeIfDatabase("the decision only the student can make", () => {
     // credential list is never rendered. The gated portal's blueprint HAS
     // password fields, so this is a real absence rather than a vacuous one.
     const registerFields = [...REGISTER_FIELDS];
-    expect(registerFields.length, "the fixture really does have credentials").toBeGreaterThan(0);
+    expect(
+      registerFields.length,
+      "the fixture really does have credentials",
+    ).toBeGreaterThan(0);
 
     const { body } = await get(
       `/v1/conversations/${conversation}/runs/${runId}/preview`,
@@ -3941,7 +4558,8 @@ describeIfDatabase("the decision only the student can make", () => {
     expect(text).not.toContain("password");
     // Nor the field refs the credential mapping names, which is the shape a
     // rendered credential list would take.
-    for (const field of registerFields) expect(text).not.toContain(field.toLowerCase());
+    for (const field of registerFields)
+      expect(text).not.toContain(field.toLowerCase());
   }, 300_000);
 
   it("REFUSES another student, with 404 rather than 403", async () => {
@@ -3972,10 +4590,10 @@ describeIfDatabase("the decision only the student can make", () => {
     // and "nothing to approve" must not render as an empty application.
     // ═══════════════════════════════════════════════════════════════════
     const early = "01JBXQ8Z9WKTQ6M4H2NPC000C7";
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      early,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [early, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     let earlyRun = "";
     try {
@@ -3984,9 +4602,12 @@ describeIfDatabase("the decision only the student can make", () => {
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       earlyRun = started.position.runId;
-      expect(started.position.step, "nowhere near the authorisation").not.toBe("authorise");
+      expect(started.position.step, "nowhere near the authorisation").not.toBe(
+        "authorise",
+      );
     } finally {
       await instance.pool.end();
     }
@@ -4020,11 +4641,15 @@ describeIfDatabase("the decision only the student can make", () => {
         WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
       [conversation],
     );
-    const ready = said.rows.filter((row) => row.content.startsWith("Your application is ready."));
+    const ready = said.rows.filter((row) =>
+      row.content.startsWith("Your application is ready."),
+    );
     expect(ready, "said once, not once per advance").toHaveLength(1);
 
     // And it is a POINTER, not a copy: no part of the application is in it.
-    expect(ready[0]?.content).not.toContain("This is exactly what will be submitted.");
+    expect(ready[0]?.content).not.toContain(
+      "This is exactly what will be submitted.",
+    );
     expect(ready[0]?.content).not.toContain(contentHash);
   }, 300_000);
 
@@ -4036,19 +4661,28 @@ describeIfDatabase("the decision only the student can make", () => {
     // not "a caller who may act on their behalf" — it is a different person.
     // 404, not 403: `caller()` answers `not_found` for a conversation that is
     // not yours, deliberately — a 403 would confirm the conversation exists.
-    expect(await post({ kind: "authorise", contentHash }, cookieFor(otherStudentId))).toBe(404);
+    expect(
+      await post({ kind: "authorise", contentHash }, cookieFor(otherStudentId)),
+    ).toBe(404);
   }, 300_000);
 
   it("REFUSES a hash that is not what was rendered", async () => {
     // An authorisation of content the student never saw. `content_changed`
     // rather than a generic refusal, so a client re-renders instead of
     // retrying the same stale hash.
-    expect(await post({ kind: "authorise", contentHash: "sha256:not-what-they-saw" }, cookieFor(studentId_))).toBe(409);
+    expect(
+      await post(
+        { kind: "authorise", contentHash: "sha256:not-what-they-saw" },
+        cookieFor(studentId_),
+      ),
+    ).toBe(409);
   }, 300_000);
 
   it("REFUSES a body with no hash at all", async () => {
     expect(await post({ kind: "authorise" }, cookieFor(studentId_))).toBe(400);
-    expect(await post({ kind: "submit", contentHash }, cookieFor(studentId_))).toBe(400);
+    expect(
+      await post({ kind: "submit", contentHash }, cookieFor(studentId_)),
+    ).toBe(400);
   }, 300_000);
 
   it("records the authorisation THROUGH the domain, and the case moves with it", async () => {
@@ -4062,7 +4696,9 @@ describeIfDatabase("the decision only the student can make", () => {
       "the case is standing where the student may be asked",
     ).toContain("AWAITING_STUDENT_AUTHORISATION");
 
-    expect(await post({ kind: "authorise", contentHash }, cookieFor(studentId_))).toBe(204);
+    expect(
+      await post({ kind: "authorise", contentHash }, cookieFor(studentId_)),
+    ).toBe(204);
 
     const events = await pool.query<{ type: string; to: string | null }>(
       `SELECT event->>'type' AS type, event->>'to' AS to
@@ -4070,9 +4706,13 @@ describeIfDatabase("the decision only the student can make", () => {
       [`case_${conversation.toLowerCase()}`],
     );
     const types = events.rows.map((row) => row.type);
-    expect(types, "captured, not appended by hand").toContain("AuthorisationCaptured");
+    expect(types, "captured, not appended by hand").toContain(
+      "AuthorisationCaptured",
+    );
     expect(
-      events.rows.some((row) => row.type === "CaseStateChanged" && row.to === "AUTHORISED"),
+      events.rows.some(
+        (row) => row.type === "CaseStateChanged" && row.to === "AUTHORISED",
+      ),
       "and the machine moved, from the same decision",
     ).toBe(true);
   }, 300_000);
@@ -4081,7 +4721,9 @@ describeIfDatabase("the decision only the student can make", () => {
     // `capture_authorisation` refuses unless the case is in
     // AWAITING_STUDENT_AUTHORISATION. Approving twice is not idempotent-safe
     // by accident — it is refused by the guard, which is better.
-    expect(await post({ kind: "authorise", contentHash }, cookieFor(studentId_))).toBe(404);
+    expect(
+      await post({ kind: "authorise", contentHash }, cookieFor(studentId_)),
+    ).toBe(404);
   }, 300_000);
 
   it("waits for NOTHING once the student has approved", async () => {
@@ -4100,294 +4742,353 @@ describeIfDatabase("the decision only the student can make", () => {
   }, 300_000);
 });
 
-describeIfDatabase("the mandatory-review guard, now that something drives it", () => {
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A1";
-  const caseRef = `case_${conversation.toLowerCase()}`;
-  let runId = "";
-  // A fresh port per server, for the reason group J gives: `close()` does not
-  // drop the keep-alive sockets a previous `fetch` left open.
-  let reviewPort = PORT + 60;
+describeIfDatabase(
+  "the mandatory-review guard, now that something drives it",
+  () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A1";
+    const caseRef = `case_${conversation.toLowerCase()}`;
+    let runId = "";
+    // A fresh port per server, for the reason group J gives: `close()` does not
+    // drop the keep-alive sockets a previous `fetch` left open.
+    let reviewPort = PORT + 60;
 
-  /**
-   * A run standing exactly at `authorise`, whose case carries financial
-   * evidence.
-   *
-   * ── Two things this had to be rebuilt around ───────────────────────────
-   *
-   * A first version used a MINOR's date of birth. The run reached `specialist`,
-   * not `authorise` — because the orchestrator gates a minor earlier through
-   * `checkMinorGate` (ADR-0011, ADR-0013). Correct product behaviour, and it
-   * means the case-level guard is defence in depth for minors rather than the
-   * thing that stops them. Financial evidence has no earlier gate, so it is
-   * where the guard is load-bearing and therefore where it must be tested.
-   *
-   * A second version used the plain blueprint, which never reaches `authorise`
-   * in these fixtures at all. Only the gated path does, and only with the
-   * secret and the account behind it — so this walks the same road group H
-   * does, and simply stops before the authorisation instead of injecting one.
-   */
-  async function aRunAtTheAuthorisation(into: string = conversation): Promise<string> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [into, studentId_],
-    );
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      const profiles = new PostgresConfirmedProfileStore(instance.pool);
-      await confirmTheInterview(profiles);
-      // The trigger's source: a confirmed field the domain calls financial
-      // evidence. Raised from this, never configured.
-      await confirmInto(profiles, "finance.funding_source", "Family savings", "my family are paying");
-
-      // Before the run starts, and against the DATABASE — the run reads this,
-      // not the object the confirmation produced.
-      const stored = await pool.query<{ field_key: string }>(
-        "SELECT field_key FROM profile_entries WHERE student_id = $1",
-        [studentId_],
+    /**
+     * A run standing exactly at `authorise`, whose case carries financial
+     * evidence.
+     *
+     * ── Two things this had to be rebuilt around ───────────────────────────
+     *
+     * A first version used a MINOR's date of birth. The run reached `specialist`,
+     * not `authorise` — because the orchestrator gates a minor earlier through
+     * `checkMinorGate` (ADR-0011, ADR-0013). Correct product behaviour, and it
+     * means the case-level guard is defence in depth for minors rather than the
+     * thing that stops them. Financial evidence has no earlier gate, so it is
+     * where the guard is load-bearing and therefore where it must be tested.
+     *
+     * A second version used the plain blueprint, which never reaches `authorise`
+     * in these fixtures at all. Only the gated path does, and only with the
+     * secret and the account behind it — so this walks the same road group H
+     * does, and simply stops before the authorisation instead of injecting one.
+     */
+    async function aRunAtTheAuthorisation(
+      into: string = conversation,
+    ): Promise<string> {
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [into, studentId_],
       );
-      expect(
-        stored.rows.map((row) => row.field_key),
-        "the trigger has a source the run will actually read",
-      ).toContain("finance.funding_source");
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const profiles = new PostgresConfirmedProfileStore(instance.pool);
+        await confirmTheInterview(profiles);
+        // The trigger's source: a confirmed field the domain calls financial
+        // evidence. Raised from this, never configured.
+        await confirmInto(
+          profiles,
+          "finance.funding_source",
+          "Family savings",
+          "my family are paying",
+        );
 
-      const started = await instance.driver.start({
-        conversationId: into,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
-      runId = started.position.runId;
+        // Before the run starts, and against the DATABASE — the run reads this,
+        // not the object the confirmation produced.
+        const stored = await pool.query<{ field_key: string }>(
+          "SELECT field_key FROM profile_entries WHERE student_id = $1",
+          [studentId_],
+        );
+        expect(
+          stored.rows.map((row) => row.field_key),
+          "the trigger has a source the run will actually read",
+        ).toContain("finance.funding_source");
 
-      await new ConversationEventStore(instance.pool).append({
-        conversationId: into,
-        event: {
-          kind: "secret_received",
-          requestId: `sr_${"0".repeat(31)}1`,
-          handle: `sh_${"b".repeat(32)}`,
-        },
-      });
-      await instance.driver.advance({ runId, conversationId: into });
+        const started = await instance.driver.start({
+          conversationId: into,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!started.ok)
+          expect.unreachable(`start refused: ${started.refusal.kind}`);
+        runId = started.position.runId;
 
-      const runRef = makeRunId(runId);
-      const accountKey = idempotencyKeyFor({
-        runId: runRef,
-        action: "create_portal_account",
-        target: runId,
-      });
-      const runs = new PostgresWorkflowRunStore(instance.pool);
-      await runs.recordIntent(runRef, {
-        idempotencyKey: accountKey,
-        action: "create_portal_account",
-        target: runId,
-        startedAt: NOW,
-      });
-      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+        await new ConversationEventStore(instance.pool).append({
+          conversationId: into,
+          event: {
+            kind: "secret_received",
+            requestId: `sr_${"0".repeat(31)}1`,
+            handle: `sh_${"b".repeat(32)}`,
+          },
+        });
+        await instance.driver.advance({ runId, conversationId: into });
 
-      const asked = await instance.driver.advance({ runId, conversationId: into });
-      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
-      expect(asked.position.step, "standing at the authorisation").toBe("authorise");
+        const runRef = makeRunId(runId);
+        const accountKey = idempotencyKeyFor({
+          runId: runRef,
+          action: "create_portal_account",
+          target: runId,
+        });
+        const runs = new PostgresWorkflowRunStore(instance.pool);
+        await runs.recordIntent(runRef, {
+          idempotencyKey: accountKey,
+          action: "create_portal_account",
+          target: runId,
+          startedAt: NOW,
+        });
+        await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
 
-      // The financial field really is on the profile this run reads. Asserted
-      // because the whole test is vacuous without it, and a profile written
-      // against the wrong student is silent.
-      const loaded = await new PostgresConfirmedProfileStore(instance.pool).load(studentId_, NOW);
-      expect([...loaded.entries.keys()], "the trigger has a source").toContain(
-        "finance.funding_source",
-      );
-      return runId;
-    } finally {
-      await instance.pool.end();
+        const asked = await instance.driver.advance({
+          runId,
+          conversationId: into,
+        });
+        if (!asked.ok)
+          expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+        expect(asked.position.step, "standing at the authorisation").toBe(
+          "authorise",
+        );
+
+        // The financial field really is on the profile this run reads. Asserted
+        // because the whole test is vacuous without it, and a profile written
+        // against the wrong student is silent.
+        const loaded = await new PostgresConfirmedProfileStore(
+          instance.pool,
+        ).load(studentId_, NOW);
+        expect(
+          [...loaded.entries.keys()],
+          "the trigger has a source",
+        ).toContain("finance.funding_source");
+        return runId;
+      } finally {
+        await instance.pool.end();
+      }
     }
-  }
 
-  async function reachedTheStudent(caseId: string): Promise<string> {
-    const found = await pool.query<{ n: string }>(
-      `SELECT count(*) AS n FROM case_events
+    async function reachedTheStudent(caseId: string): Promise<string> {
+      const found = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events
         WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
           AND event->>'to' = 'AWAITING_STUDENT_AUTHORISATION'`,
-      [caseId],
-    );
-    return found.rows[0]?.n ?? "?";
-  }
+        [caseId],
+      );
+      return found.rows[0]?.n ?? "?";
+    }
 
-  it("REFUSES to ask for authorisation while a mandatory review is outstanding", async () => {
-    // ═══════════════════════════════════════════════════════════════════
-    // `transitions.ts`: a case carrying financial evidence "cannot reach
-    // AWAITING_STUDENT_AUTHORISATION without a recorded, approving human
-    // review … Confidence does not override this." Until P11 nothing drove the
-    // machine, so this guard had never run in the assembled system.
-    // ═══════════════════════════════════════════════════════════════════
-    await aRunAtTheAuthorisation();
+    it("REFUSES to ask for authorisation while a mandatory review is outstanding", async () => {
+      // ═══════════════════════════════════════════════════════════════════
+      // `transitions.ts`: a case carrying financial evidence "cannot reach
+      // AWAITING_STUDENT_AUTHORISATION without a recorded, approving human
+      // review … Confidence does not override this." Until P11 nothing drove the
+      // machine, so this guard had never run in the assembled system.
+      // ═══════════════════════════════════════════════════════════════════
+      await aRunAtTheAuthorisation();
 
-    const all = await pool.query<{ type: string }>(
-      `SELECT event->>'type' AS type FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
-      [caseRef],
-    );
-    expect(
-      all.rows.map((row) => row.type),
-      "raised from the student's own confirmed profile",
-    ).toContain("HumanReviewRequested");
-    expect(await reachedTheStudent(caseRef), "the guard held").toBe("0");
+      const all = await pool.query<{ type: string }>(
+        `SELECT event->>'type' AS type FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
+        [caseRef],
+      );
+      expect(
+        all.rows.map((row) => row.type),
+        "raised from the student's own confirmed profile",
+      ).toContain("HumanReviewRequested");
+      expect(await reachedTheStudent(caseRef), "the guard held").toBe("0");
 
-    const run = await pool.query<{ status: string }>(
-      "SELECT status FROM workflow_runs WHERE run_id = $1",
-      [runId],
-    );
-    expect(run.rows[0]?.status, "stopped the way P10 stops one").toBe("escalated");
+      const run = await pool.query<{ status: string }>(
+        "SELECT status FROM workflow_runs WHERE run_id = $1",
+        [runId],
+      );
+      expect(run.rows[0]?.status, "stopped the way P10 stops one").toBe(
+        "escalated",
+      );
 
-    const said = await pool.query<{ content: string | null }>(
-      `SELECT mb.content FROM conversation_events e
+      const said = await pool.query<{ content: string | null }>(
+        `SELECT mb.content FROM conversation_events e
          JOIN message_bodies mb ON mb.id = e.body_id
         WHERE e.conversation_id = $1`,
-      [conversation],
-    );
-    const told = said.rows.filter((row) => row.content?.includes("needs to check it over"));
-    expect(told, "the student is told once").toHaveLength(1);
-    expect(told[0]?.content, "and not why").not.toContain("financial");
-  }, 300_000);
+        [conversation],
+      );
+      const told = said.rows.filter((row) =>
+        row.content?.includes("needs to check it over"),
+      );
+      expect(told, "the student is told once").toHaveLength(1);
+      expect(told[0]?.content, "and not why").not.toContain("financial");
+    }, 300_000);
 
-  it("REFUSES the student's own approval while the review is outstanding", async () => {
-    // ═══════════════════════════════════════════════════════════════════
-    // The run IS standing at `authorise` — the orchestrator got there, and
-    // `previewHashFor` will render a preview. What has not happened is the
-    // case reaching `AWAITING_STUDENT_AUTHORISATION`, because the guard held
-    // it. So this is the one case where a decision arrives with the run
-    // asking and the CASE saying no, and the domain is what refuses it.
-    //
-    // Without this test the `!decided.accepted` branch in `recordDecision` is
-    // unreachable in the suite: everywhere else the run has already moved off
-    // `authorise` and the earlier `not_asked` refusal answers first. The P11
-    // regression pass found exactly that — swallowing the domain's refusal
-    // changed nothing, because nothing reached it.
-    // ═══════════════════════════════════════════════════════════════════
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      const shown = await instance.driver.previewFor(runId, conversation);
-      expect(shown, "the run really is asking").not.toBeNull();
-      const hash = shown?.contentHash ?? null;
-      const recorded = await instance.driver.recordDecision({
-        conversationId: conversation,
-        runId,
-        decision: { kind: "authorise", contentHash: hash ?? "" },
-      });
-      expect(recorded, "the case machine refuses, not this coordinator").toEqual({
-        ok: false,
-        reason: "refused",
-      });
-    } finally {
-      await instance.pool.end();
-    }
-
-    // And nothing was written: a refused approval is not a recorded one.
-    const captured = await pool.query<{ n: string }>(
-      `SELECT count(*) AS n FROM case_events
-        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured'`,
-      [caseRef],
-    );
-    expect(captured.rows[0]?.n).toBe("0");
-  }, 300_000);
-
-  it("an APPROVING review clears it, over the real internal route", async () => {
-    // Through HTTP, on the SAME internal plane and credential as an
-    // intervention (ADR-0048 §3, ADR-0049 §4) — not by calling the driver.
-    // A review recorded by reaching past the route would prove nothing about
-    // who is allowed to record one, and that is half of what this route is.
-    const instance = buildInstance(connectionString(), opener());
-    reviewPort += 1;
-    const port = reviewPort;
-    const app = createConversationApp({
-      store: new ConversationEventStore(instance.pool),
-      sessionSecret: SECRET,
-      authorise: () => Promise.resolve(true),
-      authoriseService: (req) => req.header("x-service-cert") === "operator",
-      now: () => NOW,
-      runs: instance.driver,
-    });
-    const listening = await new Promise<Server>((resolve) => {
-      const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
-    });
-    const body = JSON.stringify({
-      reviewerId: "specialist_vahid",
-      triggers: ["financial_evidence"],
-      outcome: "approved",
-      notes: "Funding source checked against the statement on file.",
-    });
-    try {
-      const denied = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-      });
-      expect(denied.status, "clearing a mandatory review is not open to anyone").toBe(403);
-      expect(await reachedTheStudent(caseRef), "and it cleared nothing").toBe("0");
-
-      const done = await fetch(`http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-service-cert": "operator" },
-        body,
-      });
-      expect(done.status, "the review was recorded").toBe(204);
-
-      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
-      await instance.driver.advance({ runId, conversationId: conversation });
-    } finally {
-      await new Promise<void>((resolve) => listening.close(() => resolve()));
-      await instance.pool.end();
-    }
-
-    expect(await reachedTheStudent(caseRef), "cleared, and now it may ask").toBe("1");
-  }, 300_000);
-
-  it("a REJECTING review does NOT clear it", async () => {
-    // Only an approving review clears a trigger. A rejection leaves it
-    // standing and the work goes back round — otherwise "a human looked" and
-    // "a human approved" would be the same fact.
-    //
-    // ── Why this drives a WHOLE run rather than just starting one ──────
-    //
-    // A first version started a run, recorded a rejection, and asserted the
-    // case had not reached the student. It passed, and it would have passed
-    // with the rule inverted: the run never got past `request_secret`, so its
-    // case never targeted `AWAITING_STUDENT_AUTHORISATION` and there was
-    // nothing for the guard to hold back. The P11 regression pass caught it by
-    // forcing every review to `approved` and watching the suite stay green.
-    //
-    // A test of a guard has to put the case in front of the guard.
-    const other = "01JBXQ8Z9WKTQ6M4H2NPC000A2";
-    const otherCase = `case_${other.toLowerCase()}`;
-    const otherRun = await aRunAtTheAuthorisation(other);
-    expect(await reachedTheStudent(otherCase), "held, before any review").toBe("0");
-
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      const done = await instance.driver.completeReview({
-        caseId: makeCaseId(otherCase),
-        review: {
-          reviewerId: "specialist_vahid",
-          reviewedAt: NOW,
-          triggers: ["financial_evidence"],
-          outcome: "rejected",
-          notes: "The statement is older than the 31-day window.",
-        },
-      });
-      expect(done.ok, "the rejection WAS recorded — it is a review either way").toBe(true);
-
-      // Several times, and each time put back in the pool: the run stops again
-      // on every pass, and a guard that leaked would leak on one of them.
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [
-          otherRun,
-        ]);
-        await instance.driver.advance({ runId: otherRun, conversationId: other });
+    it("REFUSES the student's own approval while the review is outstanding", async () => {
+      // ═══════════════════════════════════════════════════════════════════
+      // The run IS standing at `authorise` — the orchestrator got there, and
+      // `previewHashFor` will render a preview. What has not happened is the
+      // case reaching `AWAITING_STUDENT_AUTHORISATION`, because the guard held
+      // it. So this is the one case where a decision arrives with the run
+      // asking and the CASE saying no, and the domain is what refuses it.
+      //
+      // Without this test the `!decided.accepted` branch in `recordDecision` is
+      // unreachable in the suite: everywhere else the run has already moved off
+      // `authorise` and the earlier `not_asked` refusal answers first. The P11
+      // regression pass found exactly that — swallowing the domain's refusal
+      // changed nothing, because nothing reached it.
+      // ═══════════════════════════════════════════════════════════════════
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const shown = await instance.driver.previewFor(runId, conversation);
+        expect(shown, "the run really is asking").not.toBeNull();
+        const hash = shown?.contentHash ?? null;
+        const recorded = await instance.driver.recordDecision({
+          conversationId: conversation,
+          runId,
+          decision: { kind: "authorise", contentHash: hash ?? "" },
+        });
+        expect(
+          recorded,
+          "the case machine refuses, not this coordinator",
+        ).toEqual({
+          ok: false,
+          reason: "refused",
+        });
+      } finally {
+        await instance.pool.end();
       }
-    } finally {
-      await instance.pool.end();
-    }
 
-    expect(await reachedTheStudent(otherCase), "a rejection is not an approval").toBe("0");
-  }, 300_000);
-});
+      // And nothing was written: a refused approval is not a recorded one.
+      const captured = await pool.query<{ n: string }>(
+        `SELECT count(*) AS n FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured'`,
+        [caseRef],
+      );
+      expect(captured.rows[0]?.n).toBe("0");
+    }, 300_000);
 
+    it("an APPROVING review clears it, over the real internal route", async () => {
+      // Through HTTP, on the SAME internal plane and credential as an
+      // intervention (ADR-0048 §3, ADR-0049 §4) — not by calling the driver.
+      // A review recorded by reaching past the route would prove nothing about
+      // who is allowed to record one, and that is half of what this route is.
+      const instance = buildInstance(connectionString(), opener());
+      reviewPort += 1;
+      const port = reviewPort;
+      const app = createConversationApp({
+        store: new ConversationEventStore(instance.pool),
+        sessionSecret: SECRET,
+        authorise: () => Promise.resolve(true),
+        authoriseService: (req) => req.header("x-service-cert") === "operator",
+        now: () => NOW,
+        runs: instance.driver,
+      });
+      const listening = await new Promise<Server>((resolve) => {
+        const s_ = app.listen(port, "127.0.0.1", () => resolve(s_));
+      });
+      const body = JSON.stringify({
+        reviewerId: "specialist_vahid",
+        triggers: ["financial_evidence"],
+        outcome: "approved",
+        notes: "Funding source checked against the statement on file.",
+      });
+      try {
+        const denied = await fetch(
+          `http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body,
+          },
+        );
+        expect(
+          denied.status,
+          "clearing a mandatory review is not open to anyone",
+        ).toBe(403);
+        expect(await reachedTheStudent(caseRef), "and it cleared nothing").toBe(
+          "0",
+        );
+
+        const done = await fetch(
+          `http://127.0.0.1:${String(port)}/internal/v1/cases/${caseRef}/review`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-service-cert": "operator",
+            },
+            body,
+          },
+        );
+        expect(done.status, "the review was recorded").toBe(204);
+
+        await pool.query(
+          "UPDATE workflow_runs SET status = 'running' WHERE run_id = $1",
+          [runId],
+        );
+        await instance.driver.advance({ runId, conversationId: conversation });
+      } finally {
+        await new Promise<void>((resolve) => listening.close(() => resolve()));
+        await instance.pool.end();
+      }
+
+      expect(
+        await reachedTheStudent(caseRef),
+        "cleared, and now it may ask",
+      ).toBe("1");
+    }, 300_000);
+
+    it("a REJECTING review does NOT clear it", async () => {
+      // Only an approving review clears a trigger. A rejection leaves it
+      // standing and the work goes back round — otherwise "a human looked" and
+      // "a human approved" would be the same fact.
+      //
+      // ── Why this drives a WHOLE run rather than just starting one ──────
+      //
+      // A first version started a run, recorded a rejection, and asserted the
+      // case had not reached the student. It passed, and it would have passed
+      // with the rule inverted: the run never got past `request_secret`, so its
+      // case never targeted `AWAITING_STUDENT_AUTHORISATION` and there was
+      // nothing for the guard to hold back. The P11 regression pass caught it by
+      // forcing every review to `approved` and watching the suite stay green.
+      //
+      // A test of a guard has to put the case in front of the guard.
+      const other = "01JBXQ8Z9WKTQ6M4H2NPC000A2";
+      const otherCase = `case_${other.toLowerCase()}`;
+      const otherRun = await aRunAtTheAuthorisation(other);
+      expect(
+        await reachedTheStudent(otherCase),
+        "held, before any review",
+      ).toBe("0");
+
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const done = await instance.driver.completeReview({
+          caseId: makeCaseId(otherCase),
+          review: {
+            reviewerId: "specialist_vahid",
+            reviewedAt: NOW,
+            triggers: ["financial_evidence"],
+            outcome: "rejected",
+            notes: "The statement is older than the 31-day window.",
+          },
+        });
+        expect(
+          done.ok,
+          "the rejection WAS recorded — it is a review either way",
+        ).toBe(true);
+
+        // Several times, and each time put back in the pool: the run stops again
+        // on every pass, and a guard that leaked would leak on one of them.
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          await pool.query(
+            "UPDATE workflow_runs SET status = 'running' WHERE run_id = $1",
+            [otherRun],
+          );
+          await instance.driver.advance({
+            runId: otherRun,
+            conversationId: other,
+          });
+        }
+      } finally {
+        await instance.pool.end();
+      }
+
+      expect(
+        await reachedTheStudent(otherCase),
+        "a rejection is not an approval",
+      ).toBe("0");
+    }, 300_000);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // N. P12 — the things only the student can do (ADR-0050)
@@ -4398,7 +5099,9 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
   const caseRef = `case_${conversation.toLowerCase()}`;
   let runId = "";
 
-  async function caseEvents(): Promise<{ type: string; kind: string | null }[]> {
+  async function caseEvents(): Promise<
+    { type: string; kind: string | null }[]
+  > {
     const rows = await pool.query<{ type: string; kind: string | null }>(
       `SELECT event->>'type' AS type, event->>'handoffKind' AS kind
          FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
@@ -4419,19 +5122,22 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
 
   /** A run on the VERIFYING portal, with its account created. */
   async function aRunAwaitingVerification(): Promise<void> {
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      studentId_,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, studentId_],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool));
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: VERIFYING_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -4473,9 +5179,15 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
 
     const instance = buildInstance(connectionString(), opener());
     try {
-      const first = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!first.ok) expect.unreachable(`advance refused: ${first.refusal.kind}`);
-      expect(first.position.step, "waiting on the student").toBe("student_handoff");
+      const first = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!first.ok)
+        expect.unreachable(`advance refused: ${first.refusal.kind}`);
+      expect(first.position.step, "waiting on the student").toBe(
+        "student_handoff",
+      );
 
       // Polled four more times, as a real deployment does.
       for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -4485,11 +5197,15 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       await instance.pool.end();
     }
 
-    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
+    const raised = (await caseEvents()).filter(
+      (event) => event.type === "HandoffRequired",
+    );
     expect(raised, "raised once, however often it is polled").toHaveLength(1);
     expect(raised[0]?.kind).toBe("email_verification");
 
-    const asked = (await messages()).filter((content) => content.includes("follow the link"));
+    const asked = (await messages()).filter((content) =>
+      content.includes("follow the link"),
+    );
     expect(asked, "and told once").toHaveLength(1);
   }, 300_000);
 
@@ -4502,14 +5218,19 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       const refused = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,
-        decision: { kind: "confirm_handoff", contentHash: "sha256:a-page-from-yesterday" },
+        decision: {
+          kind: "confirm_handoff",
+          contentHash: "sha256:a-page-from-yesterday",
+        },
       });
       expect(refused).toEqual({ ok: false, reason: "content_changed" });
     } finally {
       await instance.pool.end();
     }
 
-    const completed = (await caseEvents()).filter((event) => event.type === "HandoffCompleted");
+    const completed = (await caseEvents()).filter(
+      (event) => event.type === "HandoffCompleted",
+    );
     expect(completed, "and nothing was recorded").toHaveLength(0);
   }, 300_000);
 
@@ -4519,9 +5240,14 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       // ADR-0061. The hash comes from the READ a client makes, not from a
       // method only a test could call: the run says what it is waiting for.
       const reading = await instance.driver.runFor(conversation);
-      expect(reading?.pending?.decision, "the run is asking for this").toBe("confirm_handoff");
+      expect(reading?.pending?.decision, "the run is asking for this").toBe(
+        "confirm_handoff",
+      );
       const hash = reading?.pending?.contentHash ?? null;
-      expect(hash, "the service renders the message and the hash").not.toBeNull();
+      expect(
+        hash,
+        "the service renders the message and the hash",
+      ).not.toBeNull();
 
       const done = await instance.driver.recordDecision({
         conversationId: conversation,
@@ -4530,20 +5256,28 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       });
       expect(done).toEqual({ ok: true });
 
-      const after = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
-      expect(after.position.step, "verified; the account is usable now").not.toBe(
-        "student_handoff",
-      );
+      const after = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!after.ok)
+        expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      expect(
+        after.position.step,
+        "verified; the account is usable now",
+      ).not.toBe("student_handoff");
     } finally {
       await instance.pool.end();
     }
 
-    const completed = (await caseEvents()).filter((event) => event.type === "HandoffCompleted");
-    expect(completed).toHaveLength(1);
-    expect(completed[0]?.kind, "the kind came from the case, not the client").toBe(
-      "email_verification",
+    const completed = (await caseEvents()).filter(
+      (event) => event.type === "HandoffCompleted",
     );
+    expect(completed).toHaveLength(1);
+    expect(
+      completed[0]?.kind,
+      "the kind came from the case, not the client",
+    ).toBe("email_verification");
   }, 300_000);
 
   it("does NOT ask again after a restart — the stage is derived, not remembered", async () => {
@@ -4556,14 +5290,20 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
     // ═══════════════════════════════════════════════════════════════════
     const restarted = buildInstance(connectionString(), opener());
     try {
-      const after = await restarted.driver.advance({ runId, conversationId: conversation });
-      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      const after = await restarted.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!after.ok)
+        expect.unreachable(`advance refused: ${after.refusal.kind}`);
       expect(after.position.step).not.toBe("student_handoff");
     } finally {
       await restarted.pool.end();
     }
 
-    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
+    const raised = (await caseEvents()).filter(
+      (event) => event.type === "HandoffRequired",
+    );
     expect(raised, "and no second ask").toHaveLength(1);
   }, 300_000);
 
@@ -4574,7 +5314,9 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
     try {
       const verdict = await instance.driver.mayConclude(runId, conversation);
       expect(verdict.may, "the application is not even filled").toBe(false);
-      expect(verdict.outstanding.join(" ")).toContain("has not been handed back");
+      expect(verdict.outstanding.join(" ")).toContain(
+        "has not been handed back",
+      );
     } finally {
       await instance.pool.end();
     }
@@ -4589,8 +5331,14 @@ describeIfDatabase("the interview loop, closed", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000C0";
   let student = "";
 
-  async function events(): Promise<{ kind: string; field: string | null; content: string | null }[]> {
-    const rows = await pool.query<{ kind: string; field: string | null; content: string | null }>(
+  async function events(): Promise<
+    { kind: string; field: string | null; content: string | null }[]
+  > {
+    const rows = await pool.query<{
+      kind: string;
+      field: string | null;
+      content: string | null;
+    }>(
       `SELECT e.kind, e.field_key AS field, b.content
          FROM conversation_events e
          LEFT JOIN message_bodies b ON b.id = e.body_id
@@ -4608,7 +5356,10 @@ describeIfDatabase("the interview loop, closed", () => {
         conversationId: conversation,
         event: { kind: "message", actor: "student", content: what },
       });
-      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+      await instance.driver.answerStudent({
+        conversationId: conversation,
+        event: written.event,
+      });
     } finally {
       await instance.pool.end();
     }
@@ -4619,10 +5370,10 @@ describeIfDatabase("the interview loop, closed", () => {
       "INSERT INTO students (subject, email_verified) VALUES ('oidc-p13', true) RETURNING id",
     );
     student = created.rows[0]!.id;
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      student,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, student],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
       // NOTHING is seeded. That is the point: every other group in this file
@@ -4633,33 +5384,128 @@ describeIfDatabase("the interview loop, closed", () => {
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step, "nothing is known yet").toBe("interview");
     } finally {
       await instance.pool.end();
     }
   }, 300_000);
 
-  it("writes NOTHING when it could not read the answer at all", async () => {
+  it("PUTS THE QUESTION to the student when the run reaches the interview", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0062, and the reason it exists. `nextAction` composed this question
+    // during step derivation and the driver used to throw it away, so a run
+    // sitting at `interview` was a conversation with one voice: the student
+    // saw a case open and then silence.
+    //
+    // Asserted against the log written by `start` in `beforeAll` — the real
+    // production path, with nothing seeded.
+    // ═══════════════════════════════════════════════════════════════════
+    const log = await events();
+    const asked = log.filter((event) => event.kind === "value_asked");
+    expect(asked, "one question, about one field").toHaveLength(1);
+    expect(asked[0]?.field, "the first field the blueprint needs").toBe(
+      "contact.email",
+    );
+
+    // ── The words are the STEP's, not a constant the driver made up ────
+    //
+    // Written after a mutation that replaced `action.say` with a fixed string
+    // SURVIVED: "a message was written" is satisfied by any message, so it
+    // proved nothing about where the text came from. `nextAction` composes the
+    // question from the field's own label and rationale, so the label is what
+    // a driver-invented sentence could not contain.
+    const said = log.filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
+    expect(said.at(-1)?.content ?? "").toContain(
+      FIELD_LABELS["contact.email"].toLowerCase(),
+    );
+  }, 300_000);
+
+  it("does NOT ask again while the question still stands", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Idempotent by the LOG, with no marker column — the same shape
+    // `#raiseHandoff` is idempotent by token and `#openSecureStep` by the live
+    // request. Without this, every poll of a run waiting on an answer would
+    // add a question, and the student would watch the same thing be asked
+    // over and over while they were still reading the first one.
+    // ═══════════════════════════════════════════════════════════════════
+    const before = (await events()).filter(
+      (event) => event.kind === "value_asked",
+    ).length;
+    expect(before, "one question stands").toBe(1);
+
+    // `currentFor` IS a poll: it advances the conversation's run. Twice, so a
+    // repeat would show up as two more questions rather than one.
+    for (let poll = 0; poll < 2; poll += 1) {
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const seen = await instance.driver.currentFor(conversation);
+        expect(seen?.ok, "the run is still there").toBe(true);
+      } finally {
+        await instance.pool.end();
+      }
+    }
+
+    const after = (await events()).filter(
+      (event) => event.kind === "value_asked",
+    ).length;
+    expect(after, "two polls, and the question was not repeated").toBe(before);
+  }, 300_000);
+
+  it("records NO READING when it could not read the answer at all, and asks again", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // A student who says "I don't know" has not supplied a value, and the log
-    // must not pretend otherwise. No proposal, no profile entry — the next
-    // decide re-asks, rephrased, with the attempt count `composeQuestion` can
-    // see. This is also the branch that documents an honest limitation: an
-    // unreadable answer leaves no event, so it does NOT count towards
-    // `MAX_ATTEMPTS_PER_FIELD` (ADR-0051 §2).
+    // must not pretend otherwise: no proposal, no profile entry.
+    //
+    // What it DOES write is the question again (ADR-0062). Their message
+    // closed the outstanding one, and a service that recorded nothing at all
+    // would leave them looking at a screen that had just gone quiet. Before
+    // ADR-0062 this test asserted "nothing structured was written", which was
+    // true and was the defect: the re-ask the comment above described existed
+    // only inside the orchestrator.
+    //
+    // The honest limitation stands: an unreadable answer produces no
+    // proposal, so it does NOT count towards `MAX_ATTEMPTS_PER_FIELD`
+    // (ADR-0051 §2, ADR-0062).
     // ═══════════════════════════════════════════════════════════════════
+    const before = await events();
     await say("I don't know");
-
     const log = await events();
+
     expect(
-      log.filter((event) => event.kind !== "message"),
-      "nothing structured was written",
+      log.filter(
+        (event) =>
+          event.kind.startsWith("value_") && event.kind !== "value_asked",
+      ),
+      "no reading was written",
     ).toHaveLength(0);
-    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
-      student,
-    ]);
+    const stored = await pool.query(
+      "SELECT 1 FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
     expect(stored.rowCount, "and nothing reached the profile").toBe(0);
+
+    // A fresh question, about the field the run is still on.
+    const asked = log.filter((event) => event.kind === "value_asked");
+    expect(
+      asked.length,
+      "they were asked again after their answer could not be read",
+    ).toBeGreaterThan(
+      before.filter((event) => event.kind === "value_asked").length,
+    );
+    expect(asked.at(-1)?.field).toBe("contact.email");
+
+    // And the words are there to read, not just the marker.
+    const said = log.filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
+    expect(
+      said.at(-1)?.content?.length ?? 0,
+      "the question is a message",
+    ).toBeGreaterThan(0);
   }, 300_000);
 
   it("puts what it understood back to the student, deterministically", async () => {
@@ -4680,15 +5526,18 @@ describeIfDatabase("the interview loop, closed", () => {
     expect(proposed, "one reading, put once").toHaveLength(1);
     expect(proposed[0]?.field).toBe("contact.email");
 
-    const playback = log.filter((event) => event.kind === "message" && event.content !== null);
+    const playback = log.filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
     expect(playback.at(-1)?.content, "the playback names the value").toContain(
       "niloofar@example.test",
     );
 
     // And nothing is confirmed yet.
-    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
-      student,
-    ]);
+    const stored = await pool.query(
+      "SELECT 1 FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
     expect(stored.rowCount, "a reading is not a confirmation").toBe(0);
   }, 300_000);
 
@@ -4715,9 +5564,10 @@ describeIfDatabase("the interview loop, closed", () => {
           ORDER BY ordinal DESC LIMIT 1`,
         [conversation],
       );
-      expect(reading?.pending?.contentHash, "the hash the proposal was written with").toBe(
-        written.rows[0]?.playback_hash,
-      );
+      expect(
+        reading?.pending?.contentHash,
+        "the hash the proposal was written with",
+      ).toBe(written.rows[0]?.playback_hash);
 
       // Deliberately NOT confirmed here: the next tests in this group are
       // about that same open reading, and consuming it would leave them
@@ -4738,21 +5588,27 @@ describeIfDatabase("the interview loop, closed", () => {
       const refused = await instance.driver.recordDecision({
         conversationId: conversation,
         runId: runs[0]?.runId ?? "",
-        decision: { kind: "confirm_value", contentHash: "sha256:not-what-they-read" },
+        decision: {
+          kind: "confirm_value",
+          contentHash: "sha256:not-what-they-read",
+        },
       });
       expect(refused).toEqual({ ok: false, reason: "content_changed" });
     } finally {
       await instance.pool.end();
     }
-    const stored = await pool.query("SELECT 1 FROM profile_entries WHERE student_id = $1", [
-      student,
-    ]);
+    const stored = await pool.query(
+      "SELECT 1 FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
     expect(stored.rowCount, "and nothing was written").toBe(0);
   }, 300_000);
 
   it("writes the value through the sanctioned path when they agree", async () => {
     const log = await events();
-    const playback = log.filter((event) => event.kind === "message" && event.content !== null);
+    const playback = log.filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
     const shown = playback.at(-1)?.content ?? "";
     const hash = `sha256:${createHash("sha256").update(shown).digest("hex")}`;
 
@@ -4777,15 +5633,69 @@ describeIfDatabase("the interview loop, closed", () => {
       [student],
     );
     expect(stored.rows.map((row) => row.field_key)).toEqual(["contact.email"]);
-    expect(stored.rows[0]?.provenance, "confirmed, not merely stored").not.toBeNull();
+    expect(
+      stored.rows[0]?.provenance,
+      "confirmed, not merely stored",
+    ).not.toBeNull();
 
     // ── And the exchange is closed on the log ───────────────────────────
-    const confirmed = (await events()).filter((event) => event.kind === "value_confirmed");
+    const confirmed = (await events()).filter(
+      (event) => event.kind === "value_confirmed",
+    );
     expect(confirmed).toHaveLength(1);
     expect(confirmed[0]?.field).toBe("contact.email");
   }, 300_000);
 
-  it("asks the NEXT question, because the first is answered", async () => {
+  it("asks the NEXT question the moment a reading is confirmed, without an advance", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0062. The previous test confirmed `contact.email` through
+    // `recordDecision` and NOTHING has advanced the run since. The question
+    // about the next field must already be in the log.
+    //
+    // Why it cannot wait for an advance: a client that has just confirmed a
+    // reading does not advance the run, it RE-READS it (ADR-0060, ADR-0061) —
+    // and a read must not append. Without the ask hanging off the
+    // confirmation, the journey stalls on a screen that says `interview` and
+    // asks nothing, which is exactly the state P25 found and could not fix
+    // from the browser.
+    // ═══════════════════════════════════════════════════════════════════
+    const log = await events();
+    const asked = log.filter((event) => event.kind === "value_asked");
+    const confirmedAt = log.findIndex(
+      (event) => event.kind === "value_confirmed",
+    );
+    expect(confirmedAt, "the reading was confirmed").toBeGreaterThanOrEqual(0);
+
+    const since = log
+      .slice(confirmedAt + 1)
+      .filter((event) => event.kind === "value_asked");
+    expect(
+      since,
+      "one question, after the confirmation and before any advance",
+    ).toHaveLength(1);
+    expect(since[0]?.field, "and it is about a DIFFERENT field").not.toBe(
+      "contact.email",
+    );
+    expect(asked.length).toBeGreaterThan(1);
+
+    // The words reached them too, and they are about the NEW field — the same
+    // proof one field further on. A driver composing its own sentence would
+    // have written the same one twice.
+    expect(
+      log.at(-1)?.kind,
+      "the question's message is the last thing said",
+    ).toBe("message");
+    const nextField = since[0]?.field as ProfileFieldKey;
+    expect(log.at(-1)?.content ?? "").toContain(
+      FIELD_LABELS[nextField].toLowerCase(),
+    );
+    const firstQuestion = log.find(
+      (event) => event.kind === "message" && event.content !== null,
+    )?.content;
+    expect(log.at(-1)?.content, "a different question from the first").not.toBe(
+      firstQuestion,
+    );
+
     const instance = buildInstance(connectionString(), opener());
     try {
       const runs = await new PostgresWorkflowRunStore(instance.pool).findByCase(
@@ -4795,8 +5705,12 @@ describeIfDatabase("the interview loop, closed", () => {
         runId: runs[0]?.runId ?? "",
         conversationId: conversation,
       });
-      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
-      expect(advanced.position.step, "still interviewing, one field further on").toBe("interview");
+      if (!advanced.ok)
+        expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(
+        advanced.position.step,
+        "still interviewing, one field further on",
+      ).toBe("interview");
     } finally {
       await instance.pool.end();
     }
@@ -4813,16 +5727,18 @@ describeIfDatabase("the interview loop, closed", () => {
     // to this test — what matters is that the reading survives a process that
     // holds nothing.
     await say("Niloofar");
-    const before = (await events()).filter((event) => event.kind === "value_proposed");
+    const before = (await events()).filter(
+      (event) => event.kind === "value_proposed",
+    );
     expect(before, "a second reading is pending").toHaveLength(2);
 
     const restarted = buildInstance(connectionString(), opener());
     try {
       // A brand-new instance, holding nothing. It must not re-ask, and it must
       // not propose a second time.
-      const runs = await new PostgresWorkflowRunStore(restarted.pool).findByCase(
-        makeCaseId(`case_${conversation.toLowerCase()}`),
-      );
+      const runs = await new PostgresWorkflowRunStore(
+        restarted.pool,
+      ).findByCase(makeCaseId(`case_${conversation.toLowerCase()}`));
       await restarted.driver.advance({
         runId: runs[0]?.runId ?? "",
         conversationId: conversation,
@@ -4830,15 +5746,22 @@ describeIfDatabase("the interview loop, closed", () => {
     } finally {
       await restarted.pool.end();
     }
-    const after = (await events()).filter((event) => event.kind === "value_proposed");
-    expect(after, "the pending reading survived; nothing was re-proposed").toHaveLength(2);
+    const after = (await events()).filter(
+      (event) => event.kind === "value_proposed",
+    );
+    expect(
+      after,
+      "the pending reading survived; nothing was re-proposed",
+    ).toHaveLength(2);
   }, 300_000);
 
   it("treats what they say next as a CORRECTION, never as agreement", async () => {
     // "no, it's Hosseinpour" is not a yes. It closes the reading and produces
     // a new one — agreement only ever arrives on the decision route, with a
     // hash (ADR-0051 §3).
-    const pendingBefore = (await events()).filter((event) => event.kind === "value_proposed");
+    const pendingBefore = (await events()).filter(
+      (event) => event.kind === "value_proposed",
+    );
     const field = pendingBefore.at(-1)?.field ?? "";
     expect(field, "there is a reading outstanding").not.toBe("");
 
@@ -4846,7 +5769,10 @@ describeIfDatabase("the interview loop, closed", () => {
 
     const log = await events();
     const rejected = log.filter((event) => event.kind === "value_rejected");
-    expect(rejected, "the reading they did not agree to is closed").toHaveLength(1);
+    expect(
+      rejected,
+      "the reading they did not agree to is closed",
+    ).toHaveLength(1);
     expect(rejected[0]?.field).toBe(field);
 
     // A correction the student supplied IS confirmed — they gave the value
@@ -4876,8 +5802,14 @@ describeIfDatabase("the student stops", () => {
   let runId = "";
   let mine = "";
 
-  async function caseEvents(): Promise<{ type: string; to: string | null; reason: string | null }[]> {
-    const rows = await pool.query<{ type: string; to: string | null; reason: string | null }>(
+  async function caseEvents(): Promise<
+    { type: string; to: string | null; reason: string | null }[]
+  > {
+    const rows = await pool.query<{
+      type: string;
+      to: string | null;
+      reason: string | null;
+    }>(
       `SELECT event->>'type' AS type, event->>'to' AS to, event->>'reason' AS reason
          FROM case_events WHERE case_id = $1 ORDER BY "sequence" ASC`,
       [caseRef],
@@ -4886,7 +5818,9 @@ describeIfDatabase("the student stops", () => {
   }
 
   async function caseState(): Promise<string> {
-    const moves = (await caseEvents()).filter((event) => event.type === "CaseStateChanged");
+    const moves = (await caseEvents()).filter(
+      (event) => event.type === "CaseStateChanged",
+    );
     return moves.at(-1)?.to ?? "INTAKE";
   }
 
@@ -4927,7 +5861,9 @@ describeIfDatabase("the student stops", () => {
       await instance.pool.end();
       // Deleted, because the clock is fixed and these leases would otherwise
       // never lapse — leaving the pool empty and the next assertion vacuous.
-      await pool.query("DELETE FROM work_leases WHERE holder LIKE 'runner-probe-%'");
+      await pool.query(
+        "DELETE FROM work_leases WHERE holder LIKE 'runner-probe-%'",
+      );
     }
     return seen;
   }
@@ -4938,19 +5874,23 @@ describeIfDatabase("the student stops", () => {
       "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-stop', true) RETURNING id",
     );
     mine = created.rows[0]!.id;
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      mine,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, mine],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), mine);
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        mine,
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -4982,22 +5922,32 @@ describeIfDatabase("the student stops", () => {
       // …and they approve it, so the cancellation has an authorisation to
       // void. A student who changes their mind AFTER approving is the case
       // `student_revoked` exists for.
-      const hash = (await instance.driver.previewFor(runId, conversation))?.contentHash ?? null;
+      const hash =
+        (await instance.driver.previewFor(runId, conversation))?.contentHash ??
+        null;
       const approved = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,
         decision: { kind: "authorise", contentHash: hash ?? "" },
       });
-      expect(approved, "approved before they changed their mind").toEqual({ ok: true });
+      expect(approved, "approved before they changed their mind").toEqual({
+        ok: true,
+      });
 
       // …and one more advance, because recording the authorisation does not
       // move the RUN: its checkpoint phase reaches `filling` on the next
       // decide, and `claimWork` selects candidates by phase. Without this the
       // run is not in the work pool at all, and the control test below would
       // pass for a reason that has nothing to do with stopping.
-      const filling = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
-      expect(filling.position.step, "there is portal work to withhold").toBe("execute");
+      const filling = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!filling.ok)
+        expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "there is portal work to withhold").toBe(
+        "execute",
+      );
     } finally {
       await instance.pool.end();
     }
@@ -5016,7 +5966,10 @@ describeIfDatabase("the student stops", () => {
     // Claimed repeatedly, because this run is not the only candidate in the
     // database and `claimWork` hands out the oldest first. What matters is
     // that it is IN the pool, not that it is at the head of it.
-    expect(await offeredRuns(), "there is real portal work outstanding").toContain(runId);
+    expect(
+      await offeredRuns(),
+      "there is real portal work outstanding",
+    ).toContain(runId);
   }, 300_000);
 
   it("STOPS, whatever the run happened to be doing", async () => {
@@ -5043,14 +5996,20 @@ describeIfDatabase("the student stops", () => {
       log.filter((event) => event.type === "CaseCancelled"),
       "the event nothing had ever produced",
     ).toHaveLength(1);
-    expect(await caseState(), "winding down, NOT concluded").toBe("WINDING_DOWN");
+    expect(await caseState(), "winding down, NOT concluded").toBe(
+      "WINDING_DOWN",
+    );
   }, 300_000);
 
   it("VOIDS the approval, and names the student as the reason", async () => {
     // ADR-0053 §2. `student_revoked` had been a declared reason with no writer.
-    const voided = (await caseEvents()).filter((event) => event.type === "AuthorisationVoided");
+    const voided = (await caseEvents()).filter(
+      (event) => event.type === "AuthorisationVoided",
+    );
     expect(voided).toHaveLength(1);
-    expect(voided[0]?.reason, "not content_changed, not expired").toBe("student_revoked");
+    expect(voided[0]?.reason, "not content_changed, not expired").toBe(
+      "student_revoked",
+    );
   }, 300_000);
 
   it("tells the student the truth, including what stopping did NOT do", async () => {
@@ -5061,9 +6020,15 @@ describeIfDatabase("the student stops", () => {
     // ═══════════════════════════════════════════════════════════════════
     const said = (await messages()).at(-1) ?? "";
     expect(said, "stopped").toContain("stopped work on your");
-    expect(said, "and will not start anything new").toContain("will not start anything new");
-    expect(said, "the account still exists and is theirs").toContain("still exists");
-    expect(said, "what was filled in is still there").toContain("still saved there");
+    expect(said, "and will not start anything new").toContain(
+      "will not start anything new",
+    );
+    expect(said, "the account still exists and is theirs").toContain(
+      "still exists",
+    );
+    expect(said, "what was filled in is still there").toContain(
+      "still saved there",
+    );
     expect(said, "nothing was submitted").toContain("Nothing was submitted");
     // The load-bearing sentence: stopping is not deletion, and deletion is a
     // separate request that goes to a person.
@@ -5078,7 +6043,9 @@ describeIfDatabase("the student stops", () => {
     // ═══════════════════════════════════════════════════════════════════
     // The control test proved this run WAS in the pool. Its leases were one
     // second and have lapsed, so the only thing withholding it now is the stop.
-    expect(await offeredRuns(), "nothing for a stopped run").not.toContain(runId);
+    expect(await offeredRuns(), "nothing for a stopped run").not.toContain(
+      runId,
+    );
   }, 300_000);
 
   it("does NOT conclude while the student is still owed their account", async () => {
@@ -5116,15 +6083,25 @@ describeIfDatabase("the student stops", () => {
     // ═══════════════════════════════════════════════════════════════════
     const instance = buildInstance(connectionString(), opener());
     try {
-      const where = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!where.ok) expect.unreachable(`advance refused: ${where.refusal.kind}`);
-      expect(where.position.step, "the only thing left is the account").toBe("hand_over_account");
+      const where = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!where.ok)
+        expect.unreachable(`advance refused: ${where.refusal.kind}`);
+      expect(where.position.step, "the only thing left is the account").toBe(
+        "hand_over_account",
+      );
     } finally {
       await instance.pool.end();
     }
 
-    const raised = (await caseEvents()).filter((event) => event.type === "HandoffRequired");
-    expect(raised.length, "and the handover is being pursued").toBeGreaterThan(0);
+    const raised = (await caseEvents()).filter(
+      (event) => event.type === "HandoffRequired",
+    );
+    expect(raised.length, "and the handover is being pursued").toBeGreaterThan(
+      0,
+    );
   }, 300_000);
 
   it("survives a restart still stopped, because it is a fact and not a flag", async () => {
@@ -5150,11 +6127,16 @@ describeIfDatabase("the student stops", () => {
         runId,
         decision: { kind: "cancel" },
       });
-      expect(again, "already stopped").toEqual({ ok: false, reason: "refused" });
+      expect(again, "already stopped").toEqual({
+        ok: false,
+        reason: "refused",
+      });
     } finally {
       await instance.pool.end();
     }
-    expect((await caseEvents()).filter((event) => event.type === "CaseCancelled")).toHaveLength(1);
+    expect(
+      (await caseEvents()).filter((event) => event.type === "CaseCancelled"),
+    ).toHaveLength(1);
   }, 300_000);
 
   it("stays wound down for as long as the account is owed", async () => {
@@ -5182,150 +6164,172 @@ describeIfDatabase("the student stops", () => {
     } finally {
       await instance.pool.end();
     }
-    expect(await caseState(), "and so it does not conclude").toBe("WINDING_DOWN");
+    expect(await caseState(), "and so it does not conclude").toBe(
+      "WINDING_DOWN",
+    );
   }, 300_000);
 });
 
-describeIfDatabase("the student stops while an account is about to be created", () => {
-  // ═══════════════════════════════════════════════════════════════════════
-  // THE CASE THE GUARD EXISTS FOR, and it took a deliberate regression to
-  // find it.
-  //
-  // Cancelling a run that has already been AUTHORISED withholds its fill work
-  // for a reason that has nothing to do with cancellation: the authorisation
-  // is voided, and an unapproved run is never offered fill work anyway
-  // (ADR-0051). Both of P15's own defences could be deleted and every test
-  // still passed.
-  //
-  // A run standing at `create_account` has no authorisation to void — the
-  // approval comes later — so nothing else withholds it. Without the guard, a
-  // runner polling one second after the student stopped would create a real
-  // account, in their name, at a university, for an application they had just
-  // cancelled. That is the single worst thing this phase could fail to
-  // prevent.
-  // ═══════════════════════════════════════════════════════════════════════
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000G0";
-  const caseRef = `case_${conversation.toLowerCase()}`;
-  let runId = "";
+describeIfDatabase(
+  "the student stops while an account is about to be created",
+  () => {
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE CASE THE GUARD EXISTS FOR, and it took a deliberate regression to
+    // find it.
+    //
+    // Cancelling a run that has already been AUTHORISED withholds its fill work
+    // for a reason that has nothing to do with cancellation: the authorisation
+    // is voided, and an unapproved run is never offered fill work anyway
+    // (ADR-0051). Both of P15's own defences could be deleted and every test
+    // still passed.
+    //
+    // A run standing at `create_account` has no authorisation to void — the
+    // approval comes later — so nothing else withholds it. Without the guard, a
+    // runner polling one second after the student stopped would create a real
+    // account, in their name, at a university, for an application they had just
+    // cancelled. That is the single worst thing this phase could fail to
+    // prevent.
+    // ═══════════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000G0";
+    const caseRef = `case_${conversation.toLowerCase()}`;
+    let runId = "";
 
-  /**
-   * Every run the pool would hand out right now, leaving the pool as it found
-   * it.
-   *
-   * The leases are DELETED afterwards, and that is not tidiness. The driver's
-   * clock is fixed at `NOW` in these tests, so a lease taken here never lapses
-   * — and the first version of this helper emptied the pool permanently, which
-   * made the "after they stop" assertion pass against an empty list rather
-   * than against the guard. A deliberate regression found it: the guard could
-   * be deleted and the test still passed.
-   */
-  async function offeredRuns(): Promise<readonly string[]> {
-    const instance = buildInstance(connectionString(), opener());
-    const seen: string[] = [];
-    try {
-      // Wrapped, so the probe's own claims do not leave the ledger saying an
-      // action was attempted. See `probing`.
-      await probing(async () => {
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-          const offered = await instance.driver.claimWork({
-            holder: `probe-acct-${String(attempt)}`,
-            leaseSeconds: 60,
-          });
-          if (offered === null) break;
-          seen.push(offered.runId);
-        }
-      });
-    } finally {
-      await instance.pool.end();
-      await pool.query("DELETE FROM work_leases WHERE holder LIKE 'probe-acct-%'");
-    }
-    return seen;
-  }
-
-  beforeAll(async () => {
-    const created = await pool.query<{ id: string }>(
-      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-acct', true) RETURNING id",
-    );
-    const student = created.rows[0]!.id;
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      student,
-    ]);
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
-      runId = started.position.runId;
-
-      // The password is in. The account does NOT exist yet — this is the
-      // window between the student typing it and a runner using it.
-      await new ConversationEventStore(instance.pool).append({
-        conversationId: conversation,
-        event: {
-          kind: "secret_received",
-          // The id the group's OWN opener minted: each `opener()` restarts its
-          // counter, so this is the first request in THIS conversation.
-          requestId: `sr_${"0".repeat(31)}1`,
-          handle: `sh_${"c".repeat(32)}`,
-        },
-      });
-      const at = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!at.ok) expect.unreachable(`advance refused: ${at.refusal.kind}`);
-      expect(at.position.step, "poised to create a real account").toBe("create_account");
-    } finally {
-      await instance.pool.end();
-    }
-  }, 300_000);
-
-  it("is offered as ACCOUNT-CREATION work before they stop", async () => {
-    expect(await offeredRuns(), "a runner would create the account").toContain(runId);
-  }, 300_000);
-
-  it("is offered to NOBODY the moment they stop, so no account is created", async () => {
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      const stopped = await instance.driver.recordDecision({
-        conversationId: conversation,
-        runId,
-        decision: { kind: "cancel" },
-      });
-      expect(stopped).toEqual({ ok: true });
-    } finally {
-      await instance.pool.end();
+    /**
+     * Every run the pool would hand out right now, leaving the pool as it found
+     * it.
+     *
+     * The leases are DELETED afterwards, and that is not tidiness. The driver's
+     * clock is fixed at `NOW` in these tests, so a lease taken here never lapses
+     * — and the first version of this helper emptied the pool permanently, which
+     * made the "after they stop" assertion pass against an empty list rather
+     * than against the guard. A deliberate regression found it: the guard could
+     * be deleted and the test still passed.
+     */
+    async function offeredRuns(): Promise<readonly string[]> {
+      const instance = buildInstance(connectionString(), opener());
+      const seen: string[] = [];
+      try {
+        // Wrapped, so the probe's own claims do not leave the ledger saying an
+        // action was attempted. See `probing`.
+        await probing(async () => {
+          for (let attempt = 0; attempt < 6; attempt += 1) {
+            const offered = await instance.driver.claimWork({
+              holder: `probe-acct-${String(attempt)}`,
+              leaseSeconds: 60,
+            });
+            if (offered === null) break;
+            seen.push(offered.runId);
+          }
+        });
+      } finally {
+        await instance.pool.end();
+        await pool.query(
+          "DELETE FROM work_leases WHERE holder LIKE 'probe-acct-%'",
+        );
+      }
+      return seen;
     }
 
-    expect(await offeredRuns(), "no account is created for a stopped student").not.toContain(runId);
+    beforeAll(async () => {
+      const created = await pool.query<{ id: string }>(
+        "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-acct', true) RETURNING id",
+      );
+      const student = created.rows[0]!.id;
+      await pool.query(
+        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+        [conversation, student],
+      );
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        await confirmTheInterview(
+          new PostgresConfirmedProfileStore(instance.pool),
+          student,
+        );
+        const started = await instance.driver.start({
+          conversationId: conversation,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!started.ok)
+          expect.unreachable(`start refused: ${started.refusal.kind}`);
+        runId = started.position.runId;
 
-    // And nothing in the ledger claims one was.
-    const intents = await pool.query(
-      `SELECT 1 FROM workflow_action_intents
+        // The password is in. The account does NOT exist yet — this is the
+        // window between the student typing it and a runner using it.
+        await new ConversationEventStore(instance.pool).append({
+          conversationId: conversation,
+          event: {
+            kind: "secret_received",
+            // The id the group's OWN opener minted: each `opener()` restarts its
+            // counter, so this is the first request in THIS conversation.
+            requestId: `sr_${"0".repeat(31)}1`,
+            handle: `sh_${"c".repeat(32)}`,
+          },
+        });
+        const at = await instance.driver.advance({
+          runId,
+          conversationId: conversation,
+        });
+        if (!at.ok) expect.unreachable(`advance refused: ${at.refusal.kind}`);
+        expect(at.position.step, "poised to create a real account").toBe(
+          "create_account",
+        );
+      } finally {
+        await instance.pool.end();
+      }
+    }, 300_000);
+
+    it("is offered as ACCOUNT-CREATION work before they stop", async () => {
+      expect(
+        await offeredRuns(),
+        "a runner would create the account",
+      ).toContain(runId);
+    }, 300_000);
+
+    it("is offered to NOBODY the moment they stop, so no account is created", async () => {
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        const stopped = await instance.driver.recordDecision({
+          conversationId: conversation,
+          runId,
+          decision: { kind: "cancel" },
+        });
+        expect(stopped).toEqual({ ok: true });
+      } finally {
+        await instance.pool.end();
+      }
+
+      expect(
+        await offeredRuns(),
+        "no account is created for a stopped student",
+      ).not.toContain(runId);
+
+      // And nothing in the ledger claims one was.
+      const intents = await pool.query(
+        `SELECT 1 FROM workflow_action_intents
         WHERE run_id = $1 AND action = 'create_portal_account'`,
-      [runId],
-    );
-    expect(intents.rowCount, "no account creation was ever started").toBe(0);
-  }, 300_000);
+        [runId],
+      );
+      expect(intents.rowCount, "no account creation was ever started").toBe(0);
+    }, 300_000);
 
-  it("concludes with nothing owed, because no account was ever made", async () => {
-    const instance = buildInstance(connectionString(), opener());
-    try {
-      await instance.driver.advance({ runId, conversationId: conversation });
-    } finally {
-      await instance.pool.end();
-    }
-    const rows = await pool.query<{ to: string }>(
-      `SELECT event->>'to' AS to FROM case_events
+    it("concludes with nothing owed, because no account was ever made", async () => {
+      const instance = buildInstance(connectionString(), opener());
+      try {
+        await instance.driver.advance({ runId, conversationId: conversation });
+      } finally {
+        await instance.pool.end();
+      }
+      const rows = await pool.query<{ to: string }>(
+        `SELECT event->>'to' AS to FROM case_events
         WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
         ORDER BY "sequence" DESC LIMIT 1`,
-      [caseRef],
-    );
-    expect(rows.rows[0]?.to).toBe("CANCELLED");
-  }, 300_000);
-});
+        [caseRef],
+      );
+      expect(rows.rows[0]?.to).toBe("CANCELLED");
+    }, 300_000);
+  },
+);
 
 describeIfDatabase("the student stops before anything was created", () => {
   // ═══════════════════════════════════════════════════════════════════════
@@ -5357,10 +6361,10 @@ describeIfDatabase("the student stops before anything was created", () => {
     const created = await pool.query<{ id: string }>(
       "INSERT INTO students (subject, email_verified) VALUES ('oidc-p15-early', true) RETURNING id",
     );
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      created.rows[0]!.id,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, created.rows[0]!.id],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
       // Nothing seeded: this student is still being interviewed.
@@ -5369,7 +6373,8 @@ describeIfDatabase("the student stops before anything was created", () => {
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
       expect(started.position.step, "mid-interview").toBe("interview");
     } finally {
@@ -5391,20 +6396,26 @@ describeIfDatabase("the student stops before anything was created", () => {
         decision: { kind: "cancel" },
       });
       expect(stopped).toEqual({ ok: true });
-      expect(await caseState(), "winding down first, always").toBe("WINDING_DOWN");
+      expect(await caseState(), "winding down first, always").toBe(
+        "WINDING_DOWN",
+      );
 
       await instance.driver.advance({ runId, conversationId: conversation });
     } finally {
       await instance.pool.end();
     }
 
-    expect(await caseState(), "nothing owed, so it concludes").toBe("CANCELLED");
+    expect(await caseState(), "nothing owed, so it concludes").toBe(
+      "CANCELLED",
+    );
 
     const status = await pool.query<{ status: string }>(
       "SELECT status FROM workflow_runs WHERE run_id = $1",
       [runId],
     );
-    expect(status.rows[0]?.status, "and the run is abandoned").toBe("abandoned");
+    expect(status.rows[0]?.status, "and the run is abandoned").toBe(
+      "abandoned",
+    );
   }, 300_000);
 
   it("does not promise an account that never existed", async () => {
@@ -5419,8 +6430,12 @@ describeIfDatabase("the student stops before anything was created", () => {
     );
     const said = rows.rows[0]?.content ?? "";
     expect(said).toContain("stopped work on your");
-    expect(said, "no account was created, so none is claimed").not.toContain("still exists");
-    expect(said, "and erasure is still named as separate").toContain("separate request");
+    expect(said, "no account was created, so none is claimed").not.toContain(
+      "still exists",
+    );
+    expect(said, "and erasure is still named as separate").toContain(
+      "separate request",
+    );
   }, 300_000);
 
   it("stays concluded — a concluded case admits nothing further", async () => {
@@ -5468,19 +6483,23 @@ describeIfDatabase("a correction the student makes late", () => {
       "INSERT INTO students (subject, email_verified) VALUES ('oidc-p13-late', true) RETURNING id",
     );
     mine = created.rows[0]!.id;
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      conversation,
-      mine,
-    ]);
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, mine],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), mine);
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        mine,
+      );
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
 
       await new ConversationEventStore(instance.pool).append({
@@ -5508,8 +6527,12 @@ describeIfDatabase("a correction the student makes late", () => {
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
 
-      const asked = await instance.driver.advance({ runId, conversationId: conversation });
-      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      const asked = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!asked.ok)
+        expect.unreachable(`advance refused: ${asked.refusal.kind}`);
       expect(asked.position.step).toBe("authorise");
     } finally {
       await instance.pool.end();
@@ -5519,7 +6542,9 @@ describeIfDatabase("a correction the student makes late", () => {
   async function authorise(): Promise<void> {
     const instance = buildInstance(connectionString(), opener());
     try {
-      const hash = (await instance.driver.previewFor(runId, conversation))?.contentHash ?? null;
+      const hash =
+        (await instance.driver.previewFor(runId, conversation))?.contentHash ??
+        null;
       const done = await instance.driver.recordDecision({
         conversationId: conversation,
         runId,
@@ -5546,7 +6571,10 @@ describeIfDatabase("a correction the student makes late", () => {
     await authorise();
 
     expect(
-      (await caseEvents()).some((event) => event.type === "CaseStateChanged" && event.to === "AUTHORISED"),
+      (await caseEvents()).some(
+        (event) =>
+          event.type === "CaseStateChanged" && event.to === "AUTHORISED",
+      ),
       "approved, and the case moved with it",
     ).toBe(true);
 
@@ -5560,9 +6588,16 @@ describeIfDatabase("a correction the student makes late", () => {
         "Niloofarah",
         mine,
       );
-      const after = await changing.driver.advance({ runId, conversationId: conversation });
-      if (!after.ok) expect.unreachable(`advance refused: ${after.refusal.kind}`);
-      expect(after.position.step, "asked again, because it is different content").toBe("authorise");
+      const after = await changing.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!after.ok)
+        expect.unreachable(`advance refused: ${after.refusal.kind}`);
+      expect(
+        after.position.step,
+        "asked again, because it is different content",
+      ).toBe("authorise");
     } finally {
       await changing.pool.end();
     }
@@ -5586,7 +6621,9 @@ describeIfDatabase("a correction the student makes late", () => {
       log.filter((event) => event.type === "AuthorisationCaptured"),
       "approved twice: once for each version they were shown",
     ).toHaveLength(2);
-    expect(log.filter((event) => event.type === "CaseStateChanged").at(-1)?.to).toBe("AUTHORISED");
+    expect(
+      log.filter((event) => event.type === "CaseStateChanged").at(-1)?.to,
+    ).toBe("AUTHORISED");
   }, 300_000);
 
   it("offers a filled page AGAIN when its content changed", async () => {

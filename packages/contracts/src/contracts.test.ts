@@ -629,6 +629,7 @@ describe("bytes from the network to a target event", () => {
       secret_expired: { requestId: `sr_${"0".repeat(32)}` },
       secret_cancelled: { requestId: `sr_${"0".repeat(32)}` },
       secret_rejected: { requestId: `sr_${"0".repeat(32)}`, reason: "already_submitted" },
+      value_asked: { fieldKey: "contact.email" },
       value_proposed: { fieldKey: "contact.email", proposal: { value: "x" }, playbackHash: OFFER },
       value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
       value_rejected: { fieldKey: "contact.email" },

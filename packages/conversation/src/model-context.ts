@@ -63,6 +63,7 @@ export function buildModelRequest(input: {
       // would be the same reading a second time, in a shape the model would
       // try to explain — and `value_proposed` carries the confirmed-value
       // candidate itself, which has no business in a prompt.
+      case "value_asked":
       case "value_proposed":
       case "value_confirmed":
       case "value_rejected":

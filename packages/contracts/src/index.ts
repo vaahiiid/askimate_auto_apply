@@ -62,6 +62,7 @@ export type {
   Ordinal,
   SecretReceivedEvent,
   SecretRejectedEvent,
+  ValueAskedEvent,
   ValueConfirmedEvent,
   ValueProposedEvent,
   ValueRejectedEvent,

@@ -19,6 +19,66 @@ not shipped artefacts.
 
 ---
 
+## [0.44.0] — 2026-09-04
+
+**P26 — the question the run is waiting on is in the log. ADR-0062.**
+
+P25's client drove a full case and drew a blank screen at the interview: the run said
+`interviewing`, nothing was pending, and the transcript held no question. The cause is one line in
+`packages/orchestrator/src/run.ts` — `nextAction` composes the question, the step carries it, and
+**the run driver threw it away.**
+
+The same shape ADR-0051 opened with, and the fix then went half the distance. `answerStudent` was
+wired to the message route, so an *answer* became a proposal and a playback. Nothing ever wrote the
+question that answer was answering. Every test supplied the answer from the test process, which is
+why nothing noticed: a test that knows the question does not need it in the log.
+
+The interview was a conversation with one voice.
+
+### Added
+
+- `value_asked` — a conversation event naming the field a question was put about. Content-free: the
+  words are the assistant message beside it, which is the orchestrator's own `action.say`, carried
+  on the step. A second composition here could ask something other than what the run is waiting on.
+- `openQuestion(events)` — the last `value_asked` with nothing after it that answers or supersedes
+  it, and the `open_value_questions` view that says the same rule in SQL. A student **message**
+  closes it, even one nothing could be read from: they answered, the reading failed, and they are
+  owed the question again rather than silence.
+- Migration `0014_the_question_is_in_the_log.sql`. `a_proposal_exchange_names_a_field` is widened to
+  the new kind rather than made vaguer; `a_playback_hash_belongs_to_the_exchange` is untouched,
+  because nothing is confirmed against a question.
+
+### Changed
+
+- The driver asks from three places, each one somewhere it already writes: `#decideOnce` when the
+  run reaches the interview, `#confirmValue` when a reading is accepted, and `answerStudent` when an
+  answer could not be read. Under the conversation's row lock with the log re-read inside it, the
+  way `#openSecureStep` takes it, and idempotent by the log the way `#raiseHandoff` is by token.
+- The ask hangs off `#confirmValue` rather than waiting for an advance because a client that has
+  just confirmed a reading **re-reads** the run (ADR-0060, ADR-0061) and a read must not append.
+  Without it the journey stalls on a screen that says `interview` and asks nothing.
+- Two existing tests were corrected rather than kept green. `run-driver.test.ts` asserted "nothing
+  structured was written" after an unreadable answer — true, and the defect. `p21-target-selection`
+  asserted `target_requested` was the last event in the log, which the interview's question now
+  follows.
+
+### Proved
+
+Eleven deliberate regressions, all caught. Two needed a second attempt, and both faults were in the
+harness: one mutation built a shadow object and discarded it, and one was run against vitest when
+the control is a lint rule that no test can see. Fixing the first exposed a weak assertion — "a
+message was written" proved nothing about where the words came from — so the question's text is now
+asserted against the field's own label. See [`docs/p26-regression-audit.md`](./docs/p26-regression-audit.md).
+
+### Not changed, deliberately
+
+An answer the model could not read still leaves no proposal and so does not count towards
+`MAX_ATTEMPTS_PER_FIELD`. `value_asked` could now carry that counter; making it do so would change
+when `information_unobtainable` fires, which is a behavioural change to an escalation rather than a
+gap in the journey.
+
+---
+
 ## [0.43.0] — 2026-09-04
 
 **P25 — the student client, in the service that serves its origin. ADR-0060.**

@@ -72,7 +72,9 @@ student authorises — computed per request, `no-store`, written nowhere; and
 **since P23 (ADR-0060)** it opens conversations and answers where a run stands
 without advancing it, and **since P24 (ADR-0061)** that same read says what the
 run is waiting for the student to do and the hash that decision must carry, so
-no client ever computes one. ADR-0060 also settles that the student's browser client
+no client ever computes one. **Since P26 (ADR-0062)** it also puts the
+interview's question into the conversation, so a run waiting on an answer says
+what it is waiting for in the log rather than only in its step. ADR-0060 also settles that the student's browser client
 belongs to THIS process, served from `AAS_PUBLIC_DIR` on the origin that mints
 the session — the same shape the Secure Service uses for its own control, and
 **since P25 that client exists**: `buildStudentClient(outDir)` writes

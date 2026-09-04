@@ -143,6 +143,7 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     // ordinary message event beside these. The proposal is the structured
     // record that makes their confirmation applicable; rendering it too would
     // show the same reading twice, once in prose and once as data.
+    case "value_asked":
     case "value_proposed":
     case "value_confirmed":
     case "value_rejected":

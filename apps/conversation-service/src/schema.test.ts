@@ -18,11 +18,28 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
-import { MigrationChangedError, loadMigrations, migrate } from "@askimate/aas-migrate";
-import { ACTORS, EVENT_KINDS, REJECTION_REASONS } from "@askimate/aas-contracts";
+import {
+  MigrationChangedError,
+  loadMigrations,
+  migrate,
+} from "@askimate/aas-migrate";
+import {
+  ACTORS,
+  EVENT_KINDS,
+  REJECTION_REASONS,
+} from "@askimate/aas-contracts";
 
-import { MIGRATIONS_DIR, SCHEMA_ACTORS, SCHEMA_EVENT_KINDS, SETTLING_KINDS } from "./index.js";
-import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
+import {
+  MIGRATIONS_DIR,
+  SCHEMA_ACTORS,
+  SCHEMA_EVENT_KINDS,
+  SETTLING_KINDS,
+} from "./index.js";
+import {
+  announceSkip,
+  databaseReachable,
+  TEST_DATABASE_URL,
+} from "@askimate/aas-migrate/testing";
 
 /** PostgreSQL error classes we assert on, by name rather than by number. */
 const CHECK_VIOLATION = "23514";
@@ -65,14 +82,22 @@ async function refuses(
     await pool.query(sql, [...params]);
     expect.unreachable(`the database accepted a row it must refuse: ${sql}`);
   } catch (error) {
-    const failure = error as { code?: string; constraint?: string; message?: string };
+    const failure = error as {
+      code?: string;
+      constraint?: string;
+      message?: string;
+    };
     expect(failure.code, failure.message ?? "no message").toBe(expected.code);
-    if (expected.constraint !== undefined) expect(failure.constraint).toBe(expected.constraint);
+    if (expected.constraint !== undefined)
+      expect(failure.constraint).toBe(expected.constraint);
   }
 }
 
 async function newConversation(id: string = ULID): Promise<string> {
-  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [id, studentId]);
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+    [id, studentId],
+  );
   return id;
 }
 
@@ -104,6 +129,7 @@ beforeAll(async () => {
     "0011_verification_is_established_at_login",
     "0012_target_offers",
     "0013_conversation_idempotency",
+    "0014_the_question_is_in_the_log",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -230,7 +256,13 @@ describeIfDatabase("the database refuses a word it does not know", () => {
             `INSERT INTO conversation_events
                (conversation_id, ordinal, kind, offer_hash, target_blueprint_id, target_content_hash)
              VALUES ($1, $2, $3, $4, 'bp-gated-portal', $5)`,
-            [conversation, ordinal, kind, offerHash, `sha256:${"e".repeat(64)}`],
+            [
+              conversation,
+              ordinal,
+              kind,
+              offerHash,
+              `sha256:${"e".repeat(64)}`,
+            ],
           );
         } else {
           await pool.query(
@@ -241,15 +273,31 @@ describeIfDatabase("the database refuses a word it does not know", () => {
         }
         continue;
       }
-      if (kind === "value_proposed" || kind === "value_confirmed" || kind === "value_rejected") {
+      if (
+        kind === "value_asked" ||
+        kind === "value_proposed" ||
+        kind === "value_confirmed" ||
+        kind === "value_rejected"
+      ) {
         const proposal = kind === "value_proposed" ? { value: "x" } : null;
+        // A question and a rejection carry no playback hash:
+        // `a_playback_hash_belongs_to_the_exchange` names only the two that do
+        // (ADR-0062 widened the field-key constraint and left that one alone).
         const playback =
-          kind === "value_rejected" ? null : `sha256:${"a".repeat(64)}`;
+          kind === "value_asked" || kind === "value_rejected"
+            ? null
+            : `sha256:${"a".repeat(64)}`;
         await pool.query(
           `INSERT INTO conversation_events
              (conversation_id, ordinal, kind, field_key, proposal, playback_hash)
            VALUES ($1, $2, $3, 'identity.given_name', $4::jsonb, $5)`,
-          [conversation, ordinal, kind, proposal === null ? null : JSON.stringify(proposal), playback],
+          [
+            conversation,
+            ordinal,
+            kind,
+            proposal === null ? null : JSON.stringify(proposal),
+            playback,
+          ],
         );
         continue;
       }
@@ -258,9 +306,17 @@ describeIfDatabase("the database refuses a word it does not know", () => {
         columns["channel"] = "secure_control";
         columns["expires_at"] = new Date(Date.now() + 300_000);
       }
-      if (kind === "secret_received") columns["handle"] = `sh_${"d".repeat(30)}${String(ordinal).padStart(2, "0")}`;
-      if (kind === "secret_rejected") columns["reason_code"] = "confirmation_mismatch";
-      const names = ["conversation_id", "ordinal", "kind", ...Object.keys(columns)];
+      if (kind === "secret_received")
+        columns["handle"] =
+          `sh_${"d".repeat(30)}${String(ordinal).padStart(2, "0")}`;
+      if (kind === "secret_rejected")
+        columns["reason_code"] = "confirmation_mismatch";
+      const names = [
+        "conversation_id",
+        "ordinal",
+        "kind",
+        ...Object.keys(columns),
+      ];
       const values = [conversation, ordinal, kind, ...Object.values(columns)];
       await pool.query(
         `INSERT INTO conversation_events (${names.join(", ")})
@@ -315,7 +371,10 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       `INSERT INTO conversation_events (conversation_id, ordinal, kind)
        VALUES ($1, 1, 'value_rejected')`,
       [conversation],
-      { code: CHECK_VIOLATION, constraint: "a_proposal_exchange_names_a_field" },
+      {
+        code: CHECK_VIOLATION,
+        constraint: "a_proposal_exchange_names_a_field",
+      },
     );
   });
 
@@ -328,7 +387,10 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       `INSERT INTO conversation_events (conversation_id, ordinal, kind, actor, body_id, field_key)
        VALUES ($1, 1, 'message', 'student', $2, 'identity.given_name')`,
       [conversation, body],
-      { code: CHECK_VIOLATION, constraint: "a_proposal_exchange_names_a_field" },
+      {
+        code: CHECK_VIOLATION,
+        constraint: "a_proposal_exchange_names_a_field",
+      },
     );
   });
 
@@ -340,7 +402,10 @@ describeIfDatabase("the database refuses a word it does not know", () => {
       `INSERT INTO conversation_events (conversation_id, ordinal, kind, field_key, playback_hash)
        VALUES ($1, 1, 'value_rejected', 'identity.given_name', $2)`,
       [conversation, `sha256:${"a".repeat(64)}`],
-      { code: CHECK_VIOLATION, constraint: "a_playback_hash_belongs_to_the_exchange" },
+      {
+        code: CHECK_VIOLATION,
+        constraint: "a_playback_hash_belongs_to_the_exchange",
+      },
     );
   });
 
@@ -586,11 +651,10 @@ describeIfDatabase("one event per position", () => {
 
 describeIfDatabase("redaction removes the text and keeps the shape", () => {
   it("refuses a body that is null without being redacted, and the reverse", async () => {
-    await refuses(
-      "INSERT INTO message_bodies (content) VALUES (NULL)",
-      [],
-      { code: CHECK_VIOLATION, constraint: "redaction_is_explicit" },
-    );
+    await refuses("INSERT INTO message_bodies (content) VALUES (NULL)", [], {
+      code: CHECK_VIOLATION,
+      constraint: "redaction_is_explicit",
+    });
     await refuses(
       "INSERT INTO message_bodies (content, redacted_at) VALUES ('still here', now())",
       [],
@@ -643,11 +707,9 @@ describeIfDatabase("redaction removes the text and keeps the shape", () => {
        VALUES ($1, 1, 'message', 'student', $2)`,
       [conversation, body],
     );
-    await refuses(
-      "DELETE FROM message_bodies WHERE id = $1",
-      [body],
-      { code: FOREIGN_KEY_VIOLATION },
-    );
+    await refuses("DELETE FROM message_bodies WHERE id = $1", [body], {
+      code: FOREIGN_KEY_VIOLATION,
+    });
   });
 });
 
@@ -696,7 +758,9 @@ describeIfDatabase("the open-request view is the fail-closed guard", () => {
     let suffix = 20;
     for (const kind of SETTLING_KINDS) {
       suffix += 1;
-      const conversation = await newConversation(`01JBXQ8Z9WKTQ6M4H2NPVR3T${String(suffix)}`);
+      const conversation = await newConversation(
+        `01JBXQ8Z9WKTQ6M4H2NPVR3T${String(suffix)}`,
+      );
       const requestId = `sr_${"e".repeat(30)}${String(suffix)}`;
       await pool.query(
         `INSERT INTO conversation_events
@@ -705,8 +769,15 @@ describeIfDatabase("the open-request view is the fail-closed guard", () => {
         [conversation, requestId],
       );
       const extra: Record<string, unknown> = {};
-      if (kind === "secret_received") extra["handle"] = `sh_${"f".repeat(30)}${String(suffix)}`;
-      const names = ["conversation_id", "ordinal", "kind", "request_id", ...Object.keys(extra)];
+      if (kind === "secret_received")
+        extra["handle"] = `sh_${"f".repeat(30)}${String(suffix)}`;
+      const names = [
+        "conversation_id",
+        "ordinal",
+        "kind",
+        "request_id",
+        ...Object.keys(extra),
+      ];
       await pool.query(
         `INSERT INTO conversation_events (${names.join(", ")})
          VALUES (${names.map((_, i) => `$${String(i + 1)}`).join(", ")})`,
@@ -748,7 +819,9 @@ describeIfDatabase("the open-request view is the fail-closed guard", () => {
     const definition = await pool.query<{ definition: string }>(
       "SELECT pg_get_viewdef('open_secret_requests'::regclass, true) AS definition",
     );
-    expect(definition.rows[0]!.definition).not.toMatch(/\bnow\(\)|CURRENT_TIMESTAMP/i);
+    expect(definition.rows[0]!.definition).not.toMatch(
+      /\bnow\(\)|CURRENT_TIMESTAMP/i,
+    );
   });
 
   it("shows the target exchange, and NOTHING else, with no clock either", async () => {
@@ -778,15 +851,22 @@ describeIfDatabase("the open-request view is the fail-closed guard", () => {
       "SELECT kind, offer_hash FROM conversation_target_exchange WHERE conversation_id = $1 ORDER BY ordinal",
       [conversation],
     );
-    expect(rows.rows.map((row) => row.kind)).toEqual(["target_offered", "target_requested"]);
-    expect(new Set(rows.rows.map((row) => row.offer_hash))).toEqual(new Set([offer]));
+    expect(rows.rows.map((row) => row.kind)).toEqual([
+      "target_offered",
+      "target_requested",
+    ]);
+    expect(new Set(rows.rows.map((row) => row.offer_hash))).toEqual(
+      new Set([offer]),
+    );
 
     // No clock: an offer does not expire, and a view that read one would make
     // Gate 2's answer untestable for no benefit.
     const definition = await pool.query<{ definition: string }>(
       "SELECT pg_get_viewdef('conversation_target_exchange'::regclass, true) AS definition",
     );
-    expect(definition.rows[0]!.definition).not.toMatch(/\bnow\(\)|CURRENT_TIMESTAMP/i);
+    expect(definition.rows[0]!.definition).not.toMatch(
+      /\bnow\(\)|CURRENT_TIMESTAMP/i,
+    );
   });
 });
 
@@ -876,11 +956,13 @@ describeIfDatabase("idempotency and ownership", () => {
       "INSERT INTO students (subject) VALUES ($1) RETURNING id",
       ["oidc-subject-doomed"],
     );
-    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-      "01JBXQ8Z9WKTQ6M4H2NPVR3T41",
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      ["01JBXQ8Z9WKTQ6M4H2NPVR3T41", doomed.rows[0]!.id],
+    );
+    await pool.query("DELETE FROM students WHERE id = $1", [
       doomed.rows[0]!.id,
     ]);
-    await pool.query("DELETE FROM students WHERE id = $1", [doomed.rows[0]!.id]);
     const left = await pool.query("SELECT 1 FROM conversations WHERE id = $1", [
       "01JBXQ8Z9WKTQ6M4H2NPVR3T41",
     ]);
@@ -888,11 +970,9 @@ describeIfDatabase("idempotency and ownership", () => {
   });
 
   it("requires a subject on every student", async () => {
-    await refuses(
-      "INSERT INTO students (subject) VALUES (NULL)",
-      [],
-      { code: NOT_NULL_VIOLATION },
-    );
+    await refuses("INSERT INTO students (subject) VALUES (NULL)", [], {
+      code: NOT_NULL_VIOLATION,
+    });
   });
 });
 
@@ -952,8 +1032,14 @@ describeIfDatabase("a lease names a page only when it is holding one", () => {
       "SELECT page_ref FROM work_leases WHERE run_id IN ($1, $2) ORDER BY run_id",
       [run, `${run}_2`],
     );
-    expect(rows.rows.map((row) => row.page_ref)).toEqual(["page-application", null]);
-    await pool.query("DELETE FROM work_leases WHERE run_id IN ($1, $2)", [run, `${run}_2`]);
+    expect(rows.rows.map((row) => row.page_ref)).toEqual([
+      "page-application",
+      null,
+    ]);
+    await pool.query("DELETE FROM work_leases WHERE run_id IN ($1, $2)", [
+      run,
+      `${run}_2`,
+    ]);
   });
 });
 
@@ -971,10 +1057,11 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0007_lease_page",
         "0008_value_proposals",
         "0009_lease_page_version",
-    "0010_worker_leases",
-    "0011_verification_is_established_at_login",
-    "0012_target_offers",
-    "0013_conversation_idempotency",
+        "0010_worker_leases",
+        "0011_verification_is_established_at_login",
+        "0012_target_offers",
+        "0013_conversation_idempotency",
+        "0014_the_question_is_in_the_log",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -991,7 +1078,9 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     const fresh = await ownDatabase("aas_conversation_edited");
     try {
       await migrate(fresh, MIGRATIONS_DIR);
-      await fresh.query("UPDATE schema_migrations SET checksum = $1", ["0".repeat(64)]);
+      await fresh.query("UPDATE schema_migrations SET checksum = $1", [
+        "0".repeat(64),
+      ]);
       await expect(() => migrate(fresh, MIGRATIONS_DIR)).rejects.toThrow(
         MigrationChangedError,
       );
@@ -1015,13 +1104,15 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0007_lease_page",
       "0008_value_proposals",
       "0009_lease_page_version",
-    "0010_worker_leases",
-    "0011_verification_is_established_at_login",
-    "0012_target_offers",
-    "0013_conversation_idempotency",
+      "0010_worker_leases",
+      "0011_verification_is_established_at_login",
+      "0012_target_offers",
+      "0013_conversation_idempotency",
+      "0014_the_question_is_in_the_log",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.
-    for (const migration of migrations) expect(migration.version).toMatch(/^[0-9]{4}_/);
+    for (const migration of migrations)
+      expect(migration.version).toMatch(/^[0-9]{4}_/);
   });
 });

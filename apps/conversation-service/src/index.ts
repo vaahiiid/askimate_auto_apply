@@ -26,6 +26,7 @@ export const SCHEMA_EVENT_KINDS = [
   "secret_expired",
   "secret_cancelled",
   "secret_rejected",
+  "value_asked",
   "value_proposed",
   "value_confirmed",
   "value_rejected",
@@ -33,7 +34,12 @@ export const SCHEMA_EVENT_KINDS = [
   "target_requested",
 ] as const;
 
-export const SCHEMA_ACTORS = ["student", "assistant", "mentor", "system"] as const;
+export const SCHEMA_ACTORS = [
+  "student",
+  "assistant",
+  "mentor",
+  "system",
+] as const;
 
 /** Kinds that settle an open request. A rejection is deliberately absent. */
 export const SETTLING_KINDS = [
@@ -42,7 +48,6 @@ export const SETTLING_KINDS = [
   "secret_expired",
   "secret_cancelled",
 ] as const;
-
 
 // ── The service ───────────────────────────────────────────────────────────
 
@@ -53,10 +58,19 @@ export {
   UnknownConversationError,
 } from "./event-store.js";
 
-export type { Caller, ConversationRoutesOptions, RunCoordinator } from "./routes.js";
+export type {
+  Caller,
+  ConversationRoutesOptions,
+  RunCoordinator,
+} from "./routes.js";
 export { createConversationRoutes } from "./routes.js";
 
-export { SESSION_COOKIE, issueSession, readSession, setSession } from "./session.js";
+export {
+  SESSION_COOKIE,
+  issueSession,
+  readSession,
+  setSession,
+} from "./session.js";
 
 // ADR-0060. The student's page, built by the app that serves its origin — the
 // same shape `secure-service` exports `buildSecureControl`.
@@ -115,7 +129,12 @@ export { WorkLeaseStore } from "./work-store.js";
 export type { ConversationConfig } from "./config.js";
 export { MIN_SESSION_SECRET, conversationConfigFrom } from "./config.js";
 export type { DriverWiring } from "./wiring.js";
-export { buildRunDriver, conversationStore, fixtureCatalogue, resolveCatalogue } from "./wiring.js";
+export {
+  buildRunDriver,
+  conversationStore,
+  fixtureCatalogue,
+  resolveCatalogue,
+} from "./wiring.js";
 
 // ── P19 / ADR-0056: identity ──────────────────────────────────────────────
 export type { AuthRoutesOptions } from "./auth-routes.js";

@@ -70,12 +70,17 @@ export type AppendableEvent =
       readonly requestId: string }
   | { readonly kind: "secret_rejected"; readonly requestId: string;
       readonly reason: RejectionReason }
-  // ── The interview's proposal exchange (ADR-0051) ──────────────────────
+  // ── The interview's exchange (ADR-0051, ADR-0062) ─────────────────────
   //
   // Appended by the SERVICE, never by a client: no route parses one, and
   // `parseSecureAppend` has no branch for it. What a student sends is a
   // message, or a decision on the decision route — both of which the service
   // turns into these.
+  //
+  // `value_asked` names the field a question was put about. The question's
+  // words are the assistant message beside it; this carries no prose, because
+  // its job is to let the log answer "is one outstanding?" without reading any.
+  | { readonly kind: "value_asked"; readonly fieldKey: string }
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
   | { readonly kind: "value_confirmed"; readonly fieldKey: string;
@@ -229,6 +234,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         fieldKey: row["field_key"] as string,
         playbackHash: row["playback_hash"] as string,
       };
+    case "value_asked":
     case "value_rejected":
       return { kind, ordinal, createdAt, fieldKey: row["field_key"] as string };
   }

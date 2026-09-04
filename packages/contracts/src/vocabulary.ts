@@ -36,13 +36,18 @@ export const EVENT_KINDS = [
   "secret_expired",
   "secret_cancelled",
   "secret_rejected",
-  // ── The interview's own exchange (ADR-0051) ──────────────────────────
+  // ── The interview's own exchange (ADR-0051, ADR-0062) ────────────────
   //
-  // A reading the agent understood, put to the student, and their answer to it.
-  // On this log rather than the case log because a proposal is NOT yet a fact
-  // about the application — and beside the playback message it is about,
-  // because the confirmation is bound by a hash of that message and the two
-  // need one ordinal sequence to be ordered by.
+  // The question, a reading the agent understood, and the student's answer to
+  // it. On this log rather than the case log because none of them is yet a
+  // fact about the application — and beside the messages they are about,
+  // because the confirmation is bound by a hash of one of those messages and
+  // the two need one ordinal sequence to be ordered by.
+  //
+  // `value_asked` was missing until ADR-0062, and its absence was not visible
+  // from the server: every test supplied the answer from the test process, so
+  // nothing needed the question to exist.
+  "value_asked",
   "value_proposed",
   "value_confirmed",
   "value_rejected",
@@ -97,8 +102,9 @@ export const TARGET_EVENT_KINDS = [
   "target_requested",
 ] as const satisfies readonly EventKind[];
 
-/** The kinds that carry the interview's proposal exchange (ADR-0051). */
+/** The kinds that carry the interview's exchange (ADR-0051, ADR-0062). */
 export const PROPOSAL_EVENT_KINDS = [
+  "value_asked",
   "value_proposed",
   "value_confirmed",
   "value_rejected",

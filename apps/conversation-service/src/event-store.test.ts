@@ -15,7 +15,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
 import { migrate } from "@askimate/aas-migrate";
-import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
+import {
+  announceSkip,
+  databaseReachable,
+  TEST_DATABASE_URL,
+} from "@askimate/aas-migrate/testing";
 
 import { MIGRATIONS_DIR } from "./index.js";
 import {
@@ -35,7 +39,8 @@ let studentId: string;
 let counter = 0;
 
 const HAVE_DATABASE = await databaseReachable();
-if (!HAVE_DATABASE) announceSkip("the conversation service's ordinal authority");
+if (!HAVE_DATABASE)
+  announceSkip("the conversation service's ordinal authority");
 const describeIfDatabase = HAVE_DATABASE ? describe : describe.skip;
 
 function nextConversationId(): string {
@@ -45,13 +50,20 @@ function nextConversationId(): string {
 
 async function newConversation(): Promise<string> {
   const id = nextConversationId();
-  await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [id, studentId]);
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+    [id, studentId],
+  );
   return id;
 }
 
 /** The invariant every committed write must leave true. */
 async function assertOrdinalsAgree(conversationId: string): Promise<number> {
-  const rows = await pool.query<{ last_ordinal: number; highest: number | null; total: string }>(
+  const rows = await pool.query<{
+    last_ordinal: number;
+    highest: number | null;
+    total: string;
+  }>(
     `SELECT c.last_ordinal,
             (SELECT max(ordinal) FROM conversation_events WHERE conversation_id = c.id) AS highest,
             (SELECT count(*) FROM conversation_events WHERE conversation_id = c.id) AS total
@@ -60,12 +72,15 @@ async function assertOrdinalsAgree(conversationId: string): Promise<number> {
   );
   const row = rows.rows[0]!;
   const total = Number(row.total);
-  expect(row.highest ?? 0, "last_ordinal vs highest event ordinal").toBe(row.last_ordinal);
-  // Dense: N events means ordinals 1..N with no gaps. Density is what makes
-  // `Last-Event-ID` a complete answer rather than an approximate one.
-  expect(total, "event count vs last_ordinal — a gap means a lost position").toBe(
+  expect(row.highest ?? 0, "last_ordinal vs highest event ordinal").toBe(
     row.last_ordinal,
   );
+  // Dense: N events means ordinals 1..N with no gaps. Density is what makes
+  // `Last-Event-ID` a complete answer rather than an approximate one.
+  expect(
+    total,
+    "event count vs last_ordinal — a gap means a lost position",
+  ).toBe(row.last_ordinal);
   return row.last_ordinal;
 }
 
@@ -73,7 +88,9 @@ beforeAll(async () => {
   if (!HAVE_DATABASE) return;
   const admin = new pg.Pool({ connectionString: TEST_DATABASE_URL });
   try {
-    await admin.query("DROP DATABASE IF EXISTS aas_conversation_store WITH (FORCE)");
+    await admin.query(
+      "DROP DATABASE IF EXISTS aas_conversation_store WITH (FORCE)",
+    );
     await admin.query("CREATE DATABASE aas_conversation_store");
   } finally {
     await admin.end();
@@ -93,9 +110,10 @@ beforeAll(async () => {
     "0008_value_proposals",
     "0009_lease_page_version",
     "0010_worker_leases",
-      "0011_verification_is_established_at_login",
+    "0011_verification_is_established_at_login",
     "0012_target_offers",
     "0013_conversation_idempotency",
+    "0014_the_question_is_in_the_log",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
@@ -113,70 +131,95 @@ afterAll(async () => {
 // 1 & 7. Concurrency
 // ───────────────────────────────────────────────────────────────────────────
 
-describeIfDatabase("two writers cannot receive the same durable ordinal", () => {
-  it("gives twenty simultaneous writers twenty distinct, dense positions", async () => {
-    const conversation = await newConversation();
-    const writers = 20;
+describeIfDatabase(
+  "two writers cannot receive the same durable ordinal",
+  () => {
+    it("gives twenty simultaneous writers twenty distinct, dense positions", async () => {
+      const conversation = await newConversation();
+      const writers = 20;
 
-    // Fired together, on separate pooled connections. Whichever wins the row
-    // lock first gets 1; the rest queue behind it and get 2..20.
-    const results = await Promise.all(
-      Array.from({ length: writers }, async (_unused, index) =>
-        store.append({
-          conversationId: conversation,
-          event: { kind: "message", actor: "student", content: `message ${String(index)}` },
-        }),
-      ),
-    );
+      // Fired together, on separate pooled connections. Whichever wins the row
+      // lock first gets 1; the rest queue behind it and get 2..20.
+      const results = await Promise.all(
+        Array.from({ length: writers }, async (_unused, index) =>
+          store.append({
+            conversationId: conversation,
+            event: {
+              kind: "message",
+              actor: "student",
+              content: `message ${String(index)}`,
+            },
+          }),
+        ),
+      );
 
-    const ordinals = results.map((result) => result.event.ordinal).sort((a, b) => a - b);
-    expect(new Set(ordinals).size, "duplicate ordinal handed to two writers").toBe(writers);
-    expect(ordinals).toEqual(Array.from({ length: writers }, (_u, index) => index + 1));
-    await assertOrdinalsAgree(conversation);
-  }, 60_000);
+      const ordinals = results
+        .map((result) => result.event.ordinal)
+        .sort((a, b) => a - b);
+      expect(
+        new Set(ordinals).size,
+        "duplicate ordinal handed to two writers",
+      ).toBe(writers);
+      expect(ordinals).toEqual(
+        Array.from({ length: writers }, (_u, index) => index + 1),
+      );
+      await assertOrdinalsAgree(conversation);
+    }, 60_000);
 
-  it("keeps two conversations independent, so a busy one does not skew a quiet one", async () => {
-    const [first, second] = [await newConversation(), await newConversation()];
-    await Promise.all([
-      ...Array.from({ length: 5 }, async () =>
-        store.append({
-          conversationId: first,
-          event: { kind: "message", actor: "student", content: "a" },
-        }),
-      ),
-      ...Array.from({ length: 3 }, async () =>
-        store.append({
-          conversationId: second,
-          event: { kind: "message", actor: "student", content: "b" },
-        }),
-      ),
-    ]);
-    expect(await assertOrdinalsAgree(first)).toBe(5);
-    expect(await assertOrdinalsAgree(second)).toBe(3);
-  }, 60_000);
+    it("keeps two conversations independent, so a busy one does not skew a quiet one", async () => {
+      const [first, second] = [
+        await newConversation(),
+        await newConversation(),
+      ];
+      await Promise.all([
+        ...Array.from({ length: 5 }, async () =>
+          store.append({
+            conversationId: first,
+            event: { kind: "message", actor: "student", content: "a" },
+          }),
+        ),
+        ...Array.from({ length: 3 }, async () =>
+          store.append({
+            conversationId: second,
+            event: { kind: "message", actor: "student", content: "b" },
+          }),
+        ),
+      ]);
+      expect(await assertOrdinalsAgree(first)).toBe(5);
+      expect(await assertOrdinalsAgree(second)).toBe(3);
+    }, 60_000);
 
-  it("gives two readers the SAME ordering, on separate connections", async () => {
-    // Property 7. Two clients converge because the ordering is a fact in the
-    // table, not a merge each of them performs.
-    const conversation = await newConversation();
-    await Promise.all(
-      Array.from({ length: 10 }, async (_unused, index) =>
-        store.append({
-          conversationId: conversation,
-          event: { kind: "message", actor: "student", content: `m${String(index)}` },
-        }),
-      ),
-    );
-    const [a, b] = await Promise.all([
-      store.since(conversation, 0),
-      store.since(conversation, 0),
-    ]);
-    expect(a.map((event) => event.ordinal)).toEqual(b.map((event) => event.ordinal));
-    expect(a.map((event) => event.ordinal)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    // And the same content at the same position, not merely the same numbers.
-    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
-  }, 60_000);
-});
+    it("gives two readers the SAME ordering, on separate connections", async () => {
+      // Property 7. Two clients converge because the ordering is a fact in the
+      // table, not a merge each of them performs.
+      const conversation = await newConversation();
+      await Promise.all(
+        Array.from({ length: 10 }, async (_unused, index) =>
+          store.append({
+            conversationId: conversation,
+            event: {
+              kind: "message",
+              actor: "student",
+              content: `m${String(index)}`,
+            },
+          }),
+        ),
+      );
+      const [a, b] = await Promise.all([
+        store.since(conversation, 0),
+        store.since(conversation, 0),
+      ]);
+      expect(a.map((event) => event.ordinal)).toEqual(
+        b.map((event) => event.ordinal),
+      );
+      expect(a.map((event) => event.ordinal)).toEqual([
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+      ]);
+      // And the same content at the same position, not merely the same numbers.
+      expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    }, 60_000);
+  },
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // 2 & 3. The counter cannot get ahead of the log
@@ -275,9 +318,15 @@ describeIfDatabase("the caller cannot name a position", () => {
       createdAt: "1999-01-01T00:00:00.000Z",
       id: 12345,
     };
-    const written = await store.append({ conversationId: conversation, event: smuggled });
+    const written = await store.append({
+      conversationId: conversation,
+      event: smuggled,
+    });
 
-    expect(written.event.ordinal, "the server's position, not the caller's").toBe(2);
+    expect(
+      written.event.ordinal,
+      "the server's position, not the caller's",
+    ).toBe(2);
     expect(written.event.createdAt).not.toBe("1999-01-01T00:00:00.000Z");
     await assertOrdinalsAgree(conversation);
   });
@@ -290,7 +339,11 @@ describeIfDatabase("the caller cannot name a position", () => {
 describeIfDatabase("a retried write does not appear twice", () => {
   it("returns the FIRST event, and writes nothing new", async () => {
     const conversation = await newConversation();
-    const idempotency = { key: "k".repeat(20), studentId, digest: "a".repeat(64) };
+    const idempotency = {
+      key: "k".repeat(20),
+      studentId,
+      digest: "a".repeat(64),
+    };
 
     const first = await store.append({
       conversationId: conversation,
@@ -332,7 +385,11 @@ describeIfDatabase("a retried write does not appear twice", () => {
     // 23505 rather than a second event. Either outcome is acceptable to the
     // caller; a duplicate in the transcript is not.
     const conversation = await newConversation();
-    const idempotency = { key: "s".repeat(20), studentId, digest: "d".repeat(64) };
+    const idempotency = {
+      key: "s".repeat(20),
+      studentId,
+      digest: "d".repeat(64),
+    };
     const attempts = await Promise.allSettled([
       store.append({
         conversationId: conversation,
@@ -345,7 +402,9 @@ describeIfDatabase("a retried write does not appear twice", () => {
         idempotency,
       }),
     ]);
-    expect(attempts.some((attempt) => attempt.status === "fulfilled")).toBe(true);
+    expect(attempts.some((attempt) => attempt.status === "fulfilled")).toBe(
+      true,
+    );
     expect(await assertOrdinalsAgree(conversation)).toBe(1);
   }, 60_000);
 });
@@ -364,7 +423,9 @@ describeIfDatabase("reading the log", () => {
     await store.append({
       conversationId: conversation,
       event: {
-        kind: "secret_requested", requestId: REQUEST_ID, channel: "secure_control",
+        kind: "secret_requested",
+        requestId: REQUEST_ID,
+        channel: "secure_control",
         expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
       },
     });
@@ -374,12 +435,19 @@ describeIfDatabase("reading the log", () => {
     });
     await store.append({
       conversationId: conversation,
-      event: { kind: "secret_rejected", requestId: REQUEST_ID, reason: "already_submitted" },
+      event: {
+        kind: "secret_rejected",
+        requestId: REQUEST_ID,
+        reason: "already_submitted",
+      },
     });
 
     const events = await store.since(conversation, 0);
     expect(events.map((event) => event.kind)).toEqual([
-      "message", "secret_requested", "secret_received", "secret_rejected",
+      "message",
+      "secret_requested",
+      "secret_received",
+      "secret_rejected",
     ]);
     expect(events[0]).toMatchObject({ actor: "assistant", content: "hello" });
     expect(events[2]).toMatchObject({ handle: HANDLE });
@@ -411,7 +479,10 @@ describeIfDatabase("reading the log", () => {
     });
 
     const events = await store.since(conversation, 0);
-    expect(events.map((event) => event.kind)).toEqual(["target_offered", "target_requested"]);
+    expect(events.map((event) => event.kind)).toEqual([
+      "target_offered",
+      "target_requested",
+    ]);
     expect(events[0]).toMatchObject({
       offerHash,
       targetBlueprintId: "bp-gated-portal",
@@ -433,10 +504,16 @@ describeIfDatabase("reading the log", () => {
     for (let index = 0; index < 5; index += 1) {
       await store.append({
         conversationId: conversation,
-        event: { kind: "message", actor: "student", content: `m${String(index)}` },
+        event: {
+          kind: "message",
+          actor: "student",
+          content: `m${String(index)}`,
+        },
       });
     }
-    expect((await store.since(conversation, 3)).map((event) => event.ordinal)).toEqual([4, 5]);
+    expect(
+      (await store.since(conversation, 3)).map((event) => event.ordinal),
+    ).toEqual([4, 5]);
     expect(await store.since(conversation, 5)).toEqual([]);
   }, 60_000);
 
@@ -445,7 +522,9 @@ describeIfDatabase("reading the log", () => {
     await store.append({
       conversationId: conversation,
       event: {
-        kind: "secret_requested", requestId: REQUEST_ID, channel: "secure_control",
+        kind: "secret_requested",
+        requestId: REQUEST_ID,
+        channel: "secure_control",
         expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
       },
     });
@@ -455,10 +534,16 @@ describeIfDatabase("reading the log", () => {
 
     await store.append({
       conversationId: conversation,
-      event: { kind: "secret_rejected", requestId: REQUEST_ID, reason: "confirmation_mismatch" },
+      event: {
+        kind: "secret_rejected",
+        requestId: REQUEST_ID,
+        reason: "confirmation_mismatch",
+      },
     });
-    expect(await store.openSecretRequest(conversation, NOW), "a rejection closes nothing")
-      .not.toBeNull();
+    expect(
+      await store.openSecretRequest(conversation, NOW),
+      "a rejection closes nothing",
+    ).not.toBeNull();
 
     await store.append({
       conversationId: conversation,
@@ -472,13 +557,19 @@ describeIfDatabase("reading the log", () => {
     await store.append({
       conversationId: conversation,
       event: {
-        kind: "secret_requested", requestId: REQUEST_ID, channel: "secure_control",
+        kind: "secret_requested",
+        requestId: REQUEST_ID,
+        channel: "secure_control",
         expiresAt: new Date(NOW.getTime() + 60_000).toISOString(),
       },
     });
     expect(await store.openSecretRequest(conversation, NOW)).not.toBeNull();
-    expect(await store.openSecretRequest(conversation, new Date(NOW.getTime() + 120_000)))
-      .toBeNull();
+    expect(
+      await store.openSecretRequest(
+        conversation,
+        new Date(NOW.getTime() + 120_000),
+      ),
+    ).toBeNull();
   }, 60_000);
 
   it("stores no secret anywhere, whatever a message contains", async () => {
@@ -486,7 +577,9 @@ describeIfDatabase("reading the log", () => {
     await store.append({
       conversationId: conversation,
       event: {
-        kind: "secret_requested", requestId: REQUEST_ID, channel: "secure_control",
+        kind: "secret_requested",
+        requestId: REQUEST_ID,
+        channel: "secure_control",
         expiresAt: new Date(NOW.getTime() + 300_000).toISOString(),
       },
     });

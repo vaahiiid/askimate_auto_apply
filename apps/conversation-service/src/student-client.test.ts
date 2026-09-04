@@ -608,10 +608,13 @@ describeIfDatabase("the student's page", () => {
     await page.locator("#statement").fill("Please apply to this one for me.");
     await page.locator("#offer button").first().click();
 
-    // The run is interviewing. NOTE: the question itself is not appended to
-    // the log — `#putToTheStudent` writes only the PLAYBACK, after an answer —
-    // so there is nothing for the page to render yet. Recorded here because it
-    // is a real gap in the journey and not this phase's to close.
+    // The run is interviewing, and the student can SEE what it wants.
+    //
+    // P25 could only wait on `#pending` saying "interview" here, because the
+    // question was composed by the orchestrator and thrown away by the driver:
+    // the page had a position to render and nothing to answer. ADR-0062 put it
+    // in the log, so the assertion is now on the transcript — the thing a
+    // student actually reads.
     await page.waitForFunction(
       () =>
         (document.querySelector("#pending")?.textContent ?? "").includes(
@@ -620,6 +623,21 @@ describeIfDatabase("the student's page", () => {
       undefined,
       { timeout: 20_000 },
     );
+    const beforeAnswering = await textOf("#transcript");
+    expect(
+      beforeAnswering.length,
+      "the interview asked something the student can read",
+    ).toBeGreaterThan(0);
+
+    // And it came from the SERVER, not from the page: `value_asked` is the
+    // durable record beside it.
+    const question = await pool.query<{ field_key: string }>(
+      `SELECT e.field_key FROM conversation_events e
+         JOIN conversations c ON c.id = e.conversation_id
+        WHERE c.student_id = $1 AND e.kind = 'value_asked'`,
+      [third.rows[0]!.id],
+    );
+    expect(question.rowCount, "one question, recorded").toBe(1);
     await page.locator("#say").fill("niloofar@example.test");
     await page.locator("#composer button").click();
 
