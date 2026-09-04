@@ -71,7 +71,7 @@ import { makeOffer, verifyRequest } from "./target-offers.js";
 import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
-import type { RunOutcome, RunPosition } from "./run-driver.js";
+import type { RunOutcome, RunReading } from "./run-driver.js";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
@@ -145,14 +145,14 @@ export interface RunCoordinator {
     readonly event: ConversationEvent;
   }): Promise<void>;
   /**
-   * Where this conversation's run stands, or `null` when there is none.
-   * ADR-0060.
+   * Where this conversation's run stands and what it is waiting for, or `null`
+   * when there is no run. ADR-0060, ADR-0061.
    *
    * A READ. It does not advance the run, append an event or write a
    * checkpoint — so a client can render the journey without acting on it, and
    * without keeping its own copy of where the journey has got to.
    */
-  runFor(conversationId: string): Promise<RunPosition | null>;
+  runFor(conversationId: string): Promise<RunReading | null>;
   /**
    * What the student is being asked to authorise, and its hash. ADR-0059.
    *
@@ -1305,12 +1305,18 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           problem(res, "service_unavailable");
           return;
         }
-        const run = await options.runs.runFor(conversationId);
+        const reading = await options.runs.runFor(conversationId);
         // The student's position, not their data: four closed-set words, three
         // identifiers and a number. Cacheable by nothing, because it changes
         // whenever the run does.
         res.setHeader("Cache-Control", "no-store");
-        res.status(200).json({ run });
+        res.status(200).json({
+          run: reading?.run ?? null,
+          // ADR-0061. What the run is waiting for the student to DO, and the
+          // hash that decision must carry — so a client never computes one.
+          // `null` when the run is working and nothing is being asked of them.
+          pending: reading?.pending ?? null,
+        });
       })().catch(next);
     },
   );

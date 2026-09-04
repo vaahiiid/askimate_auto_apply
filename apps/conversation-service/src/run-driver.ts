@@ -323,6 +323,25 @@ export interface RunPosition {
   readonly concerns: readonly ResumeConcern[];
 }
 
+/**
+ * What the run is waiting for the student to do, and the hash it must carry.
+ *
+ * ADR-0061. A closed set of three, because those are the three prompted
+ * decisions: `cancel` is always available and carries no hash, so it is not a
+ * thing a run WAITS for.
+ */
+export interface PendingDecision {
+  readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
+  /** `sha256:<hex>`, from the same source the decision route compares against. */
+  readonly contentHash: string;
+}
+
+/** A read of a run: where it stands, and what it is waiting for. */
+export interface RunReading {
+  readonly run: RunPosition;
+  readonly pending: PendingDecision | null;
+}
+
 export type RunOutcome =
   | { readonly ok: true; readonly position: RunPosition }
   | { readonly ok: false; readonly refusal: RunRefusal };
@@ -1573,7 +1592,7 @@ export class RunDriver {
    * different one from "not your conversation" — which the route reports as a
    * 404 before ever reaching here.
    */
-  public async runFor(conversationId: string): Promise<RunPosition | null> {
+  public async runFor(conversationId: string): Promise<RunReading | null> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
     const entry = await this.#options.catalogue.find(bound.blueprintId);
@@ -1582,6 +1601,9 @@ export class RunDriver {
     const record = held[0];
     if (record === undefined) return null;
 
+    // ONE situation, for both halves of the answer. Computing it twice — once
+    // for the position and once for what the run is waiting for — would be two
+    // derivations able to disagree with each other between the two calls.
     const situation = await this.#situation({
       entry,
       record,
@@ -1589,7 +1611,10 @@ export class RunDriver {
       caseId: record.caseId,
       studentRef: record.studentRef,
     });
-    return {
+    const pending = situation.ok
+      ? await this.#pendingDecision(record.caseId, conversationId, situation.step)
+      : null;
+    const run: RunPosition = {
       runId: record.runId,
       caseId: record.caseId,
       conversationId,
@@ -1607,6 +1632,94 @@ export class RunDriver {
       resumed: true,
       concerns: [],
     };
+    return { run, pending };
+  }
+
+  /**
+   * What the run is waiting for the student to do, and the hash that decision
+   * must carry. ADR-0061.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Every hash here comes from the SAME source the decision route validates
+   * against, and that is the whole design:
+   *
+   *   confirm_value     `openProposal(log).playbackHash` — the hash written
+   *                     when the reading was put to them, which is what
+   *                     `#confirmValue` compares against. Never a re-render:
+   *                     a re-render asks the model again and could differ
+   *                     from what they read.
+   *   authorise         `step.preview.contentHash` — the same field
+   *                     `#authorisationIntent` compares against.
+   *   confirm_handoff   `hashOfText(handoffMessageOf(step))` — the same
+   *                     derivation `#handoffIntent` makes, under the same two
+   *                     conditions: the case has an open handoff token AND the
+   *                     step is asking for one.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * ── Why the server publishes this at all ────────────────────────────────
+   *
+   * `confirm_handoff`'s hash is over a message the ORCHESTRATOR renders, not
+   * over anything in the log. A client could only produce it by
+   * re-implementing `handoffMessageOf` and `hashOfText` and then guessing
+   * which message in the transcript was the handoff one. That is a client
+   * holding workflow logic, and it gets the answer wrong the moment any other
+   * message arrives after the handoff — which one now does, because the
+   * authorisation announcement (ADR-0059) is also an assistant message.
+   *
+   * This replaced `handoffHashFor`, which was public, said in its own comment
+   * that *"the client needs the same number to send back"*, had one caller —
+   * a test — and no route. It also omitted the open-token check, so it could
+   * answer with a hash for a handoff the case was not waiting on.
+   *
+   * `cancel` is deliberately absent: ADR-0053 makes it available at every
+   * step and it carries no hash, so it is not something the run is *waiting*
+   * for. A client offers it always, not because a read said so.
+   */
+  async #pendingDecision(
+    caseId: CaseId,
+    conversationId: string,
+    step: RunStep,
+  ): Promise<PendingDecision | null> {
+    if (awaitsStudentAuthorisation(step)) {
+      return { decision: "authorise", contentHash: step.preview.contentHash };
+    }
+
+    if (handoffFor(step) !== null) {
+      // ── BOTH conditions, exactly as `#handoffIntent` requires them ────
+      //
+      // The token says the case is waiting on something; the message says what
+      // the student is looking at.
+      //
+      // MEASURED: the second condition is currently unreachable on its own.
+      // Removing the token check broke no test, because the account's handoff
+      // stage is DERIVED from `HandoffCompleted` — close the token and the
+      // step stops asking in the same breath (`does NOT ask again after a
+      // restart` is the test that says so). Probing it directly confirmed it:
+      // completing the handoff in the case log moved the step straight to
+      // `authorise` without the run being advanced at all.
+      //
+      // It is kept anyway, and not as decoration. This read must agree with
+      // the validator BY CONSTRUCTION rather than by the coincidence that two
+      // things happen to move together today; a step that ever became sticky —
+      // cached on the checkpoint, say — would make the two diverge, and the
+      // symptom would be a client offered a decision the route refuses
+      // `not_asked`. `handoffHashFor` omitted it and got away with it for the
+      // same reason, which is not a reason.
+      const events = await this.#options.stores.cases.read(caseId);
+      const open = events.length === 0 ? undefined : fold(events).openHandoffToken;
+      const message = handoffMessageOf(step);
+      if (open !== undefined && message !== null) {
+        return { decision: "confirm_handoff", contentHash: hashOfText(message) };
+      }
+      return null;
+    }
+
+    // An open reading outranks nothing else: it can only exist while the run
+    // is interviewing, and the two above are later steps.
+    const open = openProposal(await this.#options.conversations.since(conversationId, 0));
+    return open === null
+      ? null
+      : { decision: "confirm_value", contentHash: open.playbackHash };
   }
 
   /**
@@ -1955,31 +2068,6 @@ export class RunDriver {
       event: { kind: "value_confirmed", fieldKey, playbackHash: open.playbackHash },
     });
     return { ok: true };
-  }
-
-  /**
-   * The hash of the message a student is being asked to confirm.
-   *
-   * Public because the client needs the same number to send back, and it must
-   * come from the SERVICE: a client that computed its own would be hashing
-   * whatever it decided to display.
-   */
-  public async handoffHashFor(runId: string, conversationId: string): Promise<string | null> {
-    const bound = await this.#options.bindings.caseFor(conversationId);
-    if (bound === null || bound.blueprintId === null) return null;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
-    const record = await this.#options.stores.runs.load(makeRunId(runId));
-    if (entry === null || record === null || record.caseId !== bound.caseId) return null;
-    const situation = await this.#situation({
-      entry,
-      record,
-      conversationId,
-      caseId: record.caseId,
-      studentRef: record.studentRef,
-    });
-    if (!situation.ok) return null;
-    const message = handoffMessageOf(situation.step);
-    return message === null ? null : hashOfText(message);
   }
 
   /**

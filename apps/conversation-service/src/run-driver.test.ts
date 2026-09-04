@@ -3841,6 +3841,16 @@ describeIfDatabase("the decision only the student can make", () => {
     expect(run.resumed).toBe(true);
     expect(cacheControl).toBe("no-store");
 
+    // ── ADR-0061. And what it is WAITING for ─────────────────────────
+    //
+    // The whole point of the read: a client learns which decision to offer
+    // and the hash to send with it, without inspecting the transcript and
+    // without computing a hash of its own.
+    const pending = (body as { pending: { decision: string; contentHash: string } | null })
+      .pending;
+    expect(pending?.decision).toBe("authorise");
+    expect(pending?.contentHash, "the same hash the preview route serves").toBe(contentHash);
+
     // ── And it did NOTHING ────────────────────────────────────────────
     const after = await pool.query<{ revision: string; checkpoint: unknown }>(
       "SELECT revision, checkpoint FROM workflow_runs WHERE run_id = $1",
@@ -3871,6 +3881,7 @@ describeIfDatabase("the decision only the student can make", () => {
     const { status, body } = await get(`/v1/conversations/${fresh}/runs`, cookieFor(studentId_));
     expect(status).toBe(200);
     expect((body as { run: unknown }).run).toBeNull();
+    expect((body as { pending: unknown }).pending, "nothing to wait for either").toBeNull();
   }, 300_000);
 
   it("REFUSES the run read on another student's conversation", async () => {
@@ -4071,6 +4082,21 @@ describeIfDatabase("the decision only the student can make", () => {
     // AWAITING_STUDENT_AUTHORISATION. Approving twice is not idempotent-safe
     // by accident — it is refused by the guard, which is better.
     expect(await post({ kind: "authorise", contentHash }, cookieFor(studentId_))).toBe(404);
+  }, 300_000);
+
+  it("waits for NOTHING once the student has approved", async () => {
+    // ADR-0061. The run is working now, and a client must not keep offering
+    // an approve button for something already approved. `pending: null` is
+    // what says so — and it is the same read that offered `authorise` a
+    // moment ago, so nothing about the client's own state decided it.
+    const { status, body } = await get(
+      `/v1/conversations/${conversation}/runs`,
+      cookieFor(studentId_),
+    );
+    expect(status).toBe(200);
+    const run = parseConversationRun((body as { run: unknown }).run);
+    expect(run?.step, "past the gate").not.toBe("authorise");
+    expect((body as { pending: unknown }).pending).toBeNull();
   }, 300_000);
 });
 
@@ -4490,7 +4516,11 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
   it("moves the run on once the student says they followed the link", async () => {
     const instance = buildInstance(connectionString(), opener());
     try {
-      const hash = await instance.driver.handoffHashFor(runId, conversation);
+      // ADR-0061. The hash comes from the READ a client makes, not from a
+      // method only a test could call: the run says what it is waiting for.
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.pending?.decision, "the run is asking for this").toBe("confirm_handoff");
+      const hash = reading?.pending?.contentHash ?? null;
       expect(hash, "the service renders the message and the hash").not.toBeNull();
 
       const done = await instance.driver.recordDecision({
@@ -4660,6 +4690,43 @@ describeIfDatabase("the interview loop, closed", () => {
       student,
     ]);
     expect(stored.rowCount, "a reading is not a confirmation").toBe(0);
+  }, 300_000);
+
+  it("SAYS it is waiting for a confirmation, and names the playback hash", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0061. A client that reloads here has to offer the student "yes,
+    // that's right" — and send the hash of the playback they read. Both come
+    // from the read; neither is inferred from the transcript.
+    //
+    // The hash must be the one the SERVICE wrote when it put the reading to
+    // them, not a re-render: a re-render asks the model again and could
+    // differ from what they saw.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.pending?.decision).toBe("confirm_value");
+
+      // Read straight from the row the service wrote, so this compares the
+      // published hash against the stored one rather than against itself.
+      const written = await pool.query<{ playback_hash: string }>(
+        `SELECT playback_hash FROM conversation_events
+          WHERE conversation_id = $1 AND kind = 'value_proposed'
+          ORDER BY ordinal DESC LIMIT 1`,
+        [conversation],
+      );
+      expect(reading?.pending?.contentHash, "the hash the proposal was written with").toBe(
+        written.rows[0]?.playback_hash,
+      );
+
+      // Deliberately NOT confirmed here: the next tests in this group are
+      // about that same open reading, and consuming it would leave them
+      // asserting against a proposal this test had already closed. That the
+      // route accepts exactly this hash is what `writes the value through the
+      // sanctioned path when they agree` proves, two tests below.
+    } finally {
+      await instance.pool.end();
+    }
   }, 300_000);
 
   it("REFUSES a confirmation whose hash is not the playback they were shown", async () => {

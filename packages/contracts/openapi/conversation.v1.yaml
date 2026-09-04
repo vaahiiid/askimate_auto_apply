@@ -338,8 +338,13 @@ paths:
       tags: [runs]
       summary: Where the application has got to, without acting on it.
       description: >-
-        ADR-0060. A READ: it does not advance the run, append an event or write
-        a checkpoint.
+        ADR-0060, ADR-0061. A READ: it does not advance the run, append an
+        event or write a checkpoint.
+
+        `pending` says what the run is waiting for the student to DO, and the
+        hash that decision must carry — sourced from exactly what the decision
+        route validates against, so a client never computes one. `null` when
+        the run is working and nothing is being asked of them.
 
         It exists so a client never has to keep its own copy of where the
         journey stands. Before it, `POST .../runs` was the only way to learn a
@@ -362,11 +367,15 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [run]
+                required: [run, pending]
                 properties:
                   run:
                     oneOf:
                       - $ref: "#/components/schemas/ConversationRun"
+                      - type: "null"
+                  pending:
+                    oneOf:
+                      - $ref: "#/components/schemas/PendingDecision"
                       - type: "null"
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -958,6 +967,43 @@ components:
             Complete on purpose. There is no "and 14 other fields", because a
             summary is not what they are authorising.
           maxLength: 200000
+
+    PendingDecision:
+      type: object
+      additionalProperties: false
+      required: [decision, contentHash]
+      description: >-
+        ADR-0061. What the run is waiting for the student to do, and the hash
+        that decision must carry.
+
+        Published because one of these hashes cannot be computed by a client at
+        all: `confirm_handoff` is over a message the ORCHESTRATOR renders, not
+        over anything in the conversation log, so a client could only produce
+        it by re-implementing that rendering and then guessing which message in
+        the transcript it applied to. Publishing all three keeps one rule
+        rather than one rule and two exceptions.
+
+        `cancel` is deliberately absent. It is available at every step and
+        carries no hash (ADR-0053), so it is not something a run waits for — a
+        client offers it always, not because a read said so.
+      properties:
+        decision:
+          type: string
+          enum: [confirm_value, authorise, confirm_handoff]
+          description: >-
+            The `kind` to send to the decision route. A subset of
+            `StudentDecisionKind`: the three that are PROMPTED.
+        contentHash:
+          type: string
+          pattern: "^sha256:[0-9a-f]{64}$"
+          description: >-
+            From the same source the decision route compares against — the open
+            proposal's playback hash, the preview's content hash, or the hash
+            of the handover message the orchestrator would render now.
+
+            For `authorise` this is the same value `GET .../runs/{runId}/preview`
+            returns; the preview route is how the student reads WHAT they are
+            authorising, and this is how a client knows that it must.
 
     StudentDecision:
       description: >-

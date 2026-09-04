@@ -70,7 +70,9 @@ authenticates against.
 offers a student accepts; **since P22 (ADR-0059)** it serves the preview a
 student authorises — computed per request, `no-store`, written nowhere; and
 **since P23 (ADR-0060)** it opens conversations and answers where a run stands
-without advancing it. ADR-0060 also settles that the student's browser client
+without advancing it, and **since P24 (ADR-0061)** that same read says what the
+run is waiting for the student to do and the hash that decision must carry, so
+no client ever computes one. ADR-0060 also settles that the student's browser client
 belongs to THIS process, served from `AAS_PUBLIC_DIR` on the origin that mints
 the session — the same shape the Secure Service uses for its own control. Both read the same catalogue the run driver executes
 against, so a deployment cannot offer one target and run another; a deployment

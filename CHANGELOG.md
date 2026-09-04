@@ -19,6 +19,62 @@ not shipped artefacts.
 
 ---
 
+## [0.42.0] — 2026-09-04
+
+**P24 — the run says what it is waiting for. ADR-0061.**
+
+Reconstructing what a client would do at each state — before writing one — found one student
+decision it **could not form at all**.
+
+Three of the four decisions carry the hash of what the student was looking at. `confirm_value`'s is
+on the `value_proposed` event; `authorise`'s is served by the preview route since ADR-0059. But
+**`confirm_handoff`'s hash is over a message the orchestrator renders**, not over anything in the
+conversation log — so a client could only produce it by re-implementing `handoffMessageOf` and
+`hashOfText` and then being right about which message it applied to.
+
+`RunDriver.handoffHashFor` already existed, public, saying in its own comment *"the client needs the
+same number to send back, and it must come from the SERVICE"*. One caller: a test. No route. The
+third time this shape has been found.
+
+`journey.test.ts` was hashing the last message in the conversation. That worked, and would not work
+in a client: "the last message" stopped being the handoff message the moment ADR-0059 made the
+authorisation announcement an assistant message too.
+
+### Added
+
+- `GET /v1/conversations/{id}/runs` now returns `pending` — `{ decision, contentHash }` or `null`.
+  `decision` is one of `confirm_value`, `authorise`, `confirm_handoff`: the three that are
+  *prompted*. Every hash comes from the same source the decision route validates against, and the
+  position and the pending decision are computed from **one** situation.
+- `PendingDecision` in the published contract.
+
+### Removed
+
+- `handoffHashFor`. Its one caller was a test, and a second derivation beside the read is the drift
+  this closes.
+
+### Changed
+
+- `journey.test.ts` computes no hash at all any more. It reads what the run is waiting for and sends
+  that — which is what a browser will do.
+
+### Why `cancel` is absent
+
+ADR-0053 makes a stop available at every step and it carries no hash, so it is not something a run
+*waits* for. A client offers it always, because the architecture says so, not because a read
+mentioned it.
+
+### Proved
+
+Seven deliberate regressions, six caught. The seventh is **recorded as unreachable rather than
+counted**: removing the handoff read's open-token check broke nothing, and probing the state it
+guards showed the state cannot occur — the step is derived from the same completion that closes the
+token, so the two move together. The test written for it was deleted rather than kept green, and
+both the code and the ADR now say the branch is unreachable, kept so the read matches the validator
+by construction rather than by coincidence.
+
+---
+
 ## [0.41.0] — 2026-09-04
 
 **P23 — the journey is startable and readable. ADR-0060.**

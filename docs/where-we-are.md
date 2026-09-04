@@ -1077,3 +1077,60 @@ second source of workflow truth:
 The student client, in `apps/conversation-service`, bundled the way the secure control is. Every
 route it needs now exists and every one of them is proved by a test that calls it the way a browser
 would. The three standing blockers are unchanged and none is engineering.
+
+---
+
+# Where we are — 2026-09-04 (P24)
+
+**Date:** 2026-09-04 · **Phase:** P24 · **ADR:** ADR-0061
+
+## The headline
+
+**The published API can now represent every interaction the journey needs — and one of them could
+not be represented at all until this phase.**
+
+P23 made the journey readable. Before writing a client, I worked through what one would actually do
+at each state, and found that `confirm_handoff` was unformable: its hash is over a message the
+**orchestrator renders**, not over anything in the conversation log. A client could only produce it
+by re-implementing `handoffMessageOf` and `hashOfText`, then guessing which message in the
+transcript it applied to — a client holding workflow logic, which the boundary forbids.
+
+`RunDriver.handoffHashFor` already existed, public, its own comment saying *"the client needs the
+same number to send back, and it must come from the SERVICE"*. One caller: a test. No route.
+
+## What P24 delivered
+
+`GET /v1/conversations/{id}/runs` now answers `{ run, pending }`, where `pending` is
+`{ decision, contentHash }` or `null`. Every hash comes from the same source the decision route
+validates against — the open proposal's playback hash, the preview's content hash, or the hash of
+the handover message the orchestrator would render now — and both halves of the answer come from
+**one** situation, because two would be two derivations able to disagree.
+
+`cancel` is deliberately absent: it is available at every step and carries no hash, so a client
+offers it always rather than because a read said so.
+
+## The measurement worth keeping
+
+One mutation survived: removing the handoff read's open-token check. I assumed a shadowed control
+and wrote a test for the state it guards — and **the state does not exist**. Completing the handoff
+in the case log moves the step past `student_handoff` immediately, because the account's stage is
+derived from `HandoffCompleted` rather than remembered.
+
+The test was deleted rather than kept green. The check stays, documented as unreachable, because the
+read has to match the validator by construction and not by the coincidence that two things move
+together today.
+
+## Known limitations — what changed, and what did not
+
+- **Still no student UI**, and it is now genuinely unblocked: every state a client must render has a
+  read, and every decision it must offer has a published hash.
+- **P24 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P23 lists still holds.
+
+## What is next, on the evidence
+
+The student client, in `apps/conversation-service`, bundled the way the secure control is
+(`control-client.ts` + `build-control.ts` + `express.static`). Nothing in the journey now requires
+the client to derive anything the server can state.

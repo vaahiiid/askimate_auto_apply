@@ -38,7 +38,6 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { createHash } from "node:crypto";
 import type { Server } from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -1086,26 +1085,35 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
 
     /**
-     * The hash of the message the student is looking at.
+     * What the run is waiting for, read from the service.
      *
-     * Taken over the text the SERVICE appended to the conversation, which is
-     * what a real client has: it renders the message it received and hashes
-     * that. The service compares it against what it would render now, so a
-     * client that hashed something else is refused rather than believed.
+     * ══════════════════════════════════════════════════════════════════
+     * ADR-0061. This used to hash the last message in the conversation
+     * itself. That worked here and would not work in a client: the hash is
+     * over a message the ORCHESTRATOR renders, so a client would have to
+     * re-implement that rendering AND be right about which message it was —
+     * and "the last one" stopped being right the moment the authorisation
+     * announcement (ADR-0059) became an assistant message too.
+     * ══════════════════════════════════════════════════════════════════
      */
-    const hashOfLastMessage = async (): Promise<string> => {
-      const said = await conversationPool.query<{ content: string }>(
-        `SELECT mb.content FROM conversation_events e
-           JOIN message_bodies mb ON mb.id = e.body_id
-          WHERE e.conversation_id = $1 ORDER BY e.ordinal DESC LIMIT 1`,
-        [CONVERSATION],
+    const waitingFor = async (): Promise<{ decision: string; contentHash: string }> => {
+      const response = await recordingFetch(
+        `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+        { headers: { cookie: devCookie } },
       );
-      const content = said.rows[0]?.content ?? "";
-      expect(content, "there is a message to confirm").not.toBe("");
-      return `sha256:${createHash("sha256").update(content).digest("hex")}`;
+      expect(response.status).toBe(200);
+      const pending = ((await response.json()) as {
+        pending: { decision: string; contentHash: string } | null;
+      }).pending;
+      if (pending === null) expect.unreachable("the run should be waiting for the student");
+      return pending;
     };
 
     const confirm = async (): Promise<number> => {
+      const asked = await waitingFor();
+      expect(asked.decision, "the service names the decision, not the client").toBe(
+        "confirm_handoff",
+      );
       const response = await recordingFetch(
         `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
         {
@@ -1113,7 +1121,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           headers: { "Content-Type": "application/json", cookie: devCookie },
           body: JSON.stringify({
             kind: "confirm_handoff",
-            contentHash: await hashOfLastMessage(),
+            contentHash: asked.contentHash,
           }),
         },
       );
