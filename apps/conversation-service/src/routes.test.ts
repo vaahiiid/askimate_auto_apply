@@ -465,3 +465,183 @@ describeIfDatabase("reading the transcript", () => {
     expect(response.status).toBe(400);
   }, 30_000);
 });
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// Starting and finding a conversation (ADR-0060)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("opening a conversation", () => {
+  async function open(
+    extra: { readonly key?: string; readonly student?: string } = {},
+  ): Promise<{ status: number; body: Record<string, unknown> | null }> {
+    const headers: Record<string, string> = { "x-student": extra.student ?? studentId };
+    if (extra.key !== undefined) headers["Idempotency-Key"] = extra.key;
+    const response = await fetch(`${BASE}/v1/conversations`, { method: "POST", headers });
+    return {
+      status: response.status,
+      body: (await response.json().catch(() => null)) as Record<string, unknown> | null,
+    };
+  }
+
+  it("opens one, in the published shape", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The first step of the journey. `conversation.v1.yaml` has published
+    // this operation since the contract was written and nothing implemented
+    // it: every conversation in this repository was an INSERT in a test.
+    // ═══════════════════════════════════════════════════════════════════
+    const { status, body } = await open();
+    expect(status).toBe(201);
+    expect(Object.keys(body ?? {}).sort()).toEqual([
+      "createdAt",
+      "id",
+      "lastOrdinal",
+      "title",
+    ]);
+    // The id the contract publishes and the column's CHECK enforces. Generated
+    // by the server, never accepted from the client — an id a client could
+    // choose is a conversation it could name into existence and then own.
+    expect(body?.["id"]).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(body?.["lastOrdinal"]).toBe(0);
+    expect(body?.["title"]).toBeNull();
+
+    // And it is the CALLER's, not anyone else's.
+    const owned = await pool.query<{ student_id: string }>(
+      "SELECT student_id FROM conversations WHERE id = $1",
+      [body?.["id"]],
+    );
+    expect(owned.rows[0]?.student_id).toBe(studentId);
+  });
+
+  it("REFUSES an unauthenticated caller", async () => {
+    const response = await fetch(`${BASE}/v1/conversations`, { method: "POST" });
+    expect(response.status).toBe(401);
+  });
+
+  it("REPLAYS an Idempotency-Key rather than opening a second empty one", async () => {
+    const idem = key() + "-open";
+    const first = await open({ key: idem });
+    expect(first.status).toBe(201);
+    const again = await open({ key: idem });
+    // 200, not 201: a client can tell whether its retry did anything, the same
+    // way the run route distinguishes a start from a resume.
+    expect(again.status).toBe(200);
+    expect(again.body?.["id"]).toBe(first.body?.["id"]);
+
+    const rows = await pool.query("SELECT 1 FROM conversations WHERE id = $1", [
+      first.body?.["id"],
+    ]);
+    expect(rows.rowCount, "one conversation, not two").toBe(1);
+  });
+
+  it("gives two students the same key without collision", async () => {
+    const idem = key() + "-shared";
+    const mine = await open({ key: idem });
+    const theirs = await open({ key: idem, student: otherStudentId });
+    expect(mine.status).toBe(201);
+    expect(theirs.status).toBe(201);
+    expect(theirs.body?.["id"]).not.toBe(mine.body?.["id"]);
+  });
+
+  it("REFUSES an Idempotency-Key of the wrong length", async () => {
+    expect((await open({ key: "too-short" })).status).toBe(400);
+    expect((await open({ key: "x".repeat(129) })).status).toBe(400);
+  });
+
+  it("opens distinct conversations without a key", async () => {
+    // No key means no replay guard, deliberately: an empty conversation has no
+    // case, no run and nothing typed, so a duplicate is untidy rather than
+    // consequential.
+    const first = await open();
+    const second = await open();
+    expect(second.body?.["id"]).not.toBe(first.body?.["id"]);
+  });
+});
+
+describeIfDatabase("finding conversations", () => {
+  it("lists the caller's own, newest first, and nobody else's", async () => {
+    const theirs = await newConversation(otherStudentId);
+    const mine: string[] = [];
+    for (let index = 0; index < 3; index += 1) mine.push(await newConversation());
+
+    const response = await fetch(`${BASE}/v1/conversations?limit=100`, {
+      headers: { "x-student": studentId },
+    });
+    expect(response.status).toBe(200);
+    const page = (await response.json()) as {
+      conversations: { id: string }[];
+      hasMore: boolean;
+      nextCursor: string | null;
+    };
+    const listed = page.conversations.map((row) => row.id);
+    for (const id of mine) expect(listed).toContain(id);
+    expect(listed, "another student's conversation is not in this page").not.toContain(theirs);
+    expect(page.hasMore).toBe(false);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("pages with a cursor, without repeating or skipping a row", async () => {
+    // The composite `(created_at, id)` cursor exists because rows opened in the
+    // same millisecond would otherwise be able to swap places between pages —
+    // and a cursor that can skip a row is a listing that silently loses one.
+    const owner = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject) VALUES ($1) RETURNING id",
+      [`pager-${String(counter += 1)}`],
+    );
+    const student = owner.rows[0]!.id;
+    const opened: string[] = [];
+    for (let index = 0; index < 5; index += 1) opened.push(await newConversation(student));
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 5; page += 1) {
+      const url = `${BASE}/v1/conversations?limit=2${cursor === null ? "" : `&cursor=${encodeURIComponent(cursor)}`}`;
+      const response = await fetch(url, { headers: { "x-student": student } });
+      const body = (await response.json()) as {
+        conversations: { id: string }[];
+        hasMore: boolean;
+        nextCursor: string | null;
+      };
+      seen.push(...body.conversations.map((row) => row.id));
+      if (!body.hasMore) break;
+      cursor = body.nextCursor;
+      expect(cursor, "hasMore promises a cursor").not.toBeNull();
+    }
+    expect(seen.length, "every row exactly once").toBe(5);
+    expect(new Set(seen).size).toBe(5);
+    for (const id of opened) expect(seen).toContain(id);
+  });
+
+  it("REFUSES a limit outside the published range", async () => {
+    for (const limit of ["0", "101", "-1", "abc"]) {
+      const response = await fetch(`${BASE}/v1/conversations?limit=${limit}`, {
+        headers: { "x-student": studentId },
+      });
+      expect(response.status, limit).toBe(400);
+    }
+  });
+
+  it("reads one conversation, and answers 404 for another student's", async () => {
+    const mine = await newConversation();
+    const theirs = await newConversation(otherStudentId);
+
+    const ok = await fetch(`${BASE}/v1/conversations/${mine}`, {
+      headers: { "x-student": studentId },
+    });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { id: string }).id).toBe(mine);
+
+    // 404 and not 403: a 403 confirms the conversation exists, which is a
+    // fact about another student.
+    const refused = await fetch(`${BASE}/v1/conversations/${theirs}`, {
+      headers: { "x-student": studentId },
+    });
+    expect(refused.status).toBe(404);
+  });
+
+  it("REFUSES an unauthenticated reader on both reads", async () => {
+    const mine = await newConversation();
+    expect((await fetch(`${BASE}/v1/conversations`)).status).toBe(401);
+    expect((await fetch(`${BASE}/v1/conversations/${mine}`)).status).toBe(401);
+  });
+});

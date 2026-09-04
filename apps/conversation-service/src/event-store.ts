@@ -41,10 +41,14 @@
  * was lost". Density is what makes `Last-Event-ID` a complete answer.
  */
 
+import { createHash } from "node:crypto";
+
 import type { Pool, PoolClient } from "pg";
 
 import type { ConversationEvent, Ordinal, RejectionReason } from "@askimate/aas-contracts";
 import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS, SECURE_EVENT_KINDS } from "@askimate/aas-contracts";
+
+import { ulid } from "./ulid.js";
 
 /** PostgreSQL's unique-violation SQLSTATE. */
 const UNIQUE_VIOLATION = "23505";
@@ -239,6 +243,88 @@ const SELECT_EVENT = `
     LEFT JOIN message_bodies b ON b.id = e.body_id
 `;
 
+/** One conversation, in the shape `conversation.v1.yaml` publishes. */
+export interface ConversationRecord {
+  readonly id: string;
+  readonly title: string | null;
+  readonly createdAt: Date;
+  readonly lastOrdinal: number;
+  /**
+   * The paging key: `created_at` at the database's own precision.
+   *
+   * Not published — `renderConversation` does not emit it — because it exists
+   * to build an opaque cursor and a client has no use for it.
+   */
+  readonly cursorAt: string;
+}
+
+interface ConversationRow {
+  readonly id: string;
+  readonly title: string | null;
+  readonly last_ordinal: number;
+  readonly created_at: Date;
+  /**
+   * `created_at` at FULL precision, as text from PostgreSQL.
+   *
+   * ── Why the JS Date is not good enough to page on ────────────────────
+   *
+   * `timestamptz` keeps microseconds; a JavaScript `Date` keeps milliseconds,
+   * and `toISOString()` prints milliseconds. So a cursor built from the Date
+   * names an instant slightly EARLIER than the row it came from — and every
+   * row created in the remainder of that millisecond sorts after the cursor
+   * and is skipped on the next page.
+   *
+   * That is not hypothetical: five conversations opened in a loop hit it, and
+   * the paging test lost one. The cursor is therefore built from this column,
+   * which is the database's own value at its own precision.
+   */
+  readonly cursor_at: string;
+}
+
+function toConversation(row: ConversationRow): ConversationRecord {
+  return {
+    id: row.id,
+    title: row.title,
+    createdAt: row.created_at,
+    // `bigint`-free: the column is `integer`, so pg hands back a number.
+    lastOrdinal: Number(row.last_ordinal),
+    cursorAt: row.cursor_at,
+  };
+}
+
+/** The projection every conversation read shares, cursor column included. */
+const CONVERSATION_COLUMNS = `id, title, last_ordinal, created_at,
+       to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at`;
+
+/**
+ * A page cursor: the `(created_at, id)` of the last row the client saw.
+ *
+ * OPAQUE to the client — base64url over a string it has no reason to read —
+ * because a cursor a client can construct is a cursor a client can use to walk
+ * somebody else's rows. It is still scoped by `student_id` in the query, so
+ * forging one changes where this student's page starts and nothing more; the
+ * opacity is what stops anybody trying.
+ */
+function encodeCursor(row: ConversationRecord): string {
+  return Buffer.from(`${row.cursorAt} ${row.id}`, "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor?: string): { readonly createdAt: string; readonly id: string } | null {
+  if (cursor === undefined || cursor.length === 0) return null;
+  const decoded = Buffer.from(cursor, "base64url").toString("utf8");
+  const gap = decoded.indexOf(" ");
+  if (gap <= 0) return null;
+  const createdAt = decoded.slice(0, gap);
+  const id = decoded.slice(gap + 1);
+  // A cursor that does not parse is treated as no cursor rather than as an
+  // error: the worst it can do is start the page at the beginning, and a 400
+  // here would break a client that had merely kept a cursor too long.
+  if (Number.isNaN(Date.parse(createdAt)) || id.length === 0) return null;
+  return { createdAt, id };
+}
+
+export { encodeCursor };
+
 export class ConversationEventStore {
   readonly #pool: Pool;
   /** In-process notification, so a local subscriber does not wait for a poll. */
@@ -412,6 +498,140 @@ export class ConversationEventStore {
       [conversationId, afterOrdinal, limit],
     );
     return rows.rows.map((row) => rowToEvent(row as Record<string, unknown>));
+  }
+
+  /**
+   * Opens a conversation for one student. ADR-0060.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The first step of the journey, and until now there was no code that took
+   * it: every conversation in this repository was an `INSERT` in a test. The
+   * id is generated here rather than accepted from the client, because a
+   * client that chose ids could name someone else's conversation into
+   * existence and then be its owner.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * `key` makes a retry after a timeout return the SAME conversation instead
+   * of leaving an empty second one behind. There is no request body, so there
+   * is nothing a reused key could disagree with — a key here is a replay
+   * guard and cannot be a conflict.
+   */
+  public async createConversation(input: {
+    readonly studentId: string;
+    readonly key?: string;
+    readonly now: Date;
+  }): Promise<{ readonly conversation: ConversationRecord; readonly created: boolean }> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (input.key !== undefined) {
+        // Locked, not merely read: two tabs retrying the same key at once must
+        // resolve to one conversation, and the winner is decided by the row
+        // rather than by whichever query returned first.
+        const held = await client.query<{ conversation_id: string | null }>(
+          `SELECT conversation_id FROM idempotency_keys
+            WHERE student_id = $1 AND key = $2 FOR UPDATE`,
+          [input.studentId, input.key],
+        );
+        const existing = held.rows[0]?.conversation_id ?? null;
+        if (existing !== null) {
+          const found = await this.#readConversation(client, existing, input.studentId);
+          await client.query("COMMIT");
+          /* c8 ignore next -- the FK makes a dangling key impossible */
+          if (found === null) throw new Error("an idempotency key named a conversation that is gone");
+          return { conversation: found, created: false };
+        }
+      }
+
+      // Retried on a primary-key collision rather than assumed unique. Two ids
+      // generated in the same millisecond differ in 80 random bits, so this
+      // loop is not expected to run twice — but "not expected" is not the same
+      // as "cannot", and the alternative is a 500 a student sees.
+      let id = "";
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const candidate = ulid(input.now);
+        const inserted = await client.query(
+          `INSERT INTO conversations (id, student_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $3) ON CONFLICT (id) DO NOTHING`,
+          [candidate, input.studentId, input.now],
+        );
+        if (inserted.rowCount === 1) {
+          id = candidate;
+          break;
+        }
+      }
+      if (id === "") throw new Error("could not allocate a conversation id");
+
+      if (input.key !== undefined) {
+        await client.query(
+          `INSERT INTO idempotency_keys (student_id, key, request_digest, conversation_id, created_at)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [input.studentId, input.key, createHash("sha256").update("").digest("hex"), id, input.now],
+        );
+      }
+      const created = await this.#readConversation(client, id, input.studentId);
+      await client.query("COMMIT");
+      /* c8 ignore next -- just inserted in this transaction */
+      if (created === null) throw new Error("the conversation just created could not be read");
+      return { conversation: created, created: true };
+    } catch (error: unknown) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** One conversation, or `null` when it is not this student's. */
+  public async findConversation(
+    conversationId: string,
+    studentId: string,
+  ): Promise<ConversationRecord | null> {
+    return this.#readConversation(this.#pool, conversationId, studentId);
+  }
+
+  /**
+   * This student's conversations, newest first.
+   *
+   * Ordered and paged on `(created_at, id)` rather than on `created_at` alone:
+   * two conversations opened in the same millisecond would otherwise be able
+   * to swap places between pages, and a cursor that can skip a row is a
+   * listing that silently loses one. The composite is total because `id` is
+   * the primary key.
+   *
+   * `conversations_by_student (student_id, created_at DESC)` has existed since
+   * migration 0001 for exactly this query, and nothing had ever run it.
+   */
+  public async listConversations(input: {
+    readonly studentId: string;
+    readonly limit: number;
+    readonly cursor?: string;
+  }): Promise<{ readonly conversations: readonly ConversationRecord[]; readonly hasMore: boolean }> {
+    const after = decodeCursor(input.cursor);
+    const rows = await this.#pool.query<ConversationRow>(
+      `SELECT ${CONVERSATION_COLUMNS} FROM conversations
+        WHERE student_id = $1
+          AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::text))
+        ORDER BY created_at DESC, id DESC
+        LIMIT $4`,
+      [input.studentId, after?.createdAt ?? null, after?.id ?? null, input.limit + 1],
+    );
+    const page = rows.rows.slice(0, input.limit).map(toConversation);
+    return { conversations: page, hasMore: rows.rows.length > input.limit };
+  }
+
+  async #readConversation(
+    client: Pool | PoolClient,
+    conversationId: string,
+    studentId: string,
+  ): Promise<ConversationRecord | null> {
+    const rows = await client.query<ConversationRow>(
+      `SELECT ${CONVERSATION_COLUMNS} FROM conversations
+        WHERE id = $1 AND student_id = $2`,
+      [conversationId, studentId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : toConversation(row);
   }
 
   /**

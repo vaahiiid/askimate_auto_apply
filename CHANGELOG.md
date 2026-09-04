@@ -19,6 +19,70 @@ not shipped artefacts.
 
 ---
 
+## [0.41.0] — 2026-09-04
+
+**P23 — the journey is startable and readable. ADR-0060.**
+
+P22 completed the last consequential gate, so the next question was where the student's client
+lives. The obvious answer — `apps/chat-integration`, which already holds a React client that talks
+to this service — is wrong, and the repository says so in six independent voices: its own
+*"RESEARCH BUILD — NOT THE PRODUCTION INTEGRATION"* banner over the **archived** AskiMate codebase;
+ADR-0028's *"research-only … not part of the product's behaviour"*; ADR-0039's *"conversation-service
+← was chat-integration"*; the Phase-E audit's disposition for its surface files — **"Discard.
+Replaced by the real dashboard"**; `ChatView.tsx`'s own *"PROVISIONAL — not an AskiMate interface"*;
+and its absence from the five deployables.
+
+It also **cannot** be the surface: the session is a `__Host-` cookie, which the browser binds to one
+origin, and that origin is this service's. And it is already a second source of truth — a parallel
+schema, a parallel identity, and per ADR-0041 a parallel event log.
+
+So the client belongs to the Conversation Service, following the precedent the Secure Service
+already set with `control-client.ts`. **No UI is written in this release.** What is written is the
+four things a client needs before it can exist without becoming a second source of workflow truth.
+
+### Added
+
+- `POST /v1/conversations` — **published in `conversation.v1.yaml` since the contract was written and
+  never implemented.** Every conversation in this repository was a raw `INSERT` in a test; there was
+  no production path to the first step of the journey. No request body; the server generates the id.
+- `GET /v1/conversations` — the caller's own, newest first, paged on a `(created_at, id)` cursor.
+  The `conversations_by_student` index has existed since migration 0001 for this query.
+- `GET /v1/conversations/{id}`.
+- **`GET /v1/conversations/{id}/runs`** — where the application has got to, **without acting on it**.
+  Before it, `POST .../runs` was the only way to learn a run's position and it needs an `offerHash`,
+  so a client that reloaded had to keep the run id, the step and the offer hash in browser storage —
+  making the client a durable holder of workflow identity. `{ run: null }` is a real answer,
+  distinct from 404.
+- `src/ulid.ts` — Crockford base32, 48 bits of time then 80 from the CSPRNG. The contract and the
+  column's CHECK had demanded this shape from the start and nothing produced one.
+- Migration `0013` — an idempotency key may name a conversation, not only an event, with a CHECK
+  that it names exactly one.
+
+### Changed
+
+- `journey.test.ts` opens its conversation over HTTP instead of by SQL, and reads the run position
+  from the new route rather than remembering it — which is the proof a client could.
+- The published contract drops the `409` from `POST /conversations`: with no request body, two
+  requests carrying one key cannot disagree, so the conflict was unreachable. The key is documented
+  as the replay guard it is.
+
+### Fixed
+
+- **A page cursor built from a JavaScript `Date` silently lost rows.** `timestamptz` keeps
+  microseconds and `toISOString()` prints milliseconds, so the cursor named an instant earlier than
+  its own row and skipped everything created in the rest of that millisecond. Found by the paging
+  test on its first run; the cursor now carries the database's own value.
+
+### Proved
+
+Fourteen deliberate regressions, eleven caught first pass. One real gap: the id generator's two
+published properties — sortable, not guessable — had no test, because every listing test inserts
+literal ids. Two others survived because I had gated the mutation behind a request header no test
+sends; both were redesigned to run on the path the tests actually take, and both are then caught by
+assertions that already existed. A mutation that never executes proves nothing about the code.
+
+---
+
 ## [0.40.0] — 2026-09-04
 
 **P22 — the student can read what they are authorising. ADR-0059.**

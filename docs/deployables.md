@@ -68,7 +68,11 @@ authenticates against.
 
 **Since P21 (ADR-0058)** it also serves the reviewed target listing and makes the
 offers a student accepts; **since P22 (ADR-0059)** it serves the preview a
-student authorises — computed per request, `no-store`, written nowhere. Both read the same catalogue the run driver executes
+student authorises — computed per request, `no-store`, written nowhere; and
+**since P23 (ADR-0060)** it opens conversations and answers where a run stands
+without advancing it. ADR-0060 also settles that the student's browser client
+belongs to THIS process, served from `AAS_PUBLIC_DIR` on the origin that mints
+the session — the same shape the Secure Service uses for its own control. Both read the same catalogue the run driver executes
 against, so a deployment cannot offer one target and run another; a deployment
 with no catalogue answers `503` on both rather than falling back.
 

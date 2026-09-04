@@ -66,7 +66,7 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
-import { parseRunPreview } from "@askimate/aas-contracts";
+import { parseConversationRun, parseRunPreview } from "@askimate/aas-contracts";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import {
@@ -121,7 +121,15 @@ const CONVERSATION_CERT = "conversation-service";
 const AGENT_CERT = "secure-filler";
 const RUNNER_CERT = "browser-runner";
 const SECURE_CERT = "secure-service";
-const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPD00001";
+/**
+ * The conversation, opened over HTTP in `beforeAll`.
+ *
+ * ADR-0060. It used to be a literal inserted with SQL — as every conversation
+ * in this repository was, because `POST /v1/conversations` was published in the
+ * contract and never implemented. A journey that begins with an `INSERT` is a
+ * journey that begins somewhere a student cannot stand.
+ */
+let CONVERSATION = "";
 const BLUEPRINT = "bp-gated-portal";
 const EMAIL = "niloofar@example.test";
 /** What the student types into the secure box. Nothing else in this file has it. */
@@ -342,14 +350,24 @@ beforeAll(async () => {
     "INSERT INTO students (subject, email_verified) VALUES ('oidc-journey', true) RETURNING id",
   );
   studentUuid = student.rows[0]!.id;
-  await conversationPool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
-    CONVERSATION,
-    studentUuid,
-  ]);
-
   // The student's own session, minted by the service's own issuer rather than
   // by a cookie string assembled here — the format is `session.ts`'s to own.
   devCookie = (issueSession(studentUuid, SESSION_SECRET).split(";")[0] ?? "").trim();
+
+  // ── The first step of the journey, taken the way a student takes it ────
+  //
+  // ADR-0060. Over HTTP, on the student's own session, against the running
+  // service — not an INSERT. What comes back is the id every later request in
+  // this file uses, so if the route were wrong nothing below would work.
+  const opened = await recordingFetch(`${CONVERSATION_URL}/v1/conversations`, {
+    method: "POST",
+    headers: { "Idempotency-Key": "journey-opens-one-conversation", cookie: devCookie },
+  });
+  if (opened.status !== 201) throw new Error(`could not open a conversation: ${opened.status}`);
+  CONVERSATION = ((await opened.json()) as { id: string }).id;
+  if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(CONVERSATION)) {
+    throw new Error(`the service returned an id the contract forbids: ${CONVERSATION}`);
+  }
 
   runnerBrowser = await chromium.launch({
     headless: true,
@@ -786,8 +804,23 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // and must not, so the authorisation gate was passable by this suite and by
     // nothing else. It now asks the way a client has to.
     // ══════════════════════════════════════════════════════════════════
+    // ── Where a returning client starts: a READ, not an action ────────
+    //
+    // ADR-0060. This is the request a page makes on load. It carries no offer
+    // hash and no run id — the client kept neither — and it is what tells the
+    // student their application is waiting for them.
+    const standing = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      { headers: { cookie: devCookie } },
+    );
+    expect(standing.status).toBe(200);
+    const position = parseConversationRun(((await standing.json()) as { run: unknown }).run);
+    if (position === null) expect.unreachable("the run read did not match the published contract");
+    expect(position.runId, "the client did not have to remember this").toBe(runId);
+    expect(position.step).toBe("authorise");
+
     const shown = await recordingFetch(
-      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/preview`,
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${position.runId}/preview`,
       { headers: { cookie: devCookie } },
     );
     expect(shown.status, await shown.clone().text()).toBe(200);

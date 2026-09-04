@@ -103,6 +103,7 @@ beforeAll(async () => {
     "0010_worker_leases",
     "0011_verification_is_established_at_login",
     "0012_target_offers",
+    "0013_conversation_idempotency",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -801,20 +802,58 @@ describeIfDatabase("idempotency and ownership", () => {
     );
     const key = "k".repeat(20);
     const digest = "a".repeat(64);
+    // Each row names a RESULT, because since 0013 a key that names none is
+    // refused — a key whose replay has no answer is not a key.
+    const mine = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T70");
+    const theirs = await pool.query<{ id: string }>(
+      `INSERT INTO conversations (id, student_id) VALUES ($1, $2) RETURNING id`,
+      ["01JBXQ8Z9WKTQ6M4H2NPVR3T71", other.rows[0]!.id],
+    );
     await pool.query(
-      "INSERT INTO idempotency_keys (student_id, key, request_digest) VALUES ($1, $2, $3)",
-      [studentId, key, digest],
+      "INSERT INTO idempotency_keys (student_id, key, request_digest, conversation_id) VALUES ($1, $2, $3, $4)",
+      [studentId, key, digest, mine],
     );
     // The same key, a different student: allowed.
     await pool.query(
-      "INSERT INTO idempotency_keys (student_id, key, request_digest) VALUES ($1, $2, $3)",
-      [other.rows[0]!.id, key, digest],
+      "INSERT INTO idempotency_keys (student_id, key, request_digest, conversation_id) VALUES ($1, $2, $3, $4)",
+      [other.rows[0]!.id, key, digest, theirs.rows[0]!.id],
     );
     // The same key, the same student: refused.
     await refuses(
-      "INSERT INTO idempotency_keys (student_id, key, request_digest) VALUES ($1, $2, $3)",
-      [studentId, key, digest],
+      "INSERT INTO idempotency_keys (student_id, key, request_digest, conversation_id) VALUES ($1, $2, $3, $4)",
+      [studentId, key, digest, mine],
       { code: UNIQUE_VIOLATION },
+    );
+  });
+
+  it("refuses an idempotency key that names NO result", async () => {
+    // ADR-0060. A key exists so a retry can be answered with what the first
+    // call produced. One that names neither an event nor a conversation has no
+    // answer to give, and would silently turn a retry into a second create.
+    await refuses(
+      "INSERT INTO idempotency_keys (student_id, key, request_digest) VALUES ($1, $2, $3)",
+      [studentId, "n".repeat(20), "b".repeat(64)],
+      { code: CHECK_VIOLATION, constraint: "a_key_names_one_result" },
+    );
+  });
+
+  it("refuses an idempotency key that names TWO results", async () => {
+    // The other half of the equivalence: a row naming both would be a key
+    // whose replay has two answers, and nothing decides which.
+    const conversation = await newConversation("01JBXQ8Z9WKTQ6M4H2NPVR3T72");
+    const body = await newBody("hello");
+    await pool.query(
+      `INSERT INTO conversation_events (conversation_id, ordinal, kind, actor, body_id)
+       VALUES ($1, 1, 'message', 'student', $2)`,
+      [conversation, body],
+    );
+    await refuses(
+      `INSERT INTO idempotency_keys (student_id, key, request_digest, event_id, conversation_id)
+       VALUES ($1, $2, $3,
+               (SELECT id FROM conversation_events WHERE conversation_id = $4 AND ordinal = 1),
+               $4)`,
+      [studentId, "t".repeat(20), "c".repeat(64), conversation],
+      { code: CHECK_VIOLATION, constraint: "a_key_names_one_result" },
     );
   });
 
@@ -935,6 +974,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0010_worker_leases",
     "0011_verification_is_established_at_login",
     "0012_target_offers",
+    "0013_conversation_idempotency",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -978,6 +1018,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0010_worker_leases",
     "0011_verification_is_established_at_login",
     "0012_target_offers",
+    "0013_conversation_idempotency",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

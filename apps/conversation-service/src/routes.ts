@@ -68,9 +68,10 @@ import {
 import type { ReviewedTarget } from "@askimate/aas-catalogue";
 import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
 import { makeOffer, verifyRequest } from "./target-offers.js";
+import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
-import type { RunOutcome } from "./run-driver.js";
+import type { RunOutcome, RunPosition } from "./run-driver.js";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
@@ -143,6 +144,15 @@ export interface RunCoordinator {
     readonly conversationId: string;
     readonly event: ConversationEvent;
   }): Promise<void>;
+  /**
+   * Where this conversation's run stands, or `null` when there is none.
+   * ADR-0060.
+   *
+   * A READ. It does not advance the run, append an event or write a
+   * checkpoint — so a client can render the journey without acting on it, and
+   * without keeping its own copy of where the journey has got to.
+   */
+  runFor(conversationId: string): Promise<RunPosition | null>;
   /**
    * What the student is being asked to authorise, and its hash. ADR-0059.
    *
@@ -427,6 +437,126 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
     }
     return authenticated;
   }
+
+  /** One conversation, in the published shape and no wider. */
+  function renderConversation(record: ConversationRecord): Record<string, unknown> {
+    return {
+      id: record.id,
+      title: record.title,
+      createdAt: record.createdAt.toISOString(),
+      lastOrdinal: record.lastOrdinal,
+    };
+  }
+
+  // ── POST /v1/conversations ──────────────────────────────────────────────
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0060. The first step of the journey, and until now there was no code
+  // that took it: `conversation.v1.yaml` has published this operation since
+  // the contract was written, and every conversation in this repository was an
+  // `INSERT` in a test.
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // No request body. A conversation is opened, not described — a title, if one
+  // is ever wanted, is something the conversation earns later. Taking a body
+  // here would mean a field on the first request of the journey with nothing
+  // to validate it against.
+  //
+  // `Idempotency-Key` is OPTIONAL and is a pure replay guard: with no body,
+  // two requests carrying one key cannot disagree, so there is no conflict to
+  // report. Without a key a retried create leaves a second empty conversation
+  // — untidy, and not consequential: an empty conversation has no case, no run
+  // and nothing typed.
+  router.post(
+    "/v1/conversations",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const who = await session(req, res);
+        if (who === null) return;
+
+        const key = req.header("Idempotency-Key");
+        if (key !== undefined && (key.length < 16 || key.length > 128)) {
+          problem(res, "validation_failed", { pointers: ["/headers/Idempotency-Key"] });
+          return;
+        }
+
+        const opened = await options.store.createConversation({
+          studentId: who.studentId,
+          ...(key === undefined ? {} : { key }),
+          now: options.now(),
+        });
+        // 201 for the one that was created, 200 for a replay — the same way
+        // the run route distinguishes a start from a resume, so a client can
+        // tell whether its retry did anything.
+        res.status(opened.created ? 201 : 200).json(renderConversation(opened.conversation));
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations ───────────────────────────────────────────────
+  //
+  // This student's conversations, newest first. Scoped by the query itself
+  // rather than filtered afterwards, so there is no arrangement of cursor and
+  // limit that reaches another student's row.
+  router.get(
+    "/v1/conversations",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const who = await session(req, res);
+        if (who === null) return;
+
+        const raw = req.query["limit"];
+        const limit = raw === undefined ? 25 : Number(raw);
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+          problem(res, "validation_failed", { pointers: ["/limit"] });
+          return;
+        }
+        const cursor = typeof req.query["cursor"] === "string" ? req.query["cursor"] : undefined;
+        if (cursor !== undefined && cursor.length > 256) {
+          problem(res, "validation_failed", { pointers: ["/cursor"] });
+          return;
+        }
+
+        const page = await options.store.listConversations({
+          studentId: who.studentId,
+          limit,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        const last = page.conversations.at(-1);
+        res.status(200).json({
+          conversations: page.conversations.map(renderConversation),
+          // Present only when there IS another page. A cursor handed back on
+          // the last page invites a client to fetch an empty one forever.
+          nextCursor: page.hasMore && last !== undefined ? encodeCursor(last) : null,
+          hasMore: page.hasMore,
+        });
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations/:id ───────────────────────────────────────────
+  router.get(
+    "/v1/conversations/:conversationId",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const who = await session(req, res);
+        if (who === null) return;
+
+        // Read scoped to the owner, so "not yours" and "does not exist" are one
+        // query and one answer — 404 either way, never a 403, because a 403
+        // confirms the conversation exists.
+        const found = await options.store.findConversation(
+          String(req.params["conversationId"]),
+          who.studentId,
+        );
+        if (found === null) {
+          problem(res, "not_found");
+          return;
+        }
+        res.status(200).json(renderConversation(found));
+      })().catch(next);
+    },
+  );
 
   // ── POST /v1/conversations/:id/messages ─────────────────────────────────
   router.post(
@@ -1149,7 +1279,43 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
   // on a service credential would make approving a real university application
   // something the operator could do on the student's behalf, which is the
   // opposite of what the authorisation ledger is for.
-    // ── GET /v1/conversations/:id/runs/:runId/preview ───────────────────────
+    // ── GET /v1/conversations/:id/runs ──────────────────────────────────────
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0060. Where the application has got to, WITHOUT doing anything to it.
+  //
+  // Before this, `POST .../runs` was the only way to learn a run's position,
+  // and it needs an `offerHash` — so a client that reloaded had to keep the
+  // run id, the step and the offer hash in browser storage to know what to
+  // draw. That would make the client a durable holder of workflow identity,
+  // which is the one thing a client of this service must never be.
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // `{ run: null }` is a real answer — "you have not started one" — and a
+  // different fact from 404, which stays reserved for a conversation that is
+  // not yours. Same `ConversationRun` shape the POST returns, from the same
+  // coordinator, so there is one projection rather than two that can drift.
+  router.get(
+    "/v1/conversations/:conversationId/runs",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        if ((await caller(req, res, conversationId)) === null) return;
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const run = await options.runs.runFor(conversationId);
+        // The student's position, not their data: four closed-set words, three
+        // identifiers and a number. Cacheable by nothing, because it changes
+        // whenever the run does.
+        res.setHeader("Cache-Control", "no-store");
+        res.status(200).json({ run });
+      })().catch(next);
+    },
+  );
+
+  // ── GET /v1/conversations/:id/runs/:runId/preview ───────────────────────
   //
   // ═══════════════════════════════════════════════════════════════════════
   // ADR-0059. What the student is about to authorise, in the words they will

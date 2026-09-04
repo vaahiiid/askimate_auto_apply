@@ -1014,3 +1014,66 @@ are all settled.
 
 The three standing blockers are unchanged, and none is engineering: discovery access, a second
 reviewer, and the retention determination.
+
+---
+
+# Where we are — 2026-09-04 (later)
+
+**Date:** 2026-09-04 · **Phase:** P23 · **ADR:** ADR-0060
+
+## The headline
+
+**A student can now open a conversation and read where their application stands — and until this
+phase, neither was possible.**
+
+P22 finished the last gate. The next question was where the client lives, and the answer turned out
+to matter more than the client: `apps/chat-integration` is **not** the student surface, and building
+there would have put the journey behind a second identity system and a second event log.
+
+## Why `apps/chat-integration` is not the surface
+
+| Evidence | Where |
+|---|---|
+| *"RESEARCH BUILD — NOT THE PRODUCTION INTEGRATION"*, built on the **archived** AskiMate codebase | its own `index.ts`, `README.md` |
+| *"Research-only … not part of the product's behaviour"* | ADR-0028 |
+| *"conversation-service ← was chat-integration"* | ADR-0039 |
+| Its surface files: **"Discard. Replaced by the real dashboard"** | Phase-E audit §5 |
+| *"PROVISIONAL — not an AskiMate interface"* | `ChatView.tsx` |
+| No `bin.ts`, no `main.ts`, absent from the five deployables | `docs/deployables.md` |
+
+And three facts that make it unusable rather than merely unintended: it **cannot hold the session**
+(a `__Host-` cookie is browser-bound to one origin, and that origin is the Conversation Service's);
+it is **already a second source of truth** (`askimate_*` tables, its own JWT identity, and per
+ADR-0041 a legacy event log); and it can represent **two of the nine** things the journey needs —
+conversations and messages, with no notion of a run at all.
+
+The client therefore belongs to the Conversation Service, exactly as the secure control belongs to
+the Secure Service (`control-client.ts` + `build-control.ts` + `express.static`).
+
+## What P23 delivered — and what it deliberately did not
+
+**No UI.** What it delivered is the four things a client needs in order to exist without becoming a
+second source of workflow truth:
+
+- `POST /v1/conversations`, `GET /v1/conversations`, `GET /v1/conversations/{id}` — **all three
+  published in the contract since it was written, none implemented.** Every conversation in this
+  repository was a raw `INSERT` in a test.
+- `GET /v1/conversations/{id}/runs` — a **read**: no checkpoint, no hop, no event, no announcement.
+  Without it a client would have to cache the run id, the step and the offer hash to know what to
+  draw.
+
+## Known limitations — what changed, and what did not
+
+- **Still no student UI.** That is now genuinely next, and it is unblocked for the first time.
+- **`apps/chat-integration` is untouched.** Its retirement is a separate decision; nothing depends
+  on it.
+- **P23 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P22 lists still holds.
+
+## What is next, on the evidence
+
+The student client, in `apps/conversation-service`, bundled the way the secure control is. Every
+route it needs now exists and every one of them is proved by a test that calls it the way a browser
+would. The three standing blockers are unchanged and none is engineering.

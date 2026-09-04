@@ -3802,9 +3802,86 @@ describeIfDatabase("the decision only the student can make", () => {
     }
   }
 
-  it("SHOWS the student what they are being asked to authorise", async () => {
+  it("READS where the run stands, without touching it", async () => {
     await aRunAtTheAuthorisation();
 
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0060. Before this, `POST .../runs` was the only way to learn a
+    // run's position and it needs an `offerHash` — so a client that reloaded
+    // had to keep the run id, the step and the offer hash in browser storage
+    // to know what to draw. That would make the client a durable holder of
+    // workflow identity.
+    // ═══════════════════════════════════════════════════════════════════
+    const before = await pool.query<{ revision: string; checkpoint: unknown }>(
+      "SELECT revision, checkpoint FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    const eventsBefore = await pool.query<{ count: string }>(
+      "SELECT count(*) AS count FROM conversation_events WHERE conversation_id = $1",
+      [conversation],
+    );
+    const caseBefore = await pool.query<{ count: string }>(
+      `SELECT count(*) AS count FROM case_events WHERE case_id = $1`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+
+    const { status, body, cacheControl } = await get(
+      `/v1/conversations/${conversation}/runs`,
+      cookieFor(studentId_),
+    );
+    expect(status).toBe(200);
+    const read = (body as { run: unknown }).run;
+    const run = parseConversationRun(read);
+    if (run === null) expect.unreachable(`not a ConversationRun: ${JSON.stringify(read)}`);
+    expect(run.runId).toBe(runId);
+    expect(run.step, "the orchestrator's answer, not a cached one").toBe("authorise");
+    expect(run.conversationId).toBe(conversation);
+    // Never false from a GET: a client that saw `resumed: false` here could
+    // reasonably conclude the read had started something.
+    expect(run.resumed).toBe(true);
+    expect(cacheControl).toBe("no-store");
+
+    // ── And it did NOTHING ────────────────────────────────────────────
+    const after = await pool.query<{ revision: string; checkpoint: unknown }>(
+      "SELECT revision, checkpoint FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(after.rows[0]?.revision, "no checkpoint was written").toBe(before.rows[0]?.revision);
+    expect(after.rows[0]?.checkpoint).toEqual(before.rows[0]?.checkpoint);
+    const eventsAfter = await pool.query<{ count: string }>(
+      "SELECT count(*) AS count FROM conversation_events WHERE conversation_id = $1",
+      [conversation],
+    );
+    expect(eventsAfter.rows[0]?.count, "no event was appended").toBe(eventsBefore.rows[0]?.count);
+    const caseAfter = await pool.query<{ count: string }>(
+      `SELECT count(*) AS count FROM case_events WHERE case_id = $1`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(caseAfter.rows[0]?.count, "the case did not move").toBe(caseBefore.rows[0]?.count);
+  }, 300_000);
+
+  it("answers run:null for a conversation that has not started one", async () => {
+    // A real answer, and a different fact from 404 — which stays reserved for
+    // a conversation that is not yours.
+    const fresh = "01JBXQ8Z9WKTQ6M4H2NPC000C8";
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
+      fresh,
+      studentId_,
+    ]);
+    const { status, body } = await get(`/v1/conversations/${fresh}/runs`, cookieFor(studentId_));
+    expect(status).toBe(200);
+    expect((body as { run: unknown }).run).toBeNull();
+  }, 300_000);
+
+  it("REFUSES the run read on another student's conversation", async () => {
+    const { status } = await get(
+      `/v1/conversations/${conversation}/runs`,
+      cookieFor(otherStudentId),
+    );
+    expect(status).toBe(404);
+  }, 300_000);
+
+  it("SHOWS the student what they are being asked to authorise", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // ADR-0059. Until this route existed, the only code in the repository
     // that could complete an authorisation was a test that rebuilt the

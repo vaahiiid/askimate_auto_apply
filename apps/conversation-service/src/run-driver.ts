@@ -1551,6 +1551,65 @@ export class RunDriver {
   }
 
   /**
+   * Where this conversation's run stands. A READ, and only a read.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0060. Until this existed, `POST .../runs` was the only way to learn a
+   * run's position — and it needs an `offerHash`. So a client that reloaded
+   * the page had to keep the run id, the step and the offer hash in browser
+   * storage to know what to draw, which would make the CLIENT a durable holder
+   * of workflow identity. This removes the reason to cache any of it.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * ── It does not advance the run ──────────────────────────────────────
+   *
+   * No checkpoint is saved, no case hop is walked, no event is appended and no
+   * message is announced. `#situation` computes from the durable record, the
+   * confirmed profile and the conversation log, and writes nothing — which is
+   * what `previewFor` already depends on. A `GET` that advanced a run would
+   * make LOOKING at an application a consequential act.
+   *
+   * `null` means this conversation has no run yet. A real answer, and a
+   * different one from "not your conversation" — which the route reports as a
+   * 404 before ever reaching here.
+   */
+  public async runFor(conversationId: string): Promise<RunPosition | null> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return null;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return null;
+    const held = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    const record = held[0];
+    if (record === undefined) return null;
+
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    return {
+      runId: record.runId,
+      caseId: record.caseId,
+      conversationId,
+      status: record.status,
+      phase: record.checkpoint.phase,
+      // The orchestrator's answer where there is one. The only way to refuse
+      // here is an unusable mapping set, which is a specialist's problem and
+      // has the orchestrator's own word for it — the same reading the run
+      // route gives that refusal when it answers 503. Reporting the last step
+      // instead would say the run is somewhere it is not.
+      step: situation.ok ? situation.step.kind : "specialist",
+      revision: record.revision,
+      // Never `false`. This read did not start anything, and a client that
+      // saw `resumed: false` from a GET could reasonably conclude it had.
+      resumed: true,
+      concerns: [],
+    };
+  }
+
+  /**
    * What this run would show the student right now, and its hash — or `null`.
    *
    * ═══════════════════════════════════════════════════════════════════════

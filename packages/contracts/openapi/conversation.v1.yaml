@@ -60,14 +60,30 @@ paths:
       operationId: createConversation
       tags: [conversations]
       summary: Start a conversation.
+      description: >-
+        The first step of the student journey. No request body: a conversation
+        is opened, not described.
+
+        `Idempotency-Key` is optional and is a pure REPLAY guard here — with no
+        body, two requests carrying one key cannot disagree, so there is no
+        conflict to report and no 409 on this operation. Without a key, a
+        retried create leaves a second empty conversation, which is untidy and
+        not consequential: an empty conversation has no case, no run and
+        nothing typed.
       parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
       responses:
         "201":
           description: Created.
           content:
             application/json: { schema: { $ref: "#/components/schemas/Conversation" } }
+        "200":
+          description: >-
+            A replay. The `Idempotency-Key` had already opened this
+            conversation, so the same one is returned rather than a second
+            empty one being created.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Conversation" } }
         "401": { $ref: "#/components/responses/Unauthenticated" }
-        "409": { $ref: "#/components/responses/IdempotencyKeyConflict" }
         "429": { $ref: "#/components/responses/RateLimited" }
     get:
       operationId: listConversations
@@ -317,6 +333,47 @@ paths:
 
   /conversations/{conversationId}/runs:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    get:
+      operationId: readConversationRun
+      tags: [runs]
+      summary: Where the application has got to, without acting on it.
+      description: >-
+        ADR-0060. A READ: it does not advance the run, append an event or write
+        a checkpoint.
+
+        It exists so a client never has to keep its own copy of where the
+        journey stands. Before it, `POST .../runs` was the only way to learn a
+        run's position and it requires an `offerHash` — so a client that
+        reloaded had to hold the run id, the step and the offer hash in browser
+        storage, which would make it a durable holder of workflow identity.
+
+        `run` is `null` when this conversation has not started one. That is a
+        real answer and a different fact from 404, which is reserved for a
+        conversation that is not yours.
+      responses:
+        "200":
+          description: The run, or null.
+          headers:
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [run]
+                properties:
+                  run:
+                    oneOf:
+                      - $ref: "#/components/schemas/ConversationRun"
+                      - type: "null"
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503":
+          description: This deployment carries no run driver.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
     post:
       operationId: startRun
       tags: [runs]
