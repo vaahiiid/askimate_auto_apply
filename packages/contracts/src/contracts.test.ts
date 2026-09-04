@@ -556,3 +556,89 @@ describe("bytes from the network to a run preview", () => {
     }
   });
 });
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// The target exchange, over the wire (ADR-0058)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("bytes from the network to a target event", () => {
+  const BASE = { ordinal: 7, createdAt: "2026-09-04T10:00:00.000Z" };
+  const OFFER = `sha256:${"a".repeat(64)}`;
+  const CONTENT = `sha256:${"b".repeat(64)}`;
+
+  it("parses an offer, with everything it names", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after the P25 client found these missing. P21 added the kinds
+    // to the union, the vocabulary, the schema and the store — and not to the
+    // parser. Every test read the log through SQL or the store, so nothing
+    // noticed until a browser parsed a conversation and got `null`.
+    // ═══════════════════════════════════════════════════════════════════
+    const parsed = parseConversationEvent({
+      ...BASE,
+      kind: "target_offered",
+      offerHash: OFFER,
+      targetBlueprintId: "bp-gated-portal",
+      targetContentHash: CONTENT,
+    });
+    expect(parsed).toMatchObject({
+      kind: "target_offered",
+      offerHash: OFFER,
+      targetBlueprintId: "bp-gated-portal",
+      targetContentHash: CONTENT,
+    });
+  });
+
+  it("parses a request, which names the offer and nothing else", () => {
+    const parsed = parseConversationEvent({ ...BASE, kind: "target_requested", offerHash: OFFER });
+    expect(parsed).toMatchObject({ kind: "target_requested", offerHash: OFFER });
+    expect("targetBlueprintId" in (parsed ?? {})).toBe(false);
+  });
+
+  it("REFUSES either half with no offer to name", () => {
+    expect(parseConversationEvent({ ...BASE, kind: "target_requested" })).toBeNull();
+    expect(
+      parseConversationEvent({
+        ...BASE,
+        kind: "target_offered",
+        targetBlueprintId: "bp-x",
+        targetContentHash: CONTENT,
+      }),
+    ).toBeNull();
+  });
+
+  it("REFUSES an offer that does not say what it offered", () => {
+    // The schema constraint `only_an_offer_carries_a_target` in the same
+    // shape, one layer out: an offer without its target is a row nobody can
+    // trace to what the student was shown.
+    expect(
+      parseConversationEvent({ ...BASE, kind: "target_offered", offerHash: OFFER }),
+    ).toBeNull();
+  });
+
+  it("EVERY published kind round-trips, so a new one cannot be forgotten again", () => {
+    // The guard that would have caught P21's omission. `EVENT_KINDS` is the
+    // published vocabulary; a kind in it that the parser refuses is a kind no
+    // client can read.
+    const samples: Readonly<Record<string, Record<string, unknown>>> = {
+      message: { actor: "assistant", content: "hello" },
+      secret_requested: { requestId: `sr_${"0".repeat(32)}`, channel: "secure_control",
+                          expiresAt: "2026-09-04T10:05:00.000Z" },
+      secret_received: { requestId: `sr_${"0".repeat(32)}`, handle: `sh_${"0".repeat(32)}` },
+      secret_consumed: { requestId: `sr_${"0".repeat(32)}` },
+      secret_expired: { requestId: `sr_${"0".repeat(32)}` },
+      secret_cancelled: { requestId: `sr_${"0".repeat(32)}` },
+      secret_rejected: { requestId: `sr_${"0".repeat(32)}`, reason: "already_submitted" },
+      value_proposed: { fieldKey: "contact.email", proposal: { value: "x" }, playbackHash: OFFER },
+      value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
+      value_rejected: { fieldKey: "contact.email" },
+      target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },
+      target_requested: { offerHash: OFFER },
+    };
+    for (const kind of EVENT_KINDS) {
+      const sample = samples[kind];
+      expect(sample, `no sample for ${kind}`).toBeDefined();
+      expect(parseConversationEvent({ ...BASE, kind, ...sample }), kind).not.toBeNull();
+    }
+  });
+});

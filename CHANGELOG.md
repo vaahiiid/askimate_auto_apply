@@ -19,6 +19,77 @@ not shipped artefacts.
 
 ---
 
+## [0.43.0] — 2026-09-04
+
+**P25 — the student client, in the service that serves its origin. ADR-0060.**
+
+Every route the journey needs has existed since P24. This phase built the one browser document that
+walks it: reviewed targets → a deterministic offer → an explicit request in the student's own words
+→ the interview → the preview → hash-bound authorisation.
+
+It lives in `apps/conversation-service`, not in `apps/chat-integration`, because the session is a
+`__Host-` cookie and the browser binds that to exactly one origin — this service's. A page served
+from anywhere else has no session at all. Same shape as the secure control: a client module, a
+build step, and `express.static`.
+
+### Added
+
+- `apps/conversation-service/src/client/transport.ts` — the browser's side of this service's own
+  API. Fetch calls and nothing else: no derivation, no caching, no state. Every read is parsed by
+  the **contract's own parser**, and a body the parser refuses is a `contract_mismatch` outcome
+  rather than a screen built from a shape nobody published.
+- `apps/conversation-service/src/client/journey.ts` — the page. `refresh()` rebuilds the entire view
+  from the server, and it is the same path a fresh load takes, so there is one code path to be right
+  about rather than two. SSE frames are a **trigger to re-read**, never a source: the frame is
+  parsed to confirm it is an event this contract publishes, and then discarded.
+- `apps/conversation-service/src/build-client.ts` — `buildStudentClient(outDir)` writes
+  `journey.js`, `journey.css` and `index.html`. Not committed, for the reason the secure control's
+  bundle is not: a committed bundle is a second copy that can go stale.
+- `apps/conversation-service/src/student-client.test.ts` — fifteen tests, real Chromium against a
+  real Postgres and the real app. It reconstructs the screen after `localStorage.clear()` and a
+  reload, asserts browser storage is empty, and drives a full case from the target listing to a
+  confirmed reading.
+- A boundary rule, **"the student's page"**: no client file may import a server module of the
+  service beside it, or any of the capability packages that would let a browser decide what the run
+  does next. It refuses to pass when it is looking at nothing.
+
+### Fixed
+
+- **`parseConversationEvent` did not know `target_offered` or `target_requested`.** Added in P21,
+  never taught to the parser — so any consumer parsing a conversation containing them got `null`.
+  Nothing had noticed, because nothing outside the service had parsed a real log. `contracts.test.ts`
+  now asserts that **every** member of `EVENT_KINDS` round-trips.
+- **The page held a run reading the server had not just confirmed.** A failed re-read left the
+  previous answer in place — a decision button still bound to a hash the server no longer names,
+  which is exactly what ADR-0060 forbids the client to hold. The failed half is now cleared and
+  reported, and the target listing is suppressed after a failed run read.
+
+### Changed
+
+- `apps/conversation-service` may hold `playwright` in tests but not in production, matching
+  `apps/secure-service`. `tsconfig.json` gains DOM types, app-wide, matching the three apps that
+  already have them; what stops a *server* file reaching for `document` is the boundary check, not
+  the compiler setting.
+
+### Proved
+
+Eleven deliberate regressions, all caught — two of them only after the first attempt **survived**,
+and both survivals are recorded as findings rather than re-run until they looked better. Removing a
+package from the client's forbidden list changed nothing while no client file imports it: a mutation
+that never executes is not coverage, so the rule is now asserted as data. Deleting the transport's
+contract check changed nothing while the server stays correct: the response is now corrupted at the
+browser's network boundary, and chasing that test is what found the stale-reading defect above.
+
+See [`docs/p25-regression-audit.md`](./docs/p25-regression-audit.md).
+
+### Not closed
+
+The interview *question* is never appended to the conversation log — `#putToTheStudent` writes only
+the playback, after an answer — so the page has nothing to render while a question is outstanding.
+A real gap in the journey, recorded in the test and the audit. It is a server-side gap.
+
+---
+
 ## [0.42.0] — 2026-09-04
 
 **P24 — the run says what it is waiting for. ADR-0061.**

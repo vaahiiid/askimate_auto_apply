@@ -58,6 +58,10 @@ export { createConversationRoutes } from "./routes.js";
 
 export { SESSION_COOKIE, issueSession, readSession, setSession } from "./session.js";
 
+// ADR-0060. The student's page, built by the app that serves its origin — the
+// same shape `secure-service` exports `buildSecureControl`.
+export { buildStudentClient } from "./build-client.js";
+
 export type { ConversationAppOptions } from "./app.js";
 export { createConversationApp } from "./app.js";
 

@@ -1134,3 +1134,83 @@ together today.
 The student client, in `apps/conversation-service`, bundled the way the secure control is
 (`control-client.ts` + `build-control.ts` + `express.static`). Nothing in the journey now requires
 the client to derive anything the server can state.
+
+---
+
+# Where we are — 2026-09-04 (P25)
+
+**Date:** 2026-09-04 · **Phase:** P25 · **ADR:** ADR-0060
+
+## The headline
+
+**A student can walk the journey in a browser.** Reviewed targets, a deterministic offer, an
+explicit request in their own words, the interview, the preview, and a hash-bound authorisation —
+through one page, over the published API, with nothing derived on the client.
+
+The page lives in `apps/conversation-service`. Not in `apps/chat-integration`, and that is a
+structural fact rather than a preference: the session is a `__Host-` cookie, which the browser binds
+to exactly one origin with `Path=/` and no `Domain`. A client served from anywhere else would have
+no session at all. So the page is built and served by the app that owns the origin, the same way the
+secure control is (`control-client.ts` + `build-control.ts` + `express.static`).
+
+## What P25 delivered
+
+- **`client/transport.ts`** — fetch calls and nothing else. Every read is parsed by the contract's
+  own parser; a body the parser refuses becomes a refusal, not a screen.
+- **`client/journey.ts`** — `refresh()` rebuilds the whole view from the server, and it is the same
+  path a fresh load takes. SSE frames trigger a re-read and are then discarded; what they say
+  decides nothing here.
+- **`build-client.ts`** — bundles the page. The document is deliberately empty of content: every
+  sentence a student reads comes from the server.
+- **A boundary rule** that no client file may import a server module beside it, or any capability
+  package that would let a browser decide what the run does next — and that refuses to pass when it
+  is looking at nothing.
+- **Fifteen browser tests**, real Chromium against a real Postgres and the real app.
+
+## What only a real client could find
+
+Two defects, both invisible to every server-side test in the repository:
+
+1. **`parseConversationEvent` did not know `target_offered` or `target_requested`.** Added in P21,
+   never taught to the parser. Any consumer parsing a real conversation containing them got `null`
+   — and nothing had noticed, because until this phase nothing outside the service parsed one. The
+   contract test now asserts every member of `EVENT_KINDS` round-trips.
+2. **The page held a run reading the server had not just confirmed.** A failed re-read left the
+   previous answer on screen: a decision button still bound to a hash the server no longer names.
+
+The second was found by chasing a regression that survived, which is the measurement worth keeping
+from this phase — see below.
+
+## The measurement worth keeping
+
+Two of eleven mutations survived on the first attempt, and both survivals were findings.
+
+Removing a package from the client's forbidden list changed nothing, because **no client file
+imports it** — the loop never matched, so the mutation never executed. A rule whose only evidence is
+"nothing violates it yet" will be quietly weakened before the day it is needed, so the rule is now
+asserted as data in `ci-guard.test.ts`.
+
+Deleting the transport's contract check changed nothing either, and that one executed on every read
+— it simply had nothing to do, because the real server is correct. The response is now corrupted at
+the browser's network boundary with `page.route`, exactly as a version-skewed server would corrupt
+it. Writing that test is what surfaced the stale-reading defect.
+
+## Known limitations — what changed, and what did not
+
+- **There is now a student UI.** The three-phase-old "still no student UI" line is closed.
+- **The interview question is never shown**, because it is never appended to the log:
+  `#putToTheStudent` writes only the playback, after an answer. A real gap in the journey, and a
+  server-side one. Recorded in the test and in the audit; not this phase's to close.
+- **`apps/chat-integration` is untouched**, and is now demonstrably not the student surface. Its
+  retirement is a separate decision.
+- **P25 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- **Document retention is still UNAPPROVED.** Unchanged.
+- Everything from the P14–P24 lists still holds.
+
+## What is next, on the evidence
+
+The interview gap above is the first thing the journey now visibly lacks, and it is the smallest
+server-side change of anything outstanding: the question the run is waiting on has no representation
+a client can read. Everything else that remains is one of the three standing non-engineering
+blockers.

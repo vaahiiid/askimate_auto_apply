@@ -74,7 +74,11 @@ without advancing it, and **since P24 (ADR-0061)** that same read says what the
 run is waiting for the student to do and the hash that decision must carry, so
 no client ever computes one. ADR-0060 also settles that the student's browser client
 belongs to THIS process, served from `AAS_PUBLIC_DIR` on the origin that mints
-the session — the same shape the Secure Service uses for its own control. Both read the same catalogue the run driver executes
+the session — the same shape the Secure Service uses for its own control, and
+**since P25 that client exists**: `buildStudentClient(outDir)` writes
+`journey.js`, `journey.css` and `index.html` into whatever directory
+`AAS_PUBLIC_DIR` points at. It is built, not committed, so there is no second
+copy able to go stale. Both read the same catalogue the run driver executes
 against, so a deployment cannot offer one target and run another; a deployment
 with no catalogue answers `503` on both rather than falling back.
 
@@ -89,7 +93,7 @@ with no catalogue answers `503` on both rather than falling back.
 | `AAS_SERVICE_CERT_SECURE` | yes | the certificate the Secure Service presents for the internal append. |
 | `AAS_SERVICE_CERT_RUNNER` | yes | the certificate the Runner presents for claim/report. |
 | `AAS_CATALOGUE` | yes | `fixtures` only, and **refused in production** — see "What still blocks production". |
-| `AAS_PUBLIC_DIR` | no | built client. Absent serves the API alone. |
+| `AAS_PUBLIC_DIR` | no | the built student client (`buildStudentClient`). Absent serves the API alone. |
 | `AAS_DEV_SESSION` | no | mounts `POST /dev/session`. **Refused in production.** |
 
 **Startup checks, in order.** Configuration parses and every problem is reported

@@ -34,12 +34,18 @@
  */
 
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const WORKFLOW = join(import.meta.dirname, "..", ".github", "workflows", "ci.yml");
+const WORKFLOW = join(
+  import.meta.dirname,
+  "..",
+  ".github",
+  "workflows",
+  "ci.yml",
+);
 const ci = readFileSync(WORKFLOW, "utf8");
 
 /** Suites whose guarantees are only meaningful against a real database. */
@@ -120,6 +126,10 @@ const DATABASE_BACKED = [
   // decided by reading a real conversation log and rebuilding from a real
   // catalogue, so a fake would be re-implementing the thing under test.
   "scripts/p21-target-selection.test.ts",
+  // P25. The student's own page, in a real Chromium, against a real service and
+  // a real log. Its central claim — that a reload reconstructs the screen
+  // because the page kept nothing — is only checkable against a real server.
+  "apps/conversation-service/src/student-client.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {
@@ -199,17 +209,22 @@ describe("CI still runs the database-backed security suites", () => {
       //
       // One subprocess per suite. Each must fail on its own.
       const code = await new Promise<number>((resolvePromise) => {
-        const child = spawn("pnpm", ["exec", "vitest", "run", suite, "--reporter=dot"], {
-          cwd: join(import.meta.dirname, ".."),
-          env: {
-            ...process.env,
-            AAS_REQUIRE_DATABASE: "1",
-            // Port 1: refused instantly, so this stays fast and cannot reach a
-            // database someone happens to have running.
-            AAS_TEST_DATABASE_URL: "postgresql://postgres@127.0.0.1:1/postgres",
+        const child = spawn(
+          "pnpm",
+          ["exec", "vitest", "run", suite, "--reporter=dot"],
+          {
+            cwd: join(import.meta.dirname, ".."),
+            env: {
+              ...process.env,
+              AAS_REQUIRE_DATABASE: "1",
+              // Port 1: refused instantly, so this stays fast and cannot reach a
+              // database someone happens to have running.
+              AAS_TEST_DATABASE_URL:
+                "postgresql://postgres@127.0.0.1:1/postgres",
+            },
+            stdio: "ignore",
           },
-          stdio: "ignore",
-        });
+        );
         child.on("close", (exit) => resolvePromise(exit ?? -1));
       });
 
@@ -217,7 +232,6 @@ describe("CI still runs the database-backed security suites", () => {
     },
     120_000,
   );
-
 });
 
 describe("no test may reach a live university site", () => {
@@ -227,18 +241,99 @@ describe("no test may reach a live university site", () => {
     // tests crawled qahighereducation.com and ulster.ac.uk on every push until
     // they timed out. The flag is real now; this asserts it stays real.
     const cli = readFileSync(
-      join(import.meta.dirname, "..", "apps", "browser-runner", "src", "cli.ts"),
+      join(
+        import.meta.dirname,
+        "..",
+        "apps",
+        "browser-runner",
+        "src",
+        "cli.ts",
+      ),
       "utf8",
     );
     expect(cli).toContain('process.env["AAS_DISCOVERY_DRY_RUN"] === "1"');
     expect(cli).toContain("No pages fetched.");
 
     const test = readFileSync(
-      join(import.meta.dirname, "..", "apps", "browser-runner", "src", "cli.test.ts"),
+      join(
+        import.meta.dirname,
+        "..",
+        "apps",
+        "browser-runner",
+        "src",
+        "cli.test.ts",
+      ),
       "utf8",
     );
     // Every resolution test must assert it, or the guard is decorative.
     const asserted = test.split("No pages fetched.").length - 1;
     expect(asserted).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The student page's boundary rule, as DATA (ADR-0060)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the client cannot reach the server it is served by", () => {
+  const source = readFileSync(
+    join(import.meta.dirname, "check-boundaries.ts"),
+    "utf8",
+  );
+
+  it("names the capabilities a browser must not hold", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written after a mutation to that rule SURVIVED — and it survived for a
+    // reason worth recording: removing `@askimate/aas-orchestrator` from the
+    // forbidden list changes nothing while no client file imports it, so the
+    // mutation never executed. A rule whose only proof is "nothing violates
+    // it yet" is a rule that will be quietly weakened before it is ever
+    // needed.
+    //
+    // So the rule is asserted as DATA. These are the packages that would let
+    // the page decide what the run does next, hold the case machine, reach a
+    // database, or execute against a catalogue.
+    // ═══════════════════════════════════════════════════════════════════
+    const block = source.slice(
+      source.indexOf(
+        'const CLIENT_DIR = "apps/conversation-service/src/client"',
+      ),
+    );
+    for (const capability of [
+      "@askimate/aas-orchestrator",
+      "@askimate/aas-domain",
+      "@askimate/aas-case-store",
+      "@askimate/aas-catalogue",
+      "@askimate/aas-preparation",
+      "pg",
+    ]) {
+      expect(block, `the client rule must forbid ${capability}`).toContain(
+        `"${capability}"`,
+      );
+    }
+  });
+
+  it("refuses to pass when it is looking at nothing", () => {
+    // The vacuity guard. A rule that silently narrows to zero files is worse
+    // than no rule, because it reports a ✓.
+    expect(source).toContain("No client file found under");
+    expect(source).toContain("No server module found under");
+  });
+
+  it("still has client files to look at", () => {
+    const files = readdirSync(
+      join(
+        import.meta.dirname,
+        "..",
+        "apps",
+        "conversation-service",
+        "src",
+        "client",
+      ),
+    ).filter((name) => name.endsWith(".ts"));
+    expect(
+      files.length,
+      "the page moved, and the rule now looks at nothing",
+    ).toBeGreaterThan(0);
   });
 });

@@ -2,7 +2,18 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    // `src/client/` is the student's page — the one browser document this
+    // service serves (ADR-0060), bundled by `build-client.ts`. Like
+    // `secure-service`, `browser-runner` and `chat-integration`, this app
+    // therefore legitimately needs DOM types.
+    //
+    // App-wide, matching those three, so there is one convention rather than
+    // four. What stops a SERVER file reaching for `document` is not this
+    // setting but `check-boundaries.ts`, which polices the import direction —
+    // the risk that actually matters is a client file importing a server
+    // module, not a server file failing to compile.
+    "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": [
     "src/**/*.ts"

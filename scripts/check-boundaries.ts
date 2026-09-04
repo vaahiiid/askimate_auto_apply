@@ -336,10 +336,16 @@ const RULES: readonly Rule[] = [
   },
   {
     packagePath: "apps/conversation-service",
+    // `playwright` is production-forbidden rather than forbidden outright, for
+    // the reason it is on `secure-service`: since ADR-0060 this app serves the
+    // student's page, and `student-client.test.ts` drives it in a real
+    // browser. The SHIPPED service must still not carry a browser automation
+    // library — every package in its tree is a supply-chain path to the
+    // process that holds the conversation database.
+    forbiddenInProduction: ["playwright"],
     forbidden: [
       "@askimate/aas-secrets",
       "@aws-sdk/client-kms",
-      "playwright",
       "morgan",
       "pino",
       "pino-http",
@@ -1779,6 +1785,94 @@ function main(): void {
     console.log(
       `  ✓  the Secure Plane — CSP intact, ${String(CONTROL_FILES.length)} file(s) name no third ` +
         `origin, transaction boundaries owned by one module`,
+    );
+  }
+
+  // ── The student's page may not reach into the service it is served by ──
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0060 puts the client INSIDE `apps/conversation-service`, because that
+  // is the origin that mints its session. The cost of that decision is
+  // proximity: `run-driver.ts` is one directory away, and importing it would
+  // give the browser the orchestrator, the case machine and the domain — a
+  // client holding workflow logic, which is the one thing it must not be.
+  //
+  // So the rule is the import DIRECTION, and it is what the app-wide `"lib":
+  // ["dom"]` in that tsconfig leans on: the compiler will not stop a server
+  // file touching `document`, and this will not stop it either — but this
+  // stops the failure that actually matters.
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    const CLIENT_DIR = "apps/conversation-service/src/client";
+    // Every server module in the app. Read from the directory rather than
+    // listed, so a file added tomorrow is covered without anyone remembering.
+    const serverModules = existsSync("apps/conversation-service/src")
+      ? readdirSync("apps/conversation-service/src")
+          .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
+          .map((name) => name.replace(/\.ts$/, ""))
+      : [];
+    const clientFiles = existsSync(CLIENT_DIR)
+      ? readdirSync(CLIENT_DIR).filter((name) => name.endsWith(".ts"))
+      : [];
+
+    if (clientFiles.length === 0) {
+      violations.push(
+        `No client file found under ${CLIENT_DIR}. This rule polices the student's page; a ` +
+          `rule looking at nothing passes for the wrong reason.`,
+      );
+    }
+    if (serverModules.length === 0) {
+      violations.push(
+        `No server module found under apps/conversation-service/src. This rule compares the ` +
+          `client against them and would be vacuous.`,
+      );
+    }
+
+    for (const file of clientFiles) {
+      const source = readFileSync(join(CLIENT_DIR, file), "utf8");
+      for (const match of source.matchAll(/from\s+"([^"]+)"/g)) {
+        const specifier = match[1] ?? "";
+        // A relative import that climbs OUT of the client directory.
+        if (!specifier.startsWith("../")) continue;
+        const named = specifier.replace(/^\.\.\//, "").replace(/\.js$/, "");
+        if (serverModules.includes(named)) {
+          violations.push(
+            `${CLIENT_DIR}/${file} imports "${specifier}" — a server module of the service it ` +
+              `is served by. The student's page is a projection: it reads the published API and ` +
+              `holds no workflow logic (ADR-0060).`,
+          );
+        }
+      }
+      // The server-side packages a browser has no business holding. Named
+      // rather than derived, because the point is which CAPABILITIES must not
+      // reach the page, not which packages happen to exist.
+      for (const forbidden of [
+        "@askimate/aas-orchestrator",
+        "@askimate/aas-domain",
+        "@askimate/aas-case-store",
+        "@askimate/aas-catalogue",
+        "@askimate/aas-preparation",
+        "@askimate/aas-interview",
+        "@askimate/aas-llm",
+        "@askimate/aas-mapping",
+        "@askimate/aas-profile",
+        "@askimate/aas-migrate",
+        "@askimate/aas-oidc",
+        "pg",
+      ]) {
+        if (source.includes(`"${forbidden}"`)) {
+          violations.push(
+            `${CLIENT_DIR}/${file} imports ${forbidden}. A client that held it would be ` +
+              `deriving what the server is authoritative for (ADR-0060, ADR-0061).`,
+          );
+        }
+      }
+    }
+
+    checked += 1;
+    console.log(
+      `  ✓  the student's page — ${String(clientFiles.length)} file(s) reach no server module ` +
+        `of the ${String(serverModules.length)} beside them`,
     );
   }
 

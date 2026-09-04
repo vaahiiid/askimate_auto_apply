@@ -35,6 +35,9 @@
 #                            PostgreSQL, which is why a fake proves none of them.
 #   scripts/p20-catalogue  — P20. A catalogue on disk, and real processes that
 #                            refuse to start on an entry nobody approved.
+#   apps/conversation-service/src/student-client — P25. The student's page in a
+#                            real browser: it reconstructs the whole screen from
+#                            server reads after a reload, and keeps nothing.
 #   scripts/p21-target-selection — P21. The two gates (ADR-0058) over a real
 #                            catalogue loaded through P20's registry: a case
 #                            opens only when the student names the hash of an

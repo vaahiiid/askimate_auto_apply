@@ -343,6 +343,28 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       if (fieldKey === null) return null;
       return { ...base, kind: "value_rejected", fieldKey };
     }
+    // ── The target exchange (ADR-0058) ────────────────────────────────────
+    //
+    // Added in P25, and the omission is worth recording: P21 put these kinds
+    // in the union, the vocabulary, the schema and the store, and NOT here.
+    // Nothing noticed, because every test read the log through SQL or through
+    // the store. The first client to parse a conversation got `null` for them
+    // — and because a page refuses a log it cannot parse whole, one
+    // unparseable event blanked the entire transcript.
+    case "target_offered": {
+      const offerHash = readString(source, "offerHash");
+      const targetBlueprintId = readString(source, "targetBlueprintId");
+      const targetContentHash = readString(source, "targetContentHash");
+      if (offerHash === null || targetBlueprintId === null || targetContentHash === null) {
+        return null;
+      }
+      return { ...base, kind: "target_offered", offerHash, targetBlueprintId, targetContentHash };
+    }
+    case "target_requested": {
+      const offerHash = readString(source, "offerHash");
+      if (offerHash === null) return null;
+      return { ...base, kind: "target_requested", offerHash };
+    }
     default:
       return null;
   }
