@@ -280,6 +280,16 @@ function drawOffer(): void {
  * One branch per decision the SERVER named, and each sends back the hash the
  * server gave. There is no fourth branch that guesses.
  */
+/**
+ * True for the statuses the run driver says wait for a person (ADR-0048).
+ *
+ * Named here rather than inlined so the two places that must agree — this line
+ * and the composer's hint — cannot drift apart.
+ */
+function waitsOnAPerson(status: string): boolean {
+  return status === "escalated" || status === "uncertain";
+}
+
 function drawPending(): void {
   const panel = el("pending");
   if (panel === null) return;
@@ -291,9 +301,23 @@ function drawPending(): void {
 
   const where = document.createElement("p");
   where.className = "position";
+  // ── A run waiting on a PERSON does not read as one waiting on you ────
+  //
+  // ADR-0064. This line used to say `interview (escalated)` whatever had
+  // happened, so a student whose run had been handed to a specialist saw the
+  // step they were last asked about and a composer inviting them to answer it.
+  // The escalation message was in the transcript above, contradicted by the
+  // line beneath it.
+  //
+  // `uncertain` and `escalated` are the two the driver names as waiting for a
+  // person; the step is not mentioned for either, because which step it
+  // stopped on is not the student's business and reading it as a prompt is
+  // exactly the mistake.
   text(
     where,
-    `Your application: ${run.step.replace(/_/g, " ")} (${run.status})`,
+    waitsOnAPerson(run.status)
+      ? "Your application is with a member of the team. I will come back to you."
+      : `Your application: ${run.step.replace(/_/g, " ")} (${run.status})`,
   );
   panel.append(where);
 

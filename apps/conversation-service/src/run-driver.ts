@@ -143,7 +143,7 @@ import type {
   RunState,
   RunStep,
 } from "@askimate/aas-orchestrator";
-import { isFinancialField, resolveField } from "@askimate/aas-profile";
+import { FIELD_LABELS, isFinancialField, resolveField } from "@askimate/aas-profile";
 import type {
   ConfirmedProfile,
   ConfirmedProfileStore,
@@ -458,6 +458,44 @@ function reviewMessage(entry: CatalogueEntry): string {
     `of the team needs to check it over. That is a rule we apply every time for applications ` +
     `like yours, not something that has gone wrong. Nothing you have given me is lost, and I ` +
     `will come back to you as soon as it has been looked at.`
+  );
+}
+
+/**
+ * What the student reads when the interview has run out of ways to ask.
+ *
+ * Deliberately NOT `reviewMessage`. That one says "this is a rule we apply
+ * every time, not something that has gone wrong" — which would be a lie here.
+ * Something did go wrong: we asked as many times as the interview allows and
+ * still could not read an answer. Saying so is the honest thing, and it is also
+ * what stops the student answering into a void.
+ */
+function unobtainableMessage(entry: CatalogueEntry, what: string): string {
+  return (
+    `I have not been able to get your ${what} from our conversation, and I have asked as many ` +
+    `times as I should. Rather than guess at something your ${entry.blueprint.institutionName} ` +
+    `application depends on, I have passed this to a member of the team to sort out with you. ` +
+    `Nothing you have already given me is lost, and your application has not been submitted.`
+  );
+}
+
+/**
+ * What the student reads when a document is required.
+ *
+ * ADR-0022 governs disclosure before a document is sent anywhere and ADR-0023
+ * requires a retention period to be determined rather than invented — and that
+ * determination is UNAPPROVED, so this system cannot accept a document at all.
+ * Saying "please upload your passport" would be asking for something there is
+ * nowhere to put. It names what is needed and hands the case to a person, which
+ * is the only honest move available.
+ */
+function documentNeededMessage(entry: CatalogueEntry, documentType: string): string {
+  const label = documentType.replace(/_/g, " ");
+  return (
+    `Your ${entry.blueprint.institutionName} application needs your ${label}. I am not able to ` +
+    `take documents in this conversation, so I have passed this to a member of the team, who ` +
+    `will arrange it with you directly. Nothing you have already given me is lost, and your ` +
+    `application has not been submitted.`
   );
 }
 
@@ -2376,6 +2414,25 @@ export class RunDriver {
   async #askAfterWriting(conversationId: string): Promise<void> {
     const situated = await this.#interviewSituation(conversationId);
     if (situated === null) return;
+    // ── Ask, or STOP. Never neither (ADR-0064) ─────────────────────────
+    //
+    // The interview's next move is one of five kinds and only `ask` is a
+    // question. If it has decided it cannot obtain something, the run stops
+    // HERE — on the message path — because a client that has just sent a
+    // message re-READS the run rather than advancing it (ADR-0060), so a stop
+    // noticed only while advancing would never fire in the journey a student
+    // actually walks.
+    const stopped = await this.#stopIfTheInterviewGaveUp(
+      {
+        entry: situated.entry,
+        record: situated.record,
+        conversationId,
+        caseId: situated.record.caseId,
+      },
+      situated.step,
+      this.#options.now(),
+    );
+    if (stopped) return;
     await this.#askTheStudent(conversationId, situated.step);
   }
 
@@ -2396,7 +2453,13 @@ export class RunDriver {
       conversationId,
       event: { kind: "value_rejected", fieldKey: pending.fieldKey },
     });
-    if (outcome.kind !== "corrected") return;
+    if (outcome.kind !== "corrected") {
+      // A rejection is what `attemptsFrom` counts, so THIS is the write that
+      // can exhaust a field. Re-deriving here turns the third refusal into a
+      // stop rather than into silence.
+      await this.#askAfterWriting(conversationId);
+      return;
+    }
 
     // A corrected value IS confirmed — the student supplied it themselves —
     // so it is already in `outcome.state.profile`. Persist it and say so.
@@ -2466,6 +2529,223 @@ export class RunDriver {
   }
 
   /**
+   * Stops a run the interview cannot carry any further (ADR-0064).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `nextAction` returns five kinds. `ask` is asked (ADR-0062), `confirm` is
+   * played back (ADR-0051), and `complete` lets the step move on. The other
+   * two — `escalate` and `request_document` — WERE DROPPED, silently, by a
+   * driver that only ever looked for `ask`.
+   *
+   * `escalate` is reachable today: three rejected readings of the last
+   * outstanding field and `nextAction` decides a specialist must look. Nothing
+   * happened. No message, no intervention, no status change — and because
+   * `interviewAsk` also only matches `ask`, everything the student said
+   * afterwards was ignored too. The run sat at `interview` for ever.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Both stop the run the same way, because both are one fact: this system
+   * cannot obtain something the application needs. That is the literal
+   * definition of `information_unobtainable` — "the agent interviewed the
+   * student and still cannot obtain what is required" — a reason the domain has
+   * carried since P10 with nothing ever raising it.
+   *
+   * `high`, not `critical`: a stopped application is consuming a deadline, and
+   * `recovery.ts` reserves `critical` for one that is imminent. This driver does
+   * not know the deadline, so it does not claim to.
+   */
+  async #stopForUnobtainable(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly concerns: readonly ResumeConcern[];
+      readonly resumed: boolean;
+    },
+    step: RunStep,
+    now: Date,
+  ): Promise<RunOutcome | null> {
+    const stopped = await this.#stopIfTheInterviewGaveUp(input, step, now);
+    if (!stopped) return null;
+    return {
+      ok: true,
+      position: {
+        runId: input.record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status: "escalated",
+        phase: input.record.checkpoint.phase,
+        step: step.kind,
+        revision: input.record.revision,
+        resumed: input.resumed,
+        concerns: input.concerns,
+      },
+    };
+  }
+
+  /**
+   * The stop itself. `true` when this run has been stopped for a person.
+   *
+   * Separate from the wrapper above because TWO paths reach it and only one is
+   * producing a `RunOutcome`. The other is the MESSAGE path: a client that has
+   * just sent a message re-READS the run (ADR-0060) rather than advancing it,
+   * so an escalation noticed only while advancing would never fire in the
+   * journey a student actually walks — the gap ADR-0062 found for the question,
+   * one action kind further on.
+   *
+   * The status is written whether or not an intervention store is configured. A
+   * deployment without one must still not leave a run being advanced for ever
+   * into a step it can never leave.
+   */
+  async #stopIfTheInterviewGaveUp(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+    },
+    step: RunStep,
+    now: Date,
+  ): Promise<boolean> {
+    const action = interviewActionOf(step);
+    if (action === null) return false;
+    if (action.kind !== "escalate" && action.kind !== "request_document") return false;
+
+    // `fieldKey` is OPTIONAL on an escalate. Both branches of `nextAction` that
+    // produce one set it today, but the type permits its absence and a driver
+    // that indexed a label map with `undefined` would crash on the one path
+    // that most needs to work. Absent, the stop is still recorded — it just
+    // cannot name the field, and says so rather than inventing one.
+    const field = action.kind === "escalate" ? action.fieldKey : undefined;
+    // What could not be obtained, as a stable identifier a specialist can act
+    // on. Never the model's prose: `target` is part of the idempotency key, so
+    // a sentence that varied between calls would raise a second intervention
+    // for the same stuck field.
+    const target =
+      action.kind === "escalate"
+        ? `interview:${field ?? "unspecified"}`
+        : `document:${action.documentType}`;
+
+    await this.#raiseForSpecialist({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.caseId,
+      priority: "high",
+      target,
+      encountered: action.reason,
+      expected:
+        action.kind === "escalate"
+          ? `A usable answer for ${field ?? "the outstanding field"}, obtained in conversation ` +
+            `with the student.`
+          : `The student's ${action.documentType}. THIS SYSTEM CANNOT ACCEPT ONE: there is no ` +
+            `upload path, and the disclosure (ADR-0022) and retention (ADR-0023) decisions it ` +
+            `depends on are not approved. A person must arrange it outside this service.`,
+      message:
+        action.kind === "escalate"
+          ? unobtainableMessage(
+              input.entry,
+              field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
+            )
+          : documentNeededMessage(input.entry, action.documentType),
+      now,
+    });
+
+    if (input.record.status === "running") {
+      await this.#options.stores.runs.saveCheckpoint({
+        runId: input.record.runId,
+        checkpoint: input.record.checkpoint,
+        expectedRevision: input.record.revision,
+        status: "escalated",
+      });
+    }
+    return true;
+  }
+
+  /**
+   * Raises an intervention a specialist can pick up, and tells the student once.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ONE mechanism, two callers. A mandatory review and an interview that has
+   * run out of ways to obtain something stop a run for different reasons and
+   * say different things, but "a run is waiting for a person" is a single fact
+   * with a single home — ADR-0048's intervention store. A second construction
+   * of it would be a second way for a run to be waiting, and the two could
+   * disagree about which runs those are.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Idempotent by `idempotencyKeyFor`, so re-advancing a stopped run raises
+   * nothing new, and announced at most once — `announcedAt` is the guard, the
+   * same one `announcePending` uses.
+   *
+   * The caller owns the run's STATUS. This writes the intervention and the
+   * message; it does not decide what the run becomes, because the two callers
+   * differ on that and hiding the difference here would make it invisible.
+   */
+  async #raiseForSpecialist(input: {
+    readonly entry: CatalogueEntry;
+    readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+    readonly conversationId: string;
+    readonly caseId: CaseId;
+    readonly priority: "high" | "critical";
+    /** What could not be obtained. Also the idempotency key's target. */
+    readonly target: string;
+    readonly encountered: string;
+    readonly expected: string;
+    readonly message: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return;
+    const runId = input.record.runId;
+    const idempotencyKey = idempotencyKeyFor({
+      runId,
+      action: "advance_portal_page",
+      target: input.target,
+    });
+    const raised = await interventions.raise({
+      interventionId: makeInterventionId(
+        this.#options.newInterventionId?.(runId, idempotencyKey, input.now) ??
+          `iv_${randomUUID().replace(/-/g, "")}`,
+      ),
+      runId,
+      idempotencyKey,
+      caseId: input.caseId,
+      studentRef: input.record.studentRef,
+      escalation: {
+        reason: "information_unobtainable",
+        priority: input.priority,
+        encountered: input.encountered,
+        expected: input.expected,
+        checkpoint: {
+          blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+          action: "advance_portal_page",
+          target: input.target,
+          phase: input.record.checkpoint.phase,
+          pagesCompleted: [],
+          capturedAt: input.now,
+        },
+        raisedAt: input.now,
+      },
+      context: {
+        institutionId: makeInstitutionId(input.entry.institutionRef),
+        portal: portalOf(input.entry),
+        courseId: makeCourseId(input.entry.courseRef),
+        blueprintVersion: blueprintVersion(input.entry.blueprint.version),
+      },
+    });
+    const held = await interventions.find(raised.interventionId);
+    if (held !== null && held.announcedAt === undefined) {
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: { kind: "message", actor: "assistant", content: input.message },
+      });
+      await interventions.markAnnounced(raised.interventionId, input.now);
+    }
+  }
+
+  /**
    * Stops a run whose case cannot legitimately reach the student.
    *
    * Reuses P10's machinery exactly (ADR-0048): an intervention a specialist can
@@ -2488,56 +2768,20 @@ export class RunDriver {
     const runId = input.record.runId;
 
     if (interventions !== undefined) {
-      const idempotencyKey = idempotencyKeyFor({
-        runId,
-        action: "advance_portal_page",
-        target: `review:${input.triggers.join(",")}`,
-      });
-      const raised = await interventions.raise({
-        interventionId: makeInterventionId(
-          this.#options.newInterventionId?.(runId, idempotencyKey, input.now) ??
-            `iv_${randomUUID().replace(/-/g, "")}`,
-        ),
-        runId,
-        idempotencyKey,
+      await this.#raiseForSpecialist({
+        entry: input.entry,
+        record: input.record,
+        conversationId: input.conversationId,
         caseId: input.caseId,
-        studentRef: input.record.studentRef,
-        escalation: {
-          reason: "information_unobtainable",
-          priority: "critical",
-          encountered: input.detail,
-          expected:
-            `An approving human review recorded against every mandatory trigger, before the ` +
-            `student is asked to authorise anything.`,
-          checkpoint: {
-            blueprintVersion: blueprintVersion(input.entry.blueprint.version),
-            action: "advance_portal_page",
-            target: `review:${input.triggers.join(",")}`,
-            phase: input.record.checkpoint.phase,
-            pagesCompleted: [],
-            capturedAt: input.now,
-          },
-          raisedAt: input.now,
-        },
-        context: {
-          institutionId: makeInstitutionId(input.entry.institutionRef),
-          portal: portalOf(input.entry),
-          courseId: makeCourseId(input.entry.courseRef),
-          blueprintVersion: blueprintVersion(input.entry.blueprint.version),
-        },
+        priority: "critical",
+        target: `review:${input.triggers.join(",")}`,
+        encountered: input.detail,
+        expected:
+          `An approving human review recorded against every mandatory trigger, before the ` +
+          `student is asked to authorise anything.`,
+        message: reviewMessage(input.entry),
+        now: input.now,
       });
-      const held = await interventions.find(raised.interventionId);
-      if (held !== null && held.announcedAt === undefined) {
-        await this.#options.conversations.append({
-          conversationId: input.conversationId,
-          event: {
-            kind: "message",
-            actor: "assistant",
-            content: reviewMessage(input.entry),
-          },
-        });
-        await interventions.markAnnounced(raised.interventionId, input.now);
-      }
       if (input.record.status === "running") {
         await this.#options.stores.runs.saveCheckpoint({
           runId,
@@ -3190,6 +3434,20 @@ export class RunDriver {
     // what the log already holds, so the ordinary case — a poll of a run
     // already waiting on an answer — writes nothing.
     await this.#askTheStudent(input.conversationId, step);
+
+    // ── The interview's own decision to STOP (ADR-0064) ──────────────────
+    //
+    // After the ask, because a step that is asking is not stuck. This returns a
+    // position rather than falling through to `checkpointAfter`, for the reason
+    // `#pauseForReview` does: the run's status is now `escalated` and writing
+    // the ordinary checkpoint under it would put it back to `running`.
+    //
+    // Kept even though the message path below reaches the same stop first in
+    // the ordinary case: `#correct` appends the rejection and THEN re-derives,
+    // so a process that dies between those two leaves an exhausted log and a
+    // run still marked `running`. This advance is what stops it.
+    const stuck = await this.#stopForUnobtainable(input, step, now);
+    if (stuck !== null) return stuck;
 
     const revision = await checkpointAfter({
       stores: this.#options.stores,

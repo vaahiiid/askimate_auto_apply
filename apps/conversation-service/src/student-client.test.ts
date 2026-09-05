@@ -39,6 +39,7 @@ import {
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
+import { PostgresInterventionStore } from "@askimate/aas-case-store/postgres-interventions";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
 import {
@@ -54,6 +55,15 @@ import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
+import {
+  applyConfirmation,
+  confirmField,
+  emptyProfile,
+  isDeclined,
+  toStoredEntry,
+} from "@askimate/aas-profile";
+import type { ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
+import { proposeValue, studentId } from "@askimate/aas-domain";
 import { RunDriver } from "./run-driver.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { StudentIdentityStore } from "./identity-store.js";
@@ -179,6 +189,7 @@ async function closeCurrentPage(): Promise<void> {
     .catch(() => undefined);
 }
 let publicDir: string;
+let driver: RunDriver;
 let student: string;
 let otherStudent: string;
 
@@ -221,6 +232,59 @@ async function visitAnonymously(): Promise<void> {
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
 }
 
+/**
+ * Confirms one field the way the interview does, and stores it.
+ *
+ * Through `applyConfirmation` — the one minter of a `ConfirmedValue` — so the
+ * seeded profile is indistinguishable from one a student filled in. Used by the
+ * escalation test to leave exactly ONE field outstanding: `nextAction` skips an
+ * exhausted field and asks the next, so it escalates only when every
+ * outstanding field is exhausted, and exhausting six through a browser would be
+ * eighteen round trips to prove a thing three prove.
+ */
+async function confirmFieldFor<K extends ProfileFieldKey>(
+  subject: string,
+  key: K,
+  value: ProfileFieldType<K>,
+  /**
+   * What the student said. Given explicitly rather than stringified from the
+   * value: not every field type is a string, and `String(aDate)` or
+   * `String(anAddress)` is not what anybody typed.
+   */
+  verbatim: string,
+): Promise<void> {
+  const when = new Date();
+  const result = applyConfirmation({
+    key,
+    proposed: proposeValue({
+      value,
+      origin: "conversation",
+      verbatim,
+      confidence: 1,
+    }),
+    confirmation: {
+      studentRef: studentId(subject),
+      presentedText: "Is that right?",
+      response: { kind: "accepted" },
+      respondedAt: when,
+    },
+  });
+  if (isDeclined(result))
+    expect.unreachable(`${key} should have been accepted`);
+  const profile = confirmField(
+    emptyProfile(studentId(subject), when),
+    result,
+    when,
+  );
+  const entry = profile.entries.get(key);
+  if (entry === undefined)
+    expect.unreachable(`${key} should be in the profile`);
+  await new PostgresConfirmedProfileStore(pool).save(
+    subject,
+    toStoredEntry(key, entry),
+  );
+}
+
 /** Waits for a selector to hold text, so a test never races the render. */
 async function textOf(selector: string, timeout = 15_000): Promise<string> {
   await page.waitForFunction(
@@ -259,7 +323,7 @@ beforeAll(async () => {
   await buildStudentClient(publicDir);
 
   const store = new ConversationEventStore(pool);
-  const driver = new RunDriver({
+  driver = new RunDriver({
     stores: {
       cases: new PostgresCaseStore(pool),
       runs: new PostgresWorkflowRunStore(pool),
@@ -271,6 +335,10 @@ beforeAll(async () => {
     conversations: store,
     identities: new StudentIdentityStore(pool),
     leases: new WorkLeaseStore(pool),
+    // ADR-0048. Present because every deployment has one (`deployables.md`),
+    // and a run that stops silently and a run that stops and SAYS SO must not
+    // be indistinguishable here either — the student reads the message.
+    interventions: new PostgresInterventionStore(pool),
     now: () => new Date(),
   });
   const app = createConversationApp({
@@ -802,6 +870,138 @@ describeIfDatabase("the student's page", () => {
 
     await page.unroute("**/v1/conversations/*/runs");
   }, 180_000);
+
+  it("shows a run handed to a PERSON as exactly that, not as a live interview", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0064, through the browser. What this proves is the RENDERING: that
+    // a run the server has handed to a specialist does not read as a live
+    // interview with a composer inviting an answer.
+    //
+    // The escalation itself is driven through the SERVER's own message path —
+    // `answerStudent`, the same entry point the route calls — rather than
+    // through six composer round trips. The first version did drive them, and
+    // it was flaky under parallel load: six browser exchanges to reach a state
+    // the driver suite already proves deterministically, in order to assert
+    // one line of text. Each proof belongs where it can be made honestly.
+    //
+    // Before the position line was fixed the student saw
+    // `Your application: interview (escalated)` above an open composer — the
+    // step they were last asked about, inviting an answer nobody would read.
+    // ═══════════════════════════════════════════════════════════════════
+    const stuck = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p28-ui', true) RETURNING id",
+    );
+    const subject = stuck.rows[0]!.id;
+    // Five of the six required fields, leaving `contact.email` outstanding:
+    // `nextAction` skips an exhausted field and asks the next, so it escalates
+    // only once every outstanding field is exhausted.
+    await confirmFieldFor(
+      subject,
+      "identity.given_name",
+      "Niloofar",
+      "Niloofar",
+    );
+    await confirmFieldFor(
+      subject,
+      "identity.family_name",
+      "Hosseini",
+      "Hosseini",
+    );
+    await confirmFieldFor(
+      subject,
+      "identity.date_of_birth",
+      new Date("1999-04-02T00:00:00Z"),
+      "2 April 1999",
+    );
+    await confirmFieldFor(
+      subject,
+      "identity.nationality",
+      "Iranian",
+      "Iranian",
+    );
+    await confirmFieldFor(
+      subject,
+      "study.personal_statement",
+      "I want to study data science.",
+      "I want to study data science.",
+    );
+
+    await visitAs(subject);
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target").length > 0,
+      undefined,
+      { timeout: 15_000 },
+    );
+    await chooseCourse("MSc Example Studies");
+    await textOf("#offer pre");
+    await page.locator("#statement").fill("Please apply to this one for me.");
+    await page.locator("#offer button").first().click();
+    await page.waitForFunction(
+      () =>
+        (document.querySelector("#pending")?.textContent ?? "").includes(
+          "interview",
+        ),
+      undefined,
+      { timeout: 20_000 },
+    );
+
+    // ── Three readings put and refused, through the real message path ──
+    const conversation = await pool.query<{ id: string }>(
+      "SELECT id FROM conversations WHERE student_id = $1",
+      [subject],
+    );
+    const conversationId = conversation.rows[0]!.id;
+    const store = new ConversationEventStore(pool);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (const words of [
+        `niloofar${String(attempt)}@example.test`,
+        "no that is not it at all",
+      ]) {
+        const written = await store.append({
+          conversationId,
+          event: { kind: "message", actor: "student", content: words },
+        });
+        await driver.answerStudent({ conversationId, event: written.event });
+      }
+    }
+
+    // The run really is stopped, in the database, before the page is asked.
+    const stopped = await pool.query<{ status: string }>(
+      `SELECT r.status FROM workflow_runs r
+         JOIN conversations c ON c.case_id = r.case_id
+        WHERE c.student_id = $1`,
+      [subject],
+    );
+    expect(stopped.rows[0]?.status, "the interview gave up and said so").toBe(
+      "escalated",
+    );
+
+    // ── And the page tells the student the truth about it ──────────────
+    //
+    // Reloaded first, and with browser storage cleared, so what is asserted is
+    // the SERVER's answer reconstructed from nothing (ADR-0060).
+    await page.evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      () =>
+        (document.querySelector("#pending")?.textContent ?? "").includes(
+          "with a member of the team",
+        ),
+      undefined,
+      { timeout: 20_000 },
+    );
+    const position = await textOf("#pending");
+    expect(
+      position,
+      "the step is not shown as though it were live",
+    ).not.toContain("interview");
+
+    // The escalation message is in the transcript too, so the two agree.
+    expect(await textOf("#transcript")).toMatch(/member of the team/);
+  }, 300_000);
 
   it("sends the student to log in when there is no session", async () => {
     // 401 is the ordinary case for a page loaded without one. The page does

@@ -26,6 +26,8 @@ import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
@@ -5785,6 +5787,538 @@ describeIfDatabase("the interview loop, closed", () => {
       stored.rows.map((row) => row.field_key),
       "a correction the student supplied is theirs, and is confirmed",
     ).toContain(field);
+  }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P28 — the interview's decision to STOP reaches the system (ADR-0064)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** `GATED_ENTRY`, but the university also asks for a document. */
+const DOCUMENT_ENTRY: CatalogueEntry = {
+  ...GATED_ENTRY,
+  requiredDocuments: ["passport"],
+};
+
+const DOCUMENT_CATALOGUE: TestCatalogue = {
+  targets: () => [
+    targetOf({ entry: DOCUMENT_ENTRY, contentHash: TEST_CONTENT_HASH }),
+  ],
+  find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DOCUMENT_ENTRY : null),
+};
+
+describeIfDatabase("the interview stops rather than stranding", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // `nextAction` returns five kinds. Before ADR-0064 the driver looked only
+  // for `ask`, so `escalate` and `request_document` were SILENTLY DROPPED:
+  // no message, no intervention, no status change — and `interviewAsk` also
+  // matching only `ask` meant every further thing the student said was
+  // ignored too. The run sat at `interview` for ever.
+  //
+  // Driven through `say()`, the real message path, not by calling a private
+  // method. Three rejected readings is what `MAX_ATTEMPTS_PER_FIELD` costs.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPESC001";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ kind: string; content: string | null }[]> {
+    const rows = await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({
+        conversationId: conversation,
+        event: written.event,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function advance(): Promise<string> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      return seen.ok ? seen.position.status : `refused:${seen.refusal.kind}`;
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p28-esc', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, student],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      // ── Every field but ONE, confirmed ────────────────────────────────
+      //
+      // `nextAction` SKIPS an exhausted field and asks the next one, so it
+      // escalates only when every OUTSTANDING field is exhausted. Measured,
+      // not assumed: the first version of this test hammered one field and
+      // watched the interview move calmly on to the next.
+      //
+      // Five of the six are seeded and `contact.email` is left to be
+      // exhausted, which makes the escalation reachable in three exchanges
+      // instead of eighteen.
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmInto(
+        profiles,
+        "identity.given_name",
+        "Niloofar",
+        "Niloofar",
+        student,
+      );
+      await confirmInto(
+        profiles,
+        "identity.family_name",
+        "Hosseini",
+        "Hosseini",
+        student,
+      );
+      await confirmInto(
+        profiles,
+        "identity.date_of_birth",
+        new Date("1999-04-02T00:00:00Z"),
+        "2 April 1999",
+        student,
+      );
+      await confirmInto(
+        profiles,
+        "identity.nationality",
+        "Iranian",
+        "Iranian",
+        student,
+      );
+      await confirmInto(
+        profiles,
+        "study.personal_statement",
+        "I want to study data science.",
+        "I want to study data science.",
+        student,
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step).toBe("interview");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("REACHES the attempt limit through the real interview, and stops", async () => {
+    // Three readings put and rejected. A correction the agent cannot parse is
+    // not a confirmation — it closes the reading and counts as a failed
+    // attempt, which is exactly what `attemptsFrom` reads off the log.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await say(`niloofar${String(attempt)}@example.test`);
+      await say("no that is not it at all");
+    }
+    const rejected = (await events()).filter(
+      (event) => event.kind === "value_rejected",
+    );
+    expect(rejected, "three readings put and refused").toHaveLength(3);
+
+    // The step is now `escalate`. Before ADR-0064 this advance did nothing.
+    expect(await advance(), "the run stops rather than staying live").toBe(
+      "escalated",
+    );
+  }, 300_000);
+
+  it("records a DURABLE intervention a specialist can pick up", async () => {
+    const raised = await pool.query<{
+      reason: string;
+      target: string;
+      priority: string;
+    }>(
+      `SELECT reason, priority, checkpoint->>'target' AS target
+         FROM interventions WHERE run_id = $1`,
+      [runId],
+    );
+    expect(raised.rowCount, "one intervention, not none and not many").toBe(1);
+    // The reason whose own definition is this situation, carried by the domain
+    // since P10 with nothing ever raising it.
+    expect(raised.rows[0]?.reason).toBe("information_unobtainable");
+    expect(raised.rows[0]?.target, "and it names WHICH field").toBe(
+      "interview:contact.email",
+    );
+    // `high`, not `critical`: `recovery.ts` reserves critical for an imminent
+    // deadline, and this driver does not know the deadline.
+    expect(raised.rows[0]?.priority).toBe("high");
+  }, 300_000);
+
+  it("TELLS the student, truthfully, and the message survives a fresh read", async () => {
+    const said = (await events()).filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
+    const last = said.at(-1)?.content ?? "";
+    expect(last, "it says a person is now involved").toMatch(
+      /member of the team/,
+    );
+    expect(last, "and does not claim this was routine").not.toMatch(
+      /rule we apply every time/,
+    );
+    expect(last, "and does not claim success").toMatch(
+      /has not been submitted/,
+    );
+
+    // Reload-safe: a fresh process holding nothing reads the same position.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.status, "the stop is durable, not in memory").toBe(
+        "escalated",
+      );
+      expect(reading?.pending, "and nothing is being asked of them").toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("does NOT let a further message advance the stopped interview", async () => {
+    const before = await events();
+    const profileBefore = await pool.query(
+      "SELECT 1 FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
+
+    await say("niloofar@example.test");
+
+    const after = await events();
+    expect(
+      after.filter((event) => event.kind === "value_proposed").length,
+      "no new reading was taken from a run that has stopped",
+    ).toBe(before.filter((event) => event.kind === "value_proposed").length);
+    const profileAfter = await pool.query(
+      "SELECT 1 FROM profile_entries WHERE student_id = $1",
+      [student],
+    );
+    expect(profileAfter.rowCount, "and nothing reached the profile").toBe(
+      profileBefore.rowCount,
+    );
+  }, 300_000);
+
+  it("raises ONE intervention however many times it is re-advanced", async () => {
+    await advance();
+    await advance();
+    const raised = await pool.query(
+      "SELECT 1 FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    expect(
+      raised.rowCount,
+      "idempotent by the action and target it names",
+    ).toBe(1);
+    const announced = (await events()).filter(
+      (event) =>
+        event.kind === "message" &&
+        (event.content ?? "").includes("member of the team"),
+    );
+    expect(
+      announced,
+      "and the student is told once, not once per poll",
+    ).toHaveLength(1);
+  }, 300_000);
+
+  it("STOPS a run whose log already shows the interview gave up", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The crash window, and the reason the decide path carries this check as
+    // well as the message path.
+    //
+    // `#correct` appends the rejection and THEN re-derives. A process that
+    // died between those two leaves a log whose attempts are exhausted and a
+    // run still marked `running` — nothing would ever stop it, because the
+    // client only re-reads and the worker's advance is the only thing left.
+    //
+    // Simulated by appending the exchange directly and never calling
+    // `answerStudent`, which is exactly what the surviving half of that crash
+    // looks like on disk.
+    // ═══════════════════════════════════════════════════════════════════
+    const crashed = "01JBXQ8Z9WKTQ6M4H2NPESC002";
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p28-crash', true) RETURNING id",
+    );
+    const who = created.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [crashed, who],
+    );
+
+    let stranded = "";
+    const setup = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(setup.pool);
+      await confirmInto(
+        profiles,
+        "identity.given_name",
+        "Niloofar",
+        "Niloofar",
+        who,
+      );
+      await confirmInto(
+        profiles,
+        "identity.family_name",
+        "Hosseini",
+        "Hosseini",
+        who,
+      );
+      await confirmInto(
+        profiles,
+        "identity.date_of_birth",
+        new Date("1999-04-02T00:00:00Z"),
+        "2 April 1999",
+        who,
+      );
+      await confirmInto(
+        profiles,
+        "identity.nationality",
+        "Iranian",
+        "Iranian",
+        who,
+      );
+      await confirmInto(
+        profiles,
+        "study.personal_statement",
+        "I want to study data science.",
+        "I want to study data science.",
+        who,
+      );
+      const started = await setup.driver.start({
+        conversationId: crashed,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      stranded = started.position.runId;
+
+      // Three refused readings written STRAIGHT to the log — the driver never
+      // gets to re-derive, which is the crash this guards.
+      const store = new ConversationEventStore(setup.pool);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await store.append({
+          conversationId: crashed,
+          event: {
+            kind: "value_proposed",
+            fieldKey: "contact.email",
+            proposal: {
+              kind: "text",
+              value: `niloofar${String(attempt)}@example.test`,
+            },
+            playbackHash: TEST_CONTENT_HASH,
+          },
+        });
+        await store.append({
+          conversationId: crashed,
+          event: { kind: "value_rejected", fieldKey: "contact.email" },
+        });
+      }
+    } finally {
+      await setup.pool.end();
+    }
+
+    // A fresh process advances it — the worker's path — and it stops.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const seen = await instance.driver.advance({
+        runId: stranded,
+        conversationId: crashed,
+      });
+      if (!seen.ok) expect.unreachable(`advance refused: ${seen.refusal.kind}`);
+      expect(
+        seen.position.status,
+        "an exhausted log is stopped by the advance, not left running",
+      ).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("leaves the CASE where it was — only the run stopped", async () => {
+    // The case has not moved: a stopped interview is not a case transition,
+    // and `PROFILE_INCOMPLETE` has no edge to a review state. Asserted so a
+    // later change cannot quietly add one.
+    const rows = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [caseRef],
+    );
+    expect(["INTAKE", "PROFILE_INCOMPLETE"]).toContain(
+      rows.rows[0]?.to ?? "INTAKE",
+    );
+  }, 300_000);
+});
+
+describeIfDatabase("a declared document, measured rather than assumed", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // `request_document` IS one of `nextAction`'s five kinds, and the driver
+  // dropped it — so this group set out to prove the same stranding as the
+  // escalate one above, and MEASURED SOMETHING ELSE.
+  //
+  //   • `planFill` sends a `document`-sourced mapping to `uploads`
+  //     (`plan.ts:205`). It NEVER becomes a blocker; only a `profile_field`
+  //     whose value is unavailable does (`plan.ts:229`).
+  //   • The orchestrator enters the interview only `if (plan.blockers.length
+  //     > 0)` (`run.ts:391`).
+  //   • `nextAction` returns `request_document` only once no field is missing.
+  //
+  // Those cannot both hold, so `request_document` is NOT REACHABLE through
+  // the run driver's step derivation. The first version of this group asserted
+  // an escalation that cannot happen; it was deleted rather than kept green,
+  // for the reason P24 deleted one — a test that constructs a state the system
+  // cannot reach proves nothing and costs a reader's trust.
+  //
+  // What is left is the finding itself, asserted, because it is worse than the
+  // stranding it replaced: a reviewed artefact CAN declare a document, and the
+  // run neither asks for it nor stops. The branch in `#stopForUnobtainable`
+  // stays — it costs nothing and the action type permits the kind — so that if
+  // documents ever do reach the interview they cannot silently disappear.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPD0C001";
+  let student = "";
+  let runId = "";
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p28-doc', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, student],
+    );
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      DOCUMENT_CATALOGUE,
+    );
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        student,
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("does NOT reach the interview for a document, and the run says so", async () => {
+    // The measurement, kept as an assertion. With every FIELD confirmed the
+    // plan has no blockers, so the run walks straight past the interview —
+    // carrying a declared `requiredDocuments` that nothing will ever ask for.
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      DOCUMENT_CATALOGUE,
+    );
+    try {
+      const seen = await instance.driver.advance({
+        runId,
+        conversationId: conversation,
+      });
+      if (!seen.ok) expect.unreachable(`advance refused: ${seen.refusal.kind}`);
+      expect(
+        seen.position.step,
+        "a declared document does not put the run into the interview",
+      ).not.toBe("interview");
+      expect(
+        DOCUMENT_ENTRY.requiredDocuments,
+        "and the entry really did ask for one",
+      ).toEqual(["passport"]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("NAMES request_document in the stop, as data, since the path cannot run", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The honest form of a guard for an unreachable branch.
+    //
+    // A mutation removing `request_document` from `#stopIfTheInterviewGaveUp`
+    // SURVIVED, and survived correctly: the state cannot be reached (see the
+    // block header), so the branch never executes and no behavioural test can
+    // catch its removal. A mutation that never executes is not coverage.
+    //
+    // So the branch is asserted as DATA instead — the same answer P25 gave for
+    // the client's forbidden-capability list. It cannot silently narrow to
+    // `escalate` alone, and the day documents do reach the interview the
+    // handling is already there rather than newly missing.
+    // ═══════════════════════════════════════════════════════════════════
+    const source = readFileSync(
+      join(import.meta.dirname, "run-driver.ts"),
+      "utf8",
+    );
+    const guard = source.slice(
+      source.indexOf("async #stopIfTheInterviewGaveUp"),
+    );
+    expect(
+      guard.slice(0, 900),
+      "both kinds the interview can stop on, not just the reachable one",
+    ).toContain(
+      'action.kind !== "escalate" && action.kind !== "request_document"',
+    );
+    expect(
+      guard.slice(0, 4000),
+      "and the document branch still names the document",
+    ).toContain("document:${action.documentType}");
+    // And the reason it cannot run today, stated where a reader will find it.
+    expect(source).toContain("uploads");
+  }, 60_000);
+
+  it("stores NO document anywhere, and has nowhere to put one", async () => {
+    // The invariant of this phase, asserted against the schema itself rather
+    // than against intent: `request_document` gets a durable outcome and NO
+    // upload path was built. The disclosure (ADR-0022) and retention (ADR-0023)
+    // decisions it depends on are unapproved, so adding storage must fail here
+    // until they are decided.
+    const tables = await pool.query(
+      `SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name ILIKE '%document%'`,
+    );
+    expect(tables.rowCount, "no table holds documents").toBe(0);
+    const columns = await pool.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (column_name ILIKE '%document%' OR column_name ILIKE '%upload%')`,
+    );
+    expect(columns.rowCount, "and no column does either").toBe(0);
   }, 300_000);
 });
 

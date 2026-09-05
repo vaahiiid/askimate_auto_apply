@@ -19,6 +19,69 @@ not shipped artefacts.
 
 ---
 
+## [0.46.0] — 2026-09-05
+
+**P28 — the interview's decision to stop reaches the system. ADR-0064.**
+
+`nextAction` returns a closed union of five kinds. The driver honoured `ask` (ADR-0062) and `confirm`
+(ADR-0051), and `complete` lets the step move on. **`escalate` and `request_document` were silently
+dropped.** The tell was in the code: `interviewAsk`'s comment enumerated the non-question kinds as
+"`confirm`, `complete` and `escalate`" and omitted `request_document` entirely.
+
+`escalate` was a live stranding bug, reachable with the shipped fixture catalogue. After three
+rejected readings of the last outstanding field the interview decides a specialist must look — and
+nothing happened. No message, no intervention, no status change. Because `interviewAsk` also matched
+only `ask`, every further thing the student said was ignored too. The run sat at `interview` for
+ever, above a composer inviting answers nobody would read.
+
+### Added
+
+- `#stopIfTheInterviewGaveUp` — the run stops for a person when the interview cannot obtain
+  something. Reason `information_unobtainable`, whose own definition in `recovery.ts` is this
+  situation and which nothing had ever raised; priority `high`, because `recovery.ts` reserves
+  `critical` for an imminent deadline and this driver does not know the deadline; target
+  `interview:<fieldKey>` or `document:<documentType>`, a stable identifier rather than the model's
+  prose, because the target is part of the idempotency key.
+- `#raiseForSpecialist`, extracted from `#pauseForReview` so both callers share **one** construction
+  of ADR-0048's intervention rather than two that could disagree about which runs are waiting.
+- Two honest student-facing messages. Neither is `reviewMessage`, which says "a rule we apply every
+  time, not something that has gone wrong" — true for a mandatory review, a lie here.
+
+### Changed
+
+- The stop is reached from the **message path** as well as the decide path. A client that has just
+  sent a message re-READS the run rather than advancing it (ADR-0060), so a check only in
+  `#decideOnce` would never have fired in the journey a student actually walks. The browser test
+  caught that. `#decideOnce` keeps its check for the crash window: `#correct` appends the rejection
+  and then re-derives, so a process dying between them leaves an exhausted log and a running run.
+- The student's page no longer shows the step for a run waiting on a person. It read
+  `Your application: interview (escalated)` above an open composer; it now says the application is
+  with a member of the team, and does not name the step at all.
+
+### Measured, and deliberately not fixed
+
+`request_document` is **not reachable** through the run driver's step derivation: `planFill` sends a
+document mapping to `uploads` and never to `blockers`, the orchestrator enters the interview only
+when blockers exist, and `nextAction` returns `request_document` only once no field is missing. The
+first version of its test asserted an escalation that cannot happen and was deleted rather than kept
+green.
+
+What that leaves is worse than the stranding it replaced, and is recorded rather than worked around:
+**a reviewed artefact can declare `requiredDocuments`, and the run neither asks for it nor stops.**
+Closing it means building document upload, which is blocked on the disclosure (ADR-0022) and
+retention (ADR-0023) decisions. **No upload, no storage, no retention rule was invented here**, and a
+test asserts the schema still holds no table or column for a document.
+
+### Proved
+
+Ten deliberate regressions. Seven caught first time; three survived and each got a different honest
+answer — a missing crash-window test written, a no-op mutation of my own rewritten, and one branch
+recorded as unreachable and asserted as data. See
+[`docs/p28-regression-audit.md`](./docs/p28-regression-audit.md), which also records a browser test
+of mine that was a race and what replaced it.
+
+---
+
 ## [0.45.0] — 2026-09-04
 
 **P27 — the published contract names the routes that exist. ADR-0063.**

@@ -1376,3 +1376,74 @@ lesson: a restore is trustworthy only when what it restored is read back and che
 The route table and the event vocabulary are both pinned now. The remaining blockers are the same
 three, and none is engineering: a reviewed catalogue artefact for a real institution, a retention
 decision, and discovery evidence for a real portal.
+
+---
+
+# Where we are — 2026-09-05 (P28)
+
+**Date:** 2026-09-05 · **Phase:** P28 · **ADR:** ADR-0064
+
+## The headline
+
+**A run can no longer sit in an interview nobody will ever answer.** When the interview decides it
+cannot obtain something, the run stops for a specialist, the student is told the truth, and the page
+stops showing a step as though it were live.
+
+## What was actually wrong
+
+`nextAction` returns five kinds. The driver honoured three and **silently dropped two**. The tell was
+in the code: `interviewAsk`'s comment listed the non-question kinds as "`confirm`, `complete` and
+`escalate`" and omitted `request_document` altogether — the author enumerated the union and missed a
+member.
+
+`escalate` was live and reachable with the shipped catalogue. Three rejected readings of the last
+outstanding field, and the interview decides a specialist must look. Nothing happened — and because
+`interviewAsk` also matched only `ask`, everything the student said afterwards was ignored too.
+
+## What P28 delivered
+
+- The stop, through **the mechanism that already exists**: ADR-0048's intervention, reason
+  `information_unobtainable` — a word the domain has carried since P10 whose own definition is this
+  situation and which nothing had ever raised.
+- `#raiseForSpecialist`, extracted so the mandatory-review path and this one share **one**
+  construction rather than two that could disagree about which runs wait on a person.
+- The check on the **message path**, not only while advancing. A client that has just sent a message
+  re-reads rather than advances (ADR-0060), so the first implementation would never have fired in
+  the real journey. The browser test caught it.
+- A truthful position line: a run waiting on a person no longer reads as a live interview.
+
+## The measurement worth keeping
+
+Ten regressions, seven caught first time. The three that survived are the useful part, and each got a
+different answer:
+
+- **One control did not exist.** Removing the decide-path check changed nothing, because every test
+  reached the stop through the message path. Working out why it is *not* redundant produced the
+  missing test: `#correct` appends the rejection and then re-derives, so a crash between them leaves
+  an exhausted log and a running run that only an advance can stop.
+- **One mutation of mine was a no-op** — `reviewMessage(...) && unobtainableMessage(...)` evaluates
+  to the second operand. Second phase running that I have made that mistake.
+- **One branch is genuinely unreachable** and is asserted as data rather than faked.
+
+And a browser test of mine was a race — six composer round trips with a 400ms sleep, passing alone
+and failing under load. Replaced by putting each proof where it can be made honestly.
+
+## Known limitations — what changed, and what did not
+
+- **Document upload is not built, and that is deliberate.** ADR-0022 governs disclosure and ADR-0023
+  requires a retention period to be determined rather than invented; that determination is
+  **UNAPPROVED**. A test asserts the schema still holds no table or column for a document.
+- **A declared `requiredDocuments` is silently ignored by the run.** Measured, not assumed: a
+  document mapping becomes an `upload`, never a `blocker`, so the interview is never entered on its
+  account. This is worse than the stranding P28 fixed and it is the first thing document support must
+  address. Recorded in ADR-0064 §4.
+- **P28 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P27 lists still holds.
+
+## What is next, on the evidence
+
+The journey no longer strands anywhere a student can reach. The three standing blockers are
+unchanged and none is engineering: a reviewed catalogue artefact for a real institution, the
+retention determination, and discovery evidence for a real portal. The largest *engineering* item
+now visible is document support — and it is gated on the second of those.
