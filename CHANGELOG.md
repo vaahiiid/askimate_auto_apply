@@ -19,6 +19,80 @@ not shipped artefacts.
 
 ---
 
+## [0.50.0] — 2026-09-05
+
+**P32 — the storage boundary refuses what ADR-0022 says it refuses. ADR-0068.**
+
+ADR-0022 says a determination must be registered for *"storing identity documents, storing academic
+documents…"* and that **"the system will refuse to act until they have"**. P31 measured that
+sentence: true of sending, **false of storing**. `InMemoryDocumentVault` took a `RetentionSchedule`
+and nothing else, and `store()`'s only gate checked retention — so with a policy configured and no
+lawful basis anywhere, a document stored.
+
+### Why a line was not enough
+
+The gate was a **helper an implementation was trusted to call**. Every caller of the storage boundary
+in this repository is its own test file; there is one implementation and no production one. Nothing
+made the S3 + KMS implementation — which does not exist yet — call it too, and nothing would have
+noticed if it had not.
+
+So the question was never "add the check", it was "where does the check have to live so the
+implementation nobody has written cannot skip it".
+
+### Changed
+
+- **`assertStorable` is the gate, and its result is the only thing `store` accepts.** It returns a
+  branded `StorableUpload` carrying the resolved policy reference and the determination relied on.
+  `InMemoryDocumentVault` consequently holds **no schedule and no register**: it is not that it now
+  remembers to check, it is that there is nothing left to forget. ADR-0017's sentence applied to
+  documents — *"was this reviewed?" is answered by the function signature rather than by a check
+  someone has to remember to call*.
+- **Two independent refusals.** `NoLawfulBasisError` when no determination is registered for the
+  storing activity; `DocumentTypeNotCoveredError` when the determination that is registered was not
+  made about this kind of document. Retention refuses exactly as before.
+- **The activity name is derived, not invented.** `storageActivityFor(purpose)` returns
+  `store_document:<RetentionPurpose>` — the closed union that already keys the retention gate, at the
+  granularity ADR-0022 enumerates. Both gates keyed the same way, so they cannot disagree about which
+  category a document is in, and adding a purpose adds a determination somebody must make.
+- **`ProcessingActivity.documentTypes` is read for the first time.** Declared since Phase 1 and
+  checked nowhere; it is a determination's scope, and holding outside it relies on a decision nobody
+  made.
+- Public contract changes to `packages/documents` — `store`'s signature and the vault's constructor —
+  made because ADR-0022 states a guarantee the previous shape could not provide.
+
+### Deliberately not checked
+
+A determination's `reviewBy`, at storage time. `determineLawfulBasis` refuses an expired one when it
+is made, and `requirePolicy` does not re-check a policy's `reviewBy` either — `validateSchedule`
+reports staleness and `retention-status` prints it in CI. A second, differently-placed staleness rule
+on one of the two gates would be an inconsistency, not a control.
+
+### Every place document bytes can exist — traced, not assumed
+
+Three: the vault's `store` argument and in-memory contents; `packages/extraction`'s reader input; and
+`AuthorisedDocument.contents` on its way to `session.attach`, which uses `setInputFiles` with an
+**in-memory buffer** rather than a path, so the runner writes no temporary file. Searched and found
+absent: any `bytea` or blob column, any logging or serialisation of `contents`, any document-shaped
+conversation event. Everything else holding a `Buffer` is the secret plane, structurally separated.
+
+### Still not settled
+
+**Whether transient in-memory bytes are "storage".** ADR-0010 gates `vault.store`; ADR-0023 says an
+unresolved requirement blocks storage; neither classifies bytes held for the duration of an upload.
+ADR-0067's pass-through shape is therefore neither adopted nor closed off — but what changes if it
+were chosen is now stated precisely, including that on retry `executePlan` re-resolves the
+`DocumentSource` every time, so something must be able to produce the bytes again.
+
+### Proved
+
+Six deliberate regressions, all caught. M1 and M5 remove one gate each and fail six tests apiece with
+the other gate's tests untouched, which is how the independence is established rather than asserted.
+M4 — widening the signature back — passes every behavioural test and is caught by a source assertion,
+recorded plainly as the honest form for a property that lives in a type. See
+[`docs/p32-regression-audit.md`](./docs/p32-regression-audit.md).
+
+---
+
 ## [0.49.0] — 2026-09-05
 
 **P31 — AAS obtains documents; what blocks it is policy, not design. ADR-0067.**

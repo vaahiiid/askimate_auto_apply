@@ -597,6 +597,9 @@ importers:
 
   packages/documents:
     dependencies:
+      '@askimate/aas-disclosure':
+        specifier: workspace:*
+        version: link:../disclosure
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain

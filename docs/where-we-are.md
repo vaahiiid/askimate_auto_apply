@@ -1674,3 +1674,69 @@ A single product/legal decision with four parts, and only three need someone oth
 a student supply a document; and what are the frozen field names** — the last being cheap today and
 expensive after the first catalogue approval. ADR-0067 §13 states each concretely. Everything else
 about documents follows from those answers, and no amount of engineering produces them.
+
+---
+
+# Where we are — 2026-09-05 (P32)
+
+**Date:** 2026-09-05 · **Phase:** P32 · **ADR:** ADR-0068
+
+## The headline
+
+**ADR-0022's storage guarantee is now true.** It said *"the system will refuse to act until"*
+storing activities have a registered lawful basis. P31 measured that as true of sending and false of
+storing. It is now true of both — and enforced by a type rather than by a convention.
+
+## Why a line was not enough
+
+The gate was a helper an implementation was **trusted to call**. There is one implementation, no
+production one, and every caller of the storage boundary is its own test file. Nothing made the
+S3 + KMS implementation — which does not exist yet — call it too.
+
+So `assertStorable` is now the gate and its branded result is the only thing `store` accepts. The
+vault holds no schedule and no register: not "it remembers to check", but "there is nothing left to
+forget". ADR-0017's sentence, applied to documents.
+
+## The two gates, and that they are independent
+
+| | Refuses when |
+|---|---|
+| Retention (ADR-0010, ADR-0023) | no policy covers `(type, purpose)`, or someone recorded the question as unresolved |
+| Lawful basis (ADR-0022) | no determination is registered for `store_document:<purpose>`, or the one that is was not made about this kind of document |
+
+Established by mutation, not by assertion: removing either fails six tests while the other's tests all
+pass. A justified period is not a basis for holding the data, and a basis says nothing about for how
+long.
+
+## What else this phase established
+
+- **Every place document bytes can exist** — three, traced: the vault, extraction's reader input, and
+  the buffer handed to `session.attach`, which uses `setInputFiles` with memory rather than a path, so
+  no temporary file is written. No `bytea` column anywhere, no logging of contents, no
+  document-shaped event.
+- **`ProcessingActivity.documentTypes`** had been declared since Phase 1 and read by nothing. It is a
+  determination's scope, and it is now enforced.
+- **`reviewBy` is deliberately not re-checked at storage time**, because `requirePolicy` does not
+  re-check a retention policy's either — staleness is a reporting concern, in CI.
+
+## Known limitations — what changed, and what did not
+
+- **Nothing is unblocked.** ADR-0067's B1 (twelve retention questions), B2 (the disclosure
+  determination), B4 (a transport) and B5 (hold or pass through) all still need a person. This phase
+  makes the refusal true so that *answering* them is what unblocks a document, rather than forgetting
+  to.
+- **Whether transient in-memory bytes are "storage" is still undecided**, and deliberately: neither
+  ADR classifies them, and ADR-0023 forbids guessing at exactly this kind of question. Pass-through is
+  neither adopted nor ruled out; what changes if it is chosen is now written down.
+- **The real portal's document requirements remain unobserved** — 103 discovery runs, zero file
+  inputs, because the application sits behind a login. The fixture is not evidence about a real
+  institution.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P31 lists still holds.
+
+## What is next, on the evidence
+
+The four blockers are unchanged and three need someone other than an engineer. The freeze list before
+the first catalogue approval is also unchanged: the two `requiredDocuments` field names, what a
+mapping's `documentRef` is, and — added by this phase — the storage activity naming, which is now
+part of the contract a deployment's `LawfulBasisRegister` must satisfy.

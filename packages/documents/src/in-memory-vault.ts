@@ -9,34 +9,31 @@
  * arrives with the Phase 2 infrastructure and must satisfy this same contract.
  */
 
-import type { RetentionSchedule } from "@askimate/aas-domain";
-
 import type {
   DocumentId,
   DocumentRecord,
   DocumentState,
-  DocumentUpload,
   DocumentVault,
+  StorableUpload,
 } from "./vault.js";
-import { DocumentNotFoundError, DocumentPurgedError, assertStorable } from "./vault.js";
+import { DocumentNotFoundError, DocumentPurgedError } from "./vault.js";
 
 export class InMemoryDocumentVault implements DocumentVault {
   readonly #records = new Map<DocumentId, DocumentRecord>();
   readonly #contents = new Map<DocumentId, Uint8Array>();
   #counter = 0;
 
-  public constructor(private readonly schedule: RetentionSchedule) {}
-
-  public store(upload: DocumentUpload, contents: Uint8Array, now: Date): Promise<DocumentRecord> {
-    // THE gate (ADR-0010). Throws when no policy covers this type and purpose —
-    // storing personal data with no defined retention period is not permitted.
-    let policyReference: string;
-    try {
-      policyReference = assertStorable(this.schedule, upload.documentType, upload.purpose);
-    } catch (error) {
-      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
-    }
-
+  /**
+   * No retention schedule, and no lawful-basis register.
+   *
+   * Both used to be an implementation's business, which meant an
+   * implementation could forget them. Since P32 the gates run in
+   * `assertStorable`, which is the only producer of the `StorableUpload` this
+   * method takes — so there is nothing left here to hold, and nothing left to
+   * forget. See `vault.ts`.
+   */
+  public store(upload: StorableUpload, contents: Uint8Array, now: Date): Promise<DocumentRecord> {
+    const policyReference = upload.policyReference;
     this.#counter += 1;
     const documentId = `doc_${String(this.#counter).padStart(6, "0")}`;
 

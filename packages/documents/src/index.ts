@@ -28,13 +28,16 @@ export type {
   DocumentState,
   DocumentUpload,
   DocumentVault,
+  StorableUpload,
 } from "./vault.js";
 export {
   DocumentNotFoundError,
   DocumentPurgedError,
+  DocumentTypeNotCoveredError,
   assertStorable,
   hasContents,
   isReusable,
+  storageActivityFor,
 } from "./vault.js";
 
 export { InMemoryDocumentVault } from "./in-memory-vault.js";
