@@ -19,6 +19,80 @@ not shipped artefacts.
 
 ---
 
+## [0.49.0] — 2026-09-05
+
+**P31 — AAS obtains documents; what blocks it is policy, not design. ADR-0067.**
+
+P30 ended by recording *"does AAS ever obtain a document, or only ever identify one?"* as an open
+product question. **It is not open**, and the error is worth naming: P30 read the three fields called
+`requiredDocuments` and concluded from their inertness that the boundary was undecided. It never read
+the document subsystem sitting beside them.
+
+### The answer, and the evidence
+
+**AAS is designed to obtain, hold, extract from and transmit documents.**
+
+- **ADR-0010** answers *Phase 0 Open Question 5 — how long do we keep a passport scan*, and
+  instructs: *"Design the document vault so that retention periods are configurable and
+  policy-driven."*
+- **ADR-0022**: *"The system must not upload a document to a university merely because the document
+  exists in the vault."* Its whole subject is constraining that upload, not preventing it.
+- **ADR-0016** is about AAS reading a document it holds — *"a model asked to read a blurry
+  photograph"*.
+- `packages/documents` implements the full lifecycle; `packages/execution` **already transmits**,
+  gating every upload on `mayTransmit` at the moment of upload, wired into the runner today;
+  `scripts/end-to-end.ts` already performs a document upload end to end against a replay.
+- `docs/what-a-controlled-live-run-needs.md`: *"the first real document upload will fail loudly."*
+
+Identification-only would be a **narrowing** of a decided design, stranding `packages/documents`,
+`packages/extraction` and the upload half of `packages/execution`.
+
+### What actually blocks it — four things, three needing a person
+
+| | Blocker | Owner |
+|---|---|---|
+| B1 | Twelve unresolved retention requirements | `data_protection_owner` |
+| B2 | No lawful-basis determination for `disclose_document_to_institution` | a named determiner |
+| B3 | No lawful-basis **activity** for holding, and no storage-time gate consulting one | determiner, then engineering |
+| B4 | No transport: nothing by which a student can supply bytes | product + engineering |
+
+And a third shape nobody had named: **pass-through** — transmit without ever storing. `DocumentSource`
+returns bytes and an authorisation; nothing requires a vault. It would engage ADR-0022's single
+determination and none of ADR-0023's twelve. **Recorded, not adopted**: whether bytes held in memory
+for the duration of an upload are storage under UK GDPR is exactly what ADR-0023 forbids guessing at.
+
+### Corrections
+
+- **ADR-0066 §6.1** — the product direction is answered, not open.
+- **ADR-0022** overstates what the vault enforces. Measured: `InMemoryDocumentVault` takes a
+  `RetentionSchedule` and nothing else, and `store()`'s only gate is `assertStorable`. With a
+  retention policy configured and no lawful-basis determination anywhere, a document stores. The
+  ADR's *"the system will refuse to act until"* is true of sending and false of storing. Not
+  exploitable today — no policy exists and no deployable holds a vault — and deliberately not closed
+  here, because closing it means deciding where the lawful-basis machinery sits relative to
+  `packages/documents`, a coupling inside the architecture this phase exists to leave unsettled.
+
+### Measured
+
+- **103 real discovery runs** against the Ulster Birmingham / QA Higher Education portal observed
+  **zero file inputs and zero document requirements** — the application is behind a login and
+  discovery never signs in (ADR-0014). Nothing in this repository yet knows what documents a real
+  application requires.
+- **No approval exists**: the only `approvals.json` files anywhere are in `/tmp` test directories.
+- **Field names are inside the content hash** — `{requiredDocuments: […]}` and
+  `{studentDocuments: […]}` hash differently. Now pinned by a test, and regressed.
+
+### Added
+
+- One test, in `packages/catalogue`: the canonical form depends on field names, which is why the
+  document field names must be frozen **before** the first artefact is approved and not after.
+- [`docs/p31-document-evidence-map.md`](./docs/p31-document-evidence-map.md) — every ADR and module
+  that assumes something about documents, with a reachable-from-a-deployable column.
+
+**Nothing was built.** No upload path, no storage, no table, no engine, no schema change.
+
+---
+
 ## [0.48.0] — 2026-09-05
 
 **P30 — three declarations name a document, and one of them decides. ADR-0066.**

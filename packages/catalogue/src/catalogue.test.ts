@@ -113,6 +113,30 @@ describe("the canonical form", () => {
     expect(contentHash(a)).not.toBe(contentHash(b));
   });
 
+  it("DEPENDS ON FIELD NAMES, which is why renaming one costs every approval", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The fact ADR-0067 §10's freeze list rests on, asserted rather than
+    // reasoned about. `toCanonical` walks the parsed object, so a key is
+    // content in exactly the way an array's order is — two artefacts that
+    // differ only in what a field is CALLED are two different artefacts, and
+    // an approval of one does not cover the other.
+    //
+    // Which makes renaming `requiredDocuments` free today, while no
+    // `approvals.json` exists anywhere in the repository, and expensive the
+    // moment one does. That asymmetry is the reason the document field names
+    // have to be settled BEFORE the first production catalogue artefact is
+    // approved rather than after (ADR-0066 §6, ADR-0067 §10).
+    // ═══════════════════════════════════════════════════════════════════
+    const named = toCanonical({ requiredDocuments: ["passport"], institutionRef: "i" });
+    const renamed = toCanonical({ studentDocuments: ["passport"], institutionRef: "i" });
+    expect(contentHash(named)).not.toBe(contentHash(renamed));
+    // And the value is content too, so declaring a document is a change to the
+    // artefact and not a note beside it.
+    expect(contentHash(named)).not.toBe(
+      contentHash(toCanonical({ requiredDocuments: [], institutionRef: "i" })),
+    );
+  });
+
   it("renders a Date as an ISO-8601 instant, not as a locale string", () => {
     const text = canonicalText(toCanonical({ at: new Date("2026-09-01T10:00:00Z") }));
     expect(text).toBe('{"at":"2026-09-01T10:00:00.000Z"}');

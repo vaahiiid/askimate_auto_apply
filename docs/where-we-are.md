@@ -1608,3 +1608,69 @@ not live in any deployment — and **field names are inside the content hash**, 
 costs nothing today and invalidates every approval once one exists. The decision to take, in ADR-0066
 §6's words: does AAS ever obtain a document, or only ever identify one? Everything else about
 documents follows from that answer, and no amount of engineering produces it.
+
+---
+
+# Where we are — 2026-09-05 (P31)
+
+**Date:** 2026-09-05 · **Phase:** P31 · **ADR:** ADR-0067
+
+## The headline
+
+**The document question was already answered, and P30 asked it anyway.** AAS is designed to obtain,
+hold, extract from and transmit documents. That is not a preference — it is what ADR-0010, ADR-0016
+and ADR-0022 decide, and what `packages/documents`, `packages/execution` and the end-to-end demo
+already implement.
+
+P30 read the three fields called `requiredDocuments`, found them inert, and concluded the product
+boundary was open. It never read the document subsystem beside them. Corrected in ADR-0067.
+
+## What blocks it — none of it design
+
+| | Blocker | Owner |
+|---|---|---|
+| B1 | Twelve unresolved retention requirements | `data_protection_owner` |
+| B2 | No lawful-basis determination for `disclose_document_to_institution` | a named determiner |
+| B3 | No lawful-basis **activity** for holding, and no gate consulting one | determiner, then engineering |
+| B4 | No transport by which a student can supply bytes | product + engineering |
+
+Plus a third shape nobody had named: **pass-through**, transmitting without ever storing. It would
+engage ADR-0022's one determination and none of ADR-0023's twelve. Recorded, deliberately not adopted
+— whether bytes in memory for the duration of an upload are storage is exactly what ADR-0023 forbids
+guessing at.
+
+## What is built, and what is only wired
+
+The gate that refuses documents ships in production; the thing it would refuse cannot exist yet.
+`mayTransmit`, the disclosure authorisation, the specificity check and the `TransmissionRecord` are
+all reachable from the runner. The **vault is reachable from nothing** — only `packages/extraction`
+depends on it, and nothing depends on `packages/extraction`. That is the right order, and it is
+ADR-0019's principle: the constraint ships before the thing it constrains.
+
+## Measured this phase
+
+- **103 real discovery runs** against Ulster Birmingham / QA Higher Education observed **zero file
+  inputs and zero document requirements** — the application is behind a login and discovery never
+  signs in. Nothing here yet knows what documents a real application asks for.
+- **No approval exists** anywhere in the repository.
+- **Field names are inside the content hash**, so renaming a document field is free today and costs
+  every approval later. Now pinned by a test and regressed.
+- **A gap between ADR-0022 and the vault**: with a retention policy configured and no lawful basis
+  anywhere, a document stores. The ADR's *"the system will refuse to act until"* is true of sending
+  and false of storing.
+
+## Known limitations — what changed, and what did not
+
+- **Nothing was built.** No upload path, no storage, no table, no engine, no schema change. The phase
+  produced a decision record and one test.
+- **The B3 gap is recorded, not closed.** Closing it means choosing where the lawful-basis machinery
+  sits relative to `packages/documents`, which is a coupling this phase exists not to make.
+- **Everything from P14–P30 still holds**, including that nothing is submitted.
+
+## What is next, on the evidence
+
+A single product/legal decision with four parts, and only three need someone other than an engineer:
+**does AAS hold documents or pass them through; who determines the lawful bases and by when; how does
+a student supply a document; and what are the frozen field names** — the last being cheap today and
+expensive after the first catalogue approval. ADR-0067 §13 states each concretely. Everything else
+about documents follows from those answers, and no amount of engineering produces them.
