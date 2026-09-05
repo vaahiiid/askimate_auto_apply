@@ -68,7 +68,13 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
-import { targetOf, type ReviewedTarget } from "@askimate/aas-catalogue";
+import {
+  offerCanonical,
+  offerFor,
+  renderOffer,
+  targetOf,
+  type ReviewedTarget,
+} from "@askimate/aas-catalogue";
 import { migrate } from "@askimate/aas-migrate";
 import {
   announceSkip,
@@ -82,6 +88,7 @@ import {
 } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { nextAction, newInterview } from "@askimate/aas-interview";
 import { pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
@@ -6225,15 +6232,15 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
   // stays — it costs nothing and the action type permits the kind — so that if
   // documents ever do reach the interview they cannot silently disappear.
   //
-  // P29 NARROWED this, and did not close it. There are TWO `requiredDocuments`
-  // and neither is derived from the other. A document declared on a BLUEPRINT
-  // PAGE reaches `buildPreview`, which refuses `document_missing`, and since
-  // ADR-0065 that refusal stops the run and raises an intervention — proved in
-  // "a run only a person can carry on". The flat list on the CATALOGUE ENTRY,
-  // which is what this group uses, still reaches only `InterviewState` and the
-  // published target listing: nothing plans from it, so a run against a
-  // reviewed entry declaring a document its blueprint does not attach still
-  // walks past it. Recorded in ADR-0065 §6 as the remaining gap.
+  // P29 NARROWED this and P30 measured WHY, correcting ADR-0065 §6 on the way.
+  // There are THREE reviewed declarations, not two, and only one decides: a
+  // `document`-sourced MAPPING (ADR-0017) becomes `plan.uploads`, which is
+  // what `buildPreview` refuses on and what ADR-0065's stop then acts on. The
+  // blueprint PAGE's `requiredDocuments` is discovery's record of the file
+  // inputs it saw and nothing plans from it; the flat list on the CATALOGUE
+  // ENTRY, which is what this group uses, reaches only `InterviewState` and
+  // the published target listing. Both directions are measured in "which
+  // declaration actually decides". See ADR-0066.
   // ═══════════════════════════════════════════════════════════════════════
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPD0C001";
   let student = "";
@@ -6292,9 +6299,10 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
       ).not.toBe("interview");
       // MEASURED, in P29, and kept: it does not merely skip the interview —
       // it carries on. The run walks past a declared passport to asking the
-      // student for a portal password, still `running`. ADR-0065's stop
-      // cannot catch this one, because the page attaches no document and so
-      // the preview builds cleanly. See ADR-0065 §6.
+      // student for a portal password, still `running`. ADR-0065's stop cannot
+      // catch this one, because the MAPPING plans no upload and so the preview
+      // builds cleanly — the entry's list is not an input to either. See
+      // ADR-0066 §2.
       expect(seen.position.step, "it carries on, it does not stop").toBe(
         "request_secret",
       );
@@ -7696,4 +7704,310 @@ describeIfDatabase("a run only a person can carry on", () => {
     // fails if a later change quietly fills it.
     expect(source).toContain("documents: new Map()");
   }, 60_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// S. P30 — which declaration actually decides (ADR-0066)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * `FIXTURE_BLUEPRINT` with the PAGE's document declaration removed.
+ *
+ * The mapping is untouched, so `passport_upload` is still mapped to a
+ * `document` source. If the page declaration were load-bearing, this run would
+ * stop being handed to a specialist.
+ */
+const NO_PAGE_DECLARATION: CatalogueEntry = {
+  ...ENTRY,
+  blueprint: {
+    ...FIXTURE_BLUEPRINT,
+    pages: FIXTURE_BLUEPRINT.pages.map((page) => ({
+      ...page,
+      requiredDocuments: [],
+    })),
+  },
+};
+
+/**
+ * `FIXTURE_BLUEPRINT` with the page declaration KEPT and the MAPPING's
+ * `document` source replaced.
+ *
+ * `student_handoff` rather than removing the mapping altogether: an unmapped
+ * field is a `no_mapping` blocker, which reaches a specialist for a different
+ * reason and would confound the measurement. The field stays mapped; only the
+ * document source goes.
+ */
+const NO_DOCUMENT_MAPPING: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.source.kind === "document"
+        ? {
+            ...mapping,
+            source: {
+              kind: "student_handoff" as const,
+              reason: "P30 measurement: the mapping declares no document.",
+            },
+          }
+        : mapping,
+    ),
+  },
+};
+
+function catalogueOf(entry: CatalogueEntry): TestCatalogue {
+  return {
+    targets: () => [targetOf({ entry, contentHash: TEST_CONTENT_HASH })],
+    find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
+  };
+}
+
+describeIfDatabase("which declaration actually decides", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // THREE reviewed declarations carry the word "document", and P29's ADR got
+  // the causal chain wrong — it said the blueprint page's list "reaches the
+  // preview". It does not. Measured here, both directions:
+  //
+  //   BlueprintPage.requiredDocuments   discovery's record of the file inputs
+  //                                     it saw (`documentRef` is the portal's
+  //                                     own fieldRef). NOTHING plans from it.
+  //   MappingSource {kind:"document"}   reviewed, two-person, pinned to the
+  //                                     blueprint version (ADR-0017). This is
+  //                                     what becomes an upload.
+  //   CatalogueEntry.requiredDocuments  domain document TYPES, shown to the
+  //                                     student in the offer. Advisory.
+  //
+  // Neither of the first two is derived from the other, and nothing compares
+  // them. ADR-0066 §2.
+  // ═══════════════════════════════════════════════════════════════════════
+  let student = "";
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p30', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+  }, 300_000);
+
+  async function startAgainst(
+    conversation: string,
+    entry: CatalogueEntry,
+  ): Promise<{ step: string; status: string }> {
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [conversation, student],
+    );
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      catalogueOf(entry),
+    );
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        student,
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      return { step: started.position.step, status: started.position.status };
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("stops WITHOUT the page declaration, because the MAPPING declares it", async () => {
+    // Necessary? No. The page says nothing about documents and the run is
+    // still handed to a specialist, naming the document the MAPPING asked for.
+    const seen = await startAgainst(
+      "01JBXQ8Z9WKTQ6M4H2NPP30001",
+      NO_PAGE_DECLARATION,
+    );
+    expect(
+      NO_PAGE_DECLARATION.blueprint.pages.flatMap(
+        (page) => page.requiredDocuments,
+      ),
+      "the blueprint really does declare nothing",
+    ).toEqual([]);
+    expect(seen.step, "and the run still stops for a person").toBe("specialist");
+    expect(seen.status).toBe("escalated");
+
+    const raised = await pool.query<{ encountered: string }>(
+      `SELECT encountered FROM interventions
+        WHERE case_id = $1`,
+      ["case_01jbxq8z9wktq6m4h2npp30001"],
+    );
+    expect(
+      raised.rows[0]?.encountered,
+      "naming the document the MAPPING named, not one the page did",
+    ).toContain("passport");
+  }, 300_000);
+
+  it("does NOT stop with only the page declaration, because nothing plans from it", async () => {
+    // Sufficient? No. The page declares a required passport, the mapping does
+    // not, and the run walks past it to ask the student to authorise a
+    // preview with no attachment in it at all.
+    const seen = await startAgainst(
+      "01JBXQ8Z9WKTQ6M4H2NPP30002",
+      NO_DOCUMENT_MAPPING,
+    );
+    expect(
+      NO_DOCUMENT_MAPPING.blueprint.pages
+        .flatMap((page) => page.requiredDocuments)
+        .map((document) => document.documentRef),
+      "the blueprint page really does declare one, and says it is required",
+    ).toEqual(["passport"]);
+    expect(
+      NO_DOCUMENT_MAPPING.blueprint.pages
+        .flatMap((page) => page.requiredDocuments)
+        .every((document) => document.required),
+      "required: true, not an optional attachment",
+    ).toBe(true);
+    expect(
+      seen.step,
+      "and the run carries on regardless — the page declaration is inert",
+    ).toBe("authorise");
+    expect(seen.status).toBe("running");
+  }, 300_000);
+
+  it("plans an upload from the MAPPING alone, in both directions", async () => {
+    // The same fact at the level it is decided, without a database in the way.
+    const instance = buildInstance(connectionString());
+    try {
+      const profile = await new PostgresConfirmedProfileStore(
+        instance.pool,
+      ).load(student, NOW);
+
+      const withoutPage = checkUsable(
+        NO_PAGE_DECLARATION.mappingSet,
+        NO_PAGE_DECLARATION.blueprint,
+      );
+      if (!withoutPage.usable) expect.unreachable("reviewed");
+      expect(
+        planFill(
+          NO_PAGE_DECLARATION.blueprint,
+          withoutPage.mappingSet,
+          profile,
+        ).uploads.map((upload) => upload.documentRef),
+        "no page declaration, and the upload is still planned",
+      ).toEqual(["passport"]);
+
+      const withoutMapping = checkUsable(
+        NO_DOCUMENT_MAPPING.mappingSet,
+        NO_DOCUMENT_MAPPING.blueprint,
+      );
+      if (!withoutMapping.usable) expect.unreachable("reviewed");
+      expect(
+        planFill(
+          NO_DOCUMENT_MAPPING.blueprint,
+          withoutMapping.mappingSet,
+          profile,
+        ).uploads,
+        "a page declaration and no mapping plans nothing",
+      ).toEqual([]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("TELLS the student about a document nothing will ever ask for", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The contradiction, kept as evidence rather than patched.
+    //
+    // `DOCUMENT_ENTRY` is a reviewed entry declaring `["passport"]` against a
+    // blueprint that attaches no document and a mapping that plans no upload.
+    // The offer the student ACCEPTS says the application needs a passport;
+    // nothing in the system will ask for it, block on it, or record that it
+    // was never obtained.
+    //
+    // Whether that line should stay, change, or become authoritative is a
+    // PRODUCT decision (ADR-0066 §6). What is settled is that it may not
+    // become authoritative in its present shape: a bare `string[]` has no
+    // scope, no criticality and no provenance, and ADR-0009 refuses anything
+    // below its evidence bar for an application decision while ADR-0021 makes
+    // `scope` mandatory precisely so a rule cannot default into blocking.
+    // ═══════════════════════════════════════════════════════════════════
+    const target = targetOf({
+      entry: DOCUMENT_ENTRY,
+      contentHash: TEST_CONTENT_HASH,
+    });
+    const rendered = renderOffer(
+      offerFor({
+        target,
+        studentId: studentId_,
+        conversationId: CONVERSATION,
+      }),
+    );
+    expect(rendered, "the student is told, in the offer they accept").toContain(
+      "Documents needed: passport",
+    );
+
+    // And nothing acts on it. The blueprint attaches nothing…
+    expect(
+      DOCUMENT_ENTRY.blueprint.pages.flatMap((page) => page.requiredDocuments),
+    ).toEqual([]);
+    // …the mapping plans nothing…
+    expect(
+      DOCUMENT_ENTRY.mappingSet.mappings.filter(
+        (mapping) => mapping.source.kind === "document",
+      ),
+    ).toEqual([]);
+    // …and the offer hash does not even carry it, because the reviewed
+    // artefact's own content hash already does (ADR-0057).
+    expect(
+      Object.keys(
+        offerCanonical({
+          target,
+          studentId: studentId_,
+          conversationId: CONVERSATION,
+        }) as Record<string, unknown>,
+      ),
+      "advisory, and bound only through the artefact hash",
+    ).not.toContain("requiredDocuments");
+  }, 300_000);
+
+  it("keeps the interview's document capability, which the orchestrator never reaches", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `request_document` is not dead code by accident. `packages/interview`
+    // still owns document collection — `nextAction` asks fields FIRST, then
+    // documents, deliberately, so "an upload request lands better once the
+    // agent knows who it is talking to".
+    //
+    // The orchestrator enters the interview only `if (plan.blockers.length >
+    // 0)` — i.e. only while a FIELD is outstanding — and `nextAction` returns
+    // `request_document` only once NO field is outstanding. The two conditions
+    // are mutually exclusive by construction. That single gate is what severed
+    // the capability, and it is why P28 measured it unreachable.
+    //
+    // Asserted here so the capability cannot be quietly deleted as dead, and
+    // so the reason it cannot run is recorded where a reader will find it.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString());
+    try {
+      const profile = await new PostgresConfirmedProfileStore(
+        instance.pool,
+      ).load(student, NOW);
+      const action = await nextAction(
+        newInterview({
+          studentRef: student,
+          profile,
+          // No outstanding field — which is exactly the state in which the
+          // orchestrator does NOT enter the interview.
+          requiredFields: [],
+          requiredDocuments: DOCUMENT_ENTRY.requiredDocuments,
+        }),
+        new DeterministicModelClient(),
+      );
+      expect(
+        action.kind,
+        "the interview would ask — nothing ever puts it in this state",
+      ).toBe("request_document");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
 });

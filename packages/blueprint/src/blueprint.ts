@@ -154,7 +154,27 @@ export interface BlueprintSection {
   readonly visibleWhen?: FieldCondition;
 }
 
-/** A document the portal asks for. */
+/**
+ * A file input discovery SAW on a page.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0066. This is an OBSERVATION, not an instruction, and it decides
+ * nothing. `pageFrom` builds one from every `<input type="file">` it finds and
+ * sets `documentRef` to the field's own `fieldRef` — a PORTAL identifier, not
+ * a domain document type. `required` is whether the portal's own markup said
+ * so.
+ *
+ * Nothing in the planning path reads it. What turns a file field into an
+ * upload is a reviewed MAPPING whose source is `{kind:"document"}` (ADR-0017),
+ * and `check-boundaries` keeps it that way. Measured in both directions in
+ * "which declaration actually decides": removing this list does not stop the
+ * upload being planned, and adding one does not cause an upload to be planned.
+ *
+ * It is kept because it is the honest record of what the portal asked for, and
+ * because a specialist authoring a mapping set needs to see it —
+ * `scripts/inspect-discovery.ts` is what prints it.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
 export interface RequiredDocument {
   readonly documentRef: string;
   readonly label: string;

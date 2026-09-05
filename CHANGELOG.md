@@ -19,6 +19,103 @@ not shipped artefacts.
 
 ---
 
+## [0.48.0] — 2026-09-05
+
+**P30 — three declarations name a document, and one of them decides. ADR-0066.**
+
+P29 found two fields called `requiredDocuments` and could not say which meant what. Investigating it
+produced a **third**, and a correction to P29's own account of the first two.
+
+| | Declared on | What it is |
+|---|---|---|
+| **A** | `BlueprintPage.requiredDocuments` | discovery's record of the `<input type="file">` elements it SAW; `documentRef` is the portal's own `fieldRef` |
+| **B** | `MappingSource {kind:"document"}` | the reviewed, two-person, blueprint-pinned decision (ADR-0017) |
+| **C** | `CatalogueEntry.requiredDocuments` | domain document TYPES, shown to the student in the offer |
+
+They are not three names for one thing. **A is an observation of a portal, B is a decision about a
+portal, C is a statement to a student.**
+
+### Measured, in both directions
+
+Two mutations through the real driver:
+
+- **A removed, B kept** — the page declares no document, the mapping still does → the run still stops
+  for a specialist naming `passport`; **all 10 of ADR-0065's tests pass unchanged**.
+- **A kept, B removed** — the page declares a *required* passport, the mapping does not → the run
+  reaches **`authorise`**.
+
+So **A is neither necessary nor sufficient: it decides nothing.** `allRequiredDocuments` has exactly
+one caller in the repository — `scripts/inspect-discovery.ts` — and `git log -S` shows it has never
+had another.
+
+### Changed
+
+- **ADR-0065 §6 is corrected.** It said the blueprint page's declaration "reaches the preview and
+  stops the run". What reaches `plan.uploads` is `mapping.source.documentRef`; the fixture author
+  happened to give both the same string, which is why they looked linked. The live code comments that
+  repeated it are fixed; the ADR's own text stands with the correction recorded in ADR-0066, as
+  ADR-0065 did for ADR-0064.
+- **Doc comments on all three declarations** naming the concept, its authority and the ADR. The
+  driver's read *"Document kinds the interview must collect"*, which was never true of any code path.
+
+### Added
+
+- **A `check-boundaries` rule.** `packages/orchestrator`, `packages/mapping` (outside fixtures),
+  `packages/preparation` and `packages/execution` may not mention `requiredDocuments` at all. The
+  tempting change is to join the declarations up because they share a name — and against the shipped
+  fixture that change is *behaviourally silent*, which is exactly why the control has to be
+  structural.
+- **Five tests** pinning both mutation directions, the contradiction case, and the interview's
+  unreachable capability.
+
+### Measured, and deliberately not fixed
+
+A reviewed entry declaring `["passport"]` against a blueprint that attaches nothing produces the
+offer the student **accepts**:
+
+```
+  Documents needed: passport
+```
+
+Nothing then asks for it, blocks on it, or records that it was never obtained. **The defect is not
+that the passport is unenforced — it is that a promise is made and its non-fulfilment is invisible.**
+
+It may not be made authoritative in its present shape: a bare `string[]` has no `scope` (ADR-0021
+makes the field mandatory precisely so a rule cannot default into blocking), no criticality and no
+provenance (ADR-0009 refuses anything below its evidence bar for an application decision), and
+promoting it would be the "new authority hierarchy that bypasses these rules" ADR-0019 forbids.
+
+Two timing facts make the product decision urgent and cheap: **no approval exists yet** — there is no
+`approvals.json` anywhere and the fixture catalogue declares `[]` — and because `toCanonical` walks
+the parsed object, **field names are inside the content hash**, so renaming either field costs
+nothing today and invalidates every approval once one exists.
+
+### Also, found while reading `target.ts`
+
+`ambiguousGroups` joins the three identity refs with **U+0000**, and the separator is the whole safety
+property: a character that can occur in a ref would let `("a", "b|c")` and `("a|b", "c")` collide into
+one key and hide an ambiguity the student must be shown — which, by `submissionKey`, is irreversible.
+
+It was written as a **raw NUL byte**, inside the first 8 KB of the file, which is git's binary
+heuristic. So every diff of `target.ts` — the file holding **both** of ADR-0058's gates and the offer
+hash's canonical form — came back as `Binary files differ`, including this phase's own change to it. A
+control nobody can review in a diff is most of the way to not being one.
+
+Escaped to `\u0000`. **The runtime string is unchanged**, the file is text again, and the separator now
+has a test: a printable separator fails it. A repo-wide scan found the other raw control bytes
+(`0x1f` unit separators in the preview hash and the submission key, `0x1b` colour codes in scripts) —
+none is a NUL, none makes git treat its file as binary, and none was touched.
+
+### Proved
+
+Eight deliberate regressions, all caught, attacking both joining the declarations up and taking one
+away. Also recorded: a fault in the mutation harness itself, which could leave a half-applied
+mutation on disk on the path where it reports failure. Found by reading the filesystem back rather
+than trusting the harness — the third phase running that this has caught something. See
+[`docs/p30-regression-audit.md`](./docs/p30-regression-audit.md).
+
+---
+
 ## [0.47.0] — 2026-09-05
 
 **P29 — a run only a person can carry on stops, and says so. ADR-0065.**

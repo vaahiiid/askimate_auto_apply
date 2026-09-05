@@ -185,7 +185,14 @@ import type { WorkLeaseStore } from "./work-store.js";
 export interface CatalogueEntry {
   readonly blueprint: ApplicationBlueprint;
   readonly mappingSet: MappingSet;
-  /** Document kinds the interview must collect, e.g. `["passport"]`. */
+  /**
+   * Domain document TYPES the application needs, e.g. `["passport"]`.
+   *
+   * ADVISORY (ADR-0066). It reaches the student's offer and `InterviewState`,
+   * and nothing plans, blocks or executes from it. An upload is planned from a
+   * reviewed MAPPING instead. The comment here used to say "must collect",
+   * which was never true of any code path.
+   */
   readonly requiredDocuments: readonly string[];
 
   /**

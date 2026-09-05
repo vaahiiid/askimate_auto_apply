@@ -1529,3 +1529,82 @@ standing blockers are unchanged and none is engineering: a reviewed catalogue ar
 institution, the retention determination, and discovery evidence for a real portal. Document support
 remains the largest engineering item and remains gated on the second — with the honest note that part
 of it is not engineering at all, but a decision about whether AskiMate ever holds a document.
+
+---
+
+# Where we are — 2026-09-05 (P30)
+
+**Date:** 2026-09-05 · **Phase:** P30 · **ADR:** ADR-0066
+
+## The headline
+
+**Which declaration decides what a document requirement means is now answered, measured and guarded.**
+There are three, not two; only one of them may decide anything; and P29's account of the first two was
+wrong.
+
+| | Declared on | What it is | Decides |
+|---|---|---|---|
+| **A** | `BlueprintPage.requiredDocuments` | discovery's record of the file inputs it SAW | **nothing** |
+| **B** | `MappingSource {kind:"document"}` | the reviewed, two-person, blueprint-pinned decision | **everything** |
+| **C** | `CatalogueEntry.requiredDocuments` | domain document TYPES, shown to the student | **nothing** |
+
+## What the measurement proved
+
+Remove A and keep B: the run still stops for a specialist, and all ten of ADR-0065's tests pass
+unchanged. Keep A and remove B: the run reaches `authorise`. **A is neither necessary nor
+sufficient.** ADR-0065 §6 credited it with stopping the run; what actually stops the run is the
+mapping. The fixture author gave both the same string, which is why they looked linked.
+
+## What P30 delivered
+
+**No behaviour changed.** The system already does the right thing; nobody had written down that it
+does, or why it must keep doing it.
+
+- A `check-boundaries` rule: the planning path may not mention `requiredDocuments` at all. The
+  tempting change — joining the declarations up because they share a name — is *behaviourally silent*
+  against the shipped fixture, which is exactly why the control has to be structural.
+- Five tests pinning both mutation directions, the contradiction case, and the interview's
+  unreachable `request_document` capability.
+- Doc comments on all three declarations. The driver's said *"Document kinds the interview must
+  collect"*, which was never true of any code path.
+
+## One thing fixed that was not about documents
+
+`packages/catalogue/src/target.ts` — the file holding both of ADR-0058's gates — joined its ambiguity
+key with a **raw NUL byte**, which is git's binary heuristic. Every diff of it read `Binary files
+differ`, so no change to it had ever been reviewable, including this phase's. Escaped to `\u0000`:
+identical runtime string, text file again, and the separator has a test it never had. Found by
+reading the file, not by looking for it.
+
+## The archaeology, because it explains the ambiguity
+
+`InterviewState.requiredDocuments` and the orchestrator's `if (plan.blockers.length > 0)` interview
+gate were written **on the same day** and were incompatible from that moment: the interview asks for
+documents only once no field is outstanding, and the orchestrator enters it only while one is.
+`CatalogueEntry.requiredDocuments` was added in P1 to feed an interview state nothing would reach;
+P20 folded it into the reviewed, hashed artefact, giving it two-person approval authority it was never
+designed for; P21 put it in front of students. Each step was locally reasonable. None decided what the
+field means, and **no ADR before ADR-0064 mentions either field.**
+
+## Known limitations — what changed, and what did not
+
+- **The promise in the offer is still unkept, and that is now stated rather than hidden.** A reviewed
+  entry declaring `["passport"]` produces `Documents needed: passport` in the offer the student
+  accepts, and nothing asks for it, blocks on it, or records that it was not obtained. The defect is
+  not that the passport is unenforced — it is that the non-fulfilment is invisible. Which half to fix
+  is the product decision in ADR-0066 §6.
+- **C may not be made authoritative in its present shape.** No `scope` (ADR-0021), no criticality or
+  provenance (ADR-0009), and promoting it would be the authority hierarchy ADR-0019 forbids.
+- **Document upload is still not built**, still deliberate, still blocked on ADR-0022 and ADR-0023.
+- **P30 does not enable a production run.** Unchanged.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P29 lists still holds.
+
+## What is next, on the evidence
+
+Two facts make the outstanding product decision both urgent and cheap right now: **no approval exists
+yet** — there is no `approvals.json` and the fixture catalogue declares `[]`, so the contradiction is
+not live in any deployment — and **field names are inside the content hash**, so renaming either field
+costs nothing today and invalidates every approval once one exists. The decision to take, in ADR-0066
+§6's words: does AAS ever obtain a document, or only ever identify one? Everything else about
+documents follows from that answer, and no amount of engineering produces it.

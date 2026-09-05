@@ -44,6 +44,24 @@ import { canonicalDate } from "./canonical.js";
 export interface ReviewedCatalogueEntry {
   readonly blueprint: ApplicationBlueprint;
   readonly mappingSet: MappingSet;
+  /**
+   * Domain document TYPES this application needs, e.g. `["passport"]`.
+   *
+   * ADVISORY, and measured to be so (ADR-0066). It reaches two places: the
+   * offer a student reads — *"Documents needed: passport"* — and
+   * `InterviewState`, whose `request_document` action the orchestrator never
+   * reaches. Nothing plans, blocks or executes from it.
+   *
+   * It must not be given execution authority in this shape. A rule that blocks
+   * an application carries a `scope` (ADR-0021, where the field is mandatory
+   * precisely so a rule cannot default into blocking) and must clear its
+   * evidence bar (ADR-0009). A bare `string[]` has no scope, no criticality,
+   * no provenance and no `revalidateBy`; promoting it would be the "new
+   * authority hierarchy that bypasses these rules" ADR-0019 forbids.
+   *
+   * Not validated against the domain's `DocumentType` union either — see
+   * ADR-0066 §7 for the reason that is a product decision and not a tidy-up.
+   */
   readonly requiredDocuments: readonly string[];
   readonly institutionRef: string;
   readonly courseRef: string;

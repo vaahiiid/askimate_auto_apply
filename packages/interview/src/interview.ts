@@ -99,7 +99,16 @@ export interface InterviewState {
   readonly profile: ConfirmedProfile;
   /** What this application needs. Derived from requirements and the blueprint. */
   readonly requiredFields: readonly ProfileFieldKey[];
-  /** Documents the application needs, by type. */
+  /**
+   * Documents the application needs, by type.
+   *
+   * Supplied from `CatalogueEntry.requiredDocuments`. `nextAction` will ask for
+   * one — but only once no FIELD is outstanding, and the orchestrator enters
+   * the interview only WHILE a field is outstanding (`plan.blockers.length >
+   * 0`). The two conditions are mutually exclusive, so `request_document` is
+   * unreachable through the run driver (ADR-0064 §4, measured; ADR-0066 §5 for
+   * why the capability is kept rather than deleted).
+   */
   readonly requiredDocuments: readonly string[];
   /** Documents already collected and confirmed. */
   readonly collectedDocuments: readonly string[];

@@ -820,6 +820,62 @@ function main(): void {
   }
   console.log(`  ✓  the Run Driver — calls nextStep, decides nothing itself`);
 
+  // ── P30 / ADR-0066: an upload is planned from the MAPPING, and only that ──
+  //
+  // Three reviewed declarations carry the word "document" and exactly ONE of
+  // them may decide what happens:
+  //
+  //   BlueprintPage.requiredDocuments   discovery's record of the file inputs
+  //                                     it SAW. `documentRef` is the portal's
+  //                                     own fieldRef. Nothing plans from it —
+  //                                     measured, not assumed (ADR-0066 §2).
+  //   MappingSource {kind:"document"}   the reviewed, two-person, blueprint-
+  //                                     pinned decision (ADR-0017). THIS is
+  //                                     what `planFill` turns into an upload.
+  //   CatalogueEntry.requiredDocuments  a list of domain document TYPES, shown
+  //                                     to the student in the offer. Advisory:
+  //                                     it carries no scope, no criticality
+  //                                     and no provenance, so ADR-0009 and
+  //                                     ADR-0021 forbid it deciding anything.
+  //
+  // The tempting change is to "join them up" — make the planner read a
+  // declaration because it has the same name. That is how a list with no
+  // evidence behind it would come to block a real application, which is the
+  // failure ADR-0021 names: a rule defaulting into blocking, by omission.
+  //
+  // So the planning path may not mention the word at all. Fixtures are
+  // blueprints and legitimately declare it; tests may read it to assert these
+  // very facts. Neither plans anything.
+  const PLANNING_PATH = [
+    "packages/orchestrator/src",
+    "packages/mapping/src",
+    "packages/preparation/src",
+    "packages/execution/src",
+  ];
+  let planningFiles = 0;
+  for (const dir of PLANNING_PATH) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir).filter((file) => file.endsWith(".ts"))) {
+      if (name.endsWith(".test.ts")) continue;
+      const code = readFileSync(join(dir, name), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/\/\/[^\n]*/g, " ");
+      planningFiles += 1;
+      if (!code.includes("requiredDocuments")) continue;
+      violations.push(
+        `${dir}/${name} mentions \`requiredDocuments\`. An upload is planned from a reviewed ` +
+          `MAPPING (ADR-0017), never from a declaration that happens to share the name. The ` +
+          `catalogue entry's list has no scope, no criticality and no provenance, so ADR-0009 ` +
+          `and ADR-0021 forbid it deciding anything; the blueprint page's is discovery's record ` +
+          `of what it saw. See ADR-0066.`,
+      );
+    }
+    checked += 1;
+  }
+  console.log(
+    `  ✓  the planning path — ${String(planningFiles)} file(s) plan an upload from the mapping alone`,
+  );
+
   // ── P4: the conversation plane's client for the secure plane ───────────
   //
   // This is the only file in the conversation plane that talks to the service

@@ -633,4 +633,44 @@ describe("two reviewed routes to the same course", () => {
     ]);
     expect(ambiguousGroups([other]).size).toBe(0);
   });
+
+  it("cannot be made to collide by a ref that contains the separator", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The grouping key is three refs joined by U+0000, and the separator is
+    // the whole safety property: a character that CAN occur in a ref lets
+    // ("a", "b|c") and ("a|b", "c") produce one key, which would hide an
+    // ambiguity the student must be shown — and by `submissionKey`, showing
+    // it is irreversible.
+    //
+    // Untested until P30, which found the separator by another route: it was
+    // written as a RAW NUL byte, which is git's binary heuristic, so every
+    // diff of `target.ts` — the file holding both of ADR-0058's gates — read
+    // "Binary files differ". Escaping it changed no runtime string. This
+    // asserts the string it produces, so a later "tidy-up" to a printable
+    // separator fails here rather than in a student's offer.
+    // ═══════════════════════════════════════════════════════════════════
+    const left = aTarget({
+      blueprintId: "bp-left",
+      institutionRef: "inst",
+      courseRef: "a\u0000b",
+    });
+    const right = aTarget({
+      blueprintId: "bp-right",
+      institutionRef: "inst",
+      courseRef: "a",
+      intakeRef: "b",
+    });
+    // Different courses, so not ambiguous — and they must not be grouped
+    // together by a key that cannot tell them apart either.
+    expect(isAmbiguous(left, [left, right])).toBe(false);
+    expect(ambiguousGroups([left, right]).size).toBe(0);
+
+    // And the key really is NUL-joined, not joined by something printable.
+    const one = aTarget({ blueprintId: "bp-one" });
+    const two = aTarget({ blueprintId: "bp-two" });
+    const grouped = ambiguousGroups([one, two]);
+    expect([...grouped.keys()]).toEqual([
+      `${one.institutionRef}\u0000${one.courseRef}\u0000${one.intakeRef}`,
+    ]);
+  });
 });

@@ -45,7 +45,19 @@ export type ValueSource =
       readonly fieldKey: ProfileFieldKey;
       readonly format: FormatRule;
     }
-  /** A document upload. The vault supplies the bytes; nothing is typed. */
+  /**
+   * A document upload. The vault supplies the bytes; nothing is typed.
+   *
+   * THE declaration that decides (ADR-0066). Two other reviewed fields carry
+   * the word "document" — the blueprint page's record of the file inputs
+   * discovery saw, and the catalogue entry's student-facing list — and neither
+   * plans anything. This one becomes `plan.uploads`, which `buildPreview`
+   * refuses on when no document was provided and which `executePlan` puts
+   * through ADR-0022's transmission gate.
+   *
+   * It carries that weight because of how it is made: authored by a specialist,
+   * reviewed by a second person, and pinned to a blueprint version (ADR-0017).
+   */
   | { readonly kind: "document"; readonly documentRef: string }
   /**
    * Only the student can do this (brief §7): MFA, OTP, CAPTCHA, payment, a
