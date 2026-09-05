@@ -1447,3 +1447,85 @@ The journey no longer strands anywhere a student can reach. The three standing b
 unchanged and none is engineering: a reviewed catalogue artefact for a real institution, the
 retention determination, and discovery evidence for a real portal. The largest *engineering* item
 now visible is document support — and it is gated on the second of those.
+
+---
+
+# Where we are — 2026-09-05 (P29)
+
+**Date:** 2026-09-05 · **Phase:** P29 · **ADR:** ADR-0065
+
+## The headline
+
+**A run the orchestrator hands to a person now actually stops.** `nextStep` answers `specialist` from
+ten places — seven reachable, in five kinds of situation; the driver acted on none of them, so the run
+stayed `running`, the worker advanced it for ever, and the student was told nothing at all.
+
+## What was actually wrong
+
+Measured through the real driver, against the shipped fixture catalogue:
+
+```
+step: specialist   status: running   phase: awaiting_specialist
+interventions: 0   messages: 0       still due for the worker: true
+```
+
+`FIXTURE_BLUEPRINT` reaches it honestly. It attaches "Upload your passport". `planFill` routes a
+document mapping to `uploads` and never to `blockers`, so the interview never hears about it; every
+field being confirmed, the run walks to `buildPreview`, which refuses `document_missing`. **The
+architecture was already declining to proceed. Nobody was acting on the refusal.**
+
+## The separation that made this phase possible
+
+P28 left these entangled as "document upload is blocked". They are two problems:
+
+1. **A planner decision that did not reach the system.** No document is held or sent by declining to
+   proceed, so neither ADR-0022 nor ADR-0023 is engaged. Fixed here, with existing machinery, no
+   schema change and no new state.
+2. **No approved mechanism to obtain, hold or transmit a document.** ADR-0022's disclosure
+   determination and ADR-0023's retention basis, both unapproved. Untouched, and not worked around.
+
+## What P29 delivered
+
+- `#stopForSpecialist`, through `#raiseForSpecialist` — a third caller, still one construction.
+- The orchestrator's `reason` carried losslessly in `checkpoint.target`, never mapped onto the closed
+  recovery vocabulary that alerting routes off. `recovery.ts` says why in as many words.
+- A message that tells the student a person has it and **does not name the document**, because naming
+  it would read as a request nothing can receive.
+- Proof over the **published** `GET .../runs`, which is what a client reads after a message.
+- Proof that a second, non-document reason stops the same way, so a fix scoped to the one situation
+  that was measured cannot pass.
+
+## The measurement worth keeping
+
+Ten regressions, eight caught first time. The two survivors were the same mutation against the P29
+and P28 stops, and both survived for one reason: **a comment written in P28 named the wrong cause for
+a control that is nonetheless real.** Falling through to `checkpointAfter` does not reset the status —
+`saveCheckpoint` writes `input.status ?? from`. It burns a revision, raises `RunConcurrencyError`, and
+spends one of `#decide`'s three retry attempts, and the retry makes the answer come out right anyway.
+Both stops now assert the checkpoint is written once. A comment that names the wrong reason is worse
+than none: the next reader deletes the control for the reason the comment gave.
+
+Also regressed: removing `buildPreview`'s `document_missing` refusal. The run then does not strand —
+it **proceeds to `authorise` with the passport silently dropped.** That is what the stop is protecting.
+
+## Known limitations — what changed, and what did not
+
+- **The entry-level `requiredDocuments` is still ignored.** Narrowed, not closed. There are two
+  declarations and neither derives from the other: the structured one on a **blueprint page** now
+  stops the run; the flat string list on the **catalogue entry** reaches only `InterviewState` and the
+  published listing, and a run against an entry declaring `["passport"]` whose blueprint attaches no
+  document reaches `request_secret`, still `running`. Asserted, not assumed. What it *means* is a
+  product decision (ADR-0065 §6, §7c).
+- **Document upload is still not built, and still deliberate.** The schema assertion holds: no table
+  and no column for a document.
+- **P29 does not enable a production run.** Unchanged: no real reviewed artefact exists.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P28 lists still holds.
+
+## What is next, on the evidence
+
+Every step the orchestrator can answer with now reaches either the student or a person. The three
+standing blockers are unchanged and none is engineering: a reviewed catalogue artefact for a real
+institution, the retention determination, and discovery evidence for a real portal. Document support
+remains the largest engineering item and remains gated on the second — with the honest note that part
+of it is not engineering at all, but a decision about whether AskiMate ever holds a document.

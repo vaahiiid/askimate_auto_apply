@@ -6146,6 +6146,10 @@ describeIfDatabase("the interview stops rather than stranding", () => {
     }
 
     // A fresh process advances it — the worker's path — and it stops.
+    const before = await pool.query<{ revision: number }>(
+      "SELECT revision FROM workflow_runs WHERE run_id = $1",
+      [stranded],
+    );
     const instance = buildInstance(connectionString(), opener());
     try {
       const seen = await instance.driver.advance({
@@ -6160,6 +6164,24 @@ describeIfDatabase("the interview stops rather than stranding", () => {
     } finally {
       await instance.pool.end();
     }
+
+    // ADDED IN P29, for a control this group did not have. The stop RETURNS a
+    // position instead of falling through to `checkpointAfter`, and the reason
+    // written here in P28 was wrong: `saveCheckpoint` writes
+    // `input.status ?? from`, so an ordinary checkpoint PRESERVES `escalated`
+    // rather than putting it back to `running`. What falling through really
+    // costs is the revision — the stop has already saved at `record.revision`,
+    // so `checkpointAfter` passes a stale one, raises `RunConcurrencyError`,
+    // and `#decide` spends an attempt of a budget meant for two clicks racing.
+    // Nothing noticed, because the retry makes the outcome come out right.
+    const after = await pool.query<{ revision: number }>(
+      "SELECT revision FROM workflow_runs WHERE run_id = $1",
+      [stranded],
+    );
+    expect(
+      (after.rows[0]?.revision ?? 0) - (before.rows[0]?.revision ?? 0),
+      "the stop saved once, and nothing was written on top of it",
+    ).toBe(1);
   }, 300_000);
 
   it("leaves the CASE where it was — only the run stopped", async () => {
@@ -6202,6 +6224,16 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
   // run neither asks for it nor stops. The branch in `#stopForUnobtainable`
   // stays — it costs nothing and the action type permits the kind — so that if
   // documents ever do reach the interview they cannot silently disappear.
+  //
+  // P29 NARROWED this, and did not close it. There are TWO `requiredDocuments`
+  // and neither is derived from the other. A document declared on a BLUEPRINT
+  // PAGE reaches `buildPreview`, which refuses `document_missing`, and since
+  // ADR-0065 that refusal stops the run and raises an intervention — proved in
+  // "a run only a person can carry on". The flat list on the CATALOGUE ENTRY,
+  // which is what this group uses, still reaches only `InterviewState` and the
+  // published target listing: nothing plans from it, so a run against a
+  // reviewed entry declaring a document its blueprint does not attach still
+  // walks past it. Recorded in ADR-0065 §6 as the remaining gap.
   // ═══════════════════════════════════════════════════════════════════════
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPD0C001";
   let student = "";
@@ -6258,6 +6290,15 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
         seen.position.step,
         "a declared document does not put the run into the interview",
       ).not.toBe("interview");
+      // MEASURED, in P29, and kept: it does not merely skip the interview —
+      // it carries on. The run walks past a declared passport to asking the
+      // student for a portal password, still `running`. ADR-0065's stop
+      // cannot catch this one, because the page attaches no document and so
+      // the preview builds cleanly. See ADR-0065 §6.
+      expect(seen.position.step, "it carries on, it does not stop").toBe(
+        "request_secret",
+      );
+      expect(seen.position.status, "and the run is still live").toBe("running");
       expect(
         DOCUMENT_ENTRY.requiredDocuments,
         "and the entry really did ask for one",
@@ -7220,4 +7261,439 @@ describeIfDatabase("a correction the student makes late", () => {
       "and NOTHING says the corrected content was ever written to the portal",
     ).toBe("0");
   }, 300_000);
+});
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// R. P29 — the step that says a PERSON must look (ADR-0065)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * The gated portal on a deployment where discovery was never run.
+ *
+ * `portalAuthentication` REMOVED rather than blanked: `planFor` branches on the
+ * property being absent, and an entry carrying an empty observation would be
+ * asserting that discovery ran and saw nothing — a different, and false, claim.
+ *
+ * Here so the group can prove the stop is not about documents. `specialist` is
+ * one step with many reasons, and a fix that only handled the one that
+ * happened to be measured would strand the other four exactly as before.
+ */
+const UNOBSERVED_ENTRY: CatalogueEntry = (() => {
+  const { portalAuthentication: _discarded, ...rest } = GATED_ENTRY;
+  return rest;
+})();
+
+const UNOBSERVED_CATALOGUE: TestCatalogue = {
+  targets: () => [
+    targetOf({ entry: UNOBSERVED_ENTRY, contentHash: TEST_CONTENT_HASH }),
+  ],
+  find: (id) =>
+    Promise.resolve(id === GATED_BLUEPRINT ? UNOBSERVED_ENTRY : null),
+};
+
+describeIfDatabase("a run only a person can carry on", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // What this group is here to stop happening again.
+  //
+  // `nextStep` answers `{kind:"specialist"}` in ten places, seven of them
+  // reachable, in five kinds of situation — an unreviewed or
+  // unusable artefact, a structural blocker the student cannot answer, a
+  // validation that did not run, a preview it could not build (INCLUDING
+  // because the application attaches a document and none was provided), and an
+  // authentication question discovery never answered.
+  //
+  // The driver acted on NONE of them. `#decideOnce` fell through to
+  // `checkpointAfter`, which wrote the checkpoint back with status `running`,
+  // so the run stayed live, `dueRuns` kept handing it to the worker, and the
+  // student was told nothing at all. Measured before the fix on this exact
+  // fixture: step `specialist`, status `running`, interventions 0, messages 0,
+  // still due for the worker — for ever.
+  //
+  // `FIXTURE_BLUEPRINT` reaches it honestly. It attaches "Upload your
+  // passport", `planFill` routes a `document`-sourced mapping to `uploads`
+  // rather than to `blockers` (`plan.ts:205`), so the interview never hears
+  // about it, every field is confirmed, and `buildPreview` refuses
+  // `document_missing` at the last possible moment.
+  //
+  // Which is the honest place for it to stop. This phase does NOT build an
+  // upload path: holding a passport engages ADR-0022's disclosure
+  // determination and ADR-0023's retention basis, neither of which is
+  // approved. Declining to proceed engages neither.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPSPC001";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let student = "";
+  let runId = "";
+
+  async function events(): Promise<{ kind: string; content: string | null }[]> {
+    const rows = await pool.query<{ kind: string; content: string | null }>(
+      `SELECT e.kind, b.content
+         FROM conversation_events e
+         LEFT JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p29-spec', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [conversation, student],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      // Every field the fixture needs, so nothing is outstanding EXCEPT the
+      // document. Without this the run stops in the interview and the
+      // preview — the thing under test — is never reached.
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        student,
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      // The first decision the run ever makes is this one. It is not a later
+      // discovery: nothing about this case could ever have proceeded.
+      expect(started.position.step, "the orchestrator hands it over").toBe(
+        "specialist",
+      );
+      expect(
+        started.position.status,
+        "and the run STOPS rather than staying live",
+      ).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("records a DURABLE intervention that NAMES the artefact", async () => {
+    const raised = await pool.query<{
+      reason: string;
+      priority: string;
+      target: string;
+      encountered: string;
+      expected: string;
+    }>(
+      `SELECT reason, priority, encountered, expected, checkpoint->>'target' AS target
+         FROM interventions WHERE run_id = $1`,
+      [runId],
+    );
+    expect(raised.rowCount, "one intervention, not none and not many").toBe(1);
+    const held = raised.rows[0];
+    // The same reason P28's interview stop uses, and for the same reason it
+    // is not derived from the orchestrator's own `reason`: that field is
+    // `string`, and `recovery.ts` says in as many words that a routing
+    // decision made from free text is one waiting to fail. `priorityFor`
+    // routes alerting off this column. See ADR-0065 §4.
+    expect(held?.reason).toBe("information_unobtainable");
+    expect(held?.priority, "high — this driver does not know the deadline").toBe(
+      "high",
+    );
+    // The orchestrator's precise reason is carried losslessly HERE, where
+    // nothing routes off it.
+    expect(held?.target, "and it says which situation this one was").toBe(
+      "specialist:preview_refused",
+    );
+    expect(
+      held?.encountered,
+      "and a specialist can see WHICH document without opening the blueprint",
+    ).toContain("passport");
+    expect(
+      held?.expected,
+      "and what a person is being asked to do about it",
+    ).toContain("specialist reviews the case");
+  }, 300_000);
+
+  it("writes ONE checkpoint, and does not go round the concurrency retry", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Why `#stopForSpecialist` RETURNS a position instead of falling through
+    // to `checkpointAfter`, measured rather than asserted from a comment.
+    //
+    // P28 wrote — and P29's first draft repeated — that falling through would
+    // put the status back to `running`. It would NOT: `saveCheckpoint` writes
+    // `input.status ?? from`, so omitting the status preserves it
+    // (`postgres-workflow.ts:166`). The mutation that removed the early return
+    // SURVIVED, which is how the wrong comment was found.
+    //
+    // What actually goes wrong is the revision. The stop has already saved at
+    // `record.revision`; `checkpointAfter` passes that same, now stale,
+    // revision, raises `RunConcurrencyError`, and `#decide` spends one of its
+    // three attempts re-reading and deciding again. The outcome still comes
+    // out right — which is exactly why nothing else here notices — so this is
+    // the assertion that does: one save, one revision.
+    // ═══════════════════════════════════════════════════════════════════
+    const row = await pool.query<{ revision: number }>(
+      "SELECT revision FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(
+      row.rows[0]?.revision,
+      "the stop's own save, and nothing written on top of it",
+    ).toBe(1);
+  }, 300_000);
+
+  it("TELLS the student truthfully, and asks them for nothing", async () => {
+    const said = (await events()).filter(
+      (event) => event.kind === "message" && event.content !== null,
+    );
+    const last = said.at(-1)?.content ?? "";
+    expect(last, "a person now has it").toMatch(/member of the team/);
+    expect(last, "nothing they gave is lost").toMatch(/Nothing you have given/);
+    expect(last, "and nothing was sent to the university").toMatch(
+      /has been submitted/,
+    );
+    // Deliberately NOT the document's name. Naming it would read as a request,
+    // and this system has no way to accept one — there is no upload path, and
+    // ADR-0022 and ADR-0023 are unapproved. Telling a student to send a
+    // passport we cannot receive is worse than telling them nothing.
+    expect(last, "it does not ask for the passport").not.toMatch(/passport/i);
+    // And it is not the pause message: `reviewMessage` says this is a routine
+    // check, which would be false. Something genuinely could not be done.
+    expect(last).not.toMatch(/rule we apply every time/);
+  }, 300_000);
+
+  it("is reload-safe, and asks nothing of a client that re-reads", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      expect(reading?.run.status, "durable, not held in memory").toBe(
+        "escalated",
+      );
+      expect(
+        reading?.pending,
+        "and the student is not left with a question to answer",
+      ).toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("is no longer handed to the worker on every pass", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const due = await instance.driver.dueRuns(100);
+      expect(
+        due.some((work) => work.runId === runId),
+        "an escalated run waits for a person, by ADR-0048",
+      ).toBe(false);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("raises ONE intervention however many times it is re-advanced", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      for (let pass = 0; pass < 3; pass += 1) {
+        const seen = await instance.driver.advance({
+          runId,
+          conversationId: conversation,
+        });
+        if (!seen.ok)
+          expect.unreachable(`advance refused: ${seen.refusal.kind}`);
+        expect(seen.position.status, "and it stays stopped").toBe("escalated");
+      }
+    } finally {
+      await instance.pool.end();
+    }
+    const raised = await pool.query(
+      "SELECT 1 FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    expect(raised.rowCount, "idempotent by the action and target").toBe(1);
+    const announced = (await events()).filter(
+      (event) =>
+        event.kind === "message" &&
+        (event.content ?? "").includes("member of the team"),
+    );
+    expect(announced, "and the student is told once, not once per poll").toHaveLength(
+      1,
+    );
+  }, 300_000);
+
+  it("treats NOTHING as satisfied: no authorisation, no fill, no document", async () => {
+    // The failure this stop exists to prevent is not the stranding — it is
+    // the alternative to it. A run that decided a missing passport was fine
+    // would carry on to authorisation and to a portal.
+    const authorised = await pool.query(
+      `SELECT 1 FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured'`,
+      [caseRef],
+    );
+    expect(authorised.rowCount, "nothing was authorised").toBe(0);
+    const intents = await pool.query(
+      "SELECT 1 FROM workflow_action_intents WHERE run_id = $1",
+      [runId],
+    );
+    expect(intents.rowCount, "and nothing was done to a portal").toBe(0);
+    const said = (await events()).filter((event) => event.kind === "message");
+    expect(
+      said.some((event) => (event.content ?? "").includes("received")),
+      "and nothing claims a document arrived",
+    ).toBe(false);
+  }, 300_000);
+
+  it("stops the SAME way for a reason that has nothing to do with documents", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `specialist` is ONE step with many reasons. A fix that handled only
+    // the reason that happened to be measured would leave the other four
+    // stranded exactly as before, and no test on the document path could
+    // tell the difference.
+    //
+    // This one is `portal_authentication_unobserved`: a portal that requires
+    // an account, with nothing observed about how it authenticates. It is
+    // reached BEFORE the preview, from a different branch of `nextStep`, and
+    // there is no document anywhere in it.
+    // ═══════════════════════════════════════════════════════════════════
+    const other = "01JBXQ8Z9WKTQ6M4H2NPSPC002";
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p29-auth', true) RETURNING id",
+    );
+    const who = created.rows[0]!.id;
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
+      [other, who],
+    );
+
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      UNOBSERVED_CATALOGUE,
+    );
+    let stopped = "";
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        who,
+      );
+      const started = await instance.driver.start({
+        conversationId: other,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      stopped = started.position.runId;
+      expect(started.position.step).toBe("specialist");
+      expect(started.position.status).toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const raised = await pool.query<{ target: string; encountered: string }>(
+      `SELECT checkpoint->>'target' AS target, encountered
+         FROM interventions WHERE run_id = $1`,
+      [stopped],
+    );
+    expect(raised.rowCount, "the same durable stop").toBe(1);
+    expect(
+      raised.rows[0]?.target,
+      "and it names THIS reason, not the document one",
+    ).toBe("specialist:portal_authentication_unobserved");
+    expect(
+      raised.rows[0]?.encountered,
+      "carrying the orchestrator's own words about what to do",
+    ).toContain("Run discovery");
+  }, 300_000);
+
+  it("says so over the PUBLISHED route the student's client reads", async () => {
+    // ADR-0060's GET is the only thing the client reads after a message, so a
+    // stop that were visible only to `advance` would never reach a student.
+    // The route is stood up here rather than shared, on this file's own free
+    // port block (PORT+70; see the header).
+    const instance = buildInstance(connectionString(), opener());
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: async (subject, conversationId) => {
+        const owned = await instance.pool.query(
+          "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+          [conversationId, subject],
+        );
+        return owned.rowCount === 1;
+      },
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const started = app.listen(PORT + 70, "127.0.0.1", () =>
+        resolve(started),
+      );
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${String(PORT + 70)}/v1/conversations/${conversation}/runs`,
+        { headers: { cookie: cookieFor(student) } },
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        run: unknown;
+        pending: unknown;
+      };
+      const run = parseConversationRun(body.run);
+      if (run === null)
+        expect.unreachable(`not a ConversationRun: ${JSON.stringify(body.run)}`);
+      expect(run.status, "what the client draws its banner from").toBe(
+        "escalated",
+      );
+      expect(run.step).toBe("specialist");
+      // `waitsOnAPerson` in `client/journey.ts` reads exactly this, and P28
+      // proved in a real browser that it renders as "with a member of the
+      // team". What P29 adds is that this run reaches that state at all.
+      expect(body.pending, "and it asks the student for nothing").toBeNull();
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("BUILDS no way to hold a document, which is what ADR-0022 and ADR-0023 gate", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The boundary of this phase, asserted rather than promised.
+    //
+    // ADR-0022 requires a `DisclosureAuthorisation` — what (id + content
+    // hash), where (institution + portal host), why (the application), and a
+    // lawful-basis determination — before a document is DISCLOSED. ADR-0023
+    // requires a retention period from an authoritative source, or the
+    // record is `unresolved` and that BLOCKS. Neither is approved.
+    //
+    // Declining to proceed engages neither, because it neither holds nor
+    // sends anything. The day a document is accepted, that is a schema
+    // change, and this assertion is what will fail first.
+    // ═══════════════════════════════════════════════════════════════════
+    const source = readFileSync(
+      join(import.meta.dirname, "run-driver.ts"),
+      "utf8",
+    );
+    const stop = source.slice(source.indexOf("async #stopForSpecialist"));
+    expect(
+      stop.slice(0, 2400),
+      "the step is recognised by the ORCHESTRATOR's narrowing, not by a " +
+        "comparison here — `check-boundaries` forbids one, and a sixth " +
+        "specialist situation must reach this stop without an edit",
+    ).toContain("const handover = specialistHandoverOf(step);");
+    expect(
+      stop.slice(0, 2400),
+      "it stops on the hand-over itself, not on a reason it recognises",
+    ).toContain("if (handover === null) return null;");
+    expect(
+      stop.slice(0, 2400),
+      "and the orchestrator's reason is carried, not interpreted",
+    ).toContain("target: `specialist:${handover.reason}`");
+    // Nothing in the driver reads or writes document CONTENT. `documents` is
+    // the empty map the run is built with, and this is the assertion that
+    // fails if a later change quietly fills it.
+    expect(source).toContain("documents: new Map()");
+  }, 60_000);
 });

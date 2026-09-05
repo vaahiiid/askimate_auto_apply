@@ -25,6 +25,7 @@ export {
   pageValuesOf,
   requiredFieldsFor,
   requiresSecureRequest,
+  specialistHandoverOf,
   withAccount,
   withAuthorisation,
   withProfile,

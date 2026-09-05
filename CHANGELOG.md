@@ -19,6 +19,79 @@ not shipped artefacts.
 
 ---
 
+## [0.47.0] — 2026-09-05
+
+**P29 — a run only a person can carry on stops, and says so. ADR-0065.**
+
+`nextStep` answers `{kind: "specialist", reason, detail}` from **ten** places — seven reachable — in
+five kinds of situation. The run driver acted on **none** of them. `#decideOnce` fell through to `checkpointAfter`, which preserves the status it
+finds, so the run stayed `running`, `dueRuns` handed it to the worker on every pass, and the student
+was told nothing at all.
+
+Measured through the real driver, against the shipped fixture catalogue, before the change:
+
+```
+step: specialist   status: running   phase: awaiting_specialist
+interventions: 0   messages: 0       still due for the worker: true
+```
+
+`FIXTURE_BLUEPRINT` reaches it honestly. It attaches "Upload your passport"; `planFill` routes a
+document-sourced mapping to `uploads` and never to `blockers`, so the interview never hears about it;
+every field being confirmed, the run walks to `buildPreview`, which refuses `document_missing`. That
+refusal is the architecture declining to proceed. Nobody was acting on it.
+
+### Added
+
+- `#stopForSpecialist` — the orchestrator's hand-over becomes a real stop, through
+  `#raiseForSpecialist`, the construction P28 extracted so there is still exactly one way for a run
+  to be waiting for a person. Reason `information_unobtainable`, deliberately **not** derived from
+  the orchestrator's `reason`, which is typed `string`: `recovery.ts` says alerting routes off the
+  reason and "a routing decision made from free text is a routing decision waiting to fail". The
+  precise reason is carried losslessly in `checkpoint.target` as `specialist:<reason>`, where nothing
+  routes off it, and its detail becomes `encountered` — so a specialist reads *The application
+  attaches "Upload your passport" and no document has been provided for "passport"* without opening
+  the blueprint.
+- `specialistMessage`. It tells the student a person now has it, that nothing they gave is lost and
+  nothing has been submitted — and **does not name the document**, because naming it would read as a
+  request and there is nothing to receive one with.
+- A test that the stop reaches the student over the **published** `GET /v1/conversations/{id}/runs`,
+  the only thing a client reads after sending a message.
+- A test that a second, non-document reason (`portal_authentication_unobserved`, reached from a
+  different branch of `nextStep`) stops the same way — so a fix that only handled the reason that
+  happened to be measured cannot pass.
+
+### Changed
+
+- **ADR-0064 §2's stated reason for returning a position rather than falling through is corrected.**
+  It said the ordinary checkpoint would put the status back to `running`. It would not:
+  `saveCheckpoint` writes `input.status ?? from`, so omitting the status preserves it. What falling
+  through actually costs is the revision — the stop has already saved at `record.revision`, so
+  `checkpointAfter` passes a stale one, raises `RunConcurrencyError`, and `#decide` spends one of
+  three retry attempts. The outcome still came out right, which is why nothing noticed. Both stops
+  now assert that the checkpoint is written **once**.
+
+### Measured, and deliberately not fixed
+
+There are **two** `requiredDocuments` and neither is derived from the other. The structured one on a
+**blueprint page** reaches the preview and now stops the run. The flat string list on the
+**catalogue entry** reaches only `InterviewState` and the published target listing: nothing plans
+from it. Asserted, not assumed — a run against a reviewed entry declaring `["passport"]` whose
+blueprint attaches no document reaches `request_secret`, still `running`.
+
+Closing that means deciding what an entry-level declaration *means*, which is a product question.
+**No upload path, no storage, no retention period and no disclosure rule was invented here**, and the
+schema assertion from P28 still holds: no table and no column for a document.
+
+### Proved
+
+Ten deliberate regressions. Eight caught first time; two survived, and both were the same mutation
+against the P29 and P28 stops — real controls whose comment named the wrong reason, which is how the
+correction above was found. Also regressed: removing `buildPreview`'s `document_missing` refusal,
+under which the run does not strand but **proceeds to `authorise` with the passport silently
+dropped**. See [`docs/p29-regression-audit.md`](./docs/p29-regression-audit.md).
+
+---
+
 ## [0.46.0] — 2026-09-05
 
 **P28 — the interview's decision to stop reaches the system. ADR-0064.**

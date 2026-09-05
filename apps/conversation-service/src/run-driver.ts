@@ -130,6 +130,7 @@ import {
   nextStep,
   requiredFieldsFor,
   requiresSecureRequest,
+  specialistHandoverOf,
   resumeRun,
   startRun,
   withAuthorisation,
@@ -458,6 +459,28 @@ function reviewMessage(entry: CatalogueEntry): string {
     `of the team needs to check it over. That is a rule we apply every time for applications ` +
     `like yours, not something that has gone wrong. Nothing you have given me is lost, and I ` +
     `will come back to you as soon as it has been looked at.`
+  );
+}
+
+/**
+ * What the student reads when their run has been handed to a specialist.
+ *
+ * ONE sentence whatever the reason, and deliberately so. The `detail` behind a
+ * `specialist` step names artefacts a specialist works with — a field ref, a
+ * mapping, a document ref — and reading those to a student explains nothing and
+ * invites them to try to fix it. What they need is the truth: a person has it,
+ * nothing they gave is lost, and nothing has been sent.
+ *
+ * It does NOT name the missing document even when that is the reason. Doing so
+ * would mean the step carrying `documentRef` structurally, which is a change to
+ * the orchestrator's published `RunStep` — and the specialist, who can act on
+ * it, already has it in `encountered`. Recorded in ADR-0065 rather than done.
+ */
+function specialistMessage(entry: CatalogueEntry): string {
+  return (
+    `I have had to pass your ${entry.blueprint.institutionName} application to a member of the ` +
+    `team. There is something about it I cannot complete on my own, and I would rather a person ` +
+    `looked at it than guess. Nothing you have given me is lost, and nothing has been submitted.`
   );
 }
 
@@ -2664,6 +2687,106 @@ export class RunDriver {
   }
 
   /**
+   * Stops a run the orchestrator has handed to a specialist (ADR-0065).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `nextStep` returns `{ kind: "specialist", reason, detail }` from TEN
+   * places, seven of them reachable, in five kinds of situation: an artefact
+   * `assess` refused, a structural blocker the student cannot answer, a
+   * validation that did not run, a PREVIEW THAT COULD NOT BE BUILT, and an
+   * account step that could not be planned. Every one of them means the same
+   * thing — this run cannot go on until a person looks at it.
+   *
+   * The driver did nothing with any of them. Measured through the real driver
+   * on the shipped fixture entry, whose blueprint asks for a passport:
+   *
+   *     step: specialist   status: running   phase: awaiting_specialist
+   *     interventions: 0   last message: ""  still due for the worker: true
+   *
+   * So the run sat at `specialist` with nobody told and the worker advancing
+   * it for ever, deriving the same answer every time and acting on none of it.
+   * The same shape as the interview actions ADR-0064 wired up, one level out.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * ── Why this is NOT document handling ────────────────────────────────
+   *
+   * A required document is one of those routes in — `buildPreview` refuses
+   * with `document_missing` when a plan attaches something no document was
+   * provided for, and the run driver provides none. Stopping on that refusal
+   * needs no document: nothing is accepted, stored, transmitted or retained,
+   * so ADR-0022's disclosure determination and ADR-0023's retention basis are
+   * not engaged. They govern HOLDING and SENDING a document; this only ever
+   * declines to proceed without one.
+   *
+   * `reason` and `detail` come from the orchestrator and name artefacts — a
+   * field ref, a document ref, a label, a violation count. Never a value the
+   * student gave, which is why `detail` can go to a specialist as `encountered`
+   * exactly as `#pauseForReview` already sends one.
+   *
+   * The step is recognised by `specialistHandoverOf`, the orchestrator's own
+   * narrowing, and not by a comparison here. `specialist` is one kind
+   * answering all of them; an eleventh site would have to reach this stop
+   * without anyone remembering to widen a condition in the coordinator.
+   */
+  async #stopForSpecialist(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly concerns: readonly ResumeConcern[];
+      readonly resumed: boolean;
+    },
+    step: RunStep,
+    now: Date,
+  ): Promise<RunOutcome | null> {
+    const handover = specialistHandoverOf(step);
+    if (handover === null) return null;
+
+    await this.#raiseForSpecialist({
+      entry: input.entry,
+      record: input.record,
+      conversationId: input.conversationId,
+      caseId: input.caseId,
+      priority: "high",
+      // Stable, and one intervention per REASON: a run stuck for two different
+      // reasons is two things to look at, and a run re-advanced for the same
+      // reason is not a second one.
+      target: `specialist:${handover.reason}`,
+      encountered: handover.detail,
+      expected:
+        `A specialist reviews the case and the reviewed artefacts behind it, and either supplies ` +
+        `what is missing or stops the application. This run cannot proceed on its own.`,
+      message: specialistMessage(input.entry),
+      now,
+    });
+
+    if (input.record.status === "running") {
+      await this.#options.stores.runs.saveCheckpoint({
+        runId: input.record.runId,
+        checkpoint: input.record.checkpoint,
+        expectedRevision: input.record.revision,
+        status: "escalated",
+      });
+    }
+
+    return {
+      ok: true,
+      position: {
+        runId: input.record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status: "escalated",
+        phase: input.record.checkpoint.phase,
+        step: step.kind,
+        revision: input.record.revision,
+        resumed: input.resumed,
+        concerns: input.concerns,
+      },
+    };
+  }
+
+  /**
    * Raises an intervention a specialist can pick up, and tells the student once.
    *
    * ═══════════════════════════════════════════════════════════════════════
@@ -3439,8 +3562,18 @@ export class RunDriver {
     //
     // After the ask, because a step that is asking is not stuck. This returns a
     // position rather than falling through to `checkpointAfter`, for the reason
-    // `#pauseForReview` does: the run's status is now `escalated` and writing
-    // the ordinary checkpoint under it would put it back to `running`.
+    // `#pauseForReview` does — and NOT the one P28 first wrote here. That said
+    // the ordinary checkpoint would put the status back to `running`; it would
+    // not. `saveCheckpoint` writes `input.status ?? from`, so omitting the
+    // status PRESERVES it (`postgres-workflow.ts:166`). Corrected in P29 after
+    // R3 measured it.
+    //
+    // The real reason is the revision. The stop has already saved at
+    // `input.record.revision`, so `checkpointAfter` below — which passes that
+    // same, now stale, revision — raises `RunConcurrencyError` and sends
+    // `#decide` round its retry loop. The outcome still comes out right, since
+    // the retry re-reads and the raise is idempotent, but every stop would
+    // spend an attempt from a budget that exists for two clicks racing.
     //
     // Kept even though the message path below reaches the same stop first in
     // the ordinary case: `#correct` appends the rejection and THEN re-derives,
@@ -3448,6 +3581,20 @@ export class RunDriver {
     // run still marked `running`. This advance is what stops it.
     const stuck = await this.#stopForUnobtainable(input, step, now);
     if (stuck !== null) return stuck;
+
+    // ── And the step that says a PERSON must look (ADR-0065) ─────────────
+    //
+    // `specialist` is the orchestrator's answer for an artefact it could not
+    // use, a structural blocker, a validation that did not run, a preview it
+    // could not produce — including because a document is required and none was
+    // provided — and an account step it could not plan. The driver acted on
+    // none of them, so the run stayed `running`, the worker advanced it for
+    // ever, and the student was told nothing at all.
+    //
+    // Returns a position rather than falling through, for the revision reason
+    // spelled out above the stop before it.
+    const handed = await this.#stopForSpecialist(input, step, now);
+    if (handed !== null) return handed;
 
     const revision = await checkpointAfter({
       stores: this.#options.stores,

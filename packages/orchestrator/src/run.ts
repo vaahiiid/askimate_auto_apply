@@ -1189,6 +1189,31 @@ export function interviewActionOf(step: RunStep): InterviewAction | null {
   return step.kind === "interview" ? step.action : null;
 }
 
+/**
+ * The hand-over a `specialist` step carries, or `null`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A NARROWING, like `interviewActionOf` above it, and here for the widest
+ * version of the same reason: `specialist` is ONE step kind built in TEN
+ * places in this file — five kinds of situation, being an artefact `assess`
+ * refused, a structural blocker, a validation that did not run, a preview
+ * that could not be built, and an account step that could not be planned. A
+ * coordinator matching on the kind would be keeping its own copy of which
+ * situations hand over to a person, and an eleventh added here would not
+ * reach it.
+ *
+ * The `reason` is deliberately `string` and stays one: it names an artefact —
+ * a blocker kind, a refusal kind, a documentRef — and closing it would mean
+ * this package owning a vocabulary of every way an artefact can be wrong.
+ * Which is also why a caller must not route off it; see ADR-0065 §4.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function specialistHandoverOf(
+  step: RunStep,
+): { readonly reason: string; readonly detail: string } | null {
+  return step.kind === "specialist" ? { reason: step.reason, detail: step.detail } : null;
+}
+
 /** What the student is told for a handoff step. The text a hash is taken over. */
 export function handoffMessageOf(step: RunStep): string | null {
   if (step.kind === "student_handoff") return step.say;
