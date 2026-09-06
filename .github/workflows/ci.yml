@@ -61,6 +61,13 @@ jobs:
         # (brief §8).
         run: pnpm run boundaries
 
+      - name: Reachability
+        # A capability a DECISION says is enforced must have a caller inside a
+        # deployable's dependency closure. P37 found that `claimSubmissionKey`
+        # — ADR-0006's second line of defence against duplicate submission —
+        # had exactly one caller in the repository, and it was a script.
+        run: pnpm run reachability
+
       - name: Retention schedule
         # A half-configured retention schedule is the dangerous state, because
         # it LOOKS configured. This validates the schedule's internal

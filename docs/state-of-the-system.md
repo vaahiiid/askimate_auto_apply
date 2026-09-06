@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.56.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
+**Version:** 0.57.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -15,8 +15,8 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,204 tests, 107 files, zero skipped**, against real PostgreSQL and Redis.
-Seventy-two architecture decision records, sixty-eight accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+processes. **2,210 tests, 108 files, zero skipped**, against real PostgreSQL and Redis.
+Seventy-three architecture decision records, sixty-nine accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -84,6 +84,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P36** | A stopped run reaches a person, and the notice carries nothing about the student (ADR-0071) | The whole recovery design was built and waited on somebody running a CLI. The student was told; the specialist was not |
 | **P37** | ADRs 0005–0021 read against the code (ADR-0072) | Five phases running had each caught an older ADR asserting a guarantee the code did not provide. Thirteen of seventeen hold; the rest produced two fixes, two corrections and two open findings |
 | **P38** | One application per submission identity, and the second one the student asks for (ADR-0006 §3, amended) | P37's two open findings, closed together. `claimSubmissionKey` is armed at case-open; a re-application opens a NEW case referencing the prior one, because the old same-case increment produced a terminal case that could never move |
+| **P39** | A declared capability with no production caller fails the build (ADR-0073) | P37's question, asked by `pnpm run verify`. It found `openReapplication` uncalled on its first run — the constructor ADR-0006 §3 had named four hours earlier |
 
 ---
 
@@ -337,18 +338,18 @@ open rather than quietly answered.
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
 | **13** | ~~Arm the submission key, and make re-application reachable~~ | — | **Done in P38.** Both, together: the key is claimed at case-open and a refused second application has a route to a second case |
-| **14** | **A declared capability with no production caller fails the build** | Me — unblocked | Nothing operationally. It is the check that P37's finding stops being a habit and becomes automatic; the initial allow-list is `attach_document`, `recommendWait`'s `next_intake` branch, and whatever the first run finds |
+| **14** | ~~A declared capability with no production caller fails the build~~ | — | **Done in P39 (ADR-0073).** Six entries on the reviewed unreachable list, each with a reason and what would close it |
 | **15** | **`start` on an ESCALATED run throws rather than resuming** | Me, after a decision from you | A student whose run stopped for a specialist and who asks to start again gets a 500. What they *should* get back is a product question, not a patch |
 
-**Not blocked and available to work on now:** the reachability check (14 — the next phase) and the
-ADR housekeeping (12). The ADR re-audit that used to sit here was done in P37; see
+**Not blocked and available to work on now:** the ADR housekeeping (12) and the escalated-run
+question (15). The ADR re-audit that used to sit here was done in P37; see
 [`p37-adr-audit.md`](./p37-adr-audit.md); its two open findings were closed in P38.
 
 ---
 
 ## 7 · Test and verification state
 
-**2,204 tests · 107 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,210 tests · 108 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.

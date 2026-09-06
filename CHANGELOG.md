@@ -19,6 +19,64 @@ not shipped artefacts.
 
 ---
 
+## [0.57.0] — 2026-09-06
+
+**P39 — a declared capability with no production caller fails the build (ADR-0073).**
+
+Seven consecutive phases each found a record asserting something production did not do, and the
+question that found almost all of them was not *does the code contain this* but **does anything in
+production call it**. Every one compiled, was exported, and was covered by tests — which is why the
+defect was invisible: a capability with a thorough unit test and no caller looks, to everything
+automatic, exactly like one that works.
+
+### Added · `pnpm run reachability`
+
+A register of capabilities a DECISION says are enforced, each naming the symbol, the files that
+declare it, the record and the promise in one line. The check fails three ways: an entry marked
+enforced with no production caller; an entry on the reviewed unreachable list that has acquired
+one (a stale allow-list is what hides the next finding); an entry naming a file that no longer
+declares the symbol.
+
+"Production" is narrow on purpose. Not a test. **Not a script** — the whole of P37's finding was
+that `scripts/walkthrough.ts` was `claimSubmissionKey`'s only caller, so a check that counted it
+would agree with the defect. And inside a deployable's dependency closure: `packages/requirements`
+has no dependents at all, so `assessUsability`, called only from there, is called by nothing that
+runs. Without that rule the check would have passed it.
+
+### Fixed · it found one on its first run
+
+`openReapplication` — which ADR-0006 §3, written in P38 four hours earlier, calls *"the one
+constructor for a second attempt"* — **had no production caller.** The run driver built the opening
+event itself from an ordinal and a prior case id passed as two separate fields. The ADR said one
+thing and the code did another, in the phase that wrote the ADR.
+
+Fixed rather than allow-listed, and the fix is better than what it replaced: `#openAndStart` takes
+a discriminated attempt, the domain builds the opening event, and the submission key is claimed for
+**the identity that event carries** rather than one assembled beside it. Two constructions that
+could disagree became one.
+
+### The reviewed unreachable list
+
+Six entries, each with a stated reason and what would close it: `checkMinorGate` (its one blocking
+condition is at the submission stage, out of scope by ADR-0014), `assertStorable`,
+`authoriseDisclosure`, `purgeContents` and `attach_document` (B5, B2, B1 and the document
+transport), and `assessUsability` (no deployable depends on `packages/requirements`).
+
+The list is now a reviewed artefact with an expiry condition rather than a fact somebody once knew.
+
+### What it does not prove
+
+That a REQUEST can reach a capability. This answers P37's question — is there a production call
+site — not "is there a path from an HTTP route". A function called only by another function that
+nothing calls passes. Closing that needs a call graph rather than a symbol search, and the script
+says so in its own header rather than implying otherwise.
+
+Branch-level reachability is out of scope too: `recommendWait`'s `next_intake` branch has no
+production caller because no caller supplies a `nextIntake`, and a symbol-level check cannot see
+that. Recorded in `state-of-the-system.md` instead.
+
+---
+
 ## [0.56.0] — 2026-09-06
 
 **P38 — the duplicate ADR-0006 has always forbidden is now impossible, and the second application

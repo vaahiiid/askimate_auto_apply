@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P38 — one application per submission identity, and the second one the student asks for (ADR-0006 §3, amended) |
+| **Phase** | P39 — a declared capability with no production caller fails the build (ADR-0073) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,204 passing · 107 files · zero skipped** · typecheck, lint, boundary and contract checks green |
-| **Decisions** | 72 ADRs · 68 Accepted |
+| **Tests** | **2,210 passing · 108 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 73 ADRs · 69 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -39,7 +39,7 @@ and the [decision records](./docs/decisions/).
 
 ```bash
 pnpm install
-pnpm run verify        # typecheck · lint · boundaries · tests
+pnpm run verify        # typecheck · lint · boundaries · reachability · tests
 pnpm run walkthrough   # drive one case end to end and watch what happens
 pnpm run interview-demo # watch the agent interview a student conversationally
 pnpm run extraction-demo # watch a document be read — and a fabricated reading be discarded
@@ -299,7 +299,7 @@ Requires Node (see `.nvmrc`) and pnpm. **No AWS account, no credentials, no data
 corepack enable
 pnpm install
 
-pnpm run verify        # everything CI runs: typecheck · lint · boundaries · tests
+pnpm run verify        # everything CI runs: typecheck · lint · boundaries · reachability · tests
 pnpm run test:watch    # tests on change
 pnpm run walkthrough   # drive one case end to end
 ```

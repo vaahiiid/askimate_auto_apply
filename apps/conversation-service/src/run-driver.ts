@@ -60,6 +60,7 @@ import { InterventionNotFoundError } from "@askimate/aas-case-store/intervention
 import {
   askimateActor,
   blueprintVersion,
+  openReapplication,
   caseId as makeCaseId,
   courseId as makeCourseId,
   externalRef,
@@ -96,9 +97,10 @@ import type {
   RecoveryEscalation,
   RecoveryResolution,
   ReusabilityAssessment,
+  ReapplicationInstructed,
+  RequestEvidence,
   RunId,
   StudentId,
-  SubmissionIdentity,
   WaitRecommendation,
   WorkflowPhase,
   WorkflowRunRecord,
@@ -962,7 +964,7 @@ export class RunDriver {
       blueprintId: input.blueprintId,
       studentStatement: input.studentStatement,
       entry,
-      attempt: { ordinal: 1 },
+      attempt: { kind: "first" },
     });
   }
 
@@ -981,17 +983,26 @@ export class RunDriver {
     readonly studentStatement: string;
     readonly entry: CatalogueEntry;
     /**
-     * Which attempt this case is, and what it follows.
+     * Which attempt this case is — and, for a second one, what it follows.
      *
-     * `openCase` refuses an ordinal above 1 without a prior case and a prior
-     * case at ordinal 1, so the two travel together or not at all. Neither is
-     * ever taken from a caller of the SERVICE: `start` passes 1, and `reapply`
-     * passes what `decideReapplication` returned.
+     * ── Why this is a union and not an ordinal ──────────────────────────
+     *
+     * An ordinal is a number, and a number is something a caller can be wrong
+     * about. This carries the PRIOR CASE and the instruction the gate
+     * accepted, so `openReapplication` derives the identity — student,
+     * institution, course, intake from the prior case, ordinal from the
+     * instruction — and there is no field here through which a second attempt
+     * at a different target, or at an ordinal nobody decided, could be
+     * expressed. ADR-0006 §3 names that constructor as the only one; this is
+     * what makes the naming true rather than documentation.
      */
-    readonly attempt: {
-      readonly ordinal: number;
-      readonly priorCaseId?: CaseId;
-    };
+    readonly attempt:
+      | { readonly kind: "first" }
+      | {
+          readonly kind: "reapplication";
+          readonly priorCase: ApplicationCase;
+          readonly instructed: ReapplicationInstructed;
+        };
   }): Promise<RunOutcome> {
     const entry = input.entry;
     const now = this.#options.now();
@@ -1035,13 +1046,42 @@ export class RunDriver {
           // assumption.
           const sequence = await this.#options.stores.cases.currentSequence(caseId);
           if (sequence === 0) {
-            const identity: SubmissionIdentity = {
-              studentId: studentRef,
-              institutionId: makeInstitutionId(entry.institutionRef),
-              courseId: makeCourseId(entry.courseRef),
-              intake: makeIntake(entry.intakeRef),
-              attemptOrdinal: input.attempt.ordinal,
+            const requestEvidence: RequestEvidence = {
+              requestedAt: now,
+              // The surface this request actually arrived on (ADR-0058).
+              channel: "aas_conversation",
+              conversationRef: externalRef(input.conversationId),
+              studentStatement: input.studentStatement,
             };
+
+            // ── The event first, and the KEY from the event ──────────────
+            //
+            // One construction, not two. The identity the submission key is
+            // claimed for is literally the identity written into the log, so
+            // they cannot disagree — ADR-0041's reason, applied to the one
+            // pair where a disagreement would mean a case whose key describes
+            // a different application than its own first event does.
+            const opening =
+              input.attempt.kind === "first"
+                ? openCase({
+                    submissionIdentity: {
+                      studentId: studentRef,
+                      institutionId: makeInstitutionId(entry.institutionRef),
+                      courseId: makeCourseId(entry.courseRef),
+                      intake: makeIntake(entry.intakeRef),
+                      attemptOrdinal: 1,
+                    },
+                    requestEvidence,
+                  })
+                : openReapplication({
+                    priorCase: input.attempt.priorCase,
+                    instructed: input.attempt.instructed,
+                    requestEvidence,
+                  });
+            if (opening.type !== "CaseOpened") {
+              throw new Error("a case must open with CaseOpened");
+            }
+            const identity = opening.submissionIdentity;
 
             // ── The second line of defence, finally armed (P38) ──────────
             //
@@ -1077,21 +1117,7 @@ export class RunDriver {
             const events = stamp({
               caseId,
               fromSequence: 0,
-              payloads: [
-                openCase({
-                  submissionIdentity: identity,
-                  requestEvidence: {
-                    requestedAt: now,
-                    // The surface this request actually arrived on (ADR-0058).
-                    channel: "aas_conversation",
-                    conversationRef: externalRef(input.conversationId),
-                    studentStatement: input.studentStatement,
-                  },
-                  ...(input.attempt.priorCaseId !== undefined
-                    ? { priorCaseId: input.attempt.priorCaseId }
-                    : {}),
-                }),
-              ],
+              payloads: [opening],
               actor: askimateActor(externalRef(input.conversationId)),
               now,
               nextEventId: (index) => `evt_${bound.caseId}_${String(index + 1)}`,
@@ -1412,7 +1438,7 @@ export class RunDriver {
       blueprintId: bound.blueprintId,
       studentStatement: input.studentStatement,
       entry,
-      attempt: { ordinal: instructed.newAttemptOrdinal, priorCaseId: latest.caseId },
+      attempt: { kind: "reapplication", priorCase, instructed },
     });
   }
 

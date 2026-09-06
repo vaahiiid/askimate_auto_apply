@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.56.0",
+  "version": "0.57.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "boundaries": "tsx scripts/check-boundaries.ts",
+    "reachability": "tsx scripts/check-reachability.ts",
     "walkthrough": "tsx scripts/walkthrough.ts",
     "interview-demo": "tsx scripts/interview-demo.ts",
     "extraction-demo": "tsx scripts/extraction-demo.ts",
@@ -24,7 +25,7 @@
     "catalogue": "tsx scripts/catalogue.ts",
     "interventions": "tsx scripts/interventions.ts",
     "discover": "pnpm --filter @askimate/aas-browser-runner exec tsx src/cli.ts",
-    "verify": "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run version:check && pnpm run test",
+    "verify": "pnpm install --frozen-lockfile && pnpm run typecheck && pnpm run lint && pnpm run boundaries && pnpm run reachability && pnpm run version:check && pnpm run test",
     "clean": "tsc --build --clean",
     "analyse-journey": "tsx scripts/analyse-journey.ts",
     "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",

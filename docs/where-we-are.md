@@ -2063,3 +2063,55 @@ P39: make P37's audit method a check rather than a habit — a verification step
 declared capability has no production caller, or reports it in an explicit reviewed allow-list with
 a reason and the phase that will close it. The initial allow-list is `attach_document`, the
 `next_intake` branch above, and whatever else the first run finds.
+
+---
+
+# Where we are — 2026-09-06 (P39)
+
+**Date:** 2026-09-06 · **Phase:** P39 · **ADR:** [ADR-0073](./decisions/0073-a-declared-capability-with-no-production-caller-fails-the-build.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**`pnpm run verify` now asks P37's question.** A capability a decision says is enforced must have a
+caller inside a deployable's dependency closure, or sit on a reviewed list that says why not and
+what would close it.
+
+Seven consecutive phases had each found a record asserting something production did not do. All
+seven compiled, were exported, and were covered by tests — which is precisely why they were
+invisible.
+
+## It found one on its first run
+
+`openReapplication`, which ADR-0006 §3 had called "the one constructor for a second attempt" four
+hours earlier in P38, **was called by nothing.** The run driver built the opening event itself.
+
+Fixed rather than allow-listed, and the result is better than what it replaced: the domain builds
+the event, and the submission key is claimed for the identity that event carries rather than one
+assembled beside it.
+
+## The reviewed unreachable list
+
+`checkMinorGate` · `assertStorable` · `authoriseDisclosure` · `purgeContents` · `attach_document` ·
+`assessUsability`. Each names a reason and what would close it. Two are notable:
+
+- **`assessUsability`** is called only from `packages/requirements`, which **no deployable depends
+  on**. Without the closure rule the check would have called it reachable.
+- **`attach_document`** is a string literal rather than a function, and the question about it is the
+  same one, so the register checks literals too.
+
+## Known limitations
+
+- **It does not prove a REQUEST can reach a capability.** A function called only by another function
+  that nothing calls passes. That needs a call graph.
+- **Branch-level unreachability is invisible to it.** `recommendWait`'s `next_intake` branch has no
+  caller that supplies a `nextIntake`, and a symbol search cannot see that.
+- Everything from P38 still holds: `start` on an escalated run throws; B5, B1 and B2 still block
+  every document path.
+
+## What is next
+
+The three worth doing, in order: close the ADR housekeeping (0001–0004 are still Proposed), decide
+what `start` should return for an escalated run, and — when B5 comes back — the document transport
+that four of the six unreachable entries are waiting on.
