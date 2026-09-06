@@ -1800,3 +1800,80 @@ The decision itself: **does a document persist in AAS until the application is c
 for one execution attempt?** Answering the first commits to twelve retention determinations and a
 `store_document:<purpose>` basis; answering the second commits to a custody model across a plane
 boundary and a retry story the current `DocumentSource` contract does not support.
+
+---
+
+# Where we are — 2026-09-06 (P34)
+
+**Date:** 2026-09-06 · **Phase:** P34 · **ADR:** [ADR-0069](./decisions/0069-an-authorisation-is-spendable-only-in-the-application-it-names.md)
+
+## The headline
+
+**An authorisation is now spendable only in the application it names.** `DisclosureSubject.caseId`
+has recorded which application an authorisation was given for since Phase 1 — the audit record copies
+it, and the student is shown it as *"Which application:"* — and nothing compared it to anything.
+`mayTransmit` checked withdrawal, document, content hash and host; `ExecutionContext` had no case in
+it at all, so the check could not have been written even if someone had wanted to.
+
+## The substitution the other four checks could not see
+
+Same student, same passport, same university, same file — a **second application**. The student was
+asked about the first and said yes, and that yes was spendable on the second. The transmission record
+would then have named the *first* case, so the audit trail's answer to "why did this leave our
+systems?" would have been confidently wrong.
+
+The destination check does not cover it, and not by accident: two reviewed targets can share one
+portal host. `ambiguousGroups` exists in `packages/catalogue` because routes collide on institution,
+course and intake. Making the host stand in for the case fails four tests, including the happy path.
+
+## What is checked, and what deliberately is not
+
+The **case**, and only the case. `cases.student_id` is written from the conversation's own row and
+`cases.blueprint_id` from an offer verified against that conversation's log, so one case names
+exactly one student and exactly one target under a foreign key. Checking all three would be three
+chances to disagree about one fact. No new identifier was introduced: `ClaimedWork.caseId` already
+crossed to the runner and `DisclosureSubject.caseId` already recorded the binding.
+
+Verified while establishing that, rather than assumed: student identity comes from the `__Host-`
+session cookie; a client cannot supply a case id (a conversation that already owns a case gets that
+one back, whatever was proposed); and the target comes from an `offerHash` checked against the
+offers this conversation's own log says were made — a `blueprintId` in the request body is
+deliberately not read.
+
+## `documentRef` means two things, and the repository contains both
+
+`BlueprintPage.requiredDocuments[].documentRef` is the **portal's field name** — `pageFrom` sets it
+to `field.fieldRef`. `MappingSource { kind: "document" }.documentRef` is a **domain key** a reviewer
+chose. The hand-written fixture writes `"passport"` into the first where the file input is
+`"passport_upload"`, so the two readings are both present in the tree. It is harmless only because
+ADR-0066 made the page's list causally inert. Nothing was renamed; a test now pins the meaning at the
+one place the value is produced, and ADR-0069 states the rename as the smallest decision still to
+take — free today, and costly once any catalogue approval exists.
+
+## Attachment identity, frozen
+
+`(fieldRef, documentRef, contentHash)`, all three inside the preview hash the student authorises
+against; `documentId` deliberately outside it, because the vault mints a new one for the same scan
+re-stored and a student agreed to send a document rather than a row. Three tests, one per property,
+each regressed.
+
+## Known limitations — what changed, and what did not
+
+- **B5 is untouched.** Hold versus pass-through is still a product and legal decision. Nothing here
+  assumes either: the case is on the disclosure record under both shapes.
+- **`attach_document` still has no intent identity.** Declared, marked verifiable, produced by
+  nothing. Building an intent for an action no code path can raise would be a test against
+  unreachable code; the transport is what makes it reachable.
+- **Acquisition is still unbound** — there is still nothing that acquires a document.
+- **One mutation survives, and is recorded rather than hidden:** replacing `work.caseId` with a
+  constant in the runner passes all 204 browser-runner tests, because `toStoredPlan` refuses a plan
+  with uploads and the gate is never reached there. A coverage gap that is the transport gap.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P33 lists still holds.
+
+## What is next, on the evidence
+
+Unchanged by this phase, and now shorter by one item: **give attachment its own intent identity**,
+which needs the transport to be reachable, and **answer B5** — does a document persist in AAS until
+the application is complete, or exist only for one execution attempt? Everything else about document
+transport still waits on that answer.

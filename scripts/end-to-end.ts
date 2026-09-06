@@ -471,7 +471,7 @@ async function main(): Promise<void> {
                   }
                 : null,
             ),
-          { portalHost: replayHost, withdrawals: [], now: NOW },
+          { caseId: CASE_ID, portalHost: replayHost, withdrawals: [], now: NOW },
         );
 
         for (const outcome of execution.outcomes) {

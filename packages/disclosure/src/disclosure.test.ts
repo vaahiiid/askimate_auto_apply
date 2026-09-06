@@ -282,6 +282,7 @@ function authorised() {
 
 describe("at the moment the document would leave", () => {
   const base = {
+    forCase: "case-1",
     documentId: "doc-passport-1",
     contentHash: "sha256:v1",
     toHost: "apply.qahighereducation.com",
@@ -290,6 +291,27 @@ describe("at the moment the document would leave", () => {
 
   it("permits exactly what was authorised", () => {
     expect(mayTransmit({ authorisation: authorised(), ...base }).permitted).toBe(true);
+  });
+
+  it("REFUSES the same document in a different application", () => {
+    // The substitution the other four checks cannot see. Same student, same
+    // passport, same university, same file — a SECOND application, which the
+    // student has not been asked about. `DisclosureSubject.caseId` has recorded
+    // which application an authorisation was given for since Phase 1, and until
+    // ADR-0069 nothing compared it to the application actually running.
+    const result = mayTransmit({ authorisation: authorised(), ...base, forCase: "case-2" });
+    if (result.permitted) expect.unreachable("an authorisation belongs to one application");
+    expect(result.refusal.kind).toBe("wrong_case");
+  });
+
+  it("REFUSES a different application even when the portal host is the same", () => {
+    // Two reviewed targets can share one host — a different course, a different
+    // intake, the same university. So the destination check cannot stand in for
+    // the case check, and this is the test that says so: everything the host
+    // check looks at is identical here.
+    const sameHost = mayTransmit({ authorisation: authorised(), ...base, forCase: "case-2" });
+    if (sameHost.permitted) expect.unreachable("the same host is not the same application");
+    expect(sameHost.refusal.kind).not.toBe("wrong_destination");
   });
 
   it("REFUSES a different document under the same authorisation", () => {

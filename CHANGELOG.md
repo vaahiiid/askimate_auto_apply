@@ -19,6 +19,106 @@ not shipped artefacts.
 
 ---
 
+## [0.52.0] — 2026-09-06
+
+**P34 — an authorisation is spendable only in the application it names (ADR-0069).**
+
+`DisclosureSubject.caseId` has recorded *"the case this belongs to"* since Phase 1.
+`recordTransmission` copies it into the audit record and `renderDisclosureRequest` shows it to the
+student as *"Which application:"*. **Nothing compared it to anything.** `mayTransmit` checked
+withdrawal, `documentId`, `contentHash` and host, and `ExecutionContext` was
+`{ portalHost, withdrawals, now }` — the executor had no case to compare against even if the check
+had been written.
+
+So an authorisation captured for one application was spendable in another whenever the document id,
+the content hash and the host matched. ADR-0022 says an authorisation *"is not transferable"* about
+documents; it was transferable between applications.
+
+### The host is not the case
+
+Two reviewed targets can share one portal host — a second course, a January intake beside a
+September one, the same university. `ambiguousGroups` and `isAmbiguous` exist in
+`packages/catalogue` precisely because routes collide on institution, course and intake. So "the
+right university" is not "the right application", and the destination check cannot stand in for a
+case check. Replacing `context.caseId` with `context.portalHost` at the gate fails four tests,
+including the happy path.
+
+### Changed
+
+- `mayTransmit` takes `forCase` and gains a fifth refusal, `wrong_case`, checked **before** the
+  document comparison: an authorisation belonging to another application is not this run's to spend,
+  and reporting "wrong document" for it would name the wrong fault.
+- `ExecutionContext` gains a required `caseId`. `executePlan` supplies it at every upload; the
+  Automation Runner supplies it from `ClaimedWork.caseId`, which already crossed to the runner.
+
+Required rather than optional, for ADR-0068's reason: an optional case is a case somebody forgets,
+and every caller that must supply one already holds it. **No new identifier was introduced** — the
+change joins two that existed and were never compared. The student and the target are deliberately
+*not* checked separately: `cases.student_id` is written from the conversation's own row and
+`cases.blueprint_id` from an offer verified against that conversation's log (ADR-0058), so one case
+names exactly one student and one target under a foreign key. Three checks where a constraint
+already holds one fact would be three chances to disagree.
+
+### Verified, not assumed, about case and target binding
+
+- **Student identity** comes from the `__Host-` session cookie, never a request body. A case's
+  `student_id` is copied from the conversation row inside the binding transaction.
+- **Case identity cannot be supplied by a client.** `RunDriver.start` derives it from the
+  conversation, and `withBinding` returns the case the conversation already owns — a proposed id for
+  a conversation that has one is ignored, not honoured.
+- **Target identity is verified against the conversation**, not taken from the body:
+  `POST .../target-requests` reads only an `offerHash`, checks it against the offers *this
+  conversation's own log* says were made, and passes `verified.target.blueprintId` to the driver. A
+  `blueprintId` in the request body is deliberately not read.
+
+### `documentRef` — two meanings, recorded, neither renamed
+
+`BlueprintPage.requiredDocuments[].documentRef` is a **portal** identifier: `pageFrom` sets it to
+`field.fieldRef`, the name attribute of the `<input type="file">`. `MappingSource { kind: "document"
+}.documentRef` is a **domain** key: what a reviewer decided AskiMate calls the document, and what
+`DocumentSource` and the preview's document map are looked up by.
+
+The repository contains both readings of the *same* field: discovery writes the portal's field name,
+and the hand-written fixture writes `"passport"` where the file input's `fieldRef` is
+`"passport_upload"`. Harmless only because ADR-0066 made the page's list causally inert and
+`check-boundaries` keeps `requiredDocuments` out of the planning path. A test now pins the meaning
+where the value is produced, asserted against the field and against its label. The smallest decision
+still to take — renaming that field to `fieldRef` — is stated in ADR-0069 and not taken here: it is
+free today and costs every catalogue approval once one exists.
+
+### Attachment identity, frozen
+
+An attachment is `(fieldRef, documentRef, contentHash)`, all three inside the preview content hash a
+student authorises against, and `documentId` deliberately outside it — the vault mints it at store
+time, so re-storing the same scan mints another, and a student agreed to send a document rather than
+a row. Three tests, one per property, each regressed.
+
+### Added
+
+Six tests, all against real production paths: two cross-case refusals in `packages/disclosure`, one
+through `executePlan` itself, three on the preview content hash, and one on `pageFrom`.
+
+### Six deliberate regressions, all caught; one that survives, and why
+
+Disabling the case check fails 3; making the host stand in for the case fails 4; dropping `fieldRef`,
+dropping `documentRef` or adding `documentId` to the attachment hash line each fail exactly 1;
+making discovery write the label instead of the field name fails 2.
+
+**Not caught:** replacing `work.caseId` with a constant in the runner passes all 204 browser-runner
+tests. `toStoredPlan` refuses a plan with uploads, so the runner's `plan.uploads` is always empty and
+the gate is never reached. That is the transport gap appearing as a coverage gap rather than a
+defect, and it is recorded rather than papered over.
+
+### Not done, deliberately
+
+**B5 is untouched.** Nothing here assumes hold or pass-through; the case check reads a field the
+disclosure record carries under either shape. **`attach_document` still has no intent identity** —
+it is declared, marked verifiable, and produced by nothing, so building an intent for it would be a
+test against unreachable code. **Acquisition is still unbound**, because there is still nothing that
+acquires a document. No transport, no route, no parser, no storage, no change to the Secure Plane.
+
+---
+
 ## [0.51.0] — 2026-09-06
 
 **P33 — the document transport boundary, costed. No ADR, because no decision was made.**

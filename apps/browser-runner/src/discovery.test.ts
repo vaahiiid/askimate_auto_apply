@@ -14,7 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FlowSignal } from "./observe-script.js";
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
 import { HostAllowList, decideDiscoveryRequest, decideDiscoveryRequestForHost } from "./safety.js";
-import { draftBlueprintFrom, inputTypeOf, validationsOf } from "./discovery.js";
+import { draftBlueprintFrom, inputTypeOf, pageFrom, validationsOf } from "./discovery.js";
+import type { PageObservation } from "./session.js";
 import { checkExecutable } from "@askimate/aas-blueprint";
 
 // ── The pure guard rules, testable with no browser ────────────────────────
@@ -211,6 +212,54 @@ describe("observation to blueprint conversion", () => {
 
     expect(validations.map((v) => v.kind).sort()).toEqual(["maxlength", "pattern", "required"]);
     expect(validations.every((v) => v.source === "dom_attribute")).toBe(true);
+  });
+
+  it("names a required document by the PORTAL'S FIELD, not by a document type", () => {
+    // ── What `BlueprintPage.requiredDocuments[].documentRef` is ──────────
+    //
+    // A portal identifier. It is `field.fieldRef` — the name attribute of the
+    // `<input type="file">` — and it is a coincidence of wording that a portal
+    // often calls that field something a person would also call a document.
+    //
+    // The mapping set's `MappingSource { kind: "document" }.documentRef` is the
+    // other one, and it is a DOMAIN key: what AskiMate calls the document,
+    // chosen by a reviewer. The two namespaces never meet — a boundary rule
+    // keeps `requiredDocuments` out of the whole planning path (ADR-0066) — and
+    // this test is what says which of the two this one is, at the only place in
+    // the repository that produces it.
+    const observation: PageObservation = {
+      url: "https://apply.example.test/documents",
+      title: "Documents",
+      forms: [
+        {
+          formIndex: 0,
+          fields: [
+            {
+              // The portal's own name for the box. Nothing here is a document
+              // type, and discovery does not invent one.
+              name: "supporting_doc_1",
+              label: "Upload your passport",
+              tagName: "input",
+              type: "file",
+              required: true,
+              accept: ".pdf",
+            },
+          ],
+        },
+      ],
+      candidateAdvanceControls: [],
+      signals: [],
+      observedAt: new Date("2026-08-26T12:00:00Z"),
+    };
+
+    const page = pageFrom(observation, "page-documents");
+    const field = page.sections[0]?.fields[0];
+
+    expect(page.requiredDocuments[0]?.documentRef).toBe("supporting_doc_1");
+    expect(page.requiredDocuments[0]?.documentRef).toBe(field?.fieldRef);
+    // And emphatically not the human-readable label, which is the string that
+    // looks like a document type and is the one a reader would expect.
+    expect(page.requiredDocuments[0]?.documentRef).not.toBe(field?.label);
   });
 
   it("refuses to execute a blueprint that observed nothing", () => {

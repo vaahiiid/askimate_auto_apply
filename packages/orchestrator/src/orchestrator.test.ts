@@ -385,6 +385,8 @@ class RecordingSession implements ApplicationSession {
 const PASSPORT_BYTES = new TextEncoder().encode("%PDF");
 const PASSPORT_HASH = "sha256:passport-v1";
 const PORTAL_HOST = "apply.example.test";
+/** The application the executed plan belongs to. Checked at every upload. */
+const CASE_ID = "case-1";
 
 const DISCLOSURE_BASIS = (() => {
   const check = determineLawfulBasis(
@@ -411,7 +413,11 @@ const DISCLOSURE_BASIS = (() => {
 })();
 
 function passportAuthorisation(
-  overrides: { readonly contentHash?: string; readonly portalHost?: string } = {},
+  overrides: {
+    readonly contentHash?: string;
+    readonly portalHost?: string;
+    readonly caseId?: string;
+  } = {},
 ): DisclosureAuthorisation {
   const check = authoriseDisclosure({
     disclosureId: "disc-1",
@@ -419,7 +425,7 @@ function passportAuthorisation(
       documentId: "doc-passport-1",
       documentType: "passport",
       contentHash: overrides.contentHash ?? PASSPORT_HASH,
-      caseId: "case-1",
+      caseId: overrides.caseId ?? CASE_ID,
       requestedFor: "Identity verification",
     },
     destination: {
@@ -452,7 +458,12 @@ const documentSource: DocumentSource = (ref) =>
       : null,
   );
 
-const CONTEXT: ExecutionContext = { portalHost: PORTAL_HOST, withdrawals: [], now: NOW };
+const CONTEXT: ExecutionContext = {
+  caseId: CASE_ID,
+  portalHost: PORTAL_HOST,
+  withdrawals: [],
+  now: NOW,
+};
 
 describe("executing a plan", () => {
   const plan = () => planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE);
@@ -572,6 +583,33 @@ describe("a document in the vault is not a reason to send it", () => {
     expect(report.completed).toBe(false);
     expect(session.attached).toHaveLength(0);
     expect(failures(report)[0]?.error).toContain("not permission to send it anywhere else");
+  });
+
+  it("REFUSES to attach a document authorised for a DIFFERENT application", async () => {
+    // The cross-case substitution, through the real executor. Everything the
+    // other three gates look at matches: the same document id, the same content
+    // hash, the same portal host, nothing withdrawn. Only the application
+    // differs — a second course at the same university, which is a thing the
+    // student has not been asked about.
+    const session = new RecordingSession();
+    const elsewhere: DocumentSource = () =>
+      Promise.resolve({
+        documentId: "doc-passport-1",
+        contents: PASSPORT_BYTES,
+        contentHash: PASSPORT_HASH,
+        authorisation: passportAuthorisation({ caseId: "case-2" }),
+      });
+
+    const report = await executePlan(session, plan(), elsewhere, CONTEXT);
+
+    expect(report.completed).toBe(false);
+    // Not attached and not recorded as having left, which are two different
+    // facts: a transmission record for a refused upload would be a lie in the
+    // one place ADR-0022 says the answer must not require inference.
+    expect(session.attached).toHaveLength(0);
+    expect(report.transmissions).toHaveLength(0);
+    expect(failures(report)[0]?.error).toContain("given for application case-2");
+    expect(failures(report)[0]?.drift).toBe(false);
   });
 
   it("REFUSES once the student has withdrawn", async () => {

@@ -72,6 +72,15 @@ export interface AuthorisedDocument {
 
 /** Where this run is actually pointed, and what the student has withdrawn. */
 export interface ExecutionContext {
+  /**
+   * The application this execution is part of. ADR-0069.
+   *
+   * Not decoration and not for logging: it is checked against the case named on
+   * every disclosure authorisation spent here, so a document authorised for one
+   * application cannot be attached to another. The host cannot stand in for it
+   * — two reviewed targets can share a portal host.
+   */
+  readonly caseId: string;
   /** The host being filled. An authorisation for another portal is refused. */
   readonly portalHost: string;
   /** Authorisations the student has withdrawn. Checked at the moment of upload. */
@@ -203,8 +212,14 @@ export async function executePlan(
     // student who authorised one passport scan has not authorised whatever
     // replaced it, and a destination in the authorisation is not the same as
     // the host this session is pointed at.
+    //
+    // The case is checked for the same reason and is the one that does not
+    // follow from the others: the same student, the same passport and the same
+    // university can be a SECOND application, and an authorisation given for
+    // the first says nothing about it (ADR-0069).
     const permission = mayTransmit({
       authorisation: document.authorisation,
+      forCase: context.caseId,
       documentId: document.documentId,
       contentHash: document.contentHash,
       toHost: context.portalHost,

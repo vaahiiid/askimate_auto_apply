@@ -250,6 +250,63 @@ describe("the content hash", () => {
     expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
   });
 
+  it("changes when the SAME document is attached to a DIFFERENT field", () => {
+    // ── Attachment identity, layer one ──────────────────────────────────
+    //
+    // An attachment is `(fieldRef, documentRef, contentHash)`. All three are in
+    // the hash, and the field is the one that is easy to lose: a passport sent
+    // to "Passport" and the same passport sent to "Proof of address" are not
+    // the same thing being submitted, even though every byte is identical.
+    const plan = planFor();
+    const moved: FillPlan = {
+      ...plan,
+      uploads: plan.uploads.map((upload) => ({ ...upload, fieldRef: "other_upload" })),
+    };
+    expect(plan.uploads.length, "the fixture really does attach a document").toBeGreaterThan(0);
+
+    const result = buildPreview(FIXTURE_BLUEPRINT, moved, DOCUMENTS);
+    if (!result.built) expect.unreachable("expected a preview");
+    expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
+  });
+
+  it("changes when the field is the same and the DOCUMENT NAMED is different", () => {
+    // ── Attachment identity, layer two ──────────────────────────────────
+    //
+    // The mirror of the test above, and it is not implied by it. A re-reviewed
+    // mapping set that points the same box at a different document key produces
+    // this, and the bytes behind the new key can coincide with the old ones —
+    // one scan filed under two names. The student authorised a decision about
+    // WHICH document goes there, so the decision is in the hash and not only
+    // its outcome.
+    const plan = planFor();
+    const renamed: FillPlan = {
+      ...plan,
+      uploads: plan.uploads.map((upload) => ({ ...upload, documentRef: "identity_document" })),
+    };
+
+    const result = buildPreview(
+      FIXTURE_BLUEPRINT,
+      renamed,
+      new Map([["identity_document", PASSPORT]]),
+    );
+    if (!result.built) expect.unreachable("expected a preview");
+    expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
+  });
+
+  it("does NOT change when only the vault's id for the same bytes changes", () => {
+    // The deliberate exclusion, and the reason the two tests above are about
+    // `documentRef` rather than `documentId`. `documentId` is minted by the
+    // vault; re-storing the same scan mints another. What the student agreed to
+    // is a document, not a row — so a new id for identical bytes in the same
+    // box must not void an outstanding authorisation.
+    const restored = new Map<string, PreviewDocument>([
+      ["passport", { ...PASSPORT, documentId: "doc-passport-2" }],
+    ]);
+    const result = buildPreview(FIXTURE_BLUEPRINT, planFor(), restored);
+    if (!result.built) expect.unreachable("expected a preview");
+    expect(result.preview.contentHash).toBe(previewFor().contentHash);
+  });
+
   it("does not change when the blueprint's wording changes but the content does not", () => {
     // A portal relabelling "Last name" to "Family name" does not change what is
     // being submitted, and must not void an outstanding authorisation.

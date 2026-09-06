@@ -24,3 +24,11 @@ Thumbs.db
 dist-tools/
 discovery-runs/
 inspection-runs/
+
+# Redis appendonly directory, created in the working directory by
+# packages/envelope-cache-redis/src/redis-cache.test.ts. That test turns
+# `appendonly` ON deliberately, to prove `RedisEnvelopeCache.verify()` REFUSES a
+# server whose configuration would let ciphertext reach disk, and turns it back
+# off afterwards — Redis creates the directory in the moment in between. It
+# holds a zero-length temp file and no data. The proof is worth the artefact.
+appendonlydir/

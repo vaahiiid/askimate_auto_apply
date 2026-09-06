@@ -142,7 +142,7 @@ semantics that ADR-0054 and ADR-0047 settled.
 | student | ✅ | `DocumentUpload.studentId`; the session cookie |
 | document type | ✅ | `DocumentUpload.documentType` (closed `DocumentType`) |
 | content hash | ✅ | `DocumentUpload.contentHash`, and `mayTransmit` re-checks it |
-| case | ⚠️ | on `DisclosureSubject.caseId` only — **not** on the upload |
+| case | ⚠️ | on `DisclosureSubject.caseId`, and since ADR-0069 **checked** by `mayTransmit` — still **not** on the upload |
 | conversation | ❌ | nowhere |
 | target / blueprint | ❌ | nowhere on the document; only `DisclosureDestination.portalHost` at send time |
 | upload instance | ⚠️ | `documentId` is minted **by the vault at store time**, so a pass-through document has no identity until one is invented |
@@ -150,7 +150,19 @@ semantics that ADR-0054 and ADR-0047 settled.
 
 **Two are missing and one is conditional.** A transport must bind at least case and target, because
 `mayTransmit` already refuses a wrong host and ADR-0022 requires the destination in the
-authorisation — but nothing binds the *acquisition* to the case it was acquired for. Under
+authorisation — but nothing binds the *acquisition* to the case it was acquired for.
+
+> **Amended by ADR-0069 (P34).** Half of the case row is now closed, at the SPENDING end rather than
+> the acquisition end. `mayTransmit` takes the case the upload is part of and refuses an
+> authorisation naming a different one; `ExecutionContext` carries it; the runner supplies it from
+> `ClaimedWork.caseId`. What is still missing is the acquisition binding — nothing ties the act of
+> obtaining a document to the case it was obtained for, because there is still no act of obtaining
+> one. The target row stays ❌ deliberately: a case names exactly one target, by a foreign key
+> written from a verified offer (ADR-0058), so a separate target binding would be a second
+> representation of one fact. Checking the case checks the target.
+>
+> The `documentId` row is unchanged and still conditional: it is the one that becomes load-bearing
+> under pass-through. Under
 pass-through the `documentId` gap becomes load-bearing: `mayTransmit`, the `TransmissionRecord` and
 `ExecutionOutcome.attached` all key on a `documentId` that only the vault currently mints.
 
@@ -161,7 +173,7 @@ pass-through the `documentId` gap becomes load-bearing: `mayTransmit`, the `Tran
 | Threat | Mitigation available today |
 |---|---|
 | wrong student | session cookie already binds the request; the vault already keys on `studentId` |
-| wrong case / wrong target | **missing** — §7; needs binding at acquisition |
+| wrong case / wrong target | **spending: closed** (ADR-0069 — `mayTransmit` refuses an authorisation naming another case, and a case names one target); **acquisition: still missing** — §7 |
 | replay / duplicate upload | **missing** — §5; needs `attach_document` intent identity |
 | substitution / tampering | `mayTransmit` re-checks the content hash at the moment of upload |
 | wrong host | `mayTransmit` refuses a destination that is not the session's |
@@ -333,3 +345,28 @@ Two things are transport-level, needed under **either** option, and blocked on n
    not exist, and `mayTransmit` already assumes the destination is known.
 
 Both make either option safer and neither presumes which is chosen.
+
+## What P34 did, and what it left
+
+**Done (ADR-0069):** the second item, at the spending end. An authorisation is now spendable only in
+the application it names, which required no transport, no new identifier and no answer to B5 —
+`DisclosureSubject.caseId` and `ClaimedWork.caseId` both already existed and were never compared.
+
+**Left open, deliberately:**
+
+- **The first item — `attach_document` intent identity.** Still true, still transport-level, still
+  blocked on nothing in policy. Not built in P34 because `attach_document` is produced by nothing:
+  an intent for an action no code path can raise would be a test against unreachable code, and the
+  thing that would make it reachable is the transport. It is the first item of whatever phase
+  follows the B5 answer, under either option.
+- **The acquisition binding.** Whatever constructs the `DocumentSource` must bind the document to
+  the case at the moment it is obtained. There is no such constructor, so there is nothing to bind.
+- **B5 itself.** Untouched. Nothing in P34 assumes hold or pass-through: the case check reads a
+  field the disclosure record already carries, which is present under both shapes.
+
+**One thing measured and not fixed:** the runner's wiring of `caseId` into `ExecutionContext` is not
+covered by any behavioural test, and cannot be. `toStoredPlan` refuses a plan with uploads, so
+`plan.uploads` is empty by the time the runner runs it and the upload gate is never reached —
+replacing `work.caseId` with a constant passes all 204 browser-runner tests. That is the transport
+gap showing up as a coverage gap rather than a defect: the wiring becomes reachable, and testable,
+on the day something can supply a document.

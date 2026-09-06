@@ -102,6 +102,12 @@ export async function fillApplication(
     // which DID transport uploads fails as a named outcome rather than a crash.
     () => Promise.resolve(null),
     {
+      // The case the plane leased this work for, carried rather than derived:
+      // the runner has no case store and could not look one up. Every
+      // disclosure authorisation spent below is checked against it, so a
+      // document authorised for a different application is refused here even
+      // though nothing can supply one yet (ADR-0069).
+      caseId: work.caseId,
       portalHost: work.portalHost,
       // Empty for the same reason: withdrawals gate document transmission, and
       // there are no documents. A plan that carried one would fail the

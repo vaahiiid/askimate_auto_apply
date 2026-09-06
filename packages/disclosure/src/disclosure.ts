@@ -268,6 +268,7 @@ export function disclosureOf(
 // ───────────────────────────────────────────────────────────────────────────
 
 export type TransmissionRefusal =
+  | { readonly kind: "wrong_case"; readonly detail: string }
   | { readonly kind: "wrong_document"; readonly detail: string }
   | { readonly kind: "content_changed"; readonly detail: string }
   | { readonly kind: "wrong_destination"; readonly detail: string }
@@ -289,6 +290,24 @@ export interface WithdrawalRecord {
  */
 export function mayTransmit(input: {
   readonly authorisation: DisclosureAuthorisation;
+  /**
+   * The case this upload is part of. ADR-0069.
+   *
+   * ══════════════════════════════════════════════════════════════════════════
+   * `DisclosureSubject.caseId` has recorded "the application it belongs to"
+   * since Phase 1 and nothing compared it to anything. ADR-0022 requires the
+   * application context to be KNOWN before a document is transmitted, and it
+   * was known — it was simply never checked, which made an authorisation
+   * transferable between applications in exactly the way the same ADR says it
+   * is not transferable between documents.
+   *
+   * The host does not cover this. Two reviewed targets can share one portal
+   * host — a different course, a different intake, the same university — which
+   * is why `ambiguousGroups` exists at all. So "the right university" is not
+   * "the right application", and only the case says which application.
+   * ══════════════════════════════════════════════════════════════════════════
+   */
+  readonly forCase: string;
   readonly documentId: string;
   readonly contentHash: string;
   readonly toHost: string;
@@ -305,6 +324,27 @@ export function mayTransmit(input: {
         detail:
           `The student withdrew this authorisation on ` +
           `${withdrawal.withdrawnAt.toISOString().slice(0, 10)}: ${withdrawal.reason}`,
+      },
+    };
+  }
+
+  // ── Before anything about the document itself ──────────────────────────
+  //
+  // An authorisation belonging to another application is not this run's to
+  // spend, and the document comparison below is a comparison that should never
+  // have been reached: answering "wrong document" for it would describe the
+  // wrong fault, and answering "permitted" for a matching document — the same
+  // student re-applying with the same passport — would be the substitution this
+  // check exists to refuse.
+  if (record.subject.caseId !== input.forCase) {
+    return {
+      permitted: false,
+      refusal: {
+        kind: "wrong_case",
+        detail:
+          `This authorisation was given for application ${record.subject.caseId}, and the upload ` +
+          `is part of ${input.forCase}. Agreeing to send a document with one application is not ` +
+          `agreeing to send it with another.`,
       },
     };
   }
