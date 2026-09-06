@@ -719,7 +719,7 @@ describe("decide — terminal cases", () => {
 
     const decision = decide(cancelled, {
       kind: "instruct_reapplication",
-      newAttemptOrdinal: 2,
+      actor: "student",
       instruction: {
         priorOutcome: { outcome: "withdrawn", assertedBy: "student", assertedAt: new Date("2026-09-01T09:00:00Z") },
         studentStatement: "I'd like to try again.",
@@ -730,27 +730,114 @@ describe("decide — terminal cases", () => {
     });
 
     expect(decision.accepted).toBe(true);
+    if (decision.accepted) {
+      const emitted = decision.events[0];
+      // The ordinal comes from `decideReapplication`, not from the caller.
+      expect(emitted?.type).toBe("ReapplicationInstructed");
+      if (emitted?.type === "ReapplicationInstructed")
+        expect(emitted.newAttemptOrdinal).toBe(2);
+    }
   });
 
-  it("refuses an attempt ordinal that skips ahead", () => {
+  // ── ADR-0072 · the four rules `machine.ts` did not enforce ─────────────
+  //
+  // `decideReapplication`'s doc comment has said "the single gate; `machine.ts`
+  // calls this" since Phase 1, and this file imported only the TYPE. What stood
+  // here checked that the ordinal increased by one and accepted everything
+  // else. These four are the rules that were written down and not run.
+
+  it("REFUSES an automatic retry, which is ADR-0006's unconditional rule", () => {
+    const cancelled = fold(
+      buildLog([OPENED, { type: "CaseStateChanged", from: "INTAKE", to: "CANCELLED", reason: "x" }]),
+    );
+
+    for (const actor of ["automatic_retry", "specialist", "operator"] as const) {
+      const decision = decide(cancelled, {
+        kind: "instruct_reapplication",
+        actor,
+        instruction: {
+          priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
+          studentStatement: "Again please.",
+          instructedAt: new Date("2026-09-01T10:00:00Z"),
+          recommendationShown: { advice: "six_months", rationale: "Consider waiting.", shownAt: new Date("2026-09-01T09:00:00Z") },
+          proceededDespiteRecommendation: true,
+        },
+      });
+
+      expect(decision.accepted, `${actor} may not create an attempt`).toBe(false);
+      if (!decision.accepted && decision.refusal.kind === "invalid_intent")
+        expect(decision.refusal.detail).toContain(actor);
+      else if (!decision.accepted) expect.unreachable("refused as an invalid intent");
+    }
+  });
+
+  it("REFUSES an instruction with no words of the student's own", () => {
+    // "Why did you submit a second application to Leeds?" must have an answer,
+    // and a boolean is not one.
     const cancelled = fold(
       buildLog([OPENED, { type: "CaseStateChanged", from: "INTAKE", to: "CANCELLED", reason: "x" }]),
     );
 
     const decision = decide(cancelled, {
       kind: "instruct_reapplication",
-      newAttemptOrdinal: 5, // current is 1
+      actor: "student",
+      instruction: {
+        priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
+        studentStatement: "   ",
+        instructedAt: new Date("2026-09-01T10:00:00Z"),
+        recommendationShown: { advice: "none", rationale: "None needed.", shownAt: new Date("2026-09-01T09:00:00Z") },
+        proceededDespiteRecommendation: false,
+      },
+    });
+
+    expect(decision.accepted).toBe(false);
+  });
+
+  it("REFUSES an instruction whose recommendation came AFTER it", () => {
+    // Advisory in effect, mandatory in presentation. A recommendation shown
+    // afterwards is a record of advice nobody acted on.
+    const cancelled = fold(
+      buildLog([OPENED, { type: "CaseStateChanged", from: "INTAKE", to: "CANCELLED", reason: "x" }]),
+    );
+
+    const decision = decide(cancelled, {
+      kind: "instruct_reapplication",
+      actor: "student",
       instruction: {
         priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
         studentStatement: "Again please.",
         instructedAt: new Date("2026-09-01T10:00:00Z"),
-        recommendationShown: { advice: "six_months", rationale: "Consider waiting.", shownAt: new Date("2026-09-01T09:00:00Z") },
+        recommendationShown: { advice: "six_months", rationale: "Consider waiting.", shownAt: new Date("2026-09-01T10:00:01Z") },
         proceededDespiteRecommendation: true,
       },
     });
 
     expect(decision.accepted).toBe(false);
-    if (!decision.accepted) expect(decision.refusal.kind).toBe("invalid_intent");
+  });
+
+  it("REFUSES a re-application while the prior case is still live", () => {
+    // Two concurrent applications for one course and intake — the domain's own
+    // words: "a different bug with the same blast radius". `decide`'s terminal
+    // guard lets this intent through on a LIVE case, so this rule is the only
+    // thing standing between a live case and a second attempt ordinal.
+    const live = fold(buildLog([OPENED]));
+
+    const decision = decide(live, {
+      kind: "instruct_reapplication",
+      actor: "student",
+      instruction: {
+        priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
+        studentStatement: "Again please.",
+        instructedAt: new Date("2026-09-01T10:00:00Z"),
+        recommendationShown: { advice: "none", rationale: "None.", shownAt: new Date("2026-09-01T09:00:00Z") },
+        proceededDespiteRecommendation: false,
+      },
+    });
+
+    expect(decision.accepted).toBe(false);
+    if (!decision.accepted && decision.refusal.kind === "invalid_intent")
+      expect(decision.refusal.detail).toContain("has not concluded");
+    else if (!decision.accepted) expect.unreachable("refused as an invalid intent");
   });
 
   it("resets authorisation and attempt state when a new attempt begins", () => {

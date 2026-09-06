@@ -19,6 +19,105 @@ not shipped artefacts.
 
 ---
 
+## [0.55.0] — 2026-09-06
+
+**P37 — ADRs 0005–0021, read against the code (ADR-0072).**
+
+Five consecutive phases had each found an older ADR asserting a guarantee the code did not provide —
+ADR-0038 on verified email (P19), ADR-0045 §4 on crash detection (P17), ADR-0022 on storage (P31)
+and on the application context (P34), the `documentRef` layering (P35). At five that is a property of
+how the repository accumulated, not a run of coincidences, and the oldest records were the unaudited
+ones. Two questions per named artefact: *does it do what the ADR says?* and *does anything in
+production call it?* **The second question found almost everything.** Full sweep:
+[`docs/p37-adr-audit.md`](./docs/p37-adr-audit.md).
+
+### Fixed · one gate, not two
+
+`decideReapplication`'s doc comment has read *"The single gate. `machine.ts` calls this"* since Phase
+1. **`machine.ts` imported only the type.** Its `instruct_reapplication` case checked one of
+ADR-0006's five rules — that the ordinal increases by one — and accepted everything else, so the
+state machine would have emitted `ReapplicationInstructed` for an `automatic_retry`, a `specialist`
+or an `operator`; for a live case; for an empty student statement; and for a recommendation shown
+after the fact. Four rules enforced only by a function nothing called: ADR-0041's failure inside the
+domain, with the weaker implementation on the path.
+
+Not exploitable today — nothing in production can reach the intent — which is the reason to fix it
+now rather than later. `priorCaseConcluded` is **derived** from the case's own state rather than
+passed, and the intent no longer proposes an ordinal: the gate returns it, because a caller that
+proposed one would be a second opinion about the one number ADR-0006 says may only increase by one.
+
+### Fixed · a demonstration that could not fail
+
+`pnpm run walkthrough` — which the README calls *"the fastest way to see what has been built"* — was
+**refusing nine consecutive steps and exiting 0**.
+
+Two later decisions caused it, neither wrongly. ADR-0058 made a case open directly into
+`READY_TO_PREPARE`, turning the script's "Mark ready" into a self-transition and giving every later
+step the wrong state; and capturing an authorisation became the act that *moves* a case to
+`AUTHORISED`, so submitting straight from `AWAITING_STUDENT_AUTHORISATION` is correctly refused. The
+script also never retried the authorisation transition after the mandatory financial-evidence review
+it exists to demonstrate — so the gate was shown being requested and never shown being satisfied.
+
+**The defect is not the drift. The defect is that nothing could notice.** `apply` now takes
+`"accepted"` or `"refused"`, and that argument is not documentation: a step marked refused is one the
+script exists to show being refused. Disagreements are collected, printed with the domain's own
+refusal text, and the process exits 1. `scripts/walkthrough.test.ts` runs the real script in a real
+process inside `pnpm run verify`. The expectations stay in the walkthrough, next to the narrative
+they are about.
+
+The walkthrough now runs its whole story again, through the real state machine: 24 events, a
+document blocking progress, a financial-evidence review being satisfied, an authorisation, a
+specialist recovery, a re-authorisation *because* the recovery changed the application, one
+submission, a refused second, and a re-application that reaches attempt ordinal 2.
+
+### Corrected
+
+**ADR-0005** claimed validators and clients are *"generated from it, never hand-written"*. There is
+no generator in this repository and never was. ADR-0063's drift check against the real Express router
+is what holds spec and server together — and is stronger in the direction that matters, because a
+generated client matches the spec and says nothing about whether the server does.
+
+**ADR-0008** said the alerting transport was *"not built, and explicitly not claimed"*. Built in P36.
+A dated note, not an edit, so what was true when the decision was taken survives.
+
+### Recorded and NOT fixed, deliberately
+
+**`claimSubmissionKey` has no production caller.** ADR-0006 calls the database's unique key *"the
+second line of defence"* against duplicate submission; it is never armed. `POST /v1/conversations`
+lets a student open a second conversation, request the same target, and get a second case with the
+same `(studentId, institutionId, courseId, intake, attemptOrdinal: 1)`. Blast radius today is nil —
+nothing submits, no live portal — and at the first live run it is the failure the brief calls
+characteristic and catastrophic.
+
+**The re-application path does not exist.** No route, no `StudentDecision` member, no driver path.
+
+They are **one phase**, and it is the next one. Closing the first without the second would replace a
+silent duplicate with a silent dead end — a student whose case concluded, refused a second case with
+no way to ask for one — and four phases have gone into removing exactly that shape.
+
+### What held
+
+Thirteen of the seventeen records audited hold as written, and the ones checked hardest are the
+standing hard stops. **Minors:** the trigger comes from `suggestsMinority` on a *confirmed* date of
+birth (the code carries the record of getting this wrong once, with `determineAge`, which raised it
+on every case in the system); nothing concludes "adult" from absent, unparseable or merely stated
+evidence; no parental-consent requirement is hardcoded; `checkMinorGate` has no production caller and
+that is correct, because its one blocking condition is at the submission stage, which does not exist.
+**Financial evidence:** the gate is live on every mandatory-review derivation, and the walkthrough
+now demonstrates it being satisfied rather than merely requested.
+
+### Regressions
+
+Three, and one of them is the point. Removing `decideReapplication` from `machine.ts` fails 4.
+Reintroducing the **real** ADR-0058 drift with the check intact fails the walkthrough test, naming
+the step and quoting the domain's refusal. Reintroducing that same drift **with the check removed**
+passes — which is the pre-P37 state, and the proof that the check is the load-bearing part rather
+than the repair.
+
+2186 tests, 107 files, zero skipped, against real PostgreSQL and Redis.
+
+---
+
 ## [0.54.0] — 2026-09-06
 
 **P36 — a stopped run reaches a person (ADR-0071).**

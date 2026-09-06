@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P36 — a stopped run reaches a person (ADR-0071) |
+| **Phase** | P37 — ADRs 0005–0021 read against the code (ADR-0072) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,182 passing · 106 files · zero skipped** · typecheck, lint, boundary and contract checks green |
-| **Decisions** | 71 ADRs · 67 Accepted |
+| **Tests** | **2,186 passing · 107 files · zero skipped** · typecheck, lint, boundary and contract checks green |
+| **Decisions** | 72 ADRs · 68 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -57,9 +57,17 @@ the form — and **stops**.
 
 `pnpm run walkthrough` is the fastest way to see what has been built: it opens a
 real case, blocks it on a missing document, forces human review of financial
-evidence, captures an authorisation, voids it when the content changes, submits
-once, refuses to submit twice, and then refuses to re-apply without an explicit
-student instruction.
+evidence and then satisfies it, captures an authorisation, voids it when the
+content changes, pauses on a failure and recovers through a specialist, asks the
+student again because the recovery changed the application, submits once,
+refuses to submit twice, and refuses to re-apply without an explicit student
+instruction.
+
+Every one of those steps **declares whether it expects to succeed or be refused**,
+and the script exits non-zero if any of them disagrees — so a change to the state
+machine that quietly stops it demonstrating what this paragraph claims is a
+failing test (`scripts/walkthrough.test.ts`) rather than a paragraph that has
+become false. It had become false once: see [ADR-0072](./docs/decisions/0072-two-decisions-enforced-by-nothing.md).
 
 ---
 

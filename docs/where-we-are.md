@@ -1963,3 +1963,40 @@ deployment before this one — but the worker now says so out loud instead of le
 Of the three P35 named: this was the first. The second — `attach_document`'s own intent identity —
 still needs the transport to be reachable, so it waits on **B5**. The third, re-auditing ADRs
 0005–0021 against the code, is blocked on nothing.
+
+---
+
+# Where we are — 2026-09-06 (P37)
+
+**Date:** 2026-09-06 · **Phase:** P37 · **ADR:** [ADR-0072](./decisions/0072-two-decisions-enforced-by-nothing.md) · **Audit:** [`p37-adr-audit.md`](./p37-adr-audit.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**ADRs 0005–0021 were read against the code.** Thirteen of seventeen hold as written. The four that
+do not produced two fixes, two corrections, and two findings deliberately left open as one phase.
+
+The question that found almost everything was not *does it do what the ADR says* but **does anything
+in production call it**.
+
+## Fixed
+
+**`machine.ts` now calls `decideReapplication`.** It had imported only the type, enforced one of
+ADR-0006's five rules, and accepted everything else — so an automatic retry, a specialist or an
+operator could all have emitted a re-application, as could an instruction with no student statement.
+
+**The walkthrough asserts.** It had been refusing nine consecutive steps and exiting 0 since ADR-0058
+changed where a case opens. It now declares an expectation per step, exits non-zero on disagreement,
+and runs inside `pnpm run verify`.
+
+## Open, and next
+
+`claimSubmissionKey` has no production caller, so two conversations can open two cases with the same
+submission identity; and the re-application path does not exist. **These are one phase**, because
+closing the first alone turns a silent duplicate into a silent dead end.
+
+## Known limitations
+
+- Unchanged from P36 otherwise. B5, B1 and B2 still block every document path.
+- The `attach_document` intent identity still waits on the transport.

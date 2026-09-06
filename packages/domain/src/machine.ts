@@ -26,7 +26,8 @@ import type {
 } from "./events.js";
 import type { CaseId, ExternalRef } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
-import type { ReapplicationInstruction } from "./reapplication.js";
+import { decideReapplication } from "./reapplication.js";
+import type { ReapplicationActor, ReapplicationInstruction } from "./reapplication.js";
 import type { RecoveryEscalation, RecoveryResolution } from "./recovery.js";
 import type { CaseState } from "./state.js";
 import { isTerminal } from "./state.js";
@@ -320,7 +321,23 @@ export type CaseIntent =
   | { readonly kind: "capture_authorisation"; readonly contentHash: string }
   | { readonly kind: "void_authorisation"; readonly reason: "content_changed" | "expired" | "student_revoked" }
   | { readonly kind: "attempt_submission" }
-  | { readonly kind: "instruct_reapplication"; readonly instruction: ReapplicationInstruction; readonly newAttemptOrdinal: number }
+  | {
+      readonly kind: "instruct_reapplication";
+      readonly instruction: ReapplicationInstruction;
+      /**
+       * Who is asking. ADR-0006 rule 1 — only a student may ever succeed.
+       *
+       * Carried rather than assumed, because the whole point of the rule is
+       * that an automatic retry, a specialist and an operator are all refused,
+       * and a caller that did not have to say which it was would be a caller
+       * that could be any of them.
+       *
+       * The ordinal is deliberately NOT carried: `decideReapplication` returns
+       * it. A caller that proposed one would be a second opinion about the one
+       * thing ADR-0006 says may only increase by one.
+       */
+      readonly actor: ReapplicationActor;
+    }
   | { readonly kind: "escalate_for_recovery"; readonly escalation: RecoveryEscalation }
   | { readonly kind: "resolve_recovery"; readonly resolution: RecoveryResolution; readonly resumeTo: CaseState }
   /**
@@ -792,16 +809,34 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
     }
 
     case "instruct_reapplication": {
-      if (intent.newAttemptOrdinal !== applicationCase.submissionIdentity.attemptOrdinal + 1) {
+      // ── ONE gate, not two (ADR-0072) ─────────────────────────────────
+      //
+      // `decideReapplication`'s own doc comment has said "the single gate;
+      // `machine.ts` calls this" since Phase 1, and until P37 this file
+      // imported only the TYPE. What stood here checked one of the five rules
+      // — that the ordinal increases by one — and accepted everything else, so
+      // an `automatic_retry`, a `specialist` and an `operator` could all emit
+      // `ReapplicationInstructed`, as could an instruction with no student
+      // statement or a recommendation shown after the fact.
+      //
+      // Four of ADR-0006's rules were enforced only by a function nothing
+      // called. That is ADR-0041's failure inside the domain: two
+      // implementations of one decision, with the weaker one on the path.
+      //
+      // `priorCaseConcluded` is DERIVED rather than passed. The guard at the
+      // top of `decide` already refuses every other intent on a terminal case,
+      // so the case's own state is the honest answer and a caller cannot
+      // disagree with it.
+      const permitted = decideReapplication({
+        actor: intent.actor,
+        currentAttemptOrdinal: applicationCase.submissionIdentity.attemptOrdinal,
+        priorCaseConcluded: isTerminal(applicationCase.state),
+        instruction: intent.instruction,
+      });
+      if (!permitted.allowed) {
         return {
           accepted: false,
-          refusal: {
-            kind: "invalid_intent",
-            detail:
-              `An attempt ordinal may only increase by one. Current is ` +
-              `${applicationCase.submissionIdentity.attemptOrdinal}, requested ` +
-              `${intent.newAttemptOrdinal}.`,
-          },
+          refusal: { kind: "invalid_intent", detail: permitted.rejection.detail },
         };
       }
       return {
@@ -810,7 +845,7 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
           {
             type: "ReapplicationInstructed",
             instruction: intent.instruction,
-            newAttemptOrdinal: intent.newAttemptOrdinal,
+            newAttemptOrdinal: permitted.nextAttemptOrdinal,
           },
         ],
       };

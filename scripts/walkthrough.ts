@@ -31,7 +31,6 @@ import {
   unwrapProposed,
   courseId,
   decide,
-  decideReapplication,
   externalRef,
   fold,
   institutionId,
@@ -111,8 +110,38 @@ async function currentCase() {
   return fold(await store.read(CASE));
 }
 
-/** Applies an intent, printing the outcome. Returns whether it was accepted. */
-async function apply(label: string, intent: CaseIntent): Promise<boolean> {
+/**
+ * Every step whose outcome did not match what this script SAYS happens.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Why this exists (ADR-0072). Until P37 this script printed whatever the domain
+ * did and exited 0 either way — so when ADR-0058 changed where a case opens,
+ * and the authorisation step grew an `AUTHORISED` state, NINE consecutive steps
+ * began printing "REFUSED" and nothing noticed. The README still described a
+ * run that "captures an authorisation … submits once, refuses to submit twice",
+ * and the script had not done any of that for weeks.
+ *
+ * A demonstration with no expectations is a demonstration that cannot be wrong.
+ * So every step now declares what it expects, this collects the ones that
+ * disagreed, and `main` exits non-zero — which is what puts it in reach of
+ * `scripts/walkthrough.test.ts` and therefore of `pnpm run verify`.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const brokenPromises: string[] = [];
+
+/**
+ * Applies an intent, printing the outcome and CHECKING it against the story.
+ *
+ * `expected` is not documentation. A step marked `"refused"` is one this script
+ * exists to show being refused — the financial-evidence gate, the submission
+ * that collides with itself — and a step marked `"accepted"` is one the
+ * narrative depends on.
+ */
+async function apply(
+  label: string,
+  intent: CaseIntent,
+  expected: "accepted" | "refused",
+): Promise<boolean> {
   const before = await currentCase();
   const decision = decide(before, intent);
 
@@ -124,12 +153,18 @@ async function apply(label: string, intent: CaseIntent): Promise<boolean> {
         ? refusal.detail
         : `${refusal.refusal.kind}: ${refusal.refusal.detail}`;
     note(detail);
+    if (expected === "accepted") {
+      brokenPromises.push(`"${label}" was refused, and this script says it succeeds — ${detail}`);
+    }
     return false;
   }
 
   await commit(decision.events);
   const after = await currentCase();
   ok(`${label} ${DIM}→ ${after.state}${RESET}`);
+  if (expected === "refused") {
+    brokenPromises.push(`"${label}" was ACCEPTED, and this script says it is refused.`);
+  }
   return true;
 }
 
@@ -201,34 +236,33 @@ async function main(): Promise<void> {
     kind: "transition",
     to: "DOCUMENTS_PENDING",
     reason: "Passport and bank statement required.",
-  });
+  }, "accepted");
   await apply("Raise task: passport", {
     kind: "raise_task",
     taskId: "tsk_passport",
     taskKind: "provide_document",
     description: "Upload your passport photo page",
     blocksProgress: true,
-  });
+  }, "accepted");
 
   // ADR-0058: the target was resolved and validated before this case opened, so
   // there is no requirements hop and no eligibility hop to walk.
-  await apply("Ready to prepare", { kind: "transition", to: "READY_TO_PREPARE", reason: "Everything needed to prepare is present." });
-  await apply("Mark ready", { kind: "transition", to: "READY_TO_PREPARE", reason: "Blueprint available." });
+  await apply("Ready to prepare", { kind: "transition", to: "READY_TO_PREPARE", reason: "Everything needed to prepare is present." }, "accepted");
 
   blocked("Attempting to start filling while the passport is missing:");
-  await apply("Start preparing", { kind: "transition", to: "PREPARING", reason: "Fill the form." });
+  await apply("Start preparing", { kind: "transition", to: "PREPARING", reason: "Fill the form." }, "refused");
   note("The system stops and asks. It does not guess a passport number.");
 
   ok("Student uploads the passport");
-  await apply("Complete task: passport", { kind: "complete_task", taskId: "tsk_passport", outcome: "done" });
-  await apply("Start preparing", { kind: "transition", to: "PREPARING", reason: "All blocking tasks resolved." });
+  await apply("Complete task: passport", { kind: "complete_task", taskId: "tsk_passport", outcome: "done" }, "accepted");
+  await apply("Start preparing", { kind: "transition", to: "PREPARING", reason: "All blocking tasks resolved." }, "accepted");
 
   // ── 3 ───────────────────────────────────────────────────────────────────
   heading("3. Financial evidence forces human review — regardless of confidence");
   await apply("Bank statement detected → escalate", {
     kind: "request_human_review",
     triggers: ["financial_evidence"],
-  });
+  }, "accepted");
   note("This is layer two. No confidence score can bypass it (brief §2.5).");
 
   blocked("Attempting to ask the student to authorise, with the review outstanding:");
@@ -236,7 +270,7 @@ async function main(): Promise<void> {
     kind: "transition",
     to: "AWAITING_STUDENT_AUTHORISATION",
     reason: "Application complete.",
-  });
+  }, "refused");
 
   ok("Specialist Amara reviews the bank statement and approves");
   await apply("Record human review", {
@@ -247,11 +281,22 @@ async function main(): Promise<void> {
       triggers: ["financial_evidence"],
       outcome: "approved",
     },
-  });
+  }, "accepted");
+  note("The gate is satisfied by a REVIEW, not by the review being requested.");
+
+  // The retry the script used to be missing. Without it the case stayed in
+  // PREPARING and every step after this one was refused — for weeks, silently.
+  await apply("Render for student authorisation, now the review is done", {
+    kind: "transition",
+    to: "AWAITING_STUDENT_AUTHORISATION",
+    reason: "Application complete and the mandatory review is recorded.",
+  }, "accepted");
+
   // ── 4 ───────────────────────────────────────────────────────────────────
   heading("4. The student authorises exact content");
-  await apply("Student authorises", { kind: "capture_authorisation", contentHash: "sha256:content-v1" });
+  await apply("Student authorises", { kind: "capture_authorisation", contentHash: "sha256:content-v1" }, "accepted");
   note("A hash of exactly what they saw is now on the case.");
+  note("Capturing it MOVES the case: AWAITING_STUDENT_AUTHORISATION → AUTHORISED.");
 
   // ── 5 ───────────────────────────────────────────────────────────────────
   heading("5. Changing the content voids that authorisation");
@@ -286,7 +331,7 @@ async function main(): Promise<void> {
     raisedAt: new Date("2026-08-26T14:00:00Z"),
   };
 
-  await apply("AI hits an unfamiliar validation error", { kind: "escalate_for_recovery", escalation });
+  await apply("AI hits an unfamiliar validation error", { kind: "escalate_for_recovery", escalation }, "accepted");
   note(`Paused during ${checkpoint.action} against ${checkpoint.target} — NOT failed, NOT restarted.`);
   note(`${String(checkpoint.pagesCompleted.length)} pages already completed are preserved: ${checkpoint.pagesCompleted.join(", ")}`);
   note(`Specialist alerted at priority: ${escalation.priority}`);
@@ -302,7 +347,7 @@ async function main(): Promise<void> {
       resolvedAt: new Date("2026-08-26T14:25:00Z"),
       outcome: "resume",
     },
-  });
+  }, "accepted");
   note("Resumed. The specialist unblocked it; they did not take over — and they did not");
   note("hand back a cursor either: where the run picks up is derived from its intent");
   note("ledger (ADR-0047), so the resolution carries no position at all (ADR-0048 §5).");
@@ -343,27 +388,42 @@ async function main(): Promise<void> {
 
   // ── 6 ───────────────────────────────────────────────────────────────────
   heading("6. Submitting once — and refusing to submit twice");
-  await apply("Submit", { kind: "attempt_submission" });
+  // The recovery in 5b returned the case to AWAITING_STUDENT_AUTHORISATION, and
+  // that is the design rather than an inconvenience: a specialist changed
+  // something, so what the student approved is no longer necessarily what would
+  // be sent. They are asked again, against the content as it now stands.
+  ok("The recovery changed the application, so the student is asked once more");
+  await apply(
+    "Student re-authorises after the recovery",
+    { kind: "capture_authorisation", contentHash: "sha256:content-v3" },
+    "accepted",
+  );
+  await apply("Submit", { kind: "attempt_submission" }, "accepted");
 
   blocked("A retry fires (timeout, worker restart, double click):");
-  await apply("Submit again", { kind: "attempt_submission" });
+  await apply("Submit again", { kind: "attempt_submission" }, "refused");
   note("A retry cannot produce a different submission identity, so it collides.");
   note("The store's unique key constraint is the second line of defence.");
 
   await commit([{ type: "SubmissionSucceeded", receiptRef: "LEEDS-APP-88213" }]);
-  await apply("Mark submitted", { kind: "transition", to: "SUBMITTED", reason: "Receipt captured." });
+  await apply("Mark submitted", { kind: "transition", to: "SUBMITTED", reason: "Receipt captured." }, "accepted");
   await commit([{ type: "ConfirmationCaptured", confirmationRef: "LEEDS-CONF-88213" }]);
-  await apply("Confirm", { kind: "transition", to: "CONFIRMED", reason: "Confirmation captured." });
+  await apply("Confirm", { kind: "transition", to: "CONFIRMED", reason: "Confirmation captured." }, "accepted");
   note("CONFIRMED is terminal. MVP responsibility ends here (brief §2.8).");
 
   // ── 7 ───────────────────────────────────────────────────────────────────
   heading("7. Re-applying needs an explicit student instruction");
-  const concluded = await currentCase();
 
-  const autoAttempt = decideReapplication({
+  // ── Through `decide`, not around it (ADR-0072) ───────────────────────
+  //
+  // This block called `decideReapplication` directly until P37, which is part
+  // of why the gap it found stayed invisible: the walkthrough demonstrated the
+  // gate, and the state machine that emits the event did not consult it. Both
+  // attempts below now go through `apply`, so what this prints is what the
+  // system actually does.
+  await apply("An automatic retry tries to create a second application", {
+    kind: "instruct_reapplication",
     actor: "automatic_retry",
-    currentAttemptOrdinal: concluded.submissionIdentity.attemptOrdinal,
-    priorCaseConcluded: true,
     instruction: {
       priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date("2026-11-01T09:00:00Z") },
       studentStatement: "(generated by a retry)",
@@ -371,11 +431,7 @@ async function main(): Promise<void> {
       recommendationShown: { advice: "none", rationale: "-", shownAt: new Date("2026-11-01T09:00:00Z") },
       proceededDespiteRecommendation: false,
     },
-  });
-  if (!autoAttempt.allowed) {
-    refused("An automatic retry tries to create a second application");
-    note(autoAttempt.rejection.detail);
-  }
+  }, "refused");
 
   const advice = recommendWait({
     priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date("2026-11-01T09:00:00Z") },
@@ -385,10 +441,9 @@ async function main(): Promise<void> {
   blocked(`We advise: ${advice.advice}`);
   note(advice.rationale);
 
-  const studentInstructs = decideReapplication({
+  const instructed = await apply("Student instructs a new application", {
+    kind: "instruct_reapplication",
     actor: "student",
-    currentAttemptOrdinal: concluded.submissionIdentity.attemptOrdinal,
-    priorCaseConcluded: true,
     instruction: {
       priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date("2026-11-01T09:00:00Z") },
       studentStatement: "I understand, but I'd like to apply again for the same intake.",
@@ -396,9 +451,10 @@ async function main(): Promise<void> {
       recommendationShown: { ...advice, shownAt: new Date("2026-11-01T09:59:00Z") },
       proceededDespiteRecommendation: true,
     },
-  });
-  if (studentInstructs.allowed) {
-    ok(`Student instructs a new application → attempt ${studentInstructs.nextAttemptOrdinal}`);
+  }, "accepted");
+  if (instructed) {
+    const next = await currentCase();
+    ok(`Attempt ordinal is now ${String(next.submissionIdentity.attemptOrdinal)}`);
     note("Recorded with their own words, our advice, and the fact they overrode it.");
     note("The student's explicit instruction is ultimately the decision (ADR-0006).");
   }
@@ -412,8 +468,27 @@ async function main(): Promise<void> {
   console.log(`  Opened because  "${final.requestEvidence.studentStatement}"`);
   console.log(`  Reviews         ${String(final.completedReviews.length)} by ${final.completedReviews.map((r) => r.reviewerId).join(", ")}`);
   console.log(`  Tasks           ${String(final.tasks.length)} raised, ${String(final.tasks.filter((t) => t.status === "done").length)} completed`);
-  console.log(`  Submitted       ${final.submissionAttempted ? "yes, exactly once" : "no"}`);
+  console.log(`  Attempt         ${String(final.submissionIdentity.attemptOrdinal)}`);
+  console.log(
+    `  Submitted       ${
+      final.submissionAttempted
+        ? "yes, exactly once"
+        : "not on this attempt — the re-application in §7 reset it, by design"
+    }`,
+  );
   console.log();
+
+  // ── Did the walkthrough do what it says it does? ────────────────────────
+  if (brokenPromises.length > 0) {
+    console.error(`${RED}This walkthrough no longer demonstrates what it claims:${RESET}`);
+    for (const broken of brokenPromises) console.error(`  ✗ ${broken}`);
+    console.error(
+      `\n${brokenPromises.length === 1 ? "That step is" : "Those steps are"} either a defect in ` +
+        `the domain or a change the script has not caught up with. Either way somebody has to ` +
+        `look — which is the whole point of this check (ADR-0072).\n`,
+    );
+    process.exitCode = 1;
+  }
 }
 
 await main();

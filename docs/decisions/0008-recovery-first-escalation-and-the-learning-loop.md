@@ -111,6 +111,11 @@ question — *who reviews these, and how often* — has a known answer rather th
 checkpoint, the escalation and resolution events, the intervention record, its lifecycle, and the
 promotion gate.
 
+> **Updated 2026-09-06 (P37).** The alerting transport below was built in P36
+> ([ADR-0071](./0071-a-stopped-run-reaches-a-person.md)): the Background Worker sends a notice to a
+> configured destination once per open intervention. The specialist console and the published
+> knowledge loop are still unbuilt, and the sentence below is otherwise unchanged.
+
 **Not built, and explicitly not claimed:** the alerting transport, the specialist console,
 similarity matching against past interventions, and the retrieval that lets a future attempt use
 published knowledge. Those are Phases 3–7. What exists now is the shape they must fit, so they

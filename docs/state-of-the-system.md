@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.54.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
+**Version:** 0.55.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -15,8 +15,8 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,182 tests, 106 files, zero skipped**, against real PostgreSQL and Redis.
-Seventy-one architecture decision records, sixty-seven accepted. **£0 / $0 of the ~$1,000 AWS credit is spent —
+processes. **2,186 tests, 107 files, zero skipped**, against real PostgreSQL and Redis.
+Seventy-two architecture decision records, sixty-eight accepted. **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -82,6 +82,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P34** | An authorisation is spendable only in the application it names (ADR-0069) | `DisclosureSubject.caseId` had recorded the application since Phase 1 and nothing ever compared it |
 | **P35** | `BlueprintPage.requiredDocuments[].documentRef` → `fieldRef` (ADR-0070) | Two layers shared one name, and the repository contained both readings of it. Free today; costs every catalogue approval once one exists |
 | **P36** | A stopped run reaches a person, and the notice carries nothing about the student (ADR-0071) | The whole recovery design was built and waited on somebody running a CLI. The student was told; the specialist was not |
+| **P37** | ADRs 0005–0021 read against the code (ADR-0072) | Five phases running had each caught an older ADR asserting a guarantee the code did not provide. Thirteen of seventeen hold; the rest produced two fixes, two corrections and two open findings |
 
 ---
 
@@ -168,10 +169,10 @@ amended, and the amendment is always a later ADR that says so.
 | 0002 | AAS is the system of record for the confirmed profile | Proposed |
 | 0003 | Versioned migrations, not `drizzle-kit push --force` | Proposed |
 | 0004 | Branded types make model output unable to reach a form field | Proposed |
-| 0005 | Contract-first OpenAPI at the AskiMate↔AAS boundary | Accepted |
-| 0006 | Re-application requires an explicit student instruction | Accepted |
+| 0005 | Contract-first OpenAPI at the AskiMate↔AAS boundary | Accepted · generation claim corrected by 0072 |
+| 0006 | Re-application requires an explicit student instruction | Accepted · §1–§5 enforced in the machine by 0072; **the path is still unreachable** |
 | 0007 | Agent-led conversational intake — the student never fills in a form | Accepted |
-| 0008 | Recovery-first escalation, and the learning loop | Accepted |
+| 0008 | Recovery-first escalation, and the learning loop | Accepted · its alerting transport was built in 0071 |
 | 0009 | Requirements provenance and multi-source verification | Accepted |
 | 0010 | Policy-driven document retention, with no default | Accepted |
 | 0011 | Identity check, minor detection, and the minor workflow | Accepted · gate design superseded by 0013 |
@@ -235,6 +236,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0069 | An authorisation is spendable only in the application it names | Accepted |
 | 0070 | The portal's file field is called `fieldRef` | Accepted |
 | 0071 | A stopped run reaches a person, and the notice carries nothing about the student | Accepted |
+| 0072 | A decision is enforced where it is made, and a demonstration that cannot fail is not evidence | Accepted · amends 0005 and 0008 |
 
 **On the four Proposed records (0001–0004):** they are the pre-implementation integration
 proposals. 0003 and 0004 are in force *in practice* — versioned migrations and branded types are
@@ -332,16 +334,17 @@ open rather than quietly answered.
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are Proposed pending this |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
-| **13** | **Re-audit ADRs 0005–0021 against the code** | Me | Nothing — and it is the first unblocked item on the list |
+| **13** | **Arm the submission key, and make re-application reachable** | Me | Two cases can share one submission identity today, and a concluded case cannot be re-applied for. One phase, and the next one |
 
-**Not blocked and available to work on now:** the ADR re-audit (13), the ADR housekeeping (12), and
-hardening anywhere the tests are thinner than the claims.
+**Not blocked and available to work on now:** the submission key and re-application (13 — the next
+phase), and the ADR housekeeping (12). The ADR re-audit that used to sit here was done in P37; see
+[`p37-adr-audit.md`](./p37-adr-audit.md).
 
 ---
 
 ## 7 · Test and verification state
 
-**2,182 tests · 106 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,186 tests · 107 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -370,6 +373,11 @@ second account; the intent ledger refusing a duplicate consequential action; app
 content; the five transmission refusals; both storage gates; the three attachment-identity
 components; and that a specialist notice carries no student identifier and no free text from the
 failure.
+
+**A guard on the demo (P37):** `scripts/walkthrough.test.ts` runs `pnpm run walkthrough` in a real
+process and fails on a non-zero exit. The walkthrough declares an expectation per step, so a change
+to the state machine that quietly stops it demonstrating what it claims is now a failing test rather
+than nine lines of "REFUSED" nobody reads.
 
 **A guard on the guard:** `scripts/ci-guard.test.ts` starts each database-backed suite *without* a
 database and asserts it **fails** rather than skipping. A silent skip is how a security proof
@@ -444,7 +452,7 @@ on this list that could produce a visible mistake in a real admissions system. I
 because the action is produced by nothing today, so it would be a control over unreachable code —
 but it should be the first thing built the moment B5 is answered.
 
-### 3 · Close the four Proposed ADRs, and re-audit the oldest Accepted ones
+### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · close the four Proposed ones
 
 Four records (0001–0004) have sat Proposed since Phase 0. Two of them — versioned migrations and
 branded types — are among the most load-bearing decisions in the system and are fully implemented;
