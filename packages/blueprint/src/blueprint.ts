@@ -159,10 +159,18 @@ export interface BlueprintSection {
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * ADR-0066. This is an OBSERVATION, not an instruction, and it decides
- * nothing. `pageFrom` builds one from every `<input type="file">` it finds and
- * sets `documentRef` to the field's own `fieldRef` — a PORTAL identifier, not
- * a domain document type. `required` is whether the portal's own markup said
- * so.
+ * nothing. `pageFrom` builds one from every `<input type="file">` it finds.
+ * `required` is whether the portal's own markup said so.
+ *
+ * ── Why the key is `fieldRef` (ADR-0070) ──────────────────────────────────
+ *
+ * It was `documentRef` until P35, which is the same name the reviewed mapping
+ * uses for a DOMAIN document key — and the two are different layers. This one
+ * has only ever held `field.fieldRef`, the name attribute of the file input,
+ * so it is a portal identifier and is now named like one. The repository
+ * contained BOTH readings of the old name: discovery wrote the portal's field
+ * name into it while the fixture wrote "passport" where the input is
+ * "passport_upload", and nothing could tell you which was intended.
  *
  * Nothing in the planning path reads it. What turns a file field into an
  * upload is a reviewed MAPPING whose source is `{kind:"document"}` (ADR-0017),
@@ -176,7 +184,13 @@ export interface BlueprintSection {
  * ═══════════════════════════════════════════════════════════════════════════
  */
 export interface RequiredDocument {
-  readonly documentRef: string;
+  /**
+   * The portal's own name for the file input. Never a domain document type.
+   *
+   * Identical in kind to `BlueprintField.fieldRef`, and equal to it for the
+   * field this observation came from — `pageFrom` copies it across.
+   */
+  readonly fieldRef: string;
   readonly label: string;
   /** Accepted file types, as the portal states them. */
   readonly acceptedFormats: readonly string[];

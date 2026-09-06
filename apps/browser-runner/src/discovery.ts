@@ -120,7 +120,7 @@ export function pageFrom(observation: PageObservation, pageRef: string): Bluepri
     section.fields
       .filter((field) => field.inputType === "file")
       .map((field) => ({
-        documentRef: field.fieldRef,
+        fieldRef: field.fieldRef,
         label: field.label,
         acceptedFormats:
           field.validations

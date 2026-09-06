@@ -147,7 +147,7 @@ async function main(): Promise<void> {
       }
     }
     for (const document of page.requiredDocuments) {
-      console.log(`      ${DIM}[document] ${document.documentRef} — ${document.acceptedFormats.join(", ")}${RESET}`);
+      console.log(`      ${DIM}[document] ${document.fieldRef} — ${document.acceptedFormats.join(", ")}${RESET}`);
     }
   }
 

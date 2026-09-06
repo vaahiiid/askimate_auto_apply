@@ -17,14 +17,22 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | 5 — Fill · validate · preview · authorise |
-| **Status** | ✅ Full chain proven end to end against a replay · **live portal still needs network access** — see [access required](./docs/phase-3-access-required.md) |
-| **Tests** | 669 passing · typecheck, lint and boundary checks green |
+| **Phase** | P35 — the portal's file field is called `fieldRef` (ADR-0070) |
+| **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
+| **Tests** | **2,155 passing · 105 files · zero skipped** · typecheck, lint, boundary and contract checks green |
+| **Decisions** | 70 ADRs · 66 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
-**[Decision point](./docs/decision-point-2026-08-26.md)** — what is done, what is blocked, what needs you.
-**[Where we are](./docs/where-we-are.md)** — what is built, what is proven, what needs a decision.
-**[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the six remaining blockers.
+**▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
+is live, what is stubbed, what is declared but unreachable, what is not built, every ADR and its
+status, every open blocker in priority order, and the test position. **Start here.**
+
+Two decisions are waiting on a person and block all document handling:
+**[B5 — hold or pass through](./docs/decision-sheet-b5-hold-or-pass-through.md)** ·
+**[B1 — the twelve retention determinations](./docs/decision-sheet-b1-retention-periods.md)**
+
+**[Where we are](./docs/where-we-are.md)** — the per-phase journal.
+**[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.
 
 Phase 0 is complete and approved — see [`docs/phase-0/README.md`](./docs/phase-0/README.md)
 and the [decision records](./docs/decisions/).

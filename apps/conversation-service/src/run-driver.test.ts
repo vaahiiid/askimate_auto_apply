@@ -7769,8 +7769,9 @@ describeIfDatabase("which declaration actually decides", () => {
   // preview". It does not. Measured here, both directions:
   //
   //   BlueprintPage.requiredDocuments   discovery's record of the file inputs
-  //                                     it saw (`documentRef` is the portal's
-  //                                     own fieldRef). NOTHING plans from it.
+  //                                     it saw (keyed by `fieldRef`, the
+  //                                     portal's own name for the box —
+  //                                     ADR-0070). NOTHING plans from it.
   //   MappingSource {kind:"document"}   reviewed, two-person, pinned to the
   //                                     blueprint version (ADR-0017). This is
   //                                     what becomes an upload.
@@ -7858,9 +7859,9 @@ describeIfDatabase("which declaration actually decides", () => {
     expect(
       NO_DOCUMENT_MAPPING.blueprint.pages
         .flatMap((page) => page.requiredDocuments)
-        .map((document) => document.documentRef),
+        .map((document) => document.fieldRef),
       "the blueprint page really does declare one, and says it is required",
-    ).toEqual(["passport"]);
+    ).toEqual(["passport_upload"]);
     expect(
       NO_DOCUMENT_MAPPING.blueprint.pages
         .flatMap((page) => page.requiredDocuments)

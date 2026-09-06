@@ -826,9 +826,11 @@ function main(): void {
   // them may decide what happens:
   //
   //   BlueprintPage.requiredDocuments   discovery's record of the file inputs
-  //                                     it SAW. `documentRef` is the portal's
-  //                                     own fieldRef. Nothing plans from it —
-  //                                     measured, not assumed (ADR-0066 §2).
+  //                                     it SAW, keyed by `fieldRef` — the
+  //                                     portal's own name for the box, never a
+  //                                     domain document type (ADR-0070).
+  //                                     Nothing plans from it — measured, not
+  //                                     assumed (ADR-0066 §2).
   //   MappingSource {kind:"document"}   the reviewed, two-person, blueprint-
   //                                     pinned decision (ADR-0017). THIS is
   //                                     what `planFill` turns into an upload.

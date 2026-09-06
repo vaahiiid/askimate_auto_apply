@@ -173,8 +173,10 @@ describe("discovery against a fixture portal", () => {
       expect(all.find((f) => f.fieldRef === "personal_statement")?.inputType).toBe("textarea");
       expect(all.find((f) => f.fieldRef === "nationality")?.options).toHaveLength(4);
 
-      // File inputs become required documents.
-      expect(blueprint.pages[0]?.requiredDocuments.map((d) => d.documentRef)).toEqual([
+      // File inputs become required documents, keyed by the PORTAL'S OWN
+      // field name — these two strings are the `name` attributes of the two
+      // `<input type="file">` elements in the fixture, not document types.
+      expect(blueprint.pages[0]?.requiredDocuments.map((d) => d.fieldRef)).toEqual([
         "transcript",
         "passport",
       ]);
@@ -215,18 +217,20 @@ describe("observation to blueprint conversion", () => {
   });
 
   it("names a required document by the PORTAL'S FIELD, not by a document type", () => {
-    // ── What `BlueprintPage.requiredDocuments[].documentRef` is ──────────
+    // ── What `BlueprintPage.requiredDocuments[].fieldRef` is ─────────────
     //
-    // A portal identifier. It is `field.fieldRef` — the name attribute of the
-    // `<input type="file">` — and it is a coincidence of wording that a portal
-    // often calls that field something a person would also call a document.
+    // A portal identifier: `field.fieldRef`, the name attribute of the
+    // `<input type="file">`. It is a coincidence of wording that a portal often
+    // calls that box something a person would also call a document, and that
+    // coincidence is what made the old name (`documentRef`, ADR-0070) readable
+    // as the other thing.
     //
-    // The mapping set's `MappingSource { kind: "document" }.documentRef` is the
-    // other one, and it is a DOMAIN key: what AskiMate calls the document,
-    // chosen by a reviewer. The two namespaces never meet — a boundary rule
-    // keeps `requiredDocuments` out of the whole planning path (ADR-0066) — and
-    // this test is what says which of the two this one is, at the only place in
-    // the repository that produces it.
+    // The other thing is the mapping set's `MappingSource { kind: "document" }
+    // .documentRef` — a DOMAIN key, what AskiMate calls the document, chosen by
+    // a reviewer. The two namespaces never meet: a boundary rule keeps
+    // `requiredDocuments` out of the whole planning path (ADR-0066). This test
+    // is what holds the meaning at the only place that produces it, so the
+    // names cannot drift back together.
     const observation: PageObservation = {
       url: "https://apply.example.test/documents",
       title: "Documents",
@@ -255,11 +259,11 @@ describe("observation to blueprint conversion", () => {
     const page = pageFrom(observation, "page-documents");
     const field = page.sections[0]?.fields[0];
 
-    expect(page.requiredDocuments[0]?.documentRef).toBe("supporting_doc_1");
-    expect(page.requiredDocuments[0]?.documentRef).toBe(field?.fieldRef);
+    expect(page.requiredDocuments[0]?.fieldRef).toBe("supporting_doc_1");
+    expect(page.requiredDocuments[0]?.fieldRef).toBe(field?.fieldRef);
     // And emphatically not the human-readable label, which is the string that
     // looks like a document type and is the one a reader would expect.
-    expect(page.requiredDocuments[0]?.documentRef).not.toBe(field?.label);
+    expect(page.requiredDocuments[0]?.fieldRef).not.toBe(field?.label);
   });
 
   it("refuses to execute a blueprint that observed nothing", () => {

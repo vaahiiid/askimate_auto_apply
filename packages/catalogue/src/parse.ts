@@ -335,7 +335,7 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
   const maxSizeBytes = optionalCount(source, "maxSizeBytes", path);
   const requiredWhen = optionalWith(source, "requiredWhen", path, readCondition);
   return {
-    documentRef: text(source, "documentRef", path),
+    fieldRef: text(source, "fieldRef", path),
     label: text(source, "label", path),
     acceptedFormats: textList(source, "acceptedFormats", path),
     ...(maxSizeBytes === undefined ? {} : { maxSizeBytes }),

@@ -19,6 +19,62 @@ not shipped artefacts.
 
 ---
 
+## [0.53.0] — 2026-09-06
+
+**P35 — the portal's file field is called `fieldRef` (ADR-0070), and the standing account of the
+system now exists.**
+
+### Renamed
+
+`BlueprintPage.requiredDocuments[].documentRef` → `fieldRef`. `MappingSource { kind: "document" }
+.documentRef` is unchanged.
+
+One name spanned two layers, and P34 measured that **the repository contained both readings of it**:
+`pageFrom` wrote the portal's field name, and the hand-written fixture wrote `"passport"` where the
+file input on that page is `"passport_upload"`. A comment says what a field means; the name said
+something else, and the fixture had already followed the name.
+
+Done now because it is free now. `toCanonical` walks the parsed object, so **field names are inside
+the catalogue content hash** (ADR-0057) — renaming a blueprint key after the first approval
+invalidates every approval, and each one is a two-person review. No approval exists yet. The parser
+is one line, and the readers are two: `scripts/inspect-discovery.ts` and `allRequiredDocuments`,
+which `git log -S` showed in P30 has never had another caller.
+
+**The fixture's value was wrong, and the rename made it say so.** Under `documentRef`, `"passport"`
+was ambiguous; under `fieldRef` it is false, because no field on that page is called `passport`. It
+is now `"passport_upload"` — what discovery would have written. One assertion moved with it: the P30
+measurement in `run-driver.test.ts` now expects `["passport_upload"]`. The measurement is unchanged,
+and the page declaration is still inert in both directions.
+
+No behaviour changed. `check-boundaries` still bars `requiredDocuments` from the whole planning path.
+
+### Added
+
+**[`docs/state-of-the-system.md`](./docs/state-of-the-system.md)** — the standing account, rewritten
+each phase rather than appended to. Every phase from Phase 0 to P35; the architecture as actually
+built; all seventy ADRs with their status and amendment chain; a precise split of live / stubbed /
+declared-but-unreachable / not built; eleven deviations from the original brief with reasons; twelve
+open blockers in priority order; the test position including the surviving mutation; the cost
+position; and the three things worth fixing first.
+
+**Two decision sheets**, each answerable in one sitting, neither implemented:
+
+- **[B5 — hold or pass through](./docs/decision-sheet-b5-hold-or-pass-through.md)**: the two options
+  costed side by side, what each forecloses, what each means for B4, and a recommendation (**hold**,
+  with the shortest period B1 permits) together with the counter-argument that would overturn it.
+- **[B1 — the twelve retention determinations](./docs/decision-sheet-b1-retention-periods.md)**: all
+  twelve as a table — data category, why it is held, what bounds it, a recommended period, and a
+  confidence rating. Five rows are flagged **Low** and routed to the DPIA owner: the two carrying a
+  third party's data, and the three children's rows, where minimisation and Article 7(1)
+  demonstrability pull in opposite directions. The Children's Code and DPIA interactions are called
+  out explicitly, as is the DPA 2018 Sch. 1 appropriate-policy-document question.
+
+`README.md`'s status block is corrected — it still said Phase 5 and 669 tests.
+
+2155 tests, 105 files, zero skipped, against real PostgreSQL and Redis.
+
+---
+
 ## [0.52.0] — 2026-09-06
 
 **P34 — an authorisation is spendable only in the application it names (ADR-0069).**

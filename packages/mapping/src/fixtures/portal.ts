@@ -157,7 +157,15 @@ export const FIXTURE_BLUEPRINT: ApplicationBlueprint = {
       ],
       requiredDocuments: [
         {
-          documentRef: "passport",
+          // ── The value corrected with the rename (ADR-0070) ────────────
+          //
+          // This said "passport" — a domain document type — while the file
+          // input on this page is `passport_upload`. Under the old name that
+          // was merely ambiguous; under `fieldRef` it would be false, because
+          // no field on this page is called "passport". Discovery would have
+          // written `passport_upload` here, and now the fixture matches what
+          // the only producer of this list actually produces.
+          fieldRef: "passport_upload",
           label: "Passport",
           acceptedFormats: [".pdf", ".jpg", ".png"],
           required: true,

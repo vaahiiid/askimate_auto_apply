@@ -1877,3 +1877,35 @@ Unchanged by this phase, and now shorter by one item: **give attachment its own 
 which needs the transport to be reachable, and **answer B5** — does a document persist in AAS until
 the application is complete, or exist only for one execution attempt? Everything else about document
 transport still waits on that answer.
+
+---
+
+# Where we are — 2026-09-06 (P35)
+
+**Date:** 2026-09-06 · **Phase:** P35 · **ADR:** [ADR-0070](./decisions/0070-the-portals-file-field-is-called-fieldref.md)
+
+> **From here on, read [`state-of-the-system.md`](./state-of-the-system.md) first.** This file is the
+> per-phase journal and it accretes; that one is the standing account and is rewritten to stay true.
+
+## The headline
+
+`BlueprintPage.requiredDocuments[].documentRef` is now `fieldRef`. One name spanned two layers, P34
+measured that the repository contained *both* readings of it, and this closes it while it is free —
+field names are inside the catalogue content hash, so a rename costs every approval once one exists,
+and none does.
+
+The fixture's value went with it: `"passport"` → `"passport_upload"`, because under the new name the
+old value would be false rather than merely ambiguous. No field on that page is called `passport`.
+
+## Also delivered
+
+The standing account (`state-of-the-system.md`), and two decision sheets — **B5** (hold or
+pass-through, with a recommendation and the counter-argument) and **B1** (the twelve retention
+determinations as an answerable table, with the Children's Code and DPIA interactions flagged).
+Neither is implemented; both are waiting on a founder decision.
+
+## Known limitations
+
+Unchanged from P34, less one: the `documentRef` ambiguity is closed. B5, B1, B2, the transport, the
+`attach_document` intent identity and the four blockers on a real live run all still stand, and are
+listed in priority order in the standing account.
