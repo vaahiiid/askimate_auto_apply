@@ -51,6 +51,7 @@ import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/a
 import { mayConcludeCase } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
+import { DuplicateSubmissionError } from "@askimate/aas-case-store";
 import type {
   InterventionStore,
   StoredIntervention,
@@ -69,6 +70,9 @@ import {
   interventionId as makeInterventionId,
   priorityFor,
   fold,
+  isTerminal,
+  recommendWait,
+  submissionKey,
   isFieldUnavailable,
   decide,
   suggestsMinority,
@@ -94,6 +98,8 @@ import type {
   ReusabilityAssessment,
   RunId,
   StudentId,
+  SubmissionIdentity,
+  WaitRecommendation,
   WorkflowPhase,
   WorkflowRunRecord,
   WorkflowStatus,
@@ -167,6 +173,7 @@ import type {
   WorkReport,
 } from "@askimate/aas-contracts";
 import { WORK_APPROACHES } from "@askimate/aas-contracts";
+import type { PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
@@ -309,7 +316,62 @@ export type RunRefusal =
   | { readonly kind: "unknown_blueprint" }
   | { readonly kind: "unusable_mapping_set"; readonly detail: string }
   | { readonly kind: "unknown_conversation" }
-  | { readonly kind: "case_not_bindable" };
+  | { readonly kind: "case_not_bindable" }
+  /**
+   * This student already has an application for this institution, course and
+   * intake (ADR-0006).
+   *
+   * ── The hole this closes, and how long it was open ────────────────────
+   *
+   * `claimSubmissionKey` has existed since Phase 1, ADR-0006 calls the
+   * database's unique key "the second line of defence", and until P38 NOTHING
+   * IN PRODUCTION CALLED IT. Its only caller in the repository was the
+   * walkthrough. A student could open a second conversation, request the same
+   * target, and receive a second case with the same
+   * (studentId, institutionId, courseId, intake, attemptOrdinal: 1) — the
+   * duplicate the brief names as "the characteristic catastrophic failure of
+   * this class of system", with nothing between it and a live portal but the
+   * fact that nothing submits yet.
+   *
+   * `existingCaseId` is always an application of the CALLER'S OWN: the student
+   * is part of the submission identity, so a collision cannot be with anybody
+   * else's case. That is a property of `submissionKey` rather than a check made
+   * here.
+   */
+  | {
+      readonly kind: "already_applying";
+      readonly existingCaseId: string;
+      /** True when it has finished, so `reapply` is available to them. */
+      readonly concluded: boolean;
+    }
+  /**
+   * A re-application was instructed where there is no prior application.
+   *
+   * The mirror of `already_applying`: that refusal means an identity is held,
+   * this one means it is not. A client reaching this has offered the student a
+   * second attempt at something they never applied to.
+   */
+  | { readonly kind: "no_prior_application" }
+  /**
+   * The wait recommendation was never shown in this conversation.
+   *
+   * ADR-0006 rule 4: advisory in effect, MANDATORY in presentation — the system
+   * must show it before accepting the instruction, and must record that it did.
+   * The record is a `reapplication_advised` event, and this is what its absence
+   * means. It is not a client error to route around; it is the missing half of
+   * the exchange.
+   */
+  | { readonly kind: "recommendation_not_shown" }
+  /**
+   * The domain refused the instruction. Carries the gate's own words.
+   *
+   * `decideReapplication`'s four rules — an automatic origin, a prior case that
+   * has not concluded, no statement in the student's own words, a
+   * recommendation shown after the fact — plus "this case already has a
+   * successor". They are one refusal here because the caller's remedy is the
+   * same for all of them: read what the domain said.
+   */
+  | { readonly kind: "reapplication_refused"; readonly detail: string };
 
 /**
  * Where a run stands, as this service reports it.
@@ -372,6 +434,16 @@ export type RunOutcome =
  * phase, and the drift test compares the two lists.
  */
 const BROWSER_PHASES: readonly string[] = ["creating_account", "filling"];
+
+/**
+ * How far up the attempt chain `#latestAttempt` will walk.
+ *
+ * A bound, not a policy: nothing refuses a twentieth attempt, and if a student
+ * ever reaches one the walk stops rather than the request hanging. An unbounded
+ * loop over a table that grows by one row per case is a way to turn a
+ * re-application into a request that never returns.
+ */
+const MAX_ATTEMPTS = 20;
 
 /**
  * Whether a secret lifecycle is finished with.
@@ -885,6 +957,43 @@ export class RunDriver {
     const entry = await this.#options.catalogue.find(input.blueprintId);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
 
+    return await this.#openAndStart({
+      conversationId: input.conversationId,
+      blueprintId: input.blueprintId,
+      studentStatement: input.studentStatement,
+      entry,
+      attempt: { ordinal: 1 },
+    });
+  }
+
+  /**
+   * Binds a conversation to a case, opens the case, and starts its run.
+   *
+   * Shared by `start` and `reapply`, which differ in exactly one thing: which
+   * ATTEMPT the case is. Everything else — the critical section, the submission
+   * key, the resume-rather-than-restart rule, the first event — is identical,
+   * and two copies of it would be two chances for a second attempt to skip a
+   * guard a first attempt keeps.
+   */
+  async #openAndStart(input: {
+    readonly conversationId: string;
+    readonly blueprintId: string;
+    readonly studentStatement: string;
+    readonly entry: CatalogueEntry;
+    /**
+     * Which attempt this case is, and what it follows.
+     *
+     * `openCase` refuses an ordinal above 1 without a prior case and a prior
+     * case at ordinal 1, so the two travel together or not at all. Neither is
+     * ever taken from a caller of the SERVICE: `start` passes 1, and `reapply`
+     * passes what `decideReapplication` returned.
+     */
+    readonly attempt: {
+      readonly ordinal: number;
+      readonly priorCaseId?: CaseId;
+    };
+  }): Promise<RunOutcome> {
+    const entry = input.entry;
     const now = this.#options.now();
     const proposed =
       this.#options.newCaseId?.(input.conversationId) ??
@@ -926,18 +1035,51 @@ export class RunDriver {
           // assumption.
           const sequence = await this.#options.stores.cases.currentSequence(caseId);
           if (sequence === 0) {
+            const identity: SubmissionIdentity = {
+              studentId: studentRef,
+              institutionId: makeInstitutionId(entry.institutionRef),
+              courseId: makeCourseId(entry.courseRef),
+              intake: makeIntake(entry.intakeRef),
+              attemptOrdinal: input.attempt.ordinal,
+            };
+
+            // ── The second line of defence, finally armed (P38) ──────────
+            //
+            // BEFORE the log, not after. The claim names this case, and
+            // re-claiming for the same case is a no-op — so a retry of a start
+            // that crashed between the two arrives here, sees its own claim,
+            // and goes on to write the log it did not write last time. The
+            // other order leaves a case log with no key, which is a duplicate
+            // waiting to be created by the next caller.
+            //
+            // ADR-0006 has called this "the second line of defence" since
+            // Phase 1. Until now there was no first line: nothing in production
+            // called `claimSubmissionKey` at all.
+            try {
+              await this.#options.stores.cases.claimSubmissionKey(
+                submissionKey(identity),
+                caseId,
+              );
+            } catch (error: unknown) {
+              if (error instanceof DuplicateSubmissionError) {
+                return {
+                  ok: false,
+                  refusal: {
+                    kind: "already_applying",
+                    existingCaseId: error.existingCaseId,
+                    concluded: await this.#hasConcluded(error.existingCaseId),
+                  },
+                };
+              }
+              throw error;
+            }
+
             const events = stamp({
               caseId,
               fromSequence: 0,
               payloads: [
                 openCase({
-                  submissionIdentity: {
-                    studentId: studentRef,
-                    institutionId: makeInstitutionId(entry.institutionRef),
-                    courseId: makeCourseId(entry.courseRef),
-                    intake: makeIntake(entry.intakeRef),
-                    attemptOrdinal: 1,
-                  },
+                  submissionIdentity: identity,
                   requestEvidence: {
                     requestedAt: now,
                     // The surface this request actually arrived on (ADR-0058).
@@ -945,6 +1087,9 @@ export class RunDriver {
                     conversationRef: externalRef(input.conversationId),
                     studentStatement: input.studentStatement,
                   },
+                  ...(input.attempt.priorCaseId !== undefined
+                    ? { priorCaseId: input.attempt.priorCaseId }
+                    : {}),
                 }),
               ],
               actor: askimateActor(externalRef(input.conversationId)),
@@ -993,6 +1138,281 @@ export class RunDriver {
       studentRef,
       concerns: [],
       resumed,
+    });
+  }
+
+  /** True when a case exists and has reached a terminal state. */
+  async #hasConcluded(existingCaseId: string): Promise<boolean> {
+    const events = await this.#options.stores.cases.read(makeCaseId(existingCaseId));
+    if (events.length === 0) return false;
+    return isTerminal(fold(events).state);
+  }
+
+  /**
+   * The application that holds this conversation's target, and which attempt
+   * a new case would be.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Walks the chain from ordinal 1 upward, asking the submission-key table who
+   * holds each. The LAST holder is the latest attempt, and the next ordinal is
+   * one above it.
+   *
+   * That is what "derived from the prior chain, never proposed by a caller"
+   * means in practice. The alternative — reading `attemptOrdinal` off the case
+   * a caller named — would trust a number to describe the world; this asks the
+   * one table that is authoritative about which identities exist, and it is
+   * authoritative because a claim on it is what creates a case at all.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Bounded, because an unbounded loop over a table anybody can add rows to is
+   * a way to hang a request. Twenty attempts at one course and intake is not a
+   * re-application pattern; it is something else, and it should stop.
+   */
+  async #latestAttempt(input: {
+    readonly studentRef: StudentId;
+    readonly entry: CatalogueEntry;
+  }): Promise<{ readonly caseId: CaseId; readonly ordinal: number } | null> {
+    let found: { caseId: CaseId; ordinal: number } | null = null;
+    for (let ordinal = 1; ordinal <= MAX_ATTEMPTS; ordinal += 1) {
+      const holder = await this.#options.stores.cases.findBySubmissionKey(
+        submissionKey({
+          studentId: input.studentRef,
+          institutionId: makeInstitutionId(input.entry.institutionRef),
+          courseId: makeCourseId(input.entry.courseRef),
+          intake: makeIntake(input.entry.intakeRef),
+          attemptOrdinal: ordinal,
+        }),
+      );
+      if (holder === null) return found;
+      found = { caseId: holder, ordinal };
+    }
+    return found;
+  }
+
+  /**
+   * Shows the wait recommendation, and records that it was shown.
+   *
+   * ADR-0006 rule 4 is advisory in EFFECT and mandatory in PRESENTATION, so
+   * this is half of the re-application exchange rather than a convenience: it
+   * writes `reapplication_advised` to the conversation log, and `reapply`
+   * refuses an instruction that has no such event before it.
+   *
+   * The recommendation is composed HERE, by `recommendWait`, from the student's
+   * asserted outcome. The caller states what happened and nothing else — there
+   * is no field through which a client could supply the advice it claims to
+   * have shown, which is what makes the record worth having.
+   */
+  public async adviseReapplication(input: {
+    readonly conversationId: string;
+    readonly priorOutcome: PriorOutcome;
+  }): Promise<
+    | { readonly ok: true; readonly advice: WaitRecommendation; readonly priorCaseId: string }
+    | { readonly ok: false; readonly refusal: RunRefusal }
+  > {
+    const bound = await this.#options.bindings.caseFor(input.conversationId);
+    if (bound === null || bound.blueprintId === null) {
+      return { ok: false, refusal: { kind: "unknown_conversation" } };
+    }
+    // ── The target comes from the BINDING, not from the caller ──────────
+    //
+    // ADR-0058's reasoning, one step further on. The conversation reached this
+    // route by asking to apply to a verified offer and being refused, and the
+    // binding records which target that was. Taking a `blueprintId` here would
+    // reopen the gate that decides which application a student is talking
+    // about, on a route whose whole subject is one they already have.
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
+
+    const latest = await this.#latestAttempt({
+      studentRef: makeStudentId(bound.studentId),
+      entry,
+    });
+    if (latest === null) return { ok: false, refusal: { kind: "no_prior_application" } };
+
+    // ── No `nextIntake`, and that is deliberate ─────────────────────────
+    //
+    // `recommendWait` advises a specific later intake when it is given one, and
+    // this service has no way to know that one is open: the catalogue port here
+    // resolves a blueprint by id and does not list. Advising a student to wait
+    // for the 2028 intake of a course whose 2028 intake nobody has reviewed
+    // would be the system inventing a fact about the world, which is the one
+    // thing this repository does not do. `six_months` is what we can say
+    // truthfully, so it is what we say.
+    const advice: WaitRecommendation = {
+      ...recommendWait({
+        priorOutcome: {
+          outcome: input.priorOutcome,
+          assertedBy: "student",
+          assertedAt: this.#options.now(),
+        },
+        currentIntake: makeIntake(entry.intakeRef),
+      }),
+      shownAt: this.#options.now(),
+    };
+
+    // The structured record, then the words. Both, in that order, for the
+    // reason the value exchange writes `value_asked` before its question: the
+    // fact that we advised must survive a crash between the two, and an
+    // assistant message with no record of what it was is prose nobody can act
+    // on.
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: {
+        kind: "reapplication_advised",
+        priorCaseId: latest.caseId,
+        priorOutcome: input.priorOutcome,
+        advice: advice.advice,
+        ...(advice.suggestedIntake !== undefined
+          ? { suggestedIntake: advice.suggestedIntake }
+          : {}),
+      },
+    });
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: { kind: "message", actor: "assistant", content: advice.rationale },
+    });
+
+    return { ok: true, advice, priorCaseId: latest.caseId };
+  }
+
+  /**
+   * Opens a SECOND application, on the student's explicit instruction.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0006 §3, as amended in P38: a re-application is a NEW case that
+   * references the prior one, not a new attempt ordinal on a concluded case.
+   *
+   * A second attempt is genuinely a different application — different intake,
+   * different deadline, possibly changed entry requirements, and a separate
+   * authorisation from the student — and one case holding two sets of each
+   * could not state precisely what the student agreed to. It is also the only
+   * shape that works: `CONFIRMED` is terminal, terminal states have no outgoing
+   * transitions, and a case whose ordinal was bumped in place had no first move.
+   *
+   * Since a conversation owns at most one case, the new case lives in a NEW
+   * conversation — which is exactly where the student already is when they meet
+   * `already_applying`.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  public async reapply(input: {
+    readonly conversationId: string;
+    /** The student's own words. ADR-0006 rule 3 refuses an empty one. */
+    readonly studentStatement: string;
+  }): Promise<RunOutcome> {
+    const bound = await this.#options.bindings.caseFor(input.conversationId);
+    if (bound === null || bound.blueprintId === null) {
+      return { ok: false, refusal: { kind: "unknown_conversation" } };
+    }
+    // From the binding, for the reason `adviseReapplication` reads it there.
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
+    const studentRef = makeStudentId(bound.studentId);
+
+    const latest = await this.#latestAttempt({ studentRef, entry });
+    if (latest === null) return { ok: false, refusal: { kind: "no_prior_application" } };
+
+    // ── The recommendation, read back rather than taken from the caller ──
+    //
+    // The one this conversation was actually shown, for THIS prior case. A
+    // client cannot supply it: there is no field for it on this method, so
+    // "the system must record that it showed the recommendation" cannot be
+    // satisfied by a client asserting that it did.
+    const shown = await this.#options.conversations.adviceFor(
+      input.conversationId,
+      latest.caseId,
+    );
+    if (shown === null) return { ok: false, refusal: { kind: "recommendation_not_shown" } };
+
+    // ── Reconstituted from the log, not carried on the wire ─────────────
+    //
+    // The advice and the outcome are the log's; the rationale is recomposed by
+    // `recommendWait` from them, because it is a pure function of them and a
+    // second stored copy of the same sentence is a place for the record and the
+    // words to disagree. `shownAt` is the row's own `created_at`, so the domain
+    // gate compares the instruction against when the database says we advised.
+    const recommendation: WaitRecommendation = {
+      ...recommendWait({
+        priorOutcome: {
+          outcome: shown.priorOutcome,
+          assertedBy: "student",
+          assertedAt: shown.shownAt,
+        },
+        currentIntake: makeIntake(entry.intakeRef),
+      }),
+      shownAt: shown.shownAt,
+    };
+
+    const priorEvents = await this.#options.stores.cases.read(latest.caseId);
+    if (priorEvents.length === 0) return { ok: false, refusal: { kind: "no_prior_application" } };
+    const priorCase = fold(priorEvents);
+
+    const now = this.#options.now();
+    const newCaseId = makeCaseId(
+      this.#options.newCaseId?.(input.conversationId) ??
+        `case_${input.conversationId.toLowerCase()}`,
+    );
+
+    const decision = decide(priorCase, {
+      kind: "instruct_reapplication",
+      // ADR-0006 rule 1. This method is reached only from an authenticated
+      // student's own route; nothing else may call it, and the actor is
+      // written here rather than passed so that no caller can be another one.
+      actor: "student",
+      newCaseId,
+      instruction: {
+        priorOutcome: {
+          outcome: shown.priorOutcome,
+          // Never a fact this system established (brief §2.8, ADR-0006).
+          assertedBy: "student",
+          assertedAt: shown.shownAt,
+        },
+        studentStatement: input.studentStatement,
+        instructedAt: now,
+        recommendationShown: recommendation,
+        // DERIVED, not passed. "Did they proceed despite our advice?" is
+        // answered by what we advised and the fact that they instructed one
+        // anyway — the same reasoning that makes `priorCaseConcluded` derived
+        // rather than a caller's opinion (ADR-0072).
+        proceededDespiteRecommendation: recommendation.advice !== "none",
+      },
+    });
+    if (!decision.accepted) {
+      const { refusal } = decision;
+      return {
+        ok: false,
+        refusal: {
+          kind: "reapplication_refused",
+          detail:
+            "detail" in refusal ? refusal.detail : `${refusal.refusal.kind}: ${refusal.refusal.detail}`,
+        },
+      };
+    }
+
+    // The instruction goes on the PRIOR case — it is a decision made about that
+    // application — and the prior case stays terminal at its own ordinal.
+    const instructed = decision.events[0];
+    if (instructed?.type !== "ReapplicationInstructed") {
+      throw new Error("instruct_reapplication produced something other than its own event");
+    }
+    await this.#options.stores.cases.append(
+      latest.caseId,
+      priorCase.sequence,
+      stamp({
+        caseId: latest.caseId,
+        fromSequence: priorCase.sequence,
+        payloads: [instructed],
+        actor: askimateActor(externalRef(input.conversationId)),
+        now,
+        nextEventId: (index) => `evt_${latest.caseId}_r${String(priorCase.sequence + index + 1)}`,
+      }),
+    );
+
+    return await this.#openAndStart({
+      conversationId: input.conversationId,
+      blueprintId: bound.blueprintId,
+      studentStatement: input.studentStatement,
+      entry,
+      attempt: { ordinal: instructed.newAttemptOrdinal, priorCaseId: latest.caseId },
     });
   }
 

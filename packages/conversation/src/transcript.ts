@@ -157,6 +157,14 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     case "target_offered":
     case "target_requested":
       return { render: "nothing", position };
+    // ── And so does the re-application exchange (ADR-0006 §3) ──────────
+    //
+    // Same reason again. `reapplication_advised` is the structured record that
+    // the wait recommendation was shown; the words the student actually read
+    // are the assistant message beside it, and rendering both would show one
+    // piece of advice twice.
+    case "reapplication_advised":
+      return { render: "nothing", position };
     case "message":
       return { render: "message", position, actor: event.actor, content: event.content };
     case "secret_requested":

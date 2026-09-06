@@ -39,8 +39,14 @@
  * are closed sets or timestamps. None is free text.
  */
 
-import type { Actor, RejectionReason, SecretChannel } from "./vocabulary.js";
-import { parseActor, parseRejectionReason, parseSecretChannel } from "./vocabulary.js";
+import type { Actor, PriorOutcome, RejectionReason, SecretChannel, WaitAdvice } from "./vocabulary.js";
+import {
+  parseActor,
+  parsePriorOutcome,
+  parseRejectionReason,
+  parseSecretChannel,
+  parseWaitAdvice,
+} from "./vocabulary.js";
 
 /** Dense, 1-based, unique per conversation. Also the SSE event id. */
 export type Ordinal = number;
@@ -203,6 +209,27 @@ export interface TargetRequestedEvent extends EventBase {
   readonly offerHash: string;
 }
 
+/**
+ * The system advised on a re-application, and said what it advised.
+ *
+ * ADR-0006 §3, as amended in P38. The recommendation is advisory in effect and
+ * MANDATORY in presentation, so the showing is a durable event and the
+ * instruction that follows is refused without one. This carries the structured
+ * facts; the words the student read are the assistant message beside it.
+ *
+ * `priorOutcome` is the student's own claim about what happened to the earlier
+ * application — never a fact this system established (brief §2.8).
+ */
+export interface ReapplicationAdvisedEvent extends EventBase {
+  readonly kind: "reapplication_advised";
+  /** The concluded application a second attempt would follow. */
+  readonly priorCaseId: string;
+  readonly priorOutcome: PriorOutcome;
+  readonly advice: WaitAdvice;
+  /** The intake advised instead, when `advice` is `next_intake`. */
+  readonly suggestedIntake?: string;
+}
+
 export type ConversationEvent =
   | MessageEvent
   | SecretRequestedEvent
@@ -214,7 +241,8 @@ export type ConversationEvent =
   | ValueConfirmedEvent
   | ValueRejectedEvent
   | TargetOfferedEvent
-  | TargetRequestedEvent;
+  | TargetRequestedEvent
+  | ReapplicationAdvisedEvent;
 
 /**
  * COMPILE-TIME: only `message` may have a `content` field.
@@ -392,6 +420,28 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const offerHash = readString(source, "offerHash");
       if (offerHash === null) return null;
       return { ...base, kind: "target_requested", offerHash };
+    }
+    case "reapplication_advised": {
+      const priorCaseId = readString(source, "priorCaseId");
+      const priorOutcome = parsePriorOutcome(source["priorOutcome"]);
+      const advice = parseWaitAdvice(source["advice"]);
+      if (priorCaseId === null || priorOutcome === null || advice === null) return null;
+      const suggested = source["suggestedIntake"];
+      // Present exactly when the advice is to wait for a named intake. An
+      // intake on any other advice would be a suggestion nobody made.
+      if (advice === "next_intake") {
+        if (typeof suggested !== "string" || suggested.length === 0) return null;
+        return {
+          ...base,
+          kind: "reapplication_advised",
+          priorCaseId,
+          priorOutcome,
+          advice,
+          suggestedIntake: suggested,
+        };
+      }
+      if (suggested !== undefined) return null;
+      return { ...base, kind: "reapplication_advised", priorCaseId, priorOutcome, advice };
     }
     default:
       return null;

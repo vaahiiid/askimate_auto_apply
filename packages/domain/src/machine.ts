@@ -22,6 +22,7 @@ import type {
   CaseEventPayload,
   EventActor,
   HandoffKind,
+  ReapplicationInstructed,
   RequestEvidence,
 } from "./events.js";
 import type { CaseId, ExternalRef } from "./ids.js";
@@ -50,6 +51,25 @@ export interface ApplicationCase {
   readonly state: CaseState;
   readonly submissionIdentity: SubmissionIdentity;
   readonly requestEvidence: RequestEvidence;
+  /**
+   * The concluded case this one is a second attempt at (ADR-0006 §3).
+   *
+   * Set exactly when `submissionIdentity.attemptOrdinal` is above 1.
+   */
+  readonly priorCaseId?: CaseId;
+  /**
+   * The successor this case's own re-application instruction opened.
+   *
+   * Present once, at most: a case has one successor, so the chain of attempts
+   * is a chain rather than a tree. `decide` refuses a second
+   * `instruct_reapplication` on the strength of this field, because two
+   * successors would be two applications claiming the same attempt ordinal —
+   * the duplicate submission ADR-0006 exists to make impossible, one level up.
+   */
+  readonly reapplication?: {
+    readonly newCaseId: CaseId;
+    readonly newAttemptOrdinal: number;
+  };
   /** Sequence number of the last event folded. 0 for an empty log. */
   readonly sequence: number;
   readonly tasks: readonly Task[];
@@ -128,6 +148,8 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   const completedHandoffs: HandoffKind[] = [];
   let openEscalation: RecoveryEscalation | undefined;
   let submissionAttempted = false;
+  let priorCaseId: CaseId | undefined = first.priorCaseId;
+  let reapplication: ApplicationCase["reapplication"];
 
   const tasks = new Map<string, Task>();
   const activeTriggers = new Set<ReviewTrigger>();
@@ -146,6 +168,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     switch (event.type) {
       case "CaseOpened":
         submissionIdentity = event.submissionIdentity;
+        priorCaseId = event.priorCaseId;
         break;
 
       case "CaseStateChanged":
@@ -242,16 +265,25 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         break;
 
       case "ReapplicationInstructed":
-        // The only path by which an attempt ordinal changes.
-        submissionIdentity = {
-          ...submissionIdentity,
-          attemptOrdinal: event.newAttemptOrdinal,
+        // ── This used to increment the ordinal ON THIS CASE (P38) ───────
+        //
+        // It cleared the authorisation and the submission marker too, so the
+        // case read as a fresh attempt. It could never act as one: every
+        // terminal state has an empty transition list and `checkTransition`
+        // refuses from a terminal state before it looks at anything else, so
+        // what the fold produced was a CONFIRMED case at ordinal 2 that can
+        // never transition again. The drift was here, and it was invisible
+        // because nothing in production could reach the intent.
+        //
+        // The prior case is not the new attempt and never was. It stays
+        // terminal, at its own ordinal, with its own authorisation intact —
+        // which is what makes "what exactly did the student agree to, in
+        // which application?" answerable per case. All this event does to
+        // the case it lives on is record what the student decided next.
+        reapplication = {
+          newCaseId: event.newCaseId,
+          newAttemptOrdinal: event.newAttemptOrdinal,
         };
-        // A new attempt starts clean: the previous authorisation cannot carry
-        // over to a different submission.
-        authorisedContentHash = undefined;
-        preparedContentHash = undefined;
-        submissionAttempted = false;
         break;
 
       // Recorded for audit; they carry no state of their own.
@@ -296,6 +328,8 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     ...(openHandoffToken !== undefined ? { openHandoffToken } : {}),
     ...(openHandoffKind !== undefined ? { openHandoffKind } : {}),
     ...(openEscalation !== undefined ? { openEscalation } : {}),
+    ...(priorCaseId !== undefined ? { priorCaseId } : {}),
+    ...(reapplication !== undefined ? { reapplication } : {}),
   };
 }
 
@@ -337,6 +371,16 @@ export type CaseIntent =
        * thing ADR-0006 says may only increase by one.
        */
       readonly actor: ReapplicationActor;
+      /**
+       * The identifier the new case will be opened under.
+       *
+       * An IDENTIFIER, which the domain cannot mint and has no opinion about —
+       * unlike the ordinal, which it derives and will not accept from anyone.
+       * The two are deliberately different: `newCaseId` says WHERE the second
+       * application lives, and `newAttemptOrdinal` says WHICH attempt it is,
+       * and only the second is a rule.
+       */
+      readonly newCaseId: CaseId;
     }
   | { readonly kind: "escalate_for_recovery"; readonly escalation: RecoveryEscalation }
   | { readonly kind: "resolve_recovery"; readonly resolution: RecoveryResolution; readonly resumeTo: CaseState }
@@ -827,6 +871,29 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
       // top of `decide` already refuses every other intent on a terminal case,
       // so the case's own state is the honest answer and a caller cannot
       // disagree with it.
+      // ── One successor, so the chain is a chain ────────────────────────
+      //
+      // Checked before the gate because it is a fact about this case rather
+      // than about the instruction: a case that already opened a second
+      // application cannot open another at the same ordinal. Without it the
+      // only thing standing between a double-tap and two live applications
+      // for one attempt would be the submission key — which would refuse the
+      // second, correctly, and with a message about a duplicate rather than
+      // about the decision that produced it.
+      const already = applicationCase.reapplication;
+      if (already !== undefined) {
+        return {
+          accepted: false,
+          refusal: {
+            kind: "invalid_intent",
+            detail:
+              `This application already led to a second one (${already.newCaseId}, attempt ` +
+              `${String(already.newAttemptOrdinal)}). A further attempt is instructed against ` +
+              `that case, not against this one.`,
+          },
+        };
+      }
+
       const permitted = decideReapplication({
         actor: intent.actor,
         currentAttemptOrdinal: applicationCase.submissionIdentity.attemptOrdinal,
@@ -846,6 +913,7 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
             type: "ReapplicationInstructed",
             instruction: intent.instruction,
             newAttemptOrdinal: permitted.nextAttemptOrdinal,
+            newCaseId: intent.newCaseId,
           },
         ],
       };
@@ -879,16 +947,73 @@ export function stamp(input: {
   }));
 }
 
-/** Builds the opening event of a new case. */
+/**
+ * Builds the opening event of a new case.
+ *
+ * Refuses an attempt ordinal above 1 without the prior case it is counting
+ * from, and a prior case at ordinal 1. `openReapplication` is the only thing
+ * that supplies either, and it derives both from the prior case's own log —
+ * so "the ordinal is never proposed by a caller" holds at the one place a case
+ * can come into existence, rather than at each of its callers.
+ */
 export function openCase(input: {
   readonly submissionIdentity: SubmissionIdentity;
   readonly requestEvidence: RequestEvidence;
+  readonly priorCaseId?: CaseId;
 }): CaseEventPayload {
+  const ordinal = input.submissionIdentity.attemptOrdinal;
+  if (ordinal > 1 && input.priorCaseId === undefined) {
+    throw new MalformedEventLogError(
+      `A case at attempt ${String(ordinal)} must name the case it follows. An ordinal above 1 ` +
+        `asserts that an earlier application exists; without the prior case there is nothing ` +
+        `to check that against (ADR-0006 §3).`,
+    );
+  }
+  if (ordinal === 1 && input.priorCaseId !== undefined) {
+    throw new MalformedEventLogError(
+      `A first attempt cannot follow a prior case; ${input.priorCaseId} was named at ordinal 1.`,
+    );
+  }
   return {
     type: "CaseOpened",
     submissionIdentity: input.submissionIdentity,
     requestEvidence: input.requestEvidence,
+    ...(input.priorCaseId !== undefined ? { priorCaseId: input.priorCaseId } : {}),
   };
+}
+
+/**
+ * Builds the opening event of the case a re-application instruction produced.
+ *
+ * The ONE constructor for a second attempt, and the reason it exists is that
+ * every field of the new case's identity is derived rather than passed:
+ *
+ *   student, institution, course, intake   from the prior case's identity —
+ *                                          a second attempt at a DIFFERENT
+ *                                          target is not a re-application, it
+ *                                          is an application
+ *   attemptOrdinal                         from the instruction the gate
+ *                                          accepted, never from a caller
+ *   priorCaseId                            the case the instruction was
+ *                                          decided against
+ *
+ * What a caller supplies is what a caller must supply: the student's own words
+ * and the surface they arrived on. `instructed` is the event `decide` returned,
+ * so this cannot be reached without the gate having run.
+ */
+export function openReapplication(input: {
+  readonly priorCase: ApplicationCase;
+  readonly instructed: ReapplicationInstructed;
+  readonly requestEvidence: RequestEvidence;
+}): CaseEventPayload {
+  return openCase({
+    submissionIdentity: {
+      ...input.priorCase.submissionIdentity,
+      attemptOrdinal: input.instructed.newAttemptOrdinal,
+    },
+    requestEvidence: input.requestEvidence,
+    priorCaseId: input.priorCase.caseId,
+  });
 }
 
 /** Convenience for the common `askimate` actor. */

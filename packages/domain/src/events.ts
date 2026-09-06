@@ -73,6 +73,21 @@ export interface CaseOpened {
   readonly type: "CaseOpened";
   readonly submissionIdentity: SubmissionIdentity;
   readonly requestEvidence: RequestEvidence;
+  /**
+   * The case this one is a second attempt at (ADR-0006 §3, as amended in P38).
+   *
+   * Present exactly when `submissionIdentity.attemptOrdinal` is above 1, and
+   * `openCase` refuses either without the other. An ordinal above 1 is a claim
+   * that an earlier application exists; a claim with nothing to check it
+   * against is how the ordinal became a number a caller could simply assert.
+   *
+   * A re-application is a NEW case rather than a new ordinal on the old one
+   * because it is genuinely a different application: different intake,
+   * different deadline, possibly changed entry requirements, and a separate
+   * authorisation from the student. One case holding two sets of requirements
+   * and two authorisations cannot state precisely what the student agreed to.
+   */
+  readonly priorCaseId?: CaseId;
 }
 
 /**
@@ -295,6 +310,16 @@ export interface ReapplicationInstructed {
   readonly type: "ReapplicationInstructed";
   readonly instruction: ReapplicationInstruction;
   readonly newAttemptOrdinal: number;
+  /**
+   * The case the instruction opened.
+   *
+   * This event lives on the PRIOR case — it is the record of a decision made
+   * about that application, and the prior case stays terminal at its own
+   * ordinal. The successor is named here so the chain can be walked in either
+   * direction: forward from a concluded case to what the student did next,
+   * backward from `CaseOpened.priorCaseId`.
+   */
+  readonly newCaseId: CaseId;
 }
 
 /**

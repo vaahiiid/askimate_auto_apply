@@ -131,6 +131,7 @@ beforeAll(async () => {
     "0013_conversation_idempotency",
     "0014_the_question_is_in_the_log",
     "0015_notify_specialists_job",
+    "0016_a_second_attempt_is_a_second_case",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -272,6 +273,19 @@ describeIfDatabase("the database refuses a word it does not know", () => {
             [conversation, ordinal, kind, offerHash],
           );
         }
+        continue;
+      }
+      if (kind === "reapplication_advised") {
+        // All three facts together, per
+        // `advice_belongs_to_the_reapplication_exchange`, and no
+        // `suggested_intake`, per
+        // `an_intake_is_only_suggested_with_the_advice_to_wait`.
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, prior_case_id, prior_outcome, advice)
+           VALUES ($1, $2, $3, 'case_prior', 'withdrawn', 'none')`,
+          [conversation, ordinal, kind],
+        );
         continue;
       }
       if (
@@ -1064,6 +1078,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
         "0013_conversation_idempotency",
         "0014_the_question_is_in_the_log",
     "0015_notify_specialists_job",
+    "0016_a_second_attempt_is_a_second_case",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1112,6 +1127,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
       "0013_conversation_idempotency",
       "0014_the_question_is_in_the_log",
     "0015_notify_specialists_job",
+    "0016_a_second_attempt_is_a_second_case",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

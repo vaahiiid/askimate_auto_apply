@@ -51,6 +51,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   intervention_already_resolved: "This intervention has already been adjudicated",
   content_changed: "The content changed since it was shown; it must be re-approved",
   secret_request_open: "A secure step is open on this conversation",
+  already_applying: "You already have an application for this course and intake",
   email_not_verified: "Verify your email address, then sign in again",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
@@ -75,6 +76,11 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // student never saw.
   content_changed: 409,
   secret_request_open: 409,
+  // 409, and it names the case that holds the identity. The student is not
+  // forbidden anything and nothing is missing — there is already an application
+  // for this institution, course and intake, and a second one would be the
+  // duplicate submission ADR-0006 exists to make structurally impossible.
+  already_applying: 409,
   // 403: authenticated, and not permitted to open this step yet. Its own code
   // rather than a bare `forbidden` so a client can say what to do about it —
   // and the title is the instruction, because this is the one refusal on this
@@ -126,10 +132,34 @@ export interface RateLimitedProblem extends ProblemBase {
   readonly retryAfterSeconds: number;
 }
 
+/**
+ * The application that already holds this submission identity.
+ *
+ * ── Why an identifier may be on this wire at all ──────────────────────────
+ *
+ * The submission identity includes the STUDENT, so a collision is always with
+ * an application of the caller's own. There is no case in which this names
+ * somebody else's — that is a property of `submissionKey`, not a check made
+ * here, which is why the field can be unconditional.
+ *
+ * It is on the wire because the refusal is otherwise a dead end. "You already
+ * have an application for this" is only useful if the client can take the
+ * student to it, or — when it has concluded — offer them a second attempt.
+ * `concluded` is the one bit of state that decides which, and it is a boolean
+ * rather than the case's state because the state is a twelve-member vocabulary
+ * describing an application the student is not looking at.
+ */
+export interface AlreadyApplyingProblem extends ProblemBase {
+  readonly code: "already_applying";
+  readonly existingCaseId: string;
+  /** True when that application has finished, so a re-application is possible. */
+  readonly concluded: boolean;
+}
+
 export interface PlainProblem extends ProblemBase {
   readonly code: Exclude<
     ProblemCode,
-    "validation_failed" | "secret_request_open" | "rate_limited"
+    "validation_failed" | "secret_request_open" | "rate_limited" | "already_applying"
   >;
 }
 
@@ -137,7 +167,8 @@ export type Problem =
   | PlainProblem
   | ValidationProblem
   | SecretRequestOpenProblem
-  | RateLimitedProblem;
+  | RateLimitedProblem
+  | AlreadyApplyingProblem;
 
 /**
  * COMPILE-TIME: no problem member may carry free text beyond the fixed title.
@@ -205,6 +236,13 @@ export function parseProblem(raw: unknown): Problem | null {
         return null;
       }
       return { ...base, code, retryAfterSeconds };
+    }
+    case "already_applying": {
+      const existingCaseId = source["existingCaseId"];
+      const concluded = source["concluded"];
+      if (typeof existingCaseId !== "string" || existingCaseId.length === 0) return null;
+      if (typeof concluded !== "boolean") return null;
+      return { ...base, code, existingCaseId, concluded };
     }
     // ── Enumerated, not defaulted ─────────────────────────────────────
     //

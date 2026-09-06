@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.55.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
+**Version:** 0.56.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -15,8 +15,8 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,186 tests, 107 files, zero skipped**, against real PostgreSQL and Redis.
-Seventy-two architecture decision records, sixty-eight accepted. **£0 / $0 of the ~$1,000 AWS credit is spent —
+processes. **2,204 tests, 107 files, zero skipped**, against real PostgreSQL and Redis.
+Seventy-two architecture decision records, sixty-eight accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -83,6 +83,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P35** | `BlueprintPage.requiredDocuments[].documentRef` → `fieldRef` (ADR-0070) | Two layers shared one name, and the repository contained both readings of it. Free today; costs every catalogue approval once one exists |
 | **P36** | A stopped run reaches a person, and the notice carries nothing about the student (ADR-0071) | The whole recovery design was built and waited on somebody running a CLI. The student was told; the specialist was not |
 | **P37** | ADRs 0005–0021 read against the code (ADR-0072) | Five phases running had each caught an older ADR asserting a guarantee the code did not provide. Thirteen of seventeen hold; the rest produced two fixes, two corrections and two open findings |
+| **P38** | One application per submission identity, and the second one the student asks for (ADR-0006 §3, amended) | P37's two open findings, closed together. `claimSubmissionKey` is armed at case-open; a re-application opens a NEW case referencing the prior one, because the old same-case increment produced a terminal case that could never move |
 
 ---
 
@@ -170,7 +171,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0003 | Versioned migrations, not `drizzle-kit push --force` | Proposed |
 | 0004 | Branded types make model output unable to reach a form field | Proposed |
 | 0005 | Contract-first OpenAPI at the AskiMate↔AAS boundary | Accepted · generation claim corrected by 0072 |
-| 0006 | Re-application requires an explicit student instruction | Accepted · §1–§5 enforced in the machine by 0072; **the path is still unreachable** |
+| 0006 | Re-application requires an explicit student instruction | Accepted · §1–§5 enforced in the machine by 0072; **§3 amended in P38** — a re-application opens a NEW case, and the path is reachable |
 | 0007 | Agent-led conversational intake — the student never fills in a form | Accepted |
 | 0008 | Recovery-first escalation, and the learning loop | Accepted · its alerting transport was built in 0071 |
 | 0009 | Requirements provenance and multi-source verification | Accepted |
@@ -281,6 +282,7 @@ the integration is real.**
 | `packages/notify` — the specialist notice and its webhook | **Reachable.** Set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and it runs. Listed here only because a deployment that has not set one behaves exactly as every deployment did before P36 | It is a configuration away, not a decision away |
 | `attach_document` — a declared `ConsequentialAction`, `VERIFIABLE: true` | **Produced by nothing.** `WorkKind` is `create_account \| execute` | Deleting it would destroy the evidence of what was intended |
 | The interview's `request_document` capability | `nextAction` asks fields before documents, and the orchestrator only enters the interview while a field is outstanding — mutually exclusive by construction | Same reason; asserted rather than deleted |
+| `recommendWait`'s `next_intake` branch, and `WaitRecommendation.suggestedIntake` | The Conversation Service's catalogue port resolves a blueprint by id and does not list, so it cannot know a later intake is open. Advising a wait for one nobody has reviewed would be inventing a fact (P38) | The domain rule is ADR-0006's, and it becomes reachable the day a listing can answer the question. Exercised in the walkthrough |
 | `apps/chat-integration` | A **research build** against the archived AskiMate codebase (10 weeks stale). Explicitly not the production integration | It is the evidence that the secure channel is implementable on AskiMate's real stack shape, and the source of the measured `err.body` finding |
 
 ### ❌ Not built at all
@@ -334,17 +336,19 @@ open rather than quietly answered.
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are Proposed pending this |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
-| **13** | **Arm the submission key, and make re-application reachable** | Me | Two cases can share one submission identity today, and a concluded case cannot be re-applied for. One phase, and the next one |
+| **13** | ~~Arm the submission key, and make re-application reachable~~ | — | **Done in P38.** Both, together: the key is claimed at case-open and a refused second application has a route to a second case |
+| **14** | **A declared capability with no production caller fails the build** | Me — unblocked | Nothing operationally. It is the check that P37's finding stops being a habit and becomes automatic; the initial allow-list is `attach_document`, `recommendWait`'s `next_intake` branch, and whatever the first run finds |
+| **15** | **`start` on an ESCALATED run throws rather than resuming** | Me, after a decision from you | A student whose run stopped for a specialist and who asks to start again gets a 500. What they *should* get back is a product question, not a patch |
 
-**Not blocked and available to work on now:** the submission key and re-application (13 — the next
-phase), and the ADR housekeeping (12). The ADR re-audit that used to sit here was done in P37; see
-[`p37-adr-audit.md`](./p37-adr-audit.md).
+**Not blocked and available to work on now:** the reachability check (14 — the next phase) and the
+ADR housekeeping (12). The ADR re-audit that used to sit here was done in P37; see
+[`p37-adr-audit.md`](./p37-adr-audit.md); its two open findings were closed in P38.
 
 ---
 
 ## 7 · Test and verification state
 
-**2,186 tests · 107 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,204 tests · 107 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.

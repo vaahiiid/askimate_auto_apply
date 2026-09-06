@@ -32,6 +32,7 @@ export const SCHEMA_EVENT_KINDS = [
   "value_rejected",
   "target_offered",
   "target_requested",
+  "reapplication_advised",
 ] as const;
 
 export const SCHEMA_ACTORS = [

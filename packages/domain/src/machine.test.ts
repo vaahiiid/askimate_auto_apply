@@ -17,7 +17,16 @@ import type { CaseEvent, CaseEventPayload, RequestEvidence } from "./events.js";
 import { caseId, courseId, eventId, externalRef, institutionId, intake, studentId, taskId } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
 import type { ApplicationCase, CaseIntent } from "./machine.js";
-import { MalformedEventLogError, askimateActor, decide, fold, openCase, stamp } from "./machine.js";
+import type { ReapplicationInstruction } from "./reapplication.js";
+import {
+  MalformedEventLogError,
+  askimateActor,
+  decide,
+  fold,
+  openCase,
+  openReapplication,
+  stamp,
+} from "./machine.js";
 import { CASE_STATES } from "./state.js";
 import { checkTransition, isTransitionAllowed } from "./transitions.js";
 
@@ -37,6 +46,23 @@ const EVIDENCE: RequestEvidence = {
   channel: "askimate_chat",
   conversationRef: externalRef("askimate:conversation:9931"),
   studentStatement: "Yes, please apply to Leeds for me.",
+};
+
+/** A complete, acceptable re-application instruction (ADR-0006's five rules). */
+const INSTRUCTION: ReapplicationInstruction = {
+  priorOutcome: {
+    outcome: "rejected",
+    assertedBy: "student",
+    assertedAt: new Date("2026-09-01T08:00:00Z"),
+  },
+  studentStatement: "I would like to apply again.",
+  instructedAt: new Date("2026-09-01T10:00:00Z"),
+  recommendationShown: {
+    advice: "six_months",
+    rationale: "Consider waiting.",
+    shownAt: new Date("2026-09-01T09:00:00Z"),
+  },
+  proceededDespiteRecommendation: true,
 };
 
 /** Builds a log by stamping payloads in order, as the orchestrator would. */
@@ -720,6 +746,7 @@ describe("decide — terminal cases", () => {
     const decision = decide(cancelled, {
       kind: "instruct_reapplication",
       actor: "student",
+      newCaseId: caseId("case-second"),
       instruction: {
         priorOutcome: { outcome: "withdrawn", assertedBy: "student", assertedAt: new Date("2026-09-01T09:00:00Z") },
         studentStatement: "I'd like to try again.",
@@ -755,6 +782,7 @@ describe("decide — terminal cases", () => {
       const decision = decide(cancelled, {
         kind: "instruct_reapplication",
         actor,
+        newCaseId: caseId("case-second"),
         instruction: {
           priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
           studentStatement: "Again please.",
@@ -781,6 +809,7 @@ describe("decide — terminal cases", () => {
     const decision = decide(cancelled, {
       kind: "instruct_reapplication",
       actor: "student",
+      newCaseId: caseId("case-second"),
       instruction: {
         priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
         studentStatement: "   ",
@@ -803,6 +832,7 @@ describe("decide — terminal cases", () => {
     const decision = decide(cancelled, {
       kind: "instruct_reapplication",
       actor: "student",
+      newCaseId: caseId("case-second"),
       instruction: {
         priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
         studentStatement: "Again please.",
@@ -825,6 +855,7 @@ describe("decide — terminal cases", () => {
     const decision = decide(live, {
       kind: "instruct_reapplication",
       actor: "student",
+      newCaseId: caseId("case-second"),
       instruction: {
         priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
         studentStatement: "Again please.",
@@ -840,9 +871,22 @@ describe("decide — terminal cases", () => {
     else if (!decision.accepted) expect.unreachable("refused as an invalid intent");
   });
 
-  it("resets authorisation and attempt state when a new attempt begins", () => {
-    // A previous authorisation must never carry over to a different submission.
-    const derived = fold(
+  // ── The instruction does NOT re-open the case it is about (P38) ────────
+  //
+  // This file used to assert the opposite: that folding
+  // `ReapplicationInstructed` moved the case to ordinal 2 and cleared its
+  // authorisation, "so a previous authorisation cannot carry over to a
+  // different submission". The premise was right and the mechanism was the
+  // drift — the case it produced could never act. Every terminal state has an
+  // empty transition list and `checkTransition` refuses from a terminal state
+  // before consulting anything else, so what the fold produced was a CANCELLED
+  // case at attempt 2 with no way to reach `PREPARING`, or any other state.
+  //
+  // A second attempt is a second CASE. The authorisation does not carry over
+  // because it is not there to carry: it belongs to a different log.
+
+  it("records the successor on the prior case, and changes nothing else about it", () => {
+    const instructed = fold(
       buildLog([
         OPENED,
         { type: "AuthorisationCaptured", contentHash: "sha256:v1", hashAlgorithm: "sha256", authorisedAt: new Date() },
@@ -851,20 +895,107 @@ describe("decide — terminal cases", () => {
         {
           type: "ReapplicationInstructed",
           newAttemptOrdinal: 2,
-          instruction: {
-            priorOutcome: { outcome: "rejected", assertedBy: "student", assertedAt: new Date() },
-            studentStatement: "Try again.",
-            instructedAt: new Date("2026-09-01T10:00:00Z"),
-            recommendationShown: { advice: "six_months", rationale: "Consider waiting.", shownAt: new Date("2026-09-01T09:00:00Z") },
-            proceededDespiteRecommendation: true,
-          },
+          newCaseId: caseId("case_002"),
+          instruction: INSTRUCTION,
         },
       ]),
     );
 
-    expect(derived.submissionIdentity.attemptOrdinal).toBe(2);
-    expect(derived.authorisedContentHash).toBeUndefined();
-    expect(derived.submissionAttempted).toBe(false);
+    expect(instructed.reapplication).toEqual({
+      newCaseId: "case_002",
+      newAttemptOrdinal: 2,
+    });
+    // The prior application is exactly what it was. Its ordinal, its
+    // authorisation and its submission all still describe the thing that
+    // happened, which is what makes "what did the student agree to, in which
+    // application?" answerable a year later.
+    expect(instructed.submissionIdentity.attemptOrdinal).toBe(1);
+    expect(instructed.authorisedContentHash).toBe("sha256:v1");
+    expect(instructed.submissionAttempted).toBe(true);
+    expect(instructed.state, "and it is still concluded").toBe("CANCELLED");
+  });
+
+  it("REFUSES a SECOND instruction, because a case has one successor", () => {
+    // Two successors would be two applications claiming attempt 2 — the
+    // duplicate ADR-0006 exists to prevent, one level up from the submission.
+    const instructed = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseStateChanged", from: "INTAKE", to: "CANCELLED", reason: "Rejected." },
+        {
+          type: "ReapplicationInstructed",
+          newAttemptOrdinal: 2,
+          newCaseId: caseId("case_002"),
+          instruction: INSTRUCTION,
+        },
+      ]),
+    );
+
+    const decision = decide(instructed, {
+      kind: "instruct_reapplication",
+      actor: "student",
+      newCaseId: caseId("case_003"),
+      instruction: INSTRUCTION,
+    });
+
+    expect(decision.accepted).toBe(false);
+    if (!decision.accepted && decision.refusal.kind === "invalid_intent")
+      expect(decision.refusal.detail).toContain("case_002");
+    else if (!decision.accepted) expect.unreachable("refused as an invalid intent");
+  });
+
+  // ── The one constructor for a second attempt ───────────────────────────
+
+  it("derives the new case entirely from the prior case and the instruction", () => {
+    const concluded = fold(
+      buildLog([OPENED, { type: "CaseStateChanged", from: "INTAKE", to: "CANCELLED", reason: "Rejected." }]),
+    );
+    const decision = decide(concluded, {
+      kind: "instruct_reapplication",
+      actor: "student",
+      newCaseId: caseId("case_002"),
+      instruction: INSTRUCTION,
+    });
+    if (!decision.accepted) expect.unreachable("a student may instruct one");
+    const emitted = decision.events[0];
+    if (emitted?.type !== "ReapplicationInstructed") expect.unreachable("the instruction");
+
+    const opened = openReapplication({
+      priorCase: concluded,
+      instructed: emitted,
+      requestEvidence: EVIDENCE,
+    });
+    if (opened.type !== "CaseOpened") expect.unreachable("it opens a case");
+
+    // Same student, same target. A second attempt at a DIFFERENT course is not
+    // a re-application, and there is no field here through which it could be.
+    expect(opened.submissionIdentity).toEqual({
+      ...concluded.submissionIdentity,
+      attemptOrdinal: 2,
+    });
+    expect(opened.priorCaseId).toBe(concluded.caseId);
+  });
+
+  it("REFUSES to open an attempt above 1 that names no prior case", () => {
+    // The ordinal is a claim that an earlier application exists. Without the
+    // case it counts from there is nothing to check that claim against, which
+    // is exactly how it became a number a caller could assert.
+    expect(() =>
+      openCase({
+        submissionIdentity: { ...IDENTITY, attemptOrdinal: 2 },
+        requestEvidence: EVIDENCE,
+      }),
+    ).toThrow(MalformedEventLogError);
+  });
+
+  it("REFUSES to open a FIRST attempt that names a prior case", () => {
+    expect(() =>
+      openCase({
+        submissionIdentity: IDENTITY,
+        requestEvidence: EVIDENCE,
+        priorCaseId: caseId("case_000"),
+      }),
+    ).toThrow(MalformedEventLogError);
   });
 });
 

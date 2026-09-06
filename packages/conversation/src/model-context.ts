@@ -80,6 +80,16 @@ export function buildModelRequest(input: {
       case "target_offered":
       case "target_requested":
         break;
+      // ── Nor the re-application exchange (ADR-0006 §3) ─────────────────
+      //
+      // The advice the student read is the assistant message beside this, and
+      // reaches the model as one. What this carries beyond it is a CASE ID —
+      // an identifier for an application in another conversation — and a model
+      // that saw one could repeat it into prose. It is also, structurally, a
+      // record about a decision the model has no part in: the wait
+      // recommendation is composed by `recommendWait` and never by a prompt.
+      case "reapplication_advised":
+        break;
       case "message": {
         // A redacted body is not "an empty message" — it is a message whose
         // text no longer exists. Sending the model a blank turn would put a

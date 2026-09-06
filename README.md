@@ -17,9 +17,9 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P37 — ADRs 0005–0021 read against the code (ADR-0072) |
+| **Phase** | P38 — one application per submission identity, and the second one the student asks for (ADR-0006 §3, amended) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,186 passing · 107 files · zero skipped** · typecheck, lint, boundary and contract checks green |
+| **Tests** | **2,204 passing · 107 files · zero skipped** · typecheck, lint, boundary and contract checks green |
 | **Decisions** | 72 ADRs · 68 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 

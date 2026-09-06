@@ -2000,3 +2000,66 @@ closing the first alone turns a silent duplicate into a silent dead end.
 
 - Unchanged from P36 otherwise. B5, B1 and B2 still block every document path.
 - The `attach_document` intent identity still waits on the transport.
+
+---
+
+# Where we are — 2026-09-06 (P38)
+
+**Date:** 2026-09-06 · **Phase:** P38 · **ADR:** [ADR-0006 §3, amended](./decisions/0006-reapplication-requires-explicit-student-instruction.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**The duplicate ADR-0006 has forbidden since Phase 1 is now structurally impossible, and the second
+application that refusal produces has somewhere to go.** P37 recorded both and fixed neither on
+purpose; they are one phase.
+
+`claimSubmissionKey` is claimed at case-open, inside the binding's own critical section and before
+the case's first event. A collision is refused as `already_applying`, naming the application that
+holds the identity and whether it has concluded.
+
+## The design decision, and why
+
+A re-application opens a **new case** that references the prior one, not a new attempt ordinal on a
+concluded one. Vahid's reasoning, recorded because it is the part that generalises:
+
+> A second attempt is genuinely a different application. Different intake, different deadline,
+> possibly changed entry requirements, and a separate authorisation from the student. One case
+> holding two sets of requirements and two authorisations makes it impossible to state precisely
+> what the student agreed to.
+
+It is also the only shape that works. `fold` used to increment the ordinal in place, and every
+terminal state has an empty transition list — so the "fresh attempt" it produced was a `CONFIRMED`
+case with no first move. `CONFIRMED` stays terminal; the rule in `checkTransition` is untouched.
+
+## What a student does
+
+A conversation owns at most one case, so the second application lives in a **new conversation** —
+which is where the student already is when they meet the refusal.
+
+1. Ask to apply again → `already_applying`, naming the case and whether it concluded.
+2. `POST .../reapplication/prior-outcome` → they say what happened; the system advises, and records
+   that it advised.
+3. `POST .../reapplication` → their instruction, in their own words and nothing else.
+
+## Known limitations
+
+- **`start` on a conversation whose run ESCALATED throws** rather than resuming: `#openAndStart`
+  resumes only `running` or `suspended`. Pre-existing and unrelated to the key. What a student
+  should get back from an escalated run is a real design question, not a patch.
+- **`recommendWait`'s `next_intake` branch has no production caller.** Naming a later intake means
+  knowing one is open, and the Conversation Service's catalogue port resolves a blueprint by id
+  rather than listing. Production advises `six_months`, which is what can be said truthfully.
+- **`no_prior_application` is reachable only through a corrected catalogue identity** — an entry
+  whose institution, course or intake is later fixed, so the key derived today is not the key
+  claimed when the case opened. Tested at exactly that.
+- B5, B1 and B2 are unchanged and still block every document path. The `attach_document` intent
+  identity still waits on the transport.
+
+## What is next
+
+P39: make P37's audit method a check rather than a habit — a verification step that fails when a
+declared capability has no production caller, or reports it in an explicit reviewed allow-list with
+a reason and the phase that will close it. The initial allow-list is `attach_document`, the
+`next_intake` branch above, and whatever else the first run finds.

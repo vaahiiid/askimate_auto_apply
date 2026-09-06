@@ -50,6 +50,7 @@ case "value_proposed":
       case "value_rejected":
       case "target_offered":
       case "target_requested":
+      case "reapplication_advised":
         break;
       case "secret_requested":
         open = event.requestId;
@@ -118,6 +119,7 @@ case "value_proposed":
       case "value_rejected":
       case "target_offered":
       case "target_requested":
+      case "reapplication_advised":
         break;
       case "secret_requested":
         // A new request supersedes the last. Its handle does not carry over:

@@ -194,6 +194,7 @@ function opener(): SecureRequestOpener {
 
 async function confirmInto<K extends ProfileFieldKey>(
   store: PostgresConfirmedProfileStore,
+  owner: string,
   key: K,
   value: ProfileFieldType<K>,
   verbatim: string,
@@ -202,17 +203,28 @@ async function confirmInto<K extends ProfileFieldKey>(
     key,
     proposed: proposeValue({ value, origin: "conversation", verbatim, confidence: 1 }),
     confirmation: {
-      studentRef: makeStudentId(studentUuid),
+      studentRef: makeStudentId(owner),
       presentedText: "Is that right?",
       response: { kind: "accepted" },
       respondedAt: CONFIRMED_AT,
     },
   });
   if (isDeclined(result)) expect.unreachable(`${key} should have been accepted`);
-  const profile = confirmField(emptyProfile(makeStudentId(studentUuid), CONFIRMED_AT), result, CONFIRMED_AT);
+  const profile = confirmField(emptyProfile(makeStudentId(owner), CONFIRMED_AT), result, CONFIRMED_AT);
   const entry = profile.entries.get(key);
   if (entry === undefined) expect.unreachable(`${key} should be in the profile`);
-  await store.save(studentUuid, toStoredEntry(key, entry));
+  await store.save(owner, toStoredEntry(key, entry));
+}
+
+/** The six answers a gated run needs before it can ask for a password. */
+async function confirmTheInterview(owner: string): Promise<void> {
+  const profiles = new PostgresConfirmedProfileStore(pool);
+  await confirmInto(profiles, owner, "identity.given_name", "Niloofar", "Niloofar");
+  await confirmInto(profiles, owner, "identity.family_name", "Hosseini", "Hosseini");
+  await confirmInto(profiles, owner, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
+  await confirmInto(profiles, owner, "identity.nationality", "Iranian", "Iranian");
+  await confirmInto(profiles, owner, "contact.email", "niloofar@example.test", "niloofar@example.test");
+  await confirmInto(profiles, owner, "study.personal_statement", "Because it is the course I want.", "…");
 }
 
 let seeded = 0;
@@ -232,10 +244,24 @@ let seeded = 0;
 async function seedRun(): Promise<{ runId: string; conversationId: string }> {
   seeded += 1;
   const conversationId = `01JBXQ8Z9WKTQ6M4H2NPS${String(seeded).padStart(5, "0")}`;
+  // ── A student per seeded run, since P38 armed the submission key ──────
+  //
+  // Every run here is against the same blueprint, so on one student they would
+  // all be the same (studentId, institutionId, courseId, intake, attempt) —
+  // one application — and every seed after the first would be refused
+  // `already_applying`. These tests are about a runner's loop, and each seeded
+  // run stands for a different student's application, which is what this now
+  // says.
+  const created = await pool.query<{ id: string }>(
+    "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",
+    [`oidc-supervisor-${String(seeded)}`],
+  );
+  const owner = created.rows[0]!.id;
   await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
     conversationId,
-    studentUuid,
+    owner,
   ]);
+  await confirmTheInterview(owner);
   const started = await driver.start({
     conversationId,
     blueprintId: BLUEPRINT,
@@ -362,13 +388,7 @@ beforeAll(async () => {
     const listening = app.listen(PORT, "127.0.0.1", () => resolve(listening));
   });
 
-  const profiles = new PostgresConfirmedProfileStore(pool);
-  await confirmInto(profiles, "identity.given_name", "Niloofar", "Niloofar");
-  await confirmInto(profiles, "identity.family_name", "Hosseini", "Hosseini");
-  await confirmInto(profiles, "identity.date_of_birth", new Date("1999-04-02T00:00:00Z"), "2 April 1999");
-  await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian");
-  await confirmInto(profiles, "contact.email", "niloofar@example.test", "niloofar@example.test");
-  await confirmInto(profiles, "study.personal_statement", "Because it is the course I want.", "…");
+  await confirmTheInterview(studentUuid);
 }, 180_000);
 
 afterAll(async () => {

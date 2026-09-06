@@ -28,7 +28,9 @@ export type {
   RejectionReason,
   SecretChannel,
   SecretLifecycleWord,
+  PriorOutcome,
   TerminalLifecycle,
+  WaitAdvice,
 } from "./vocabulary.js";
 export {
   ACTORS,
@@ -36,7 +38,9 @@ export {
   FRAME_INBOUND_KINDS,
   FRAME_OUTBOUND_KINDS,
   FRAME_PROTOCOL_VERSION,
+  PRIOR_OUTCOMES,
   PROBLEM_CODES,
+  REAPPLICATION_EVENT_KINDS,
   REJECTION_REASONS,
   SECRET_CHANNELS,
   SECRET_LIFECYCLES,
@@ -52,8 +56,11 @@ export {
   parseFrameOutboundKind,
   parseProblemCode,
   parseRejectionReason,
+  parsePriorOutcome,
   parseSecretChannel,
   parseSecretLifecycle,
+  parseWaitAdvice,
+  WAIT_ADVICE,
 } from "./vocabulary.js";
 
 export type {
@@ -66,6 +73,7 @@ export type {
   ValueConfirmedEvent,
   ValueProposedEvent,
   ValueRejectedEvent,
+  ReapplicationAdvisedEvent,
   SecretRequestedEvent,
   SecretSettledEvent,
 } from "./events.js";
@@ -78,6 +86,7 @@ export { eventCarriesContent, parseConversationEvent } from "./events.js";
 export type { ChatSendResponse } from "./chat.js";
 
 export type {
+  AlreadyApplyingProblem,
   PlainProblem,
   Problem,
   RateLimitedProblem,

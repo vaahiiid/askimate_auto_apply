@@ -24,7 +24,7 @@ import type { NextFunction, Request, Response, Router } from "express";
 import { Router as makeRouter } from "express";
 import { createHash } from "node:crypto";
 
-import type { ConversationEvent, ProblemCode } from "@askimate/aas-contracts";
+import type { ConversationEvent, PriorOutcome, ProblemCode } from "@askimate/aas-contracts";
 import {
   PROBLEM_STATUS,
   PROBLEM_TITLES,
@@ -37,6 +37,7 @@ import {
   renderSseFrame,
   parseWorkReport,
   parseResolutionSubmission,
+  parsePriorOutcome,
   parseStudentDecision,
   renderSseResumeFrame,
 } from "@askimate/aas-contracts";
@@ -55,6 +56,7 @@ import type {
   InterventionId,
   RecoveryResolution,
   ReusabilityAssessment,
+  WaitRecommendation,
 } from "@askimate/aas-domain";
 import { caseId as makeCaseId, isReviewTrigger } from "@askimate/aas-domain";
 import { interventionId as makeInterventionId } from "@askimate/aas-domain";
@@ -71,7 +73,7 @@ import { makeOffer, verifyRequest } from "./target-offers.js";
 import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
-import type { RunOutcome, RunReading } from "./run-driver.js";
+import type { RunOutcome, RunReading, RunRefusal } from "./run-driver.js";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
@@ -114,6 +116,25 @@ export interface RunCoordinator {
      * proves there is no second path.
      */
      readonly blueprintId: string;
+    readonly studentStatement: string;
+  }): Promise<RunOutcome>;
+  /**
+   * Shows the wait recommendation for a second attempt, and records that it
+   * was shown. ADR-0006 rule 4.
+   *
+   * The target is NOT a parameter: it comes from the conversation's own
+   * binding, which was made when the student asked to apply and was refused.
+   */
+  adviseReapplication(input: {
+    readonly conversationId: string;
+    readonly priorOutcome: PriorOutcome;
+  }): Promise<
+    | { readonly ok: true; readonly advice: WaitRecommendation; readonly priorCaseId: string }
+    | { readonly ok: false; readonly refusal: RunRefusal }
+  >;
+  /** Opens a SECOND application on the student's explicit instruction. ADR-0006 §3. */
+  reapply(input: {
+    readonly conversationId: string;
     readonly studentStatement: string;
   }): Promise<RunOutcome>;
   /**
@@ -296,6 +317,72 @@ function problem(res: Response, code: ProblemCode, extra: Record<string, unknown
       instance: String(res.getHeader("x-request-id") ?? "unknown"),
       ...extra,
     });
+}
+
+/**
+ * The 409 that names the application already holding this submission identity.
+ *
+ * Its own helper because the two extension members are not optional decoration:
+ * `AlreadyApplyingProblem` requires both, and a `problem(res, "already_applying")`
+ * with the wrong extras would type-check and publish a document `parseProblem`
+ * refuses. One place that assembles it, and one shape it can be.
+ */
+function alreadyApplying(res: Response, existingCaseId: string, concluded: boolean): void {
+  problem(res, "already_applying", { existingCaseId, concluded });
+}
+
+/**
+ * How a re-application refusal reaches the student.
+ *
+ * Enumerated over the WHOLE of `RunRefusal` rather than the members these two
+ * routes can produce, because "which refusals can this path produce?" is a
+ * claim that goes stale: `start` and `reapply` share `#openAndStart`, so a
+ * refusal added for one is reachable from the other the moment they diverge
+ * less than they look like they do.
+ */
+function reapplicationProblem(res: Response, refusal: RunRefusal): void {
+  switch (refusal.kind) {
+    case "no_prior_application":
+      // There is nothing to re-apply to. A 404 rather than a 409: the student
+      // has no application for this target, which is the same answer they
+      // would get for a conversation that is not theirs.
+      problem(res, "not_found");
+      return;
+    case "recommendation_not_shown":
+      // ADR-0006 rule 4, and the client's remedy is to do the first half:
+      // ask the student what happened, and let the system advise. A 409
+      // because the request is well-formed and the exchange is incomplete.
+      problem(res, "content_changed");
+      return;
+    case "reapplication_refused":
+      // The domain refused it — an unconcluded prior case, an empty statement,
+      // a recommendation shown after the fact, a case that already has a
+      // successor. The detail names a case and quotes a rule, so it stays out
+      // of the body (there is nowhere on the wire for a sentence, by design).
+      problem(res, "forbidden");
+      return;
+    case "already_applying":
+      // Reachable through `reapply`'s own `#openAndStart`: the ordinal it
+      // derived is already claimed, which means somebody else's request opened
+      // that attempt between the derivation and the claim.
+      alreadyApplying(res, refusal.existingCaseId, refusal.concluded);
+      return;
+    case "unknown_conversation":
+    case "unknown_blueprint":
+      problem(res, "not_found");
+      return;
+    case "case_not_bindable":
+      problem(res, "forbidden");
+      return;
+    case "email_not_verified":
+      problem(res, "email_not_verified");
+      return;
+    case "secure_plane_unavailable":
+    case "purpose_not_supported":
+    case "unusable_mapping_set":
+      problem(res, "service_unavailable");
+      return;
+  }
 }
 
 function readString(body: unknown, key: string): string | null {
@@ -970,6 +1057,28 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               // fields of a university's form — so it stays out of the body.
               problem(res, "service_unavailable");
               return;
+            case "already_applying":
+              // ADR-0006, armed in P38. Not a 403 and not a 404: the student is
+              // permitted and the target exists — there is already an
+              // application of THEIRS for this institution, course and intake,
+              // and a second one is the duplicate the brief calls
+              // characteristic and catastrophic.
+              //
+              // It names the case, and whether it has concluded, because the
+              // refusal is otherwise a dead end: a concluded application is one
+              // the student may instruct a second attempt at, and a client that
+              // could not tell could not offer them that.
+              alreadyApplying(res, outcome.refusal.existingCaseId, outcome.refusal.concluded);
+              return;
+            case "no_prior_application":
+            case "recommendation_not_shown":
+            case "reapplication_refused":
+              // Unreachable from `start`, which never instructs a
+              // re-application. Enumerated rather than defaulted so that
+              // widening `RunRefusal` again fails the build here instead of
+              // quietly rendering a new refusal as an existing one.
+              problem(res, "internal_error");
+              return;
           }
         }
 
@@ -985,6 +1094,115 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         };
         // 201 when this call created the run, 200 when it resumed one. The
         // difference is what makes the retry story readable in a log.
+        res.status(run.resumed ? 200 : 201).json(run);
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/:id/reapplication/prior-outcome ─────────────
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // The first half of ADR-0006's exchange, and it exists because rule 4 makes
+  // the wait recommendation "advisory in effect but MANDATORY in presentation:
+  // the system must show it before accepting the instruction, and must record
+  // that it did".
+  //
+  // Two calls, therefore, and not as an accident of REST: the student says what
+  // happened to their previous application, the system advises, and only then
+  // can they instruct. Collapsing it into one would be building the thing the
+  // decision forbids.
+  //
+  // What the student sends is the OUTCOME and nothing else. The advice is
+  // composed by the driver from `recommendWait`, so there is no field through
+  // which a client could claim to have shown advice it invented.
+  // ═══════════════════════════════════════════════════════════════════════
+  router.post(
+    "/v1/conversations/:conversationId/reapplication/prior-outcome",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const outcome = parsePriorOutcome(readString(req.body, "priorOutcome"));
+        if (outcome === null) {
+          problem(res, "validation_failed", { pointers: ["/priorOutcome"] });
+          return;
+        }
+
+        const advised = await options.runs.adviseReapplication({
+          conversationId,
+          priorOutcome: outcome,
+        });
+        if (!advised.ok) {
+          reapplicationProblem(res, advised.refusal);
+          return;
+        }
+
+        res.status(200).json({
+          priorCaseId: advised.priorCaseId,
+          advice: advised.advice.advice,
+          ...(advised.advice.suggestedIntake !== undefined
+            ? { suggestedIntake: advised.advice.suggestedIntake }
+            : {}),
+          rationale: advised.advice.rationale,
+          shownAt: advised.advice.shownAt.toISOString(),
+        });
+      })().catch(next);
+    },
+  );
+
+  // ── POST /v1/conversations/:id/reapplication ───────────────────────────
+  //
+  // The second half: the student's explicit instruction, in their own words.
+  //
+  // It carries the statement and NOTHING else. Not the prior case — the
+  // submission-key chain says which application this target already has. Not
+  // the attempt ordinal — `decideReapplication` derives it. Not the outcome or
+  // the recommendation — both are read back from the advice event this
+  // conversation's log holds. Every one of those was a field a caller could
+  // have disagreed with the system about, and ADR-0006's whole subject is the
+  // one number that may only increase by one.
+  router.post(
+    "/v1/conversations/:conversationId/reapplication",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const statement = readString(req.body, "studentStatement");
+        if (statement === null || statement.length === 0 || statement.length > 2000) {
+          problem(res, "validation_failed", { pointers: ["/studentStatement"] });
+          return;
+        }
+
+        const outcome = await options.runs.reapply({ conversationId, studentStatement: statement });
+        if (!outcome.ok) {
+          reapplicationProblem(res, outcome.refusal);
+          return;
+        }
+
+        const run: ConversationRun = {
+          runId: outcome.position.runId,
+          caseId: outcome.position.caseId,
+          conversationId: outcome.position.conversationId,
+          status: outcome.position.status,
+          phase: outcome.position.phase,
+          step: outcome.position.step,
+          revision: outcome.position.revision,
+          resumed: outcome.position.resumed,
+        };
         res.status(run.resumed ? 200 : 201).json(run);
       })().catch(next);
     },

@@ -153,7 +153,15 @@ export type { GuardContext, TransitionCheck, TransitionRefusal } from "./transit
 export { ALLOWED_TRANSITIONS, checkTransition, isTransitionAllowed, nextStates } from "./transitions.js";
 
 export type { ApplicationCase, CaseIntent, Decision, DecisionRefusal } from "./machine.js";
-export { MalformedEventLogError, askimateActor, decide, fold, openCase, stamp } from "./machine.js";
+export {
+  MalformedEventLogError,
+  askimateActor,
+  decide,
+  fold,
+  openCase,
+  openReapplication,
+  stamp,
+} from "./machine.js";
 
 export type {
   EscalationPriority,

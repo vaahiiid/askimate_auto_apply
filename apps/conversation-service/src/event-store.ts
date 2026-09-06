@@ -45,8 +45,19 @@ import { createHash } from "node:crypto";
 
 import type { Pool, PoolClient } from "pg";
 
-import type { ConversationEvent, Ordinal, RejectionReason } from "@askimate/aas-contracts";
-import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS, SECURE_EVENT_KINDS } from "@askimate/aas-contracts";
+import type {
+  ConversationEvent,
+  Ordinal,
+  PriorOutcome,
+  RejectionReason,
+  WaitAdvice,
+} from "@askimate/aas-contracts";
+import {
+  PROPOSAL_EVENT_KINDS,
+  REAPPLICATION_EVENT_KINDS,
+  TARGET_EVENT_KINDS,
+  SECURE_EVENT_KINDS,
+} from "@askimate/aas-contracts";
 
 import { ulid } from "./ulid.js";
 
@@ -93,7 +104,23 @@ export type AppendableEvent =
   | { readonly kind: "target_offered"; readonly offerHash: string;
       readonly targetBlueprintId: string; readonly targetContentHash: string }
   | { readonly kind: "target_requested"; readonly offerHash: string }
-  | { readonly kind: "value_rejected"; readonly fieldKey: string };
+  | { readonly kind: "value_rejected"; readonly fieldKey: string }
+  // ── The re-application exchange (ADR-0006 §3) ─────────────────────────
+  //
+  // Appended by the SERVICE, for the reason the other two structured exchanges
+  // are: what a student sends is a message or a request on a route, and the
+  // record of what the system ADVISED cannot be something a client states.
+  //
+  // ADR-0006 makes the wait recommendation mandatory in presentation, so this
+  // is what "the system showed it" looks like in the log — and `reapply`
+  // refuses an instruction that has no such event before it.
+  | {
+      readonly kind: "reapplication_advised";
+      readonly priorCaseId: string;
+      readonly priorOutcome: PriorOutcome;
+      readonly advice: WaitAdvice;
+      readonly suggestedIntake?: string;
+    };
 
 /**
  * COMPILE-TIME: nothing appendable may name its own position.
@@ -147,6 +174,13 @@ function isProposalEvent(
   event: AppendableEvent,
 ): event is Extract<AppendableEvent, { kind: (typeof PROPOSAL_EVENT_KINDS)[number] }> {
   return (PROPOSAL_EVENT_KINDS as readonly string[]).includes(event.kind);
+}
+
+/** True for the re-application exchange (ADR-0006 §3). */
+function isReapplicationEvent(
+  event: AppendableEvent,
+): event is Extract<AppendableEvent, { kind: (typeof REAPPLICATION_EVENT_KINDS)[number] }> {
+  return (REAPPLICATION_EVENT_KINDS as readonly string[]).includes(event.kind);
 }
 
 /** True for the target exchange (ADR-0058). */
@@ -234,6 +268,20 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
     case "value_asked":
     case "value_rejected":
       return { kind, ordinal, createdAt, fieldKey: row["field_key"] as string };
+    case "reapplication_advised": {
+      const suggested = row["suggested_intake"] as string | null;
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        priorCaseId: row["prior_case_id"] as string,
+        priorOutcome: row["prior_outcome"] as PriorOutcome,
+        advice: row["advice"] as WaitAdvice,
+        // Present only for `next_intake`, which is what
+        // `an_intake_is_only_suggested_with_the_advice_to_wait` enforces.
+        ...(suggested === null ? {} : { suggestedIntake: suggested }),
+      };
+    }
   }
 }
 
@@ -241,7 +289,8 @@ const SELECT_EVENT = `
   SELECT e.ordinal, e.created_at, e.kind, e.actor, e.request_id, e.handle,
          e.reason_code, e.channel, e.expires_at, e.field_key, e.proposal,
          e.playback_hash, e.offer_hash, e.target_blueprint_id,
-         e.target_content_hash, b.content, b.redacted_at
+         e.target_content_hash, e.prior_case_id, e.prior_outcome, e.advice,
+         e.suggested_intake, b.content, b.redacted_at
     FROM conversation_events e
     LEFT JOIN message_bodies b ON b.id = e.body_id
 `;
@@ -445,12 +494,14 @@ export class ConversationEventStore {
       `INSERT INTO conversation_events
          (conversation_id, ordinal, kind, actor, body_id, request_id, handle,
           reason_code, channel, expires_at, field_key, proposal, playback_hash,
-          offer_hash, target_blueprint_id, target_content_hash)
+          offer_hash, target_blueprint_id, target_content_hash,
+          prior_case_id, prior_outcome, advice, suggested_intake)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13,
-               $14, $15, $16)
+               $14, $15, $16, $17, $18, $19, $20)
        RETURNING ordinal, created_at, kind, actor, request_id, handle, reason_code,
                  channel, expires_at, field_key, proposal, playback_hash,
-                 offer_hash, target_blueprint_id, target_content_hash`,
+                 offer_hash, target_blueprint_id, target_content_hash,
+                 prior_case_id, prior_outcome, advice, suggested_intake`,
       [
         conversationId,
         ordinal,
@@ -476,6 +527,12 @@ export class ConversationEventStore {
         // Only the OFFER carries the target, per `only_an_offer_carries_a_target`.
         event.kind === "target_offered" ? event.targetBlueprintId : null,
         event.kind === "target_offered" ? event.targetContentHash : null,
+        // The re-application exchange (ADR-0006 §3). `advice_belongs_to_the_
+        // reapplication_exchange` enforces the same partition in the schema.
+        isReapplicationEvent(event) ? event.priorCaseId : null,
+        isReapplicationEvent(event) ? event.priorOutcome : null,
+        isReapplicationEvent(event) ? event.advice : null,
+        event.kind === "reapplication_advised" ? (event.suggestedIntake ?? null) : null,
       ],
     );
 
@@ -485,6 +542,63 @@ export class ConversationEventStore {
       content: event.kind === "message" ? event.content : null,
       redacted_at: null,
     });
+  }
+
+  /**
+   * The wait recommendation this conversation was shown for a prior case.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0006 rule 4. The recommendation is advisory in effect and MANDATORY in
+   * presentation — "the system must show it before accepting the instruction,
+   * and must record that it did" — so an instruction with nothing here is
+   * refused. This is the read that makes that a fact about the log rather than
+   * a promise the driver keeps.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The LATEST for that prior case. A student who says "rejected", reads the
+   * advice, and then says "actually I withdrew it" is advised again; the
+   * instruction that follows is against what they were told last, not first.
+   *
+   * `shownAt` is the row's own `created_at` — the database's record of when the
+   * advice was written, not a time anybody passed in. That is what makes
+   * ADR-0006's ordering rule ("a recommendation shown after the fact is no
+   * recommendation") checkable rather than self-reported.
+   *
+   * `rationale` is composed by `recommendWait` from the advice, and is
+   * deliberately NOT stored: the words are already in the assistant message
+   * beside the event, and a second copy on a structured row would be a place
+   * for the two to disagree about what the student read.
+   */
+  public async adviceFor(
+    conversationId: string,
+    priorCaseId: string,
+  ): Promise<{
+    readonly priorOutcome: PriorOutcome;
+    readonly advice: WaitAdvice;
+    readonly suggestedIntake?: string;
+    readonly shownAt: Date;
+  } | null> {
+    const rows = await this.#pool.query<{
+      prior_outcome: string;
+      advice: string;
+      suggested_intake: string | null;
+      created_at: Date;
+    }>(
+      `SELECT prior_outcome, advice, suggested_intake, created_at
+         FROM conversation_reapplication_advice
+        WHERE conversation_id = $1 AND prior_case_id = $2
+        ORDER BY ordinal DESC
+        LIMIT 1`,
+      [conversationId, priorCaseId],
+    );
+    const row = rows.rows[0];
+    if (row === undefined) return null;
+    return {
+      priorOutcome: row.prior_outcome as PriorOutcome,
+      advice: row.advice as WaitAdvice,
+      ...(row.suggested_intake === null ? {} : { suggestedIntake: row.suggested_intake }),
+      shownAt: row.created_at,
+    };
   }
 
   /** Events after `afterOrdinal`, ascending. The transcript, and the backfill. */

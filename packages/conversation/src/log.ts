@@ -46,7 +46,11 @@
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { PROPOSAL_EVENT_KINDS, TARGET_EVENT_KINDS } from "@askimate/aas-contracts";
+import {
+  PROPOSAL_EVENT_KINDS,
+  REAPPLICATION_EVENT_KINDS,
+  TARGET_EVENT_KINDS,
+} from "@askimate/aas-contracts";
 
 import { openSecretRequest } from "./openness.js";
 import type { TranscriptItem } from "./transcript.js";
@@ -103,14 +107,29 @@ export function describesSame(a: UnpositionedEvent, b: UnpositionedEvent): boole
   // offers are never "the same pending item".
   if (isTargetEvent(a)) return false;
 
+  // Nor is the re-application exchange (ADR-0006 §3). The SERVER advises, so
+  // again there is no optimistic copy, and two pieces of advice are never one
+  // pending item.
+  if (isReapplicationEvent(a)) return false;
+
   // Narrowed by the lines above: `a` is a secure event, and `b` shares its
   // kind. Re-testing `b` would be a cast wearing a guard's clothes.
   return (
     !isProposalEvent(b) &&
     !isTargetEvent(b) &&
+    !isReapplicationEvent(b) &&
     b.kind !== "message" &&
     a.requestId === b.requestId
   );
+}
+
+function isReapplicationEvent(
+  event: UnpositionedEvent,
+): event is Extract<
+  UnpositionedEvent,
+  { kind: (typeof REAPPLICATION_EVENT_KINDS)[number] }
+> {
+  return (REAPPLICATION_EVENT_KINDS as readonly string[]).includes(event.kind);
 }
 
 function isTargetEvent(

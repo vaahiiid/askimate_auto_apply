@@ -38,8 +38,12 @@ import type { WorkflowRunStore } from "@askimate/aas-case-store";
 import { InterventionAlreadyResolvedError } from "@askimate/aas-case-store/interventions";
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
 import {
+  askimateActor,
   canTransitionStatus,
   caseId as makeCaseId,
+  decide,
+  fold,
+  stamp,
   eventId as makeEventId,
   externalRef,
   idempotencyKeyFor,
@@ -85,6 +89,7 @@ import {
 import {
   parseClaimedWork,
   parseConversationRun,
+  parseProblem,
   parseRunPreview,
 } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
@@ -105,7 +110,7 @@ import type {
   SecureRequestInput,
   SecureRequestOpener,
 } from "./secure-requests.js";
-import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
+import type { ApplicationCatalogue, CatalogueEntry, RunOutcome } from "./run-driver.js";
 import { issueSession } from "./session.js";
 
 /**
@@ -305,6 +310,18 @@ function buildInstance(
    * the queue fills up with nobody paged.
    */
   notifier: SpecialistNotifier | null = null,
+  /**
+   * The driver's and the app's clock.
+   *
+   * Frozen at `NOW` everywhere but P38's re-application exchange, which is the
+   * one behaviour in this file that compares an injected time against a time
+   * the DATABASE wrote: ADR-0006 rule 4 asks whether the recommendation was
+   * shown before the instruction, and `conversation_events.created_at` is the
+   * database's own `now()` — a caller may not name it (`NO_CALLER_MAY_NAME_A_
+   * POSITION`), and rightly so. Comparing a 2026-08-31 fixture against a real
+   * `now()` answers a question about the harness rather than about the rule.
+   */
+  clock: () => Date = () => NOW,
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -346,7 +363,7 @@ function buildInstance(
     ...(notifier === null ? {} : { notifier }),
     newInterventionId: (runId, key) =>
       `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
-    now: () => NOW,
+    now: clock,
   });
   const app = createConversationApp({
     store,
@@ -358,7 +375,7 @@ function buildInstance(
       );
       return owned.rowCount === 1;
     },
-    now: () => NOW,
+    now: clock,
     runs: driver,
     // Gate 1 (ADR-0058): the same catalogue the driver executes against, so a
     // test cannot offer one target and execute against another.
@@ -7827,23 +7844,25 @@ describeIfDatabase("which declaration actually decides", () => {
   // Neither of the first two is derived from the other, and nothing compares
   // them. ADR-0066 §2.
   // ═══════════════════════════════════════════════════════════════════════
-  let student = "";
-
-  beforeAll(async () => {
-    const created = await pool.query<{ id: string }>(
-      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p30', true) RETURNING id",
-    );
-    student = created.rows[0]!.id;
-  }, 300_000);
+  /**
+   * The conversation whose student the two database-free measurements read.
+   *
+   * They need A student with a confirmed profile, and this is the one the
+   * first test created — named rather than re-derived so that reordering the
+   * tests fails loudly in `ownerOf` instead of loading an empty profile and
+   * measuring nothing.
+   */
+  const MEASURED = "01JBXQ8Z9WKTQ6M4H2NPP30001";
 
   async function startAgainst(
     conversation: string,
     entry: CatalogueEntry,
   ): Promise<{ step: string; status: string }> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [conversation, student],
-    );
+    // Its own student. Both measurements below run against the SAME blueprint,
+    // so on one student they would be one submission identity and the second
+    // would be refused `already_applying` — correctly, and for a reason that
+    // has nothing to do with what these two tests measure.
+    const owner = await ownConversation(conversation);
     const instance = buildInstance(
       connectionString(),
       opener(),
@@ -7852,7 +7871,7 @@ describeIfDatabase("which declaration actually decides", () => {
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
-        student,
+        owner,
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -7870,10 +7889,7 @@ describeIfDatabase("which declaration actually decides", () => {
   it("stops WITHOUT the page declaration, because the MAPPING declares it", async () => {
     // Necessary? No. The page says nothing about documents and the run is
     // still handed to a specialist, naming the document the MAPPING asked for.
-    const seen = await startAgainst(
-      "01JBXQ8Z9WKTQ6M4H2NPP30001",
-      NO_PAGE_DECLARATION,
-    );
+    const seen = await startAgainst(MEASURED, NO_PAGE_DECLARATION);
     expect(
       NO_PAGE_DECLARATION.blueprint.pages.flatMap(
         (page) => page.requiredDocuments,
@@ -7927,7 +7943,7 @@ describeIfDatabase("which declaration actually decides", () => {
     try {
       const profile = await new PostgresConfirmedProfileStore(
         instance.pool,
-      ).load(student, NOW);
+      ).load(ownerOf(MEASURED), NOW);
 
       const withoutPage = checkUsable(
         NO_PAGE_DECLARATION.mappingSet,
@@ -8037,10 +8053,10 @@ describeIfDatabase("which declaration actually decides", () => {
     try {
       const profile = await new PostgresConfirmedProfileStore(
         instance.pool,
-      ).load(student, NOW);
+      ).load(ownerOf(MEASURED), NOW);
       const action = await nextAction(
         newInterview({
-          studentRef: student,
+          studentRef: ownerOf(MEASURED),
           profile,
           // No outstanding field — which is exactly the state in which the
           // orchestrator does NOT enter the interview.
@@ -8235,4 +8251,619 @@ describeIfDatabase("telling a specialist that a run stopped", () => {
       await instance.pool.end();
     }
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// R. P38 — one application per identity, and the second one the student asks
+//          for (ADR-0006 §3)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * A student with a confirmed interview, so their runs get past `interview`.
+ *
+ * Deliberately NOT `ownConversation`: this group's whole subject is what
+ * happens when ONE student asks for the same target twice, so the sharing that
+ * every other group now avoids is the thing under test here.
+ */
+async function aStudent(subject: string): Promise<string> {
+  const created = await pool.query<{ id: string }>(
+    "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",
+    [subject],
+  );
+  const owner = created.rows[0]!.id;
+  const instance = buildInstance(connectionString());
+  try {
+    await confirmTheInterview(
+      new PostgresConfirmedProfileStore(instance.pool),
+      owner,
+    );
+  } finally {
+    await instance.pool.end();
+  }
+  return owner;
+}
+
+/** A conversation belonging to a named student. */
+async function conversationOf(id: string, owner: string): Promise<void> {
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [id, owner],
+  );
+}
+
+/**
+ * The clock P38's two groups use.
+ *
+ * See `buildInstance`'s `clock` parameter: the re-application exchange is the
+ * one behaviour here that compares a time this file injects against a time the
+ * DATABASE wrote, and the two must be the same kind of clock for the comparison
+ * to be about ADR-0006 rather than about the fixture.
+ */
+const WALL = (): Date => new Date();
+
+/** An instance on the wall clock, for the re-application exchange. */
+function liveInstance(
+  catalogue: TestCatalogue = CATALOGUE,
+): ReturnType<typeof buildInstance> {
+  return buildInstance(connectionString(), opener(), catalogue, "wired", null, WALL);
+}
+
+/**
+ * The port P38's routes are exercised on.
+ *
+ * Its own server rather than the module one, for `WALL`'s reason: the module
+ * app is frozen at `NOW` and the re-application exchange compares an injected
+ * time against one the database wrote.
+ */
+const LIVE_PORT = PORT + 8;
+const LIVE_BASE = `http://127.0.0.1:${String(LIVE_PORT)}`;
+
+/** Asks for an offer over the real route, and returns its hash. */
+async function offerOver(conversationId: string, subject: string): Promise<string> {
+  const response = await fetch(
+    `${LIVE_BASE}/v1/conversations/${conversationId}/target-offers`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+      body: JSON.stringify({ blueprintId: BLUEPRINT }),
+    },
+  );
+  expect(response.status, "the offer should have been made").toBe(201);
+  return ((await response.json()) as { offerHash: string }).offerHash;
+}
+
+/** Starts a run over the real route, through Gate 2. */
+async function startOver(
+  conversationId: string,
+  subject: string,
+): Promise<{ status: number; body: unknown }> {
+  const response = await fetch(`${LIVE_BASE}/v1/conversations/${conversationId}/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+    body: JSON.stringify({
+      offerHash: await offerOver(conversationId, subject),
+      studentStatement: STATEMENT,
+    }),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+/** Starts a run through the driver, against the ordinary fixture blueprint. */
+async function startOn(
+  conversation: string,
+  catalogue: TestCatalogue = CATALOGUE,
+  blueprintId: string = BLUEPRINT,
+): Promise<RunOutcome> {
+  const instance = liveInstance(catalogue);
+  try {
+    return await instance.driver.start({
+      conversationId: conversation,
+      blueprintId,
+      studentStatement: STATEMENT,
+    });
+  } finally {
+    await instance.pool.end();
+  }
+}
+
+/** Drives a case to CANCELLED through the domain, as a stop would. */
+async function conclude(caseRef: string): Promise<void> {
+  const store = new PostgresCaseStore(pool);
+  const ref = makeCaseId(caseRef);
+  for (const to of ["WINDING_DOWN", "CANCELLED"] as const) {
+    const current = fold(await store.read(ref));
+    const decision = decide(current, {
+      kind: "transition",
+      to,
+      reason: "The student stopped.",
+    });
+    if (!decision.accepted)
+      expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);
+    await store.append(
+      ref,
+      current.sequence,
+      stamp({
+        caseId: ref,
+        fromSequence: current.sequence,
+        payloads: decision.events,
+        actor: askimateActor(externalRef("test:conclude")),
+        now: NOW,
+        nextEventId: (index: number) =>
+          `evt_${caseRef}_c${String(current.sequence + index + 1)}`,
+      }),
+    );
+  }
+}
+
+/** The wall-clock server P38's route tests talk to. Started once, per group. */
+async function liveServer(): Promise<{ close: () => Promise<void> }> {
+  const instance = liveInstance();
+  const listening = await new Promise<Server>((resolve) => {
+    const s_ = instance.app.listen(LIVE_PORT, "127.0.0.1", () => resolve(s_));
+  });
+  return {
+    close: async (): Promise<void> => {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    },
+  };
+}
+
+describeIfDatabase("one application per submission identity", () => {
+  let live: { close: () => Promise<void> };
+  beforeAll(async () => {
+    live = await liveServer();
+  }, 120_000);
+  afterAll(async () => {
+    await live.close();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0006 calls the database's unique key "the second line of defence"
+  // against duplicate submission, and until P38 NOTHING IN PRODUCTION CALLED
+  // IT: `claimSubmissionKey`'s only caller in the repository was the
+  // walkthrough. A student could open a second conversation, request the same
+  // target, and receive a second case with the same (studentId, institutionId,
+  // courseId, intake, attemptOrdinal: 1).
+  //
+  // Blast radius was nil while nothing submits (ADR-0014) and there is no live
+  // portal. At the first live run it is the failure the brief names as
+  // characteristic and catastrophic.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("REFUSES a second case for the same student and target, naming the first", async () => {
+    const owner = await aStudent("oidc-p38-a");
+    const first = "01JBXQ8Z9WKTQ6M4H2NP3801A1";
+    const second = "01JBXQ8Z9WKTQ6M4H2NP3801A2";
+    await conversationOf(first, owner);
+    await conversationOf(second, owner);
+
+    const opened = await startOn(first);
+    if (!opened.ok) expect.unreachable(`start refused: ${opened.refusal.kind}`);
+
+    const refused = await startOn(second);
+    expect(refused).toEqual({
+      ok: false,
+      refusal: {
+        kind: "already_applying",
+        existingCaseId: `case_${first.toLowerCase()}`,
+        // Live, so a re-application is not available to them yet.
+        concluded: false,
+      },
+    });
+
+    // And nothing was written for the refused one. A case log with no
+    // submission key is a duplicate waiting for the next caller.
+    const log = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM case_events WHERE case_id = $1",
+      [`case_${second.toLowerCase()}`],
+    );
+    expect(log.rows[0]?.n, "no log for a case that never opened").toBe("0");
+  }, 300_000);
+
+  it("RESUMES the same conversation, because re-claiming its own key is a no-op", async () => {
+    // The retry story. A student whose start timed out asks again; the claim
+    // names the same case, so it succeeds and the run is resumed rather than
+    // the whole journey being refused as its own duplicate.
+    const owner = await aStudent("oidc-p38-b");
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NP3801B1";
+    await conversationOf(conversation, owner);
+
+    // The GATED blueprint, because its run STAYS live — it stops at
+    // `request_secret` with status `running`. The ordinary fixture stops for a
+    // specialist and its run goes `escalated`, and `#openAndStart` resumes only
+    // `running` or `suspended`, so a second start there does not reach the
+    // claim at all: it tries to create a run that already exists and throws.
+    // That is a pre-existing gap in `start`, unrelated to the submission key,
+    // and this test is about the key.
+    const opened = await startOn(conversation, CATALOGUE, GATED_BLUEPRINT);
+    if (!opened.ok) expect.unreachable(`start refused: ${opened.refusal.kind}`);
+    expect(opened.position.resumed).toBe(false);
+
+    const again = await startOn(conversation, CATALOGUE, GATED_BLUEPRINT);
+    if (!again.ok) expect.unreachable(`resume refused: ${again.refusal.kind}`);
+    expect(again.position.resumed, "the same question, not a second one").toBe(true);
+    expect(again.position.caseId).toBe(opened.position.caseId);
+  }, 300_000);
+
+  it("lets a DIFFERENT student apply to the same course and intake", async () => {
+    // The control. Without it the refusal above would pass just as well if
+    // nobody could ever open a case for this target twice for any reason.
+    const one = await aStudent("oidc-p38-c1");
+    const two = await aStudent("oidc-p38-c2");
+    await conversationOf("01JBXQ8Z9WKTQ6M4H2NP3801C1", one);
+    await conversationOf("01JBXQ8Z9WKTQ6M4H2NP3801C2", two);
+
+    const first = await startOn("01JBXQ8Z9WKTQ6M4H2NP3801C1");
+    const second = await startOn("01JBXQ8Z9WKTQ6M4H2NP3801C2");
+    expect(first.ok && second.ok, "one identity each, not one between them").toBe(true);
+  }, 300_000);
+
+  it("lets the SAME student apply to a different intake", async () => {
+    // The intake is in the key, so September and the January after it are two
+    // applications rather than one. Asserted rather than assumed: the key is
+    // built from the catalogue entry's `intakeRef`, and a build that dropped it
+    // would refuse a student their second, legitimate application.
+    const owner = await aStudent("oidc-p38-d");
+    await conversationOf("01JBXQ8Z9WKTQ6M4H2NP3801D1", owner);
+    await conversationOf("01JBXQ8Z9WKTQ6M4H2NP3801D2", owner);
+
+    const september = await startOn("01JBXQ8Z9WKTQ6M4H2NP3801D1");
+    if (!september.ok)
+      expect.unreachable(`start refused: ${september.refusal.kind}`);
+
+    const laterIntake: CatalogueEntry = { ...ENTRY, intakeRef: "2027-01" };
+    const january = await startOn("01JBXQ8Z9WKTQ6M4H2NP3801D2", {
+      targets: () => [targetOf({ entry: laterIntake, contentHash: TEST_CONTENT_HASH })],
+      find: (id) => Promise.resolve(id === BLUEPRINT ? laterIntake : null),
+    });
+    if (!january.ok) expect.unreachable(`start refused: ${january.refusal.kind}`);
+    expect(january.position.caseId).not.toBe(september.position.caseId);
+  }, 300_000);
+
+  it("tells the STUDENT, over the real route, which application they already have", async () => {
+    const owner = await aStudent("oidc-p38-e");
+    const first = "01JBXQ8Z9WKTQ6M4H2NP3801E1";
+    const second = "01JBXQ8Z9WKTQ6M4H2NP3801E2";
+    await conversationOf(first, owner);
+    await conversationOf(second, owner);
+
+    expect((await startOver(first, owner)).status).toBe(201);
+    const refused = await startOver(second, owner);
+    expect(refused.status, JSON.stringify(refused.body)).toBe(409);
+
+    // Through the published parser, not by reading fields off an object: a
+    // problem document a client cannot parse is a refusal a client cannot act
+    // on, and P25 found exactly that shape of omission.
+    const parsed = parseProblem(refused.body);
+    if (parsed === null) expect.unreachable("the published parser reads it");
+    expect(parsed.code).toBe("already_applying");
+    if (parsed.code !== "already_applying") expect.unreachable("narrowed");
+    expect(parsed.existingCaseId).toBe(`case_${first.toLowerCase()}`);
+    expect(parsed.concluded).toBe(false);
+    expect(parsed.status).toBe(409);
+  }, 300_000);
+});
+
+describeIfDatabase("the second application, on the student's instruction", () => {
+  let live: { close: () => Promise<void> };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0006 §3, as amended in P38: a re-application is a NEW case that
+  // references the prior one, not a new attempt ordinal on a concluded case.
+  //
+  // `fold` used to increment the ordinal on the SAME case, and the case that
+  // produced could never act: every terminal state has an empty transition
+  // list and `checkTransition` refuses from a terminal state before it looks
+  // at the target. These tests drive the whole exchange through the driver and
+  // then read what the two case logs actually say.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const FIRST = "01JBXQ8Z9WKTQ6M4H2NP3802R1";
+  const SECOND = "01JBXQ8Z9WKTQ6M4H2NP3802R2";
+  const THIRD = "01JBXQ8Z9WKTQ6M4H2NP3802R3";
+  let owner = "";
+
+  beforeAll(async () => {
+    live = await liveServer();
+    owner = await aStudent("oidc-p38-reapply");
+    await conversationOf(FIRST, owner);
+    await conversationOf(SECOND, owner);
+    await conversationOf(THIRD, owner);
+    const opened = await startOn(FIRST);
+    if (!opened.ok) expect.unreachable(`start refused: ${opened.refusal.kind}`);
+
+    // ── The two conversations a refused student is actually in ──────────
+    //
+    // A re-application happens where the student MET the refusal, because a
+    // conversation owns at most one case and the second application needs a
+    // conversation of its own. Both of these therefore ask to apply first and
+    // are refused `already_applying`, which is what binds them to the target
+    // the exchange is about — the driver reads it from the binding rather than
+    // taking a blueprint from a caller.
+    for (const conversation of [SECOND, THIRD]) {
+      const refused = await startOn(conversation);
+      if (refused.ok) expect.unreachable("a second case for one identity");
+      expect(refused.refusal.kind).toBe("already_applying");
+    }
+  }, 300_000);
+
+  afterAll(async () => {
+    await live.close();
+  });
+
+  /** The driver, for one call. */
+  async function driving<T>(use: (driver: RunDriver) => Promise<T>): Promise<T> {
+    const instance = liveInstance();
+    try {
+      return await use(instance.driver);
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  it("REFUSES an instruction we never advised on", async () => {
+    // ADR-0006 rule 4 is advisory in EFFECT and mandatory in PRESENTATION, and
+    // this is what makes that a fact about the log rather than a promise: the
+    // driver looks for the advice event and finds none.
+    const outcome = await driving((driver) =>
+      driver.reapply({ conversationId: SECOND, studentStatement: "Again please." }),
+    );
+    expect(outcome).toEqual({
+      ok: false,
+      refusal: { kind: "recommendation_not_shown" },
+    });
+  }, 300_000);
+
+  it("advises, and records that it did — in the log, not in the answer", async () => {
+    const advised = await driving((driver) =>
+      driver.adviseReapplication({ conversationId: SECOND, priorOutcome: "rejected" }),
+    );
+    if (!advised.ok) expect.unreachable(`refused: ${advised.refusal.kind}`);
+    expect(advised.priorCaseId).toBe(`case_${FIRST.toLowerCase()}`);
+    // No `nextIntake` is supplied, because this service cannot know one is
+    // open — so the honest advice is the one that names no intake.
+    expect(advised.advice.advice).toBe("six_months");
+    expect(advised.advice.suggestedIntake).toBeUndefined();
+
+    const durable = await pool.query<{
+      kind: string;
+      prior_case_id: string | null;
+      prior_outcome: string | null;
+      advice: string | null;
+    }>(
+      `SELECT kind, prior_case_id, prior_outcome, advice
+         FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal`,
+      [SECOND],
+    );
+    expect(durable.rows.map((row) => row.kind)).toEqual([
+      "reapplication_advised",
+      // The words the student reads are an ordinary assistant message beside
+      // the record, exactly as the value and target exchanges do it.
+      "message",
+    ]);
+    expect(durable.rows[0]).toEqual({
+      kind: "reapplication_advised",
+      prior_case_id: `case_${FIRST.toLowerCase()}`,
+      prior_outcome: "rejected",
+      advice: "six_months",
+    });
+  }, 300_000);
+
+  it("REFUSES while the prior application is still live", async () => {
+    // `decideReapplication`'s own words: re-applying while an application is
+    // live "would create two concurrent applications for the same course and
+    // intake — a different bug with the same blast radius".
+    const outcome = await driving((driver) =>
+      driver.reapply({ conversationId: SECOND, studentStatement: "Again please." }),
+    );
+    if (outcome.ok) expect.unreachable("a live prior case may not be re-applied to");
+    expect(outcome.refusal.kind).toBe("reapplication_refused");
+    if (outcome.refusal.kind !== "reapplication_refused") expect.unreachable("narrowed");
+    expect(outcome.refusal.detail).toContain("has not concluded");
+  }, 300_000);
+
+  it("opens a NEW case at attempt 2, naming the one it follows", async () => {
+    await conclude(`case_${FIRST.toLowerCase()}`);
+
+    // The refusal now says the application has concluded, which is the one bit
+    // of state that decides whether a client offers a second attempt at all.
+    const refusedAgain = await startOn(SECOND);
+    expect(refusedAgain).toEqual({
+      ok: false,
+      refusal: {
+        kind: "already_applying",
+        existingCaseId: `case_${FIRST.toLowerCase()}`,
+        concluded: true,
+      },
+    });
+
+    const outcome = await driving(async (driver) => {
+      await driver.adviseReapplication({ conversationId: SECOND, priorOutcome: "rejected" });
+      return await driver.reapply({
+        conversationId: SECOND,
+        studentStatement: "I understand, but I would like to apply again.",
+      });
+    });
+    if (!outcome.ok) expect.unreachable(`reapply refused: ${outcome.refusal.kind}`);
+    expect(outcome.position.caseId).toBe(`case_${SECOND.toLowerCase()}`);
+
+    // ── The new case ────────────────────────────────────────────────────
+    const store = new PostgresCaseStore(pool);
+    const attempt2 = fold(await store.read(makeCaseId(`case_${SECOND.toLowerCase()}`)));
+    expect(attempt2.submissionIdentity.attemptOrdinal).toBe(2);
+    expect(attempt2.priorCaseId).toBe(`case_${FIRST.toLowerCase()}`);
+    // Same student, same target. A second attempt at something else is not a
+    // re-application, and there is no field through which it could be one.
+    const attempt1 = fold(await store.read(makeCaseId(`case_${FIRST.toLowerCase()}`)));
+    expect({ ...attempt2.submissionIdentity, attemptOrdinal: 1 }).toEqual(
+      attempt1.submissionIdentity,
+    );
+
+    // ── The prior case, unchanged ───────────────────────────────────────
+    //
+    // This is what the old `fold` got wrong: it moved the concluded case to
+    // attempt 2 and cleared its authorisation, producing a terminal case that
+    // claimed to be a fresh attempt and could never take a step.
+    expect(attempt1.state, "still concluded").toBe("CANCELLED");
+    expect(attempt1.submissionIdentity.attemptOrdinal, "still attempt 1").toBe(1);
+    expect(attempt1.reapplication).toEqual({
+      newCaseId: `case_${SECOND.toLowerCase()}`,
+      newAttemptOrdinal: 2,
+    });
+
+    // ── Both keys, held by their own cases ──────────────────────────────
+    const keys = await pool.query<{ submission_key: string; case_id: string }>(
+      "SELECT submission_key, case_id FROM submission_keys ORDER BY case_id",
+    );
+    const held = new Map(keys.rows.map((row) => [row.case_id, row.submission_key]));
+    expect(held.get(`case_${FIRST.toLowerCase()}`)).toBeDefined();
+    expect(held.get(`case_${SECOND.toLowerCase()}`)).toBeDefined();
+    expect(
+      held.get(`case_${FIRST.toLowerCase()}`),
+      "two attempts are two keys",
+    ).not.toBe(held.get(`case_${SECOND.toLowerCase()}`));
+  }, 300_000);
+
+  it("REFUSES a THIRD attempt while the second one is still live", async () => {
+    // ── Which case a further attempt is measured against ────────────────
+    //
+    // The chain is walked to its LATEST holder, so this instruction is about
+    // the second application rather than the first — and that one is still
+    // running. The refusal is `prior_case_not_concluded`, which is the same
+    // rule that stops a first application being re-applied to while live.
+    //
+    // `machine.ts`'s one-successor guard is the OTHER half, and it is measured
+    // in `machine.test.ts` where a case with a successor can be constructed
+    // directly. Removing that guard does not fail this test, and recording
+    // that is the point: two rules meet here and only one of them is what this
+    // assertion sees.
+    const outcome = await driving(async (driver) => {
+      await driver.adviseReapplication({ conversationId: THIRD, priorOutcome: "rejected" });
+      return await driver.reapply({
+        conversationId: THIRD,
+        studentStatement: "And again.",
+      });
+    });
+    if (outcome.ok) expect.unreachable("the second application is still live");
+    expect(outcome.refusal.kind).toBe("reapplication_refused");
+    if (outcome.refusal.kind !== "reapplication_refused") expect.unreachable("narrowed");
+    expect(outcome.refusal.detail).toContain("has not concluded");
+  }, 300_000);
+
+  it("advises no wait when the student says they WITHDREW it", async () => {
+    // The recommendation is composed by `recommendWait` from the outcome the
+    // student asserts, and a withdrawal is not a rejection: advising a wait
+    // after somebody stopped their own application would be paternalistic and
+    // unfounded. `none` is a real answer — it records that we advised and that
+    // no wait was warranted, which is a different fact from never advising.
+    const advised = await driving((driver) =>
+      driver.adviseReapplication({ conversationId: THIRD, priorOutcome: "withdrawn" }),
+    );
+    if (!advised.ok) expect.unreachable(`refused: ${advised.refusal.kind}`);
+    expect(advised.advice.advice).toBe("none");
+  }, 300_000);
+
+  it("REFUSES a re-application where the chain holds no prior attempt", async () => {
+    // ── Reachable, and here is how ──────────────────────────────────────
+    //
+    // The chain is walked from the CATALOGUE's current answer about which
+    // institution, course and intake this blueprint names. A reviewed entry
+    // whose identity is later corrected — the intake was recorded as September
+    // and is really January — means the key derived today is not the key
+    // claimed when the case was opened, and there is no prior attempt at the
+    // target the student is now asking about.
+    //
+    // Refused rather than treated as a first application: opening one would
+    // give the student a case at attempt 2 for a target nobody applied to.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NP3802N1";
+    await conversationOf(conversation, owner);
+    const started = await startOn(conversation);
+    if (started.ok) expect.unreachable("this student already has this identity");
+
+    const corrected: CatalogueEntry = { ...ENTRY, intakeRef: "2029-01" };
+    const instance = liveInstance({
+      targets: () => [targetOf({ entry: corrected, contentHash: TEST_CONTENT_HASH })],
+      find: (id) => Promise.resolve(id === BLUEPRINT ? corrected : null),
+    });
+    try {
+      const advised = await instance.driver.adviseReapplication({
+        conversationId: conversation,
+        priorOutcome: "rejected",
+      });
+      expect(advised).toEqual({ ok: false, refusal: { kind: "no_prior_application" } });
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("carries the whole exchange over the two published routes", async () => {
+    const student = await aStudent("oidc-p38-routes");
+    const opened = "01JBXQ8Z9WKTQ6M4H2NP3803W1";
+    const again = "01JBXQ8Z9WKTQ6M4H2NP3803W2";
+    await conversationOf(opened, student);
+    await conversationOf(again, student);
+
+    expect((await startOver(opened, student)).status).toBe(201);
+    await conclude(`case_${opened.toLowerCase()}`);
+    // The refusal that sends them here, with `concluded` now true.
+    const refused = await startOver(again, student);
+    expect(refused.status).toBe(409);
+    expect((refused.body as { concluded?: boolean }).concluded).toBe(true);
+
+    const advice = await fetch(
+      `${LIVE_BASE}/v1/conversations/${again}/reapplication/prior-outcome`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieFor(student) },
+        body: JSON.stringify({ priorOutcome: "rejected" }),
+      },
+    );
+    expect(advice.status).toBe(200);
+    const shown = (await advice.json()) as Record<string, unknown>;
+    expect(shown["priorCaseId"]).toBe(`case_${opened.toLowerCase()}`);
+    expect(shown["advice"]).toBe("six_months");
+    expect(typeof shown["rationale"]).toBe("string");
+
+    const instructed = await fetch(`${LIVE_BASE}/v1/conversations/${again}/reapplication`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(student) },
+      body: JSON.stringify({ studentStatement: "I would like to apply again." }),
+    });
+    expect(instructed.status, await instructed.clone().text()).toBe(201);
+    const run = parseConversationRun(await instructed.json());
+    if (run === null) expect.unreachable("the published parser reads the run");
+    expect(run.caseId).toBe(`case_${again.toLowerCase()}`);
+
+    // And the instruction is on the PRIOR case, in the student's own words.
+    const store = new PostgresCaseStore(pool);
+    const prior = fold(await store.read(makeCaseId(`case_${opened.toLowerCase()}`)));
+    expect(prior.reapplication?.newAttemptOrdinal).toBe(2);
+    const instruction = (await store.read(makeCaseId(`case_${opened.toLowerCase()}`)))
+      .filter((event) => event.type === "ReapplicationInstructed")
+      .at(-1);
+    if (instruction?.type !== "ReapplicationInstructed")
+      expect.unreachable("the instruction is on the prior case");
+    expect(instruction.instruction.studentStatement).toBe("I would like to apply again.");
+    expect(instruction.instruction.priorOutcome.assertedBy).toBe("student");
+    expect(
+      instruction.instruction.proceededDespiteRecommendation,
+      "we advised a wait and they went ahead — derived, not asserted",
+    ).toBe(true);
+  }, 300_000);
+
+  it("REFUSES a re-application instructed by somebody who is not the student", () => {
+    // ADR-0006 rule 1, checked at the ONE place a caller could have said
+    // otherwise: there is no actor parameter on `reapply`, and the routes are
+    // the student's own authenticated ones. This asserts the absence.
+    const source = readFileSync(
+      join(import.meta.dirname, "run-driver.ts"),
+      "utf8",
+    );
+    const call = source.slice(source.indexOf("kind: \"instruct_reapplication\""));
+    expect(
+      call.slice(0, call.indexOf("})")),
+      "the actor is written here, never passed in",
+    ).toContain('actor: "student"');
+  });
 });

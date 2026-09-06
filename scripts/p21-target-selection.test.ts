@@ -666,12 +666,23 @@ describeIfDatabase("POST /v1/conversations/{id}/runs — the explicit request", 
     // two, so none of them could tell which one was read.
     // ═══════════════════════════════════════════════════════════════════
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPD00006";
+    // ── Its OWN student, since P38 armed the submission key ─────────────
+    //
+    // The suite's shared student already has a case for `bp-gated-other` from
+    // the test above, and (student, institution, course, intake, attempt) is
+    // one application. A second conversation asking for the same target on the
+    // same student is now refused `already_applying` — correctly, and for a
+    // reason that has nothing to do with which field the route reads.
+    const mine = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p21-ignores', true) RETURNING id",
+    );
+    const owner = mine.rows[0]!.id;
     await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [
       conversation,
-      student,
+      owner,
     ]);
-    const offerHash = await anOffer(conversation, student, "bp-gated-other");
-    const started = await post(`/v1/conversations/${conversation}/runs`, student, {
+    const offerHash = await anOffer(conversation, owner, "bp-gated-other");
+    const started = await post(`/v1/conversations/${conversation}/runs`, owner, {
       offerHash,
       blueprintId: "bp-gated-partner",
       studentStatement: STATEMENT,

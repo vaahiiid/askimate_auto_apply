@@ -60,8 +60,38 @@ export const EVENT_KINDS = [
   // ordinal sequence to be ordered by.
   "target_offered",
   "target_requested",
+
+  // ── The re-application exchange (ADR-0006 §3, as amended in P38) ────────
+  //
+  // The system advised, and said what it advised. ADR-0006 makes the wait
+  // recommendation "advisory in effect but MANDATORY in presentation: the
+  // system must show it before accepting the instruction, and must record that
+  // it did" — so the showing is an event, and the instruction that follows is
+  // refused without one.
+  //
+  // Carries no prose. The words are the assistant message beside it, exactly as
+  // `value_asked` carries the field and not the question.
+  "reapplication_advised",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
+
+/**
+ * What the student says happened to their previous application.
+ *
+ * Two members, and neither of them is a fact this system established. MVP
+ * responsibility ends at submission confirmation and there is no journey
+ * tracking (brief §2.8), so AAS does not know of its own accord that an
+ * application was rejected — only the student does. ADR-0006 stores it as a
+ * CLAIM with that provenance in the type, and this is the wire spelling of it.
+ */
+export const PRIOR_OUTCOMES = ["rejected", "withdrawn"] as const;
+export type PriorOutcome = (typeof PRIOR_OUTCOMES)[number];
+export const parsePriorOutcome = closedSetParser(PRIOR_OUTCOMES);
+
+/** What the system advised before accepting an instruction to apply again. */
+export const WAIT_ADVICE = ["next_intake", "six_months", "none"] as const;
+export type WaitAdvice = (typeof WAIT_ADVICE)[number];
+export const parseWaitAdvice = closedSetParser(WAIT_ADVICE);
 
 /**
  * The kinds that belong to a SECURE REQUEST's lifecycle.
@@ -100,6 +130,11 @@ export function isSecureEventKind(kind: string): boolean {
 export const TARGET_EVENT_KINDS = [
   "target_offered",
   "target_requested",
+] as const satisfies readonly EventKind[];
+
+/** The kinds that carry the re-application exchange (ADR-0006 §3). */
+export const REAPPLICATION_EVENT_KINDS = [
+  "reapplication_advised",
 ] as const satisfies readonly EventKind[];
 
 /** The kinds that carry the interview's exchange (ADR-0051, ADR-0062). */
@@ -195,6 +230,16 @@ export const PROBLEM_CODES = [
   "intervention_already_resolved",
   "content_changed",
   "secret_request_open",
+  // ADR-0006, armed in P38. This student already has an application for this
+  // institution, course and intake — the submission identity is claimed, and
+  // opening a second case for it is the duplicate the brief calls "the
+  // characteristic catastrophic failure of this class of system".
+  //
+  // Its own code rather than a generic conflict because it is ACTIONABLE: the
+  // problem names the case that holds the identity, and if that application has
+  // concluded the student can instruct a second attempt. A client that could
+  // not tell this apart from any other 409 could not offer them that.
+  "already_applying",
   // ADR-0056. The student is authenticated and their email address is not
   // verified, so a secure step is refused. Its own code rather than a generic
   // `forbidden` because it is the one refusal here the STUDENT can clear

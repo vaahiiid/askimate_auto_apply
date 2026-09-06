@@ -514,12 +514,26 @@ paths:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "409":
           description: >-
-            The offer WAS made in this conversation and no longer describes an
-            available target — it was retired, or the reviewed content behind it
-            changed. `code` is `content_changed`. A fresh offer is needed;
+            Two different facts, told apart by `code`.
+
+            `content_changed` — the offer WAS made in this conversation and no
+            longer describes an available target: it was retired, or the
+            reviewed content behind it changed. A fresh offer is needed;
             nothing about this is recoverable by retrying.
+
+            `already_applying` — this student already has an application for
+            this institution, course and intake (ADR-0006). The submission
+            identity is claimed, and a second case for it would be the duplicate
+            submission the brief calls the characteristic catastrophic failure
+            of this class of system. The body names the case that holds it and
+            whether it has concluded; a concluded one may be re-applied to
+            through `POST .../reapplication`.
           content:
-            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Problem"
+                  - $ref: "#/components/schemas/AlreadyApplyingProblem"
         "503":
           description: >-
             This deployment carries no run driver, no target directory, or the
@@ -528,6 +542,147 @@ paths:
             skipping the gate. The second is a specialist's problem and its detail
             names fields of a university's form, so the detail stays out of the
             body.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/conversations/{conversationId}/reapplication/prior-outcome:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: statePriorOutcome
+      tags: [runs]
+      summary: Say what happened to the previous application, and be advised.
+      description: >-
+        The FIRST half of ADR-0006's re-application exchange, and the reason
+        there are two halves rather than one: the wait recommendation is
+        advisory in effect and MANDATORY in presentation. The system must show
+        it before accepting an instruction, and must record that it did. This
+        is the showing; `POST .../reapplication` is refused without it.
+
+        The student sends what they say happened and nothing else. The advice is
+        composed by the server, so there is no field through which a client
+        could claim to have shown advice nobody gave. `priorOutcome` is a CLAIM
+        — MVP responsibility ends at submission confirmation and there is no
+        journey tracking, so this system does not know of its own accord that an
+        application was rejected.
+
+        The target is not a parameter. This conversation reached here by asking
+        to apply and being refused, and the binding records which application
+        that was.
+
+        It appends two events to the conversation: `reapplication_advised`, the
+        structured record, and the assistant message the student reads.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [priorOutcome]
+              properties:
+                priorOutcome: { $ref: "#/components/schemas/PriorOutcome" }
+      responses:
+        "200":
+          description: What we advised, and when we said it.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/WaitRecommendation" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404":
+          description: >-
+            The conversation is not this student's, or they have no application
+            for this target at all. The same answer to both.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: This deployment carries no run driver.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/conversations/{conversationId}/reapplication:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: instructReapplication
+      tags: [runs]
+      summary: Instruct a second application, in the student's own words.
+      description: >-
+        The SECOND half. ADR-0006: "the decision to re-apply belongs to the
+        student", and nothing else may create an attempt — not a retry, not a
+        specialist, not an operator.
+
+        A re-application opens a NEW case that references the prior one, not a
+        new attempt ordinal on a concluded case. A second attempt is genuinely a
+        different application — different intake, different deadline, possibly
+        changed entry requirements, and a separate authorisation — and one case
+        holding two of each could not state precisely what the student agreed
+        to. Since a conversation owns at most one case, the new case lives in
+        THIS conversation, which is where the student already is.
+
+        The request carries the statement and nothing else. Not the prior case:
+        the submission-key chain says which application this target already has.
+        Not the attempt ordinal: the domain derives it. Not the outcome or the
+        recommendation: both are read back from the advice event this
+        conversation's log holds. Every one of those would have been a field a
+        caller could disagree with the system about, on the one number ADR-0006
+        says may only increase by one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [studentStatement]
+              properties:
+                studentStatement:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: >-
+                    What the student actually said. Not a boolean: when somebody
+                    asks "why was a second application sent?", the answer should
+                    be their own sentence.
+      responses:
+        "200":
+          description: This conversation already had a run; `resumed` is true.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationRun" } }
+        "201":
+          description: A second application was opened, and its run started.
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ConversationRun" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: >-
+            The domain refused the instruction — the prior application has not
+            concluded, the statement is empty, the recommendation was shown
+            after the fact, or that application already led to a second one. The
+            reason names a case and quotes a rule, so it stays out of the body.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404":
+          description: >-
+            The conversation is not this student's, or they have no application
+            for this target to re-apply to.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "409":
+          description: >-
+            `content_changed` — the wait recommendation was never shown in this
+            conversation. The remedy is the first half of the exchange: ask the
+            student what happened and let the system advise.
+
+            `already_applying` — the attempt this instruction derived is already
+            claimed, which means another request opened it in between.
+          content:
+            application/problem+json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Problem"
+                  - $ref: "#/components/schemas/AlreadyApplyingProblem"
+        "503":
+          description: This deployment carries no run driver.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
@@ -1291,6 +1446,7 @@ components:
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
         - { $ref: "#/components/schemas/TargetRequestedEvent" }
+        - { $ref: "#/components/schemas/ReapplicationAdvisedEvent" }
       discriminator:
         propertyName: kind
         mapping:
@@ -1307,6 +1463,30 @@ components:
           value_rejected: "#/components/schemas/ValueRejectedEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
           target_requested: "#/components/schemas/TargetRequestedEvent"
+          reapplication_advised: "#/components/schemas/ReapplicationAdvisedEvent"
+
+    ReapplicationAdvisedEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, priorCaseId, priorOutcome, advice]
+      description: >
+        The system advised on a second application, and said what it advised
+        (ADR-0006 rule 4).
+
+        Content-free, like the other two structured exchanges: the words the
+        student read are an ordinary assistant message beside this. What this
+        carries is the record that makes the instruction acceptable — an
+        instruction with no advice before it is refused.
+      properties:
+        kind: { type: string, enum: [reapplication_advised] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        priorCaseId: { type: string }
+        priorOutcome: { $ref: "#/components/schemas/PriorOutcome" }
+        advice: { type: string, enum: [next_intake, six_months, none] }
+        suggestedIntake:
+          type: string
+          description: Present only with `next_intake`.
 
     TargetOfferedEvent:
       type: object
@@ -1865,6 +2045,64 @@ components:
           properties:
             retryAfterSeconds: { type: integer, minimum: 0 }
 
+    PriorOutcome:
+      type: string
+      description: >-
+        What the STUDENT says happened to their previous application. A claim
+        with its provenance in the type, never a fact this system established
+        (ADR-0006, brief §2.8).
+      enum: [rejected, withdrawn]
+
+    WaitRecommendation:
+      type: object
+      additionalProperties: false
+      required: [priorCaseId, advice, rationale, shownAt]
+      description: >-
+        What the system advised before accepting an instruction to apply again.
+        Advisory in effect, mandatory in presentation (ADR-0006 rules 4 and 5).
+      properties:
+        priorCaseId:
+          type: string
+          description: The concluded application a second attempt would follow.
+        advice:
+          type: string
+          description: >-
+            `none` is a real answer rather than an absence: it records that the
+            circumstances did not warrant advising a wait, which is a different
+            fact from never having advised at all.
+          enum: [next_intake, six_months, none]
+        suggestedIntake:
+          type: string
+          description: >-
+            Present only with `next_intake`. This deployment does not currently
+            produce one — naming a later intake means knowing one is open, which
+            is a catalogue listing question, and advising a student to wait for
+            an intake nobody has reviewed would be inventing a fact.
+        rationale:
+          type: string
+          description: >-
+            The plain-language reasoning the student read. Composed by
+            `recommendWait` from the advice; never assembled from a request.
+        shownAt: { type: string, format: date-time }
+
+    AlreadyApplyingProblem:
+      allOf:
+        - { $ref: "#/components/schemas/Problem" }
+        - type: object
+          required: [existingCaseId, concluded]
+          properties:
+            existingCaseId:
+              type: string
+              description: >-
+                The application already holding this submission identity. Always
+                one of the CALLER'S OWN — the student is part of the identity,
+                so a collision cannot be with anybody else's case.
+            concluded:
+              type: boolean
+              description: >-
+                True when that application has finished, so a second attempt may
+                be instructed through `POST .../reapplication`.
+
     ProblemCode:
       type: string
       enum:
@@ -1878,6 +2116,7 @@ components:
         - intervention_already_resolved
         - content_changed
         - secret_request_open
+        - already_applying
         - email_not_verified
         - rate_limited
         - internal_error

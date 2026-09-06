@@ -63,6 +63,10 @@ because that sentence is one a future reader would rely on.
 > exception."*
 > `machine.ts`: *"The database unique index on the submission key is the second line of defence."*
 
+> **Closed in P38 (2026-09-06).** The key is claimed at case-open, the refusal is `already_applying`,
+> and the re-application it produces opens a NEW case — Finding C with it. ADR-0006 §3 is amended.
+> What follows is the P37 record as written.
+
 **`claimSubmissionKey` has exactly one caller in the repository, and it is `scripts/walkthrough.ts`.**
 No production path claims a submission key. `RunDriver.start` opens a case with a
 `submissionIdentity` and never claims its key.

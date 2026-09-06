@@ -837,6 +837,11 @@ components:
         - intervention_already_resolved
         - content_changed
         - secret_request_open
+        # Not produced by this service — the Secure Plane opens no cases — but
+        # `ProblemCode` is ONE closed set across both documents, and a code
+        # missing from one of them would make the two disagree about what a
+        # client may have to parse.
+        - already_applying
         - email_not_verified
         - rate_limited
         - internal_error

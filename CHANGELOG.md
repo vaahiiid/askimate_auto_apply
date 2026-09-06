@@ -19,6 +19,90 @@ not shipped artefacts.
 
 ---
 
+## [0.56.0] — 2026-09-06
+
+**P38 — the duplicate ADR-0006 has always forbidden is now impossible, and the second application
+it refuses has somewhere to go (ADR-0006 §3, amended).**
+
+P37 recorded two things and deliberately fixed neither, because closing the first without the second
+would replace a silent duplicate with a silent dead end. They are one phase, and this is it.
+
+### Fixed · the second line of defence, finally armed
+
+`claimSubmissionKey` has existed since Phase 1 and ADR-0006 calls the database's unique key *"the
+second line of defence"* against duplicate submission. **Nothing in production called it.** Its only
+caller in the repository was `scripts/walkthrough.ts`. A student could open a second conversation,
+request the same target, and receive a second case with the same `(studentId, institutionId,
+courseId, intake, attemptOrdinal: 1)` — the failure the brief names as *"the characteristic
+catastrophic failure of this class of system"*.
+
+The claim now happens at case-open, inside the same critical section as the binding and before the
+case's first event: re-claiming for the same case is a no-op, so a retry of a start that crashed
+between the two arrives, sees its own claim, and writes the log it did not write last time. The
+other order leaves a case log with no key, which is a duplicate waiting for the next caller.
+
+A collision is refused as `already_applying`, and the refusal names the application that holds the
+identity and whether it has concluded. Both are safe to publish and both are necessary: the student
+is part of the submission identity, so a collision is always with an application of the caller's own,
+and a refusal that cannot say "that one is finished, you may apply again" is a dead end.
+
+### Changed · a re-application is a NEW case (ADR-0006 §3, amended)
+
+`fold` handled `ReapplicationInstructed` by incrementing `attemptOrdinal` on the same case. **The
+case that produced could never act:** every terminal state has an empty transition list and
+`checkTransition` refuses from a terminal state before it looks at the target, so what the fold
+produced was a `CONFIRMED` case at attempt 2 with no first move.
+
+Vahid's decision, and the reasoning rather than only the rule: *"A second attempt is genuinely a
+different application. Different intake, different deadline, possibly changed entry requirements,
+and a separate authorisation from the student. One case holding two sets of requirements and two
+authorisations makes it impossible to state precisely what the student agreed to."*
+
+So `ReapplicationInstructed` stays on the prior case and names the successor it opened; `CaseOpened`
+gains `priorCaseId`; `openCase` refuses an ordinal above 1 without one and a prior case at ordinal 1;
+`openReapplication` is the only constructor for a second attempt and derives every field of its
+identity; a case has exactly one successor, so the chain is a chain rather than a tree. **The
+terminal rule in `checkTransition` is unchanged.**
+
+### Added · the path a refused student actually takes
+
+Since a conversation owns at most one case, the second application lives in a new conversation —
+which is where the student already is when they meet the refusal. Two routes, because ADR-0006 rule 4
+makes the wait recommendation *advisory in effect and mandatory in presentation*:
+
+- `POST /v1/conversations/{id}/reapplication/prior-outcome` — they say what happened; the system
+  composes the recommendation, appends `reapplication_advised` and the message they read, and
+  returns it.
+- `POST /v1/conversations/{id}/reapplication` — their instruction, in their own words, and nothing
+  else. Not the prior case, not the ordinal, not the outcome, not the recommendation: each of those
+  would have been a field a caller could disagree with the system about.
+
+`already_applying` is a published problem code at 409 with `existingCaseId` and `concluded`;
+`reapplication_advised` is a published event kind with its own columns and two CHECK constraints
+(migration 0016).
+
+### Fixed · a test fixture that was right by accident
+
+`run-driver.test.ts` ran almost every conversation against one student, which by the measure that
+matters made most of the file's conversations the same application. Threading a student per
+conversation found a real defect: `recordPage` and `leaveOpen` derived a page's CONTENT target from
+the shared student rather than the run's own, and were correct only because an unrelated group four
+hundred lines earlier seeded that student's profile as a side effect. When it stopped, the target
+became the hash of an empty plan and seven tests in two other groups failed for reasons that read
+like an order dependence and were not one.
+
+### Not done, deliberately
+
+`start` on a conversation whose run has ESCALATED throws rather than resuming: `#openAndStart`
+resumes only `running` or `suspended`. Pre-existing, unrelated to the submission key, and a real
+design question about what a student gets back — recorded rather than fixed here.
+
+`recommendWait`'s `next_intake` branch has no production caller. Naming a later intake means knowing
+one is open, which is a catalogue listing question; advising a student to wait for an intake nobody
+has reviewed would be inventing a fact.
+
+---
+
 ## [0.55.0] — 2026-09-06
 
 **P37 — ADRs 0005–0021, read against the code (ADR-0072).**
