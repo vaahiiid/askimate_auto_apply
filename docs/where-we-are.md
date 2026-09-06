@@ -1740,3 +1740,63 @@ The four blockers are unchanged and three need someone other than an engineer. T
 the first catalogue approval is also unchanged: the two `requiredDocuments` field names, what a
 mapping's `documentRef` is, and — added by this phase — the storage activity naming, which is now
 part of the contract a deployment's `LawfulBasisRegister` must satisfy.
+
+---
+
+# Where we are — 2026-09-06 (P33)
+
+**Date:** 2026-09-06 · **Phase:** P33 · **Document:** [`document-transport-options.md`](./document-transport-options.md) · **No ADR**
+
+## The headline
+
+**The document transport question is now a decision with two costed answers rather than an open
+question.** Nothing was built, and no ADR was written — the correct outcome of this phase is that
+the architecture is sufficiently specified to *choose*, and the choice is product and legal.
+
+## The gap is two gaps, and the second was unnamed
+
+**Student → AAS**: no route, no `multipart`, and a 64 KB JSON body parser.
+**AAS → the browser**: `toStoredPlan` refuses uploads, and the Automation Runner has no database, no
+vault and no cache. The precedent for that half is ADR-0042 — for a password, the answer was a Fill
+Agent in the Secure Plane typing it into the runner's browser over CDP, never handing it over.
+
+## The finding that matters most
+
+`attach_document` is declared, marked verifiable, and **produced by nothing**. Uploads ride the
+page's intent — and `pageValuesOf` reads instructions only, so the page's content identity is blind
+to which document is attached. Replacing a passport does not change the intent key, while the
+domain's own comment says *"Duplicates are visible to admissions."*
+
+**Attachment needs its own intent identity under either option**, and that is blocked on nothing.
+
+## Retry decides more than preference does
+
+`executePlan` re-resolves `DocumentSource` on every execution. Under **hold**, retry is
+`vault.retrieve` and transparent. Under **pass-through**, nothing can produce the bytes after a
+crash: either the student supplies the document again at the least predictable moment, or something
+holds them — which is holding under another name.
+
+The architecture does not decide, but the evidence is not symmetric: the vault, the validity engine
+and both storage gates are already built for hold and reachable from nothing, and pass-through's
+motivating saving depends on the still-unclassified question of whether transient bytes are storage.
+
+## Known limitations — what changed, and what did not
+
+- **Nothing was built and nothing was decided.** One test was added, and it was regressed.
+- **The classification question stays open**: neither ADR-0010 nor ADR-0023 says whether bytes held
+  for the duration of an upload are storage, and ADR-0023 forbids guessing.
+- **Format and size caps cannot be chosen yet** — 103 discovery runs observed zero file inputs
+  because the application is behind a login. The fixture is not evidence about a real institution.
+- **Nothing is submitted.** Unchanged, and structural.
+- Everything from the P14–P32 lists still holds.
+
+## What is next, on the evidence
+
+Two items are transport-level, needed under either option, and blocked on nothing: giving attachment
+its own intent identity, and binding a document to its case and target at acquisition (two of the
+eight bindings do not exist). Both make either option safer and neither presumes which is chosen.
+
+The decision itself: **does a document persist in AAS until the application is complete, or exist only
+for one execution attempt?** Answering the first commits to twelve retention determinations and a
+`store_document:<purpose>` basis; answering the second commits to a custody model across a plane
+boundary and a retry story the current `DocumentSource` contract does not support.

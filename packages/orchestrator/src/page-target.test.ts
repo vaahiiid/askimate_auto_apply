@@ -20,7 +20,16 @@
 
 import { describe, expect, it } from "vitest";
 
-import { pageFillTarget } from "./run.js";
+import type { FillPlan } from "@askimate/aas-mapping";
+import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
+import { studentId } from "@askimate/aas-domain";
+import { emptyProfile } from "@askimate/aas-profile";
+
+import { pageFillTarget, pageValuesOf } from "./run.js";
+
+const STUDENT = studentId("student-p33");
+const NOW = new Date("2026-09-06T00:00:00Z");
 
 const VALUES = [
   { fieldRef: "given_name", text: "Niloofar" },
@@ -96,5 +105,46 @@ describe("pageFillTarget — one intent per page VERSION", () => {
     expect(pageFillTarget({ pageRef: "page-application", values: VALUES })).toBe(
       pageFillTarget({ pageRef: "page-application", values: VALUES }),
     );
+  });
+
+  it("is computed from INSTRUCTIONS ONLY, which uploads are not part of", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Measured in P33, and the fact the document-transport decision rests on.
+    //
+    // `pageValuesOf` reads `plan.instructions`. `plan.uploads` are not in the
+    // target, so the page's content identity is BLIND to which document is
+    // attached — replacing a passport does not change the intent key, while
+    // `attach_document`'s own comment in the domain says "Duplicates are
+    // visible to admissions."
+    //
+    // That is not a defect in this function: it does exactly what ADR-0051 §6
+    // asked of it, for values. It is a gap in what nothing has yet asked of
+    // it. Asserted here so that whoever changes it comes to
+    // `docs/document-transport-options.md` §5 first, because attachment
+    // needing its own intent identity is a conclusion of that document.
+    //
+    // Built from the REAL fixture rather than a hand-made plan: a
+    // `ReviewedConstant` is branded and mintable only from a
+    // `UsableMappingSet`, and a cast here would be asserting against a shape
+    // `planFill` might never produce.
+    // ═══════════════════════════════════════════════════════════════════
+    const usable = checkUsable(FIXTURE_MAPPING_SET, FIXTURE_BLUEPRINT);
+    if (!usable.usable) expect.unreachable("the fixture mapping set is reviewed");
+    const plan = planFill(FIXTURE_BLUEPRINT, usable.mappingSet, emptyProfile(STUDENT, NOW));
+
+    expect(plan.uploads.length, "the fixture really does attach a document").toBeGreaterThan(0);
+    const fields = new Set([...plan.instructions, ...plan.uploads].map((one) => one.fieldRef));
+
+    const target = (from: FillPlan): string =>
+      pageFillTarget({ pageRef: "page-application", values: pageValuesOf(from, fields) });
+
+    // Removing every upload changes nothing the ledger can see…
+    expect(target({ ...plan, uploads: [] })).toBe(target(plan));
+    // …and neither does attaching a DIFFERENT document to the same field.
+    const swapped: FillPlan = {
+      ...plan,
+      uploads: plan.uploads.map((upload) => ({ ...upload, documentRef: "something-else" })),
+    };
+    expect(target(swapped)).toBe(target(plan));
   });
 });

@@ -19,6 +19,71 @@ not shipped artefacts.
 
 ---
 
+## [0.51.0] — 2026-09-06
+
+**P33 — the document transport boundary, costed. No ADR, because no decision was made.**
+
+A read-only investigation turning ADR-0067's **B4** (no transport by which a student can supply
+bytes) and **B5** (hold or pass through) into one decision with two costed answers. **Nothing was
+built**: no route, no upload surface, no object storage, no document table, no change to the Secure
+Plane. See [`docs/document-transport-options.md`](./docs/document-transport-options.md).
+
+### The transport gap is two gaps
+
+**(a) Student → AAS.** No route among the Conversation Service's nineteen; no `multipart` in either
+OpenAPI document; the only body parser is `express.json({ limit: "64kb" })`.
+
+**(b) AAS → the process holding the browser.** `toStoredPlan` refuses `has_uploads`, and the
+**Automation Runner has no database, no vault and no cache** — it claims work over an internal API.
+Nobody had named this half before. There is an exact precedent for it and it is *not* "send it to the
+runner": for a password, ADR-0042 put a **Fill Agent** in the Secure Plane that types the credential
+into the runner's browser over CDP.
+
+### The finding that matters most
+
+`ConsequentialAction` declares `attach_document` and marks it `VERIFIABLE` — and **nothing produces
+it**. `WorkKind` is `create_account | execute`; `ACTION_FOR_WORK` maps those to
+`create_portal_account | advance_portal_page`. So an upload rides the *page's* intent, and:
+
+> **`pageValuesOf` reads `plan.instructions` only. Uploads are not in the target.**
+
+The page's content identity is blind to which document is attached — replacing a passport does not
+change the intent key, while `attach_document`'s own comment says *"Duplicates are visible to
+admissions."* ADR-0051 §6 built the content-aware target so a late correction produces a different
+intent; a document replacement is the same class of event and is invisible to it.
+
+**Attachment needs its own intent identity under either option.** That is transport-level, not
+policy, and blocked on nothing.
+
+### Retry is the sharpest asymmetry
+
+`executePlan` re-resolves `DocumentSource` **on every execution**. After a crash, `verify_first`
+pauses for a person, and then the whole page re-runs.
+
+- **Hold** — `vault.retrieve`. Transparent; nothing is asked of the student twice.
+- **Pass-through** — nothing can produce the bytes. Either the student supplies the document again,
+  at the least predictable moment, or something holds them, which is holding under another name.
+
+### The Secure Plane exclusion, verified
+
+Confirmed and stronger than P31 stated: ≤5-minute TTL (ADR-0034), all persistence disabled, a data
+key per secret zeroed after use, `express.json({ limit: "8kb" })`, and `check-boundaries` forbidding
+every request logger and error reporter in that app for a **measured** reason — body-parser attaches
+the raw request body to a JSON parse error as `err.body`. **Verdict: evidence that document transport
+is a separate boundary.** That `err.body` hazard is not Secure-Plane-specific and transfers.
+
+### Added
+
+- One test in `packages/orchestrator`, built from the real fixture rather than a cast, asserting that
+  a page's target is unchanged by adding an upload or by swapping the document it names. Regressed:
+  making `pageValuesOf` include uploads fails it.
+
+**No ADR was written, deliberately.** The phase's correct outcome is that the architecture is
+sufficiently specified to *choose*, and the choice is a product and legal one. Writing an ADR would
+have been recording a decision nobody made.
+
+---
+
 ## [0.50.0] — 2026-09-05
 
 **P32 — the storage boundary refuses what ADR-0022 says it refuses. ADR-0068.**
