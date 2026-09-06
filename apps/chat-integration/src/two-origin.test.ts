@@ -246,8 +246,41 @@ async function chatSessionCookie(): Promise<string> {
   return `__Host-aas-session=${String(value)}`;
 }
 
+/**
+ * Types a draft, and keeps typing until the page has actually taken it.
+ *
+ * ── Why a retry rather than a longer wait ────────────────────────────────
+ *
+ * The long comment below §"Reading `#chat-input`" diagnosed the starvation
+ * correctly and drew one conclusion too few. Under parallel Chromium load a
+ * page can take tens of seconds to process an input event — and it can also
+ * DROP one: `fill` sets the DOM value and dispatches, React re-renders from
+ * state, and if the dispatch landed before React attached its listener the
+ * re-render clears the box and nothing ever arrives. Waiting is no help for
+ * that: the value is not late, it is gone.
+ *
+ * CI failed exactly there on `de63f12` — Q4's PRECONDITION poll ran out after
+ * thirty seconds with the box still empty, so the security property the test
+ * exists to prove was never reached. Re-typing is what a real student does,
+ * and it turns a lost event from a permanent failure into a slow one.
+ *
+ * Every place a draft is typed goes through this. Assertions that a box is
+ * EMPTY still do not poll, for the reason recorded below.
+ */
+async function typeDraft(page: Page, text: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        await page.locator("#chat-input").fill(text);
+        return await page.locator("#chat-input").inputValue();
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(text);
+}
+
 async function sendFromComposer(page: Page, text: string): Promise<void> {
-  await page.locator("#chat-input").fill(text);
+  await typeDraft(page, text);
   await page.locator("#chat-send").click();
 }
 
@@ -499,7 +532,7 @@ describeIfDatabase("a student gives a password to the Secure Plane", () => {
     await expect
       .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
       .toBe(false);
-    await page.locator("#chat-input").fill("thanks, that worked");
+    await typeDraft(page, "thanks, that worked");
     await page.locator("#chat-send").click();
     await expect
       .poll(async () => (await durableKinds(conversation)).length, { timeout: 15_000 })
@@ -765,7 +798,7 @@ describeIfDatabase("what the composer does around a secure step", () => {
     const page = await chatPage(conversation);
 
     // The student is already mid-sentence when the step arrives.
-    await page.locator("#chat-input").fill("I was in the middle of this");
+    await typeDraft(page, "I was in the middle of this");
     await openSecureStep(conversation);
 
     await expect
@@ -779,7 +812,7 @@ describeIfDatabase("what the composer does around a secure step", () => {
     await expect
       .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
       .toBe("I was in the middle of this");
-    await page.locator("#chat-input").fill("and I can still type more");
+    await typeDraft(page, "and I can still type more");
     // Polled, for the reason at the top of this group: under parallel browser
     // load this page can be starved for longer than ten seconds, and a one-shot
     // read here observed the PREVIOUS draft — "expected 'I was in the middle of
@@ -807,21 +840,14 @@ describeIfDatabase("what the composer does around a secure step", () => {
       .poll(async () => await page.locator("#chat-send").isDisabled(), { timeout: 20_000 })
       .toBe(true);
 
-    await page.locator("#chat-input").fill(PASSWORD);
     // ── The draft must actually BE there before the submit ──────────────
     //
-    // `#chat-input` is a controlled React input, so `fill` sets the DOM value
-    // and React then re-renders from state. Under a loaded full-suite run the
-    // re-render can land after the dispatch below, and the test then asserts
-    // that an empty draft was preserved — which it trivially was.
-    //
-    // Observed as a real intermittent failure ("expected '' to be 'Tr0ub4…'")
-    // in one full run and not in the same suite alone. Polling the precondition
-    // is what makes the assertion afterwards mean "the draft was KEPT" rather
-    // than "there was nothing to lose".
-    await expect
-      .poll(async () => await page.locator("#chat-input").inputValue(), { timeout: 30_000 })
-      .toBe(PASSWORD);
+    // Otherwise the assertion afterwards means "there was nothing to lose"
+    // rather than "the draft was KEPT". `typeDraft` keeps typing until the page
+    // has taken it, which is what the precondition needs and what a one-shot
+    // `fill` could not promise: this is the exact assertion that ran out after
+    // thirty seconds in CI, with the box still empty.
+    await typeDraft(page, PASSWORD);
 
     // A real submit event, bubbling. React attaches its listeners at the root
     // container, so a non-bubbling `new Event("submit")` never reaches the
@@ -868,7 +894,7 @@ describeIfDatabase("what the composer does around a secure step", () => {
     const frame = page.frameLocator('[data-testid="secure-iframe"]');
     await frame.locator('[data-testid="secure-form"]').waitFor({ timeout: 20_000 });
     // The password goes in the WRONG box as well as the right one.
-    await page.locator("#chat-input").fill(PASSWORD);
+    await typeDraft(page, PASSWORD);
     await frame.locator('[data-testid="secure-password"]').fill("a-different-real-password");
     await frame.locator('[data-testid="secure-confirmation"]').fill("a-different-real-password");
     await frame.locator('[data-testid="secure-submit"]').click();
@@ -936,7 +962,7 @@ describeIfDatabase("what the composer does around a secure step", () => {
     // And typing writes nothing while the step is open. Asserting the BEHAVIOUR
     // rather than a flag: a flag set to the right word by a client that still
     // wrote would pass a flag assertion.
-    await page.locator("#chat-input").fill("typed while the step was open");
+    await typeDraft(page, "typed while the step was open");
     expect(await page.evaluate(() => window.localStorage.getItem("askimate.draft"))).toBeNull();
     await page.close();
   }, 90_000);
