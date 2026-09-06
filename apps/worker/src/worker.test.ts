@@ -41,13 +41,20 @@ function fakeDriver(
     readonly due?: readonly { readonly runId: string; readonly conversationId: string }[];
     readonly advance?: (runId: string) => Promise<{ ok: boolean }>;
     readonly announced?: number;
+    readonly notified?: number;
   } = {},
-): WorkerDriver & { readonly advanced: string[]; readonly announcements: number[] } {
+): WorkerDriver & {
+  readonly advanced: string[];
+  readonly announcements: number[];
+  readonly notifications: number[];
+} {
   const advanced: string[] = [];
   const announcements: number[] = [];
+  const notifications: number[] = [];
   return {
     advanced,
     announcements,
+    notifications,
     dueRuns: (): Promise<readonly { readonly runId: string; readonly conversationId: string }[]> =>
       Promise.resolve(input.due ?? []),
     advance: async ({ runId }): Promise<{ ok: boolean }> => {
@@ -57,6 +64,10 @@ function fakeDriver(
     announcePending: (): Promise<{ announced: number }> => {
       announcements.push(input.announced ?? 0);
       return Promise.resolve({ announced: input.announced ?? 0 });
+    },
+    notifyPending: (): Promise<{ notified: number }> => {
+      notifications.push(input.notified ?? 0);
+      return Promise.resolve({ notified: input.notified ?? 0 });
     },
   };
 }
@@ -340,6 +351,68 @@ describeIfDatabase("the worker holds a job while it works", () => {
       expect(outcome.announced).toBe(2);
     } finally {
       await worker.stop();
+    }
+  }, 60_000);
+
+  it("does NOT notify when no destination is configured", async () => {
+    // The pre-P36 deployment, and it must stay a valid one. The job is not
+    // started rather than started and doing nothing, so `worker_leases` does
+    // not carry a lease for a job that can never do work — an operator reading
+    // that table during an incident sees what this worker actually runs.
+    const driver = fakeDriver({ notified: 3 });
+    const worker = startWorker({ pool, driver, holder: "worker-quiet", now: () => NOW });
+    try {
+      const outcome = await worker.runOnce();
+      expect(outcome.notified).toBe(0);
+      expect(driver.notifications, "the driver was never asked").toHaveLength(0);
+
+      const held = await new WorkerLeaseStore(pool).held("notify_specialists", NOW);
+      expect(held, "and no lease was taken for it").toBeNull();
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("notifies UNDER A LEASE when a destination is configured", async () => {
+    // The same exclusion every other job gets: two workers must not page the
+    // same specialist about the same stopped run at the same moment.
+    const driver = fakeDriver({ notified: 3 });
+    const worker = startWorker({
+      pool,
+      driver,
+      holder: "worker-notify",
+      now: () => NOW,
+      notifies: true,
+    });
+    try {
+      const outcome = await worker.runOnce();
+      expect(outcome.notified).toBe(3);
+
+      const held = await new WorkerLeaseStore(pool).held("notify_specialists", NOW);
+      expect(held?.holder).toBe("worker-notify");
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("a SECOND worker does not notify while the first holds the lease", async () => {
+    const first = fakeDriver({ notified: 1 });
+    const second = fakeDriver({ notified: 1 });
+    const workerA = startWorker({
+      pool, driver: first, holder: "notify-a", now: () => NOW, notifies: true,
+    });
+    const workerB = startWorker({
+      pool, driver: second, holder: "notify-b", now: () => NOW, notifies: true,
+    });
+    try {
+      await workerA.runOnce();
+      await workerB.runOnce();
+
+      expect(first.notifications.length, "the holder did the work").toBeGreaterThan(0);
+      expect(second.notifications, "the other did none of it").toHaveLength(0);
+    } finally {
+      await workerA.stop();
+      await workerB.stop();
     }
   }, 60_000);
 });

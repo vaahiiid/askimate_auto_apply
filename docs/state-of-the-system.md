@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.53.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
+**Version:** 0.54.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -14,9 +14,9 @@ not read the code.
 
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
-stopping before submission. Twenty-five packages and six applications, five of which are deployable
-processes. **2,155 tests, 105 files, zero skipped**, against real PostgreSQL and Redis. Seventy
-architecture decision records, sixty-six accepted. **£0 / $0 of the ~$1,000 AWS credit is spent —
+stopping before submission. Twenty-six packages and six applications, five of which are deployable
+processes. **2,182 tests, 106 files, zero skipped**, against real PostgreSQL and Redis.
+Seventy-one architecture decision records, sixty-seven accepted. **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -81,6 +81,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P33** | The document transport boundary, costed — no ADR, because no decision was made | Turning a question into a decision with two costed answers is the correct outcome; writing an ADR would record a decision nobody made |
 | **P34** | An authorisation is spendable only in the application it names (ADR-0069) | `DisclosureSubject.caseId` had recorded the application since Phase 1 and nothing ever compared it |
 | **P35** | `BlueprintPage.requiredDocuments[].documentRef` → `fieldRef` (ADR-0070) | Two layers shared one name, and the repository contained both readings of it. Free today; costs every catalogue approval once one exists |
+| **P36** | A stopped run reaches a person, and the notice carries nothing about the student (ADR-0071) | The whole recovery design was built and waited on somebody running a CLI. The student was told; the specialist was not |
 
 ---
 
@@ -136,6 +137,7 @@ whole design is that they have none.
 | Confirmed profile | `profile_entries` | Its own store; the event log stays a record of events (ADR-0044) |
 | Work + worker leases | `work_leases`, `worker_leases` | Runner and worker claim by lease; PostgreSQL decides the race |
 | Target offers | `target_offers` + the conversation log | Gate 2 verifies an `offerHash` against *this conversation's own* log |
+| Specialist notices | `interventions.notified_at`, beside `announced_at` | Two audiences, two columns: either channel can fail while the other succeeds |
 | Secret requests | secure DB, separate | No column in that schema can hold a secret — asserted from `information_schema` after migrating |
 | Encrypted credential envelope | Redis, ciphertext only | ≤5-minute TTL ceiling; `verify()` refuses a server whose config would let ciphertext reach disk |
 | **Document bytes** | **Nowhere.** No `bytea`, no blob column, no bucket | The vault exists and is reachable from no deployable |
@@ -232,6 +234,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0068 | The storage boundary refuses what ADR-0022 says it refuses | Accepted |
 | 0069 | An authorisation is spendable only in the application it names | Accepted |
 | 0070 | The portal's file field is called `fieldRef` | Accepted |
+| 0071 | A stopped run reaches a person, and the notice carries nothing about the student | Accepted |
 
 **On the four Proposed records (0001–0004):** they are the pre-implementation integration
 proposals. 0003 and 0004 are in force *in practice* — versioned migrations and branded types are
@@ -273,6 +276,7 @@ the integration is real.**
 | `packages/documents` — the vault, the full lifecycle, the validity engine, `purgeContents`, both storage gates | No transport exists by which a student can supply bytes (B4), and no deployable holds a vault | The constraint ships before the thing it constrains (ADR-0019). It refuses correctly today |
 | `packages/extraction` — reading a document with grounded quotation | Same: nothing to read | Same |
 | `packages/requirements` — provenance and the evidence bar | Nothing yet feeds it; requirements come from the reviewed catalogue | It is the shape ADR-0009 requires when a source exists |
+| `packages/notify` — the specialist notice and its webhook | **Reachable.** Set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and it runs. Listed here only because a deployment that has not set one behaves exactly as every deployment did before P36 | It is a configuration away, not a decision away |
 | `attach_document` — a declared `ConsequentialAction`, `VERIFIABLE: true` | **Produced by nothing.** `WorkKind` is `create_account \| execute` | Deleting it would destroy the evidence of what was intended |
 | The interview's `request_document` capability | `nextAction` asks fields before documents, and the orchestrator only enters the interview while a field is outstanding — mutually exclusive by construction | Same reason; asserted rather than deleted |
 | `apps/chat-integration` | A **research build** against the archived AskiMate codebase (10 weeks stale). Explicitly not the production integration | It is the evidence that the secure channel is implementable on AskiMate's real stack shape, and the source of the measured `err.body` finding |
@@ -286,8 +290,6 @@ the integration is real.**
 - **Any AWS infrastructure.** No S3, no KMS key, no RDS, no ElastiCache, no compute. Nothing is
   deployed.
 - **The real AskiMate integration.** Blocked on access to the production source.
-- **An alerting transport** for interventions (email, Slack, anything). A specialist sees them
-  through a CLI.
 - **Any real student data path.** Fixtures and synthetic data only, by standing instruction.
 
 ---
@@ -328,17 +330,18 @@ open rather than quietly answered.
 | **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing |
 | **9** | **`attach_document` intent identity** | Me — unblocked, but needs the transport to be reachable | Safe retry of an upload under either B5 answer |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are Proposed pending this |
-| **11** | **An alerting transport** for interventions | Me | A specialist currently learns about a stopped run by running a CLI |
+| **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
+| **13** | **Re-audit ADRs 0005–0021 against the code** | Me | Nothing — and it is the first unblocked item on the list |
 
-**Not blocked and available to work on now:** the alerting transport (11), the ADR housekeeping (12),
-and hardening anywhere the tests are thinner than the claims.
+**Not blocked and available to work on now:** the ADR re-audit (13), the ADR housekeeping (12), and
+hardening anywhere the tests are thinner than the claims.
 
 ---
 
 ## 7 · Test and verification state
 
-**2,155 tests · 105 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,182 tests · 106 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -348,6 +351,7 @@ integration job.
 | `packages/domain` | 351 | `packages/documents` | 52 |
 | `apps/conversation-service` | 292 | `packages/catalogue` | 39 |
 | `apps/browser-runner` | 204 | `packages/profile` | 39 |
+| `packages/notify` | 15 | | |
 | `apps/chat-integration` | 164 | `packages/preparation` | 33 |
 | `packages/case-store` | 139 | `packages/disclosure` | 31 |
 | `packages/orchestrator` | 98 | `packages/mapping` | 26 |
@@ -364,7 +368,8 @@ under mutation include: a password reaching no database column, log or model pro
 scanning every column of every row, and every HTTP body on every wire); a crash not producing a
 second account; the intent ledger refusing a duplicate consequential action; approvals bound to
 content; the five transmission refusals; both storage gates; the three attachment-identity
-components.
+components; and that a specialist notice carries no student identifier and no free text from the
+failure.
 
 **A guard on the guard:** `scripts/ci-guard.test.ts` starts each database-backed suite *without* a
 database and asserts it **fails** rather than skipping. A silent skip is how a security proof
@@ -411,16 +416,20 @@ determinations are.**
 
 ## 9 · The three things I would fix first, given free choice
 
-### 1 · An alerting transport for interventions
+### 1 · ~~An alerting transport for interventions~~ — **done in P36 (ADR-0071)**
 
-Today a run that stops for a specialist writes a row in `interventions` and **nothing tells anyone**.
-A person learns about it by running `pnpm run interventions`. Every other part of the recovery
-design — pause at the failure point, adjudicate, resume from the checkpoint — is built and tested,
-and it all waits on somebody thinking to look.
+The Background Worker now sends a `SpecialistNotice` to a configured webhook, once per open
+intervention, with a `notified_at` marker so a stopped run is paged once rather than every fifteen
+seconds. The notice carries identifiers and categories and no student — its destination is outside
+every boundary this repository controls.
 
-This is the single largest gap between "the system works" and "the system is operable", it is
-blocked on nothing, and it is perhaps two days' work. It was correctly deprioritised in
-August because durable run state did not exist yet. It does now.
+**What it did not do**, and is the honest remainder: the specialist is still asserted rather than
+authenticated (ADR-0048 §3, unchanged, and its ending condition is a second specialist existing);
+the request is not signed; and there is no backoff or dead-letter, deliberately.
+
+*The replacement for this slot, and now the first unblocked item:* **re-auditing ADRs 0005–0021** —
+see item 3, promoted in practice by five consecutive phases finding an older ADR asserting a
+guarantee the code did not provide.
 
 ### 2 · Give `attach_document` its intent identity
 

@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P35 — the portal's file field is called `fieldRef` (ADR-0070) |
+| **Phase** | P36 — a stopped run reaches a person (ADR-0071) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,155 passing · 105 files · zero skipped** · typecheck, lint, boundary and contract checks green |
-| **Decisions** | 70 ADRs · 66 Accepted |
+| **Tests** | **2,182 passing · 106 files · zero skipped** · typecheck, lint, boundary and contract checks green |
+| **Decisions** | 71 ADRs · 67 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

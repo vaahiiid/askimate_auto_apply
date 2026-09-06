@@ -19,6 +19,101 @@ not shipped artefacts.
 
 ---
 
+## [0.54.0] — 2026-09-06
+
+**P36 — a stopped run reaches a person (ADR-0071).**
+
+Every part of the recovery design was built and tested across P10, P11, P17 and P29: a run stops at
+the failure point; `interventions` records what was encountered and what was expected; a specialist
+adjudicates through an internal route; the run resumes from the intent ledger.
+
+**And nothing told anyone.** A stopped run wrote a durable, discoverable row and then waited for
+somebody to think of running `pnpm run interventions`. The student was told their application was
+paused — `announcePending` has done that since P14 — so the one person who could not act on it was
+informed, and the one who could was not. The schema had been waiting for this since P10: migration
+0003's index carries the comment *"the query the operator CLI runs, and the one an alerting
+transport will run when it exists."*
+
+### The notice, and what it deliberately omits
+
+A notice goes to a URL this repository does not control, so the question is not *what would be
+useful in the message* but *what may be handed to a third party in order to say that something needs
+a person.*
+
+**Sent:** `interventionId`, `runId`, `caseId`; `reason` and `priority`, both closed unions;
+`institutionId`, `courseId`, `portal` and `page`, all from **reviewed** artefacts; `raisedAt`.
+
+**Not sent, each for its own reason:**
+
+- `encountered` / `expected` — the specialist's most useful fields, and free text composed at the
+  point of failure. A portal quoting back an invalid value is the ordinary shape of an
+  `unfamiliar_validation_error`; free text is where a value ends up.
+- `checkpoint` — structured, but it names the pages of a real application in progress, and a webhook
+  subscriber has authenticated to nothing.
+- `studentRef` — pseudonymous is still personal, and it buys the specialist nothing: the CLI and the
+  internal route both take the case.
+
+`noticeFor` is the only constructor and it **reads named fields** rather than spreading and deleting.
+A delete-list is a list somebody has to update, and the field they forget is the one that leaks. A
+`check-boundaries` rule is the second control: `packages/notify` cannot reach a profile, a plan, a
+preview, a secret, a model or a database driver.
+
+### The transport
+
+An HTTPS POST via `fetch`. No SDK, nothing provisioned, nothing paid for — a chat webhook, a paging
+endpoint and an operator's own relay all speak it, so which one is used stays operational rather than
+becoming a dependency in this repository. **Plain HTTP to anything but loopback is refused at
+construction**, so a misconfigured destination stops the worker starting (ADR-0055) rather than
+failing at three in the morning on the first stopped run.
+
+### Ordering, failure, and the second column
+
+**Send first, mark second** — `announcePending`'s order, for its reason: a crash between them pages
+somebody twice, which is much smaller than a stopped run nobody hears about. `markNotified` is
+idempotent, so the duplicate does not move the time. A failed delivery leaves the row unmarked and
+**the batch carries on**; abandoning the pass would let one permanently-failing notice suppress every
+notice behind it, which is the original defect with an extra step. No attempt counter, no backoff, no
+dead-letter — a notice that keeps failing keeps being retried, and the run is still visible in the
+queue an operator can already read.
+
+`notified_at` is a **second column**, not a reuse of `announced_at`: the student and the specialist
+are different audiences, told different things over different channels, and either can succeed while
+the other fails.
+
+### Where it runs
+
+The Background Worker — noticing that something needs a person is autonomous progression, and
+ADR-0052 puts that in the worker. Third job under the existing lease vocabulary
+(`notify_specialists`, added to `worker_leases`' CHECK in a reviewed migration), at fifteen seconds:
+the slowest of the three, because it is the only job that talks to something outside this system.
+
+**With no `AAS_SPECIALIST_WEBHOOK_URL` the job is not started at all**, so `worker_leases` carries no
+lease for a job that can never work. That is every deployment before this one and stays valid — but
+it is now a choice, and the worker says so on startup rather than leaving it invisible.
+
+### Added
+
+`packages/notify` (the shape, the port, the webhook), `packages/case-store` migration 0004,
+`apps/conversation-service` migration 0015, `RunDriver.notifyPending`, the worker's third job, and
+`AAS_SPECIALIST_WEBHOOK_URL` / `AAS_WORKER_NOTIFY_MS`.
+
+Twenty-seven tests — fifteen on the notice and the webhook, four on the store contract (both
+implementations), five driving a **real** run to a **real** specialist stop through the driver and
+asserting what leaves the system, and three on the worker's job and its lease. Nine deliberate regressions, all caught: prose in the
+notice fails 3; the student in the notice fails 3; admitting plain HTTP fails 2; a notifier that
+swallows a failure fails 2; a driver that marks a failed delivery fails 1; ignoring the marker fails
+1; one column for both audiences fails 1; the notify job without a lease fails 2; the notify job
+running with no destination fails 1.
+
+**A real defect the tests found before anything shipped:** `new URL("http://[::1]:9000/").hostname`
+is `[::1]`, with brackets. The loopback allow-list held the bare `::1` and would have refused a
+legitimate IPv6 local relay — wrong in exactly one deployment, which is the kind that is discovered
+in production.
+
+2182 tests, 106 files, zero skipped, against real PostgreSQL and Redis.
+
+---
+
 ## [0.53.0] — 2026-09-06
 
 **P35 — the portal's file field is called `fieldRef` (ADR-0070), and the standing account of the

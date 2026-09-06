@@ -98,6 +98,8 @@ import type {
   WorkflowRunRecord,
   WorkflowStatus,
 } from "@askimate/aas-domain";
+import { noticeFor } from "@askimate/aas-notify";
+import type { SpecialistNotifier } from "@askimate/aas-notify";
 import type { InterviewState } from "@askimate/aas-interview";
 import {
   newInterview,
@@ -807,6 +809,21 @@ export interface RunDriverOptions {
    * did before P10.
    */
   readonly interventions?: InterventionStore;
+  /**
+   * Where a stopped run is announced to a PERSON who can unstick it (ADR-0071).
+   *
+   * Optional, and its absence is the pre-P36 behaviour: an intervention is
+   * raised, the student is told their application is paused, and the specialist
+   * queue fills up silently until somebody runs the CLI. That was the state for
+   * twenty-six phases, so it must remain a valid deployment rather than a
+   * startup failure — but it is now a CHOICE, made by not configuring a
+   * destination, rather than the only thing the system could do.
+   *
+   * Held by the Background Worker, not by the Conversation Service. Noticing
+   * that something needs a person, and telling them, is autonomous progression,
+   * and ADR-0052 puts autonomous progression in the worker.
+   */
+  readonly notifier?: SpecialistNotifier;
   /**
    * Intervention ids, injected so a test can make one predictable.
    *
@@ -2259,6 +2276,58 @@ export class RunDriver {
       announced += 1;
     }
     return { announced };
+  }
+
+  /**
+   * Tells a SPECIALIST that a run is waiting for one (ADR-0071).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The gap this closes: every part of the recovery design — stop at the
+   * failure point, record what was encountered and expected, adjudicate,
+   * resume from the intent ledger — was built and tested, and it all waited on
+   * somebody thinking to run a CLI. A stopped run was durable and discoverable
+   * and it told nobody who could act on it.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Deliberately parallel to `announcePending` in shape and different in every
+   * particular: a different audience, a different channel, a different marker,
+   * and a payload that carries none of what the student's message carries.
+   *
+   * ── Send first, mark second ─────────────────────────────────────────────
+   *
+   * The order `announcePending` uses, for the same reason: a crash between them
+   * pages somebody twice, which is a much smaller failure than a stopped run
+   * nobody hears about. `markNotified` is idempotent, so the duplicate does not
+   * move the recorded time.
+   *
+   * ── One failure does not stop the batch ─────────────────────────────────
+   *
+   * A notifier that throws leaves THAT intervention unmarked and the loop
+   * carries on. The alternative — abandoning the pass — would let one
+   * intervention whose delivery always fails permanently suppress every notice
+   * behind it, which is the original failure with an extra step.
+   */
+  public async notifyPending(limit = 25): Promise<{ readonly notified: number }> {
+    const interventions = this.#options.interventions;
+    const notifier = this.#options.notifier;
+    if (interventions === undefined || notifier === undefined) return { notified: 0 };
+
+    let notified = 0;
+    for (const held of (await interventions.open()).slice(0, limit)) {
+      if (held.notifiedAt !== undefined) continue;
+      try {
+        await notifier.notify(noticeFor(held));
+      } catch {
+        // Left unmarked on purpose: the next pass tries again. The error is not
+        // logged here because this method has no logger and inventing one in
+        // the driver would put an outbound endpoint's message into a log line
+        // this file does not own. The worker reports the failed job.
+        continue;
+      }
+      await interventions.markNotified(held.interventionId, this.#options.now());
+      notified += 1;
+    }
+    return { notified };
   }
 
   /**

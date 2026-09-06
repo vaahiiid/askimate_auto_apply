@@ -9,6 +9,7 @@
     { "path": "../../packages/case-store" },
     { "path": "../../packages/catalogue" },
     { "path": "../../packages/contracts" },
+    { "path": "../../packages/notify" },
     { "path": "../conversation-service" }
   , { "path": "../../packages/config" }]
 }

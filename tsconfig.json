@@ -21,6 +21,7 @@
     { "path": "./packages/contracts" },
     { "path": "./packages/envelope-cache-redis" },
     { "path": "./packages/secure-logging" },
+    { "path": "./packages/notify" },
     { "path": "./packages/browser-fill" },
     { "path": "./packages/migrate" },
     { "path": "./packages/oidc" },

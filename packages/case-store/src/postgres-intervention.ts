@@ -63,6 +63,7 @@ interface Row {
   readonly context: unknown;
   readonly raised_at: Date;
   readonly announced_at: Date | null;
+  readonly notified_at: Date | null;
   readonly lifecycle: string;
   readonly specialist_id: string | null;
   readonly actions_taken: string | null;
@@ -73,7 +74,8 @@ interface Row {
 }
 
 const COLUMNS = `intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
-                 encountered, expected, checkpoint, context, raised_at, announced_at, lifecycle,
+                 encountered, expected, checkpoint, context, raised_at, announced_at, notified_at,
+                 lifecycle,
                  specialist_id, actions_taken, resolution, resolution_outcome, resolved_at,
                  reusability`;
 
@@ -118,6 +120,7 @@ function recordFrom(row: Row): StoredIntervention {
     context: row.context as InterventionContext,
     lifecycle: row.lifecycle as InterventionLifecycle,
     ...(row.announced_at === null ? {} : { announcedAt: row.announced_at }),
+    ...(row.notified_at === null ? {} : { notifiedAt: row.notified_at }),
     ...(resolution === undefined ? {} : { resolution }),
     ...(row.reusability === null || row.reusability === undefined
       ? {}
@@ -197,6 +200,21 @@ export class PostgresInterventionStore implements InterventionStore {
     const updated = await this.pool.query(
       `UPDATE interventions SET announced_at = $1
          WHERE intervention_id = $2 AND announced_at IS NULL`,
+      [now, interventionId],
+    );
+    if (updated.rowCount === 1) return;
+    const existing = await this.find(interventionId);
+    if (existing === null) throw new InterventionNotFoundError(interventionId);
+  }
+
+  public async markNotified(interventionId: InterventionId, now: Date): Promise<void> {
+    // Conditional on it being unset, for the same reason as `markAnnounced`:
+    // a re-delivery after a crash must not make the notice look later than it
+    // was. The notifier sends before it marks, so a re-delivery is the expected
+    // failure mode rather than an exceptional one (ADR-0071).
+    const updated = await this.pool.query(
+      `UPDATE interventions SET notified_at = $1
+         WHERE intervention_id = $2 AND notified_at IS NULL`,
       [now, interventionId],
     );
     if (updated.rowCount === 1) return;

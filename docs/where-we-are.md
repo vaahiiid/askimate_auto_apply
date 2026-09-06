@@ -1909,3 +1909,57 @@ Neither is implemented; both are waiting on a founder decision.
 Unchanged from P34, less one: the `documentRef` ambiguity is closed. B5, B1, B2, the transport, the
 `attach_document` intent identity and the four blockers on a real live run all still stand, and are
 listed in priority order in the standing account.
+
+---
+
+# Where we are — 2026-09-06 (P36)
+
+**Date:** 2026-09-06 · **Phase:** P36 · **ADR:** [ADR-0071](./decisions/0071-a-stopped-run-reaches-a-person.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first. This file is the per-phase journal.
+
+## The headline
+
+**A stopped run now reaches a person who can unstick it.** Every part of the recovery design was
+built and tested across P10, P11, P17 and P29 — stop at the failure point, record what was
+encountered and expected, adjudicate, resume from the intent ledger — and all of it waited on
+somebody thinking to run a CLI. The student was told their application was paused; the specialist
+was not told anything.
+
+This was the first of the three items the P35 standing account named as worth fixing first.
+
+## What leaves the system
+
+A notice carries identifiers, closed-union categories and facts from reviewed artefacts. It carries
+**no free text, no checkpoint and no student** — because its destination is a URL an operator
+configures and this repository does not control. `encountered` is the specialist's most useful field
+and the one most likely to quote a value back from a portal, so it stays behind the internal route
+they authenticate to.
+
+`noticeFor` reads named fields rather than spreading and deleting, so a future field on the
+intervention has nowhere to land, and a boundary rule stops `packages/notify` reaching a profile, a
+plan, a preview, a secret or a database.
+
+## The transport
+
+An HTTPS POST, no SDK, nothing provisioned, nothing paid for. Plain HTTP to anything but loopback is
+refused **at construction**, so a bad destination stops the worker starting rather than failing at
+three in the morning. With no destination configured the job is not started at all — every
+deployment before this one — but the worker now says so out loud instead of leaving it invisible.
+
+## Known limitations
+
+- **The specialist is still not authenticated.** ADR-0048 §3's asserted-not-authenticated model is
+  unchanged, and so is the condition that ends it: a second specialist existing at all.
+- **The outbound request is not signed.** The notice carries no instruction and no secret, and a
+  shared signing key would be a credential in the worker's environment in exchange for that.
+- **No backoff, no dead-letter.** A notice that keeps failing keeps being retried. Deliberate: the
+  run stays visible in the queue an operator can already read.
+- Everything from the P14–P35 lists still holds. B5, B1 and B2 are unchanged and still block every
+  document path.
+
+## What is next
+
+Of the three P35 named: this was the first. The second — `attach_document`'s own intent identity —
+still needs the transport to be reachable, so it waits on **B5**. The third, re-auditing ADRs
+0005–0021 against the code, is blocked on nothing.

@@ -211,6 +211,37 @@ export function runInterventionStoreContract(
       expect(found?.announcedAt?.getTime()).toBe(NOW.getTime());
     });
 
+    it("marks a SPECIALIST as told, once, and never moves the timestamp", async () => {
+      const raised = await store.raise(forThisRun());
+      expect((await store.find(raised.interventionId))?.notifiedAt).toBeUndefined();
+
+      await store.markNotified(raised.interventionId, NOW);
+      await store.markNotified(raised.interventionId, LATER);
+
+      const found = await store.find(raised.interventionId);
+      expect(found?.notifiedAt?.getTime()).toBe(NOW.getTime());
+    });
+
+    it("tracks the two audiences SEPARATELY", async () => {
+      // The student and the specialist are told different things over different
+      // channels, and either can succeed while the other fails. One column for
+      // both would let a failed webhook suppress the student's message, or a
+      // failed message suppress the specialist's page (ADR-0071).
+      const raised = await store.raise(forThisRun());
+
+      await store.markAnnounced(raised.interventionId, NOW);
+
+      const half = await store.find(raised.interventionId);
+      expect(half?.announcedAt?.getTime()).toBe(NOW.getTime());
+      expect(half?.notifiedAt, "telling the student does not tell a specialist").toBeUndefined();
+
+      await store.markNotified(raised.interventionId, LATER);
+
+      const both = await store.find(raised.interventionId);
+      expect(both?.announcedAt?.getTime()).toBe(NOW.getTime());
+      expect(both?.notifiedAt?.getTime()).toBe(LATER.getTime());
+    });
+
     it("records a resolution and closes the intervention", async () => {
       const raised = await store.raise(forThisRun());
       const resolved = await store.resolve({

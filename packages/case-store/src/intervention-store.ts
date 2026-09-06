@@ -97,6 +97,14 @@ export interface StoredIntervention {
   readonly lifecycle: InterventionLifecycle;
   /** When the student was told. Absent means they have not been. */
   readonly announcedAt?: Date;
+  /**
+   * When a SPECIALIST was told. Absent means nobody who can act on it knows.
+   *
+   * A different audience from `announcedAt`, over a different channel, and
+   * either can succeed while the other fails (ADR-0071). One column for both
+   * would let a delivery failure on one silently suppress the other.
+   */
+  readonly notifiedAt?: Date;
   /** Absent while it is open. */
   readonly resolution?: RecoveryResolution;
   readonly reusability?: ReusabilityAssessment;
@@ -160,6 +168,15 @@ export interface InterventionStore {
 
   /** Marks the student as having been told, once. */
   markAnnounced(interventionId: InterventionId, now: Date): Promise<void>;
+
+  /**
+   * Marks a specialist as having been told, once.
+   *
+   * Idempotent in the same way as `markAnnounced`: a second call does not move
+   * the timestamp, so a re-delivery after a crash cannot make it look as though
+   * the notice went out later than it did.
+   */
+  markNotified(interventionId: InterventionId, now: Date): Promise<void>;
 
   /**
    * Records the adjudication.

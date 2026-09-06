@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-worker",
-  "version": "0.53.0",
+  "version": "0.54.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -15,6 +15,7 @@
     "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-conversation-service": "workspace:*",
+    "@askimate/aas-notify": "workspace:*",
     "pg": "^8.20.0"
   },
   "devDependencies": {

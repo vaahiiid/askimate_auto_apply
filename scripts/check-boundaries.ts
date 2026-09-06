@@ -51,6 +51,41 @@ const RULES: readonly Rule[] = [
       "The domain core must stay pure so Phase 1 is fully testable with no external systems (brief §11).",
   },
   {
+    packagePath: "packages/notify",
+    forbidden: [
+      // ── What a notice may not be able to reach ────────────────────────
+      //
+      // A `SpecialistNotice` leaves the system, to a URL an operator
+      // configures and this repository does not control (ADR-0071). Its shape
+      // is the primary control — `noticeFor` reads named fields and there is
+      // nowhere for a value to land — and this is the second: the package
+      // cannot reach a profile, a plan, a preview, a secret or a database, so
+      // a future field cannot be sourced from one by a well-meaning edit.
+      //
+      // `@askimate/aas-case-store` IS permitted, and is the only store here:
+      // `StoredIntervention` is the input, and reading it is the whole job.
+      "@askimate/aas-profile",
+      "@askimate/aas-preparation",
+      "@askimate/aas-mapping",
+      "@askimate/aas-secrets",
+      "@askimate/aas-documents",
+      "@askimate/aas-llm",
+      "openai",
+      "@anthropic-ai/sdk",
+      "@anthropic-ai/bedrock-sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "pg",
+      "drizzle-orm",
+      "playwright",
+      "express",
+    ],
+    rationale:
+      "packages/notify composes the one payload in this system that is sent to a third party by " +
+      "design. It must not be able to reach a student's profile, a fill plan, a preview, a secret " +
+      "or a database — a notice says that something needs a person, and everything else a " +
+      "specialist needs lives behind the internal route they authenticate to.",
+  },
+  {
     packagePath: "packages/profile",
     forbidden: ["openai", "@anthropic-ai/sdk",
       "@anthropic-ai/bedrock-sdk", "@aws-sdk/client-bedrock-runtime", "playwright"],

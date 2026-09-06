@@ -32,6 +32,7 @@ import { join } from "node:path";
 import { PostgresCaseStore } from "@askimate/aas-case-store/postgres";
 import { PostgresWorkflowRunStore } from "@askimate/aas-case-store/postgres-workflow";
 import { PostgresInterventionStore } from "@askimate/aas-case-store/postgres-interventions";
+import type { SpecialistNotice, SpecialistNotifier } from "@askimate/aas-notify";
 import type { StoredIntervention } from "@askimate/aas-case-store/interventions";
 import type { WorkflowRunStore } from "@askimate/aas-case-store";
 import { InterventionAlreadyResolvedError } from "@askimate/aas-case-store/interventions";
@@ -296,6 +297,14 @@ function buildInstance(
     | "wired"
     | "none"
     | { verificationOf(studentId: string): Promise<boolean | null> } = "wired",
+  /**
+   * Where a stopped run is announced to a specialist (ADR-0071).
+   *
+   * Absent in every instance but P36's, which is the pre-P36 shape and must
+   * stay a valid deployment: a run still stops, the student is still told, and
+   * the queue fills up with nobody paged.
+   */
+  notifier: SpecialistNotifier | null = null,
 ): {
   readonly pool: pg.Pool;
   readonly driver: RunDriver;
@@ -334,6 +343,7 @@ function buildInstance(
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
     interventions: new PostgresInterventionStore(instancePool),
+    ...(notifier === null ? {} : { notifier }),
     newInterventionId: (runId, key) =>
       `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
     now: () => NOW,
@@ -8011,4 +8021,197 @@ describeIfDatabase("which declaration actually decides", () => {
       await instance.pool.end();
     }
   }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P36 · A stopped run reaches a person (ADR-0071)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("telling a specialist that a run stopped", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Every part of the recovery design was built and tested before this: stop
+  // at the failure point, record what was encountered and expected,
+  // adjudicate, resume from the intent ledger. All of it waited on somebody
+  // thinking to run a CLI.
+  //
+  // These tests drive a REAL run to a REAL specialist stop through the driver
+  // — the fixture mapping declares a document nothing can supply, which is
+  // ADR-0065's stop — and then assert what leaves the system.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  let student = "";
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p36', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+  }, 120_000);
+
+  /** The notices this conversation's own case produced. */
+  function mine(sent: readonly SpecialistNotice[], conversation: string): SpecialistNotice[] {
+    return sent.filter((notice) => notice.caseId.includes(conversation.toLowerCase()));
+  }
+
+  /** A notifier a test controls, and can make fail. */
+  function recorder(fails: (notice: SpecialistNotice) => boolean = () => false): {
+    readonly notifier: SpecialistNotifier;
+    readonly sent: SpecialistNotice[];
+  } {
+    const sent: SpecialistNotice[] = [];
+    return {
+      sent,
+      notifier: {
+        notify: (notice): Promise<void> => {
+          sent.push(notice);
+          return fails(notice)
+            ? Promise.reject(new Error("the endpoint refused"))
+            : Promise.resolve();
+        },
+      },
+    };
+  }
+
+  /** Drives one conversation to a specialist stop and returns its instance. */
+  async function stoppedRun(
+    conversation: string,
+    notifier: SpecialistNotifier,
+  ): Promise<ReturnType<typeof buildInstance>> {
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [conversation, student],
+    );
+    const instance = buildInstance(connectionString(), null, CATALOGUE, "wired", notifier);
+    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+    const started = await instance.driver.start({
+      conversationId: conversation,
+      blueprintId: BLUEPRINT,
+      studentStatement: STATEMENT,
+    });
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    expect(started.position.step, "the fixture stops for a specialist").toBe("specialist");
+    return instance;
+  }
+
+  it("sends ONE notice for a real stop, and marks it", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPP36001";
+    const { notifier, sent } = recorder();
+    const instance = await stoppedRun(conversation, notifier);
+    try {
+      // Counted for THIS case, not globally: this suite shares one database
+      // and earlier groups leave their own stopped runs open, which is
+      // realistic — a notify pass sweeps the whole queue.
+      await instance.driver.notifyPending(100);
+      expect(mine(sent, conversation), "exactly one notice for this run").toHaveLength(1);
+
+      // A second pass sends nothing at all: the marker is what stops every
+      // open run being paged again every fifteen seconds for as long as it is
+      // open, which would be worse than not paging at all.
+      const before = sent.length;
+      const second = await instance.driver.notifyPending(100);
+      expect(second.notified).toBe(0);
+      expect(sent).toHaveLength(before);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("sends the case and the run, and NOT the student or the prose", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPP36002";
+    const { notifier, sent } = recorder();
+    const instance = await stoppedRun(conversation, notifier);
+    try {
+      await instance.driver.notifyPending(100);
+      const notice = mine(sent, conversation)[0];
+      if (notice === undefined) expect.unreachable("one notice was sent");
+
+      expect(notice.caseId).toContain(conversation.toLowerCase());
+      expect(notice.priority).toBe("high");
+      expect(notice.portal.length).toBeGreaterThan(0);
+
+      // The whole point. This is the real intervention this real run raised,
+      // and what leaves the system carries neither the student nor the free
+      // text composed at the point of failure.
+      const wire = JSON.stringify(notice);
+      expect(wire, "no student identifier").not.toContain(student);
+      expect(wire, "no free text from the stop").not.toContain("passport");
+      expect(Object.keys(notice)).not.toContain("studentRef");
+      expect(Object.keys(notice)).not.toContain("encountered");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("does NOT mark it when delivery fails, so the next pass tries again", async () => {
+    // The failure that would otherwise be silent and permanent: a notifier
+    // that swallowed the error would let the driver record a page that never
+    // happened, which is the original defect wearing a disguise.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPP36003";
+    const failing = recorder(() => true);
+    const instance = await stoppedRun(conversation, failing.notifier);
+    try {
+      const attempt = await instance.driver.notifyPending(100);
+      expect(attempt.notified).toBe(0);
+      expect(mine(failing.sent, conversation), "it really did try").toHaveLength(1);
+
+      const again = await instance.driver.notifyPending(100);
+      expect(again.notified).toBe(0);
+      expect(
+        mine(failing.sent, conversation),
+        "and tries again on the next pass",
+      ).toHaveLength(2);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("does nothing at all when no notifier is configured", async () => {
+    // The pre-P36 deployment, which must stay valid: the run still stops, the
+    // student is still told, and the queue fills up with nobody paged. That is
+    // now a choice rather than the only possibility.
+    await pool.query(
+      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      ["01JBXQ8Z9WKTQ6M4H2NPP36004", student],
+    );
+    const instance = buildInstance(connectionString(), null, CATALOGUE, "wired", null);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+      const started = await instance.driver.start({
+        conversationId: "01JBXQ8Z9WKTQ6M4H2NPP36004",
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable("start refused");
+      expect(started.position.step).toBe("specialist");
+
+      expect((await instance.driver.notifyPending(100)).notified).toBe(0);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("tracks the two audiences separately on a REAL intervention", async () => {
+    // The student was told at the moment of the stop (`#raiseForSpecialist`
+    // announces inline). The specialist has not been. One column for both
+    // would have made this row look already-handled.
+    const { notifier } = recorder();
+    const instance = await stoppedRun("01JBXQ8Z9WKTQ6M4H2NPP36005", notifier);
+    try {
+      const store = new PostgresInterventionStore(instance.pool);
+      const before = (await store.open()).filter((one) =>
+        one.caseId.includes("01jbxq8z9wktq6m4h2npp36005"),
+      );
+      expect(before[0]?.announcedAt, "the student was told at the stop").toBeInstanceOf(Date);
+      expect(before[0]?.notifiedAt, "and the specialist was not").toBeUndefined();
+
+      await instance.driver.notifyPending(100);
+
+      const after = (await store.open()).filter((one) =>
+        one.caseId.includes("01jbxq8z9wktq6m4h2npp36005"),
+      );
+      expect(after[0]?.notifiedAt).toBeInstanceOf(Date);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
 });

@@ -20,6 +20,7 @@ import {
   httpSecureRequestOpener,
 } from "@askimate/aas-conversation-service";
 import { pendingMigrations } from "@askimate/aas-migrate";
+import { WebhookNotifier } from "@askimate/aas-notify";
 
 import { workerConfigFrom, type WorkerConfig } from "./config.js";
 import { startWorker } from "./worker.js";
@@ -75,6 +76,14 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
       store,
     );
 
+    // Constructed BEFORE the worker, so a destination that cannot carry a
+    // notice safely stops this process rather than failing at three in the
+    // morning on the first stopped run (ADR-0055, ADR-0071).
+    const notifier =
+      config.specialistWebhookUrl === undefined
+        ? undefined
+        : new WebhookNotifier({ url: config.specialistWebhookUrl });
+
     const worker = startWorker({
       pool,
       driver,
@@ -83,6 +92,8 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
       now: () => new Date(),
       ...(config.advanceIntervalMs === undefined ? {} : { advanceIntervalMs: config.advanceIntervalMs }),
       ...(config.announceIntervalMs === undefined ? {} : { announceIntervalMs: config.announceIntervalMs }),
+      ...(config.notifyIntervalMs === undefined ? {} : { notifyIntervalMs: config.notifyIntervalMs }),
+      notifies: notifier !== undefined,
       ...(config.batch === undefined ? {} : { batch: config.batch }),
       onFailure: (job) => {
         options.log(`worker job failed: ${job}`);
@@ -90,6 +101,14 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
     });
 
     options.log(`worker running as ${config.holder} (catalogue=${config.catalogue})`);
+    // Said out loud, because "nobody is being told about stopped runs" is
+    // exactly the kind of thing that is invisible until it matters.
+    options.log(
+      notifier === undefined
+        ? "specialist notices: OFF — no AAS_SPECIALIST_WEBHOOK_URL. Stopped runs reach the " +
+            'queue and nobody is paged; read them with "pnpm run interventions".'
+        : `specialist notices: on (${new URL(config.specialistWebhookUrl ?? "").origin})`,
+    );
     return {
       config,
       close: async () => {

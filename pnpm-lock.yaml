@@ -325,6 +325,9 @@ importers:
       '@askimate/aas-migrate':
         specifier: workspace:*
         version: link:../../packages/migrate
+      '@askimate/aas-notify':
+        specifier: workspace:*
+        version: link:../../packages/notify
       '@askimate/aas-oidc':
         specifier: workspace:*
         version: link:../../packages/oidc
@@ -466,6 +469,9 @@ importers:
       '@askimate/aas-conversation-service':
         specifier: workspace:*
         version: link:../conversation-service
+      '@askimate/aas-notify':
+        specifier: workspace:*
+        version: link:../../packages/notify
       pg:
         specifier: ^8.20.0
         version: 8.23.0
@@ -718,6 +724,19 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)
+
+  packages/notify:
+    dependencies:
+      '@askimate/aas-case-store':
+        specifier: workspace:*
+        version: link:../case-store
+      '@askimate/aas-domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)(jsdom@28.1.0)

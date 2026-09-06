@@ -25,6 +25,21 @@ export interface WorkerConfig extends CatalogueConfig {
   readonly secureServiceToken: string;
   readonly advanceIntervalMs: number | undefined;
   readonly announceIntervalMs: number | undefined;
+  readonly notifyIntervalMs: number | undefined;
+  /**
+   * Where a stopped run is announced to a person who can unstick it (ADR-0071).
+   *
+   * Optional, and its absence means the notify job does not run — a deployment
+   * with no destination behaves exactly as every deployment did before P36.
+   * That is a CHOICE now rather than the only possibility, and an operator who
+   * has not made it can see so: the worker says on startup whether it is
+   * notifying.
+   *
+   * Validated as a URL here and again by `WebhookNotifier`, which additionally
+   * refuses a non-loopback `http:` destination. Both at startup, so a bad
+   * destination stops the process rather than failing on the first stopped run.
+   */
+  readonly specialistWebhookUrl: string | undefined;
   readonly batch: number | undefined;
   readonly production: boolean;
 }
@@ -44,6 +59,8 @@ export function workerConfigFrom(
       ...catalogueConfig,
       advanceIntervalMs: r.optionalInt("AAS_WORKER_ADVANCE_MS", 0, { min: 100 }) || undefined,
       announceIntervalMs: r.optionalInt("AAS_WORKER_ANNOUNCE_MS", 0, { min: 100 }) || undefined,
+      notifyIntervalMs: r.optionalInt("AAS_WORKER_NOTIFY_MS", 0, { min: 100 }) || undefined,
+      specialistWebhookUrl: r.optionalUrl("AAS_SPECIALIST_WEBHOOK_URL"),
       batch: r.optionalInt("AAS_WORKER_BATCH", 0, { min: 1, max: 500 }) || undefined,
       production: r.production,
     };

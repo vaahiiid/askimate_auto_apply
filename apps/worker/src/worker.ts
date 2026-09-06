@@ -61,6 +61,7 @@ export interface WorkerDriver {
     readonly conversationId: string;
   }): Promise<{ readonly ok: boolean }>;
   announcePending(limit?: number): Promise<{ readonly announced: number }>;
+  notifyPending(limit?: number): Promise<{ readonly notified: number }>;
 }
 
 /**
@@ -73,9 +74,17 @@ export interface WorkerDriver {
  *
  * `announce` at ten seconds: the intervention is durable and discoverable the
  * moment it is raised; this only decides when the student is told.
+ *
+ * `notify` at fifteen seconds: the slowest of the three, deliberately. It is
+ * the only job that talks to something outside this system, and the thing it
+ * talks to is a chat or paging endpoint with its own rate limits. Fifteen
+ * seconds is far inside any human definition of "promptly" for a case that
+ * needs a specialist, and it keeps this worker from being the reason an
+ * operator's webhook starts refusing.
  */
 export const DEFAULT_ADVANCE_MS = 5_000;
 export const DEFAULT_ANNOUNCE_MS = 10_000;
+export const DEFAULT_NOTIFY_MS = 15_000;
 
 /** How many runs one advance pass looks at. Bounded, like every batch here. */
 export const DEFAULT_BATCH = 25;
@@ -95,6 +104,16 @@ export interface WorkerOptions {
   readonly now: () => Date;
   readonly advanceIntervalMs?: number;
   readonly announceIntervalMs?: number;
+  readonly notifyIntervalMs?: number;
+  /**
+   * Whether to run the notify job at all.
+   *
+   * False when no destination is configured. The job is then not started —
+   * rather than started and doing nothing — so that `worker_leases` does not
+   * carry a lease for a job that can never do work, and an operator reading
+   * that table during an incident sees the truth about what this worker runs.
+   */
+  readonly notifies?: boolean;
   readonly batch?: number;
   /**
    * Where a thrown error goes.
@@ -119,6 +138,7 @@ export interface RunningWorker {
     readonly moved: number;
     readonly looked: number;
     readonly announced: number;
+    readonly notified: number;
   }>;
 }
 
@@ -180,6 +200,7 @@ export function startWorker(options: WorkerOptions): RunningWorker {
   const holding = new Map<WorkerJob, string>();
   let advancing = false;
   let announcing = false;
+  let notifying = false;
   let stopped = false;
 
   /**
@@ -217,6 +238,15 @@ export function startWorker(options: WorkerOptions): RunningWorker {
     return outcome?.announced ?? 0;
   };
 
+  const notifyOnce = async (): Promise<number> => {
+    if (options.notifies !== true) return 0;
+    const outcome = await underLease(
+      "notify_specialists",
+      async () => await options.driver.notifyPending(batch),
+    );
+    return outcome?.notified ?? 0;
+  };
+
   const advanceTimer = setInterval(() => {
     if (advancing || stopped) return;
     advancing = true;
@@ -241,14 +271,34 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       });
   }, options.announceIntervalMs ?? DEFAULT_ANNOUNCE_MS);
 
+  // Started only when there is somewhere to send to. A timer that wakes every
+  // fifteen seconds to discover it has no notifier is a timer that lies about
+  // what this process does.
+  const notifyTimer =
+    options.notifies === true
+      ? setInterval(() => {
+          if (notifying || stopped) return;
+          notifying = true;
+          void notifyOnce()
+            .catch(() => {
+              options.onFailure?.("notify_specialists");
+            })
+            .finally(() => {
+              notifying = false;
+            });
+        }, options.notifyIntervalMs ?? DEFAULT_NOTIFY_MS)
+      : null;
+
   advanceTimer.unref();
   announceTimer.unref();
+  notifyTimer?.unref();
 
   return {
     stop: async (): Promise<void> => {
       stopped = true;
       clearInterval(advanceTimer);
       clearInterval(announceTimer);
+      if (notifyTimer !== null) clearInterval(notifyTimer);
       // Giving the leases back is not required for correctness — an abandoned
       // lease lapses on its own, which is what makes crash recovery the absence
       // of a mechanism. It exists so an ORDERLY shutdown does not make the next
@@ -258,13 +308,20 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       }
       holding.clear();
     },
-    runOnce: async (): Promise<{ moved: number; looked: number; announced: number }> => {
-      // Announce FIRST, then advance: an advance can raise a new intervention,
-      // and announcing before it means one `runOnce` does not half-report a
-      // thing it created in the same pass. The next pass tells that student.
+    runOnce: async (): Promise<{
+      moved: number;
+      looked: number;
+      announced: number;
+      notified: number;
+    }> => {
+      // Announce and notify FIRST, then advance: an advance can raise a new
+      // intervention, and telling people before it means one `runOnce` does not
+      // half-report a thing it created in the same pass. The next pass tells
+      // that student and pages that specialist.
       const announced = await announceOnce();
+      const notified = await notifyOnce();
       const { looked, moved } = await advanceOnce();
-      return { moved, looked, announced };
+      return { moved, looked, announced, notified };
     },
   };
 }

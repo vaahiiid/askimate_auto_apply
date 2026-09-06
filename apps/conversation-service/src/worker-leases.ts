@@ -30,7 +30,11 @@ import type { Pool } from "pg";
  * A closed set here and a CHECK constraint in the migration, so a typo is a
  * failed insert rather than a lease nobody notices is orphaned.
  */
-export const WORKER_JOBS = ["advance_runs", "announce_interventions"] as const;
+export const WORKER_JOBS = [
+  "advance_runs",
+  "announce_interventions",
+  "notify_specialists",
+] as const;
 export type WorkerJob = (typeof WORKER_JOBS)[number];
 
 /**

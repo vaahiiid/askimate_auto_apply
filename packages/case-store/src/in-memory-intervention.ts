@@ -33,6 +33,9 @@ function copy(record: StoredIntervention): StoredIntervention {
       raisedAt: new Date(record.escalation.raisedAt.getTime()),
     },
     context: { ...record.context },
+    ...(record.notifiedAt === undefined
+      ? {}
+      : { notifiedAt: new Date(record.notifiedAt.getTime()) }),
     ...(record.announcedAt === undefined
       ? {}
       : { announcedAt: new Date(record.announcedAt.getTime()) }),
@@ -109,6 +112,17 @@ export class InMemoryInterventionStore implements InterventionStore {
     // student was told is a fact about the past.
     if (found.announcedAt !== undefined) return;
     this.#byId.set(interventionId, { ...found, announcedAt: new Date(now.getTime()) });
+  }
+
+  public async markNotified(interventionId: InterventionId, now: Date): Promise<void> {
+    await Promise.resolve();
+    const found = this.#byId.get(interventionId);
+    if (found === undefined) throw new InterventionNotFoundError(interventionId);
+    // Once, for the same reason as `markAnnounced`. The notifier sends before
+    // it marks, so a re-delivery is the expected failure mode (ADR-0071) and it
+    // must not move the recorded time.
+    if (found.notifiedAt !== undefined) return;
+    this.#byId.set(interventionId, { ...found, notifiedAt: new Date(now.getTime()) });
   }
 
   public async resolve(input: ResolveInput): Promise<StoredIntervention> {

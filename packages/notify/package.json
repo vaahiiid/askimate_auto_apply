@@ -1,5 +1,5 @@
 {
-  "name": "@askimate/aas-llm",
+  "name": "@askimate/aas-notify",
   "version": "0.54.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "^0.33.1",
-    "@anthropic-ai/sdk": "^0.120.0",
+    "@askimate/aas-case-store": "workspace:*",
     "@askimate/aas-domain": "workspace:*"
   },
   "devDependencies": {
