@@ -372,6 +372,71 @@ function buildInstance(
   return { pool: instancePool, driver, app };
 }
 
+/**
+ * A conversation, and the student who owns it — one student per conversation.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0073. Until P38 most conversations in this file belonged to ONE shared
+ * student, and nothing stopped that: a student could hold any number of
+ * concurrent applications to the same course and intake. Arming the submission
+ * key stops it, and the invariant is one `decideReapplication` has always
+ * stated — "re-applying while an application is still live would create two
+ * concurrent applications for the same course and intake — a different bug
+ * with the same blast radius".
+ *
+ * So a conversation that stands for a SEPARATE application now has a separate
+ * student, which is what it always meant. `studentId_` and `otherStudentId`
+ * stay for the groups where the student's identity is itself under test —
+ * conversation ownership, cross-student refusals, and the binding — because
+ * there the sharing is the point rather than an accident.
+ *
+ * `ownerOf` exists so a test that seeds a profile or mints a cookie names the
+ * same student the conversation belongs to, without threading a variable
+ * through every helper it already has.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const conversationOwners = new Map<string, string>();
+let ownerCounter = 0;
+
+async function ownConversation(conversation: string): Promise<string> {
+  const held = conversationOwners.get(conversation);
+  if (held !== undefined) return held;
+  ownerCounter += 1;
+  const created = await pool.query<{ id: string }>(
+    "INSERT INTO students (subject, email_verified) VALUES ($1, true) RETURNING id",
+    [`oidc-own-${String(ownerCounter)}`],
+  );
+  const owner = created.rows[0]!.id;
+  await pool.query(
+    "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    [conversation, owner],
+  );
+  conversationOwners.set(conversation, owner);
+  return owner;
+}
+
+/**
+ * The student a conversation belongs to. Fails loudly rather than defaulting.
+ *
+ * A first draft of this fell back to `studentId_` for a conversation nobody had
+ * claimed, which is the shape of the defect P38 went looking for: `recordPage`
+ * derived a page's CONTENT target from that fallback, the shared student had a
+ * confirmed profile only because an unrelated group seeded one as a side
+ * effect, and the day that group stopped doing so the target became the hash of
+ * an empty plan. Nothing failed at the point of the mistake — the ledger simply
+ * recorded a save of content no run has, and every comparison against it missed
+ * quietly. A default is what let a wrong student be nobody's decision.
+ */
+function ownerOf(conversation: string): string {
+  const owner = conversationOwners.get(conversation);
+  if (owner === undefined) {
+    throw new Error(
+      `No owner recorded for ${conversation}. Call ownConversation() before ownerOf().`,
+    );
+  }
+  return owner;
+}
+
 function connectionString(): string {
   const url = new URL(TEST_DATABASE_URL);
   url.pathname = `/${DATABASE}`;
@@ -484,7 +549,7 @@ async function captureAuthorisation(
   const usable = checkUsable(entry.mappingSet, entry.blueprint);
   if (!usable.usable) expect.unreachable("the mapping set should be reviewed");
   const profile = await new PostgresConfirmedProfileStore(instancePool).load(
-    studentId_,
+    ownerOf(conversation),
     NOW,
   );
   const preview = buildPreview(
@@ -502,7 +567,7 @@ async function captureAuthorisation(
       occurredAt: NOW,
       actor: {
         kind: "student",
-        externalRef: externalRef(`student:${studentId_}`),
+        externalRef: externalRef(`student:${ownerOf(conversation)}`),
       },
       type: "AuthorisationCaptured",
       contentHash: preview.preview.contentHash,
@@ -522,7 +587,7 @@ async function captureAuthorisation(
  */
 async function targetForPage(
   page: string,
-  forStudent: string = studentId_,
+  forStudent: string,
 ): Promise<string> {
   const instance = buildInstance(connectionString());
   try {
@@ -556,7 +621,7 @@ async function targetForPage(
 /** The six answers the gated run needs before it can ask for a password. */
 async function confirmTheInterview(
   store: PostgresConfirmedProfileStore,
-  forStudent: string = studentId_,
+  forStudent: string,
 ): Promise<void> {
   await confirmInto(
     store,
@@ -669,14 +734,21 @@ beforeAll(async () => {
   );
   otherStudentId = other.rows[0]!.id;
 
+  // The two MODULE-level conversations are deliberately NOT one-per-student:
+  // they exist to test ownership and cross-student refusal, where one student
+  // holding a conversation another student asks about is the point. They are
+  // recorded as owned all the same, so `ownerOf` answers for every conversation
+  // in the file and no helper has to guess.
   await pool.query(
     "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
     [CONVERSATION, studentId_],
   );
+  conversationOwners.set(CONVERSATION, studentId_);
   await pool.query(
     "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
     [OTHER_CONVERSATION, otherStudentId],
   );
+  conversationOwners.set(OTHER_CONVERSATION, otherStudentId);
 
   const instance = buildInstance(connectionString());
   server = await new Promise<Server>((resolve) => {
@@ -826,10 +898,7 @@ describeIfDatabase(
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00020";
 
     it("starts a run, and the ORCHESTRATOR chose the step", async () => {
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [conversation, studentId_],
-      );
+      await ownConversation(conversation);
       const { driver, pool: instancePool } = buildInstance(connectionString());
       try {
         const outcome = await driver.start({
@@ -969,10 +1038,7 @@ describeIfDatabase(
       // `bind` takes a row lock. Without it both callers read case_id = NULL and
       // both insert, and one gets a unique violation the student sees as a 500.
       const racing = "01JBXQ8Z9WKTQ6M4H2NPC00021";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [racing, studentId_],
-      );
+      await ownConversation(racing);
       const a = buildInstance(connectionString());
       const b = buildInstance(connectionString());
       try {
@@ -1212,10 +1278,7 @@ describeIfDatabase("a run survives the process that started it", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00040";
 
   it("resumes the SAME case and the SAME run, from a wholly new instance", async () => {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    const owner = await ownConversation(conversation);
 
     // ── Instance one ────────────────────────────────────────────────────
     const first = buildInstance(connectionString());
@@ -1230,7 +1293,7 @@ describeIfDatabase("a run survives the process that started it", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: cookieFor(studentId_),
+          Cookie: cookieFor(owner),
         },
         body: JSON.stringify({ blueprintId: BLUEPRINT }),
       },
@@ -1243,7 +1306,7 @@ describeIfDatabase("a run survives the process that started it", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Cookie: cookieFor(studentId_),
+          Cookie: cookieFor(owner),
         },
         body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
       },
@@ -1361,10 +1424,7 @@ describeIfDatabase(
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00050";
 
     it("moves a run OFF interviewing once every answer is stored", async () => {
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [conversation, studentId_],
-      );
+      await ownConversation(conversation);
 
       // ── Instance one: start the run, and answer the interview ───────────
       const first = buildInstance(connectionString(), opener());
@@ -1383,6 +1443,7 @@ describeIfDatabase(
 
         await confirmTheInterview(
           new PostgresConfirmedProfileStore(first.pool),
+          ownerOf(conversation),
         );
       } finally {
         await first.pool.end();
@@ -1420,7 +1481,7 @@ describeIfDatabase(
       const instance = buildInstance(connectionString());
       try {
         const store = new PostgresConfirmedProfileStore(instance.pool);
-        const profile = await store.load(studentId_, NOW);
+        const profile = await store.load(ownerOf(conversation), NOW);
 
         const name = resolveField(profile, "identity.given_name");
         expect(unwrapConfirmed(name as never)).toBe("Niloofar");
@@ -1467,7 +1528,7 @@ describeIfDatabase(
         await runs_.discardCheckpoints(makeRunId(runs.rows[0]!.run_id));
 
         const store = new PostgresConfirmedProfileStore(instance.pool);
-        const profile = await store.load(studentId_, NOW);
+        const profile = await store.load(ownerOf(conversation), NOW);
         expect(profile.entries.size).toBe(6);
       } finally {
         await instance.pool.end();
@@ -1484,6 +1545,32 @@ describeIfDatabase(
   "opening a secure step, and recording it authoritatively",
   () => {
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00060";
+
+    /**
+     * A conversation of this group's, ready to reach the password.
+     *
+     * Every test here needs its run to get PAST the interview, including the
+     * ones that exist to prove a refusal: a run whose student has no confirmed
+     * profile stops at `interview` and returns `{ok: true}`, so the refusal
+     * under test never happens. Before P38 that was arranged by putting every
+     * conversation on the one student whose interview the first test confirmed.
+     * Each conversation now has its own student — two cases for one student
+     * against one target are one submission identity — so the profile is
+     * confirmed per owner instead.
+     */
+    async function readyConversation(id: string): Promise<string> {
+      const owner = await ownConversation(id);
+      const seeding = buildInstance(connectionString());
+      try {
+        await confirmTheInterview(
+          new PostgresConfirmedProfileStore(seeding.pool),
+          owner,
+        );
+      } finally {
+        await seeding.pool.end();
+      }
+      return owner;
+    }
 
     /** Drives a run to the point where it wants a password. */
     async function toTheSecureStep(
@@ -1505,19 +1592,8 @@ describeIfDatabase(
     }
 
     it("asks the Secure Plane, and appends the authoritative event", async () => {
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [conversation, studentId_],
-      );
       // The profile the gated run needs, stored the way the interview stores it.
-      const seeding = buildInstance(connectionString());
-      try {
-        await confirmTheInterview(
-          new PostgresConfirmedProfileStore(seeding.pool),
-        );
-      } finally {
-        await seeding.pool.end();
-      }
+      await readyConversation(conversation);
 
       const secure = opener();
       await toTheSecureStep(secure);
@@ -1528,7 +1604,7 @@ describeIfDatabase(
       if (asked === undefined)
         expect.unreachable("a request should have been opened");
       expect(asked.conversationId).toBe(conversation);
-      expect(asked.studentRef).toBe(studentId_);
+      expect(asked.studentRef).toBe(ownerOf(conversation));
       // From the case and the blueprint, never from model output.
       expect(asked.purpose).toBe("portal_account_creation");
       expect(asked.targetHost).toBe("gated.portal.test");
@@ -1564,7 +1640,7 @@ describeIfDatabase(
         const requestId = `sr_${"0".repeat(31)}1`;
         const response = await fetch(
           `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/${requestId}/bootstrap`,
-          { headers: { cookie: cookieFor(studentId_) } },
+          { headers: { cookie: cookieFor(ownerOf(conversation)) } },
         );
         expect(response.status).toBe(200);
         const body = (await response.json()) as Record<string, unknown>;
@@ -1602,7 +1678,7 @@ describeIfDatabase(
       try {
         const response = await fetch(
           `http://127.0.0.1:${String(port)}/v1/conversations/${conversation}/secure-requests/sr_${"c".repeat(32)}/bootstrap`,
-          { headers: { cookie: cookieFor(studentId_) } },
+          { headers: { cookie: cookieFor(ownerOf(conversation)) } },
         );
         expect(response.status).toBe(404);
         // The secure plane was never even asked. The conversation's own log is
@@ -1679,10 +1755,7 @@ describeIfDatabase(
       // created stops two password prompts being opened. Without that order both
       // racers read a log with no live request and both ask.
       const racing = "01JBXQ8Z9WKTQ6M4H2NPC00063";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [racing, studentId_],
-      );
+      await readyConversation(racing);
       const shared = opener(150);
       const a = buildInstance(connectionString(), shared);
       const b = buildInstance(connectionString(), shared);
@@ -1722,18 +1795,13 @@ describeIfDatabase(
       // A run that carried on past a password it could not ask for would create an
       // account nobody can sign in to.
       const other = "01JBXQ8Z9WKTQ6M4H2NPC00061";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [
-          other,
-          // The student whose interview THIS group confirmed. A first P11 draft
-          // moved it to the second student to keep the profiles apart, and the run
-          // then stopped at `interview` and returned `{ok: true}` — the refusal
-          // under test never happened, because the run never reached the password.
-          // A refusal test needs the run to actually get there.
-          studentId_,
-        ],
-      );
+      // Its own student, with a confirmed interview. A first P11 draft moved
+      // this conversation to a student whose interview was NOT confirmed, and
+      // the run then stopped at `interview` and returned `{ok: true}` — the
+      // refusal under test never happened, because the run never reached the
+      // password. A refusal test needs the run to actually get there, which is
+      // what `readyConversation` is for.
+      await readyConversation(other);
       const instance = buildInstance(connectionString(), null);
       try {
         const outcome = await instance.driver.start({
@@ -1767,32 +1835,32 @@ describeIfDatabase(
     // ADR-0056 — the verified-email guard on the one place a student types a
     // password.
     //
-    // These three run against the SAME student whose interview this group
-    // confirmed, because a run belonging to anyone else stops at `interview` and
-    // never reaches the password at all — the trap the `secure_plane_unavailable`
-    // test above records having fallen into. The column is flipped and restored
-    // rather than a second student introduced, so what differs between the
-    // refusal and the control is verification and nothing else.
+    // Each of these runs against a student whose interview `readyConversation`
+    // confirmed, because a run belonging to a student without one stops at
+    // `interview` and never reaches the password at all — the trap the
+    // `secure_plane_unavailable` test above records having fallen into.
+    //
+    // The refusal and its control are two conversations rather than one column
+    // flipped on a shared student, so that neither can be affected by what the
+    // other did. What differs between them is the value of `email_verified` at
+    // the moment of the start and nothing else.
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** Sets the shared student's verification, and says what it was. */
-    async function setVerified(value: boolean): Promise<void> {
+    /** Sets one student's verification. */
+    async function setVerified(owner: string, value: boolean): Promise<void> {
       await pool.query(
         "UPDATE students SET email_verified = $1 WHERE id = $2",
-        [value, studentId_],
+        [value, owner],
       );
     }
 
     it("REFUSES the secure step when the student's address is NOT verified", async () => {
       const unverified = "01JBXQ8Z9WKTQ6M4H2NPC00066";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [unverified, studentId_],
-      );
+      const owner = await readyConversation(unverified);
       const secure = opener();
       const instance = buildInstance(connectionString(), secure);
       try {
-        await setVerified(false);
+        await setVerified(owner, false);
         const outcome = await instance.driver.start({
           conversationId: unverified,
           blueprintId: GATED_BLUEPRINT,
@@ -1827,24 +1895,21 @@ describeIfDatabase(
           "0",
         );
       } finally {
-        await setVerified(true);
+        await setVerified(owner, true);
         await instance.pool.end();
       }
     }, 120_000);
 
-    it("asks the SAME student for a password once their address IS verified", async () => {
+    it("asks a verified student for a password", async () => {
       // The control. Without it the refusal above would pass just as well if
       // this student could never reach a password for some unrelated reason —
       // and a guard proved only by a failure is not proved at all.
       const verified = "01JBXQ8Z9WKTQ6M4H2NPC00067";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [verified, studentId_],
-      );
+      const owner = await readyConversation(verified);
       const secure = opener();
       const instance = buildInstance(connectionString(), secure);
       try {
-        await setVerified(true);
+        await setVerified(owner, true);
         const outcome = await instance.driver.start({
           conversationId: verified,
           blueprintId: GATED_BLUEPRINT,
@@ -1852,7 +1917,7 @@ describeIfDatabase(
         });
         if (!outcome.ok) expect.unreachable(`refused: ${outcome.refusal.kind}`);
         expect(outcome.position.step).toBe("request_secret");
-        expect(secure.opens, "the same student, now asked").toHaveLength(1);
+        expect(secure.opens, "a verified student, asked").toHaveLength(1);
       } finally {
         await instance.pool.end();
       }
@@ -1869,16 +1934,13 @@ describeIfDatabase(
       // conversation whose student does not exist cannot be created.
       // ═══════════════════════════════════════════════════════════════════
       const unknown = "01JBXQ8Z9WKTQ6M4H2NPC00069";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [unknown, studentId_],
-      );
+      const owner = await readyConversation(unknown);
       const secure = opener();
       const instance = buildInstance(connectionString(), secure, CATALOGUE, {
         verificationOf: () => Promise.resolve(null),
       });
       try {
-        await setVerified(true);
+        await setVerified(owner, true);
         const outcome = await instance.driver.start({
           conversationId: unknown,
           blueprintId: GATED_BLUEPRINT,
@@ -1903,10 +1965,7 @@ describeIfDatabase(
       // deployment where every student is treated as verified — so the missing
       // store is the refusal, and this asserts the direction of that default.
       const unwired = "01JBXQ8Z9WKTQ6M4H2NPC00068";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [unwired, studentId_],
-      );
+      const owner = await readyConversation(unwired);
       const secure = opener();
       const instance = buildInstance(
         connectionString(),
@@ -1915,7 +1974,7 @@ describeIfDatabase(
         "none",
       );
       try {
-        await setVerified(true);
+        await setVerified(owner, true);
         const outcome = await instance.driver.start({
           conversationId: unwired,
           blueprintId: GATED_BLUEPRINT,
@@ -1939,10 +1998,7 @@ describeIfDatabase(
         mintFrameToken: () => Promise.resolve(null),
       };
       const another = "01JBXQ8Z9WKTQ6M4H2NPC00062";
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-        [another, studentId_],
-      );
+      await readyConversation(another);
       const instance = buildInstance(connectionString(), refusing);
       try {
         const outcome = await instance.driver.start({
@@ -2030,15 +2086,13 @@ describeIfDatabase("leasing browser work to a runner", () => {
    * actually get there.
    */
   async function driveToAccountCreation(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const secure = opener();
     const instance = buildInstance(connectionString(), secure);
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -2089,7 +2143,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
 
       expect(work.kind).toBe("create_account");
       expect(work.runId).toBe(runId);
-      expect(work.studentRef).toBe(studentId_);
+      expect(work.studentRef).toBe(ownerOf(conversation));
       // From the blueprint's observed authentication, not from model output.
       expect(work.portalHost).toBe("gated.portal.test");
       expect(work.email).toBe("niloofar@example.test");
@@ -3018,7 +3072,6 @@ describeIfDatabase("leasing browser work to a runner", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // H. P9 — page progress, from the intent ledger (ADR-0047)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("which page a multi-page run does next", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00080";
   let runId = "";
@@ -3033,15 +3086,13 @@ describeIfDatabase("which page a multi-page run does next", () => {
    * derived from the ledger by the code these tests are about.
    */
   async function aRunReadyToFill(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const secure = opener();
     const instance = buildInstance(connectionString(), secure);
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -3112,7 +3163,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     page: string,
     outcome: "succeeded" | "failed_cleanly" | null,
   ): Promise<void> {
-    const target = await targetForPage(page);
+    const target = await targetForPage(page, ownerOf(conversation));
     const instance = buildInstance(connectionString());
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
@@ -3258,10 +3309,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     // is ready to send.
     // ═══════════════════════════════════════════════════════════════════
     const noFillablePage = "01JBXQ8Z9WKTQ6M4H2NPC00081";
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [noFillablePage, studentId_],
-    );
+    await ownConversation(noFillablePage);
     // Overrides `find` only. Nothing here starts a run over HTTP, so the
     // directory Gate 1 would read is deliberately empty rather than lying
     // about what this instance can offer.
@@ -3306,6 +3354,14 @@ describeIfDatabase("which page a multi-page run does next", () => {
       registrationOnly,
     );
     try {
+      // Seeded for THIS conversation's own student. It used to inherit the
+      // profile of the group's other conversation, because both belonged to
+      // one shared student — a coupling that only became visible when each
+      // conversation got the student it always meant (ADR-0073).
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(noFillablePage),
+      );
       const started = await instance.driver.start({
         conversationId: noFillablePage,
         blueprintId: GATED_BLUEPRINT,
@@ -3437,21 +3493,18 @@ describeIfDatabase("which page a multi-page run does next", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // I. P10 — a run that stops says so, and can be picked up (ADR-0048)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("a run that stops on an unfinished action", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00090";
   let runId = "";
 
   /** Everything up to `execute`, exactly as group H builds it. */
   async function aRunReadyToFill(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const instance = buildInstance(connectionString(), opener());
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -3509,7 +3562,12 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
     // The CONTENT target, as the ledger keys it since ADR-0051 §6. An intent
     // written against a bare page ref would be an unfinished action for
     // content this run does not have, which is not the uncertainty under test.
-    const target = await targetForPage(page);
+    //
+    // For THIS conversation's student. The values are part of the target, so
+    // deriving them from anyone else's profile names content the run will never
+    // fill — the empty plan of a student with no confirmed profile hashes to
+    // the empty digest, and every comparison against it silently misses.
+    const target = await targetForPage(page, ownerOf(conversation));
     const instance = buildInstance(connectionString());
     try {
       const runs = new PostgresWorkflowRunStore(instance.pool);
@@ -3816,21 +3874,18 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // J. P10 — the specialist path over real HTTP (ADR-0048 §3)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("the internal specialist routes", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC00091";
   let runId = "";
   let interventionId = "";
 
   async function aPausedRun(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const instance = buildInstance(connectionString(), opener());
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -4099,7 +4154,6 @@ describeIfDatabase("the internal specialist routes", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // K. P10 — the verdict-to-status rule, enumerated
 // ───────────────────────────────────────────────────────────────────────────
-
 describe("which status a stopped run takes", () => {
   // Not `describeIfDatabase`: a pure function, and it is tested here precisely
   // because ONE of its two branches cannot be reached through `claimWork`.
@@ -4135,7 +4189,6 @@ describe("which status a stopped run takes", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // L. P11 — the case machine, driven (ADR-0049)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("the case walks with the run", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A0";
   let runId = "";
@@ -4154,14 +4207,12 @@ describeIfDatabase("the case walks with the run", () => {
   }
 
   it("walks the spine as the run advances, and never writes a state itself", async () => {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const instance = buildInstance(connectionString(), opener());
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -4269,7 +4320,6 @@ describeIfDatabase("the case walks with the run", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // M. P11 — the student's own decision (ADR-0049 §5)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("the decision only the student can make", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000A3";
   let runId = "";
@@ -4277,14 +4327,12 @@ describeIfDatabase("the decision only the student can make", () => {
   let nextPort = PORT + 40;
 
   async function aRunAtTheAuthorisation(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const instance = buildInstance(connectionString(), opener());
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -4437,7 +4485,7 @@ describeIfDatabase("the decision only the student can make", () => {
 
     const { status, body, cacheControl } = await get(
       `/v1/conversations/${conversation}/runs`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(conversation)),
     );
     expect(status).toBe(200);
     const read = (body as { run: unknown }).run;
@@ -4496,13 +4544,10 @@ describeIfDatabase("the decision only the student can make", () => {
     // A real answer, and a different fact from 404 — which stays reserved for
     // a conversation that is not yours.
     const fresh = "01JBXQ8Z9WKTQ6M4H2NPC000C8";
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [fresh, studentId_],
-    );
+    await ownConversation(fresh);
     const { status, body } = await get(
       `/v1/conversations/${fresh}/runs`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(fresh)),
     );
     expect(status).toBe(200);
     expect((body as { run: unknown }).run).toBeNull();
@@ -4530,7 +4575,7 @@ describeIfDatabase("the decision only the student can make", () => {
     // ═══════════════════════════════════════════════════════════════════
     const { status, body, cacheControl } = await get(
       `/v1/conversations/${conversation}/runs/${runId}/preview`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(conversation)),
     );
     expect(status).toBe(200);
 
@@ -4571,7 +4616,7 @@ describeIfDatabase("the decision only the student can make", () => {
 
     const { body } = await get(
       `/v1/conversations/${conversation}/runs/${runId}/preview`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(conversation)),
     );
     const text = (parseRunPreview(body)?.presentedText ?? "").toLowerCase();
     expect(text).not.toContain("password");
@@ -4609,10 +4654,7 @@ describeIfDatabase("the decision only the student can make", () => {
     // and "nothing to approve" must not render as an empty application.
     // ═══════════════════════════════════════════════════════════════════
     const early = "01JBXQ8Z9WKTQ6M4H2NPC000C7";
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [early, studentId_],
-    );
+    await ownConversation(early);
     const instance = buildInstance(connectionString(), opener());
     let earlyRun = "";
     try {
@@ -4633,7 +4675,7 @@ describeIfDatabase("the decision only the student can make", () => {
 
     const { status } = await get(
       `/v1/conversations/${early}/runs/${earlyRun}/preview`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(early)),
     );
     expect(status).toBe(404);
   }, 300_000);
@@ -4644,7 +4686,7 @@ describeIfDatabase("the decision only the student can make", () => {
     // student has nothing to do differently in either case.
     const { status } = await get(
       `/v1/conversations/${conversation}/runs/run_does_not_exist/preview`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(conversation)),
     );
     expect(status).toBe(404);
   }, 300_000);
@@ -4692,15 +4734,15 @@ describeIfDatabase("the decision only the student can make", () => {
     expect(
       await post(
         { kind: "authorise", contentHash: "sha256:not-what-they-saw" },
-        cookieFor(studentId_),
+        cookieFor(ownerOf(conversation)),
       ),
     ).toBe(409);
   }, 300_000);
 
   it("REFUSES a body with no hash at all", async () => {
-    expect(await post({ kind: "authorise" }, cookieFor(studentId_))).toBe(400);
+    expect(await post({ kind: "authorise" }, cookieFor(ownerOf(conversation)))).toBe(400);
     expect(
-      await post({ kind: "submit", contentHash }, cookieFor(studentId_)),
+      await post({ kind: "submit", contentHash }, cookieFor(ownerOf(conversation))),
     ).toBe(400);
   }, 300_000);
 
@@ -4716,7 +4758,7 @@ describeIfDatabase("the decision only the student can make", () => {
     ).toContain("AWAITING_STUDENT_AUTHORISATION");
 
     expect(
-      await post({ kind: "authorise", contentHash }, cookieFor(studentId_)),
+      await post({ kind: "authorise", contentHash }, cookieFor(ownerOf(conversation))),
     ).toBe(204);
 
     const events = await pool.query<{ type: string; to: string | null }>(
@@ -4741,7 +4783,7 @@ describeIfDatabase("the decision only the student can make", () => {
     // AWAITING_STUDENT_AUTHORISATION. Approving twice is not idempotent-safe
     // by accident — it is refused by the guard, which is better.
     expect(
-      await post({ kind: "authorise", contentHash }, cookieFor(studentId_)),
+      await post({ kind: "authorise", contentHash }, cookieFor(ownerOf(conversation))),
     ).toBe(404);
   }, 300_000);
 
@@ -4752,7 +4794,7 @@ describeIfDatabase("the decision only the student can make", () => {
     // moment ago, so nothing about the client's own state decided it.
     const { status, body } = await get(
       `/v1/conversations/${conversation}/runs`,
-      cookieFor(studentId_),
+      cookieFor(ownerOf(conversation)),
     );
     expect(status).toBe(200);
     const run = parseConversationRun((body as { run: unknown }).run);
@@ -4792,14 +4834,11 @@ describeIfDatabase(
     async function aRunAtTheAuthorisation(
       into: string = conversation,
     ): Promise<string> {
-      await pool.query(
-        "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-        [into, studentId_],
-      );
+      await ownConversation(into);
       const instance = buildInstance(connectionString(), opener());
       try {
         const profiles = new PostgresConfirmedProfileStore(instance.pool);
-        await confirmTheInterview(profiles);
+        await confirmTheInterview(profiles, ownerOf(into));
         // The trigger's source: a confirmed field the domain calls financial
         // evidence. Raised from this, never configured.
         await confirmInto(
@@ -4807,13 +4846,14 @@ describeIfDatabase(
           "finance.funding_source",
           "Family savings",
           "my family are paying",
+          ownerOf(into),
         );
 
         // Before the run starts, and against the DATABASE — the run reads this,
         // not the object the confirmation produced.
         const stored = await pool.query<{ field_key: string }>(
           "SELECT field_key FROM profile_entries WHERE student_id = $1",
-          [studentId_],
+          [ownerOf(into)],
         );
         expect(
           stored.rows.map((row) => row.field_key),
@@ -4869,7 +4909,7 @@ describeIfDatabase(
         // against the wrong student is silent.
         const loaded = await new PostgresConfirmedProfileStore(
           instance.pool,
-        ).load(studentId_, NOW);
+        ).load(ownerOf(into), NOW);
         expect(
           [...loaded.entries.keys()],
           "the trigger has a source",
@@ -5112,7 +5152,6 @@ describeIfDatabase(
 // ───────────────────────────────────────────────────────────────────────────
 // N. P12 — the things only the student can do (ADR-0050)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("a handoff the system cannot do for them", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000B0";
   const caseRef = `case_${conversation.toLowerCase()}`;
@@ -5141,14 +5180,12 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
 
   /** A run on the VERIFYING portal, with its account created. */
   async function aRunAwaitingVerification(): Promise<void> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2)",
-      [conversation, studentId_],
-    );
+    await ownConversation(conversation);
     const instance = buildInstance(connectionString(), opener());
     try {
       await confirmTheInterview(
         new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
       );
       const started = await instance.driver.start({
         conversationId: conversation,
@@ -5345,7 +5382,6 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // O. P13 — the student supplies a value (ADR-0051)
 // ───────────────────────────────────────────────────────────────────────────
-
 describeIfDatabase("the interview loop, closed", () => {
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000C0";
   let student = "";
@@ -8039,15 +8075,6 @@ describeIfDatabase("telling a specialist that a run stopped", () => {
   // ADR-0065's stop — and then assert what leaves the system.
   // ═══════════════════════════════════════════════════════════════════════
 
-  let student = "";
-
-  beforeAll(async () => {
-    const created = await pool.query<{ id: string }>(
-      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p36', true) RETURNING id",
-    );
-    student = created.rows[0]!.id;
-  }, 120_000);
-
   /** The notices this conversation's own case produced. */
   function mine(sent: readonly SpecialistNotice[], conversation: string): SpecialistNotice[] {
     return sent.filter((notice) => notice.caseId.includes(conversation.toLowerCase()));
@@ -8077,12 +8104,9 @@ describeIfDatabase("telling a specialist that a run stopped", () => {
     conversation: string,
     notifier: SpecialistNotifier,
   ): Promise<ReturnType<typeof buildInstance>> {
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [conversation, student],
-    );
+    const owner = await ownConversation(conversation);
     const instance = buildInstance(connectionString(), null, CATALOGUE, "wired", notifier);
-    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
     const started = await instance.driver.start({
       conversationId: conversation,
       blueprintId: BLUEPRINT,
@@ -8133,7 +8157,7 @@ describeIfDatabase("telling a specialist that a run stopped", () => {
       // and what leaves the system carries neither the student nor the free
       // text composed at the point of failure.
       const wire = JSON.stringify(notice);
-      expect(wire, "no student identifier").not.toContain(student);
+      expect(wire, "no student identifier").not.toContain(ownerOf(conversation));
       expect(wire, "no free text from the stop").not.toContain("passport");
       expect(Object.keys(notice)).not.toContain("studentRef");
       expect(Object.keys(notice)).not.toContain("encountered");
@@ -8169,13 +8193,10 @@ describeIfDatabase("telling a specialist that a run stopped", () => {
     // The pre-P36 deployment, which must stay valid: the run still stops, the
     // student is still told, and the queue fills up with nobody paged. That is
     // now a choice rather than the only possibility.
-    await pool.query(
-      "INSERT INTO conversations (id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      ["01JBXQ8Z9WKTQ6M4H2NPP36004", student],
-    );
+    const owner = await ownConversation("01JBXQ8Z9WKTQ6M4H2NPP36004");
     const instance = buildInstance(connectionString(), null, CATALOGUE, "wired", null);
     try {
-      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
       const started = await instance.driver.start({
         conversationId: "01JBXQ8Z9WKTQ6M4H2NPP36004",
         blueprintId: BLUEPRINT,
