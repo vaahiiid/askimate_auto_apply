@@ -240,6 +240,14 @@ export const PROBLEM_CODES = [
   // concluded the student can instruct a second attempt. A client that could
   // not tell this apart from any other 409 could not offer them that.
   "already_applying",
+  // P40. A specialist is reviewing this application, so nothing automatic may
+  // move it and an advancing decision is refused until they have finished.
+  //
+  // Its own code because the student can READ it: "a person is checking
+  // something on the university's system" is a state they were already told
+  // about in the conversation, and a client that could not tell it from a 404
+  // would show them a dead end for something that resumes by itself.
+  "specialist_reviewing",
   // ADR-0056. The student is authenticated and their email address is not
   // verified, so a secure step is refused. Its own code rather than a generic
   // `forbidden` because it is the one refusal here the STUDENT can clear

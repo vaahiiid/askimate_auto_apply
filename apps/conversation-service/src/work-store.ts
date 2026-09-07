@@ -32,6 +32,8 @@
 
 import type pg from "pg";
 
+import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
+
 import type { WorkKind } from "@askimate/aas-contracts";
 
 export interface WorkLease {
@@ -101,12 +103,12 @@ export class WorkLeaseStore {
          FROM workflow_runs r
          LEFT JOIN work_leases l
            ON l.run_id = r.run_id AND l.expires_at > $2
-        WHERE r.status IN ('running', 'suspended')
+        WHERE r.status = ANY($4::text[])
           AND r.checkpoint ->> 'phase' = ANY($1::text[])
           AND l.run_id IS NULL
         ORDER BY r.updated_at ASC
         LIMIT $3`,
-      [input.phases, input.now, input.limit],
+      [input.phases, input.now, input.limit, AUTOMATABLE_STATUSES],
     );
     return rows.rows.map((row) => ({
       runId: row.run_id,
@@ -125,8 +127,12 @@ export class WorkLeaseStore {
    * wherever it is rather than looking for browser work, and it returns the
    * conversation because `advance` is keyed on the pair.
    *
-   * `running` and `suspended` only. `uncertain` and `escalated` are waiting for
-   * a person by design; `completed` and `abandoned` are terminal.
+   * From `AUTOMATABLE_STATUSES`, not a literal list: `uncertain` and
+   * `escalated` are waiting for a person by design and `completed` and
+   * `abandoned` are terminal, and this query, `candidates` above and the
+   * driver's own guard were three spellings of that one fact. `isHeldByAPerson`
+   * in `RunDriver.advance` is the RULE; these two are the optimisation that
+   * stops a held run being offered in the first place.
    *
    * A run leased to a runner is excluded: the runner is mid-operation against a
    * real portal, and deciding underneath it would decide from a position that
@@ -147,11 +153,11 @@ export class WorkLeaseStore {
          JOIN conversations c ON c.case_id = r.case_id
          LEFT JOIN work_leases l
            ON l.run_id = r.run_id AND l.expires_at > $1
-        WHERE r.status IN ('running', 'suspended')
+        WHERE r.status = ANY($3::text[])
           AND l.run_id IS NULL
         ORDER BY r.updated_at ASC
         LIMIT $2`,
-      [input.now, input.limit],
+      [input.now, input.limit, AUTOMATABLE_STATUSES],
     );
     return rows.rows.map((row) => ({ runId: row.run_id, conversationId: row.conversation_id }));
   }

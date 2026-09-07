@@ -273,6 +273,7 @@ export type {
   WorkflowStatus,
 } from "./workflow.js";
 export {
+  AUTOMATABLE_STATUSES,
   CHECKPOINT_SCHEMA_VERSION,
   CONSEQUENTIAL_ACTIONS,
   WORKFLOW_PHASES,
@@ -281,6 +282,7 @@ export {
   beginCheckpoint,
   canTransitionStatus,
   idempotencyKeyFor,
+  isHeldByAPerson,
   isReadableCheckpoint,
   isTerminalStatus as isTerminalWorkflowStatus,
   isVerifiable,

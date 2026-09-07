@@ -2115,3 +2115,79 @@ assembled beside it.
 The three worth doing, in order: close the ADR housekeeping (0001–0004 are still Proposed), decide
 what `start` should return for an escalated run, and — when B5 comes back — the document transport
 that four of the six unreachable entries are waiting on.
+
+---
+
+# Where we are — 2026-09-07 (P40)
+
+**Date:** 2026-09-07 · **Phase:** P40 · **ADR:** [ADR-0074](./decisions/0074-a-run-a-person-is-holding-is-returned-to-the-student.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**A student whose application stopped for a specialist can come back to it.** Before this they came
+back to a 500: `start` looked for a run in `running` or `suspended`, an escalated run is neither, and
+it fell through to a run id that already existed.
+
+The conversation had already promised them the opposite — *"you do not need to do anything — I will
+tell you as soon as it moves again."*
+
+## What they can and cannot do while a person is looking
+
+| | |
+|---|---|
+| Ask to carry on | Returns the run where it is. Nothing created, nothing decided |
+| Ask a question | Lands in the same thread, as it always did |
+| Approve / confirm a handoff | **409 `specialist_reviewing`** — a stated reason, where it used to be a 404 |
+| Stop | Always available (ADR-0053) |
+| Confirm a reading of their own details | Available — an answer, not an advance |
+
+## The two guards that were NOT added
+
+Both measured rather than argued.
+
+- **In `advance`:** one was written first and failed five tests that re-advance a stopped run on
+  purpose. That is how the pause is proved idempotent and the interview's attempt limit proved
+  durable. Re-deriving a held run is already a no-op that re-stops it.
+- **In front of `decide`:** a mandatory-review stop is `escalated` too, and the domain's refusal is
+  reachable in exactly that case. A guard there would make the coordinator the thing that refuses a
+  financial-evidence or minor review.
+
+## A second defect, found by refusing to re-run a flake
+
+`p18-startup.test.ts` failed once in eight on this branch. Measured before concluding — 7/8 here,
+6/6 on the previous commit — and the difference was real, in `apps/worker`.
+
+`stop` set its stopped flag, cleared the timers, and released the leases it was holding, while a
+pass that had *begun* before that flag was set was still running. `underLease` claims its lease
+**inside** that pass, so the claim could land after the release loop had already run, and the worker
+exited leaving a lease in `worker_leases`. The next worker then waits a full lease period for a job
+it could have started immediately.
+
+It is invisible in the ordinary case, because an abandoned lease lapses on its own — which is the
+whole reason `p18-startup` asserts the lease table after the process is gone rather than trusting an
+exit code. `stop` now awaits the passes that have started before releasing anything, and
+`worker.test.ts` pins it by holding the claim's own statement open across the call to `stop`.
+
+`apps/worker` was also missing from `scripts/with-postgres.sh`: eighteen lease tests that ran only
+in CI's blanket pass and announced a skip on every local integration run. Added.
+
+## Declared-but-unreachable surface
+
+**6, unchanged.** `checkMinorGate` · `assertStorable` · `authoriseDisclosure` · `purgeContents` ·
+`assessUsability` · `attach_document`. Four of the six wait on B5, B2 or B1.
+
+`isHeldByAPerson` joins the register as enforced, taking the enforced count to 12.
+
+## Known limitations
+
+- The student is told a person is looking **once**, at the moment it stops. There is no "still with
+  a specialist" reminder if it takes days, and no estimate — we have nothing truthful to base one on.
+- B5, B1 and B2 are unchanged and still block every document path.
+
+## What is next
+
+Exercisable and unblocked, in order: the ADR housekeeping (0001–0004 are still Proposed); the
+`already_applying` refusal has no client surface yet, so a student who meets it is told correctly and
+shown nothing; and the fixture/harness fragility the last three phases kept finding by accident.

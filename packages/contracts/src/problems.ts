@@ -52,6 +52,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   content_changed: "The content changed since it was shown; it must be re-approved",
   secret_request_open: "A secure step is open on this conversation",
   already_applying: "You already have an application for this course and intake",
+  specialist_reviewing: "Someone is checking part of your application, and will finish shortly",
   email_not_verified: "Verify your email address, then sign in again",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
@@ -81,6 +82,11 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // for this institution, course and intake, and a second one would be the
   // duplicate submission ADR-0006 exists to make structurally impossible.
   already_applying: 409,
+  // 409, not 403 and not 404: the request is well-formed, the student is
+  // permitted, and the application exists — it is the WORLD that is not ready,
+  // and it becomes ready without them doing anything. The title is what they
+  // can act on, which is nothing, and saying so is the point.
+  specialist_reviewing: 409,
   // 403: authenticated, and not permitted to open this step yet. Its own code
   // rather than a bare `forbidden` so a client can say what to do about it —
   // and the title is the instruction, because this is the one refusal on this
@@ -266,6 +272,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "intervention_already_resolved":
     case "content_changed":
     case "email_not_verified":
+    case "specialist_reviewing":
     case "internal_error":
     case "service_unavailable":
       return { ...base, code };

@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P39 — a declared capability with no production caller fails the build (ADR-0073) |
+| **Phase** | P40 — a run a person is holding is returned to the student, never restarted (ADR-0074) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
 | **Tests** | **2,210 passing · 108 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 73 ADRs · 69 Accepted |
+| **Decisions** | 74 ADRs · 70 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

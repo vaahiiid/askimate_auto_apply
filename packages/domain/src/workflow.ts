@@ -179,6 +179,42 @@ export function isTerminalStatus(status: WorkflowStatus): boolean {
   return NEXT_STATUS[status].length === 0;
 }
 
+/**
+ * The statuses from which something AUTOMATIC may move a run.
+ *
+ * The other four are held by somebody or finished, and this is the list every
+ * automatic mover filters on — the worker's queue, the runner's work queue,
+ * and the driver's own guard. Exported so those are one list rather than three
+ * that are free to drift; `WorkLeaseStore` builds its `IN (…)` from it.
+ */
+export const AUTOMATABLE_STATUSES: readonly WorkflowStatus[] = ["running", "suspended"];
+
+/**
+ * True when a PERSON holds this run and nothing automatic may move it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `uncertain` and `escalated` are the two a run enters when it stops for a
+ * specialist: "we do not know whether that landed" and "somebody must look".
+ * ADR-0048 — a run in either is waiting for an adjudication, and advancing it
+ * would be the blind retry `assessIntent` has no verdict for.
+ *
+ * A predicate rather than a comparison at each site, because the question was
+ * being asked in four places in three spellings — two SQL `IN` lists, a
+ * `status === "running" || status === "suspended"` in the driver, and a
+ * comment. The one that mattered was the one that was MISSING: `start` on a
+ * run in either state fell through its live-run check and tried to create a
+ * run that already existed, so a student whose application had stopped for a
+ * specialist and who came back got a 500 (P40).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Distinct from terminal. A held run RESUMES — `escalated → running` is an
+ * allowed move and is what `resolveIntervention` performs — which is the whole
+ * reason the student is told "I will tell you as soon as it moves again".
+ */
+export function isHeldByAPerson(status: WorkflowStatus): boolean {
+  return !isTerminalStatus(status) && !AUTOMATABLE_STATUSES.includes(status);
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // What a checkpoint may hold — enforced structurally
 // ───────────────────────────────────────────────────────────────────────────

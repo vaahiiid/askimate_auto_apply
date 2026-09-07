@@ -49,6 +49,15 @@
 #                            processes: what they refuse, what they print, and
 #                            the Secure Service and Fill Agent sharing one
 #                            Redis. Set AAS_TEST_REDIS_URL for the last group.
+#   apps/worker            — P14/P40. The worker's leases: two workers cannot do
+#                            one job at once, a dead worker's lease lapses with
+#                            nobody noticing, and an orderly stop gives back a
+#                            lease a pass claimed while the stop was running.
+#                            All four are decided by `worker_leases` rows, so a
+#                            fake would be re-implementing the thing under test.
+#                            Absent from this list until P40, where they ran in
+#                            CI's blanket pass and SKIPPED locally — a shape
+#                            that lets a lease test rot unnoticed between pushes.
 #   packages/case-store    — optimistic concurrency and duplicate-submission
 #                            prevention. Both are enforced by CONSTRAINTS
 #                            (PRIMARY KEY), so a fake would be re-implementing
@@ -61,7 +70,7 @@ set -euo pipefail
 
 if [ -n "${AAS_TEST_DATABASE_URL:-}" ]; then
   echo "Using AAS_TEST_DATABASE_URL"
-  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts
+  AAS_REQUIRE_DATABASE=1 pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler apps/worker packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts
   exit $?
 fi
 
@@ -113,4 +122,4 @@ trap cleanup EXIT
 # quietly skipped would be worse than not running it.
 export AAS_TEST_DATABASE_URL="postgresql://postgres@localhost:$PGPORT/postgres"
 export AAS_REQUIRE_DATABASE=1
-pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts
+pnpm exec vitest run apps/chat-integration apps/conversation-service apps/secure-service apps/secure-filler apps/worker packages/case-store packages/orchestrator scripts/journey.test.ts scripts/runner-supervisor.test.ts scripts/p18-startup.test.ts scripts/p19-identity.test.ts scripts/p20-catalogue.test.ts scripts/p21-target-selection.test.ts

@@ -16,6 +16,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AUTOMATABLE_STATUSES,
   CHECKPOINT_SCHEMA_VERSION,
   CONSEQUENTIAL_ACTIONS,
   WORKFLOW_PHASES,
@@ -24,6 +25,7 @@ import {
   beginCheckpoint,
   canTransitionStatus,
   idempotencyKeyFor,
+  isHeldByAPerson,
   isReadableCheckpoint,
   isTerminalStatus,
   isVerifiable,
@@ -290,5 +292,35 @@ describe("a checkpoint from storage", () => {
     expect(WORKFLOW_PHASES).toContain("awaiting_authorisation");
     expect(WORKFLOW_PHASES).toContain("filling");
     expect(WORKFLOW_PHASES).toHaveLength(10);
+  });
+});
+
+describe("who may move a run", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // P40. The six statuses fall into three sets and every status is in exactly
+  // one: something automatic may move it, a person is holding it, or it is
+  // finished. Asserted as a PARTITION rather than as three membership checks,
+  // because the failure this prevents is a seventh status being added and
+  // landing in none of them — which is how `uncertain` and `escalated` came to
+  // be missing from `start`'s live-run check in the first place.
+  // ═══════════════════════════════════════════════════════════════════════
+  it("puts every status in exactly one of the three sets", () => {
+    for (const status of WORKFLOW_STATUSES) {
+      const memberships = [
+        AUTOMATABLE_STATUSES.includes(status),
+        isHeldByAPerson(status),
+        isTerminalStatus(status),
+      ].filter(Boolean);
+      expect(memberships, `${status} belongs to exactly one set`).toHaveLength(1);
+    }
+  });
+
+  it("names the two a PERSON holds, and they are not terminal", () => {
+    // Not terminal is the load-bearing half: a held run RESUMES, which is what
+    // "I will tell you as soon as it moves again" promises the student.
+    expect(WORKFLOW_STATUSES.filter(isHeldByAPerson)).toEqual(["uncertain", "escalated"]);
+    for (const status of WORKFLOW_STATUSES.filter(isHeldByAPerson)) {
+      expect(canTransitionStatus(status, "running"), `${status} can resume`).toBe(true);
+    }
   });
 });

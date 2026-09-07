@@ -199,6 +199,15 @@ const CAPABILITIES: readonly Capability[] = [
     status: { kind: "reachable" },
   },
   {
+    symbol: "isHeldByAPerson",
+    kind: "call",
+    declaredIn: ["packages/domain/src/workflow.ts"],
+    record: "ADR-0074",
+    promise:
+      "a run a person is holding is returned to the student, never restarted, and cannot be advanced",
+    status: { kind: "reachable" },
+  },
+  {
     symbol: "assessIntent",
     kind: "call",
     declaredIn: ["packages/domain/src/workflow.ts"],

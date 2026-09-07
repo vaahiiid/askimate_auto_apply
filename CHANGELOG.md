@@ -19,6 +19,79 @@ not shipped artefacts.
 
 ---
 
+## [0.58.0] — 2026-09-07
+
+**P40 — a run a person is holding is returned to the student, never restarted (ADR-0074).**
+
+P29 made a run that only a person can carry on stop and say so. P36 made that stop reach a
+specialist. Neither answered what the student does next: **they come back.**
+
+### Fixed · they came back to a 500
+
+`start` looked for a run in `running` or `suspended` before deciding whether to resume. An escalated
+run is neither, so it fell through to `startRun`, which refused a run id that already existed and
+threw — and the route turned that into an internal error. The student had been told, in that same
+conversation, *"you do not need to do anything — I will tell you as soon as it moves again."*
+
+Vahid: *"When a specialist reviews a case, there is no handoff to a separate conversation or a
+different person. The student stays where they were."*
+
+`start` now returns the run in the state it is in: its own id, its status, `step: "specialist"`,
+`resumed: true`. The orchestrator is not asked — its answer would name a step the run is not going
+to take, and re-deriving would write a checkpoint for a run whose next move belongs to somebody
+else. `runFor` makes the same substitution, so the read and the start cannot disagree.
+
+### Changed · an advancing decision is refused with a reason, not a 404
+
+`authorise` and `confirm_handoff` reach the student as **409 `specialist_reviewing`**. A 404 told
+them their application did not exist, for a state that clears itself when a person finishes looking.
+
+`cancel` is never refused for being ill-timed (ADR-0053), `confirm_value` is an answer about their
+own details rather than an advance, and their messages land as they always did.
+
+### Added · `isHeldByAPerson`, and a partition
+
+The question *"is a person holding this run?"* was asked in four places in three spellings — two SQL
+`IN` lists, a `status === "running" || status === "suspended"`, and a comment. **The spelling that
+mattered was the one that was missing.** Automatable, held-by-a-person and terminal now partition
+`WorkflowStatus`, asserted as a partition so a seventh status cannot land in none of them, and
+`WorkLeaseStore` builds its `IN (…)` from `AUTOMATABLE_STATUSES`.
+
+### Not done, and both deliberately
+
+**No guard in `advance`.** One was written first and failed five tests that re-advance a stopped run
+on purpose — which is how the pause is proved idempotent and the interview's attempt limit proved
+durable. The measurement is in the code, not just the conclusion.
+
+**No guard in front of `decide`.** A mandatory-review stop is `escalated` too, and `recordDecision`'s
+domain refusal is reachable in exactly that case. A guard before it would make this coordinator the
+thing that refuses a financial-evidence or minor review. The classification happens after the domain
+has refused; a regression that swallows that refusal still fails.
+
+### Fixed · the worker gave a lease back it had not yet taken
+
+Found by an intermittent `p18-startup.test.ts` failure on this branch — one run in eight — and
+measured rather than re-run: 7/8 here, 6/6 on the previous commit. The cause was real. `stop` set
+its stopped flag, cleared the timers, and released the leases in `holding`, while a pass that had
+*begun* before that flag was set was still running. `underLease` claims its lease **inside** that
+pass, so the claim could land after the release loop had already run, and the worker exited leaving
+a lease in `worker_leases`. The next worker then waits a full lease period for a job it could have
+started immediately. Invisible in the ordinary case, because an abandoned lease lapses on its own.
+
+`stop` now tracks the passes that have started and awaits them before releasing anything.
+`worker.test.ts` pins it by holding the claim's own statement open across the call to `stop`, which
+is the only ordering that reproduces it.
+
+### Fixed · eighteen lease tests that skipped on every local integration run
+
+`apps/worker` was missing from `scripts/with-postgres.sh`, so its database-backed tests ran only in
+CI's blanket pass and announced a skip locally — the shape that lets a lease test rot unnoticed
+between pushes. Added to both invocations.
+
+### Declared-but-unreachable surface: **6, unchanged.**
+
+---
+
 ## [0.57.0] — 2026-09-06
 
 **P39 — a declared capability with no production caller fails the build (ADR-0073).**

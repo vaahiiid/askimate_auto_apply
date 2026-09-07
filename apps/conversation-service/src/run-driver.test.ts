@@ -5011,12 +5011,25 @@ describeIfDatabase(
           runId,
           decision: { kind: "authorise", contentHash: hash ?? "" },
         });
+        // ── What refuses, and what the student is told (P40) ─────────────
+        //
+        // Still the CASE MACHINE. `recordDecision` builds the intent, hands it
+        // to `decide`, and appends only what comes back accepted — nothing
+        // here inspects the review triggers or decides anything about them.
+        // The proof of that is below: an approval the domain refused writes no
+        // `AuthorisationCaptured`, and a coordinator that swallowed the
+        // domain's refusal would write one.
+        //
+        // What changed is the NAME the caller gets. The run is `escalated` —
+        // `#raiseForSpecialist` put it there when the mandatory review was
+        // raised — and "a person is looking at this" is the true and useful
+        // thing to say to the student. It used to reach them as a 404.
         expect(
           recorded,
-          "the case machine refuses, not this coordinator",
+          "the case machine refuses; the student is told a person is looking",
         ).toEqual({
           ok: false,
-          reason: "refused",
+          reason: "held_for_specialist",
         });
       } finally {
         await instance.pool.end();
@@ -7729,6 +7742,176 @@ describeIfDatabase("a run only a person can carry on", () => {
     }
   }, 300_000);
 
+  // ── P40 · the student comes back ────────────────────────────────────
+  //
+  // Vahid: "when a specialist reviews a case, there is no handoff to a
+  // separate conversation or a different person. The student stays where they
+  // were. Throwing on `start` is the opposite of that promise."
+  //
+  // Measured before the fix, on this exact run: `start` fell through its
+  // live-run check — which looked for `running` or `suspended` and an
+  // escalated run is neither — reached `startRun`, and threw
+  // `RunAlreadyExistsError`, which the route turns into a 500.
+
+  it("RETURNS the run when the student asks to carry on, rather than throwing", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const again = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!again.ok) expect.unreachable(`start refused: ${again.refusal.kind}`);
+      expect(again.position.runId, "the SAME run, not a second one").toBe(runId);
+      expect(again.position.status).toBe("escalated");
+      expect(again.position.step, "with a person, and it says so").toBe("specialist");
+      expect(again.position.resumed, "nothing was created").toBe(true);
+    } finally {
+      await instance.pool.end();
+    }
+
+    // One run for this case, still. A second would give it two positions and
+    // the older one would still be waiting for a specialist.
+    const runs = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM workflow_runs WHERE case_id = $1",
+      [caseRef],
+    );
+    expect(runs.rows[0]?.n, "coming back is not starting again").toBe("1");
+  }, 300_000);
+
+  it("does NOT re-derive the run on the way back — the next move is the specialist's", async () => {
+    // `#heldPosition` answers from the record. Asserted on the CHECKPOINT
+    // rather than on the answer, because "it did not decide" is a claim about
+    // what was written: a re-derivation writes one, and `updated_at` moves
+    // with it (ADR-0052 §13.4).
+    const before = await pool.query<{ revision: number; updated_at: Date }>(
+      "SELECT revision, updated_at FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const after = await pool.query<{ revision: number; updated_at: Date }>(
+      "SELECT revision, updated_at FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(after.rows[0]?.revision, "no checkpoint was written").toBe(
+      before.rows[0]?.revision,
+    );
+  }, 300_000);
+
+  it("REFUSES an approval with a reason the student can read, not a 404", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // "Advancing intents are refused with a stated reason, not an error."
+    //
+    // The refusal was already there — the run is not standing at `authorise`,
+    // so `#authorisationIntent` answers `not_asked` — and it reached the
+    // student as a **404**, which says their application does not exist. For
+    // a state that clears itself when a person finishes looking, and that the
+    // conversation already told them about.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: async (subject, conversationId) => {
+        const owned = await instance.pool.query(
+          "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+          [conversationId, subject],
+        );
+        return owned.rowCount === 1;
+      },
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const started = app.listen(PORT + 71, "127.0.0.1", () => resolve(started));
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${String(PORT + 71)}/v1/conversations/${conversation}/runs/${runId}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", cookie: cookieFor(student) },
+          body: JSON.stringify({ kind: "authorise", contentHash: `sha256:${"a".repeat(64)}` }),
+        },
+      );
+      expect(response.status).toBe(409);
+      const parsed = parseProblem(await response.json());
+      if (parsed === null) expect.unreachable("the published parser reads it");
+      expect(parsed.code).toBe("specialist_reviewing");
+      // The title is the whole message, and it is a fixed string per code —
+      // there is nowhere on this wire for a sentence about their case.
+      expect(parsed.title).toContain("checking part of your application");
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+
+    // And nothing moved.
+    const captured = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured'`,
+      [caseRef],
+    );
+    expect(captured.rows[0]?.n).toBe("0");
+  }, 300_000);
+
+  it("still takes the student's MESSAGES while a person is looking", async () => {
+    // "The student can continue asking questions in that thread." The message
+    // route does not consult the run at all — it appends, then offers the
+    // message to the interview, which is not running. Asserted because it is
+    // half the decision, and because a later guard placed one layer too high
+    // would silently take it away.
+    const instance = buildInstance(connectionString(), opener());
+    const app = createConversationApp({
+      store: new ConversationEventStore(instance.pool),
+      sessionSecret: SECRET,
+      authorise: async (subject, conversationId) => {
+        const owned = await instance.pool.query(
+          "SELECT 1 FROM conversations WHERE id = $1 AND student_id = $2",
+          [conversationId, subject],
+        );
+        return owned.rowCount === 1;
+      },
+      now: () => NOW,
+      runs: instance.driver,
+    });
+    const listening = await new Promise<Server>((resolve) => {
+      const started = app.listen(PORT + 72, "127.0.0.1", () => resolve(started));
+    });
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${String(PORT + 72)}/v1/conversations/${conversation}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            cookie: cookieFor(student),
+            "Idempotency-Key": "p40-a-question-while-waiting",
+          },
+          body: JSON.stringify({ content: "how long does this usually take?" }),
+        },
+      );
+      expect(response.status, await response.clone().text()).toBe(201);
+    } finally {
+      await new Promise<void>((resolve) => listening.close(() => resolve()));
+      await instance.pool.end();
+    }
+
+    expect(
+      (await events()).map((row) => row.content),
+      "their question is in the thread they were already in",
+    ).toContain("how long does this usually take?");
+  }, 300_000);
+
   it("BUILDS no way to hold a document, which is what ADR-0022 and ADR-0023 gate", () => {
     // ═══════════════════════════════════════════════════════════════════
     // The boundary of this phase, asserted rather than promised.
@@ -7824,6 +8007,52 @@ function catalogueOf(entry: CatalogueEntry): TestCatalogue {
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
   };
 }
+
+describeIfDatabase("stopping is available while a person is looking", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0053: "a stop button that only worked at certain steps would not be
+  // one." P40 refuses the two decisions that ADVANCE an application while a
+  // specialist holds the run — and a student who wants out while somebody is
+  // looking at their case is exactly who a stop button is for, so `cancel`
+  // returns before that refusal is reached.
+  //
+  // Its own conversation, because cancelling moves the case and the group
+  // above depends on its run staying escalated.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NP4001ST";
+
+  it("takes the student's cancellation, and the case winds down", async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.status, "a person is holding it").toBe("escalated");
+
+      const stopped = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId: started.position.runId,
+        decision: { kind: "cancel" },
+      });
+      expect(stopped, "a stop is never refused for being ill-timed").toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    const moved = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    expect(moved.rows[0]?.to).toBe("WINDING_DOWN");
+  }, 300_000);
+});
 
 describeIfDatabase("which declaration actually decides", () => {
   // ═══════════════════════════════════════════════════════════════════════

@@ -842,6 +842,7 @@ components:
         # missing from one of them would make the two disagree about what a
         # client may have to parse.
         - already_applying
+        - specialist_reviewing
         - email_not_verified
         - rate_limited
         - internal_error

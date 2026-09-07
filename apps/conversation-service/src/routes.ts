@@ -377,6 +377,9 @@ function reapplicationProblem(res: Response, refusal: RunRefusal): void {
     case "email_not_verified":
       problem(res, "email_not_verified");
       return;
+    case "held_for_specialist":
+      problem(res, "specialist_reviewing");
+      return;
     case "secure_plane_unavailable":
     case "purpose_not_supported":
     case "unusable_mapping_set":
@@ -1070,6 +1073,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               // could not tell could not offer them that.
               alreadyApplying(res, outcome.refusal.existingCaseId, outcome.refusal.concluded);
               return;
+            case "held_for_specialist":
+              // Unreachable from `start`, which RETURNS a held run rather than
+              // refusing it (P40) — but answered correctly rather than as an
+              // internal error, so that a future path reaching it tells the
+              // student the true thing instead of a false one.
+              problem(res, "specialist_reviewing");
+              return;
             case "no_prior_application":
             case "recommendation_not_shown":
             case "reapplication_refused":
@@ -1624,12 +1634,25 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           res.status(204).end();
           return;
         }
-        // `content_changed` is its own answer rather than a generic refusal: a
-        // client that showed a preview which has since changed must re-render
-        // and ask again, not retry. Everything else is a 404 or a plain
-        // refusal, and neither tells the caller anything about another
-        // student's case.
-        problem(res, recorded.reason === "content_changed" ? "content_changed" : "not_found");
+        // ── Two answers a client can act on, and one that says nothing ────
+        //
+        // `content_changed`: the preview they showed has changed, so re-render
+        // and ask again rather than retry.
+        //
+        // `held_for_specialist` (P40): a person is checking something, and the
+        // run resumes on its own when they are done. The student was told this
+        // in the conversation when it happened; a 404 here would contradict
+        // that with a dead end, for a state that clears itself.
+        //
+        // Everything else is a 404, which tells the caller nothing about
+        // another student's case.
+        if (recorded.reason === "content_changed") {
+          problem(res, "content_changed");
+        } else if (recorded.reason === "held_for_specialist") {
+          problem(res, "specialist_reviewing");
+        } else {
+          problem(res, "not_found");
+        }
       })().catch(next);
     },
   );

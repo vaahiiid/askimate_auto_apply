@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.57.0 · **Date:** 2026-09-06 · **Written for:** someone who knows the product and has
+**Version:** 0.58.0 · **Date:** 2026-09-07 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -16,7 +16,7 @@ AAS takes a student who has explicitly decided to apply to a specific university
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
 processes. **2,210 tests, 108 files, zero skipped**, against real PostgreSQL and Redis.
-Seventy-three architecture decision records, sixty-nine accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+Seventy-four architecture decision records, seventy accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -85,6 +85,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P37** | ADRs 0005–0021 read against the code (ADR-0072) | Five phases running had each caught an older ADR asserting a guarantee the code did not provide. Thirteen of seventeen hold; the rest produced two fixes, two corrections and two open findings |
 | **P38** | One application per submission identity, and the second one the student asks for (ADR-0006 §3, amended) | P37's two open findings, closed together. `claimSubmissionKey` is armed at case-open; a re-application opens a NEW case referencing the prior one, because the old same-case increment produced a terminal case that could never move |
 | **P39** | A declared capability with no production caller fails the build (ADR-0073) | P37's question, asked by `pnpm run verify`. It found `openReapplication` uncalled on its first run — the constructor ADR-0006 §3 had named four hours earlier |
+| **P40** | A run a person is holding is returned to the student, never restarted (ADR-0074) | A student whose application stopped for a specialist came back to a 500. They now land where they left it, their questions still arrive, and an advancing decision is refused with a reason rather than a 404 |
 
 ---
 
@@ -339,7 +340,7 @@ open rather than quietly answered.
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
 | **13** | ~~Arm the submission key, and make re-application reachable~~ | — | **Done in P38.** Both, together: the key is claimed at case-open and a refused second application has a route to a second case |
 | **14** | ~~A declared capability with no production caller fails the build~~ | — | **Done in P39 (ADR-0073).** Six entries on the reviewed unreachable list, each with a reason and what would close it |
-| **15** | **`start` on an ESCALATED run throws rather than resuming** | Me, after a decision from you | A student whose run stopped for a specialist and who asks to start again gets a 500. What they *should* get back is a product question, not a patch |
+| **15** | ~~`start` on an ESCALATED run throws rather than resuming~~ | — | **Decided by Vahid and done in P40 (ADR-0074):** the student stays in the same conversation, and lands back in it |
 
 **Not blocked and available to work on now:** the ADR housekeeping (12) and the escalated-run
 question (15). The ADR re-audit that used to sit here was done in P37; see

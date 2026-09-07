@@ -247,28 +247,62 @@ export function startWorker(options: WorkerOptions): RunningWorker {
     return outcome?.notified ?? 0;
   };
 
+  /**
+   * The passes that have STARTED and not finished.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * `stop` used to set `stopped`, clear the timers, and release what `holding`
+   * held — while a pass that began before `stopped` was set was still running.
+   * `underLease` CLAIMS its lease inside that pass, so a claim could land
+   * AFTER the release loop had already run and cleared the map, and the worker
+   * exited leaving a lease in the table.
+   *
+   * The consequence is exactly what the release exists to prevent: the next
+   * worker waits a full lease period for a job it could have started
+   * immediately. Intermittent, roughly one run in eight, and invisible in the
+   * ordinary case because a lapsed lease recovers on its own — which is why
+   * `p18-startup.test.ts` asserts it from the DATABASE after the process is
+   * gone rather than from an exit code.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Tracked rather than inferred from the three `advancing`/`announcing`/
+   * `notifying` booleans: those say a pass is running and give `stop` nothing
+   * to await, so waiting on them would mean polling.
+   */
+  const inFlight = new Set<Promise<unknown>>();
+
+  /** Runs a pass, and keeps hold of it until it settles. */
+  const track = (pass: Promise<unknown>): void => {
+    inFlight.add(pass);
+    void pass.finally(() => inFlight.delete(pass));
+  };
+
   const advanceTimer = setInterval(() => {
     if (advancing || stopped) return;
     advancing = true;
-    void advanceOnce()
-      .catch(() => {
-        options.onFailure?.("advance_runs");
-      })
-      .finally(() => {
-        advancing = false;
-      });
+    track(
+      advanceOnce()
+        .catch(() => {
+          options.onFailure?.("advance_runs");
+        })
+        .finally(() => {
+          advancing = false;
+        }),
+    );
   }, options.advanceIntervalMs ?? DEFAULT_ADVANCE_MS);
 
   const announceTimer = setInterval(() => {
     if (announcing || stopped) return;
     announcing = true;
-    void announceOnce()
-      .catch(() => {
-        options.onFailure?.("announce_interventions");
-      })
-      .finally(() => {
-        announcing = false;
-      });
+    track(
+      announceOnce()
+        .catch(() => {
+          options.onFailure?.("announce_interventions");
+        })
+        .finally(() => {
+          announcing = false;
+        }),
+    );
   }, options.announceIntervalMs ?? DEFAULT_ANNOUNCE_MS);
 
   // Started only when there is somewhere to send to. A timer that wakes every
@@ -279,13 +313,15 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       ? setInterval(() => {
           if (notifying || stopped) return;
           notifying = true;
-          void notifyOnce()
-            .catch(() => {
-              options.onFailure?.("notify_specialists");
-            })
-            .finally(() => {
-              notifying = false;
-            });
+          track(
+            notifyOnce()
+              .catch(() => {
+                options.onFailure?.("notify_specialists");
+              })
+              .finally(() => {
+                notifying = false;
+              }),
+          );
         }, options.notifyIntervalMs ?? DEFAULT_NOTIFY_MS)
       : null;
 
@@ -299,6 +335,16 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       clearInterval(advanceTimer);
       clearInterval(announceTimer);
       if (notifyTimer !== null) clearInterval(notifyTimer);
+
+      // ── Wait for what is already running, THEN give the leases back ─────
+      //
+      // In this order, and it is the whole point: a pass that started before
+      // `stopped` was set claims its lease inside itself, so releasing first
+      // would release a map the pass is about to add to. Settled rather than
+      // resolved — a pass that failed still claimed a lease, and the failure
+      // has already been reported to `onFailure`.
+      await Promise.allSettled([...inFlight]);
+
       // Giving the leases back is not required for correctness — an abandoned
       // lease lapses on its own, which is what makes crash recovery the absence
       // of a mechanism. It exists so an ORDERLY shutdown does not make the next

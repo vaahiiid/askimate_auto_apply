@@ -762,9 +762,20 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: >-
-            The case machine refused it — the run is not at a point where this
-            decision is legitimate, or the hash does not name what would be
-            shown now.
+            Two answers, told apart by `code`.
+
+            `content_changed` — the hash does not name what would be shown now.
+            Re-render and ask again; retrying the same hash would be asking the
+            service to record an approval of content the student never saw.
+
+            `specialist_reviewing` — a person is checking part of this
+            application, so it cannot be advanced yet (P40). The state clears
+            itself when they finish, and the student was told about it in the
+            conversation when it started. Refuses `authorise` and
+            `confirm_handoff`, the two decisions that MOVE an application;
+            `cancel` is never refused for being ill-timed (ADR-0053) and
+            `confirm_value` is an answer about the student's own details rather
+            than an advance.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "503":
@@ -2117,6 +2128,7 @@ components:
         - content_changed
         - secret_request_open
         - already_applying
+        - specialist_reviewing
         - email_not_verified
         - rate_limited
         - internal_error

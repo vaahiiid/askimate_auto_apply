@@ -71,6 +71,7 @@ import {
   interventionId as makeInterventionId,
   priorityFor,
   fold,
+  isHeldByAPerson,
   isTerminal,
   recommendWait,
   submissionKey,
@@ -174,6 +175,7 @@ import type {
   WorkKind,
   WorkReport,
 } from "@askimate/aas-contracts";
+import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { PriorOutcome } from "@askimate/aas-contracts";
 
@@ -364,6 +366,15 @@ export type RunRefusal =
    * the exchange.
    */
   | { readonly kind: "recommendation_not_shown" }
+  /**
+   * A specialist is holding this run, so nothing automatic may move it.
+   *
+   * Not an error and not a dead end: the run RESUMES when the specialist
+   * adjudicates, and the student was told so at the moment it stopped. What
+   * this refuses is an ADVANCE — asking to start again returns the run where
+   * it is, and stopping the application is still available (ADR-0053).
+   */
+  | { readonly kind: "held_for_specialist" }
   /**
    * The domain refused the instruction. Carries the gate's own words.
    *
@@ -821,7 +832,22 @@ function resumeMessage(entry: CatalogueEntry): string {
 }
 
 /** Why a student's decision was not recorded. A closed set, for the wire. */
-export type DecisionRefusalReason = "no_case" | "not_asked" | "content_changed" | "refused";
+export type DecisionRefusalReason =
+  | "no_case"
+  | "not_asked"
+  | "content_changed"
+  | "refused"
+  /**
+   * A specialist is holding the run, so it cannot be advanced yet (P40).
+   *
+   * Refuses `authorise` and `confirm_handoff` — the two decisions that MOVE
+   * the application. `cancel` is deliberately not among them: ADR-0053 says a
+   * stop button that only worked at certain steps would not be one, and a
+   * student who wants out while a person is looking is exactly somebody a stop
+   * button is for. `confirm_value` is not among them either — answering a
+   * question about their own details is not advancing an application.
+   */
+  | "held_for_specialist";
 
 export interface RunDriverOptions {
   readonly stores: DurableStores;
@@ -1033,10 +1059,28 @@ export class RunDriver {
           // would give the case two positions, and the older one would still be
           // "running" — which is how a student ends up with two automations.
           const existing = await this.#options.stores.runs.findByCase(caseId);
-          const live = existing.find(
-            (record) => record.status === "running" || record.status === "suspended",
-          );
+          const live = existing.find((record) => AUTOMATABLE_STATUSES.includes(record.status));
           if (live !== undefined) return { record: live, caseId, studentRef, resumed: true };
+
+          // ── A run a PERSON holds is returned, not restarted (P40) ────────
+          //
+          // Vahid: "when a specialist reviews a case, there is no handoff to a
+          // separate conversation or a different person. The student stays
+          // where they were."
+          //
+          // Before this, `uncertain` and `escalated` fell through the live
+          // check above and reached `startRun`, which refused a run id that
+          // already existed — so a student whose application had stopped for a
+          // specialist, and who came back and asked to carry on, got a 500.
+          // The one thing they were promised ("I will tell you as soon as it
+          // moves again") arrived as an error.
+          //
+          // Returned WITHOUT deciding. The orchestrator's answer would be about
+          // where the run stands, and where it stands is with a person —
+          // `#heldPosition` says that, and re-deriving would move a case whose
+          // next move is somebody else's.
+          const held = existing.find((record) => isHeldByAPerson(record.status));
+          if (held !== undefined) return this.#heldPosition(held, input.conversationId);
 
           // ── The case's first event ────────────────────────────────────
           //
@@ -1475,6 +1519,20 @@ export class RunDriver {
     const entry = await this.#options.catalogue.find(bound.blueprintId);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
 
+    // ── `advance` deliberately has NO held-run guard ────────────────────
+    //
+    // Measured before it was written, and the measurement is why it is not
+    // here: adding one failed five tests that RE-ADVANCE a stopped run on
+    // purpose. That is how "the pause is idempotent" is proved — advancing a
+    // stopped run raises nothing new (`idempotencyKeyFor`), announces nothing
+    // new (`announcedAt`), and stops it again — and how the interview's
+    // attempt limit is proved durable.
+    //
+    // So re-deriving a held run is already a no-op that re-stops it, and the
+    // rule that nothing automatic PICKS one up lives where the picking
+    // happens: `dueRuns` and `WorkLeaseStore.candidates`, both filtering on
+    // `AUTOMATABLE_STATUSES`. What P40 refuses is a STUDENT advancing their
+    // application, and that is `recordDecision`'s to refuse.
     const resumed = await resumeRun({
       stores: this.#options.stores,
       runId,
@@ -1492,6 +1550,38 @@ export class RunDriver {
       concerns: resumed.concerns,
       resumed: true,
     });
+  }
+
+  /**
+   * Where a run stands when a PERSON is holding it.
+   *
+   * The orchestrator is not asked. It answers "what should this run do next"
+   * from the profile, the plan and the case — and none of those is why the run
+   * stopped, so its answer would name a step the run is not going to take.
+   * `specialist` is what is true, and it is the same substitution `runFor`
+   * makes for the same reason.
+   *
+   * `resumed: true`, always. Nothing was created; the student came back to
+   * something that was already theirs.
+   */
+  #heldPosition(
+    record: Awaited<ReturnType<WorkflowRunStore["load"]>> & object,
+    conversationId: string,
+  ): RunOutcome {
+    return {
+      ok: true,
+      position: {
+        runId: record.runId,
+        caseId: record.caseId,
+        conversationId,
+        status: record.status,
+        phase: record.checkpoint.phase,
+        step: "specialist",
+        revision: record.revision,
+        resumed: true,
+        concerns: [],
+      },
+    };
   }
 
   /** The run a conversation currently has, without advancing it. */
@@ -2190,7 +2280,18 @@ export class RunDriver {
       // has the orchestrator's own word for it — the same reading the run
       // route gives that refusal when it answers 503. Reporting the last step
       // instead would say the run is somewhere it is not.
-      step: situation.ok ? situation.step.kind : "specialist",
+      // ── One answer about where a run is (P40) ────────────────────────
+      //
+      // A run a PERSON holds reports `specialist` whatever the orchestrator
+      // would say, because the orchestrator answers "what should this run do
+      // next" from the profile, the plan and the case — none of which is why
+      // it stopped. `start` makes the same substitution through
+      // `#heldPosition`, so the read and the start cannot disagree about a
+      // student's own application.
+      //
+      // The refusal case reports it too, for the reason it always has: an
+      // unusable mapping set is a specialist's problem.
+      step: isHeldByAPerson(record.status) || !situation.ok ? "specialist" : situation.step.kind,
       revision: record.revision,
       // Never `false`. This read did not start anything, and a client that
       // saw `resumed: false` from a GET could reasonably conclude it had.
@@ -2399,6 +2500,10 @@ export class RunDriver {
     // waiting for this?" and refuses `not_asked` if it is not. A cancellation
     // never asks: the student did not have to be prompted to want to stop, and
     // a stop button that only worked at certain steps would not be one.
+    //
+    // BEFORE the specialist guard below, and that order is the decision: a
+    // student who wants out while a person is looking at their application is
+    // exactly who a stop button is for.
     if (input.decision.kind === "cancel") {
       return await this.#cancel(input.conversationId, record, held);
     }
@@ -2407,10 +2512,10 @@ export class RunDriver {
       input.decision.kind === "authorise"
         ? this.#authorisationIntent(situation.step, input.decision)
         : this.#handoffIntent(situation.step, held, input.decision);
-    if (!intent.ok) return intent;
+    if (!intent.ok) return this.#refusal(intent.reason, record.status);
 
     const decided = decide(held, intent.intent);
-    if (!decided.accepted) return { ok: false, reason: "refused" };
+    if (!decided.accepted) return this.#refusal("refused", record.status);
 
     await this.#appendToCase(
       record.caseId,
@@ -2420,6 +2525,49 @@ export class RunDriver {
       this.#options.now(),
     );
     return { ok: true };
+  }
+
+  /**
+   * Names a refusal for the caller, WITHOUT changing who made it.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * P40. Vahid: "The student cannot advance the application while the
+   * escalation is open. Advancing intents are refused with a stated reason,
+   * not an error."
+   *
+   * The reason was already there and the caller could not read it. Both
+   * `not_asked` and `refused` reached the route as a **404**, which tells a
+   * student their application does not exist — for a state that clears itself
+   * when a person finishes looking, and that they were told about in the
+   * conversation when it started.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * This does NOT decide the refusal. `decide` refuses a mandatory review, and
+   * that has to stay true: `recordDecision`'s `!decided.accepted` branch is
+   * reachable in exactly one case — the run standing at `authorise` while the
+   * financial-evidence or minor guard holds the case — and P11's regression
+   * pass found that swallowing the domain's refusal changed nothing precisely
+   * because nothing else reached it. A guard placed BEFORE the domain would
+   * take that back, and would make this coordinator the thing that refuses a
+   * mandatory-review approval. It is not, and must not become it.
+   *
+   * What it changes is the NAME the caller gets, when the true and useful
+   * thing to say is "a person is looking at this". The domain's own detail is
+   * not publishable — there is nowhere on the wire for a sentence (ADR-0031) —
+   * so the choice is between a fact the student can act on and a 404.
+   *
+   * `content_changed` keeps its own name whatever is holding the run: it is
+   * the one refusal a client can fix by itself, by re-rendering and asking
+   * again.
+   */
+  #refusal(
+    reason: DecisionRefusalReason,
+    status: WorkflowStatus,
+  ): { readonly ok: false; readonly reason: DecisionRefusalReason } {
+    if (reason === "content_changed" || !isHeldByAPerson(status)) {
+      return { ok: false, reason };
+    }
+    return { ok: false, reason: "held_for_specialist" };
   }
 
   /**

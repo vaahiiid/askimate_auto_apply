@@ -332,6 +332,91 @@ describeIfDatabase("the worker holds a job while it works", () => {
     expect(await new WorkerLeaseStore(pool).held("advance_runs", NOW)).toBeNull();
   }, 60_000);
 
+  it("gives back a lease a pass claimed WHILE the worker was stopping", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The shutdown race, pinned.
+    //
+    // `stop` used to set `stopped`, clear the timers, and release what
+    // `holding` held — while a pass that BEGAN before `stopped` was set was
+    // still running. `underLease` claims its lease INSIDE that pass, so the
+    // claim could land after the release loop had already run, and the worker
+    // exited leaving a lease behind. The next worker then waits a full lease
+    // period for a job it could have started immediately.
+    //
+    // Found as an intermittent `p18-startup.test.ts` failure — roughly one run
+    // in eight — because that test asserts the lease table AFTER the process is
+    // gone rather than trusting an exit code. Here the same race is made
+    // deterministic by holding the claim's own statement open across the call
+    // to `stop`, which is the only ordering that reproduces it.
+    // ═══════════════════════════════════════════════════════════════════
+    await pool.query("DELETE FROM worker_leases");
+
+    let claimStarted = (): void => undefined;
+    const insideTheClaim = new Promise<void>((resolve) => {
+      claimStarted = resolve;
+    });
+    let letTheClaimFinish = (): void => undefined;
+    const claimMayFinish = new Promise<void>((resolve) => {
+      letTheClaimFinish = resolve;
+    });
+    let gated = false;
+
+    // Only `query` is reached from here — `startWorker` hands the pool to
+    // `WorkerLeaseStore` and nothing else — so a stand-in with one method is
+    // the honest shape rather than a half-built Pool.
+    const slowPool = {
+      query: async (text: string, values?: readonly unknown[]): Promise<unknown> => {
+        if (!gated && text.includes("INSERT INTO worker_leases")) {
+          gated = true;
+          claimStarted();
+          await claimMayFinish;
+        }
+        return await pool.query(text, values as unknown[]);
+      },
+    } as unknown as pg.Pool;
+
+    // Resolved once the claim has landed and the pass is doing its work — so
+    // the assertion below cannot run before the lease exists. Without it the
+    // regression would be a race with the claim's own INSERT, and a test that
+    // passes because it looked too early proves nothing.
+    let passHasItsLease = (): void => undefined;
+    const leaseIsInTheTable = new Promise<void>((resolve) => {
+      passHasItsLease = resolve;
+    });
+    const driver: WorkerDriver = {
+      ...fakeDriver({ due: [] }),
+      dueRuns: (): Promise<readonly { readonly runId: string; readonly conversationId: string }[]> => {
+        passHasItsLease();
+        return Promise.resolve([]);
+      },
+    };
+
+    const worker = startWorker({
+      pool: slowPool,
+      driver,
+      holder: "worker-racing",
+      now: () => NOW,
+      advanceIntervalMs: 5,
+      // Far out of the way: this test is about ONE pass, and a second job
+      // claiming a second lease would only make the assertion ambiguous.
+      announceIntervalMs: 600_000,
+    });
+
+    await insideTheClaim;
+    // Not awaited: `stop` runs synchronously as far as its first `await`, so
+    // by the time the next line runs the worker is already stopping — which is
+    // precisely the window the bug lived in.
+    const stopping = worker.stop();
+    letTheClaimFinish();
+    await stopping;
+    await leaseIsInTheTable;
+
+    expect(
+      await new WorkerLeaseStore(pool).held("advance_runs", NOW),
+      "stop() returned while a lease it never released was still in the table",
+    ).toBeNull();
+  }, 60_000);
+
   it("stop() is idempotent", async () => {
     const worker = startWorker({
       pool,
