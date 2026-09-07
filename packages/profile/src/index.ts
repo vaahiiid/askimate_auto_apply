@@ -17,6 +17,17 @@ export type {
 } from "./fields.js";
 export { FIELD_LABELS, FINANCIAL_FIELDS, PROFILE_FIELD_KEYS, isFinancialField } from "./fields.js";
 
+// ── B1 row 2, made structural (ADR-0077) ───────────────────────────────────
+export type { DataCategory, OrdinaryFieldKey } from "./categories.js";
+export {
+  ARTICLE_9_CATEGORIES,
+  CLASSIFIED_FIELD_KEYS,
+  FIELD_CATEGORY,
+  categoryOf,
+  isExtractable,
+  unextractableFields,
+} from "./categories.js";
+
 export type {
   ConfirmationDeclined,
   ConfirmationResponse,

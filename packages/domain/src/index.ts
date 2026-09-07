@@ -234,6 +234,7 @@ export type {
   RetentionDecision,
   RetentionBasis,
   RetentionBasisKind,
+  RetentionDetermination,
   RetentionPolicy,
   RetentionScheduleHistory,
   UnresolvedRetentionRequirement,
@@ -242,6 +243,7 @@ export type {
   RetentionTrigger,
 } from "./retention.js";
 export {
+  CLAIMS_DETERMINATION_ID,
   RetentionPolicyMissingError,
   RetentionRequirementUnresolvedError,
   blockedByRetention,

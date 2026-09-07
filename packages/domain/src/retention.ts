@@ -105,6 +105,33 @@ export interface RetentionBasis {
   /** What the source actually says, in its own terms. */
   readonly statement: string;
   /**
+   * Whether this period is held up by "establishing, exercising or defending
+   * legal claims".
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * DECLARED, NOT INFERRED — and the answer to it is already determined.
+   *
+   * Vahid, 2026-09-07: *"we do not rely on 'establishing, exercising or
+   * defending legal claims' as a retention purpose for documents. We do rely
+   * on it for the audit record — the transmission record, preview hash and
+   * authorisation text."*
+   *
+   * The reasoning, recorded because the period is ours to justify: WHAT THE
+   * STUDENT AUTHORISED IS PROVABLE FROM THE RECORD WITHOUT THE SCAN. The
+   * preview hash says what was put in front of them, the authorisation text
+   * says what they agreed to, and the transmission record says what was
+   * actually sent. A passport scan adds nothing to that proof and adds six
+   * years of the highest-consequence data this system could hold.
+   *
+   * A boolean the author must state, rather than something `validateSchedule`
+   * infers by looking for "Limitation Act" in the statement. A period that
+   * leans on the limitation period without saying so is exactly what this is
+   * meant to catch, and a string search would miss the one that phrased it
+   * differently while feeling like a control.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  readonly reliesOnLegalClaims: boolean;
+  /**
    * Where it comes from, precisely enough for someone else to find it.
    *
    * A statute section, a named ICO guidance page, a university's own published
@@ -177,6 +204,34 @@ export interface UnresolvedRetentionRequirement {
 }
 
 /**
+ * A cross-cutting answer that constrains the periods, decided once.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Separate from `RetentionPolicy` because it is not a period. Several
+ * unresolved entries name the same open question — decision sheet B1 puts one
+ * of them above the whole table, because the answer moves most of the rows —
+ * and answering it in twelve places is twelve chances to answer it twelve
+ * ways.
+ *
+ * A determination is recorded WITH a determiner and a date for the same reason
+ * a `RetentionBasis` is: an answer nobody can be asked about is not an answer.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface RetentionDetermination {
+  /** Cited by the policies it governs. */
+  readonly id: string;
+  /** What was asked, in the form it was asked. */
+  readonly question: string;
+  /** What was decided. */
+  readonly answer: string;
+  /** Why. This is what a subject access request or a regulator eventually reads. */
+  readonly reasoning: string;
+  /** Who decided. Never a shared account, and never "the team". */
+  readonly determinedBy: string;
+  readonly determinedAt: Date;
+}
+
+/**
  * One version of the schedule.
  *
  * Versioned and superseding rather than edited in place, because "what was our
@@ -199,6 +254,13 @@ export interface RetentionSchedule {
    * what is decided and what is not in one artefact.
    */
   readonly unresolved: readonly UnresolvedRetentionRequirement[];
+  /**
+   * Cross-cutting answers this version was written under.
+   *
+   * On the schedule for the same reason `unresolved` is: a reviewer sees what
+   * is decided, what is open, and what constrains both, in one artefact.
+   */
+  readonly determinations: readonly RetentionDetermination[];
 }
 
 /**
@@ -344,9 +406,34 @@ export function decideRetention(input: {
  * obligation, or that sets a non-positive period, is a configuration error and
  * should stop the deploy rather than reaching production.
  */
+/**
+ * The id the claims determination is recorded under.
+ *
+ * A constant rather than a literal in two places, because the check and the
+ * configuration must agree about it or the check silently stops applying.
+ */
+export const CLAIMS_DETERMINATION_ID = "legal_claims_purpose";
+
 export function validateSchedule(schedule: RetentionSchedule, now?: Date): readonly string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
+  const determinationIds = new Set(schedule.determinations.map((entry) => entry.id));
+
+  for (const determination of schedule.determinations) {
+    if (determination.determinedBy.trim().length === 0) {
+      problems.push(
+        `determination ${determination.id}: names nobody who decided it. An answer nobody can be ` +
+          `asked about is not an answer.`,
+      );
+    }
+    if (determination.reasoning.trim().length < 20) {
+      problems.push(
+        `determination ${determination.id}: gives ` +
+          `${String(determination.reasoning.trim().length)} characters of reasoning. The period ` +
+          `is ours to justify under Article 5(2), which is a heavier duty than being handed one.`,
+      );
+    }
+  }
   const unresolvedKeys = new Set(
     schedule.unresolved.map((entry) => `${entry.documentType}:${entry.purpose}`),
   );
@@ -397,6 +484,36 @@ export function validateSchedule(schedule: RetentionSchedule, now?: Date): reado
     if (isPlaceholder(policy.basis.verifiedBy)) {
       problems.push(`${key}: names nobody who read the source.`);
     }
+    // ── The claims determination, enforced (B1, ADR-0077) ─────────────
+    //
+    // "Establishing, exercising or defending legal claims" is the purpose that
+    // would anchor a document to the six-year limitation period, and it is
+    // determined that we do not rely on it for documents — only for the audit
+    // record, where the evidence is a hash, a text and a transmission record
+    // rather than a scan.
+    //
+    // Refused here rather than reviewed later, because the failure this
+    // prevents is quiet: one row that leans on the limitation period turns a
+    // 30-day passport scan into a six-year one, and nothing about the schedule
+    // would look wrong.
+    if (policy.basis.reliesOnLegalClaims && policy.purpose !== "audit_evidence") {
+      problems.push(
+        `${key}: relies on defending legal claims for a purpose other than audit_evidence. It is ` +
+          `determined that documents do NOT rely on that purpose — what the student authorised is ` +
+          `provable from the preview hash, the authorisation text and the transmission record, ` +
+          `without the document itself. Keep the evidence, not the scan.`,
+      );
+    }
+    // A determination is only load-bearing if the thing that leans on it has
+    // to name it. Otherwise the schedule can claim the purpose and the record
+    // of who allowed it lives nowhere.
+    if (policy.basis.reliesOnLegalClaims && !determinationIds.has(CLAIMS_DETERMINATION_ID)) {
+      problems.push(
+        `${key}: relies on defending legal claims, but this schedule version records no ` +
+          `"${CLAIMS_DETERMINATION_ID}" determination saying who decided that and why.`,
+      );
+    }
+
     if (policy.basis.kind === "legal_requirement" && policy.basis.statement.trim().length < 20) {
       problems.push(
         `${key}: claims a LEGAL requirement in ${String(policy.basis.statement.trim().length)} ` +

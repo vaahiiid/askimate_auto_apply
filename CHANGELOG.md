@@ -19,6 +19,69 @@ not shipped artefacts.
 
 ---
 
+## [0.61.0] — 2026-09-07
+
+**P43 — two determinations, made structural rather than written down (ADR-0077).**
+
+Decision sheet B1 ended with two things that were written down and enforced by nothing. Vahid
+answered both on 2026-09-07.
+
+### Added · a special-category field cannot be extracted, because there is nowhere for one to go
+
+The profile registry is the boundary of what extraction can produce: a reading enters the system only
+through a plan target, and every target names a `ProfileFieldKey`. `FIELD_CATEGORY` is now **total**
+over that registry, so a field added without a classification against Article 9(1)'s enumeration
+**does not compile**, and a plan may only name one classified `ordinary`. `undetermined` is a third
+state and blocks exactly as `special_category` does — ADR-0023's rule in a new place, because the
+dangerous state is the one that looks decided.
+
+Measured rather than asserted. Adding `identity.religion` fails the build at `categories.ts`, naming
+the missing classification; classifying it `special_category` and naming it in a plan fails with
+`Type '"identity.religion"' is not assignable to type 'OrdinaryFieldKey'`, at the line of the plan.
+
+Broader than the determination, deliberately: row 2 named the national ID, and this refuses the field
+on every document type, because a per-type exception would be a hole with no stated purpose.
+
+### Added · the claims determination, recorded and load-bearing
+
+**No document period rests on "establishing, exercising or defending legal claims."** Only the audit
+record does, and the reasoning is recorded because Article 5(2) makes the period ours to justify:
+*what the student authorised is provable from the record without the scan* — the preview hash, the
+authorisation text and the transmission record say what was shown, agreed and sent.
+
+`RetentionBasis` carries a declared `reliesOnLegalClaims` — declared and not inferred, because a
+check that searched the statement for "Limitation Act" would miss the period that phrased it
+differently while feeling like a control. `validateSchedule` refuses it for any purpose but
+`audit_evidence`, and refuses it even there unless the schedule records who determined it and why.
+
+A schedule that **omits** the declaration is read as relying on it. Measured: with the other default,
+a passport kept 2,190 days on the strength of the limitation period printed *"No contradictions, no
+placeholder bases."*
+
+### Changed · schedule version 0.2026-09-07
+
+Records the determination. **Sets no period.** All twelve rows remain unresolved; B5 and the five rows
+B1 flags — the two third-party rows and the three children's rows — are untouched and still with
+Vahid and the DPIA owner.
+
+### Not done, and recorded rather than left looking unconsidered
+
+The same constraint at `applyConfirmation` — ADR-0004's single mint point — was written and reverted:
+it changes generic inference for every caller and required rewriting unrelated tests, for a guard
+vacuous there today.
+
+### An uncomfortable consequence, stated
+
+`packages/extraction` is in **no deployable's dependency closure**, so the first determination
+constrains code that does not currently run. It is compile-time, so it holds whenever the package is
+built and will already hold on the day extraction is wired in — but it is not guarding a live path
+today, and saying otherwise would be the claim ADR-0073 exists to catch. The half that *is* in a
+shipped package is the registry classification, in `packages/profile`.
+
+### Declared-but-unreachable surface: **6, unchanged.**
+
+---
+
 ## [0.60.0] — 2026-09-07
 
 **P42 — the student can instruct the second attempt the system refuses them into (ADR-0076).**

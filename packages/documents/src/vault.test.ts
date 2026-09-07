@@ -69,6 +69,7 @@ const SCHEDULE: RetentionSchedule = {
         authoritativeSource: "AAS test fixture",
         verifiedBy: "test",
         verifiedAt: new Date("2026-08-01T00:00:00Z"),
+        reliesOnLegalClaims: false,
       },
       reviewBy: new Date("2027-08-01T00:00:00Z"),
     },
@@ -85,6 +86,7 @@ const SCHEDULE: RetentionSchedule = {
       raisedAt: new Date("2026-08-01T00:00:00Z"),
     },
   ],
+  determinations: [],
 };
 
 function upload(overrides: Partial<DocumentUpload> = {}): DocumentUpload {

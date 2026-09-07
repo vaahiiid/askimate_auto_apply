@@ -21,6 +21,7 @@ import { join, resolve } from "node:path";
 
 import type {
   DocumentType,
+  RetentionDetermination,
   RetentionPurpose,
   RetentionSchedule,
   UnresolvedRetentionRequirement,
@@ -84,6 +85,7 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
 
   const policies = (parsed["policies"] as Record<string, unknown>[] | undefined) ?? [];
   const unresolved = (parsed["unresolved"] as Record<string, unknown>[] | undefined) ?? [];
+  const determinations = (parsed["determinations"] as Record<string, unknown>[] | undefined) ?? [];
 
   return {
     version: text(parsed["version"], "version"),
@@ -119,6 +121,14 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
           (policy["basis"] as Record<string, unknown>)["verifiedAt"],
           "basis.verifiedAt",
         ),
+        // Read strictly, and DEFAULTED TO TRUE when absent or not a boolean.
+        //
+        // The safe default is the one that fails validation. A schedule that
+        // omits the declaration is one nobody has thought about, and reading
+        // that as "no, it does not rely on legal claims" would let exactly the
+        // period this determination exists to prevent pass unremarked.
+        reliesOnLegalClaims:
+          (policy["basis"] as Record<string, unknown>)["reliesOnLegalClaims"] !== false,
       },
     })),
     unresolved: unresolved.map(
@@ -131,6 +141,16 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
         owner: text(entry["owner"], "owner"),
         raisedBy: text(entry["raisedBy"], "raisedBy"),
         raisedAt: date(entry["raisedAt"], "raisedAt"),
+      }),
+    ),
+    determinations: determinations.map(
+      (entry): RetentionDetermination => ({
+        id: text(entry["id"], "determination.id"),
+        question: text(entry["question"], "determination.question"),
+        answer: text(entry["answer"], "determination.answer"),
+        reasoning: text(entry["reasoning"], "determination.reasoning"),
+        determinedBy: text(entry["determinedBy"], "determination.determinedBy"),
+        determinedAt: date(entry["determinedAt"], "determination.determinedAt"),
       }),
     ),
   };
@@ -191,7 +211,24 @@ async function main(): Promise<void> {
     for (const problem of problems) console.log(`  ${RED}✗${RESET} ${problem}`);
   }
 
-  heading("3 · What could be stored today");
+  heading("3 · What has been determined, and by whom");
+  // Printed BEFORE the periods, because a determination constrains them. A
+  // cross-cutting answer that nobody sees is the "written rule" this phase
+  // exists to replace.
+  if (governing.determinations.length === 0) {
+    console.log(`  ${DIM}Nothing determined. Every period is unconstrained by a prior answer.${RESET}`);
+  }
+  for (const determination of governing.determinations) {
+    console.log(
+      `  ${BOLD}${determination.id}${RESET}  ` +
+        `${DIM}${determination.determinedBy} · ` +
+        `${determination.determinedAt.toISOString().slice(0, 10)}${RESET}`,
+    );
+    console.log(`    ${determination.answer}`);
+    console.log(`    ${DIM}${determination.reasoning}${RESET}\n`);
+  }
+
+  heading("4 · What could be stored today");
   let storable = 0;
   for (const [documentType, purpose] of PAIRS) {
     try {
@@ -213,7 +250,7 @@ async function main(): Promise<void> {
     }
   }
 
-  heading("4 · What is open, and who owns it");
+  heading("5 · What is open, and who owns it");
   const blocked = blockedByRetention(governing);
   if (blocked.length === 0) {
     console.log(`  ${DIM}Nothing recorded as unresolved.${RESET}`);

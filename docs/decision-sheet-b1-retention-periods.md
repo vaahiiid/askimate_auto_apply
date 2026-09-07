@@ -40,6 +40,21 @@ the transmission record, the preview hash and the authorisation text without kee
 scan itself. Keeping the evidence *about* the document is a much smaller footprint than keeping the
 document. **This is the single most valuable answer on this sheet.**
 
+> ### ✅ ANSWERED — Vahid, 2026-09-07
+>
+> **No for documents. Yes for the audit record** — the transmission record, the preview hash and the
+> authorisation text. Recorded reasoning: *what the student authorised is provable from the record
+> without the scan.*
+>
+> It is not only recorded, it is **enforced** (ADR-0077): `RetentionBasis` carries a declared
+> `reliesOnLegalClaims`, and `validateSchedule` refuses it for any purpose but `audit_evidence` — and
+> refuses it even there unless the schedule version records who determined it and why. A schedule
+> that omits the declaration is treated as relying on it, because the safe default is the one that
+> fails.
+>
+> Recorded in schedule version `0.2026-09-07`, which **sets no period**. Every row below is still
+> unresolved.
+
 ---
 
 ## The twelve
@@ -110,13 +125,24 @@ Trigger vocabulary the schedule already understands: `submission_confirmed`, `ca
 
 5. **Row 2 has a hidden dependency on the DPIA**: if we determine that we never extract
    special-category fields from a national ID, that determination has to be enforced somewhere in
-   `packages/extraction`, not merely written down. Say the word and I will make it structural.
+   `packages/extraction`, not merely written down. ~~Say the word and I will make it structural.~~
+   **✅ DONE — Vahid approved it on 2026-09-07; see ADR-0077.** The profile registry now classifies
+   every field against Article 9(1)'s enumeration, a field that is not classified does not compile,
+   and an extraction plan may only name one classified `ordinary`. Both halves were measured by
+   adding `identity.religion` and watching the build refuse it — first for being unclassified, then,
+   once classified `special_category`, at the line of the plan that named it.
+
+   Two limits, stated rather than glossed: `packages/extraction` is in no deployable's dependency
+   closure, so this constrains code that does not currently run (it is compile-time, so it will
+   already hold on the day extraction is wired in); and applying Article 9(1) to a *new* field
+   remains a determination for whoever owns the DPIA — `undetermined` is a third state, and it
+   blocks exactly as `special_category` does.
 
 ---
 
 ## What I need from you
 
-- The **claims question** at the top: yes or no.
+- ~~The **claims question** at the top: yes or no.~~ **Answered 2026-09-07 — see above.**
 - **A period and one sentence of justification for rows 1–11.** Accepting a recommendation as-is is a
   complete answer; say so and I will record it with your name and the date.
 - **Rows 4, 8, 9, 10, 11** are the five I would not set without someone competent looking — the two

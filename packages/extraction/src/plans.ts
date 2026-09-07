@@ -22,7 +22,12 @@
  * assembly is arithmetic rather than inference.
  */
 
-import type { ProfileFieldKey, ProfileFieldType, Qualification } from "@askimate/aas-profile";
+import type {
+  OrdinaryFieldKey,
+  ProfileFieldKey,
+  ProfileFieldType,
+  Qualification,
+} from "@askimate/aas-profile";
 import type { DocumentType } from "@askimate/aas-domain";
 
 /** Which date on the document this is, in the validity engine's terms. */
@@ -48,7 +53,15 @@ interface TargetCommon {
 
 export interface ScalarTarget extends TargetCommon {
   readonly kind: "scalar";
-  readonly fieldKey: ProfileFieldKey;
+  /**
+   * Narrowed, so the constructor is not the only gate.
+   *
+   * `scalar()` below refuses a special-category field, but a target written as
+   * a raw object literal would bypass a constructor and not a type. Both are
+   * closed. The runtime companion in `plans.test.ts` closes the third case: a
+   * plan assembled from data rather than written down.
+   */
+  readonly fieldKey: OrdinaryFieldKey;
   readonly parse: (raw: string) => unknown;
 }
 
@@ -58,7 +71,7 @@ export interface CompositePart extends TargetCommon {
 
 export interface CompositeTarget {
   readonly kind: "composite";
-  readonly fieldKey: ProfileFieldKey;
+  readonly fieldKey: OrdinaryFieldKey;
   readonly parts: readonly CompositePart[];
   /** Assembles the confirmed-shape value from the grounded parts. Null if it cannot. */
   readonly assemble: (parts: ReadonlyMap<string, string>) => unknown;
@@ -79,14 +92,34 @@ export interface ExtractionPlan {
 }
 
 /**
- * Builds a scalar target with the parse checked against the field's real type.
+ * Builds a scalar target with the parse checked against the field's real type,
+ * and the FIELD checked against what may be read off a document at all.
  *
- * The plan array holds heterogeneous targets, so the stored `parse` is widened
- * to `unknown`. Checking it here means a plan that parses a date into a string
- * fails to compile at the line where it is written, which is where a reader
- * would look for the mistake.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `K extends OrdinaryFieldKey` is B1 row 2, structurally (ADR-0077).
+ *
+ * The determination is that no special-category field is ever extracted from a
+ * national identity document. It is enforced here rather than checked
+ * elsewhere, because a check runs after somebody has already written the plan
+ * and a type stops them writing it: `OrdinaryFieldKey` is derived from
+ * `FIELD_CATEGORY`, which is total over the profile registry, so a field that
+ * has not been classified — or has been classified `special_category` or
+ * `undetermined` — cannot be named here at all.
+ *
+ * The guarantee is broader than the determination, deliberately. The
+ * determination named the national ID; this refuses the field on EVERY
+ * document, because a per-type exception would be a hole with no stated
+ * purpose, and no document type in scope has a reason to yield one (ADR-0021:
+ * these are application requirements, not visa requirements).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The parse check is the older half of the same argument. The plan array holds
+ * heterogeneous targets, so the stored `parse` is widened to `unknown`.
+ * Checking it here means a plan that parses a date into a string fails to
+ * compile at the line where it is written, which is where a reader would look
+ * for the mistake.
  */
-function scalar<K extends ProfileFieldKey>(target: {
+function scalar<K extends OrdinaryFieldKey>(target: {
   readonly fieldKey: K;
   readonly labels: readonly string[];
   readonly hint: string;
@@ -97,7 +130,8 @@ function scalar<K extends ProfileFieldKey>(target: {
   return { kind: "scalar", ...target };
 }
 
-function composite<K extends ProfileFieldKey>(target: {
+/** As `scalar`, and constrained the same way and for the same reason. */
+function composite<K extends OrdinaryFieldKey>(target: {
   readonly fieldKey: K;
   readonly required: boolean;
   readonly parts: readonly CompositePart[];
@@ -406,3 +440,17 @@ export function planFor(documentType: DocumentType): ExtractionPlan | undefined 
 export const DOCUMENT_TYPES_WITH_PLANS: readonly DocumentType[] = Object.keys(
   PLANS,
 ) as readonly DocumentType[];
+
+/** Every profile field any plan would read off a document. */
+export function fieldsExtractedBy(plan: ExtractionPlan): readonly ProfileFieldKey[] {
+  return plan.targets
+    .filter(
+      (target): target is ScalarTarget | CompositeTarget => target.kind !== "document_date",
+    )
+    .map((target) => target.fieldKey);
+}
+
+/** Every field every configured plan would read. For the check in the tests. */
+export function allExtractedFields(): readonly ProfileFieldKey[] {
+  return Object.values(PLANS).flatMap((plan) => fieldsExtractedBy(plan));
+}

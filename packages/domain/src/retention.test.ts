@@ -14,6 +14,7 @@ import type {
   UnresolvedRetentionRequirement,
 } from "./retention.js";
 import {
+  CLAIMS_DETERMINATION_ID,
   RetentionPolicyMissingError,
   RetentionRequirementUnresolvedError,
   blockedByRetention,
@@ -44,6 +45,8 @@ function policy(overrides: Partial<RetentionPolicy> = {}): RetentionPolicy {
       authoritativeSource: "AAS test fixture — not a real determination",
       verifiedBy: "test",
       verifiedAt: new Date("2026-08-01T00:00:00Z"),
+      // The determined answer for a document (B1, ADR-0077): no.
+      reliesOnLegalClaims: false,
     },
     reviewBy: new Date("2027-08-01T00:00:00Z"),
     ...overrides,
@@ -57,6 +60,7 @@ const SCHEDULE: RetentionSchedule = {
   effectiveFrom: new Date("2026-08-01T00:00:00Z"),
   policies: [policy()],
   unresolved: [],
+  determinations: [],
 };
 
 describe("no default retention — absence of policy is not permission to keep", () => {
@@ -381,5 +385,88 @@ describe("the schedule's history", () => {
 
   it("is not confused by versions listed out of order", () => {
     expect(effectiveFor({ versions: [v2, v1] }, new Date("2026-03-01T00:00:00Z"))?.version).toBe("1");
+  });
+});
+
+describe("the claims determination is load-bearing, not decorative", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Decision sheet B1 puts one question above the whole table, because the
+  // answer moves most of the rows: are we relying on "establishing, exercising
+  // or defending legal claims"? If yes, the six-year limitation period becomes
+  // the anchor and every recommended period roughly triples.
+  //
+  // Vahid, 2026-09-07: no for documents, yes for the audit record. The
+  // reasoning is that what the student authorised is provable from the preview
+  // hash, the authorisation text and the transmission record — WITHOUT the
+  // scan.
+  //
+  // The failure this prevents is quiet. One row that leans on the limitation
+  // period turns a 30-day passport scan into a six-year one, and nothing about
+  // the schedule would look wrong while it did.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const DETERMINATION = {
+    id: CLAIMS_DETERMINATION_ID,
+    question: "Are we relying on defending legal claims as a retention purpose?",
+    answer: "No for documents. Yes for the audit record.",
+    reasoning:
+      "What the student authorised is provable from the preview hash, the authorisation text " +
+      "and the transmission record, without the document itself.",
+    determinedBy: "Vahid Mohammadi",
+    determinedAt: new Date("2026-09-07T00:00:00Z"),
+  };
+
+  const relying = (purpose: RetentionPolicy["purpose"]): RetentionSchedule => ({
+    ...SCHEDULE,
+    determinations: [DETERMINATION],
+    policies: [
+      policy({
+        purpose,
+        basis: { ...policy().basis, reliesOnLegalClaims: true },
+      }),
+    ],
+    unresolved: [],
+  });
+
+  it("REFUSES a document period held up by defending legal claims", () => {
+    const problems = validateSchedule(relying("identity_verification"));
+    expect(problems.join(" ")).toContain("relies on defending legal claims");
+    expect(
+      problems.join(" "),
+      "the refusal states the reasoning, not just the rule",
+    ).toContain("provable from the preview hash");
+  });
+
+  it("ALLOWS it for the audit record, which is what it was determined for", () => {
+    expect(validateSchedule(relying("audit_evidence"))).toEqual([]);
+  });
+
+  it("refuses even the audit record when nobody is recorded as having decided", () => {
+    // A determination that is not on the schedule is a claim with no name
+    // against it. The policy would look identical either way.
+    const orphaned: RetentionSchedule = { ...relying("audit_evidence"), determinations: [] };
+    expect(validateSchedule(orphaned).join(" ")).toContain("records no");
+  });
+
+  it("does not object to a policy that relies on nothing of the kind", () => {
+    // The vacuity guard: the checks above must not be firing on every schedule.
+    expect(validateSchedule(SCHEDULE)).toEqual([]);
+  });
+
+  it("REFUSES a determination nobody is named for, or with no reasoning", () => {
+    // The period is ours to justify under Article 5(2), which is a heavier duty
+    // than being handed one — so a determination is held to the same standard
+    // as a `RetentionBasis`: who decided, and why.
+    const anonymous = validateSchedule({
+      ...SCHEDULE,
+      determinations: [{ ...DETERMINATION, determinedBy: "  " }],
+    });
+    expect(anonymous.join(" ")).toContain("names nobody who decided it");
+
+    const unreasoned = validateSchedule({
+      ...SCHEDULE,
+      determinations: [{ ...DETERMINATION, reasoning: "because" }],
+    });
+    expect(unreasoned.join(" ")).toContain("characters of reasoning");
   });
 });

@@ -5,8 +5,13 @@
  * application field passes through the student's confirmation, because only the
  * profile package can mint a `ConfirmedValue` (ADR-0004).
  *
- * The guarantee this package adds: a reading whose quoted span is not in the
- * document is DISCARDED. See ./grounding.ts.
+ * Two guarantees this package adds:
+ *
+ *   a reading whose quoted span is not in the document is DISCARDED
+ *     — see ./grounding.ts
+ *   a plan cannot NAME a special-category field, so there is nowhere for
+ *     one to land — see ./plans.ts and @askimate/aas-profile/categories
+ *     (B1 row 2, ADR-0077)
  */
 
 export type { DocumentText, DocumentTextExtractor, TextSource } from "./text.js";
@@ -24,7 +29,12 @@ export type {
   ExtractionTarget,
   ScalarTarget,
 } from "./plans.js";
-export { DOCUMENT_TYPES_WITH_PLANS, planFor } from "./plans.js";
+export {
+  DOCUMENT_TYPES_WITH_PLANS,
+  allExtractedFields,
+  fieldsExtractedBy,
+  planFor,
+} from "./plans.js";
 
 export type { ExtractionOutcome, ExtractionReport } from "./extract.js";
 export {

@@ -2118,6 +2118,90 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-07 (P43)
+
+**Date:** 2026-09-07 · **Phase:** P43 · **ADR:** [ADR-0077](./decisions/0077-two-determinations-made-structural.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**Two things decision sheet B1 had written down, and nothing enforced.** Vahid answered both on
+2026-09-07, and both are now properties of the code rather than sentences in a document.
+
+## 1 · A special-category field cannot be extracted
+
+Not because something checks for one — because **there is nowhere for one to go.**
+
+A document reading enters the system only through an extraction plan target, and every target names a
+`ProfileFieldKey`. The registry is therefore the boundary of what extraction can ever produce. What
+P43 adds is that the registry is closed against unclassified fields: `FIELD_CATEGORY` is total over
+it, so a new field **does not compile** until it has been classified against Article 9(1)'s
+enumeration, and a plan may only name one classified `ordinary`.
+
+Both halves were measured by adding `identity.religion`:
+
+| | |
+|---|---|
+| unclassified | fails at `categories.ts`, naming the missing classification |
+| classified `special_category`, named by a plan | `Type '"identity.religion"' is not assignable to type 'OrdinaryFieldKey'` — at the plan's own line |
+
+`undetermined` is a third state and blocks exactly as `special_category` does. That is ADR-0023's
+rule in a new place: the honest answer *"nobody competent has decided"* must not read as permission.
+
+**The limit, stated plainly.** `packages/extraction` is in no deployable's dependency closure, so
+this constrains code that does not currently run. It is compile-time, so it holds whenever the
+package is built and will already hold on the day extraction is wired to a deployable — but it is not
+guarding a live path today. The half that *is* in a shipped package is the classification itself, in
+`packages/profile`, which every deployable that touches a profile compiles.
+
+## 2 · No document period rests on defending legal claims
+
+The question B1 puts above the whole table, because the answer moves most of the rows. Answered
+**no** for documents, **yes** for the audit record.
+
+The reasoning is recorded, because Article 5(2) makes the period ours to justify: **what the student
+authorised is provable from the record without the scan.** The preview hash says what was put in
+front of them, the authorisation text says what they agreed to, the transmission record says what was
+sent. A passport scan adds nothing to that proof and would hold the highest-consequence data this
+system could own for six years to evidence something already evidenced.
+
+Enforced, not just recorded. `RetentionBasis` carries a **declared** `reliesOnLegalClaims` —
+declared and not inferred, because a check that searched the statement for "Limitation Act" would
+miss the period that phrased it differently while feeling like a control. `validateSchedule` refuses
+it for any purpose but `audit_evidence`, and refuses it even there unless the schedule version
+records who determined it and why.
+
+**A schedule that omits the declaration is read as relying on it.** Measured: with the other default,
+a passport kept 2,190 days on the strength of the limitation period printed *"No contradictions, no
+placeholder bases."*
+
+## What has NOT moved
+
+- **No period is set.** A determination is not a period. All twelve rows are still unresolved and
+  nothing can enter the vault.
+- **B5 is untouched**, and so are the five rows B1 flags — rows 4 and 8 (third-party data) and 9, 10
+  and 11 (children's data), which are with Vahid and the DPIA owner.
+- **`applyConfirmation` was not narrowed.** The same constraint at ADR-0004's mint point was written
+  and reverted: it changes generic inference for every caller and needed unrelated tests rewritten,
+  for a guard vacuous there today. Recorded as measured rather than left looking unconsidered.
+
+## Declared-but-unreachable surface
+
+**6, unchanged.** `checkMinorGate` · `assertStorable` · `authoriseDisclosure` · `purgeContents` ·
+`assessUsability` · `attach_document`.
+
+Nothing this phase added is a runtime capability waiting on a caller: the first determination is a
+type, and the second runs inside `validateSchedule`, which `pnpm run retention-status` and its new
+tests exercise.
+
+## What is next
+
+Exercisable and unblocked: the ADR housekeeping (0001–0004 are still Proposed), and the read that
+would let a student be taken to an application they already have.
+
+---
+
 # Where we are — 2026-09-07 (P42)
 
 **Date:** 2026-09-07 · **Phase:** P42 · **ADR:** [ADR-0076](./decisions/0076-the-student-can-instruct-the-second-attempt.md)
