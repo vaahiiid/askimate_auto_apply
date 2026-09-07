@@ -22,6 +22,7 @@ import { join, resolve } from "node:path";
 import type {
   DocumentType,
   RetentionDetermination,
+  RetentionObligation,
   RetentionPurpose,
   RetentionSchedule,
   UnresolvedRetentionRequirement,
@@ -31,6 +32,7 @@ import {
   RetentionRequirementUnresolvedError,
   blockedByRetention,
   effectiveFor,
+  validateHistory,
   requirePolicy,
   validateSchedule,
 } from "@askimate/aas-domain";
@@ -56,6 +58,8 @@ const PAIRS: readonly (readonly [DocumentType, RetentionPurpose])[] = [
   ["birth_certificate", "minor_safeguarding"],
   ["parental_consent", "minor_safeguarding"],
   ["guardianship_document", "minor_safeguarding"],
+  ["bank_statement", "financial_evidence"],
+  ["other", "audit_evidence"],
 ];
 
 function heading(title: string): void {
@@ -86,6 +90,7 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
   const policies = (parsed["policies"] as Record<string, unknown>[] | undefined) ?? [];
   const unresolved = (parsed["unresolved"] as Record<string, unknown>[] | undefined) ?? [];
   const determinations = (parsed["determinations"] as Record<string, unknown>[] | undefined) ?? [];
+  const obligations = (parsed["obligations"] as Record<string, unknown>[] | undefined) ?? [];
 
   return {
     version: text(parsed["version"], "version"),
@@ -105,6 +110,9 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
         | "retain_for_legal_obligation",
       ...(typeof policy["legalBasis"] === "string" ? { legalBasis: policy["legalBasis"] } : {}),
       policyReference: text(policy["policyReference"], "policyReference"),
+      ...(Array.isArray(policy["obligations"])
+        ? { obligations: policy["obligations"] as readonly string[] }
+        : {}),
       reviewBy: date(policy["reviewBy"], "reviewBy"),
       basis: {
         kind: (policy["basis"] as Record<string, unknown>)["kind"] as
@@ -153,6 +161,15 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
         determinedAt: date(entry["determinedAt"], "determination.determinedAt"),
       }),
     ),
+    obligations: obligations.map(
+      (entry): RetentionObligation => ({
+        id: text(entry["id"], "obligation.id"),
+        statement: text(entry["statement"], "obligation.statement"),
+        dueBefore: text(entry["dueBefore"], "obligation.dueBefore"),
+        owner: text(entry["owner"], "obligation.owner"),
+        raisedAt: date(entry["raisedAt"], "obligation.raisedAt"),
+      }),
+    ),
   };
 }
 
@@ -196,6 +213,16 @@ async function main(): Promise<void> {
     console.log(`    ${DIM}approved by: ${version.approvedBy}${RESET}`);
   }
 
+  // The history, before any one version: two versions effective from the same
+  // instant make the governing one depend on load order, and no single version
+  // can see that about itself.
+  const historyProblems = validateHistory({ versions });
+  if (historyProblems.length > 0) {
+    console.log(`\n  ${RED}The history itself is inconsistent:${RESET}`);
+    for (const problem of historyProblems) console.log(`  ${RED}✗${RESET} ${problem}`);
+    process.exitCode = 1;
+  }
+
   const governing = effectiveFor({ versions }, now);
   if (governing === null) {
     console.log(`\n  ${RED}No version is effective today.${RESET} Nothing can be stored.\n`);
@@ -228,7 +255,22 @@ async function main(): Promise<void> {
     console.log(`    ${DIM}${determination.reasoning}${RESET}\n`);
   }
 
-  heading("4 · What could be stored today");
+  heading("4 · What is still OWED, and by whom");
+  // Not "unresolved" — the periods these attach to ARE decided. These are the
+  // things Vahid attached to rows 4 and 8 when he answered them, and an item
+  // recorded now rather than later is only recorded if something shows it.
+  if (governing.obligations.length === 0) {
+    console.log(`  ${DIM}Nothing owed.${RESET}`);
+  }
+  for (const obligation of governing.obligations) {
+    console.log(
+      `  ${BOLD}${obligation.id}${RESET}  ` +
+        `${DIM}owner: ${obligation.owner} · before: ${obligation.dueBefore}${RESET}`,
+    );
+    console.log(`    ${obligation.statement}\n`);
+  }
+
+  heading("5 · What could be stored today");
   let storable = 0;
   for (const [documentType, purpose] of PAIRS) {
     try {
@@ -250,7 +292,7 @@ async function main(): Promise<void> {
     }
   }
 
-  heading("5 · What is open, and who owns it");
+  heading("6 · What is open, and who owns it");
   const blocked = blockedByRetention(governing);
   if (blocked.length === 0) {
     console.log(`  ${DIM}Nothing recorded as unresolved.${RESET}`);
@@ -262,8 +304,23 @@ async function main(): Promise<void> {
 
   heading("Summary");
   console.log(
-    `  ${String(storable)} of ${String(PAIRS.length)} document types could be stored today.\n` +
+    `  ${String(storable)} of ${String(PAIRS.length)} pairs have a RETENTION POLICY today.\n` +
       `  ${String(blocked.length)} question(s) recorded as unresolved.\n`,
+  );
+
+  // ── Retention is ONE of the two gates, and saying otherwise would lie ────
+  //
+  // `assertStorable` requires a retention policy AND a registered lawful basis
+  // (ADR-0022). Until P44 the distinction did not matter, because no period
+  // was set and the answer was "nothing" either way. Now that eleven rows are
+  // determined, "10 of 12 could be stored today" would read as permission this
+  // report cannot grant and does not check.
+  console.log(
+    `  ${AMBER}A retention policy is not permission to store.${RESET} ` +
+      `${DIM}\`assertStorable\` also requires a\n` +
+      `  registered lawful basis for the storing activity (ADR-0022, blocker B2), which this\n` +
+      `  report does not read and which is NOT yet determined. Retention resolved means one of\n` +
+      `  two gates opened.${RESET}\n`,
   );
 
   if (storable === 0) {

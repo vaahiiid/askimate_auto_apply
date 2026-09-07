@@ -273,7 +273,10 @@ const CAPABILITIES: readonly Capability[] = [
       kind: "unreachable",
       reason:
         "no transport exists by which a student can supply bytes, and no deployable holds a vault",
-      closedBy: "B5 (hold or pass through), then the document transport phase",
+      closedBy:
+        "B5 is DECIDED (A — hold, 2026-09-07) and B1's eleven periods are set, so the " +
+        "retention gate opens. Still waiting on B2 (the ADR-0022 lawful basis, which " +
+        "`assertStorable` requires alongside the policy) and on the transport phase",
     },
   },
   {
@@ -287,7 +290,7 @@ const CAPABILITIES: readonly Capability[] = [
       reason:
         "nothing acquires a document, and the `disclose_document_to_institution` lawful basis is " +
         "undetermined (B2), so the function refuses everything it is given",
-      closedBy: "B2, and the document transport phase",
+      closedBy: "B2, which is the one of the three that is still undetermined, and the transport phase",
     },
   },
   {
@@ -302,7 +305,10 @@ const CAPABILITIES: readonly Capability[] = [
     status: {
       kind: "unreachable",
       reason: "the vault holds nothing, because nothing can put anything into it",
-      closedBy: "B1 (the twelve retention determinations), then the transport phase",
+      closedBy:
+        "B1 is DECIDED (2026-09-07): eleven periods set, row 12 still blocking. What is " +
+        "left is a vault holding something to purge, and the job that calls this when a " +
+        "period elapses — the transport phase",
     },
   },
   {
@@ -330,7 +336,9 @@ const CAPABILITIES: readonly Capability[] = [
       reason:
         "produced by nothing. `WorkKind` is `create_account | execute`, so no work item can carry " +
         "it, and `toStoredPlan` refuses a plan with uploads.",
-      closedBy: "B5, then the attachment intent identity ADR-0069 names",
+      closedBy:
+        "B5 is DECIDED (A — hold, 2026-09-07). What is left is the attachment intent " +
+        "identity ADR-0069 names, and a `WorkKind` that can carry it",
     },
   },
 ];

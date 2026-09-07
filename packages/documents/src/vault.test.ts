@@ -87,6 +87,7 @@ const SCHEDULE: RetentionSchedule = {
     },
   ],
   determinations: [],
+  obligations: [],
 };
 
 function upload(overrides: Partial<DocumentUpload> = {}): DocumentUpload {

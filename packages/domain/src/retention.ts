@@ -50,12 +50,34 @@ export type RetentionPurpose =
   | "minor_safeguarding"
   | "audit_evidence";
 
-/** What starts the retention clock. */
+/**
+ * What starts the retention clock.
+ *
+ * ── `last_used` is the one that matters under B5 (ADR-0078) ───────────────
+ *
+ * Documents are held and REUSED: fill once, apply to many. A clock started at
+ * `submission_confirmed` would therefore delete a passport thirty days after
+ * the first application and ask the student for it again on the second, which
+ * is the product's core mechanic destroyed by its own retention rule. Vahid's
+ * correction, 2026-09-07: *"a student's purpose is alive for as long as they
+ * are still applying. Twelve months of no use is the point at which it is
+ * not."*
+ *
+ * `age_established` and `case_concluded` were added in P44 because two of the
+ * twelve determinations could not otherwise be written down: row 9 deletes a
+ * birth certificate seven days after age is established (the DETERMINATION is
+ * kept, the certificate is not), and rows 5 and 10 run from the end of the
+ * case rather than from a submission that may never have happened.
+ */
 export type RetentionTrigger =
   | "submission_confirmed"
   | "case_cancelled"
   | "case_failed"
-  | "last_used";
+  | "last_used"
+  /** The moment the age determination was recorded. Row 9. */
+  | "age_established"
+  /** The case reached a terminal state, however it got there. Rows 5 and 10. */
+  | "case_concluded";
 
 /** What happens when the period elapses. */
 export type PostRetentionAction = "delete" | "anonymise";
@@ -166,6 +188,14 @@ export interface RetentionPolicy {
   readonly legalBasis?: string;
   /** Where this rule comes from, for the data-protection review. */
   readonly policyReference: string;
+  /**
+   * Ids of the obligations that attach to this row.
+   *
+   * A citation, so the obligation lives beside the period it belongs to and
+   * cannot be removed without the period noticing. `validateSchedule` refuses
+   * an id this schedule does not carry.
+   */
+  readonly obligations?: readonly string[];
 }
 
 /**
@@ -232,6 +262,42 @@ export interface RetentionDetermination {
 }
 
 /**
+ * Something that must be DONE, attached to the row that requires it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Not a period, and not an unresolved question either — the period IS decided.
+ * These are the two things Vahid attached to rows 4 and 8 when he answered
+ * them on 2026-09-07:
+ *
+ *   reference_letter  one line at upload, telling the student the letter
+ *                     contains another person's information and they should
+ *                     make sure the writer knows. One line, no form, no
+ *                     confirmation step, no email — it must not add friction.
+ *
+ *   english_test_certificate  read the test providers' terms before the first
+ *                     real submission, and if any is stricter than twelve
+ *                     months, raise it and change the row.
+ *
+ * Recorded as data rather than as a comment because *"record this as an open
+ * item now, not later"* is only true if something holds it. A policy CITES the
+ * obligations that attach to it (`obligations` below), and `validateSchedule`
+ * refuses a citation that does not resolve — so the obligation cannot be
+ * quietly dropped while the period it belongs to stays.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface RetentionObligation {
+  /** Cited by the policies it attaches to. */
+  readonly id: string;
+  /** What must be done, in enough detail to do it. */
+  readonly statement: string;
+  /** By when — a stage, not a date, because the stage is what makes it due. */
+  readonly dueBefore: string;
+  /** Who must do it. An obligation with no owner is one nobody does. */
+  readonly owner: string;
+  readonly raisedAt: Date;
+}
+
+/**
  * One version of the schedule.
  *
  * Versioned and superseding rather than edited in place, because "what was our
@@ -261,6 +327,14 @@ export interface RetentionSchedule {
    * is decided, what is open, and what constrains both, in one artefact.
    */
   readonly determinations: readonly RetentionDetermination[];
+  /**
+   * Things that must be done, cited by the policies they attach to.
+   *
+   * On the schedule for the same reason `unresolved` and `determinations` are:
+   * a reviewer sees what is decided, what is open, what constrains it and what
+   * is still owed, in one artefact.
+   */
+  readonly obligations: readonly RetentionObligation[];
 }
 
 /**
@@ -271,6 +345,59 @@ export interface RetentionSchedule {
  */
 export interface RetentionScheduleHistory {
   readonly versions: readonly RetentionSchedule[];
+}
+
+/**
+ * Checks the HISTORY, which no single version can check about itself.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Found in P44, by writing a second version on the same day as the first.
+ *
+ * `effectiveFor` filters to the versions already in force and sorts by
+ * `effectiveFrom` descending. Two versions sharing that instant makes the sort
+ * a tie, and a stable sort then keeps INPUT ORDER — which for the script is
+ * the order the directory happened to list the files in. The superseded
+ * version won, and the report said every row was still unresolved while the
+ * schedule that resolved them sat beside it.
+ *
+ * Nothing about either version was wrong, so `validateSchedule` had nothing to
+ * say. "What governed on this date?" is a question a regulator can ask, and it
+ * must have exactly one answer.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function validateHistory(history: RetentionScheduleHistory): readonly string[] {
+  const problems: string[] = [];
+
+  const byInstant = new Map<number, string[]>();
+  for (const version of history.versions) {
+    const at = version.effectiveFrom.getTime();
+    byInstant.set(at, [...(byInstant.get(at) ?? []), version.version]);
+  }
+  for (const [at, versions] of byInstant) {
+    if (versions.length > 1) {
+      problems.push(
+        `${versions.join(" and ")} are both effective from ` +
+          `${new Date(at).toISOString()}. Which one governs then depends on the order they were ` +
+          `loaded in, so "what governed on this date?" has no answer.`,
+      );
+    }
+  }
+
+  const names = new Set<string>();
+  for (const version of history.versions) {
+    if (names.has(version.version)) {
+      problems.push(`Two versions are both called ${version.version}.`);
+    }
+    names.add(version.version);
+    if (version.supersedes !== undefined && !history.versions.some((v) => v.version === version.supersedes)) {
+      problems.push(
+        `${version.version} supersedes ${version.supersedes}, which is not in this history — so ` +
+          `the version it replaced cannot be read back.`,
+      );
+    }
+  }
+
+  return problems;
 }
 
 /** The version governing at a given moment, or `null` before the first one. */
@@ -418,6 +545,23 @@ export function validateSchedule(schedule: RetentionSchedule, now?: Date): reado
   const problems: string[] = [];
   const seen = new Set<string>();
   const determinationIds = new Set(schedule.determinations.map((entry) => entry.id));
+  const obligationIds = new Set(schedule.obligations.map((entry) => entry.id));
+
+  for (const obligation of schedule.obligations) {
+    if (obligation.owner.trim().length === 0) {
+      problems.push(`obligation ${obligation.id}: has no owner. An obligation nobody owns is one nobody does.`);
+    }
+    if (obligation.statement.trim().length < 20) {
+      problems.push(
+        `obligation ${obligation.id}: states ${String(obligation.statement.trim().length)} ` +
+          `characters of what must be done. "Record it now, not later" is only true if it says ` +
+          `enough to act on.`,
+      );
+    }
+    if (obligation.dueBefore.trim().length === 0) {
+      problems.push(`obligation ${obligation.id}: names no stage it is due before.`);
+    }
+  }
 
   for (const determination of schedule.determinations) {
     if (determination.determinedBy.trim().length === 0) {
@@ -512,6 +656,16 @@ export function validateSchedule(schedule: RetentionSchedule, now?: Date): reado
         `${key}: relies on defending legal claims, but this schedule version records no ` +
           `"${CLAIMS_DETERMINATION_ID}" determination saying who decided that and why.`,
       );
+    }
+
+    // An obligation cited but not carried is an obligation somebody deleted
+    // while leaving the period that required it.
+    for (const cited of policy.obligations ?? []) {
+      if (!obligationIds.has(cited)) {
+        problems.push(
+          `${key}: cites obligation "${cited}", which this schedule version does not carry.`,
+        );
+      }
     }
 
     if (policy.basis.kind === "legal_requirement" && policy.basis.statement.trim().length < 20) {

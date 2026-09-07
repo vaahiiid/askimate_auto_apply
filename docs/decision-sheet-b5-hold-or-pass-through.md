@@ -1,8 +1,23 @@
 # Decision sheet — B5: hold, or pass through?
 
-**For:** Vahid · **Prepared:** 2026-09-06 · **Answerable in one sitting**
-**Do not implement either until this is answered.** Full analysis:
-[`document-transport-options.md`](./document-transport-options.md).
+**For:** Vahid · **Prepared:** 2026-09-06 · ~~**Answerable in one sitting**~~
+**✅ DECIDED — A, hold. Vahid Mohammadi, 2026-09-07. See [ADR-0078](./decisions/0078-documents-are-held-and-reused.md).**
+Full analysis: [`document-transport-options.md`](./document-transport-options.md).
+
+> **The decision, in his words:**
+>
+> *"Documents are stored in the vault and reused. We never ask a student for the same document
+> twice. The reason is the product's core mechanic, not convenience: fill-once, apply-to-many is
+> what the business plan sells as the switching cost, and a per-attempt pass-through would destroy
+> it."*
+>
+> Decided on a stronger ground than this sheet argued. The sheet recommended A because B's saving
+> was unproven and its retry story certainly worse; the decision is that pass-through is not a
+> cheaper way to do the same thing, **it is a different product**.
+>
+> The counter-argument this sheet asked to be weighed — that A makes Universitio an organisation
+> holding a bucket of passports — was weighed and accepted, with the shortest periods the B1
+> answers allow: **twelve months after last use**, not six years.
 
 ---
 
@@ -109,6 +124,17 @@ choice much closer.
 
 ## What I need from you
 
-One line: **A or B.** If A, the twelve retention determinations (decision sheet B1) become the next
-blocker. If B, someone competent must first answer whether transient bytes are storage, because the
-whole case for B rests on it.
+~~One line: **A or B.**~~ **Answered: A, on 2026-09-07.** The twelve retention determinations were
+answered the same day (see B1), so that blocker did not survive to become the next one either.
+
+**What remains before a document can move**, none of it a founder decision except the first:
+
+- **B2** — the ADR-0022 lawful-basis determination. `assertStorable` requires a registered basis
+  *as well as* a retention policy, so the vault stays shut on this alone.
+- **The transport phase** — student → AAS (route, multipart parser, size cap, client control) and
+  AAS → the process holding the browser. Identical to what this sheet described, with the second
+  half now settled as "from the vault at execution time".
+- **The deletion cascade**, recorded in the schedule and not yet implemented.
+- **The expiry thresholds**, to be proposed and confirmed before implementation.
+- **`attach_document`'s own intent identity**, which ADR-0069 names and this sheet flagged as needed
+  under either answer.

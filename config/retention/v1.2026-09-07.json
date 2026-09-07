@@ -1,0 +1,299 @@
+{
+  "version": "1.2026-09-07",
+  "approvedAt": "2026-09-07T00:00:00Z",
+  "approvedBy": "Vahid Mohammadi",
+  "effectiveFrom": "2026-09-07T12:00:00Z",
+  "supersedes": "0.2026-09-07",
+  "_note": [
+    "THE FIRST VERSION THAT PERMITS STORAGE. Version 0 permitted none, deliberately.",
+    "",
+    "Effective from midday, not midnight: version 0.2026-09-07 records the claims determination",
+    "from earlier the same day, and two versions sharing an instant make 'what governed on this",
+    "date?' depend on the order they were loaded in. validateHistory now refuses that.",
+    "",
+    "Eleven of the twelve B1 rows are determined by Vahid Mohammadi on 2026-09-07, alongside",
+    "B5 = A (hold and reuse). Row 12, bank_statement / financial_evidence, stays UNRESOLVED",
+    "and blocking, because financial evidence is a visa requirement and not a university",
+    "application requirement (ADR-0021) — a route that does require it must stop, not proceed.",
+    "",
+    "Storage is still gated by the ADR-0022 lawful-basis determination (B2), which is not",
+    "answered: `assertStorable` requires BOTH a retention policy and a registered basis, so a",
+    "resolved period on its own does not let a document into the vault."
+  ],
+  "determinations": [
+    {
+      "id": "legal_claims_purpose",
+      "question": "Are we relying on 'establishing, exercising or defending legal claims' as a retention purpose? If yes, the limitation period for a contract claim in England and Wales (Limitation Act 1980 s.5) becomes the anchor for most document rows and every recommended period roughly triples.",
+      "answer": "No for documents. Yes for the audit record — the transmission record, the preview hash and the authorisation text.",
+      "reasoning": "What the student authorised is provable from the record without the scan. The preview hash says what was put in front of them, the authorisation text says what they agreed to, and the transmission record says what was actually sent. A passport scan adds nothing to that proof, and adding it would hold the highest-consequence data this system could hold for six years in order to evidence something already evidenced. Keeping the evidence ABOUT a document is a much smaller footprint than keeping the document.",
+      "determinedBy": "Vahid Mohammadi",
+      "determinedAt": "2026-09-07T00:00:00Z"
+    },
+    {
+      "id": "document_custody_model",
+      "question": "When a student supplies a document, does it persist in AAS until the application is complete (hold), or exist only for the duration of one execution attempt (pass-through)?",
+      "answer": "A — hold. Documents are stored in the vault and reused. We never ask a student for the same document twice.",
+      "reasoning": "Fill-once, apply-to-many is the product's core mechanic and what the business plan sells as the switching cost. A per-attempt pass-through would destroy it. This is a product decision, not a convenience one, and it is what makes `last_used` rather than `submission_confirmed` the right trigger for every reusable document.",
+      "determinedBy": "Vahid Mohammadi",
+      "determinedAt": "2026-09-07T00:00:00Z"
+    },
+    {
+      "id": "purpose_alive_while_applying",
+      "question": "From what moment should a reusable document's retention clock run, given that documents are held and reused?",
+      "answer": "Twelve months after last use, then delete. Not thirty days after a submission.",
+      "reasoning": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The sheet's original thirty-days-after-submission would have deleted a passport a month after the first application and asked for it again on the second — the reuse mechanic destroyed by its own retention rule.",
+      "determinedBy": "Vahid Mohammadi",
+      "determinedAt": "2026-09-07T00:00:00Z"
+    },
+    {
+      "id": "deletion_cascade",
+      "question": "When a document is deleted, what happens to everything derived from it?",
+      "answer": "Everything derived is deleted with it — extractions, previews, working copies, anything carrying its content. One exception, and only one: the audit record of row 5.",
+      "reasoning": "A deletion that leaves the content behind in a derived artefact is not a deletion. The single exception survives because it is the only thing that protects us, it contains no document content, and its footprint is a few lines of text and a hash. NOT YET IMPLEMENTED: no vault holds anything, so there is nothing to cascade from. Recorded here so the transport phase inherits it as a requirement rather than discovering it.",
+      "determinedBy": "Vahid Mohammadi",
+      "determinedAt": "2026-09-07T00:00:00Z"
+    },
+    {
+      "id": "expiry_is_the_student_s_choice",
+      "question": "What happens when a held document approaches its expiry date?",
+      "answer": "The student is warned and chooses: proceed with the document as it is, or upload a new one. If they proceed, that is their decision and it is recorded with the exact wording they were shown.",
+      "reasoning": "The threshold belongs to each document type's own rule, not to a single global number — a passport's threshold cannot be a bank statement's. One rule, per-type thresholds. THE THRESHOLDS ARE NOT SET: they were to be proposed with reasoning and confirmed before implementation, and that confirmation has not happened. Nothing here configures one.",
+      "determinedBy": "Vahid Mohammadi",
+      "determinedAt": "2026-09-07T00:00:00Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "tell_the_student_about_the_referee",
+      "statement": "At the point a student uploads a reference letter, show one line: the letter contains another person's information, and they should make sure the writer knows it is being used for their application. One line at upload. No form, no confirmation step, no email to the referee — it must not add friction.",
+      "dueBefore": "the first reference letter is accepted",
+      "owner": "Vahid Mohammadi",
+      "raisedAt": "2026-09-07T00:00:00Z"
+    },
+    {
+      "id": "read_the_test_provider_terms",
+      "statement": "Read the test providers' terms (IELTS, PTE, Duolingo) for any constraint on retention or verification. If anything there is stricter than twelve months, raise it and change row 8.",
+      "dueBefore": "the first real submission",
+      "owner": "Vahid Mohammadi",
+      "raisedAt": "2026-09-07T00:00:00Z"
+    }
+  ],
+  "unresolved": [
+    {
+      "documentType": "bank_statement",
+      "purpose": "financial_evidence",
+      "question": "OUT OF SCOPE for the first UK application (ADR-0021) — financial evidence is a Student visa requirement, not a university application requirement. Recorded here so that it blocks rather than silently missing, and so the question exists when a route does require it.",
+      "authoritativeSourceNeeded": "GOV.UK Student visa financial evidence guidance, for what the visa route requires; and ICO storage limitation guidance for how long WE may keep a copy",
+      "expectedBasisKind": "policy_decision",
+      "owner": "data_protection_owner",
+      "raisedBy": "claude",
+      "raisedAt": "2026-08-26T00:00:00Z"
+    }
+  ],
+  "policies": [
+    {
+      "documentType": "passport",
+      "purpose": "identity_verification",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-01",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "national_id",
+      "purpose": "identity_verification",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-02",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "personal_statement",
+      "purpose": "application_submission",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-03",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "reference_letter",
+      "purpose": "application_submission",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-04",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      },
+      "obligations": [
+        "tell_the_student_about_the_referee"
+      ]
+    },
+    {
+      "documentType": "other",
+      "purpose": "audit_evidence",
+      "trigger": "case_concluded",
+      "retainForDays": 2190,
+      "action": "anonymise",
+      "erasureBehaviour": "redact_contents",
+      "policyReference": "AAS-RET-B1-05",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "The audit record is the only place a legal claim is defensible from, and it holds three things only: the preview hash, the authorisation text, and the transmission record. No bytes, and no document identifiers beyond what those three require. Anything else added to that record inherits six years, so it stays closed.",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": true
+      }
+    },
+    {
+      "documentType": "academic_transcript",
+      "purpose": "application_submission",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-06",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "degree_certificate",
+      "purpose": "application_submission",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-07",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "english_test_certificate",
+      "purpose": "application_submission",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-08",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      },
+      "obligations": [
+        "read_the_test_provider_terms"
+      ]
+    },
+    {
+      "documentType": "birth_certificate",
+      "purpose": "minor_safeguarding",
+      "trigger": "age_established",
+      "retainForDays": 7,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-09",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "Hold the determination that age was verified, not the certificate that proved it. Seven days is the time to record a result, not to keep a document naming a child and their parents.",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "parental_consent",
+      "purpose": "minor_safeguarding",
+      "trigger": "case_concluded",
+      "retainForDays": 2190,
+      "action": "anonymise",
+      "erasureBehaviour": "redact_contents",
+      "policyReference": "AAS-RET-B1-10",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "The consent record must outlive the processing it authorised, because UK GDPR Article 7(1) requires being able to demonstrate consent. The supporting document does not; row 11 covers that. Recorded as a policy decision informed by Article 7(1) rather than as a legal requirement, because the Article requires demonstrability and does not prescribe a period.",
+        "authoritativeSource": "Decision sheet B1 row 10, answered by Vahid Mohammadi on 2026-09-07, informed by UK GDPR Article 7(1)",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    },
+    {
+      "documentType": "guardianship_document",
+      "purpose": "minor_safeguarding",
+      "trigger": "last_used",
+      "retainForDays": 365,
+      "action": "delete",
+      "erasureBehaviour": "full",
+      "policyReference": "AAS-RET-B1-11",
+      "reviewBy": "2027-09-07T00:00:00Z",
+      "basis": {
+        "kind": "policy_decision",
+        "statement": "A student's purpose is alive for as long as they are still applying. Twelve months of no use is the point at which it is not. The clock runs from last use and not from a submission, because documents are held and reused (B5 = hold).",
+        "authoritativeSource": "Decision sheet B1, answered by Vahid Mohammadi on 2026-09-07; the reasoning is recorded in this schedule's determinations",
+        "verifiedBy": "Vahid Mohammadi",
+        "verifiedAt": "2026-09-07T00:00:00Z",
+        "reliesOnLegalClaims": false
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 # Decision sheet — B1: the twelve retention determinations
 
-**For:** Vahid · **Prepared:** 2026-09-06 · **Answerable as a table**
+**For:** Vahid · **Prepared:** 2026-09-06 · **✅ ALL TWELVE ANSWERED — Vahid Mohammadi, 2026-09-07**
+Recorded in schedule version `1.2026-09-07` and [ADR-0078](./decisions/0078-documents-are-held-and-reused.md).
 Background: [`retention-analysis.md`](./retention-analysis.md) ·
 [ADR-0010](./decisions/0010-policy-driven-document-retention.md) ·
 [ADR-0023](./decisions/0023-an-unresolved-requirement-blocks.md)
@@ -15,9 +16,19 @@ each one blocks its document from ever entering the vault. That is the designed 
 a `legal_requirement` whose statement is under twenty characters is refused outright — *a legal
 requirement we cannot state is one we have not read.*
 
-**Answer the last two columns.** Where you disagree with my recommendation, say the period you want
-and one sentence of reasoning; that sentence becomes the `justification` field, which is what the
-schedule stores and what a subject access request eventually surfaces.
+~~**Answer the last two columns.**~~ **Answered.** The reasoning given for each row is stored in
+that policy's `basis.statement`, and the reasoning that spans rows — the custody model, the
+last-used trigger, the cascade, the expiry rule — is stored in the schedule's `determinations`.
+Both are what a subject access request eventually surfaces.
+
+> ### ⚠️ The recommendations below were written BEFORE B5 was decided
+>
+> Rows 1, 2, 6, 7 and 8 recommend *30 days after `submission_confirmed`*. **That was wrong once B5
+> was answered A**, and Vahid corrected it: a student applying to a second university two months
+> later would have been asked to upload again — the reuse mechanic destroyed by its own retention
+> rule. All five are **12 months after `last_used`**. The tables are left as written, so the
+> correction is visible rather than tidied away; the authoritative periods are in ADR-0078 and the
+> schedule.
 
 **Confidence key.** **High** = I have read the constraint and it is unambiguous. **Medium** = the
 principle is clear, the period is a judgement. **Low** = I am guessing at a shape and a competent
@@ -143,13 +154,18 @@ Trigger vocabulary the schedule already understands: `submission_confirmed`, `ca
 ## What I need from you
 
 - ~~The **claims question** at the top: yes or no.~~ **Answered 2026-09-07 — see above.**
-- **A period and one sentence of justification for rows 1–11.** Accepting a recommendation as-is is a
-  complete answer; say so and I will record it with your name and the date.
-- **Rows 4, 8, 9, 10, 11** are the five I would not set without someone competent looking — the two
-  third-party rows and the three children's rows. Tell me whether to route them to the DPIA owner or
-  whether you are taking them yourself.
-- Row 12 needs no answer. It should stay blocking.
+- ~~**A period and one sentence of justification for rows 1–11.**~~ **Done**, all eleven, with
+  reasoning, named to Vahid Mohammadi and dated 2026-09-07.
+- ~~**Rows 4, 8, 9, 10, 11** are the five I would not set without someone competent looking.~~
+  **Taken by Vahid himself**, with two obligations attached rather than deferred: row 4's one-line
+  notice at upload, and row 8's reading of the test providers' terms before the first real
+  submission. Both are recorded in the schedule as `obligations`, cited by the policies they attach
+  to, so deleting one while leaving its period fails the build.
+- Row 12 needed no answer and **stays blocking**, as it should.
 
-Once rows are answered, they go into the retention schedule with a named determiner and a review
-date, `validateSchedule` stops refusing them, and the corresponding document types become storable —
-**subject to B5 and to the ADR-0022 disclosure determination (B2), which are separate blockers.**
+Rows 1–11 are in the retention schedule with a named determiner and a review date, and
+`validateSchedule` no longer refuses them. **The document types are still NOT storable**: B5 is
+decided, but `assertStorable` requires a registered lawful basis as well as a policy, and the
+ADR-0022 determination (**B2**) is still open. Retention resolved means one of two gates opened, and
+`pnpm run retention-status` says so in those words rather than reporting a green count over a shut
+door.

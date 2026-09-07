@@ -75,15 +75,19 @@ describe("the reachability check", () => {
     // because nothing can put anything into it. Claiming it is enforced is
     // exactly the false record every phase from P31 onwards has been finding
     // by hand, and the check must say so and name the promise.
-    const mutated = theScript().replace(
-      `    status: {
-      kind: "unreachable",
-      reason: "the vault holds nothing, because nothing can put anything into it",
-      closedBy: "B1 (the twelve retention determinations), then the transport phase",
-    },`,
-      `    status: { kind: "reachable" },`,
-    );
-    expect(mutated, "the mutation applied").not.toBe(theScript());
+    // Matched by SHAPE rather than by the exact text of the entry.
+    //
+    // This used to paste `purgeContents`'s whole `status` block as a literal,
+    // and P44 broke it by editing the `closedBy` reason — B1 was decided, so
+    // the reason naming B1 as the blocker had become false. The guard below
+    // caught that honestly (the mutation no longer applied), but a fixture
+    // that must be re-pasted every time a reviewed reason is corrected is a
+    // fixture that discourages correcting them.
+    const script = theScript();
+    const entry = /(symbol: "purgeContents",[\s\S]*?)status: \{[\s\S]*?\n {4}\},/;
+    expect(script, "the register still carries the entry this test mutates").toMatch(entry);
+    const mutated = script.replace(entry, '$1status: { kind: "reachable" },');
+    expect(mutated, "the mutation applied").not.toBe(script);
 
     const { code, out } = await run(mutated);
     expect(code, out).toBe(1);

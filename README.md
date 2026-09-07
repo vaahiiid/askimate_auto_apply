@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P43 — two determinations, made structural rather than written down (ADR-0077) |
+| **Phase** | P44 — documents are held and reused, and the twelve periods are set (ADR-0078) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,256 passing · 112 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 77 ADRs · 73 Accepted |
+| **Tests** | **2,268 passing · 112 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 78 ADRs · 74 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

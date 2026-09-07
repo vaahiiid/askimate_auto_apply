@@ -19,6 +19,74 @@ not shipped artefacts.
 
 ---
 
+## [0.62.0] — 2026-09-07
+
+**P44 — documents are held and reused, and the twelve periods are set (ADR-0078).**
+
+The two blockers that had stood since the document boundary was drawn are both answered by Vahid
+Mohammadi on 2026-09-07.
+
+### Decided · B5 is A — hold and reuse
+
+> Documents are stored in the vault and reused. We never ask a student for the same document twice.
+
+Decided on a stronger ground than the options document argued: pass-through is not a cheaper way to
+do the same thing, **it is a different product**. Fill-once, apply-to-many is what the business plan
+sells as the switching cost.
+
+### Fixed · the five rows that contradicted it
+
+The sheet was written before B5 was answered, and rows 1, 2, 6, 7 and 8 said *30 days after
+`submission_confirmed`*. **A student applying to a second university two months later would have
+been asked to upload again** — the reuse mechanic destroyed by its own retention rule. All five now
+run **12 months after `last_used`**, the trigger row 3 already used.
+
+Two triggers were added because two rows could not otherwise be written down: `age_established`
+(row 9 keeps the age *determination*, not the certificate) and `case_concluded` (rows 5 and 10 run
+from the end of the case, not from a submission that may never happen).
+
+### Added · schedule version `1.2026-09-07` — the first that permits storage
+
+Eleven policies, each naming Vahid Mohammadi and dated; row 12 (`bank_statement`) still unresolved
+and blocking by ADR-0021; five determinations (the claims purpose, the custody model, the last-used
+trigger, the deletion cascade, the expiry rule); and two obligations.
+
+**Obligations are new schedule content**, cited by the policies they attach to — so deleting the
+referee notice or the test-provider reading while leaving the period that required it fails
+`validateSchedule`.
+
+### Fixed · a defect this phase created, and the check that was missing
+
+Writing a second version on the same day made two versions effective from the same instant.
+`effectiveFor` sorts descending and a tie keeps input order — the directory listing — so **the
+superseded version won, and the report said every row was unresolved while the schedule that
+resolved them sat beside it.** Nothing about either version was wrong, so `validateSchedule` had
+nothing to say.
+
+`validateHistory` refuses two versions sharing an `effectiveFrom`, two sharing a name, and a version
+superseding one the history does not carry. *"What was our retention policy in March?"* must have
+exactly one answer.
+
+### Changed · the report no longer implies permission it cannot grant
+
+`retention-status` said *"10 of 10 document types could be stored today"*. With no period set that
+was harmless; with eleven set it reads as permission. `assertStorable` requires a registered lawful
+basis **as well as** a policy (ADR-0022, blocker **B2**), which is still undetermined — so the
+summary now says a retention policy is not permission to store, and names the gate that is shut.
+
+### Not implemented, and recorded as such
+
+The **deletion cascade** (no vault holds anything to cascade from) and the **expiry thresholds**
+(to be proposed and confirmed first). Both are recorded on the schedule with their absence stated.
+
+### Declared-but-unreachable surface: **6, unchanged** — but three reasons rewritten
+
+`assertStorable` and `attach_document` were waiting on B5; `purgeContents` on B1. Both are decided,
+so the register's reasons now name what is actually left rather than a blocker that has been
+cleared — a stale reason is what hides the next finding.
+
+---
+
 ## [0.61.0] — 2026-09-07
 
 **P43 — two determinations, made structural rather than written down (ADR-0077).**

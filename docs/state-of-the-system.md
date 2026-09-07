@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.61.0 · **Date:** 2026-09-07 · **Written for:** someone who knows the product and has
+**Version:** 0.62.0 · **Date:** 2026-09-07 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,256 tests, 112 files, zero skipped**, against real PostgreSQL and Redis.
+processes. **2,268 tests, 112 files, zero skipped**, against real PostgreSQL and Redis.
 Seventy-four architecture decision records, seventy accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
@@ -89,6 +89,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P41** | A refusal reaches the person it is for (ADR-0075) | Two codes existed so a client could tell them apart, and the page had words for neither; underneath, both services published 413 and 415 and neither had ever sent one — a body over the limit came back as `500 internal_error`, blaming us for something only the student could shorten |
 | **P42** | The student can instruct the second attempt the system refuses them into (ADR-0076) | ADR-0006 §3's two-step exchange was built, published and tested in P38, and nothing but a test had ever called either half. The refusal now opens the second attempt when the server says the prior application has concluded, shows the advice first, and sends the student's own words |
 | **P43** | Two determinations, made structural rather than written down (ADR-0077) | B1's claims question answered — no document period rests on defending legal claims, only the audit record — and enforced by `validateSchedule`; and a special-category field cannot be extracted, because a profile field that is not classified against Article 9(1) does not compile |
+| **P44** | Documents are held and reused, and the twelve periods are set (ADR-0078) | B5 decided A — hold and reuse — which corrected five B1 rows written before it, and all twelve periods are determined. The vault stays shut on B2, and the report now says a retention policy is not permission to store |
 
 ---
 
@@ -248,6 +249,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0075 | A refusal reaches the person it is for | Accepted |
 | 0076 | The student can instruct the second attempt the system refuses them into | Accepted |
 | 0077 | Two determinations, made structural rather than written down | Accepted |
+| 0078 | Documents are held and reused, and the twelve periods are set | Accepted |
 
 **On the four Proposed records (0001–0004):** they are the pre-implementation integration
 proposals. 0003 and 0004 are in force *in practice* — versioned migrations and branded types are
@@ -338,11 +340,11 @@ open rather than quietly answered.
 | **2** | **Specialist review** of the blueprint, then a mapping set reviewed by a second person | You | Any real fill. `checkExecutable` refuses a draft; `checkUsable` refuses an unreviewed mapping set |
 | **3** | **Bedrock credentials**, then four model IDs | You | The interview, interpretation, extraction and navigation workloads. The adapter is built and idle |
 | **4** | **An account** — QA HE sandbox, or a consenting applicant | You | The controlled live run |
-| **5** | **B5 — hold or pass through** | **You** (founder decision) | All document transport. See [`decision-sheet-b5-hold-or-pass-through.md`](./decision-sheet-b5-hold-or-pass-through.md) |
-| **6** | **B1 — twelve retention determinations** | **You**, with the DPIA owner for five rows | Any document entering the vault. See [`decision-sheet-b1-retention-periods.md`](./decision-sheet-b1-retention-periods.md) |
-| **7** | **B2 — the `disclose_document_to_institution` lawful basis** | A named determiner | Any document *leaving*. `authoriseDisclosure` refuses without it |
+| **5** | ~~**B5 — hold or pass through**~~ | — | **Decided A — hold and reuse, 2026-09-07 (ADR-0078).** Documents are stored and reused; a student is never asked for the same document twice |
+| **6** | ~~**B1 — twelve retention determinations**~~ | — | **All twelve answered, 2026-09-07 (ADR-0078).** Eleven periods set in schedule `1.2026-09-07`; row 12 (`bank_statement`) stays unresolved and blocking by ADR-0021 |
+| **7** | **B2 — the ADR-0022 lawful basis** | A named determiner | **Now the only policy blocker on documents.** Any document *entering* (`assertStorable` requires a registered basis as well as a retention policy) and any document *leaving* (`authoriseDisclosure` refuses without it) |
 | **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing |
-| **9** | **`attach_document` intent identity** | Me — unblocked, but needs the transport to be reachable | Safe retry of an upload under either B5 answer |
+| **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are Proposed pending this |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
 | **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
@@ -358,7 +360,7 @@ question (15). The ADR re-audit that used to sit here was done in P37; see
 
 ## 7 · Test and verification state
 
-**2,256 tests · 112 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,268 tests · 112 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -429,7 +431,7 @@ evaporates.
 
 **The first spend will be Bedrock inference**, and it will be small — the interview is the only
 high-volume workload, and ADR-0018 already flags it as the row where a cheaper model earns the most.
-**The first material spend will be storage**, and only if B5 is answered "hold": S3 with a
+**The first material spend will be storage**, and B5 *is* answered "hold" (ADR-0078): S3 with a
 customer-managed KMS key, plus RDS if the databases move off anything self-hosted. Both are tens of
 dollars a month at this scale, not hundreds. **The credit is not the constraint. The policy
 determinations are.**
@@ -464,7 +466,7 @@ document replacement is the same class of event and is invisible to it.
 It is transport-level rather than policy, needed under **either** B5 answer, and it is the one thing
 on this list that could produce a visible mistake in a real admissions system. I have not built it
 because the action is produced by nothing today, so it would be a control over unreachable code —
-but it should be the first thing built the moment B5 is answered.
+but it should be the first thing built now that B5 is answered.
 
 ### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · close the four Proposed ones
 

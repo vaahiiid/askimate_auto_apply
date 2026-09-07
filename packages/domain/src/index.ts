@@ -235,6 +235,7 @@ export type {
   RetentionBasis,
   RetentionBasisKind,
   RetentionDetermination,
+  RetentionObligation,
   RetentionPolicy,
   RetentionScheduleHistory,
   UnresolvedRetentionRequirement,
@@ -251,6 +252,7 @@ export {
   decideRetention,
   findPolicy,
   requirePolicy,
+  validateHistory,
   validateSchedule,
 } from "./retention.js";
 

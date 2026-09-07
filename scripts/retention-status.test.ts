@@ -122,10 +122,72 @@ describe("what the report does with the claims determination", () => {
     expect(out).toContain("provable from the preview hash");
   }, 120_000);
 
-  it("reports the repository's own schedule as storing nothing", async () => {
-    // The state P43 leaves the system in, asserted rather than assumed: a
-    // determination was recorded and NO period was set, so nothing is storable.
+  it("reports the repository's own schedule as having ONE row still blocking", async () => {
+    // ── Rewritten in P44, and worth saying why ─────────────────────────
+    //
+    // This asserted "No student document can enter the vault" when P43 wrote
+    // it, because no period was set. Vahid answered all twelve rows on
+    // 2026-09-07 and that sentence stopped being true — so the assertion moves
+    // to what IS true now rather than being deleted, which would quietly drop
+    // the only test that reads the repository's real configuration.
     const out = await report([]);
-    expect(out).toContain("No student document can enter the vault");
+    expect(out).toContain("1 question(s) recorded as unresolved");
+    expect(out, "and it is row 12, out of scope by ADR-0021").toContain("bank_statement");
+  }, 120_000);
+});
+
+describe("the schedule on disk says what was determined", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The configuration is the record. Vahid answered all twelve B1 rows and
+  // B5 on 2026-09-07, and a determination that lives only in an ADR is the
+  // written rule this repository keeps replacing with a check.
+  //
+  // Read through the REAL script, so the file is parsed by the thing that
+  // parses it in production rather than by a test's own reader.
+  // ═══════════════════════════════════════════════════════════════════════
+  it("carries eleven periods, one still-blocking row, and the four determinations", async () => {
+    const out = await report([]);
+
+    expect(out, "eleven rows determined").toContain("11 of 12 pairs have a RETENTION POLICY");
+    expect(out, "row 12 stays blocking").toContain("bank_statement:financial_evidence");
+
+    for (const id of [
+      "legal_claims_purpose",
+      "document_custody_model",
+      "purpose_alive_while_applying",
+      "deletion_cascade",
+      "expiry_is_the_student_s_choice",
+    ]) {
+      expect(out, `${id} is recorded`).toContain(id);
+    }
+    expect(out, "and named to a determiner").toContain("Vahid Mohammadi");
+  }, 120_000);
+
+  it("runs the reusable documents from LAST USE, not from a submission", async () => {
+    // B5 = hold. A clock started at `submission_confirmed` would delete a
+    // passport thirty days after the first application and ask for it again on
+    // the second — the reuse mechanic destroyed by its own retention rule.
+    const out = await report([]);
+    expect(out).toContain("365d after last_used");
+    expect(out, "nothing reusable runs from a submission").not.toMatch(
+      /passport \/ identity_verification\s+\S*\d+d after submission_confirmed/,
+    );
+  }, 120_000);
+
+  it("shows the two obligations, with an owner and a stage", async () => {
+    const out = await report([]);
+    expect(out).toContain("tell_the_student_about_the_referee");
+    expect(out).toContain("read_the_test_provider_terms");
+    expect(out).toContain("before: the first real submission");
+  }, 120_000);
+
+  it("does NOT say a resolved period is permission to store", async () => {
+    // The half-truth this phase created and had to close. Retention is one of
+    // two gates: `assertStorable` also requires a registered lawful basis
+    // (ADR-0022, B2), which this report does not read and which is not
+    // determined. "10 of 12 could be stored today" would read as permission.
+    const out = await report([]);
+    expect(out).toContain("A retention policy is not permission to store");
+    expect(out).toContain("ADR-0022");
   }, 120_000);
 });

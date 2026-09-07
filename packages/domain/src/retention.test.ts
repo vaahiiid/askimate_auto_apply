@@ -22,6 +22,7 @@ import {
   effectiveFor,
   findPolicy,
   requirePolicy,
+  validateHistory,
   validateSchedule,
 } from "./retention.js";
 
@@ -61,6 +62,7 @@ const SCHEDULE: RetentionSchedule = {
   policies: [policy()],
   unresolved: [],
   determinations: [],
+  obligations: [],
 };
 
 describe("no default retention — absence of policy is not permission to keep", () => {
@@ -468,5 +470,121 @@ describe("the claims determination is load-bearing, not decorative", () => {
       determinations: [{ ...DETERMINATION, reasoning: "because" }],
     });
     expect(unreasoned.join(" ")).toContain("characters of reasoning");
+  });
+});
+
+describe("the history, which no single version can check about itself", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Found in P44 by writing a second version on the same day as the first.
+  //
+  // `effectiveFor` filters to the versions in force and sorts by
+  // `effectiveFrom` descending. Two versions sharing that instant is a tie,
+  // and a stable sort then keeps INPUT ORDER — for the status script, the
+  // order the directory listed the files in. The SUPERSEDED version won, and
+  // the report said every row was unresolved while the schedule that resolved
+  // them sat beside it. Nothing about either version was wrong, so
+  // `validateSchedule` had nothing to say.
+  // ═══════════════════════════════════════════════════════════════════════
+  const at = (iso: string, version: string, supersedes?: string): RetentionSchedule => ({
+    ...SCHEDULE,
+    version,
+    effectiveFrom: new Date(iso),
+    ...(supersedes === undefined ? {} : { supersedes }),
+  });
+
+  it("REFUSES two versions effective from the same instant", () => {
+    const problems = validateHistory({
+      versions: [at("2026-09-07T00:00:00Z", "a"), at("2026-09-07T00:00:00Z", "b")],
+    });
+    expect(problems.join(" ")).toContain("both effective from");
+    expect(problems.join(" "), "and says why it matters").toContain(
+      'what governed on this date?" has no answer',
+    );
+  });
+
+  it("shows what that ambiguity actually does to `effectiveFor`", () => {
+    // Not an assertion about which one wins — that is the bug. It is an
+    // assertion that the two orderings disagree, which is what makes the
+    // question unanswerable.
+    const first = at("2026-09-07T00:00:00Z", "older");
+    const second = at("2026-09-07T00:00:00Z", "newer");
+    const now = new Date("2026-09-08T00:00:00Z");
+    expect(effectiveFor({ versions: [first, second] }, now)?.version).not.toBe(
+      effectiveFor({ versions: [second, first] }, now)?.version,
+    );
+  });
+
+  it("accepts a history where each version has its own instant", () => {
+    expect(
+      validateHistory({
+        versions: [
+          at("2026-09-07T00:00:00Z", "0.today"),
+          at("2026-09-07T12:00:00Z", "1.today", "0.today"),
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("REFUSES a version that supersedes one the history does not carry", () => {
+    // "What was our retention policy in March?" cannot be answered from a
+    // history missing the version that was replaced.
+    const problems = validateHistory({
+      versions: [at("2026-09-07T12:00:00Z", "1.today", "0.missing")],
+    });
+    expect(problems.join(" ")).toContain("not in this history");
+  });
+
+  it("REFUSES two versions with the same name", () => {
+    const problems = validateHistory({
+      versions: [at("2026-09-06T00:00:00Z", "same"), at("2026-09-07T00:00:00Z", "same")],
+    });
+    expect(problems.join(" ")).toContain("both called same");
+  });
+});
+
+describe("obligations attach to the row that requires them", () => {
+  // Rows 4 and 8. Not periods, and not unresolved questions either — the
+  // periods ARE decided. Vahid: "record this as an open item now, not later",
+  // which is only true if something holds it.
+  const obligation = {
+    id: "read_the_test_provider_terms",
+    statement:
+      "Read the test providers' terms for any constraint on retention or verification, and if " +
+      "any is stricter than twelve months, change the row.",
+    dueBefore: "the first real submission",
+    owner: "Vahid Mohammadi",
+    raisedAt: new Date("2026-09-07T00:00:00Z"),
+  };
+
+  it("REFUSES a policy citing an obligation the schedule does not carry", () => {
+    // The failure this prevents: someone deletes the obligation and leaves the
+    // period that required it, and nothing notices.
+    const problems = validateSchedule({
+      ...SCHEDULE,
+      obligations: [],
+      policies: [policy({ obligations: ["read_the_test_provider_terms"] })],
+    });
+    expect(problems.join(" ")).toContain("does not carry");
+  });
+
+  it("accepts the citation when it resolves", () => {
+    expect(
+      validateSchedule({
+        ...SCHEDULE,
+        obligations: [obligation],
+        policies: [policy({ obligations: ["read_the_test_provider_terms"] })],
+      }),
+    ).toEqual([]);
+  });
+
+  it("REFUSES an obligation with no owner, no stage, or nothing to act on", () => {
+    const nobody = validateSchedule({ ...SCHEDULE, obligations: [{ ...obligation, owner: " " }] });
+    expect(nobody.join(" ")).toContain("An obligation nobody owns");
+
+    const vague = validateSchedule({ ...SCHEDULE, obligations: [{ ...obligation, statement: "do it" }] });
+    expect(vague.join(" ")).toContain("enough to act on");
+
+    const undated = validateSchedule({ ...SCHEDULE, obligations: [{ ...obligation, dueBefore: "" }] });
+    expect(undated.join(" ")).toContain("names no stage");
   });
 });

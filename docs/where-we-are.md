@@ -2118,6 +2118,93 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-07 (P44)
+
+**Date:** 2026-09-07 · **Phase:** P44 · **ADR:** [ADR-0078](./decisions/0078-documents-are-held-and-reused.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**Both document blockers are answered.** B5 is **A — hold and reuse**, and all twelve B1 rows are
+determined, named to Vahid Mohammadi and dated 2026-09-07.
+
+> *"Documents are stored in the vault and reused. We never ask a student for the same document
+> twice. The reason is the product's core mechanic, not convenience: fill-once, apply-to-many is
+> what the business plan sells as the switching cost, and a per-attempt pass-through would destroy
+> it."*
+
+Decided on a stronger ground than the options document argued. It recommended A because B's saving
+was unproven and its retry story certainly worse; the decision is that pass-through is not a cheaper
+way to do the same thing — **it is a different product.**
+
+## The correction that came with it
+
+The sheet was written before B5 was answered, and rows 1, 2, 6, 7 and 8 said *30 days after
+`submission_confirmed`*. That is the reuse mechanic destroyed by its own retention rule: **a student
+applying to a second university two months later would have been asked to upload again.**
+
+All reusable documents now run **12 months after `last_used`** — *"a student's purpose is alive for
+as long as they are still applying. Twelve months of no use is the point at which it is not."*
+
+Two triggers were added because two rows could not otherwise be written down: `age_established`
+(row 9 keeps the age determination, not the certificate) and `case_concluded` (rows 5 and 10 run
+from the end of the case, not from a submission that may never happen).
+
+## What the vault can take today: still nothing
+
+This is the part worth being precise about, because eleven green rows look like a door opening.
+
+`assertStorable` requires **two** things: a retention policy *and* a registered lawful basis for the
+storing activity. Retention is now resolved for eleven pairs. **B2 — the ADR-0022 determination — is
+not**, and it is now the only policy blocker standing between a student and the vault.
+
+`pnpm run retention-status` used to end *"10 of 10 document types could be stored today"*. With no
+period set that was harmless; with eleven set it reads as permission. It now says a retention policy
+is not permission to store, and names the gate that is shut.
+
+## A defect this phase created, and the check that was missing
+
+Writing a second schedule version on the same day made two versions effective from the same instant.
+`effectiveFor` sorts by `effectiveFrom` descending; a tie keeps input order, which for the status
+script is the order the directory listed the files in. **The superseded version won, and the report
+said every row was still unresolved while the schedule that resolved them sat beside it.**
+
+Nothing about either version was wrong, so `validateSchedule` had nothing to say. `validateHistory`
+is what was missing: no two versions may share an instant or a name, and none may supersede one the
+history does not carry.
+
+## Recorded, and deliberately not implemented
+
+- **The deletion cascade** — everything derived dies with the document; one exception, row 5's audit
+  record. No vault holds anything, so there is nothing to cascade from yet.
+- **The expiry thresholds** — the rule is recorded (warn, the student chooses, the exact wording
+  shown is recorded with their choice). The numbers are to be proposed and confirmed first, and the
+  determination says so rather than quietly configuring one.
+
+## Declared-but-unreachable surface
+
+**6, unchanged — and three of the six reasons are now different.**
+
+| | was waiting on | now waiting on |
+|---|---|---|
+| `assertStorable` | B5, then transport | **B2**, then transport |
+| `purgeContents` | B1, then transport | a vault with something in it, and the job that calls it |
+| `attach_document` | B5, then the intent identity | the intent identity, and a `WorkKind` that carries it |
+| `authoriseDisclosure` | B2, then transport | unchanged — B2 is the one still undetermined |
+| `checkMinorGate` | submission scope | unchanged |
+| `assessUsability` | the Requirements Service | unchanged |
+
+A reason that names a blocker somebody has since cleared is a stale allow-list, and a stale
+allow-list is what hides the next finding.
+
+## What is next
+
+The document transport phase is now unblocked on the design question and blocked only on B2 for the
+storing half. The expiry thresholds are a proposal awaiting confirmation.
+
+---
+
 # Where we are — 2026-09-07 (P43)
 
 **Date:** 2026-09-07 · **Phase:** P43 · **ADR:** [ADR-0077](./decisions/0077-two-determinations-made-structural.md)
