@@ -41,3 +41,21 @@ export {
 } from "./vault.js";
 
 export { InMemoryDocumentVault } from "./in-memory-vault.js";
+
+// ── The expiry rule that makes holding safe (ADR-0078, ADR-0079) ───────────
+export type {
+  ExpiryChoice,
+  ExpiryChoiceRecord,
+  ExpiryDecision,
+  ExpiryThreshold,
+  ExpiryWarning,
+  NoWarningReason,
+} from "./expiry.js";
+export {
+  EXPIRY_THRESHOLDS,
+  decideExpiryWarning,
+  provisionalThresholds,
+  recordChoice,
+  thresholdFor,
+  undeterminedThresholds,
+} from "./expiry.js";

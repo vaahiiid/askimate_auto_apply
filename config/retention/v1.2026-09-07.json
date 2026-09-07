@@ -56,8 +56,8 @@
     {
       "id": "expiry_is_the_student_s_choice",
       "question": "What happens when a held document approaches its expiry date?",
-      "answer": "The student is warned and chooses: proceed with the document as it is, or upload a new one. If they proceed, that is their decision and it is recorded with the exact wording they were shown.",
-      "reasoning": "The threshold belongs to each document type's own rule, not to a single global number — a passport's threshold cannot be a bank statement's. One rule, per-type thresholds. THE THRESHOLDS ARE NOT SET: they were to be proposed with reasoning and confirmed before implementation, and that confirmation has not happened. Nothing here configures one.",
+      "answer": "The student is warned once and chooses: proceed with the document as it is, or upload a new one. If they proceed, that is their decision and it is recorded with the exact wording they were shown. The warning does not repeat.",
+      "reasoning": "The threshold belongs to each document type's own rule, not to a single global number — a passport's threshold cannot be a bank statement's. Thresholds approved 2026-09-07: passport 6 months, national_id 3 months, english_test_certificate 4 months. No threshold for birth_certificate, degree_certificate, academic_transcript, reference_letter or personal_statement, because they do not expire. NOTHING for bank_statement: row 12 is out of scope and blocking, and giving it a threshold would make it look half-ready. The warning fires once because a countdown that nags is one people learn to dismiss. The english_test_certificate number is PROVISIONAL until obligation `read_the_test_provider_terms` is discharged and the providers' terms are read; that link is explicit in the code so the number cannot be treated as settled.",
       "determinedBy": "Vahid Mohammadi",
       "determinedAt": "2026-09-07T00:00:00Z"
     }

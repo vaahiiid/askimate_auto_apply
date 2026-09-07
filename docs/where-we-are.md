@@ -2118,6 +2118,73 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-07 (P45)
+
+**Date:** 2026-09-07 · **Phase:** P45 · **ADR:** [ADR-0079](./decisions/0079-a-document-running-out-is-the-students-choice.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**The expiry rule has its numbers.** ADR-0078 recorded the rule and deliberately left the thresholds
+absent until they were proposed and confirmed; they were, on 2026-09-07.
+
+| document | threshold |
+|---|---|
+| passport | 6 months |
+| national ID | 3 months |
+| English test certificate | 4 months, **provisional** |
+| birth / degree certificate, transcript, reference, personal statement | none — they do not expire |
+| bank statement | **none, deliberately** |
+| sponsorship letter, parental consent, guardianship document, other | **undetermined** |
+
+One principle throughout: the threshold is *the time a student needs to obtain a replacement*, not a
+fraction of the document's life. A UK passport renewal runs to ten weeks at its worst, and six months
+also covers the validity many visa routes require at entry.
+
+## The removal is the interesting entry
+
+The bank statement was in the proposal at 14 days and was taken out. *"Row 12 is out of scope and
+blocking, and giving it a threshold makes it look half-ready. Leave it with nothing."*
+
+That is why the table has four states rather than a number-or-nothing: `does_not_expire`,
+`out_of_scope`, `undetermined` and a threshold are four different facts, and collapsing them would
+have made "we decided not to" indistinguishable from "nobody has looked".
+
+## Three properties, each structural
+
+| | how |
+|---|---|
+| the wording recorded is the wording shown | `recordChoice` takes the **branded warning**, never a string — there is no parameter for a different sentence |
+| it fires once | the only input about previous warnings is *when the first one happened*; there is no "warn anyway" |
+| every type is classified | the table is total over `DocumentType`, so a new type does not compile until somebody decides |
+
+The first is the one that matters most. A record saying *"the student was warned"* without saying
+what they read is evidence of nothing — the same argument ADR-0059 makes about the preview a student
+authorises.
+
+## The English test number says in the code that it is not settled
+
+It names obligation `read_the_test_provider_terms` from B1 row 8. Every warning produced from it is
+marked provisional, and that mark is carried into the recorded choice — so a decision made under a
+number that later moves can be found.
+
+## Declared-but-unreachable surface
+
+**6, unchanged.** Nothing this phase added is a runtime capability waiting on a caller.
+
+`packages/documents` is in no deployable's dependency closure — only `packages/extraction` depends on
+it, and nothing depends on that — so this constrains code that does not yet run. Compile-time and
+pure, so it will already hold when the transport phase wires it in. The same limitation was stated
+for ADR-0077, and it is stated again rather than assumed remembered.
+
+## What is next
+
+**B2** is the only policy blocker left on documents, and it is with Vahid. The transport phase is
+unblocked on every design question except that one.
+
+---
+
 # Where we are — 2026-09-07 (P44)
 
 **Date:** 2026-09-07 · **Phase:** P44 · **ADR:** [ADR-0078](./decisions/0078-documents-are-held-and-reused.md)

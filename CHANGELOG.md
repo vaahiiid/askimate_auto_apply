@@ -19,6 +19,54 @@ not shipped artefacts.
 
 ---
 
+## [0.63.0] — 2026-09-07
+
+**P45 — a document running out is the student's choice, once, in writing (ADR-0079).**
+
+ADR-0078 §5 recorded the expiry rule and deliberately left the numbers absent until proposed and
+confirmed. They were proposed and approved on 2026-09-07, with one removal.
+
+### Added · the thresholds
+
+One principle throughout: **the threshold is the time a student needs to obtain a replacement**, not
+a fixed fraction of the document's life. Passport **6 months** (UK renewal runs to 10 weeks at its
+worst, and six months also covers the validity many visa routes require at entry); national ID
+**3 months**; English test certificate **4 months and provisional**. Nothing for the documents that
+do not expire.
+
+**A bank statement gets nothing, and that is the decision rather than an omission.** *"Row 12 is out
+of scope and blocking, and giving it a threshold makes it look half-ready."* It was in the proposal
+at 14 days and was removed — which is why the table distinguishes `does_not_expire` from
+`out_of_scope` from `undetermined` rather than treating all three as an absent number.
+
+### Added · three properties, each structural rather than remembered
+
+- **The wording recorded is the wording shown.** `recordChoice` takes the branded `ExpiryWarning`,
+  never a string, so there is no parameter through which a caller could record a sentence other than
+  the one the student read.
+- **It fires once.** The only input about previous warnings is when the first one happened; there is
+  no "warn anyway". *A countdown that nags is one people learn to dismiss.*
+- **Every document type is classified.** The table is total over `DocumentType`, so a new type does
+  not compile until somebody decides — and `undetermined` blocks rather than reading as "no warning
+  needed".
+
+### The English test number says in the code that it is not settled
+
+It names obligation `read_the_test_provider_terms`, `provisionalThresholds()` lists it, and every
+warning produced from it is marked provisional and carries that into the recorded choice.
+
+### `already_expired` is not a warning
+
+A document past its expiry is a validity failure — `assessValidity` refuses it — and *"this is about
+to expire"* would be both wrong and too late. Its own answer, with its own name.
+
+### Declared-but-unreachable surface: **6, unchanged.**
+
+`packages/documents` is in no deployable's dependency closure, so this constrains code that does not
+yet run — the same limitation stated for ADR-0077, and stated again rather than quietly repeated.
+
+---
+
 ## [0.62.0] — 2026-09-07
 
 **P44 — documents are held and reused, and the twelve periods are set (ADR-0078).**
