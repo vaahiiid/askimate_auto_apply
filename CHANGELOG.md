@@ -19,6 +19,59 @@ not shipped artefacts.
 
 ---
 
+## [0.60.0] — 2026-09-07
+
+**P42 — the student can instruct the second attempt the system refuses them into (ADR-0076).**
+
+The third consecutive phase to find the same shape one layer further out. P39 found a capability
+with no caller. P41 found a refusal with no reader. P42 finds **a route with no client.**
+
+### Fixed · both halves of ADR-0006's exchange were reachable only from a test
+
+P38 built the two-step exchange rule 4 requires — say what happened to the previous application, be
+shown the advice, then instruct — published both routes, and covered both with driver tests.
+**Nothing but a test had ever called either.**
+
+The refusal that leads to them explains, in the contract's own words, why its fields exist:
+
+> It is on the wire because the refusal is otherwise a dead end. "You already have an application for
+> this" is only useful if the client can take the student to it, or — when it has concluded — offer
+> them a second attempt.
+
+The page read the `code` and discarded `existingCaseId` and `concluded`. A student whose earlier
+application had finished — the exact case the system is ready to help with — was told they already
+had one and shown nothing further.
+
+### Added · the exchange, on the page, in the order the decision requires
+
+The panel has two states and the second is reachable only through the round trip whose reply is the
+server's advice. There is no path by which the page can put itself into the instructing state, so
+rule 4's *"mandatory in presentation"* is obeyed rather than re-implemented — and the server still
+enforces the same order independently, by looking for the advice event in the conversation's log.
+
+`concluded` is the server's answer and the only thing that decides whether the offer appears. The
+page holds no case state and reads none.
+
+### Changed · a refusal keeps its whole document
+
+`Outcome`'s failed member now carries the `Problem` as `parseProblem` read it, so the next refusal
+that means more than its code does not need this work done again. A document the parser refuses
+still yields a code — a refusal the client cannot fully read must not become a success.
+
+### Not done, and deliberately
+
+**Taking the student to the application they already have** — the other half of what `existingCaseId`
+is for. A conversation owns at most one case, so it means moving them to a different conversation,
+and no read lists a case's conversation yet. Recorded rather than half-built.
+
+**A check that every published route has a client.** Most internal routes have none by design, so it
+would be an exception list wearing a guard's clothes. The reachability register carries
+`advisePriorOutcome` instead, whose only production caller is the page.
+
+### Declared-but-unreachable surface: **6, unchanged.**
+
+---
+
 ## [0.59.0] — 2026-09-07
 
 **P41 — a refusal reaches the person it is for (ADR-0075).**

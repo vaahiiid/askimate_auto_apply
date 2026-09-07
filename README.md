@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P41 — a refusal reaches the person it is for (ADR-0075) |
+| **Phase** | P42 — the student can instruct the second attempt the system refuses them into (ADR-0076) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,233 passing · 109 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 75 ADRs · 71 Accepted |
+| **Tests** | **2,235 passing · 109 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 76 ADRs · 72 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

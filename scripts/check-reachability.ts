@@ -208,6 +208,20 @@ const CAPABILITIES: readonly Capability[] = [
     status: { kind: "reachable" },
   },
   {
+    // The client half of ADR-0006 rule 4. Both routes existed, were published
+    // and were tested from P38, and NOTHING CALLED EITHER until P42 — the
+    // shape this register exists to catch, one layer further out than the
+    // symbol it usually asks about. Its caller is the student's page, which
+    // this check counts as production because it is inside a deployable.
+    symbol: "advisePriorOutcome",
+    kind: "call",
+    declaredIn: ["apps/conversation-service/src/client/transport.ts"],
+    record: "ADR-0006 §3 rule 4, ADR-0076",
+    promise:
+      "the wait recommendation is shown to the student before any instruction to apply again is taken",
+    status: { kind: "reachable" },
+  },
+  {
     symbol: "problemForBodyError",
     kind: "call",
     declaredIn: ["packages/contracts/src/problems.ts"],

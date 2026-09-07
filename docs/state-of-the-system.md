@@ -1,6 +1,6 @@
 # State of the system — the standing account
 
-**Version:** 0.59.0 · **Date:** 2026-09-07 · **Written for:** someone who knows the product and has
+**Version:** 0.60.0 · **Date:** 2026-09-07 · **Written for:** someone who knows the product and has
 not read the code.
 
 > **This document is the standing account, not a snapshot.** `where-we-are.md` is a per-phase
@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,233 tests, 109 files, zero skipped**, against real PostgreSQL and Redis.
+processes. **2,235 tests, 109 files, zero skipped**, against real PostgreSQL and Redis.
 Seventy-four architecture decision records, seventy accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
@@ -87,6 +87,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P39** | A declared capability with no production caller fails the build (ADR-0073) | P37's question, asked by `pnpm run verify`. It found `openReapplication` uncalled on its first run — the constructor ADR-0006 §3 had named four hours earlier |
 | **P40** | A run a person is holding is returned to the student, never restarted (ADR-0074) | A student whose application stopped for a specialist came back to a 500. They now land where they left it, their questions still arrive, and an advancing decision is refused with a reason rather than a 404 |
 | **P41** | A refusal reaches the person it is for (ADR-0075) | Two codes existed so a client could tell them apart, and the page had words for neither; underneath, both services published 413 and 415 and neither had ever sent one — a body over the limit came back as `500 internal_error`, blaming us for something only the student could shorten |
+| **P42** | The student can instruct the second attempt the system refuses them into (ADR-0076) | ADR-0006 §3's two-step exchange was built, published and tested in P38, and nothing but a test had ever called either half. The refusal now opens the second attempt when the server says the prior application has concluded, shows the advice first, and sends the student's own words |
 
 ---
 
@@ -244,6 +245,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0073 | A declared capability with no production caller fails the build | Accepted |
 | 0074 | A run a person is holding is returned to the student, never restarted | Accepted |
 | 0075 | A refusal reaches the person it is for | Accepted |
+| 0076 | The student can instruct the second attempt the system refuses them into | Accepted |
 
 **On the four Proposed records (0001–0004):** they are the pre-implementation integration
 proposals. 0003 and 0004 are in force *in practice* — versioned migrations and branded types are
@@ -354,7 +356,7 @@ question (15). The ADR re-audit that used to sit here was done in P37; see
 
 ## 7 · Test and verification state
 
-**2,233 tests · 109 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,235 tests · 109 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.

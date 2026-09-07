@@ -57,6 +57,19 @@ interface View {
   offer: api.TargetOffer | null;
   preview: RunPreview | null;
   notice: string;
+  /**
+   * The second attempt, when the server has offered one (ADR-0006, P42).
+   *
+   * `refused` is set only from an `already_applying` problem whose `concluded`
+   * is true — the server's own answer to "may this student apply again", never
+   * this page's reading of a case state it cannot see. `advice` is set only by
+   * the server's reply to the first of the two calls, and its presence is what
+   * lets the instruction be offered at all.
+   */
+  reapplication: {
+    readonly existingCaseId: string;
+    readonly advice: api.WaitAdviceReading | null;
+  } | null;
 }
 
 const view: View = {
@@ -67,6 +80,7 @@ const view: View = {
   offer: null,
   preview: null,
   notice: "",
+  reapplication: null,
 };
 
 let stream: EventSource | null = null;
@@ -430,12 +444,103 @@ function drawComposer(): void {
   }
 }
 
+/**
+ * The second attempt, when the server has said one is possible.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0006 rule 4 makes the wait recommendation *"advisory in effect but
+ * MANDATORY in presentation: the system must show it before accepting the
+ * instruction, and must record that it did"*. So this panel has two states and
+ * the second cannot be reached without passing through the first:
+ *
+ *   no advice yet   the outcome question, and nothing that could instruct
+ *   advice shown    the advice verbatim, THEN the statement box and the button
+ *
+ * The server enforces the same order — `reapply` is refused until the advice
+ * event is in this conversation's log — so this is not the control, it is the
+ * control being obeyed rather than worked around. A page that offered the
+ * instruction first would simply be refused, which is the right failure but a
+ * bad experience for a student who did nothing wrong.
+ *
+ * Nothing here decides whether a second attempt is POSSIBLE. That is
+ * `concluded` on the server's own refusal.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+function drawReapplication(): void {
+  const panel = el("reapplication");
+  if (panel === null) return;
+  panel.replaceChildren();
+  const state = view.reapplication;
+  if (state === null || view.run.run !== null) return;
+
+  const heading = document.createElement("h2");
+  text(heading, "You have applied for this before");
+  panel.append(heading);
+
+  if (state.advice === null) {
+    const ask = document.createElement("p");
+    text(ask, "What happened to that application?");
+    panel.append(
+      ask,
+      button("It was rejected", () => {
+        void adviseOn("rejected");
+      }),
+      button("I withdrew it", () => {
+        void adviseOn("withdrawn");
+      }),
+      button(
+        "Leave it",
+        () => {
+          view.reapplication = null;
+          draw();
+        },
+        "quiet",
+      ),
+    );
+    return;
+  }
+
+  // The server's own words, shown verbatim and before anything that could
+  // instruct. `pre`, like the offer, because this client does not re-flow a
+  // rendering it did not compose.
+  const advice = document.createElement("pre");
+  advice.id = "wait-advice";
+  text(
+    advice,
+    state.advice.suggestedIntake === undefined
+      ? state.advice.rationale
+      : `${state.advice.rationale}\n\nA later intake is open: ${state.advice.suggestedIntake}`,
+  );
+
+  const statement = document.createElement("textarea");
+  statement.id = "reapply-statement";
+  statement.rows = 2;
+  statement.placeholder = "In your own words: why do you want to apply again?";
+
+  panel.append(
+    advice,
+    statement,
+    button("Apply again anyway", () => {
+      void instructReapplication();
+    }),
+    button(
+      "Leave it for now",
+      () => {
+        view.reapplication = null;
+        draw();
+      },
+      "quiet",
+    ),
+  );
+}
+
 function draw(): void {
   const notice = el("notice");
   if (notice !== null) text(notice, view.notice);
   drawTranscript();
   drawTargets();
   drawOffer();
+  drawReapplication();
   drawPending();
   drawSecureStep();
   drawComposer();
@@ -589,8 +694,74 @@ async function applyForOffer(offerHash: string): Promise<void> {
   }
   view.notice = "";
   const started = await api.requestApplication(id, offerHash, statement);
-  if (!started.ok) report(started.code);
-  else view.offer = null;
+  if (!started.ok) {
+    report(started.code);
+    // ── The refusal that is not a dead end (ADR-0006, P42) ──────────────
+    //
+    // `already_applying` carries `existingCaseId` and `concluded` for exactly
+    // one stated purpose — so the client can take the student to what they
+    // already have, or offer them a second attempt when it has finished. Both
+    // fields reached this page and were thrown away until P42, which made the
+    // refusal a full stop for a student the system was ready to help.
+    //
+    // `concluded` is the SERVER's answer. This page does not read a case state
+    // and does not have one to read.
+    const problem = started.problem;
+    view.reapplication =
+      problem?.code === "already_applying" && problem.concluded
+        ? { existingCaseId: problem.existingCaseId, advice: null }
+        : null;
+  } else {
+    view.offer = null;
+    view.reapplication = null;
+  }
+  await refresh();
+}
+
+/**
+ * Step one: say what happened, and be shown the advice.
+ *
+ * The advice is stored ONLY from the server's reply. There is no path by which
+ * this page can put itself into the second state without the round trip that
+ * records the advice was shown — which is the whole of ADR-0006 rule 4.
+ */
+async function adviseOn(outcome: "rejected" | "withdrawn"): Promise<void> {
+  const id = view.conversationId;
+  const state = view.reapplication;
+  if (id === null || state === null) return;
+  view.notice = "";
+
+  const advised = await api.advisePriorOutcome(id, outcome);
+  if (!advised.ok) {
+    report(advised.code);
+    // Left in the first state rather than cleared: the student asked for
+    // something reasonable and nothing about their situation changed.
+    draw();
+    return;
+  }
+  view.reapplication = { existingCaseId: state.existingCaseId, advice: advised.value };
+  draw();
+}
+
+/** Step two: the instruction, in their own words. */
+async function instructReapplication(): Promise<void> {
+  const id = view.conversationId;
+  if (id === null) return;
+  const statement =
+    (el("reapply-statement") as HTMLTextAreaElement | null)?.value.trim() ?? "";
+  if (statement === "") {
+    view.notice = "Tell me in your own words why you want to apply again.";
+    draw();
+    return;
+  }
+  view.notice = "";
+
+  const opened = await api.reapply(id, statement);
+  if (!opened.ok) report(opened.code);
+  else {
+    view.reapplication = null;
+    view.offer = null;
+  }
   await refresh();
 }
 

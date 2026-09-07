@@ -63,7 +63,16 @@ import {
   toStoredEntry,
 } from "@askimate/aas-profile";
 import type { ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
-import { proposeValue, studentId } from "@askimate/aas-domain";
+import {
+  askimateActor,
+  decide,
+  externalRef,
+  fold,
+  caseId as makeCaseId,
+  proposeValue,
+  stamp,
+  studentId,
+} from "@askimate/aas-domain";
 import { RunDriver } from "./run-driver.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import { StudentIdentityStore } from "./identity-store.js";
@@ -1065,4 +1074,217 @@ describeIfDatabase("the student's page", () => {
     // staying and drawing a journey it has no session for.
     expect(page.url()).toContain("/auth/login");
   }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The second attempt (ADR-0006 §3, P38 · reachable by a student from P42)
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the second attempt, from the student's own page", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Both halves of ADR-0006's exchange have been built, published and tested
+  // since P38, and NO CLIENT COULD REACH EITHER. `AlreadyApplyingProblem` says
+  // why they exist in its own words — "the refusal is otherwise a dead end.
+  // 'You already have an application for this' is only useful if the client
+  // can take the student to it, or — when it has concluded — offer them a
+  // second attempt" — and the page threw both fields away.
+  //
+  // Driven entirely through the page: the student applies, stops, comes back,
+  // is refused, is asked what happened, is SHOWN the advice, and instructs the
+  // second attempt in their own words. Nothing below reaches past the browser
+  // except to seed the student and to read what the case log holds.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Concludes a case, the way P15's own tests do.
+   *
+   * The one fixture step here, and deliberately so: a cancellation reaches
+   * CANCELLED through `#concludeCancellation` on the next ADVANCE, and nothing
+   * in this file advances a run — the worker does that, and its own tests
+   * prove it. What P42 is about is what the student can do once the prior
+   * application HAS concluded.
+   */
+  async function conclude(caseRef: string): Promise<void> {
+    const store = new PostgresCaseStore(pool);
+    const ref = makeCaseId(caseRef);
+    for (const to of ["WINDING_DOWN", "CANCELLED"] as const) {
+      const current = fold(await store.read(ref));
+      const decision = decide(current, {
+        kind: "transition",
+        to,
+        reason: "The student stopped.",
+      });
+      if (!decision.accepted) expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);
+      await store.append(
+        ref,
+        current.sequence,
+        stamp({
+          caseId: ref,
+          fromSequence: current.sequence,
+          payloads: decision.events,
+          actor: askimateActor(externalRef("test:p42-conclude")),
+          now: new Date("2026-09-07T12:00:00Z"),
+          nextEventId: (index: number) => `evt_p42_c${String(current.sequence + index + 1)}`,
+        }),
+      );
+    }
+  }
+
+  /** Picks the first reviewed target and asks to apply, with a statement. */
+  async function applyToTheFirstTarget(statement: string): Promise<void> {
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target").length > 0,
+      undefined,
+      { timeout: 15_000 },
+    );
+    await page.locator("#targets .target button").first().click();
+    await page.waitForSelector("#statement", { timeout: 15_000 });
+    await page.locator("#statement").fill(statement);
+    await page.locator("#offer button").first().click();
+  }
+
+  it("takes the student through the whole exchange, in order", async () => {
+    const fresh = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p42', true) RETURNING id",
+    );
+    const owner = fresh.rows[0]!.id;
+    await visitAs(owner);
+
+    // ── One application, and then they stop ─────────────────────────────
+    await applyToTheFirstTarget("Please apply to the MSc for me.");
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").length > 0,
+      undefined,
+      { timeout: 20_000 },
+    );
+    const first = await pool.query<{ case_id: string }>(
+      "SELECT case_id FROM conversations WHERE student_id = $1 AND case_id IS NOT NULL",
+      [owner],
+    );
+    const priorCaseId = first.rows[0]!.case_id;
+    await conclude(priorCaseId);
+
+    // ── They come back, in a new conversation ───────────────────────────
+    //
+    // A conversation owns at most one case, so the second application needs
+    // one of its own. `GET /v1/conversations` is newest-first, so a reload
+    // lands the page there without it having remembered anything.
+    // From INSIDE the page, so it is the page's own credentialed same-origin
+    // request — the `__Host-` cookie belongs to the document, and an API
+    // request made beside it is not the same caller.
+    const opened = await page.evaluate(async () => {
+      const response = await fetch("/v1/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      return response.status;
+    });
+    expect(opened).toBe(201);
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    // ── Refused, and NOT at a dead end ──────────────────────────────────
+    await applyToTheFirstTarget("The same one again, please.");
+    const offered = await textOf("#reapplication", 20_000);
+    expect(offered, "the refusal opened the second attempt").toContain(
+      "You have applied for this before",
+    );
+    expect(offered, "and it asks what happened first").toContain(
+      "What happened to that application?",
+    );
+
+    // The instruction does not exist yet. ADR-0006 rule 4 is mandatory in
+    // PRESENTATION, and a page that offered the box here would be asking the
+    // server for a refusal.
+    expect(
+      await page.locator("#reapply-statement").count(),
+      "the instruction was offered before the advice",
+    ).toBe(0);
+
+    // ── They say what happened, and are shown the advice ────────────────
+    await page.locator("#reapplication button").first().click();
+    const advice = await textOf("#wait-advice", 20_000);
+    expect(advice.length, "the server's own rationale, shown verbatim").toBeGreaterThan(20);
+
+    // And the fact that it was shown is DURABLE, in the conversation log —
+    // which is what the server checks before it will take an instruction.
+    const advised = await pool.query<{ prior_case_id: string; advice: string }>(
+      `SELECT prior_case_id, advice FROM conversation_events
+         WHERE kind = 'reapplication_advised'`,
+    );
+    expect(advised.rows[0]?.prior_case_id).toBe(priorCaseId);
+
+    // ── The instruction, in their own words ─────────────────────────────
+    await page.locator("#reapply-statement").fill(
+      "I understand the advice, but I would like to apply again.",
+    );
+    await page.locator("#reapplication button").first().click();
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").length > 0,
+      undefined,
+      { timeout: 20_000 },
+    );
+
+    // ── What the case log says ──────────────────────────────────────────
+    const cases = await pool.query<{ case_id: string }>(
+      "SELECT case_id FROM conversations WHERE student_id = $1 AND case_id IS NOT NULL",
+      [owner],
+    );
+    expect(cases.rowCount, "a NEW case, not a second ordinal on the old one").toBe(2);
+
+    const store = new PostgresCaseStore(pool);
+    const second = cases.rows.map((row) => row.case_id).find((id) => id !== priorCaseId);
+    const attempt2 = fold(await store.read(makeCaseId(second!)));
+    expect(attempt2.submissionIdentity.attemptOrdinal).toBe(2);
+    expect(attempt2.priorCaseId).toBe(priorCaseId);
+
+    const attempt1 = fold(await store.read(makeCaseId(priorCaseId)));
+    expect(attempt1.submissionIdentity.attemptOrdinal, "the prior one is untouched").toBe(1);
+    expect(
+      { ...attempt2.submissionIdentity, attemptOrdinal: 1 },
+      "same student, same target — a second attempt at something else is not a re-application",
+    ).toEqual(attempt1.submissionIdentity);
+  }, 300_000);
+
+  it("does NOT offer a second attempt while the first one is still live", async () => {
+    // `concluded` is the server's answer and the only thing that decides this.
+    // A page that offered it from its own reading of a case state would be
+    // offering an instruction `decideReapplication` refuses — two concurrent
+    // applications for one course and intake, which its own comment calls "a
+    // different bug with the same blast radius".
+    const fresh = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p42-live', true) RETURNING id",
+    );
+    await visitAs(fresh.rows[0]!.id);
+
+    await applyToTheFirstTarget("Please apply to the MSc for me.");
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").length > 0,
+      undefined,
+      { timeout: 20_000 },
+    );
+
+    // From INSIDE the page, so it is the page's own credentialed same-origin
+    // request — the `__Host-` cookie belongs to the document, and an API
+    // request made beside it is not the same caller.
+    const opened = await page.evaluate(async () => {
+      const response = await fetch("/v1/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      return response.status;
+    });
+    expect(opened).toBe(201);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await applyToTheFirstTarget("The same one again, please.");
+
+    // Told, in words, and offered nothing.
+    const notice = await textOf("#notice", 20_000);
+    expect(notice).toContain("already have an application");
+    expect(
+      (await page.locator("#reapplication").textContent()) ?? "",
+      "a live application may not be re-applied to",
+    ).toBe("");
+  }, 300_000);
 });

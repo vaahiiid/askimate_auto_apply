@@ -2118,6 +2118,74 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-07 (P42)
+
+**Date:** 2026-09-07 · **Phase:** P42 · **ADR:** [ADR-0076](./decisions/0076-the-student-can-instruct-the-second-attempt.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**A student refused because they already applied can now apply again — from the page, in their own
+words.** P38 built the exchange ADR-0006 §3 requires, published both routes, and covered both with
+driver tests. Nothing but a test had ever called either.
+
+## The third phase in a row to find the same shape
+
+| | found | one layer |
+|---|---|---|
+| P39 | a capability with no caller | in the code |
+| P41 | a refusal with no reader | at the surface |
+| P42 | a route with no client | at the surface, for a whole exchange |
+
+Every one was correct, implemented, tested, and stopped short of the person it was for.
+
+The refusal itself said so. `AlreadyApplyingProblem` carries `existingCaseId` and `concluded`, and
+the contract's own comment explains why: *"the refusal is otherwise a dead end. 'You already have an
+application for this' is only useful if the client can take the student to it, or — when it has
+concluded — offer them a second attempt."* The page read the code and threw both fields away.
+
+## The order is the decision, and it is obeyed twice
+
+Rule 4 makes the wait recommendation *advisory in effect but mandatory in presentation*. The panel
+has two states, and the second is reachable only through the round trip whose reply is the server's
+advice — there is no path by which the page can put itself into the instructing state. The server
+enforces the same order independently, by looking for the advice event in the conversation's own log.
+
+`concluded` is the server's answer. The page holds no case state and reads none: offering a second
+attempt against a live application would be asking for `decideReapplication`'s refusal, which its own
+comment calls *"a different bug with the same blast radius"*.
+
+## What is deliberately NOT done
+
+- **Taking the student to the application they already have** — the other half of what
+  `existingCaseId` is for. A conversation owns at most one case, so it means moving them to a
+  different conversation, and no read lists a case's conversation. Recorded rather than half-built.
+- **A check that every published route has a client.** Most internal routes have none by design, so
+  it would be an exception list wearing a guard's clothes. The register carries `advisePriorOutcome`
+  instead — its only production caller is the page, so deleting the flow fails the build.
+
+## Declared-but-unreachable surface
+
+**6, unchanged.** `checkMinorGate` · `assertStorable` · `authoriseDisclosure` · `purgeContents` ·
+`assessUsability` · `attach_document`. Four of the six wait on B5, B2 or B1.
+
+`advisePriorOutcome` joins the register as enforced, taking the enforced count to **14**.
+
+## Known limitations
+
+- The whole exchange is proved in a real browser, but the conclusion of the prior case is a fixture
+  step: a cancellation reaches CANCELLED on the next *advance*, and nothing in that file advances a
+  run — the worker does, and its own tests prove it.
+- B5, B1 and B2 are unchanged and still block every document path.
+
+## What is next
+
+Exercisable and unblocked: the ADR housekeeping (0001–0004 are still Proposed), and the read that
+would let a student be taken to an application they already have.
+
+---
+
 # Where we are — 2026-09-07 (P41)
 
 **Date:** 2026-09-07 · **Phase:** P41 · **ADR:** [ADR-0075](./decisions/0075-a-refusal-reaches-the-person-it-is-for.md)

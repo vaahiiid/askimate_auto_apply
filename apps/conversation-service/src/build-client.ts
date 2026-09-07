@@ -44,6 +44,14 @@ const DOCUMENT = `<!doctype html>
   <p id="notice" role="status"></p>
   <section id="targets"></section>
   <section id="offer"></section>
+  <!--
+    The second attempt (ADR-0006). Empty unless the server has refused an
+    application because this student already has one for the same course and
+    intake AND that application has concluded. Its own section rather than a
+    line in the notice, because the exchange it holds is two steps and the
+    first of them is mandatory in presentation.
+  -->
+  <section id="reapplication"></section>
   <section id="pending"></section>
   <ul id="transcript"></ul>
   <section id="secure"></section>

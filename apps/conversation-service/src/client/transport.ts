@@ -18,8 +18,13 @@
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
-import { parseConversationEvent, parseConversationRun, parseRunPreview } from "@askimate/aas-contracts";
-import type { ConversationRun, RunPreview } from "@askimate/aas-contracts";
+import {
+  parseConversationEvent,
+  parseConversationRun,
+  parseProblem,
+  parseRunPreview,
+} from "@askimate/aas-contracts";
+import type { ConversationRun, PriorOutcome, Problem, RunPreview } from "@askimate/aas-contracts";
 
 /** One conversation, as `GET /v1/conversations` returns it. */
 export interface Conversation {
@@ -66,16 +71,40 @@ export interface RunReading {
   readonly pending: PendingDecision | null;
 }
 
-/** What a call did, without throwing. A refusal is an outcome, not an error. */
+/**
+ * What a call did, without throwing. A refusal is an outcome, not an error.
+ *
+ * `problem` is the whole document when the contract's own parser accepted it,
+ * and `null` otherwise. Some refusals carry MORE than a code — the one that
+ * matters here is `already_applying`, whose `existingCaseId` and `concluded`
+ * are on the wire for exactly one stated purpose: *"the refusal is otherwise a
+ * dead end. 'You already have an application for this' is only useful if the
+ * client can take the student to it, or — when it has concluded — offer them a
+ * second attempt."* Until P42 this file threw both fields away.
+ */
 export type Outcome<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly status: number; readonly code: string };
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly code: string;
+      readonly problem: Problem | null;
+    };
 
-async function refusal(response: Response): Promise<{ status: number; code: string }> {
+async function refusal(
+  response: Response,
+): Promise<{ status: number; code: string; problem: Problem | null }> {
   // RFC 9457 everywhere on this service, so the code is where the reason is.
-  const body = (await response.json().catch(() => null)) as { code?: unknown } | null;
-  const code = typeof body?.code === "string" ? body.code : "unknown";
-  return { status: response.status, code };
+  const raw: unknown = await response.json().catch(() => null);
+  // Read through the CONTRACT's parser rather than by hand: it is the same
+  // reader the tests use, it refuses a code this client is older than, and it
+  // is what makes an extension member trustworthy enough to act on. A document
+  // it will not take still yields a code, because a refusal whose reason this
+  // client cannot fully read is still a refusal and must not become a success.
+  const problem = parseProblem(raw);
+  const body = raw as { code?: unknown } | null;
+  const code = problem?.code ?? (typeof body?.code === "string" ? body.code : "unknown");
+  return { status: response.status, code, problem };
 }
 
 async function get<T>(path: string, read: (value: unknown) => T | null): Promise<Outcome<T>> {
@@ -86,7 +115,7 @@ async function get<T>(path: string, read: (value: unknown) => T | null): Promise
   // render around: the alternative is a screen built from a shape nobody
   // published.
   return parsed === null
-    ? { ok: false, status: response.status, code: "contract_mismatch" }
+    ? { ok: false, status: response.status, code: "contract_mismatch", problem: null }
     : { ok: true, value: parsed };
 }
 
@@ -105,7 +134,7 @@ async function send<T>(
   if (response.status === 204) return { ok: true, value: read(null) as T };
   const parsed = read(await response.json().catch(() => null));
   return parsed === null
-    ? { ok: false, status: response.status, code: "contract_mismatch" }
+    ? { ok: false, status: response.status, code: "contract_mismatch", problem: null }
     : { ok: true, value: parsed };
 }
 
@@ -232,6 +261,70 @@ export function requestApplication(
   return send(
     `/v1/conversations/${conversationId}/runs`,
     { offerHash, studentStatement },
+    parseConversationRun,
+  );
+}
+
+/**
+ * The advice ADR-0006 rule 4 says must be SHOWN before an instruction is taken.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Two calls, and not as an accident of REST. The wait recommendation is
+ * *"advisory in effect but MANDATORY in presentation: the system must show it
+ * before accepting the instruction, and must record that it did"*. Collapsing
+ * the pair into one would be building the thing the decision forbids, and the
+ * server enforces the order — `reapply` is refused until the advice event is
+ * in this conversation's log.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * What goes up is the OUTCOME and nothing else. The advice comes back composed
+ * by the server from `recommendWait`, so there is no field through which this
+ * client could claim to have shown advice it invented.
+ */
+export interface WaitAdviceReading {
+  readonly priorCaseId: string;
+  readonly advice: string;
+  readonly suggestedIntake?: string;
+  readonly rationale: string;
+  readonly shownAt: string;
+}
+
+export function advisePriorOutcome(
+  conversationId: string,
+  priorOutcome: PriorOutcome,
+): Promise<Outcome<WaitAdviceReading>> {
+  return send(
+    `/v1/conversations/${conversationId}/reapplication/prior-outcome`,
+    { priorOutcome },
+    (value) => {
+      const body = asRecord(value);
+      return body === null ||
+        typeof body["advice"] !== "string" ||
+        typeof body["rationale"] !== "string"
+        ? null
+        : (body as unknown as WaitAdviceReading);
+    },
+  );
+}
+
+/**
+ * The instruction itself, in the student's own words.
+ *
+ * It carries the statement and NOTHING else — not the prior case, not the
+ * attempt ordinal, not the outcome or the advice. Every one of those is a
+ * field through which a client could disagree with the system about the one
+ * number ADR-0006 exists to protect, and each is read back server-side from
+ * the submission-key chain or from this conversation's own log.
+ */
+export function reapply(
+  conversationId: string,
+  studentStatement: string,
+): Promise<Outcome<ConversationRun>> {
+  return send(
+    `/v1/conversations/${conversationId}/reapplication`,
+    { studentStatement },
+    // The document is a `ConversationRun` at the top level, as the contract
+    // describes it — not wrapped, the way the runs route wraps its read.
     parseConversationRun,
   );
 }
