@@ -445,6 +445,30 @@ function draw(): void {
 // Acting. Each one posts, then RE-READS — never assumes what it did.
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * What each refusal is, in the student's language.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The server states its reasons in a CLOSED set (`PROBLEM_CODES`), and two of
+ * them exist precisely because a client that could not tell them from a
+ * generic conflict would show the student a dead end. In their own words:
+ *
+ *   already_applying      "…if that application has concluded the student can
+ *                          instruct a second attempt. A client that could not
+ *                          tell this apart from any other 409 could not offer
+ *                          them that."
+ *   specialist_reviewing  "…a state they were already told about in the
+ *                          conversation, and a client that could not tell it
+ *                          from a 404 would show them a dead end for something
+ *                          that resumes by itself."
+ *
+ * Both fell through to "That did not work" until P41. The reason was stated on
+ * the wire, correctly, and never reached the person it was for.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `CANNOT_REACH_THIS_PAGE` below is the other half, and the two together must
+ * cover every code the contract can produce — see `refusal-wording.test.ts`.
+ */
 const REFUSALS: Readonly<Record<string, string>> = {
   not_found:
     "That is not available any more. Let me show you where things stand.",
@@ -453,12 +477,85 @@ const REFUSALS: Readonly<Record<string, string>> = {
   forbidden: "That is not something you can do here.",
   service_unavailable: "That part of the service is not available right now.",
   contract_mismatch: "The server sent something this page did not understand.",
+
+  // P41. Named, not generic — each of these is a state the student can do
+  // something about, or one they have already been told about in the thread.
+  already_applying:
+    "You already have an application for this course and intake. Here it is.",
+  specialist_reviewing:
+    "A person is checking part of your application. You do not need to do " +
+    "anything — I will carry on as soon as they are done.",
+  email_not_verified:
+    "Confirm your email address first. Check your inbox for the link we sent.",
+  secret_request_open:
+    "Finish the secure step above first, then this will go through.",
+  intervention_already_resolved:
+    "Somebody has already dealt with that. Here is where things stand.",
+  rate_limited: "That was a lot at once. Give it a moment and try again.",
+  internal_error:
+    "Something went wrong at our end. Nothing you have given me is lost.",
+
+  // Reachable from the statement box, which takes a paste of any length, and
+  // stated as 413 only from P41 — before that the body parser's refusal came
+  // back as a 500 and this student was told OUR side had broken, for a body
+  // only they could shorten.
+  payload_too_large:
+    "That is longer than I can take. Shorten it a little and send it again.",
+  // The page sends a fresh random key on the two calls that create something,
+  // so a conflict means a key was reused with a different body — which cannot
+  // happen from here, but is worded rather than assumed away, because the key
+  // IS sent and a claim about what a sent header can never provoke is the kind
+  // of claim this file has already got wrong once.
+  idempotency_key_conflict:
+    "That looks like something already sent. Here is where things stand.",
+
+  // The session has expired mid-journey. This page does NOT send them to
+  // `/auth/login` for it, though `start` does when the page loads without a
+  // session at all, and the difference is deliberate: by this point the
+  // student may have typed something into the composer, and navigating away
+  // would discard it. The one thing this page is careful about above all is
+  // not losing what a student wrote — a send that fails keeps the draft — and
+  // a redirect is a send that fails and takes the box with it.
+  unauthenticated:
+    "You have been signed out. Reload this page to sign back in — anything " +
+    "you have typed will still be here until then.",
+};
+
+/**
+ * Codes this page cannot be told, and why.
+ *
+ * The same shape as the reachability register (ADR-0073): a reviewed list with
+ * a reason each, rather than silence. A code that moves from here to `REFUSALS`
+ * is a client change somebody made on purpose; a code in NEITHER is the defect
+ * P41 fixed, and `refusal-wording.test.ts` fails on it.
+ *
+ * ── Writing this list is what made it useful ─────────────────────────────
+ *
+ * Its first draft had THREE entries and two of them were wrong. It claimed
+ * `payload_too_large` could not arrive because "the only bodies are short
+ * text" — the statement box takes a paste of any size — and that this page
+ * "sends no idempotency key", when `transport.ts` sends a fresh one on two of
+ * its calls. Both now have wordings. Neither error was findable by reading the
+ * page; both were findable by having to WRITE DOWN why a code could not
+ * arrive, which is the argument for keeping the list rather than a comment.
+ */
+const CANNOT_REACH_THIS_PAGE: Readonly<Record<string, string>> = {
+  // Every request goes through one helper that sets `Content-Type:
+  // application/json` with no charset parameter, and the browser sends no
+  // `Content-Encoding` on a body this small. A Content-Type that is not JSON
+  // at all does NOT produce this code anyway — `express.json` skips the body
+  // and the route refuses the missing field instead.
+  unsupported_media_type:
+    "one helper sets application/json, with no charset and no content-encoding",
 };
 
 function report(code: string): void {
   view.notice =
     REFUSALS[code] ?? "That did not work. Let me show you where things stand.";
 }
+
+/** Exported for `refusal-wording.test.ts`, which asserts the two cover the set. */
+export const wording = { REFUSALS, CANNOT_REACH_THIS_PAGE };
 
 async function chooseTarget(
   blueprintId: string,

@@ -19,6 +19,57 @@ not shipped artefacts.
 
 ---
 
+## [0.59.0] — 2026-09-07
+
+**P41 — a refusal reaches the person it is for (ADR-0075).**
+
+ADR-0073's question, asked of a different kind of declaration: not *does anything call this*, but
+**does the reason anybody states ever reach anybody**.
+
+### Fixed · two codes that existed so a client could tell them apart, and no client could
+
+`already_applying` and `specialist_reviewing` are in the vocabulary on exactly one argument — that a
+student refused either must not be shown a generic conflict. The page had six wordings and neither
+of those, so both fell through to *"That did not work. Let me show you where things stand."* For a
+student whose run a specialist is holding, that sentence contradicts the transcript directly above
+it, which P40 had just written.
+
+### Fixed · both services published 413 and 415, and neither had ever sent one
+
+`express.json({ limit })` guards every route in both planes, and everything it refused reached the
+blind error handler and came back `500 internal_error`. The comment beside the limit already claimed
+otherwise — *"`413` from here is the contract's `payload_too_large`"* — and nothing made it true.
+
+A student who pasted a long personal statement was told our side had broken, for a body only they
+could shorten. `problemForBodyError` now maps the parser's own error type to the published code —
+413, 400 or 415 — and lives in `packages/contracts` because two copies would be two chances for one
+of them to keep answering 500. It reads `err.type` and nothing else, so it stays as blind as the
+handler around it: `err.body` carries the raw request body on a syntax error.
+
+### Fixed · a refusal document the contract's own parser refused
+
+`parseProblem` requires `instance`, and neither the new refusals nor the existing `internal_error`
+had one — a refusal the client cannot read, which is the same defect one layer down.
+
+### Added · three checks over the gap that used to be invisible
+
+- `refusal-wording.test.ts` — `REFUSALS` and `CANNOT_REACH_THIS_PAGE` must together cover
+  `PROBLEM_CODES`, so a code added to the vocabulary cannot reach nobody.
+- `contract-drift.test.ts` — every `post` in both documents publishes 400, 413 and 415, read off the
+  documents rather than a list.
+- The reachability register gains `problemForBodyError`, taking the enforced count to **13**.
+
+### The reviewed list found two of this phase's own defects
+
+`CANNOT_REACH_THIS_PAGE`'s first draft had three entries and two were wrong: it claimed the page
+could not be sent `payload_too_large` (the statement box takes a paste of any size) and that it
+"sends no idempotency key" (`transport.ts` sends a fresh one on two calls). Neither was findable by
+reading the page. Both were findable by having to write down why a code could not arrive.
+
+### Declared-but-unreachable surface: **6, unchanged.**
+
+---
+
 ## [0.58.0] — 2026-09-07
 
 **P40 — a run a person is holding is returned to the student, never restarted (ADR-0074).**

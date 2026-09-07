@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import pg from "pg";
 
 import { migrate } from "@askimate/aas-migrate";
+import { parseProblem } from "@askimate/aas-contracts";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 
 import { MIGRATIONS_DIR } from "./index.js";
@@ -205,4 +206,83 @@ describeIfDatabase("a malformed body reaches no log and no response", () => {
     spy.mockRestore();
     expect(written.join("")).toContain("a canary line");
   });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The refusals the contract publishes for a body this server will not take
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a body the parser refuses", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // P41. `POST .../messages` publishes 400, 413 and 415, and until this phase
+  // the only one of the three that could ever be sent was 400 — from the
+  // route's own validation. Everything `express.json` itself refused reached
+  // the blind error handler and came back 500 `internal_error`.
+  //
+  // The comment beside the limit already claimed otherwise: "`413` from here
+  // is the contract's `payload_too_large`". Nothing made it true, and a
+  // student who pasted a long statement was told OUR side had broken, for a
+  // body only they could shorten.
+  //
+  // Over real HTTP against the real app, because the thing under test is an
+  // Express error path — the one place a unit test of the handler function
+  // would prove nothing, since what reaches it is `body-parser`'s decision.
+  // ═══════════════════════════════════════════════════════════════════════
+  const post = async (
+    body: string,
+    contentType = "application/json",
+  ): Promise<{ status: number; text: string }> => {
+    const cookie = (issueSession(studentId, SECRET).split(";")[0] ?? "").trim();
+    const response = await fetch(`${BASE}/v1/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": contentType,
+        "Idempotency-Key": "an-idempotency-key-long-enough",
+        Cookie: cookie,
+      },
+      body,
+    });
+    return { status: response.status, text: await response.text() };
+  };
+
+  it("says 413 payload_too_large for a body over the limit", async () => {
+    const huge = JSON.stringify({ content: "x".repeat(70_000) });
+    const { status, text } = await post(huge);
+
+    expect(status, "500 here means the student is blamed for our failure").toBe(413);
+    expect(JSON.parse(text)).toMatchObject({ code: "payload_too_large", status: 413 });
+  }, 30_000);
+
+  it("says 400 validation_failed for a body that is not JSON", async () => {
+    const { status, text } = await post('{"content": "half a mess');
+    expect(status).toBe(400);
+    expect(JSON.parse(text)).toMatchObject({ code: "validation_failed", status: 400 });
+  }, 30_000);
+
+  it("says 415 unsupported_media_type for a charset it will not decode", async () => {
+    const { status, text } = await post("{}", "application/json; charset=utf-99");
+    expect(status).toBe(415);
+    expect(JSON.parse(text)).toMatchObject({ code: "unsupported_media_type", status: 415 });
+  }, 30_000);
+
+  it("publishes a document the CONTRACT's own parser accepts", async () => {
+    // A refusal a client cannot read is the same defect one layer down:
+    // `parseProblem` requires `instance`, and neither this handler's 500 nor
+    // its new refusals had one until P41.
+    const huge = JSON.stringify({ content: "x".repeat(70_000) });
+    const { text } = await post(huge);
+    const parsed = parseProblem(JSON.parse(text));
+
+    expect(parsed, "the client would read this as an unknown failure").not.toBeNull();
+    expect(parsed?.code).toBe("payload_too_large");
+  }, 30_000);
+
+  it("still says NOTHING about what the body contained", async () => {
+    // The blindness is the older property and it outranks the new one: a
+    // refusal that named the field it choked on would be a refusal that can
+    // quote a half-typed password back.
+    const huge = JSON.stringify({ content: `${MARKER}${"x".repeat(70_000)}` });
+    const { text } = await post(huge);
+    expect(text).not.toContain(MARKER);
+  }, 30_000);
 });

@@ -95,7 +95,10 @@ paths:
             empty one being created.
           content:
             application/json: { schema: { $ref: "#/components/schemas/Conversation" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
     get:
       operationId: listConversations
@@ -378,6 +381,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TargetOffer" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404":
           description: >-
@@ -396,6 +400,8 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: No catalogue is resolved, so nothing can be offered.
           content:
@@ -534,6 +540,8 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Problem"
                   - $ref: "#/components/schemas/AlreadyApplyingProblem"
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: >-
             This deployment carries no run driver, no target directory, or the
@@ -594,6 +602,8 @@ paths:
             for this target at all. The same answer to both.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment carries no run driver.
           content:
@@ -681,6 +691,8 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Problem"
                   - $ref: "#/components/schemas/AlreadyApplyingProblem"
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment carries no run driver.
           content:
@@ -778,6 +790,8 @@ paths:
             than an advance.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment carries no run driver.
           content:
@@ -818,6 +832,8 @@ paths:
           description: Client certificate missing or not permitted.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment drives no runs.
           content:
@@ -904,6 +920,8 @@ paths:
           description: Already resolved. A second adjudication is not an update.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment drives no runs.
           content:
@@ -960,6 +978,8 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
         "404": { $ref: "#/components/responses/NotFound" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
   /internal/v1/work/claims:
     post:
@@ -1004,6 +1024,8 @@ paths:
           description: Client certificate missing or not permitted.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment hands out no work.
           content:
@@ -1053,6 +1075,8 @@ paths:
             already reported. A runner reading this stops rather than retrying.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "503":
           description: This deployment hands out no work.
           content:
@@ -2296,7 +2320,11 @@ components:
       content:
         application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
     UnsupportedMediaType:
-      description: Not application/json.
+      description: >-
+        A charset or a Content-Encoding this service will not decode. NOT
+        simply "not application/json", which was what this said until P41 and
+        was never what the parser did: a body sent as text/plain is skipped
+        rather than refused, and the route then names the missing field.
       content:
         application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
     RateLimited:

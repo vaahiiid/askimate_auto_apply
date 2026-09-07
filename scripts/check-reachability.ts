@@ -208,6 +208,15 @@ const CAPABILITIES: readonly Capability[] = [
     status: { kind: "reachable" },
   },
   {
+    symbol: "problemForBodyError",
+    kind: "call",
+    declaredIn: ["packages/contracts/src/problems.ts"],
+    record: "ADR-0075",
+    promise:
+      "a body this service refuses is stated as the code the contract publishes, not as an internal error",
+    status: { kind: "reachable" },
+  },
+  {
     symbol: "assessIntent",
     kind: "call",
     declaredIn: ["packages/domain/src/workflow.ts"],

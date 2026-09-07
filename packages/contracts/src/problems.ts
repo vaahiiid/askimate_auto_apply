@@ -198,6 +198,60 @@ export function problemTypeFor(code: ProblemCode): string {
 }
 
 /**
+ * The published code for a body the parser refused, or `null`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * P41. Both services publish `413 payload_too_large` and `415
+ * unsupported_media_type` on their write routes, and NEITHER produced one.
+ * A body over the limit reached the blind error handler as a
+ * `PayloadTooLargeError`, and the handler — which names the error's class and
+ * nothing else, deliberately — answered `500 internal_error`. The comment
+ * beside the limit said *"`413` from here is the contract's
+ * `payload_too_large`"*, and nothing made that true.
+ *
+ * What a student saw for a statement they pasted was "Something went wrong at
+ * our end", for a body only they can shorten.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * ── Why it reads `type` and NOTHING else ─────────────────────────────────
+ *
+ * `body-parser` puts the RAW REQUEST BODY on `err.body` for a syntax error —
+ * the field that would carry a half-typed password into a log line or a
+ * response. Both error handlers delete it before anything touches the error,
+ * and this function is written so it would be harmless if they did not: it
+ * reads one short machine string from a closed set and never the message, the
+ * stack or the body.
+ *
+ * ── Why here, and not in each service ────────────────────────────────────
+ *
+ * Two copies would be two chances for one of them to answer a 500 for a
+ * refusal the other states properly, and the codes it maps to are this
+ * package's own vocabulary. It takes `unknown` and depends on nothing.
+ */
+export function problemForBodyError(error: unknown): ProblemCode | null {
+  if (typeof error !== "object" || error === null || !("type" in error)) return null;
+  const type = (error as { type?: unknown }).type;
+  switch (type) {
+    // The body exceeded `express.json({ limit })`.
+    case "entity.too.large":
+      return "payload_too_large";
+    // Not JSON. `validation_failed` rather than a code of its own: from the
+    // sender's side it is the same fact as a body that parses and is wrong.
+    case "entity.parse.failed":
+      return "validation_failed";
+    // A charset or a Content-Encoding this server will not decode. A
+    // Content-Type that is not JSON at all is NOT here: `express.json` skips
+    // the body silently and the route's own validation refuses it, which is
+    // the answer that names the missing field rather than the header.
+    case "charset.unsupported":
+    case "encoding.unsupported":
+      return "unsupported_media_type";
+    default:
+      return null;
+  }
+}
+
+/**
  * Parses a problem document from an untrusted response.
  *
  * Everything is checked; an unrecognised `code` yields `null` so a client older

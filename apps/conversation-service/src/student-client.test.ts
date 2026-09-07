@@ -653,6 +653,55 @@ describeIfDatabase("the student's page", () => {
     expect(written.rows[0]?.count).toBe("0");
   }, 180_000);
 
+  it("says WHY a refusal happened, in words, not \"that did not work\"", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // P41, end to end and with nothing faked: a body over the service's
+    // 64 KiB limit, refused by `express.json` itself, stated as the
+    // contract's 413 `payload_too_large` by the error handler, read as that
+    // code by the transport, and rendered as the sentence for it.
+    //
+    // Every link in that chain was broken before this phase. The server
+    // answered 500 for a body only the student could shorten, and the page
+    // had no wording for the code even once it was sent — both halves fell
+    // through to "That did not work. Let me show you where things stand."
+    //
+    // One code proves the chain. That EVERY code has a wording is
+    // `refusal-wording.test.ts`, which does not need a browser to answer it.
+    // ═══════════════════════════════════════════════════════════════════
+    const fresh = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p41-a', true) RETURNING id",
+    );
+    await visitAs(fresh.rows[0]!.id);
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target").length > 0,
+      undefined,
+      { timeout: 15_000 },
+    );
+
+    // Set directly rather than typed: this is 70 KB, and the point is the
+    // body's SIZE, not the composer's input handling — which its own tests
+    // cover. The submit below is a real click on the real form.
+    await page.locator("#say").evaluate((node, value) => {
+      (node as HTMLInputElement).value = value;
+    }, "x".repeat(70_000));
+    await page.locator("#composer button").click();
+
+    await page.waitForFunction(
+      () => (document.querySelector("#notice")?.textContent ?? "").length > 0,
+      undefined,
+      { timeout: 20_000 },
+    );
+    const notice = (await page.locator("#notice").textContent()) ?? "";
+
+    expect(notice, "the generic notice is what P41 exists to replace").not.toContain(
+      "That did not work",
+    );
+    expect(notice.toLowerCase()).toContain("longer than i can take");
+
+    // And it is still theirs: a refusal never costs the student what they wrote.
+    expect((await page.locator("#say").inputValue()).length).toBe(70_000);
+  }, 180_000);
+
   it("asks a decision the SERVER named, and sends the hash it was given", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // ADR-0061, through the page. A run with no login goes straight to the

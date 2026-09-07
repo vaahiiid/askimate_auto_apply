@@ -185,6 +185,8 @@ paths:
           description: Token unknown, already used, expired, or a cross-origin attempt.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
   /v1/secret-requests/{requestId}:
     parameters: [{ $ref: "#/components/parameters/RequestId" }]
@@ -284,6 +286,7 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/SecretRejectedProblem" }
         "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /internal/v1/secret-requests:
@@ -313,6 +316,8 @@ paths:
           description: Client certificate missing or not permitted.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
   /internal/v1/secret-requests/{requestId}/frame-tokens:
     parameters:
@@ -364,6 +369,7 @@ paths:
                       Service stores it nowhere — a capability at rest in that
                       plane would be a capability in the one place ADR-0037
                       keeps free of them.
+        "400": { $ref: "#/components/responses/ValidationFailed" }
         "403":
           description: Client certificate missing or not permitted.
           content:
@@ -372,6 +378,8 @@ paths:
           description: Unknown, settled or expired. One answer for all three.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
   /internal/v1/secret-uses:
     post:
@@ -407,6 +415,7 @@ paths:
           description: Authorised and settled. The handle is now dead.
           content:
             application/json: { schema: { $ref: "#/components/schemas/SecretUseResult" } }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
         "403":
           description: >-
             The binding did not match, or diagnostic capture was not confirmed
@@ -418,6 +427,8 @@ paths:
           description: Already spent, expired, or cancelled.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
   /internal/v1/secret-fills:
     post:
@@ -463,6 +474,8 @@ paths:
           description: Client certificate missing or not permitted.
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 
 components:
   securitySchemes:
@@ -868,6 +881,13 @@ components:
         service's, because a password is a few hundred bytes at most and
         refusing early means the parser never holds a large buffer a heap dump
         could find.
+      content:
+        application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+    UnsupportedMediaType:
+      description: >-
+        A charset or a Content-Encoding this service will not decode. NOT a
+        Content-Type that is simply not JSON — the parser skips such a body and
+        the route refuses the missing field, which names the problem better.
       content:
         application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
     RateLimited:

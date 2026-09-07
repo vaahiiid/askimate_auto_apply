@@ -25,6 +25,12 @@ import express from "express";
 import type { Express, NextFunction, Request, Response } from "express";
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
+import {
+  PROBLEM_STATUS,
+  PROBLEM_TITLES,
+  problemForBodyError,
+  problemTypeFor,
+} from "@askimate/aas-contracts";
 
 import type { ConversationEventStore } from "./event-store.js";
 import { createConversationRoutes, type ConversationRoutesOptions } from "./routes.js";
@@ -211,11 +217,43 @@ export function createConversationApp(options: ConversationAppOptions): Express 
     const kind = error instanceof Error ? error.name : "UnknownError";
     console.error(`conversation-service error: ${kind}`);
     if (res.headersSent) return;
+
+    // ── A body this server REFUSED is not a failure of this server ────────
+    //
+    // P41. `413` and `415` are published on the write routes, and until this
+    // line neither was ever sent: an oversized statement reached here as a
+    // `PayloadTooLargeError` and the student was told "something went wrong at
+    // our end" for a body only they could shorten. `problemForBodyError` reads
+    // the error's `type` and nothing else, so this stays as blind as the line
+    // above it — `err.body`, which carries the raw request body on a syntax
+    // error, was deleted before either of them ran.
+    const refused = problemForBodyError(error);
+    if (refused !== null) {
+      res
+        .status(PROBLEM_STATUS[refused])
+        .type("application/problem+json")
+        .json({
+          type: problemTypeFor(refused),
+          title: PROBLEM_TITLES[refused],
+          status: PROBLEM_STATUS[refused],
+          code: refused,
+          // `instance`, because `parseProblem` REQUIRES it and a document it
+          // refuses is a refusal the client cannot read — which is the whole
+          // defect this branch exists to fix, one layer down.
+          instance: String(res.getHeader("x-request-id") ?? "unknown"),
+        });
+      return;
+    }
+
     res.status(500).type("application/problem+json").json({
       type: "https://askimate.com/problems/internal_error",
       title: "Something went wrong",
       status: 500,
       code: "internal_error",
+      // Same reason as above. Without it this document does not parse either,
+      // and a client that cannot read a 500 cannot tell it from a body it did
+      // not understand.
+      instance: String(res.getHeader("x-request-id") ?? "unknown"),
     });
   });
 

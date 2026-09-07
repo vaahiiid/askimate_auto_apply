@@ -2118,6 +2118,78 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-07 (P41)
+
+**Date:** 2026-09-07 · **Phase:** P41 · **ADR:** [ADR-0075](./decisions/0075-a-refusal-reaches-the-person-it-is-for.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**Every reason this system states now reaches somebody.** ADR-0073 asked *does anything call this*.
+P41 asks the same question of a different kind of declaration: **does the reason anybody states ever
+reach anybody**, and found two places where it did not.
+
+## The student's page had no words for two codes that exist FOR a client
+
+`already_applying` and `specialist_reviewing` are in the closed vocabulary on exactly one argument —
+that a student refused either must not be shown a generic conflict. Both fell through to *"That did
+not work. Let me show you where things stand."* For a student whose run a specialist is holding,
+that sentence contradicts the transcript directly above it, which P40 had just written.
+
+## Both services published 413 and 415, and neither had ever sent one
+
+`express.json({ limit })` guards every route in both planes. Everything it refused reached the blind
+error handler and came back **500 `internal_error`** — including a body over the limit. The comment
+beside the limit already claimed otherwise, and nothing made it true.
+
+A student who pasted a long personal statement was told **our** side had broken, for a body only
+they could shorten.
+
+`problemForBodyError` maps the parser's own error type to the published code and lives in
+`packages/contracts`, because two copies would be two chances for one of them to keep answering 500.
+It reads `err.type` and nothing else — `err.body` carries the raw request body on a syntax error, and
+the blindness outranks the new behaviour.
+
+## Writing down why a code could not arrive found two more defects
+
+`CANNOT_REACH_THIS_PAGE`'s first draft had three entries and two were wrong. It claimed the page
+could not be sent `payload_too_large` — the statement box takes a paste of any size — and that the
+page "sends no idempotency key", when `transport.ts` sends a fresh one on two of its calls.
+
+Neither was findable by reading the page. Both were findable by having to write the reason down.
+That is the argument for the list rather than a comment, and it is the same argument ADR-0073 makes
+for the reviewed unreachable list.
+
+## What now fails the build
+
+| | |
+|---|---|
+| A problem code with no wording and no reason | `refusal-wording.test.ts` |
+| A `post` operation that does not publish 400, 413 and 415 | `contract-drift.test.ts` |
+| `problemForBodyError` losing its production callers | `pnpm run reachability` |
+
+## Declared-but-unreachable surface
+
+**6, unchanged.** `checkMinorGate` · `assertStorable` · `authoriseDisclosure` · `purgeContents` ·
+`assessUsability` · `attach_document`. Four of the six wait on B5, B2 or B1.
+
+`problemForBodyError` joins the register as enforced, taking the enforced count to **13**.
+
+## Known limitations
+
+- One code is proved end to end in a real browser (`payload_too_large`). That *every* code has a
+  wording is proved by a unit test over the two lists, which is the right shape for it — but it
+  means the rendering of the other wordings is not itself browser-proved.
+- B5, B1 and B2 are unchanged and still block every document path.
+
+## What is next
+
+Exercisable and unblocked: the ADR housekeeping (0001–0004 are still Proposed), and the
+fixture/harness fragility the last four phases kept finding by accident.
+
+---
+
 # Where we are — 2026-09-07 (P40)
 
 **Date:** 2026-09-07 · **Phase:** P40 · **ADR:** [ADR-0074](./decisions/0074-a-run-a-person-is-holding-is-returned-to-the-student.md)

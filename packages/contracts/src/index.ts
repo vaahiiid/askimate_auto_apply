@@ -98,6 +98,7 @@ export {
   PROBLEM_TITLES,
   PROBLEM_TYPE_BASE,
   parseProblem,
+  problemForBodyError,
   problemTypeFor,
 } from "./problems.js";
 

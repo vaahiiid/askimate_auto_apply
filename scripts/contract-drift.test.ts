@@ -669,3 +669,56 @@ describe("the published contract names the routes that exist", () => {
     }
   });
 });
+
+describe("what the body parser refuses is published on every route it guards", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // P41. Both services put `express.json({ limit })` in front of EVERY route,
+  // so every POST can be answered 400, 413 or 415 without the route ever
+  // running. Only `POST .../messages` published all three; the rest published
+  // some or none — and until P41 it did not matter, because the error handler
+  // turned all three into `500 internal_error` and none of them was ever sent.
+  //
+  // Fixing the handler is what made the omission real: a caller reading the
+  // document now gets a status the document does not list. So the statuses go
+  // on the routes, and this is what stops them being edited back off one at a
+  // time.
+  //
+  // Read off the DOCUMENTS rather than a list of paths, for the reason the
+  // group above gives: a check satisfied by updating a literal is not a check.
+  // ═══════════════════════════════════════════════════════════════════════
+  const PARSER_STATUSES = ["400", "413", "415"] as const;
+
+  const postsMissing = (file: string): string[] => {
+    const spec = specNamed(file) as unknown as {
+      paths: Record<string, Record<string, { responses?: Record<string, unknown> }>>;
+    };
+    const missing: string[] = [];
+    for (const [path, operations] of Object.entries(spec.paths)) {
+      const post = operations["post"];
+      if (post === undefined) continue;
+      const responses = post.responses ?? {};
+      for (const status of PARSER_STATUSES) {
+        if (responses[status] === undefined) missing.push(`${path} → ${status}`);
+      }
+    }
+    return missing;
+  };
+
+  it("the Conversation Plane publishes 400, 413 and 415 on every POST", () => {
+    expect(postsMissing("conversation.v1.yaml")).toEqual([]);
+  });
+
+  it("the Secure Plane publishes 400, 413 and 415 on every POST", () => {
+    expect(postsMissing("secure.v1.yaml")).toEqual([]);
+  });
+
+  it("is looking at POSTs at all", () => {
+    // The vacuity guard, in the same spirit as the one above: a spec with no
+    // `post` operations would satisfy both assertions trivially.
+    const spec = specNamed("conversation.v1.yaml") as unknown as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const posts = Object.values(spec.paths).filter((ops) => ops["post"] !== undefined);
+    expect(posts.length).toBeGreaterThan(5);
+  });
+});
