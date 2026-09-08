@@ -150,8 +150,7 @@ function storable(overrides: Partial<DocumentUpload> = {}): StorableUpload {
   return assertStorable({
     schedule: SCHEDULE,
     register: REGISTER,
-    upload: upload(overrides),
-    now: NOW,
+    upload: upload(overrides)
   });
 }
 
@@ -215,8 +214,7 @@ describe("the lawful-basis gate at storage time", () => {
       assertStorable({
         schedule: SCHEDULE,
         register: new LawfulBasisRegister(),
-        upload: upload(),
-        now: NOW,
+        upload: upload()
       }),
     ).toThrow(NoLawfulBasisError);
   });
@@ -226,8 +224,7 @@ describe("the lawful-basis gate at storage time", () => {
       assertStorable({
         schedule: SCHEDULE,
         register: new LawfulBasisRegister(),
-        upload: upload(),
-        now: NOW,
+        upload: upload()
       }),
     ).toThrow(/store_document:identity_verification/);
   });
@@ -247,7 +244,7 @@ describe("the lawful-basis gate at storage time", () => {
         },
       }),
     );
-    expect(() => assertStorable({ schedule: SCHEDULE, register: sending, upload: upload(), now: NOW })).toThrow(
+    expect(() => assertStorable({ schedule: SCHEDULE, register: sending, upload: upload() })).toThrow(
       NoLawfulBasisError,
     );
   });
@@ -266,7 +263,7 @@ describe("the lawful-basis gate at storage time", () => {
         },
       }),
     );
-    expect(() => assertStorable({ schedule: SCHEDULE, register: narrow, upload: upload(), now: NOW })).toThrow(
+    expect(() => assertStorable({ schedule: SCHEDULE, register: narrow, upload: upload() })).toThrow(
       DocumentTypeNotCoveredError,
     );
   });
@@ -287,8 +284,7 @@ describe("the lawful-basis gate at storage time", () => {
       assertStorable({
         schedule: SCHEDULE,
         register: new LawfulBasisRegister(),
-        upload: upload(),
-        now: NOW,
+        upload: upload()
       }),
     ).toThrow(NoLawfulBasisError);
 
@@ -307,8 +303,7 @@ describe("the lawful-basis gate at storage time", () => {
       assertStorable({
         schedule: SCHEDULE,
         register: covering,
-        upload: upload({ purpose: "minor_safeguarding" }),
-        now: NOW,
+        upload: upload({ purpose: "minor_safeguarding" })
       }),
     ).toThrow(RetentionPolicyMissingError);
   });
@@ -319,7 +314,7 @@ describe("the lawful-basis gate at storage time", () => {
     const empty = new LawfulBasisRegister();
     const once = (): unknown => {
       try {
-        assertStorable({ schedule: SCHEDULE, register: empty, upload: upload(), now: NOW });
+        assertStorable({ schedule: SCHEDULE, register: empty, upload: upload() });
         return "stored";
       } catch (error) {
         return (error as Error).message;

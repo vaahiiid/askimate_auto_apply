@@ -15,12 +15,14 @@ import type {
 } from "./retention.js";
 import {
   CLAIMS_DETERMINATION_ID,
+  DOCUMENT_TYPES,
   RetentionPolicyMissingError,
   RetentionRequirementUnresolvedError,
   blockedByRetention,
   decideRetention,
   effectiveFor,
   findPolicy,
+  isDocumentType,
   requirePolicy,
   validateHistory,
   validateSchedule,
@@ -586,5 +588,39 @@ describe("obligations attach to the row that requires them", () => {
 
     const undated = validateSchedule({ ...SCHEDULE, obligations: [{ ...obligation, dueBefore: "" }] });
     expect(undated.join(" ")).toContain("names no stage");
+  });
+});
+
+describe("the document types, as values", () => {
+  // ── A cast is not a check (ADR-0089) ──────────────────────────────────
+  //
+  // A retention schedule arrives as JSON, and `retention-status.ts` used to
+  // write `policy["documentType"] as DocumentType`. That accepts any string
+  // and types it as a lie: a schedule naming a document type that does not
+  // exist would have loaded, validated, and reported as a set period. Found
+  // while REMOVING a union member, which is exactly the case the cast could
+  // not see.
+
+  it("names every supported type, and nothing else", () => {
+    expect(DOCUMENT_TYPES).toContain("passport");
+    expect(DOCUMENT_TYPES).toHaveLength(13);
+    expect(new Set(DOCUMENT_TYPES).size, "a duplicate entry").toBe(DOCUMENT_TYPES.length);
+  });
+
+  it("does NOT name `national_id` — it left in ADR-0089", () => {
+    // Removed with the Article 9 determination clause and the Schedule 1 gate
+    // that existed for it alone. The determination was correct; the document
+    // type is what went out of scope. Re-adding it requires the DPA 2018 Sch. 1
+    // appropriate policy document to EXIST FIRST — see the union's own comment,
+    // which is what somebody widening this list reads.
+    expect(DOCUMENT_TYPES).not.toContain("national_id");
+    expect(isDocumentType("national_id")).toBe(false);
+  });
+
+  it("refuses a string that is not a document type", () => {
+    expect(isDocumentType("passport")).toBe(true);
+    expect(isDocumentType("")).toBe(false);
+    expect(isDocumentType("PASSPORT")).toBe(false);
+    expect(isDocumentType("driving_licence")).toBe(false);
   });
 });

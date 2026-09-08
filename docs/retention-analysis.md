@@ -76,7 +76,7 @@ Twelve entries, all in the schedule, all blocking. Grouped by where the answer l
 | Document · purpose | The open question |
 |---|---|
 | `passport` · identity verification | Is there any period beyond *"until the application is decided"* we can justify — and are we relying on defending a claim as a purpose? |
-| `national_id` · identity verification | As passport, plus whether it reveals data that is special category in context |
+| ~~`national_id` · identity verification~~ | ~~As passport, plus whether it reveals data that is special category in context.~~ **The type was removed in ADR-0089** — it does reveal special-category data, which is why it needed an Article 9 condition and a DPA 2018 Sch. 1 policy document that does not exist |
 | `personal_statement` · application submission | The student's own writing. Does reuse across applications change the answer? |
 | `reference_letter` · application submission | Contains a **third party's** data as well as the student's — and what does the referee need to be told? |
 | `other` · audit evidence | How long must a submission preview remain reproducible? |

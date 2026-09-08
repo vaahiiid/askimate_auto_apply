@@ -148,7 +148,11 @@ describe("the schedule on disk says what was determined", () => {
   it("carries eleven periods, one still-blocking row, and the four determinations", async () => {
     const out = await report([]);
 
-    expect(out, "eleven rows determined").toContain("11 of 12 pairs have a RETENTION POLICY");
+    // Ten of eleven, not eleven of twelve: `national_id` left the supported
+    // types in ADR-0089 and took its pair with it. The PERIOD it was given on
+    // 2026-09-07 is still in the approved schedule and is reported as
+    // determined-and-out-of-scope, which the next test checks.
+    expect(out, "ten rows determined").toContain("10 of 11 pairs have a RETENTION POLICY");
     expect(out, "row 12 stays blocking").toContain("bank_statement:financial_evidence");
 
     for (const id of [
@@ -182,16 +186,51 @@ describe("the schedule on disk says what was determined", () => {
   }, 120_000);
 
   it("does NOT say a resolved period is permission to store", async () => {
-    // The half-truth P44 created and had to close. Retention is one of FOUR
-    // gates now: `assertStorable` also requires a registered lawful basis
-    // (ADR-0022), the Sch. 1 appropriate policy document where one is needed
-    // (ADR-0088) and the separate Article 9 consent (ADR-0087). This report
-    // reads none of them. "10 of 12 could be stored today" would read as
-    // permission it cannot grant.
+    // The half-truth P44 created and had to close: `assertStorable` also
+    // requires a registered lawful basis (ADR-0022), which this report does
+    // not read. "10 of 11 could be stored today" would read as permission it
+    // cannot grant.
     const out = await report([]);
     expect(out).toContain("A retention policy is not permission to store");
     expect(out).toContain("ADR-0022");
-    expect(out).toContain("ADR-0088");
+  }, 120_000);
+
+  it("reports a period determined for a type that has since left scope", async () => {
+    // `AAS-RET-B1-02` — a period Vahid determined and approved by name on
+    // 2026-09-07 for `national_id`, a document type removed on 2026-09-08
+    // (ADR-0089). The determination did not become WRONG, it became MOOT.
+    //
+    // The schedule file is deliberately not edited: an approved version is a
+    // record, superseded rather than rewritten, which is what `validateHistory`
+    // exists for. Dropping the row silently would lose the fact; refusing to
+    // load it would make a correct historical record unreadable.
+    const out = await report([]);
+    expect(out).toContain("AAS-RET-B1-02");
+    expect(out).toContain("Determined, and now out of scope");
+    expect(out).toContain("The record is kept as made");
+  }, 120_000);
+
+  it("does NOT accept a document type that does not exist", async () => {
+    // The reason this needed a real check rather than a filter. The parser used
+    // to write `policy["documentType"] as DocumentType` — a cast, which accepts
+    // ANY string in the file and types it as a lie. A schedule naming a type
+    // the system does not have would have loaded, validated, and reported as a
+    // configured period.
+    //
+    // Asserted on a fixture rather than on the repository's own schedule,
+    // because `AAS-RET-B1-02` alone cannot fail this: `national_id` is not in
+    // `PAIRS`, so the cast and the check print the same table for it. A
+    // demonstration that cannot fail is not evidence (ADR-0072).
+    const invented = JSON.parse(
+      JSON.stringify(leaningOnTheLimitationPeriod(false)),
+    ) as { policies: { documentType: string; policyReference: string }[] };
+    invented.policies[0]!.documentType = "driving_licence";
+    invented.policies[0]!.policyReference = "FIXTURE-NOT-A-TYPE";
+
+    const out = await report([invented]);
+    expect(out).toContain("Determined, and now out of scope");
+    expect(out).toContain("FIXTURE-NOT-A-TYPE");
+    expect(out, "0 policies once the invented row is set aside").toContain("0 policies");
   }, 120_000);
 
   it("does NOT still call B2 undetermined — it was answered on 2026-09-08", async () => {

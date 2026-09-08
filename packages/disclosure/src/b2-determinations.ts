@@ -32,11 +32,7 @@
  * this registers them as **required rather than optional**.
  */
 
-import type {
-  Article6Basis,
-  Article9Condition,
-  LawfulBasisDeterminationRecord,
-} from "./lawful-basis.js";
+import type { Article6Basis, LawfulBasisDeterminationRecord } from "./lawful-basis.js";
 import { LawfulBasisRegister, determineLawfulBasis } from "./lawful-basis.js";
 import { DISCLOSURE_ACTIVITY } from "./disclosure.js";
 
@@ -54,10 +50,6 @@ function determination(
   article6: Article6Basis,
   requiresStudentAuthorisation: boolean,
   reasoning: string,
-  extra: {
-    readonly article9?: Article9Condition;
-    readonly article9Required?: readonly string[];
-  } = {},
 ): LawfulBasisDeterminationRecord {
   return {
     determinationId,
@@ -68,7 +60,6 @@ function determination(
     determinedAt: B2_DETERMINED_AT,
     reasoning,
     reviewBy: B2_REVIEW_BY,
-    ...extra,
   };
 }
 
@@ -79,24 +70,26 @@ function determination(
  * authorisation — the student asked for the application to be made, and
  * holding the identity document is part of doing it.
  *
- * **The Article 9 condition is the interesting half**, and it is scoped to the
- * national identity card alone. Vahid:
+ * ── This covered a national identity card until ADR-0089 ──────────────────
  *
- *   "Some national ID cards carry religion or ethnicity on their face.
- *    ADR-0077 made extracting those fields impossible, but holding the image is
- *    still processing the data, whether or not anything reads it."
+ * It carried an Article 9(2)(a) condition for that one type, because some
+ * national ID cards show religion or ethnicity on their face. The
+ * determination was CORRECT and is recorded in full in ADR-0087; what removed
+ * it was the document type leaving scope, not a fault in the thinking. DPA
+ * 2018 Schedule 1 wants an appropriate policy document to exist BEFORE that
+ * processing, it does not exist, and a type refused at the gate is machinery
+ * no student can use.
  *
- * Consent works here where it does not work for the activity as a whole, and
- * the reason is written down so the condition cannot outlive it: **the student
- * has a passport as an alternative, so the choice is real.** If that ceases to
- * be true — a route that accepts only a national ID — this determination must
- * be revisited before it is relied on again.
+ * **A passport is sufficient for identity**, which is what made the removal
+ * available rather than merely tidy — and it is also the reason the Article 9
+ * consent was defensible while it lasted: the student had an alternative, so
+ * the choice was real.
  */
 export const STORE_IDENTITY_DOCUMENT: LawfulBasisDeterminationRecord = determination(
   "b2-1-store-identity",
   "store_document:identity_verification",
   "Holding the identity document an application requires, so the student supplies it once",
-  ["passport", "national_id"],
+  ["passport"],
   "contract",
   false,
   "Article 6(1)(b), performance of a contract. The student has asked for an application to be " +
@@ -104,14 +97,11 @@ export const STORE_IDENTITY_DOCUMENT: LawfulBasisDeterminationRecord = determina
     "performing what was agreed. Consent is deliberately NOT the basis: a student who cannot get " +
     "their application submitted without agreeing has not freely given anything, and a record " +
     "claiming consent in that situation looks like compliance and is not. " +
-    "ARTICLE 9, national identity card only: some carry religion or ethnicity on their face, and " +
-    "holding the image is processing that data whether or not anything reads it — ADR-0077 makes " +
-    "the fields unextractable, which is a different question. Article 9(2)(a), explicit consent, " +
-    "asked separately at the point of upload. Consent works HERE, where it does not work for the " +
-    "activity as a whole, because the student has a passport as an alternative and the choice is " +
-    "therefore real. IF THAT CEASES TO BE TRUE, THIS MUST BE REVISITED. A passport needs no " +
-    "Article 9 condition. Determined by Vahid Mohammadi, 2026-09-08.",
-  { article9: "explicit_consent", article9Required: ["national_id"] },
+    "SCOPE: a passport, and nothing else. A national identity card was in scope until 2026-09-08 " +
+    "under an Article 9(2)(a) condition that was correctly determined and is recorded in " +
+    "ADR-0087; the type was removed by ADR-0089 because the DPA 2018 Sch. 1 appropriate policy " +
+    "document its processing requires does not exist, and a passport is sufficient for identity. " +
+    "Re-adding it needs that document FIRST. Determined by Vahid Mohammadi, 2026-09-08.",
 );
 
 /**
@@ -159,7 +149,6 @@ export const DISCLOSE_DOCUMENT: LawfulBasisDeterminationRecord = determination(
   "Sending a document the student has confirmed to the institution they applied to",
   [
     "passport",
-    "national_id",
     "academic_transcript",
     "degree_certificate",
     "english_test_certificate",

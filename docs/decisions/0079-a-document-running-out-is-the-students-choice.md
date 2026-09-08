@@ -22,7 +22,7 @@ replacement**, not a fixed fraction of the document's life.
 | document | threshold | why |
 |---|---|---|
 | `passport` | **6 months** | UK renewal is routinely ~3 weeks and can run to 10; six months also covers the validity many visa routes require at entry |
-| `national_id` | **3 months** | Usually renewable in-country in weeks, and the student is often already there |
+| ~~`national_id`~~ | ~~**3 months**~~ | ~~Usually renewable in-country in weeks, and the student is often already there.~~ **The document type was removed in [ADR-0089](./0089-national-id-leaves-the-supported-document-types.md).** The threshold and its reasoning are correct and are recorded there, so re-adding the type starts from them |
 | `english_test_certificate` | **4 months** · *provisional* | Results take ~2 weeks, but a re-sit needs booking, preparation and often travel |
 | `birth_certificate`, `degree_certificate`, `academic_transcript`, `reference_letter`, `personal_statement` | **none** | They do not expire. Staleness in a reference or a statement is a quality judgement, not an expiry, and it belongs to the student |
 | `bank_statement` | **none, deliberately** | See below |

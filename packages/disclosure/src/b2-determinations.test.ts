@@ -94,24 +94,30 @@ describe("the four B2 determinations", () => {
     expect(STORE_ACADEMIC_DOCUMENT.requiresStudentAuthorisation).toBe(false);
   });
 
-  it("puts the Article 9 condition on the national ID and NOT on the passport", () => {
-    // The distinction Vahid drew, and the reason it is a subset rather than a
-    // flag: asking for a consent nobody needs is not caution.
-    expect(STORE_IDENTITY_DOCUMENT.article9).toBe("explicit_consent");
-    expect(STORE_IDENTITY_DOCUMENT.article9Required).toEqual(["national_id"]);
-    expect(STORE_IDENTITY_DOCUMENT.activity.documentTypes).toContain("passport");
-    expect(
-      STORE_IDENTITY_DOCUMENT.article9Required,
-      "a passport was given a condition it does not need",
-    ).not.toContain("passport");
+  it("scopes the identity determination to the PASSPORT alone (ADR-0089)", () => {
+    // It covered a national identity card under an Article 9(2)(a) condition
+    // until 2026-09-08. That determination was CORRECT — ADR-0087 records it in
+    // full — and what removed it was the document type leaving scope, not a
+    // fault in the thinking. A passport is sufficient for identity, and it
+    // needs no Article 9 condition.
+    expect(STORE_IDENTITY_DOCUMENT.activity.documentTypes).toEqual(["passport"]);
+    expect(STORE_IDENTITY_DOCUMENT.article9, "a condition with no type to apply to").toBeUndefined();
   });
 
-  it("records WHY consent works for the national ID when it does not elsewhere", () => {
-    // The alternative is the whole argument: the student has a passport, so the
-    // choice is real. If that stops being true the determination must be
-    // revisited, and the reasoning has to say so or nobody will know.
-    expect(STORE_IDENTITY_DOCUMENT.reasoning).toMatch(/passport as an alternative/i);
-    expect(STORE_IDENTITY_DOCUMENT.reasoning).toMatch(/CEASES TO BE TRUE|revisit/i);
+  it("says what left, and what re-adding it would take", () => {
+    // The ADR carries the argument; the determination carries the pointer,
+    // because this is what somebody widening the scope reads first. The
+    // Schedule 1 constraint did not go away when the code did.
+    expect(STORE_IDENTITY_DOCUMENT.reasoning).toMatch(/national identity card was in scope/i);
+    expect(STORE_IDENTITY_DOCUMENT.reasoning).toMatch(/ADR-0089/);
+    expect(STORE_IDENTITY_DOCUMENT.reasoning).toMatch(/Re-adding it needs that document FIRST/);
+  });
+
+  it("names the national ID in NO determination's scope", () => {
+    // Both directions. Determination 3 (disclosure) listed it too.
+    for (const record of B2_DETERMINATIONS) {
+      expect(record.activity.documentTypes, record.determinationId).not.toContain("national_id");
+    }
   });
 
   it("registers each under the activity the code asks for", () => {

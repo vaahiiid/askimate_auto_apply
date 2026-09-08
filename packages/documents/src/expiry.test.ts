@@ -45,7 +45,9 @@ describe("every document type has a decided threshold", () => {
     // document's life. UK passport renewal runs to ten weeks at its worst, and
     // six months also covers the validity many visa routes require at entry.
     expect(thresholdFor("passport")).toEqual({ kind: "warn_before", days: 180 });
-    expect(thresholdFor("national_id")).toEqual({ kind: "warn_before", days: 90 });
+    // A national ID warned at three months, determined the same day and on the
+    // same principle. It went with the document type in ADR-0089; the number
+    // and its reasoning are recorded there so re-adding starts from them.
   });
 
   it("keeps the English test number PROVISIONAL, linked to the obligation", () => {

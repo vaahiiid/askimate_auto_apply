@@ -25,10 +25,26 @@
  * request.
  */
 
-/** What kind of document this is. Retention differs per type. */
+/**
+ * What kind of document this is. Retention differs per type.
+ *
+ * ── `national_id` was here, and was removed in ADR-0089 ───────────────────
+ *
+ * BEFORE RE-ADDING IT, READ ADR-0089. A national identity card may carry
+ * religion or ethnicity on its face, so holding one is Article 9 processing
+ * (ADR-0087), and DPA 2018 Schedule 1 requires an **appropriate policy
+ * document to exist BEFORE that processing begins**. That document does not
+ * exist and is the DPIA owner's to produce (blocker 8).
+ *
+ * The constraint did not go away when the code did. The Article 9
+ * determination Vahid made on 2026-09-08 was correct and is recorded in
+ * ADR-0087; it is the document TYPE that is out of scope, not the thinking.
+ * Re-adding this member means: the Schedule 1 document first, then the
+ * determination's Article 9 clause, then the separate-consent gate, then the
+ * type — in that order, because the last one is what makes the rest live.
+ */
 export type DocumentType =
   | "passport"
-  | "national_id"
   | "birth_certificate"
   | "bank_statement"
   | "sponsorship_letter"
@@ -41,6 +57,45 @@ export type DocumentType =
   | "guardianship_document"
   | "visa_document"
   | "other";
+
+/**
+ * The same union, as values.
+ *
+ * Needed because a retention schedule arrives as JSON and a cast is not a
+ * check: `retention-status.ts` used to write `policy["documentType"] as
+ * DocumentType`, which would have accepted any string at all and typed it as a
+ * lie. ADR-0089 found that while removing a member, and this is what a real
+ * check reads.
+ *
+ * Written as a keyed object rather than an array, because `satisfies readonly
+ * DocumentType[]` would only check that each ENTRY is a member — a union
+ * member left out of the array would compile and the check would silently stop
+ * covering it. `satisfies Record<DocumentType, true>` is total in both
+ * directions, which is the idiom `FIELD_CATEGORY` and `EXPIRY_THRESHOLDS`
+ * already use for the same reason.
+ */
+const EVERY_DOCUMENT_TYPE = {
+  passport: true,
+  birth_certificate: true,
+  bank_statement: true,
+  sponsorship_letter: true,
+  academic_transcript: true,
+  degree_certificate: true,
+  english_test_certificate: true,
+  personal_statement: true,
+  reference_letter: true,
+  parental_consent: true,
+  guardianship_document: true,
+  visa_document: true,
+  other: true,
+} as const satisfies Record<DocumentType, true>;
+
+export const DOCUMENT_TYPES = Object.keys(EVERY_DOCUMENT_TYPE) as readonly DocumentType[];
+
+/** True when a string names a document type the system supports today. */
+export function isDocumentType(value: string): value is DocumentType {
+  return (DOCUMENT_TYPES as readonly string[]).includes(value);
+}
 
 /** Why we hold it. The same document type can have different rules per purpose. */
 export type RetentionPurpose =

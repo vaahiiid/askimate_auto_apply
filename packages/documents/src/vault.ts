@@ -21,17 +21,10 @@ import type {
   RetentionSchedule,
 } from "@askimate/aas-domain";
 import { requirePolicy } from "@askimate/aas-domain";
-import type {
-  AppropriatePolicyRegister,
-  LawfulBasisDetermination,
-  LawfulBasisRegister,
-  PolicyDocumentCleared,
-} from "@askimate/aas-disclosure";
+import type { LawfulBasisDetermination, LawfulBasisRegister } from "@askimate/aas-disclosure";
 import {
-  APPROPRIATE_POLICY_DOCUMENTS,
   assertNotDecidedAgainst,
   determinationOf,
-  requireAppropriatePolicy,
   requireLawfulBasis,
 } from "@askimate/aas-disclosure";
 
@@ -85,49 +78,6 @@ export interface DocumentUpload {
   readonly sizeBytes: number;
   readonly contentHash: string;
   readonly dates: DocumentDates;
-  /**
-   * The separate Article 9 consent, for the document types that need one.
-   *
-   * Absent for every type that does not — a passport carries none of this, and
-   * asking for a consent nobody needs is not caution (B2, ADR-0087).
-   */
-  readonly specialCategoryConsent?: SpecialCategoryConsent;
-}
-
-/**
- * A student's explicit consent to hold a document that may carry
- * special-category data on its face.
- *
- * ── The wording is the record, as it is for an expiry warning ────────────
- *
- * `wording` is what the student was actually shown. ADR-0079 made the same
- * choice for the expiry warning and for the same reason: a record saying "they
- * consented" without saying what they were asked is evidence of nothing.
- *
- * `askedSeparately` is not decoration. B2 requires this to be asked **at the
- * point of upload, on its own** — a consent bundled into a general agreement is
- * the bundled consent ADR-0022 rejects, and a boolean that is always true would
- * be a field nobody can fail. It is asserted at the gate.
- */
-export interface SpecialCategoryConsent {
-  readonly givenAt: Date;
-  readonly wording: string;
-  readonly askedSeparately: boolean;
-}
-
-/** A document whose type needs an Article 9 condition, offered without one. */
-export class SpecialCategoryConsentMissingError extends Error {
-  public override readonly name = "SpecialCategoryConsentMissingError";
-  public constructor(
-    public readonly documentType: DocumentType,
-    public readonly detail: string,
-  ) {
-    super(
-      `Storing a ${documentType} needs an Article 9 condition as well as an Article 6 basis, and ` +
-        `${detail} Holding the image is processing the data whether or not anything reads it — ` +
-        `ADR-0077 makes the FIELDS unextractable, which is a different question (ADR-0087).`,
-    );
-  }
 }
 
 export class DocumentNotFoundError extends Error {
@@ -256,21 +206,12 @@ export type StorableUpload = Brand<
     readonly policyReference: string;
     /** The determination relied on to hold this document. */
     readonly lawfulBasis: LawfulBasisDetermination;
-    /**
-     * Proof that the DPA 2018 Sch. 1 prerequisite was checked (ADR-0088).
-     *
-     * Branded, and `requireAppropriatePolicy` is its only source, so this
-     * object cannot be assembled by a future edit that drops the fourth gate
-     * and leaves the other three — the brand is not decoration, it is the
-     * reason the field is here rather than a comment saying the check ran.
-     */
-    readonly policyDocumentCleared: PolicyDocumentCleared;
   },
   "StorableUpload"
 >;
 
 /**
- * The storage-time gate. Four refusals, for four independent questions.
+ * The storage-time gate. Two refusals, for two independent questions.
  *
  * **Retention** (ADR-0010, ADR-0023) — throws `RetentionRequirementUnresolvedError`
  * when someone has looked and could not responsibly say, and
@@ -283,58 +224,38 @@ export type StorableUpload = Brand<
  * way, and `DocumentTypeNotCoveredError` when the determination that IS
  * registered was not made about this kind of document.
  *
- * **The appropriate policy document** (DPA 2018 Sch. 1, ADR-0088) — throws
- * `AppropriatePolicyMissingError` for a document type whose Schedule 1
- * prerequisite is outstanding. Today that is `national_id`, and nothing an
- * upload carries can satisfy it: the document is somebody else's to produce.
+ * The two are genuinely independent and neither implies the other: a period
+ * somebody justified is not a basis for holding the data, and a basis for
+ * holding it says nothing about for how long. Before P32 only the first ran,
+ * so ADR-0022's *"the system will refuse to act until"* was true of sending
+ * and false of storing.
  *
- * **Article 9** (ADR-0087) — throws `SpecialCategoryConsentMissingError` for a
- * type the determination lists under `article9Required` when the separate
- * consent is absent, bundled, or records no wording.
+ * ── There were four gates for one day, and ADR-0089 removed two ───────────
  *
- * The four are genuinely independent and none implies another: a period
- * somebody justified is not a basis for holding the data, a basis for holding
- * it says nothing about for how long, and neither is the Schedule 1 document
- * that has to exist before the processing at all. Before P32 only the first
- * ran, so ADR-0022's *"the system will refuse to act until"* was true of
- * sending and false of storing.
+ * P54 added an **Article 9 consent** gate and P55 a **DPA 2018 Sch. 1
+ * appropriate policy document** gate. Both existed for `national_id` and for
+ * nothing else, and ADR-0089 removed that document type: a type refused at the
+ * gate is machinery no student can use, carried with a policy justification
+ * attached. A passport is sufficient for identity and needs neither.
  *
- * ── Two staleness rules that look inconsistent, and are not ───────────────
+ * **`DocumentTypeNotCoveredError` is why removing them opened nothing.** A
+ * document type no determination names cannot be stored at all, so the next
+ * special-category type is refused from the moment it exists until somebody
+ * writes a determination for it — which is exactly when those two gates have
+ * to be rebuilt. ADR-0089 records what they were, so that starts from the
+ * reasoning rather than from scratch.
  *
  * A determination's `reviewBy` is deliberately NOT re-checked here.
  * `determineLawfulBasis` refuses an expired one when it is made, and
  * `requirePolicy` does not re-check a policy's `reviewBy` either —
  * `validateSchedule` reports staleness and `pnpm run retention-status` prints
- * it. Adding a second, differently-placed staleness rule for one of those two
+ * it. Adding a second, differently-placed staleness rule for one of the two
  * gates would be an inconsistency, not a control.
- *
- * The appropriate policy document's `reviewBy` IS checked, and the difference
- * is that **there is nowhere else it could be**. A determination is minted by a
- * function that refuses a lapsed one; a retention schedule is validated by a
- * command someone runs. A `held` policy-document entry is a plain record with
- * no minting step and no report, so a lapse nobody checked here is a lapse
- * nothing checks at all.
- *
- * ── Why `now` is a parameter rather than a default ────────────────────────
- *
- * Every dated decision in this repository is handed the time it should use —
- * `store`, `transition`, `decideExpiryWarning`, `determineLawfulBasis`. A gate
- * that read `new Date()` internally would be a gate no test could put on either
- * side of a review date, which is most of what there is to check about one.
  */
 export function assertStorable(input: {
   readonly schedule: RetentionSchedule;
   readonly register: LawfulBasisRegister;
   readonly upload: DocumentUpload;
-  readonly now: Date;
-  /**
-   * The Schedule 1 register, defaulting to what the system actually holds.
-   *
-   * Injectable so a test can put a document type on the far side of the
-   * decision — a `held` entry is what re-enabling `national_id` will look like
-   * — and defaulted to the REFUSING one, so an omission fails closed.
-   */
-  readonly policyDocuments?: AppropriatePolicyRegister;
 }): StorableUpload {
   const policy = requirePolicy(input.schedule, input.upload.documentType, input.upload.purpose);
 
@@ -353,55 +274,10 @@ export function assertStorable(input: {
     throw new DocumentTypeNotCoveredError(input.upload.documentType, activity, covered);
   }
 
-  // ── The THIRD gate: DPA 2018 Sch. 1's appropriate policy document ──────
-  //
-  // Keyed on the DOCUMENT TYPE and not on the determination, because it is a
-  // prerequisite of the processing rather than a property of the decision. It
-  // runs before the Article 9 consent check on purpose: no consent, however
-  // well recorded, can substitute for a document that does not exist, and a
-  // developer told to add consent first would hit this wall on the next run.
-  const policyDocumentCleared = requireAppropriatePolicy(
-    input.policyDocuments ?? APPROPRIATE_POLICY_DOCUMENTS,
-    input.upload.documentType,
-    input.now,
-  );
-
-  // ── The FOURTH gate: an Article 9 condition, where the type needs one ───
-  //
-  // Scoped by the determination itself, so a passport passes untouched and a
-  // national identity card does not. See `article9Required` in
-  // `lawful-basis.ts` for why this is a subset rather than a flag.
-  if ((record.article9Required ?? []).includes(input.upload.documentType)) {
-    const consent = input.upload.specialCategoryConsent;
-    if (consent === undefined) {
-      throw new SpecialCategoryConsentMissingError(
-        input.upload.documentType,
-        `determination ${record.determinationId} names ${String(record.article9)} as that ` +
-          `condition — but this upload carries no record of the consent being given.`,
-      );
-    }
-    if (!consent.askedSeparately) {
-      throw new SpecialCategoryConsentMissingError(
-        input.upload.documentType,
-        `the consent on this upload was not asked separately. A consent bundled into a general ` +
-          `agreement is not freely given, which is the whole reason consent is NOT the Article 6 ` +
-          `basis here.`,
-      );
-    }
-    if (consent.wording.trim().length === 0) {
-      throw new SpecialCategoryConsentMissingError(
-        input.upload.documentType,
-        `the consent on this upload records no wording. What the student agreed to is the record; ` +
-          `a bare "they consented" is evidence of nothing.`,
-      );
-    }
-  }
-
   return {
     ...input.upload,
     policyReference: policy.policyReference,
     lawfulBasis: determination,
-    policyDocumentCleared,
   } as StorableUpload;
 }
 

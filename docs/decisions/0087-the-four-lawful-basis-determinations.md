@@ -1,6 +1,14 @@
 # ADR-0087 — The four lawful-basis determinations, and the condition a national ID needs
 
 **Status:** **Accepted** — determined by Vahid Mohammadi, 2026-09-08 · **review by 2027-09-08**
+· **the Article 9 scope is amended by
+[ADR-0089](./0089-national-id-leaves-the-supported-document-types.md)**
+
+> **The four determinations stand.** What changed the same day is that `national_id` left the
+> supported document types, so determination 1 covers a passport alone and its Article 9(2)(a)
+> clause has no type to apply to. *The determination was correct; it is the document type that is
+> out of scope, not the thinking* — which is why ADR-0089 records the Article 9 reasoning in full
+> rather than deleting it, and why re-adding the type starts from here.
 **Answers:** B2, the last policy blocker on documents, open since P31 and named in
 [ADR-0022](./0022-documents-are-stored-only-with-a-registered-lawful-basis.md)
 

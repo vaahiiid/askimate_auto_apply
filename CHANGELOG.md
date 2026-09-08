@@ -19,6 +19,93 @@ not shipped artefacts.
 
 ---
 
+## [0.73.0] — 2026-09-08
+
+**P56 — a national ID leaves the supported document types (ADR-0089).**
+
+P55 refused `national_id` at the storage gate. Vahid, reading the result:
+
+> Passport is sufficient for identity. Keeping a document type that is refused at the gate means
+> carrying a determination, an Article 9 condition, a consent flow and a policy-document gate for
+> something no student can use. **That is unreachable surface with a policy justification attached,
+> which is the shape this repository has spent nine phases removing.**
+
+### Removed · the document type, and the two gates that existed for it alone
+
+- `national_id` leaves `DocumentType`, `EXPIRY_THRESHOLDS`, determination 1's scope, determination
+  3's scope and the `retention-status` pair list.
+- With it: `article9Required`, the two `determineLawfulBasis` refusals that read it,
+  `SpecialCategoryConsent`, `SpecialCategoryConsentMissingError`, and the whole Schedule 1 module
+  (`appropriate-policy.ts`, `APPROPRIATE_POLICY_DOCUMENTS`, `requireAppropriatePolicy`,
+  `PolicyDocumentCleared`).
+- `assertStorable` is back to **two** gates, and no longer takes a clock — that parameter existed
+  only so a test could put a policy document on either side of its review date.
+- `Article9Condition` and the optional `article9` field **stay**: ADR-0022 names them and they
+  predate this by fifty-four phases. Their comment now says plainly what they are — **a record, not
+  a control** — which was true before P54 too.
+
+### Added · ADR-0089 records what was built, so re-adding starts from the reasoning
+
+*"The determination was correct; it is the document type that is out of scope, not the thinking."*
+Recorded in full: the Article 9(2)(a) reasoning; why consent worked there when it fails for the
+activity as a whole (the student had a passport as an alternative — the same passport that makes the
+type unnecessary); why the condition was scoped to one type rather than flagged; the consent gate's
+three checks; why `held` was not a boolean; and the three-month expiry threshold.
+
+**Re-adding it requires the DPA 2018 Sch. 1 appropriate policy document to exist first.** The
+constraint did not go away because the code did. The order — document, then the determination's
+Article 9 clause, then the consent gate, then the type — is written **at the `DocumentType` union
+itself**, because a comment at the line somebody edits is the one that gets read.
+
+### The check made before deleting, and the one thing that looked like a loss
+
+Nothing else uses any of it: ADR-0077's special-category **field** guarantee is about the profile
+registry and no extraction plan reads a national ID; the minors gate reads `birth_certificate`; no
+blueprint, mapping, catalogue entry or fixture mentions it.
+
+Deleting the Article 9 apparatus appears to leave a future special-category type ungated. It does
+not: `DocumentTypeNotCoveredError` refuses any document type no determination names, so a new type
+cannot be stored until somebody writes one — **which is exactly the moment these gates have to be
+rebuilt**, and ADR-0089 is what they will read.
+
+### Fixed · the schedule parser was casting, not checking
+
+`retention-status.ts` read `policy["documentType"] as DocumentType` — which accepts *any string in
+the file* and types it as a lie. A schedule naming a document type the system does not have would
+have loaded, validated, and been reported as a configured period. Removing a union member is exactly
+the case a cast cannot see; tenth consecutive phase to find a record asserting something production
+does not do.
+
+`DOCUMENT_TYPES` and `isDocumentType` are new, written as `satisfies Record<DocumentType, true>`
+rather than as an array, because `satisfies readonly DocumentType[]` only checks that each *entry* is
+a member — one left out would compile and the check would silently stop covering it.
+
+### Changed · an approved schedule record is reported, not edited
+
+`config/retention/v1.2026-09-07.json` carries `AAS-RET-B1-02`, one of the eleven periods Vahid
+determined and approved by name on 2026-09-07. **The file is not edited.** That period did not become
+*wrong*, it became *moot*, and an approved version is a record superseded rather than rewritten
+(`validateHistory`). `pnpm run retention-status` now prints it under **"Determined, and now out of
+scope"** with its reference and version.
+
+The summary line has now been wrong twice in opposite directions one phase apart — "B2 NOT yet
+determined" after it was determined, then "four gates" after two were removed. Both were produced by
+the fix for the one before.
+
+### Verification
+
+- **Three deliberate regressions**, each verified by reading the mutated file back from disk and each
+  restored from a file copy: `national_id` back in the union → **3** tests fail; the parser's cast
+  restored → **2**; the type back in determination 1's scope → **3**, across both packages.
+- Writing the second found a **vacuous test of my own** — an assertion that passed with the cast
+  restored *and* with the check in place, because `national_id` is not in the pair list and both
+  paths print the same table. Replaced with a fixture naming an invented document type (ADR-0072).
+- **The declared-but-unreachable surface is unchanged at seven**, and the change is subtractive: both
+  removed gates lived inside `assertStorable`, whose register entry already said it has no production
+  caller.
+
+---
+
 ## [0.72.0] — 2026-09-08
 
 **P55 — the Schedule 1 document must exist before the processing (ADR-0088).**

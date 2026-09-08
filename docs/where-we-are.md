@@ -3370,3 +3370,81 @@ What holds the vault shut is transport, an implementation and a deployable.
 ## What is next
 
 The document transport phase. Nothing is holding it.
+
+---
+
+# P56 — a national ID leaves the supported document types (ADR-0089)
+
+You read P55's result and made the stronger argument:
+
+> Keeping a document type that is refused at the gate means carrying a determination, an Article 9
+> condition, a consent flow and a policy-document gate for something no student can use. That is
+> unreachable surface with a policy justification attached.
+
+That is right, and it is right about the phase I had just finished. A refusal at the gate is still a
+gate — with a determination behind it, a consent interface in front of it, an error class, a
+register, a test suite and a paragraph in four documents. All of it for a type nothing can store.
+
+## What I checked before deleting
+
+Nothing was lost. ADR-0077's special-category **field** guarantee is about the profile registry, not
+document types, and no extraction plan reads a national ID. The minors gate reads
+`birth_certificate`. No blueprint, mapping, catalogue entry or discovery fixture mentions it. The
+Article 9 apparatus and the Schedule 1 gate were built in P54 and P55, for this type, and nothing
+else names them.
+
+**The one that looked like a loss.** Deleting the Article 9 machinery appears to leave a future
+special-category document type ungated. It does not, and the reason is an older control:
+`DocumentTypeNotCoveredError` refuses any type no determination names. A new type cannot be stored at
+all until somebody writes a determination for it — which is exactly the moment those gates have to be
+rebuilt. The apparatus was never what kept an unruled-on type out; absence of a decision was, and
+still is (ADR-0023).
+
+## The determination was correct; the type is what left
+
+ADR-0089 records the whole argument rather than deleting it: the Article 9(2)(a) reasoning, why
+consent worked there when it fails for the activity as a whole, why the condition was scoped to one
+type rather than flagged on the determination, the consent gate's three checks, why `held` was not a
+boolean, and the three-month expiry threshold and its principle.
+
+**Re-adding it needs the Schedule 1 document first.** That constraint did not go away because the
+code did, so it is written at the `DocumentType` union itself — the line somebody widening the scope
+actually edits — and not only in an ADR nobody thinks to open.
+
+## What removing it found
+
+**The schedule parser was casting, not checking.** `policy["documentType"] as DocumentType` accepts
+any string in the file and types it as a lie: a schedule naming a document type the system does not
+have would have loaded, validated and been reported as a configured period. Removing a union member
+is precisely the case a cast cannot see. Tenth consecutive phase to find a record asserting something
+production does not do.
+
+## The record I did not edit
+
+`config/retention/v1.2026-09-07.json` carries `AAS-RET-B1-02` — 365 days from `last_used` for a
+national ID, one of the eleven periods you determined and approved by name on 2026-09-07.
+
+I did not touch the file. That determination did not become *wrong*, it became *moot* — the same
+distinction you drew about the Article 9 determination — and an approved schedule version is a record,
+superseded rather than rewritten, which is what `validateHistory` exists for. Editing it would
+falsify a correct record; superseding it would need an approval nobody has given for a period nobody
+is changing. So `pnpm run retention-status` reports it under **"Determined, and now out of scope"**,
+with its reference and version.
+
+## One thing I got wrong and fixed
+
+Writing the regression for the cast, I found a test of my own that could not fail: it asserted the
+report contains no `✓ national_id` row, which is true with the cast restored *and* with the check in
+place, because `national_id` is not in the pair list and both paths print the same table. That is
+ADR-0072's shape, in a test written twenty minutes earlier to catch it. Replaced with a fixture
+naming an invented document type.
+
+## Declared-but-unreachable surface
+
+**Seven, unchanged — and this time the change was subtractive.** Both removed gates lived inside
+`assertStorable`, whose register entry already said it has no production caller, so the deletion took
+machinery away rather than a register row.
+
+## What is next
+
+The document transport phase.

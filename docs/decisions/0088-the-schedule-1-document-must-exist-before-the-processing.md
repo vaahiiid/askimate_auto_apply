@@ -1,6 +1,16 @@
 # ADR-0088 — The Schedule 1 document must exist before the processing, and a decision not to determine is a decision
 
-**Status:** **Accepted** — decided by Vahid Mohammadi, 2026-09-08
+**Status:** **Accepted** · **§1 superseded by
+[ADR-0089](./0089-national-id-leaves-the-supported-document-types.md)** the same day — decided by
+Vahid Mohammadi, 2026-09-08
+
+> **§1 no longer describes the system.** Reading this refusal, Vahid removed the document type
+> instead: *"Keeping a document type that is refused at the gate means carrying a determination, an
+> Article 9 condition, a consent flow and a policy-document gate for something no student can use."*
+> `national_id`, the Schedule 1 gate and the Article 9 consent gate are all gone (ADR-0089). **§2,
+> `other / audit_evidence` being decided rather than open, stands unchanged and is enforced.** The
+> Schedule 1 requirement itself also stands — it is a fact about the law, not about this code, and
+> re-adding the type needs the document first.
 **Completes:** [ADR-0087](./0087-the-four-lawful-basis-determinations.md), which registered the Article 9
 condition and recorded two things it deliberately did not settle
 

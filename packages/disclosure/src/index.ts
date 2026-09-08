@@ -50,22 +50,6 @@ export {
   assertNotDecidedAgainst,
   b2Register,
 } from "./b2-determinations.js";
-
-// ── The prerequisite that is somebody else's, and is outstanding ───────────
-//
-// DPA 2018 Sch. 1 requires an appropriate policy document to exist BEFORE the
-// special-category processing ADR-0087 put in scope. It does not (ADR-0088).
-export type {
-  AppropriatePolicyDocument,
-  AppropriatePolicyRegister,
-  PolicyDocumentCleared,
-} from "./appropriate-policy.js";
-export {
-  APPROPRIATE_POLICY_DOCUMENTS,
-  AppropriatePolicyMissingError,
-  requireAppropriatePolicy,
-} from "./appropriate-policy.js";
-
 export {
   DISCLOSURE_ACTIVITY,
   authoriseDisclosure,

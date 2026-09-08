@@ -32,6 +32,7 @@ import {
   RetentionRequirementUnresolvedError,
   blockedByRetention,
   effectiveFor,
+  isDocumentType,
   validateHistory,
   requirePolicy,
   validateSchedule,
@@ -49,7 +50,6 @@ const SCHEDULE_DIR = "config/retention";
 /** The pairs the first Ulster Birmingham run could plausibly touch. */
 const PAIRS: readonly (readonly [DocumentType, RetentionPurpose])[] = [
   ["passport", "identity_verification"],
-  ["national_id", "identity_verification"],
   ["academic_transcript", "application_submission"],
   ["degree_certificate", "application_submission"],
   ["english_test_certificate", "application_submission"],
@@ -67,7 +67,35 @@ function heading(title: string): void {
 }
 
 /** Parses a schedule file, reviving the dates JSON cannot carry. */
-function parseSchedule(raw: string, file: string): RetentionSchedule {
+/**
+ * A policy row naming a document type the system no longer supports.
+ *
+ * ── Why this is REPORTED rather than dropped, or treated as an error ──────
+ *
+ * `config/retention/v1.2026-09-07.json` carries `AAS-RET-B1-02`, a period for
+ * `national_id` that Vahid determined and approved by name on 2026-09-07. The
+ * document type left scope on 2026-09-08 (ADR-0089) and the determination did
+ * not become WRONG — it became MOOT.
+ *
+ * So the file is not edited. An approved schedule version is a record, and
+ * `validateHistory` exists because versions are superseded rather than
+ * rewritten. Dropping the row silently would lose the fact; erroring would
+ * make a correct historical record unloadable. It is reported, with its
+ * reference, where somebody reading the retention position will see it.
+ */
+export interface OutOfScopeRow {
+  readonly documentType: string;
+  readonly purpose: string;
+  readonly policyReference: string;
+}
+
+export interface ParsedSchedule {
+  readonly schedule: RetentionSchedule;
+  /** Rows naming a document type outside `DOCUMENT_TYPES`, kept for the report. */
+  readonly outOfScope: readonly OutOfScopeRow[];
+}
+
+function parseSchedule(raw: string, file: string): ParsedSchedule {
   const parsed = JSON.parse(raw) as Record<string, unknown>;
 
   /** A required string field. Refuses anything else rather than stringifying it. */
@@ -87,19 +115,41 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
     return asDate;
   };
 
-  const policies = (parsed["policies"] as Record<string, unknown>[] | undefined) ?? [];
+  const allPolicies = (parsed["policies"] as Record<string, unknown>[] | undefined) ?? [];
+
+  // ── A CAST IS NOT A CHECK ──────────────────────────────────────────────
+  //
+  // This line used to read `policy["documentType"] as DocumentType`, which
+  // would have accepted any string in the file and typed it as a lie — a
+  // schedule naming a document type that does not exist would have loaded,
+  // validated and reported as a set period. ADR-0089 found it while removing a
+  // union member, which is exactly the case the cast could not see.
+  const outOfScope: OutOfScopeRow[] = [];
+  const policies: Record<string, unknown>[] = [];
+  for (const policy of allPolicies) {
+    const documentType = text(policy["documentType"], "documentType");
+    if (isDocumentType(documentType)) {
+      policies.push(policy);
+    } else {
+      outOfScope.push({
+        documentType,
+        purpose: text(policy["purpose"], "purpose"),
+        policyReference: text(policy["policyReference"], "policyReference"),
+      });
+    }
+  }
   const unresolved = (parsed["unresolved"] as Record<string, unknown>[] | undefined) ?? [];
   const determinations = (parsed["determinations"] as Record<string, unknown>[] | undefined) ?? [];
   const obligations = (parsed["obligations"] as Record<string, unknown>[] | undefined) ?? [];
 
-  return {
+  const schedule: RetentionSchedule = {
     version: text(parsed["version"], "version"),
     approvedAt: date(parsed["approvedAt"], "approvedAt"),
     approvedBy: text(parsed["approvedBy"], "approvedBy"),
     effectiveFrom: date(parsed["effectiveFrom"], "effectiveFrom"),
     ...(typeof parsed["supersedes"] === "string" ? { supersedes: parsed["supersedes"] } : {}),
     policies: policies.map((policy) => ({
-      documentType: policy["documentType"] as DocumentType,
+      documentType: text(policy["documentType"], "documentType") as DocumentType,
       purpose: policy["purpose"] as RetentionPurpose,
       trigger: policy["trigger"] as RetentionSchedule["policies"][number]["trigger"],
       retainForDays: Number(policy["retainForDays"]),
@@ -171,6 +221,8 @@ function parseSchedule(raw: string, file: string): RetentionSchedule {
       }),
     ),
   };
+
+  return { schedule, outOfScope };
 }
 
 async function main(): Promise<void> {
@@ -192,8 +244,11 @@ async function main(): Promise<void> {
   }
 
   const versions: RetentionSchedule[] = [];
+  const outOfScope: (OutOfScopeRow & { readonly version: string })[] = [];
   for (const file of files) {
-    versions.push(parseSchedule(await readFile(file, "utf8"), file));
+    const parsed = parseSchedule(await readFile(file, "utf8"), file);
+    versions.push(parsed.schedule);
+    for (const row of parsed.outOfScope) outOfScope.push({ ...row, version: parsed.schedule.version });
   }
 
   // eslint-disable-next-line no-restricted-syntax -- run boundary
@@ -292,6 +347,24 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Determined, and now moot ───────────────────────────────────────────
+  //
+  // A period somebody determined for a document type that has since left
+  // scope. The determination is not wrong and the file is not edited: an
+  // approved schedule version is a record, superseded rather than rewritten
+  // (`validateHistory`). Reported here so the fact is visible rather than
+  // dropped — ADR-0089.
+  if (outOfScope.length > 0) {
+    heading("5b · Determined, and now out of scope");
+    for (const row of outOfScope) {
+      console.log(
+        `  ${BOLD}${row.policyReference}${RESET}  ${DIM}${row.version}${RESET}\n` +
+          `    ${row.documentType} / ${row.purpose} — the period was determined and approved; the\n` +
+          `    ${DIM}document type is no longer supported (ADR-0089). The record is kept as made.${RESET}\n`,
+      );
+    }
+  }
+
   heading("6 · What is open, and who owns it");
   const blocked = blockedByRetention(governing);
   if (blocked.length === 0) {
@@ -308,29 +381,26 @@ async function main(): Promise<void> {
       `  ${String(blocked.length)} question(s) recorded as unresolved.\n`,
   );
 
-  // ── Retention is ONE of four gates, and saying otherwise would lie ──────
+  // ── Retention is ONE of two gates, and saying otherwise would lie ───────
   //
   // `assertStorable` requires a retention policy AND a registered lawful basis
-  // (ADR-0022) AND the DPA 2018 Sch. 1 appropriate policy document where one is
-  // needed (ADR-0088) AND the Article 9 consent where the type needs one
-  // (ADR-0087). Until P44 the distinction did not matter, because no period was
+  // (ADR-0022). Until P44 the distinction did not matter, because no period was
   // set and the answer was "nothing" either way.
   //
-  // B2 was answered on 2026-09-08, so this line had to change rather than
-  // stand: "NOT yet determined" became false the moment the four
-  // determinations were registered, and a report that says a decision is
-  // outstanding after it is made is the false record this repository keeps
-  // finding. What is still true is the sentence it was written for — a
-  // retention policy is not permission — and it is now true for three reasons
-  // rather than one.
+  // This line has now been wrong twice, in opposite directions, one phase
+  // apart. It called B2 "NOT yet determined" for a day after ADR-0087
+  // determined it; then it named FOUR gates for a day after ADR-0089 removed
+  // two of them with the one document type they existed for. Both were records
+  // asserting something production did not do — the shape this repository has
+  // spent ten phases finding — and both were produced by the fix for the one
+  // before. What stays true is the sentence it was written for: a retention
+  // policy is not permission.
   console.log(
     `  ${AMBER}A retention policy is not permission to store.${RESET} ` +
       `${DIM}\`assertStorable\` also requires a\n` +
       `  registered lawful basis for the storing activity (ADR-0022, B2 — DETERMINED on\n` +
-      `  2026-09-08, ADR-0087), the DPA 2018 Sch. 1 appropriate policy document where the type\n` +
-      `  needs one (ADR-0088, OUTSTANDING for national_id), and the separate Article 9 consent.\n` +
-      `  This report reads none of the three. Retention resolved means one of four gates\n` +
-      `  opened.${RESET}\n`,
+      `  2026-09-08, ADR-0087), which this report does not read. Retention resolved means one of\n` +
+      `  two gates opened.${RESET}\n`,
   );
 
   if (storable === 0) {

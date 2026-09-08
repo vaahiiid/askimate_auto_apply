@@ -97,7 +97,6 @@ export const EXPIRY_THRESHOLDS = {
    */
   passport: { kind: "warn_before", days: months(6) },
   /** Usually renewable in-country in weeks, and the student is often there. */
-  national_id: { kind: "warn_before", days: months(3) },
   /**
    * Results take about two weeks, but a re-sit needs booking, preparation and
    * often travel. PROVISIONAL — see `provisionalUntil`.

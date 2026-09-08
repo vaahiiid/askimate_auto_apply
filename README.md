@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P55 — the Schedule 1 document must exist before the processing (ADR-0088) |
+| **Phase** | P56 — a national ID leaves the supported document types (ADR-0089) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,190 passing · 114 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 88 ADRs · all 88 Accepted |
+| **Tests** | **2,173 passing · 112 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 89 ADRs · all 89 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -32,9 +32,10 @@ status, every open blocker in priority order, and the test position. **Start her
 and reuse* and **[B1 — the twelve retention determinations](./docs/decision-sheet-b1-retention-periods.md)**
 answered on 2026-09-07 (ADR-0078); **B2 — the lawful basis** on 2026-09-08 (ADR-0087, ADR-0088). What
 still holds the vault shut is not a decision: no transport by which bytes arrive, no `DocumentStore`
-implementation, no deployable holding a vault. One prerequisite is outstanding and belongs to the DPIA
-owner — the **DPA 2018 Sch. 1 appropriate policy document**, which is why `national_id` is refused at
-the gate and the passport is not (ADR-0088).
+implementation, no deployable holding a vault. `national_id` was removed from the supported document
+types in **ADR-0089** — a passport is sufficient for identity, and a type refused at the gate is
+machinery no student can use — which takes the **DPA 2018 Sch. 1 appropriate policy document** out of
+the critical path. That requirement has not gone away: re-adding the type needs the document first.
 
 **[Where we are](./docs/where-we-are.md)** — the per-phase journal.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.
