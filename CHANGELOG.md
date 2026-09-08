@@ -19,6 +19,60 @@ not shipped artefacts.
 
 ---
 
+## [0.66.0] — 2026-09-08
+
+**P48 — the record of what cannot be reached is checked too (ADR-0082).**
+
+### Fixed · the document the README says to start with disagreed with the build
+
+Since P39 the build has asked, of every capability a decision calls enforced, *does anything in
+production call it?* `docs/state-of-the-system.md` §4 answered the same question for a person, and
+nothing reconciled the two. They had drifted in both directions at once.
+
+**`checkMinorGate` was in the register and in no row of the document.** ADR-0011's gate on an
+application involving a **minor** — a mandatory-review category. The register says why it cannot be
+reached, and that the trigger which stops a case for review, `suggestsMinority`, is a different thing
+and *is* enforced. None of that reached the document. A reader would have believed the minors gate
+was enforced.
+
+**`packages/notify` sat under "Declared but unreachable" with a cell beginning "Reachable."** It is —
+set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and the specialist notice runs. The row said so, under
+a heading asserting the opposite, and had done since P36. A row that argues with its own heading is
+worse than a missing one: a missing row reads as an oversight, this one reads as reviewed.
+
+Neither is a code defect and neither would ever have failed a build. That is the point — the register
+is checked and the prose was not, so the prose is where a false record now accumulates.
+
+### Added · `scripts/unreachable-is-documented.test.ts`
+
+Imports the register and asserts the document's table A names exactly the symbols it marks
+unreachable, both directions, and that nothing the register calls *reachable* appears there.
+
+§4 is now two tables. **A** mirrors the register and is checked. **B** holds what the register cannot
+express — a package with no dependents, a *branch* of an enforced function, a research build — and
+says why each is not a register entry. `recommendWait` forced the distinction: the symbol is enforced
+and its `next_intake` branch is not, so listing the symbol would be false and deleting the note would
+lose a real fact.
+
+### Changed · the register is importable without running
+
+`main()` in `scripts/check-reachability.ts` runs only when the script is the program. Without it,
+importing the register would run the whole check as a side effect and leak its `process.exitCode`
+into the suite — a test file able to fail for a reason it never asserts.
+
+### Decisions
+
+- [ADR-0082](./docs/decisions/0082-the-record-of-what-cannot-be-reached-is-checked-too.md) —
+  **Accepted**.
+
+Five deliberate regressions, each verified from disk. The fifth is recorded with its limit: with the
+register passing, removing the guard left the suite green at 7/7, so the guard is asserted in the
+source as well. Coverage that exists only where the defect has already done harm is not coverage.
+
+The declared-but-unreachable surface is **unchanged at seven**. Nothing here is a capability.
+
+---
+
 ## [0.65.0] — 2026-09-08
 
 **P47 — the browser tests run in a lane of their own (ADR-0081).**

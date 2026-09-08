@@ -2749,3 +2749,95 @@ Unchanged from P46, minus the harness item this phase closed: the ADR housekeepi
 still Proposed), and the `already_applying` refusal that still has no client surface. B2 (ADR-0022's
 lawful basis) remains the only policy blocker on documents, and row 8's obligation — reading the
 English test providers' terms — may still move the `english_test_certificate` threshold.
+
+---
+
+# Where we are — 2026-09-08 (P48)
+
+**Date:** 2026-09-08 · **Phase:** P48 · **ADR:** [ADR-0082](./decisions/0082-the-record-of-what-cannot-be-reached-is-checked-too.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**The build's answer and the document's answer to the same question had drifted, in both directions
+at once.** Since P39 the register in `scripts/check-reachability.ts` has said which declared
+capabilities have no production caller, and every phase report has quoted its number. §4 of the
+standing account said the same thing to a person. Nothing reconciled them.
+
+**`checkMinorGate` was in the register and in no row of the document.** Not an incidental one: it is
+ADR-0011's gate on an application involving a **minor** — a mandatory-review category. The register
+states plainly why it cannot be reached (its one blocking condition is at the submission stage, and
+submission is out of scope by ADR-0014) and that the trigger which stops a case for review,
+`suggestsMinority`, is a different thing and *is* enforced. None of that reached the document. A
+reader would have counted the rows, got a plausible total, and believed the minors gate was enforced.
+
+**`packages/notify` sat under "Declared but unreachable" with a cell beginning "Reachable."** It is:
+set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and the specialist notice runs. The row said so, under
+a heading asserting the opposite, and had done since P36.
+
+A row that argues with its own heading is worse than a missing one. A missing row reads as an
+oversight; this one reads as reviewed — somebody looked, wrote a true sentence, and filed it under
+the false claim. Every reader after that inherits the filing, not the sentence.
+
+## Why this counts as a defect at all
+
+Neither finding is a code defect. Neither would ever have failed a build. **That is the argument.**
+The register is checked and the prose was not, so the prose is where a false record now accumulates —
+and this is the eighth consecutive phase to find a record asserting something production does not do.
+The record doing it this time is the one describing the check.
+
+## What was built
+
+`scripts/unreachable-is-documented.test.ts` imports the register and holds §4's table A to it in both
+directions. Missing a symbol fails. Inventing one fails. Naming one the register calls *reachable*
+fails.
+
+§4 is now **two** tables, separated by granularity rather than merged:
+
+- **A** mirrors the register — one symbol, one caller, seven rows — and is checked.
+- **B** holds what that question cannot express: a package with no dependents, a research build, and
+  a *branch* of an enforced function. Each says why it is not a register entry. The check does not
+  police B, and the document says so.
+
+`recommendWait` is what forced the distinction. The symbol is **enforced** — the run driver calls it.
+Its `next_intake` branch cannot be reached, because the catalogue port resolves a blueprint by id and
+cannot list. Listing the symbol in A would be false; deleting the note would lose a real fact.
+
+## What is honest about the coverage
+
+Five deliberate regressions, each verified by reading back from disk and restored from a file copy.
+Four were caught by the assertion that names them.
+
+**The fifth was not, at first, and it is recorded rather than tidied.** Calling `main()`
+unconditionally — so importing the register runs the whole check as a side effect — left the suite
+**green at 7/7** while the register was passing. It only bit when the register was *also* failing,
+and then it failed this file for a reason the file never asserted. Coverage that exists only in the
+case where the defect has already done harm is not coverage of the defect, so the guard is now
+asserted in the source too, and removing it fails by name.
+
+## What this deliberately does not do
+
+- **It does not generate the table.** *"Why it is kept"* is a judgement — ADR-0019's
+  constraint-before-the-thing, ADR-0071's refusal to add a caller over unreachable code — and a
+  generator would either drop it or force it into the register, which is a checker and not a place to
+  argue.
+- **It does not check table B**, and says so in the document rather than implying otherwise.
+- **It does not widen to every document.** The README's counts and the ADR index's narrative are
+  also hand-written and also drift. This is the one the README calls the standing account, and it is
+  the one that was wrong. Widening is a phase, not a footnote.
+- **It changes no capability's status.** Nothing became more or less reachable.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** Nothing in this phase is a capability. What changed is that the seven are now
+legible to a reader as well as to the build.
+
+## What is next
+
+B2 (ADR-0022's lawful basis) remains the only policy blocker on documents, and it is with you. Row
+8's obligation — reading the English test providers' terms — may still move the
+`english_test_certificate` threshold. Unblocked and available: the ADR housekeeping (0001–0004 are
+still Proposed, and ADR-0004's branded types are among the most heavily enforced decisions in the
+repository while its status says Proposed), and widening this phase's check to the README's own
+counts.

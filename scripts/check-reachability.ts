@@ -47,8 +47,9 @@
  * would be the kind of confident overstatement this check exists to catch.
  */
 
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = process.cwd();
 const DIM = "[2m";
@@ -63,7 +64,7 @@ const DEPLOYABLES: readonly string[] = [
   "apps/worker",
 ];
 
-type Reachability =
+export type Reachability =
   | { readonly kind: "reachable" }
   | {
       readonly kind: "unreachable";
@@ -73,7 +74,7 @@ type Reachability =
       readonly closedBy: string;
     };
 
-interface Capability {
+export interface Capability {
   /** The exported symbol, or the string literal, whose reachability is asked about. */
   readonly symbol: string;
   /**
@@ -106,7 +107,7 @@ interface Capability {
 // false record rather than merely dead code.
 // ───────────────────────────────────────────────────────────────────────────
 
-const CAPABILITIES: readonly Capability[] = [
+export const CAPABILITIES: readonly Capability[] = [
   // ── Enforced, and the build now says so ────────────────────────────────
   {
     symbol: "claimSubmissionKey",
@@ -559,4 +560,24 @@ function main(): void {
   );
 }
 
-main();
+// ── Run only when this file IS the program ────────────────────────────────
+//
+// `docs/state-of-the-system.md` carries the human-readable version of the same
+// question, and `scripts/unreachable-is-documented.test.ts` reconciles the two
+// by IMPORTING the register above. Without this guard that import would run the
+// whole check as a side effect and, worse, leak its `process.exitCode` into the
+// test run — a check that can silently fail the suite it is being read by.
+//
+// Compared by real path so the mutation copies in `check-reachability.test.ts`,
+// which run from a temporary directory, still execute.
+const invokedDirectly = (() => {
+  const entry = process.argv[1];
+  if (entry === undefined) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedDirectly) main();

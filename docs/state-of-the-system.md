@@ -15,9 +15,9 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,290 tests, 114 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+processes. **2,298 tests, 115 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
-Eighty-one architecture decision records, seventy-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+Eighty-two architecture decision records, seventy-eight accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -94,6 +94,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P45** | A document running out is the student's choice, once, in writing (ADR-0079) | The expiry thresholds ADR-0078 left absent, approved and configured. The recorded wording is the wording shown, because the record takes the branded warning and not a string |
 | **P46** | The visa path is a compliance boundary, not a scheduling gap (ADR-0080) | ADR-0021's decision stands, its reasoning was weaker than the truth, and the word OISC appeared nowhere in the repository. Registering the boundary found that `blocksApplication` — the line ADR-0021 calls the single one that keeps the visa journey out — has no production caller |
 | **P47** | The browser tests run in a lane of their own (ADR-0081) | Two full runs in five failed on a browser test that passed alone. The seventeen files that launch a browser now run one at a time; the contention was fixed, not a single assertion or timeout. The list of them is checked in both directions against what the files actually do, following imports, because grepping found twelve of seventeen |
+| **P48** | The record of what cannot be reached is checked too (ADR-0082) | `checkMinorGate` — the minors gate — was in the enforced register and in no row of this document, and `packages/notify` sat under "Declared but unreachable" with a cell beginning "Reachable." Neither is a code defect and neither would have failed a build, which is why the prose is where a false record now accumulates |
 
 ---
 
@@ -289,19 +290,55 @@ the integration is real.**
 - **Everything portal-facing.** The blueprint is a fixture; a real portal has never been filled.
 - **The Bedrock adapter.** Complete, behind the LLM port. No credentials, and **no model chosen** —
   `pnpm run verify-bedrock` is written to read what an account can actually use rather than guess.
+- **`packages/notify` — the specialist notice and its webhook.** Reachable, and it runs the moment
+  `AAS_SPECIALIST_WEBHOOK_URL` is set on the worker. It is a configuration away, not a decision away,
+  which is why P48 moved it out of the unreachable section it had been listed in while its own text
+  said it was reachable. No URL has ever been set, so no notice has ever been delivered.
 
 ### ⚠️ Declared but unreachable — deliberately, and each for a stated reason
 
+**Two lists live here, and P48 separated them because they had drifted.** The first is the register
+the build enforces; the second is this document's wider notes at a granularity the register does not
+work at. They used to be one table, and `checkMinorGate` — the minors gate — was in the register and
+in *no* row of the table, while `packages/notify` sat under this heading with a cell that began
+"Reachable". `scripts/unreachable-is-documented.test.ts` now reconciles the first table against
+`scripts/check-reachability.ts` in both directions, so neither can move without the other.
+
+#### A · The enforced register — `pnpm run reachability` fails if any of these acquires a caller
+
+Seven capabilities, each named by a decision, each with no caller inside any deployable's dependency
+closure. The reason and what would close it are the register's own words.
+
+| Capability | Record | Why it cannot be reached | What closes it |
+|---|---|---|---|
+| `blocksApplication` | ADR-0021, ADR-0080 | Nothing in production carries a `Requirement`, so there is no scope for it to read — the visa journey is absent rather than excluded | The Requirements Service phase, or anything else putting a scoped `Requirement` on a production path |
+| `checkMinorGate` | ADR-0011 | Its one BLOCKING condition is at the submission stage, and submission is out of scope (ADR-0014). The trigger that stops a case for review is a different thing and *is* reachable: `suggestsMinority` | The phase that brings submission into scope |
+| `assertStorable` | ADR-0068 | B5 is decided and B1's eleven periods are set, so the retention gate opens — but it also requires a registered lawful basis | **B2**, and the transport phase |
+| `authoriseDisclosure` | ADR-0022 | Same lawful basis, on the way out rather than in | **B2**, and the transport phase |
+| `purgeContents` | ADR-0010, ADR-0023 | B1 is decided; what is missing is a vault holding something to purge | The transport phase, and the job that calls this when a period elapses |
+| `assessUsability` | ADR-0009 | Nothing feeds it; requirements come from the reviewed catalogue | The Requirements Service phase, if the KB workflow is ever wired |
+| `attach_document` | ADR-0069 | Produced by nothing — `WorkKind` is `create_account \| execute` | The attachment intent identity ADR-0069 names, and a `WorkKind` that can carry it |
+
+#### B · Unreachable in ways the register does not track
+
+The register asks about **one symbol** and answers with **one caller**. These are packages, branches
+and builds — real, and not expressible as that question, so they are recorded here rather than given
+a register entry that would have to lie about its granularity.
+
 | Thing | Why it cannot be reached | Why it is kept |
 |---|---|---|
-| `packages/documents` — the vault, the full lifecycle, the validity engine, `purgeContents`, both storage gates | No transport exists by which a student can supply bytes (B4), and no deployable holds a vault | The constraint ships before the thing it constrains (ADR-0019). It refuses correctly today |
-| `packages/extraction` — reading a document with grounded quotation | Same: nothing to read | Same |
-| `packages/requirements` — provenance and the evidence bar | Nothing yet feeds it; requirements come from the reviewed catalogue | It is the shape ADR-0009 requires when a source exists |
-| `packages/notify` — the specialist notice and its webhook | **Reachable.** Set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and it runs. Listed here only because a deployment that has not set one behaves exactly as every deployment did before P36 | It is a configuration away, not a decision away |
-| `attach_document` — a declared `ConsequentialAction`, `VERIFIABLE: true` | **Produced by nothing.** `WorkKind` is `create_account \| execute` | Deleting it would destroy the evidence of what was intended |
-| The interview's `request_document` capability | `nextAction` asks fields before documents, and the orchestrator only enters the interview while a field is outstanding — mutually exclusive by construction | Same reason; asserted rather than deleted |
-| `recommendWait`'s `next_intake` branch, and `WaitRecommendation.suggestedIntake` | The Conversation Service's catalogue port resolves a blueprint by id and does not list, so it cannot know a later intake is open. Advising a wait for one nobody has reviewed would be inventing a fact (P38) | The domain rule is ADR-0006's, and it becomes reachable the day a listing can answer the question. Exercised in the walkthrough |
+| `packages/documents` — the vault, the full lifecycle, the validity and expiry engines | No transport exists by which a student can supply bytes, and no deployable holds a vault. Its two gates *are* register entries (A, above); the package around them is not | The constraint ships before the thing it constrains (ADR-0019). It refuses correctly today |
+| `packages/extraction` — reading a document with grounded quotation | Same: nothing to read. It is in no deployable's closure, so ADR-0077's special-category guarantee constrains code that does not yet run | Same |
+| `packages/requirements` — provenance and the evidence bar | Nothing feeds it, and it has no dependents at all. Two of its symbols are register entries; the package is not | It is the shape ADR-0009 requires when a source exists |
+| `recommendWait`'s `next_intake` branch, and `WaitRecommendation.suggestedIntake` | A **branch**, not a symbol: `recommendWait` itself is *enforced* in the register. The catalogue port resolves a blueprint by id and cannot list, so it cannot know a later intake is open | The domain rule is ADR-0006's, and it becomes reachable the day a listing can answer the question. Exercised in the walkthrough |
+| The interview's `request_document` capability | `nextAction` asks fields before documents, and the orchestrator only enters the interview while a field is outstanding — mutually exclusive by construction | Asserted rather than deleted |
 | `apps/chat-integration` | A **research build** against the archived AskiMate codebase (10 weeks stale). Explicitly not the production integration | It is the evidence that the secure channel is implementable on AskiMate's real stack shape, and the source of the measured `err.body` finding |
+
+**`packages/notify` is not on either list.** It used to be, and its own cell said "Reachable", which
+is what P48 went looking at. Set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and the specialist notice
+runs; it is a configuration away, not a decision away, and it is listed under *Built, but never run
+against anything real* where that is true.
+
 
 ### ❌ Not built at all
 
@@ -366,7 +403,7 @@ question (15). The ADR re-audit that used to sit here was done in P37; see
 
 ## 7 · Test and verification state
 
-**2,290 tests · 114 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,298 tests · 115 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
