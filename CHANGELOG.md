@@ -19,6 +19,86 @@ not shipped artefacts.
 
 ---
 
+## [0.65.0] — 2026-09-08
+
+**P47 — the browser tests run in a lane of their own (ADR-0081).**
+
+### Fixed · the suite stopped failing for reasons nobody acts on
+
+Two full-suite runs in five failed, each on a different browser test, each of which passed 4/4 when
+run on its own. `two-origin.test.ts` had diagnosed the shape in its own comments long before — *"the
+page is STARVED: several Chromium instances run in parallel across this directory's suites"* — and
+fixed its own instance by retrying the input. Right for that test, wrong as a strategy. Vahid,
+2026-09-08:
+
+> A suite that goes red for reasons that turn out not to matter teaches everyone to discount red, and
+> the cost lands on the day a real failure arrives and gets waved through. **Fix the contention
+> rather than the assertions.**
+
+Measured on the four-CPU container the suite runs in: a full run peaked at **21 concurrent Chromium
+processes** and a load average of **5.13**. Vitest schedules test *files* across workers, and a
+browser file launches a browser that is itself five to eight processes.
+
+`vitest.workspace.ts` splits the suite into two projects. **`chromium`** runs the seventeen files
+that launch a browser, one at a time. **`unit`** runs everything else, with all its parallelism
+intact — capping workers globally would have slowed the 155 seconds that has no browser in it to fix
+the 87 seconds that does, and would still have let two browser files pair up.
+
+| | before | after |
+|---|---|---|
+| peak concurrent browsers | 3 | **1** |
+| peak Chromium processes | 21 | **7** |
+| peak load average (4 CPUs) | 5.13 | **3.13** |
+| full-suite wall time | 119s | **176s** |
+
+**Not one assertion or timeout was changed.** No test was made more patient to accommodate the load;
+the load was removed.
+
+### Added · `scripts/browser-lane.test.ts` — the list is checked, not trusted
+
+`BROWSER_TEST_FILES` is a list, and a list is the thing this repository keeps finding out of date.
+The guard checks it against what the files actually do, in **both** directions: a file that starts
+launching a browser and is not added rejoins the contention silently, and a listed file that stops
+launching one is serialised for nothing.
+
+The predicate follows one level of first-party imports, because grepping the test files alone found
+**twelve of the seventeen** — five launch through a `PlaywrightDiscoverySession` or a
+`PlaywrightInspectionSession`, and each of those was measured spawning eight Chromium processes. The
+narrow predicate was not a smaller truth; it was a wrong one.
+
+Its first run flagged **itself**: `connectOverCDP` appears in its own source because it is looking
+for `connectOverCDP`. That is the P39 mistake exactly — a check that reports the *word* as the deed
+— and it is excluded by name, with a test asserting the exception is that one file and no other.
+
+### Fixed · `fileParallelism: false` was doing nothing, and looked like it was doing everything
+
+The first version of the lane set `fileParallelism: false` on the chromium project. Vitest lists it
+in `NonProjectOptions` alongside `maxWorkers` and `coverage` — it is a **root-level** setting, so a
+workspace project carrying it is accepted by the config loader and ignored at runtime. The lane still
+peaked at three browsers, and only `tsc` said why.
+
+`poolOptions.forks.singleFork` is a project setting and is what made the measured difference. The
+guard now asserts both that it is present **and** that `fileParallelism` is absent: a
+plausible-looking belt-and-braces re-addition is worse than nothing, because it stops the next person
+looking further.
+
+### Fixed · file selection lives in exactly one place
+
+A project that `extends` a config **merges** its `include` rather than replacing it. The first
+attempt left `include` in `vitest.config.ts`, and the browser lane matched all 113 test files instead
+of its 17: every file ran in both lanes, the run went from 2,283 tests to **4,274**, and the load
+average got *worse*. `vitest.config.ts` now carries no `include`, and says why the absence is
+deliberate.
+
+### Decisions
+
+- [ADR-0081](./docs/decisions/0081-the-browser-tests-run-in-a-lane-of-their-own.md) — **Accepted**.
+
+The declared-but-unreachable surface is **unchanged at seven**. Nothing in this phase is a
+capability.
+
+---
+
 ## [0.64.0] — 2026-09-08
 
 **P46 — the visa path is a compliance boundary, not a scheduling gap (ADR-0080).**

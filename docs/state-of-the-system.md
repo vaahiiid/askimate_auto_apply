@@ -15,8 +15,9 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,283 tests, 113 files, zero skipped**, against real PostgreSQL and Redis.
-Seventy-four architecture decision records, seventy accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+processes. **2,290 tests, 114 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the seventeen files that launch a browser run serially, everything else in parallel.
+Eighty-one architecture decision records, seventy-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -92,6 +93,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P44** | Documents are held and reused, and the twelve periods are set (ADR-0078) | B5 decided A — hold and reuse — which corrected five B1 rows written before it, and all twelve periods are determined. The vault stays shut on B2, and the report now says a retention policy is not permission to store |
 | **P45** | A document running out is the student's choice, once, in writing (ADR-0079) | The expiry thresholds ADR-0078 left absent, approved and configured. The recorded wording is the wording shown, because the record takes the branded warning and not a string |
 | **P46** | The visa path is a compliance boundary, not a scheduling gap (ADR-0080) | ADR-0021's decision stands, its reasoning was weaker than the truth, and the word OISC appeared nowhere in the repository. Registering the boundary found that `blocksApplication` — the line ADR-0021 calls the single one that keeps the visa journey out — has no production caller |
+| **P47** | The browser tests run in a lane of their own (ADR-0081) | Two full runs in five failed on a browser test that passed alone. The seventeen files that launch a browser now run one at a time; the contention was fixed, not a single assertion or timeout. The list of them is checked in both directions against what the files actually do, following imports, because grepping found twelve of seventeen |
 
 ---
 
@@ -364,10 +366,16 @@ question (15). The ADR re-audit that used to sit here was done in P37; see
 
 ## 7 · Test and verification state
 
-**2,283 tests · 113 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,290 tests · 114 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
+
+**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the seventeen browser files one at a
+time and everything else in parallel, because three or four browsers landing together on a four-CPU
+container starved pages past a twenty-second poll and failed two full runs in five — each on a
+different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7, peak load 5.13 →
+3.13, wall time 119s → 176s. No assertion or timeout was changed to buy it.
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|

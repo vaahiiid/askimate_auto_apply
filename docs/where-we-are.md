@@ -2650,3 +2650,102 @@ in CI's blanket pass and announced a skip on every local integration run. Added.
 Exercisable and unblocked, in order: the ADR housekeeping (0001–0004 are still Proposed); the
 `already_applying` refusal has no client surface yet, so a student who meets it is told correctly and
 shown nothing; and the fixture/harness fragility the last three phases kept finding by accident.
+
+---
+
+# Where we are — 2026-09-08 (P47)
+
+**Date:** 2026-09-08 · **Phase:** P47 · **ADR:** [ADR-0081](./decisions/0081-the-browser-tests-run-in-a-lane-of-their-own.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**Two full-suite runs in five failed, and both failures were about the machine, not the code.** Each
+was a different browser test. Each passed 4/4 when run on its own. `two-origin.test.ts` had written
+the diagnosis in its own comments long before anyone acted on it:
+
+> The page is STARVED: several Chromium instances run in parallel across this directory's suites,
+> and under that load a page can take well over ten seconds to process an input event.
+
+It fixed its own instance by retrying the input. Right for that test, wrong as a strategy. Vahid,
+2026-09-08:
+
+> A suite that goes red for reasons that turn out not to matter teaches everyone to discount red, and
+> the cost lands on the day a real failure arrives and gets waved through. Two in five is well past
+> that threshold. **Fix the contention rather than the assertions.**
+
+## What the contention actually was
+
+Measured, on the four-CPU container this suite runs in:
+
+| | before | after |
+|---|---|---|
+| peak concurrent browsers | 3 | **1** |
+| peak Chromium processes | 21 | **7** |
+| peak load average (of 4) | 5.13 | **3.13** |
+| full-suite wall time | 119s | **176s** |
+
+Vitest schedules test *files* across workers, and a browser file launches a browser that is itself
+five to eight processes. Three or four landing together saturates the machine, and the symptom is not
+a crash — it is a page that takes longer than a twenty-second poll to process an input event, on a
+different test each time.
+
+`vitest.workspace.ts` now runs two projects. **`chromium`** takes the seventeen files that launch a
+browser, one at a time. **`unit`** takes everything else, with all its parallelism intact. Capping
+workers globally would have slowed the 155 seconds of work that has no browser in it to fix the 87
+seconds that does — and would still have let two browser files pair up. The lane is not the critical
+path: its files sum to 87s against 242s of total work, so it finishes while the other lane runs.
+
+**Not one assertion or timeout changed.** No test was made more patient to accommodate the load; the
+load was removed. `two-origin.test.ts`'s retry stays, because it handles a *dropped* input event,
+which is a different failure from a late one and is not fixed by removing contention.
+
+## Three things this cost
+
+**`fileParallelism: false` cannot be set on a workspace project, and setting it looked like a fix.**
+Vitest lists it in `NonProjectOptions` — a root-level setting — so the config loader accepted it and
+the runtime ignored it. The lane still peaked at three browsers. The measurement showed it doing
+nothing and only `tsc` said *why*, which is the wrong order to find that out in. The guard now
+asserts `singleFork` is present **and** that `fileParallelism` is absent: something that reads as
+serialising the lane while doing nothing is worse than nothing, because it stops the next person
+looking further.
+
+**A project that `extends` a config MERGES its `include`.** The first attempt left `include` in
+`vitest.config.ts`, so the browser lane matched all 113 test files instead of its 17: every file ran
+in both lanes, the run went from 2,283 tests to **4,274**, and the load got *worse*. File selection
+now lives in one place, and `vitest.config.ts` records why it is not there.
+
+**Grepping for `chromium.launch` finds twelve of the seventeen.** Five launch through a
+`PlaywrightDiscoverySession` or a `PlaywrightInspectionSession`, and each of those was measured
+spawning eight Chromium processes. The narrow predicate was not a smaller truth; it was a wrong one.
+`scripts/browser-lane.test.ts` follows one level of first-party imports, and checks the list in both
+directions — a file that starts launching a browser and is not added rejoins the contention silently,
+and a listed file that stops launching one is serialised for nothing.
+
+Its first run flagged **itself**, because `connectOverCDP` appears in its own source in order to look
+for `connectOverCDP`. That is the P39 mistake exactly: a check that reports the *word* as the deed.
+It is excluded by name, and a test asserts the exception is that one file and no other.
+
+## What is honest about the evidence
+
+Five consecutive full runs are clean, against two failures in the five before. **That is evidence,
+not proof**, and the claim is limited to what was measured: three browsers to one, load 5.13 to 3.13.
+One run in the five showed two failures and it was **not** a flake — it picked up the guard test
+added mid-measurement, which failed legitimately by flagging itself. It has passed every run since
+the exclusion.
+
+No test in this suite is genuinely fragile as opposed to starved. Every failure seen in the before
+runs was a browser test under load, and every one of them passed alone.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** Nothing in this phase is a capability — no production code was added, only test
+scheduling and a guard over it.
+
+## What is next
+
+Unchanged from P46, minus the harness item this phase closed: the ADR housekeeping (0001–0004 are
+still Proposed), and the `already_applying` refusal that still has no client surface. B2 (ADR-0022's
+lawful basis) remains the only policy blocker on documents, and row 8's obligation — reading the
+English test providers' terms — may still move the `english_test_certificate` threshold.
