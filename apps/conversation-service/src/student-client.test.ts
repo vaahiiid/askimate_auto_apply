@@ -3,9 +3,10 @@
  *
  * ── Why this file lives here ──────────────────────────────────────────────
  *
- * Beside the client it serves, which is what `apps/chat-integration` says of
- * its own browser test: *"the test that boots the real Conversation Service
- * lives beside the client it serves … it moves with the client."* It is also
+ * Beside the client it serves. The research build removed in P53 said the same
+ * of its own browser test — *"the test that boots the real Conversation Service
+ * lives beside the client it serves … it moves with the client"* — and that is
+ * the rule this file follows rather than a reference to it. It is also
  * the only place with DOM types, which a Playwright `evaluate` callback needs
  * even though it runs in the browser.
  *

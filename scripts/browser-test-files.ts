@@ -25,8 +25,10 @@
  * assertions."*
  *
  * So these files run in a lane of their own, ONE AT A TIME, while everything
- * else stays parallel. They sum to 87 seconds of the suite's 242, so the lane
- * is not the critical path.
+ * else stays parallel.
+ *
+ * Four of them were `apps/chat-integration`'s, removed in P53 (ADR-0086) — a
+ * quarter of the lane, gone with the research build it belonged to.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * `browser-lane.test.ts` asserts this list is exactly the set of test files
@@ -43,10 +45,6 @@ export const BROWSER_TEST_FILES: readonly string[] = [
   "apps/browser-runner/src/preparation.test.ts",
   "apps/browser-runner/src/secret-fill.test.ts",
   "apps/browser-runner/src/sensitive.test.ts",
-  "apps/chat-integration/src/conversation-service.test.ts",
-  "apps/chat-integration/src/end-to-end.test.ts",
-  "apps/chat-integration/src/fail-closed.test.ts",
-  "apps/chat-integration/src/two-origin.test.ts",
   "apps/conversation-service/src/student-client.test.ts",
   "apps/secure-filler/src/fill.test.ts",
   "apps/secure-service/src/account-creation-e2e.test.ts",

@@ -342,34 +342,6 @@ const RULES: readonly Rule[] = [
       "secure service, so a driver here would be a way to write to a plane it does not own.",
   },
   {
-    packagePath: "apps/chat-integration",
-    forbidden: [
-      "openai",
-      "@anthropic-ai/sdk",
-      "@anthropic-ai/bedrock-sdk",
-      "@aws-sdk/client-bedrock-runtime",
-      "@askimate/aas-llm",
-      "@askimate/aas-profile",
-      "morgan",
-      "pino",
-      "pino-http",
-      "winston",
-      "@sentry/node",
-      "@sentry/express",
-      "dd-trace",
-      "newrelic",
-      "@opentelemetry/sdk-node",
-      "express-winston",
-      "errorhandler",
-    ],
-    rationale:
-      "This app contains the ONE endpoint in AskiMate that receives a plaintext password. Every " +
-      "forbidden name here is a request logger, an APM agent or an error reporter — the exact " +
-      "class of middleware that serialises a caught error, and body-parser attaches the raw " +
-      "request body to a JSON parse error as `err.body` (measured: JSON.stringify(err) emits the " +
-      "password in full). A model SDK is forbidden for the same reason as everywhere else.",
-  },
-  {
     packagePath: "apps/conversation-service",
     // `playwright` is production-forbidden rather than forbidden outright, for
     // the reason it is on `secure-service`: since ADR-0060 this app serves the
@@ -1183,42 +1155,6 @@ function main(): void {
   }
   console.log(`  ✓  packages/secrets — no getSecret, in any file`);
 
-  // ── The secure endpoint must not interpolate the body into anything ─────
-  //
-  // A source-level check on the one file that handles plaintext. The realistic
-  // regression is not malice — it is someone adding `console.log("submit for",
-  // req.body)` while debugging a confirmation mismatch, and leaving it in.
-  //
-  // So: no `console.log`/`console.debug`/`console.info` at all in that file
-  // (the error handler in app.ts logs a type, and that is the only logging on
-  // this path), and no mention of the two identifiers a password lives in.
-  const SECRET_ROUTE = "apps/chat-integration/src/secret-routes.ts";
-  if (existsSync(SECRET_ROUTE)) {
-    const source = readFileSync(SECRET_ROUTE, "utf8");
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
-
-    if (/console\.(log|debug|info|warn|error|trace|dir)\s*\(/.test(code)) {
-      violations.push(
-        `${SECRET_ROUTE} contains a console call. This file holds a student's plaintext password ` +
-          `for the length of one request; nothing in it may write to a log. The error handler in ` +
-          `app.ts logs an error TYPE, and that is the only logging permitted on this path ` +
-          `(ADR-0027).`,
-      );
-    }
-    for (const forbidden of ["JSON.stringify(req", "JSON.stringify(body", "inspect(body", "inspect(req"]) {
-      if (!code.includes(forbidden)) continue;
-      violations.push(
-        `${SECRET_ROUTE} serialises the request body (\`${forbidden}\`). The body carries a ` +
-          `plaintext password, and a serialised copy is one assignment away from a log line, an ` +
-          `error message or a response (ADR-0027).`,
-      );
-    }
-    checked += 1;
-  }
-  console.log(`  ✓  the secure endpoint — no console calls, no serialised bodies`);
-
   // ── ADR-0004: a ConfirmedValue is minted in ONE place ───────────────────
   //
   // Found by deliberately weakening the guarantee: adding
@@ -1367,83 +1303,6 @@ function main(): void {
   }
   console.log(`  ✓  packages/orchestrator — no runtime database driver`);
 
-  // ── The React secure control must stay UNCONTROLLED ─────────────────────
-  //
-  // Vahid, 2026-08-27: *"the secret input must remain outside React
-  // application state; the React secure control must use an uncontrolled
-  // input."*
-  //
-  // The idiomatic React input is controlled — `useState` plus `value` and
-  // `onChange` — and that is precisely what must not happen here, because it
-  // puts the password in component state where React DevTools, an error
-  // boundary serialising the tree, and any error reporter that snapshots state
-  // can all reach it. The plain-DOM prototype does not have that hazard; the
-  // move to React introduces it.
-  //
-  // There are tests for this (`SecureControl.test.tsx` walks the fibre tree
-  // for the typed value), but a test can be deleted by the same commit that
-  // breaks the rule. This makes it fail the BUILD, where the diff has to
-  // explain itself.
-  const SECURE_CONTROL = "apps/chat-integration/src/SecureControl.tsx";
-  if (existsSync(SECURE_CONTROL)) {
-    const raw = readFileSync(SECURE_CONTROL, "utf8");
-
-    // Comments are stripped before matching. The first version of this rule
-    // did not do that, and it fired on the doc comment that EXPLAINS the
-    // hazard — the block showing `useState` and `value={…}` as the thing to
-    // avoid. A rule that rejects correct code is worse than no rule: it
-    // teaches whoever hits it to weaken the rule rather than the code.
-    const source = raw
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^\s*\/\/.*$/gm, "");
-
-    if (/\buseState\b/.test(source) || /\buseReducer\b/.test(source)) {
-      violations.push(
-        `${SECURE_CONTROL} uses React state. The secure control must be UNCONTROLLED: the ` +
-          `password lives in the input element and is read through a ref at submit. React state ` +
-          `is visible to DevTools, to an error boundary that serialises the tree, and to any ` +
-          `error reporter that snapshots component state.`,
-      );
-    }
-    if (/\n\s*(value|defaultValue)=\{/.test(source)) {
-      violations.push(
-        `${SECURE_CONTROL} sets a \`value\` or \`defaultValue\` prop, which makes the input ` +
-          `controlled — the one thing this component may not be.`,
-      );
-    }
-
-    // Scoped to the PROPS interface, not the whole file. `submit` legitimately
-    // takes a `password` in its own parameter type — that function is how the
-    // value reaches the endpoint. Matching file-wide flagged that too, which is
-    // the same mistake in a different place: a rule has to name the thing it
-    // actually forbids, which here is a prop on the component.
-    const props = /export interface SecureControlProps \{([\s\S]*?)\n\}/.exec(source);
-    if (props === null) {
-      violations.push(
-        `${SECURE_CONTROL} has no \`SecureControlProps\` interface, so the prop rule below ` +
-          `cannot be enforced. If the component was renamed, update this check rather than ` +
-          `leaving it silently inert.`,
-      );
-    } else {
-      for (const forbidden of ["password", "secret", "plaintext", "value", "defaultValue"]) {
-        // Anchored to TOP-LEVEL props: two spaces of indentation, start of
-        // line. The `submit` callback's own parameter type declares a
-        // `password` at four spaces, and must — that function is how the value
-        // reaches the endpoint. Matching anywhere inside the interface flagged
-        // it, which would have made the rule reject the correct component for
-        // the third time.
-        if (new RegExp(`^  readonly ${forbidden}\\??:`, "m").test(props[1] ?? "")) {
-          violations.push(
-            `${SECURE_CONTROL} declares a prop \`${forbidden}\`. No prop may carry a secret in ` +
-              `either direction — \`onSubmitted\` receives an opaque handle, not a value.`,
-          );
-        }
-      }
-    }
-    checked += 1;
-    console.log(`  ✓  ${SECURE_CONTROL} — uncontrolled, no secret-bearing prop`);
-  }
-
   // ── The six decisions have exactly one implementation ───────────────────
   //
   // Vahid, 2026-08-28: *"Treat it as the single domain authority for
@@ -1537,185 +1396,6 @@ function main(): void {
     console.log(`  ✓  packages/contracts — no runtime dependencies, no workspace dependencies`);
   }
 
-  // ── Exactly one password input exists, and it is the uncontrolled one ────
-  //
-  // Vahid, 2026-08-28: *"Extend the boundary protection to every relevant
-  // `.tsx` file under the integration area, not just SecureControl.tsx."*
-  //
-  // The rule above hardcodes one path, which was right when one path was all
-  // there was. Now the client is React: a container, a view, and whatever comes
-  // next. The rule it enforces — the password lives in an uncontrolled DOM
-  // element and nowhere else — is not a property of that one file. It is a
-  // property of the client, and it fails just as completely if a PARENT renders
-  // its own `<input type="password">` with a `useState` behind it.
-  //
-  // So two things are checked across every non-test `.tsx` in the app:
-  //
-  //   1. Only `SecureControl.tsx` may render `type="password"`. One password
-  //      field, in the file whose discipline is enforced.
-  //   2. No `useState`/`useReducer` anywhere may BIND a name that suggests it
-  //      holds one. A blanket ban on state would be wrong — a chat view needs
-  //      state for its turn list — so the rule names what may not be in it.
-  const CLIENT_DIR = "apps/chat-integration/src";
-  if (existsSync(CLIENT_DIR)) {
-    const clientFiles = readdirSync(CLIENT_DIR)
-      .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
-      .sort();
-
-    if (clientFiles.length === 0) {
-      violations.push(
-        `${CLIENT_DIR} contains no .tsx files, so the client rules below are inert. If the React ` +
-          `client moved, update this check rather than leaving it silently passing.`,
-      );
-    }
-
-    let passwordInputs = 0;
-    for (const name of clientFiles) {
-      const source = readFileSync(join(CLIENT_DIR, name), "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/^\s*\/\/.*$/gm, "");
-
-      if (/type=["']password["']/.test(source)) {
-        passwordInputs += 1;
-        if (name !== "SecureControl.tsx") {
-          violations.push(
-            `${CLIENT_DIR}/${name} renders an <input type="password">. Only SecureControl.tsx ` +
-              `may — it is the one file whose uncontrolled discipline is enforced above, and a ` +
-              `password field anywhere else is a field nothing stops from being controlled.`,
-          );
-        }
-      }
-
-      // `const [password, setPassword] = useState(…)` and its relatives.
-      const stateBindings = source.matchAll(
-        /const\s*\[\s*([A-Za-z0-9_$]+)[^\]]*\]\s*=\s*(useState|useReducer)\b/g,
-      );
-      for (const match of stateBindings) {
-        const bound = match[1] ?? "";
-        if (/pass|secret|plain|credential|pwd/i.test(bound)) {
-          violations.push(
-            `${CLIENT_DIR}/${name} holds \`${bound}\` in React state via ${match[2] ?? "useState"}. ` +
-              `A secret in component state is readable from DevTools, from an error boundary that ` +
-              `serialises the tree, and from any reporter that snapshots state.`,
-          );
-        }
-      }
-    }
-
-    if (passwordInputs === 0) {
-      violations.push(
-        `No file in ${CLIENT_DIR} renders an <input type="password">. The rule above counts them ` +
-          `to prove it is looking at something; zero means the control was renamed or moved and ` +
-          `the check has gone inert.`,
-      );
-    }
-
-    checked += 1;
-    console.log(
-      `  ✓  ${CLIENT_DIR}/*.tsx — ${String(clientFiles.length)} file(s), one password input, ` +
-        `no secret in React state`,
-    );
-  }
-
-  // ── Browser code imports no wire type from a server route module ─────────
-  //
-  // Vahid, 2026-08-28: *"move `ChatSendResponse` out of `chat-routes.ts` into
-  // `packages/contracts`, so browser code no longer imports a wire type from a
-  // server module."*
-  //
-  // `ChatSendResponse` was declared in `chat-routes.ts`, a module that also
-  // imports `express` and `jsonwebtoken`, and the React client imported it from
-  // there. `import type` erases at compile time, so nothing shipped — but the
-  // dependency was real, and one edit turning it into a value import (an enum,
-  // a `const` of default values, a parser) would pull a server framework toward
-  // the page. A wire type belongs where the wire is described.
-  //
-  // Two halves, because either alone can go inert:
-  //
-  //   1. No browser file may import from a server module, type-only or not.
-  //   2. No browser file may NAME a type a server module declares. This is the
-  //      half that keeps itself current: the declared names are read out of the
-  //      server modules rather than listed here, so a wire type added to a route
-  //      tomorrow is covered without anyone remembering to add it.
-  const SERVER_MODULES = ["chat-routes", "secret-routes", "app", "bindings", "schema"];
-  const BROWSER_FILES = [
-    "apps/chat-integration/src/useSecureTurn.ts",
-    "apps/chat-integration/src/ChatView.tsx",
-    "apps/chat-integration/src/SecureControl.tsx",
-    "apps/chat-integration/src/browser-entry.tsx",
-  ];
-  const presentBrowserFiles = BROWSER_FILES.filter((file) => existsSync(file));
-  if (presentBrowserFiles.length !== BROWSER_FILES.length) {
-    violations.push(
-      `Not every browser file this rule names still exists (${String(presentBrowserFiles.length)} ` +
-        `of ${String(BROWSER_FILES.length)}). A renamed client silently narrows the rule, so ` +
-        `update the list rather than leaving it looking at fewer files than it claims.`,
-    );
-  }
-
-  // What each server module declares. Read, not listed.
-  const serverDeclared = new Map<string, string>();
-  for (const module of SERVER_MODULES) {
-    const path = `apps/chat-integration/src/${module}.ts`;
-    if (!existsSync(path)) continue;
-    const source = readFileSync(path, "utf8");
-    for (const match of source.matchAll(/^export\s+(?:type|interface)\s+([A-Za-z0-9_$]+)/gm)) {
-      const name = match[1];
-      if (name !== undefined) serverDeclared.set(name, path);
-    }
-  }
-  if (serverDeclared.size === 0) {
-    violations.push(
-      `No server module under apps/chat-integration/src declares an exported type. This rule ` +
-        `compares browser files against that set, so an empty set means it is checking nothing.`,
-    );
-  }
-
-  for (const file of presentBrowserFiles) {
-    const source = readFileSync(file, "utf8");
-    for (const module of SERVER_MODULES) {
-      if (new RegExp(`from\\s+["'](?:\\./)?${module}\\.js["']`).test(source)) {
-        violations.push(
-          `${file} imports from ./${module}.js. That module is server-side — it reaches express, ` +
-            `jsonwebtoken or a database driver — and browser code must take its wire types from ` +
-            `@askimate/aas-contracts instead.`,
-        );
-      }
-    }
-    const code = source
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^\s*\/\/.*$/gm, "");
-    for (const [name, path] of serverDeclared) {
-      if (new RegExp(`\\b${name}\\b`).test(code)) {
-        violations.push(
-          `${file} names \`${name}\`, which ${path} declares. A type a browser file uses must not ` +
-            `live in a server route module: move it to packages/contracts.`,
-        );
-      }
-    }
-  }
-
-  // And the named regression, stated directly: the type the browser DOES use
-  // must not come back to the module it was moved out of.
-  const CHAT_ROUTES = "apps/chat-integration/src/chat-routes.ts";
-  if (existsSync(CHAT_ROUTES)) {
-    const source = readFileSync(CHAT_ROUTES, "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^\s*\/\/.*$/gm, "");
-    if (/export\s+type\s+ChatSendResponse\s*=/.test(source)) {
-      violations.push(
-        `${CHAT_ROUTES} declares ChatSendResponse again. It was moved to packages/contracts ` +
-          `precisely so the browser stops importing a wire type from an express module.`,
-      );
-    }
-  }
-
-  checked += 1;
-  console.log(
-    `  ✓  ${String(presentBrowserFiles.length)} browser file(s) — no import from, and no type ` +
-      `declared by, a server route module (${String(serverDeclared.size)} name(s) compared)`,
-  );
-
   // ── The Secure Plane admits no third-party script, and no third origin ───
   //
   // ═════════════════════════════════════════════════════════════════════════
@@ -1797,9 +1477,16 @@ function main(): void {
     // was NOT caught: every test passed, because the wildcard is a superset of
     // the correct behaviour and nothing in a cooperating test ever notices.
     // Only a rule that reads the source can see it.
+    // ── Both ends of the handshake, and P53 found one of them uncovered ──
+    //
+    // This listed the secure service's control client and the RESEARCH build's
+    // `SecureFrame.tsx`. The production client — `journey.ts`, which mounts the
+    // real frame and posts the real handshake — was never in it, so the one
+    // postMessage a student's browser actually makes had no wildcard rule over
+    // it. Removing the research build (ADR-0086) is what surfaced that.
     const POST_MESSAGE_FILES = [
       "apps/secure-service/src/control-client.ts",
-      "apps/chat-integration/src/SecureFrame.tsx",
+      "apps/conversation-service/src/client/journey.ts",
     ];
     for (const file of POST_MESSAGE_FILES) {
       if (!existsSync(file)) {

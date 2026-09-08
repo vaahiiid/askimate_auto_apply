@@ -4,8 +4,8 @@
     "rootDir": "./src",
     "outDir": "./dist",
     // `control-client.ts` runs inside the secure frame — the one browser
-    // document this service serves. Like chat-integration, this app therefore
-    // legitimately needs DOM types.
+    // document this service serves. Like `conversation-service` and
+    // `browser-runner`, this app therefore legitimately needs DOM types.
     "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": ["src/**/*.ts"],

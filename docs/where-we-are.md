@@ -3152,3 +3152,69 @@ that gets re-run until it is green is precisely what makes red stop meaning anyt
 that the secure channel is implementable on AskiMate's real stack shape. It is now also the only
 thing making the suite intermittently red. Whether that evidence is still worth its cost is a product
 judgement, and it is yours.
+
+---
+
+# Where we are — 2026-09-08 (P53)
+
+**Date:** 2026-09-08 · **Phase:** P53 · **ADR:** [ADR-0086](./decisions/0086-the-research-build-is-removed-and-what-it-proved-is-kept.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The decision, and the check before it
+
+You said remove `apps/chat-integration`, and told me to stop if removal would lose something the ADRs
+do not already carry. **It would have**, so I stopped and asked, and the answer was to port first.
+
+Four assertions in `two-origin.test.ts` were never about the research build. It imported
+`createConversationApp` and `createSecureApp` — the **two deployables** — and asserted on them: no
+route on the conversation plane accepts a secret, no route on the secure plane accepts an ordinary
+message, the two `__Host-` cookies are not interchangeable, and a direct POST while a secure step is
+open is refused and stored nowhere.
+
+An ADR saying *"we demonstrated this once"* is not a check that fails the day it stops being true.
+They are now in `scripts/plane-separation.test.ts`, booting both real services, launching **no
+browser**, running in four seconds — and proved to bite by two regressions against production code.
+
+## What removal found
+
+**The production client's `postMessage` had no wildcard-origin rule over it.** `check-boundaries.ts`
+forbids `postMessage(x, "*")` in a named list of files. That list held the secure service's control
+client and the **research build's** `SecureFrame.tsx`. It never held `journey.ts`, which mounts the
+real frame and posts the real handshake in the deployed service.
+
+So the one `postMessage` a student's browser actually makes has been unchecked the whole time, and
+the only reason it surfaced is that taking a file away made the rule complain about a missing path.
+The list now names `journey.ts`.
+
+Three boundary rules that read only research-build files were **deleted, not left dormant**. Each sat
+behind `if (existsSync(…))`, so removal would have quietly turned them into rules that check nothing
+— which ADR-0085 §2 already says is worse than none, because it looks like coverage.
+
+## What is deliberately not carried across
+
+Two properties need a real browser *and* a real secure frame — the password staying out of every
+postMessage that crosses the boundary, and a bootstrap capability never being fetched when it cannot
+be used. Both are about the **client's** behaviour, and that client is the one being removed. The
+production client is a different implementation of the same design, so they do not transfer by moving
+a file, and `student-client.test.ts` configures a `secureOrigin` with nothing listening on it.
+
+Rebuilding them against `journey.ts` is a phase. It is recorded as one.
+
+## On the P52 intermittent
+
+It lived in this app and goes with it. **Its cause was never established.** The two fixes made while
+chasing it — observations attributed by conversation rather than array index, and an assertion asking
+for the first connection rather than the last — were real and are removed with the file they were in.
+That is a closed ticket, not a solved problem, and the difference is worth keeping straight.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** `apps/chat-integration` sat in the standing account's table B — the granularity
+the register does not track — never in the register itself.
+
+## What is next
+
+Nothing on the blocker list is mine. **B2** is with you, and so are a real portal, a specialist
+review, Bedrock credentials and an account. The two browser properties above are the one piece of
+engineering I can name that is unblocked and worth doing.

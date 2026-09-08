@@ -14,10 +14,10 @@ not read the code.
 
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
-stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,327 tests, 118 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+stopping before submission. Twenty-six packages and five applications, all five deployable processes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,145 tests, 110 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
-Eighty-five architecture decision records, all eighty-five accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+Eighty-six architecture decision records, all eighty-six accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -98,6 +98,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P49** | An ADR and the lists of it must agree (ADR-0083) | Three hand-written records of one fact, none compared. ADRs 0001–0004 were accepted on 2026-08-26 and a partial index edit fifteen minutes later missed four rows, so this document grew a blocker asking Vahid to decide what he had already decided. The first finding of this shape where the record claimed LESS than the system did, not more |
 | **P50** | The census is generated, and its arithmetic is checked (ADR-0084) | §7's per-area table had six of twenty rows wrong and `scripts` — 264 tests — with no row at all, but the finding that mattered needed no run: the table did not add up to its own stated total, by 136. The tilde in "everything else ~346" is what made that unfalsifiable |
 | **P51** | A published demonstration is guarded on what it shows (ADR-0085) | Five of twelve published commands had no guard — P37 fixed the walkthrough and left the rest. Exit code is not the property: `extraction-demo` accepting its INVENTING reader would exit 0 and mean ADR-0016's grounding guarantee had stopped holding |
+| **P53** | The research build is removed, and what it proved is kept (ADR-0086) | `apps/chat-integration` retired by Vahid's decision. Four properties in it were about the two DEPLOYABLES, not the research build, and moved to `scripts/plane-separation.test.ts` rather than going with it. Taking it away found that the PRODUCTION client's `postMessage` had never been covered by the wildcard-origin rule |
 
 ---
 
@@ -265,6 +266,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0083 | An ADR and the lists of it must agree | Accepted · continues 0082 |
 | 0084 | The census is generated, and its arithmetic is checked | Accepted · continues 0083 |
 | 0085 | A published demonstration is guarded on what it shows | Accepted · completes 0072 |
+| 0086 | The research build is removed, and what it proved is kept | Accepted |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -347,7 +349,6 @@ a register entry that would have to lie about its granularity.
 | `packages/requirements` — provenance and the evidence bar | Nothing feeds it, and it has no dependents at all. Two of its symbols are register entries; the package is not | It is the shape ADR-0009 requires when a source exists |
 | `recommendWait`'s `next_intake` branch, and `WaitRecommendation.suggestedIntake` | A **branch**, not a symbol: `recommendWait` itself is *enforced* in the register. The catalogue port resolves a blueprint by id and cannot list, so it cannot know a later intake is open | The domain rule is ADR-0006's, and it becomes reachable the day a listing can answer the question. Exercised in the walkthrough |
 | The interview's `request_document` capability | `nextAction` asks fields before documents, and the orchestrator only enters the interview while a field is outstanding — mutually exclusive by construction | Asserted rather than deleted |
-| `apps/chat-integration` | A **research build** against the archived AskiMate codebase (10 weeks stale). Explicitly not the production integration | It is the evidence that the secure channel is implementable on AskiMate's real stack shape, and the source of the measured `err.body` finding |
 
 **`packages/notify` is not on either list.** It used to be, and its own cell said "Reachable", which
 is what P48 went looking at. Set `AAS_SPECIALIST_WEBHOOK_URL` on the worker and the specialist notice
@@ -418,7 +419,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,327 tests · 118 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,145 tests · 110 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -431,24 +432,24 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,327 tests**, by the workspace they live in. Generated — run
+**2,145 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `packages/domain` | 373 | `apps/secure-service` | 64 |
-| `apps/conversation-service` | 330 | `packages/conversation` | 52 |
-| `scripts` | 278 | `packages/profile` | 46 |
-| `apps/browser-runner` | 204 | `packages/catalogue` | 39 |
-| `apps/chat-integration` | 164 | `packages/preparation` | 33 |
+| `packages/domain` | 373 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 330 | `packages/profile` | 46 |
+| `scripts` | 260 | `packages/catalogue` | 39 |
+| `apps/browser-runner` | 204 | `packages/preparation` | 33 |
 | `packages/case-store` | 143 | `packages/disclosure` | 31 |
 | `packages/orchestrator` | 98 | `packages/extraction` | 27 |
 | `packages/contracts` | 78 | `packages/mapping` | 26 |
 | `packages/documents` | 67 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | everything else | 98 |
+| `apps/secure-service` | 64 |  |  |
 
 <!-- census:end -->
 

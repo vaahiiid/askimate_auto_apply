@@ -50,8 +50,6 @@ const ci = readFileSync(WORKFLOW, "utf8");
 
 /** Suites whose guarantees are only meaningful against a real database. */
 const DATABASE_BACKED = [
-  "apps/chat-integration/src/fail-closed.test.ts",
-  "apps/chat-integration/src/end-to-end.test.ts",
   "packages/case-store/src/postgres.test.ts",
   "packages/case-store/src/workflow.test.ts",
   // The ordinal authority. Its guarantees — a UNIQUE constraint resolving two
@@ -67,14 +65,12 @@ const DATABASE_BACKED = [
   "apps/conversation-service/src/app.test.ts",
   // The React client against the real service, in a real browser: server
   // ordinals, resumable SSE, two clients converging, the fail-closed guard.
-  "apps/chat-integration/src/conversation-service.test.ts",
   // The lifecycle push across the plane boundary, against two real databases.
   "apps/secure-service/src/lifecycle.test.ts",
   // THE ONE ENDPOINT THAT RECEIVES A PASSWORD, and the scans that prove the
   // value reaches no column, no response and no log line.
   "apps/secure-service/src/secure-routes.test.ts",
   // A real browser typing a real credential into the cross-origin Secure Plane.
-  "apps/chat-integration/src/two-origin.test.ts",
   // ADR-0042: the whole credential path across three processes — the student's
   // submission, the fill agent's local decryption, a real field in a real
   // browser — plus the scan of every HTTP body exchanged between them. Its

@@ -19,6 +19,67 @@ not shipped artefacts.
 
 ---
 
+## [0.70.0] — 2026-09-08
+
+**P53 — the research build is removed, and what it proved is kept (ADR-0086).**
+
+### Removed · `apps/chat-integration`
+
+Decided by Vahid, 2026-09-08:
+
+> Its value was evidence that the secure channel works on AskiMate's real stack shape, and that
+> evidence is recorded in the ADR trail. Keeping the code costs a quarter of the serialised lane and
+> an intermittent red, and produces no new evidence.
+
+A React client and Express shim built across **P26–P36** against the AskiMate codebase as it stood in
+late June — ten weeks stale. Never a deployable, never the production integration. What it
+demonstrated is recorded by phase in ADR-0086 so removing the code does not remove the finding.
+
+### Added · `scripts/plane-separation.test.ts` — four properties that were never about it
+
+The removal was **checked before it was made**, and it was not clean. Four assertions in
+`two-origin.test.ts` were about the two **deployables** — it imported `createConversationApp` and
+`createSecureApp` — and existed nowhere else:
+
+- the Conversation Service has **no route that accepts a secret**, and a smuggled `secret` field
+  reaches no text-ish column of the whole plane;
+- the Secure Service has **no route that accepts an ordinary message**;
+- the two `__Host-` cookies are **not interchangeable** across planes;
+- a client that **POSTs directly while a secure step is open** is refused, and nothing is stored.
+
+They boot both real services, launch **no browser**, and run in four seconds. Two regressions against
+production code prove they bite: removing the open-request guard in `routes.ts` fails the fourth by
+name; adding a `/v1/frame-sessions` route to the Conversation Service fails the first.
+
+### Fixed · the production client's `postMessage` had no wildcard-origin rule
+
+`check-boundaries.ts` forbids `postMessage(x, "*")` in a named list, and that list held the secure
+service's control client and the **research build's** `SecureFrame.tsx`.
+`apps/conversation-service/src/client/journey.ts` — which mounts the real frame in the deployed
+service — was never in it. **The one `postMessage` a student's browser actually makes was
+unchecked**, and only taking the research build away surfaced it.
+
+Three boundary rules reading only research-build files were **deleted rather than left dormant**:
+each sat behind `if (existsSync(…))`, so removal would have turned them into rules that check
+nothing.
+
+### Decisions
+
+- [ADR-0086](./docs/decisions/0086-the-research-build-is-removed-and-what-it-proved-is-kept.md) —
+  **Accepted**.
+
+Two browser-level properties are deliberately **not** carried across — they are about the client being
+removed, and rebuilding them against `journey.ts` needs a two-origin harness that does not exist.
+Recorded as an open phase rather than pretended away.
+
+The P52 intermittent lived in this app and goes with it. **Its cause was never established**, and
+nothing here claims otherwise.
+
+The declared-but-unreachable surface is **unchanged at seven** — `apps/chat-integration` was in the
+standing account's table B, which the register does not track, not in the register.
+
+---
+
 ## [0.69.0] — 2026-09-08
 
 **P51 — a published demonstration is guarded on what it shows (ADR-0085).**

@@ -95,7 +95,7 @@ jobs:
   #
   #   packages/case-store    optimistic concurrency and duplicate-submission
   #                          prevention are PRIMARY KEY constraints
-  #   apps/chat-integration  "the password reaches no column of any row" is
+  #   apps/secure-service    "the password reaches no column of any row" is
   #                          only meaningful against real rows
   #
   # AAS_REQUIRE_DATABASE=1 turns a skip into a failure. Without it, a CI run
@@ -128,7 +128,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Install Chromium
-        # apps/chat-integration drives the secure control in a real browser.
+        # The browser lane drives real portals and the secure control (ADR-0081).
         run: pnpm --filter @askimate/aas-browser-runner exec playwright install --with-deps chromium
 
       # ── The SHARED envelope cache (ADR-0034, ADR-0042) ───────────────────

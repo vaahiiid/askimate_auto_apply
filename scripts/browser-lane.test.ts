@@ -19,10 +19,10 @@
  *
  * ── Why the check follows imports ─────────────────────────────────────────
  *
- * Five of the seventeen never write `chromium.launch`. They construct a
+ * Five of them never write `chromium.launch`. They construct a
  * `PlaywrightDiscoverySession` or a `PlaywrightInspectionSession`, and the
  * launch happens inside that class. Grepping the test file alone reported
- * twelve of seventeen — and the five it missed were measured spawning eight
+ * twelve of the seventeen then present — and the five it missed were measured spawning eight
  * Chromium processes each, so the narrow predicate was not a smaller truth, it
  * was a wrong one.
  */
@@ -120,7 +120,20 @@ describe("the browser lane", () => {
     // The vacuity guard. A walk that found nothing, or a predicate that matched
     // nothing, would satisfy both assertions above without being about
     // anything.
-    expect(ACTUAL.length, "seventeen when this was written").toBeGreaterThanOrEqual(17);
+    // ── A floor, not a count (P53) ──────────────────────────────────────
+    //
+    // This said `>= 17`, which was the number the day it was written. P53
+    // removed `apps/chat-integration` and its four browser files, and the guard
+    // failed on the count rather than on anything being wrong — a hand-written
+    // number that must be edited whenever the thing it counts changes, which is
+    // the shape ADR-0082 through ADR-0084 spent three phases removing.
+    //
+    // What this assertion is FOR is vacuity: a walk that found nothing, or a
+    // predicate that matched nothing, would satisfy both directions above
+    // without being about anything. A floor does that. The exact agreement
+    // between the two lists is asserted on the next line, and by the two
+    // direction tests above, which is where exactness belongs.
+    expect(ACTUAL.length, "the walk or the predicate found almost nothing").toBeGreaterThanOrEqual(8);
     expect(BROWSER_TEST_FILES.length).toBe(ACTUAL.length);
   });
 

@@ -81,7 +81,7 @@ let pool: pg.Pool;
 /**
  * A database of this suite's own.
  *
- * The chat-integration tests learned this the hard way: two files sharing one
+ * The two-origin tests learned this the hard way: two files sharing one
  * database and dropping each other's tables is a real, intermittent failure,
  * and an intermittent failure in a durability test is worse than no test —
  * people re-run it until it passes.
