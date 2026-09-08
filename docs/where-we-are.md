@@ -2118,6 +2118,87 @@ that four of the six unreachable entries are waiting on.
 
 ---
 
+# Where we are — 2026-09-08 (P46)
+
+**Date:** 2026-09-08 · **Phase:** P46 · **ADR:** [ADR-0080](./decisions/0080-the-visa-path-is-a-compliance-boundary.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**ADR-0021's decision was right and its reason was weaker than the truth.** It explains the
+visa/application line as product scope and correctness. Vahid, 2026-09-08:
+
+> The entire visa path is outside this system's scope until the OISC position is resolved, and that
+> is a hard compliance boundary in the business plan, not a scheduling gap.
+
+**The word OISC appeared nowhere in this repository.** The strongest reason for the most consequential
+boundary in the product lived only in the business plan, and every "out of scope" citation in the
+code pointed at the version that reads like a priority call.
+
+## Why a weaker reason is a real defect
+
+| the recorded reason | what a later engineer could do |
+|---|---|
+| *"visa evidence is out of scope for the MVP"* | reasonably decide to add it, citing product value |
+| *"shut until the OISC position is resolved"* | not decide that at all — it is not theirs |
+
+That is how a boundary erodes: not by anyone overruling it, but by everyone citing the version that
+sounds negotiable. It is also why `visa_document` is `out_of_scope` and never `undetermined` —
+*"`undetermined` would leave it open for someone to quietly decide later. `out_of_scope` says it is
+deliberately shut."*
+
+ADR-0080 does **not** state what the OISC position is. That is a regulated question for someone
+competent, and ADR-0023's rule holds. What is decided is that the path is shut **while the question
+is open**, which can be decided without answering it.
+
+## What asking the question turned up
+
+ADR-0021 names its own enforcement: *"`blocksApplication(requirement)` is the single line that keeps
+the visa journey out of the application journey."* Entering that claim in the register failed the
+build immediately:
+
+```
+✗ blocksApplication — ADR-0021 says "the single line that keeps the visa journey out of the
+  application journey", and NOTHING IN PRODUCTION CALLS IT.
+```
+
+Not neglect. **Nothing in production carries a `Requirement` at all** — `packages/requirements` has
+no dependents, and the catalogue's `requiredDocuments` are free-text strings with no authority
+(ADR-0066, ADR-0070). There is no scope for the line to read.
+
+Listed rather than wired: a caller would be a control over unreachable code, which ADR-0071 declined
+for `attach_document` for the same reason. **What makes the absence safe today is that the visa
+journey is not built — not that this line is stopping it.**
+
+This is the eighth consecutive phase to find a record asserting something production does not do.
+
+## Declared-but-unreachable surface
+
+**6 → 7, and the direction is the point.**
+
+Nothing became less reachable. Something that was **always** unreachable is now *declared*, and the
+register can only be honest about what it has been told to check. `blocksApplication` had never been
+entered, so the check had never been asked.
+
+When the Requirements Service phase lands it closes **two** at once — `blocksApplication` and
+`assessUsability` both name it.
+
+## A measurement worth recording
+
+Two full-suite runs in five failed, each on a different browser test, and each of those passed 4/4
+and 3/3 in isolation and 3/3 in the full suite afterwards. The shape is the Chromium starvation
+`two-origin.test.ts` already documents — several browser instances competing across parallel suites
+— and it is not caused by anything in this phase, which touched a register entry, an ADR and a reason
+string. Recorded rather than dismissed, and worth a phase of its own.
+
+## What is next
+
+**B2** remains the only policy blocker on documents, and it is with Vahid. The suite's browser-test
+fragility is the strongest unblocked engineering candidate.
+
+---
+
 # Where we are — 2026-09-07 (P45)
 
 **Date:** 2026-09-07 · **Phase:** P45 · **ADR:** [ADR-0079](./decisions/0079-a-document-running-out-is-the-students-choice.md)

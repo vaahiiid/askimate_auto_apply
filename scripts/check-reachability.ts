@@ -208,6 +208,37 @@ const CAPABILITIES: readonly Capability[] = [
     status: { kind: "reachable" },
   },
   {
+    // ═══════════════════════════════════════════════════════════════════
+    // Found in P46, and the eighth of this shape.
+    //
+    // ADR-0021 calls this "the single line that keeps the visa journey out of
+    // the application journey", and NOTHING IN PRODUCTION CALLS IT — because
+    // nothing in production carries a `Requirement` at all. `packages/
+    // requirements` has no dependents, and the catalogue's own
+    // `requiredDocuments` are free-text strings with no authority (ADR-0066,
+    // ADR-0070), not scoped requirements.
+    //
+    // Listed rather than wired. Giving it a caller would be a control over
+    // unreachable code, which ADR-0071 declined for `attach_document` for the
+    // same reason. What makes the absence safe TODAY is that the visa journey
+    // is not built at all — not that this line is stopping it.
+    // ═══════════════════════════════════════════════════════════════════
+    symbol: "blocksApplication",
+    kind: "call",
+    declaredIn: ["packages/domain/src/requirements.ts"],
+    record: "ADR-0021, ADR-0080",
+    promise: "the single line that keeps the visa journey out of the application journey",
+    status: {
+      kind: "unreachable",
+      reason:
+        "nothing in production carries a `Requirement`, so there is no scope for it to read — " +
+        "the visa journey is absent rather than excluded",
+      closedBy:
+        "the Requirements Service phase, or anything else that puts a scoped `Requirement` on a " +
+        "production path. Until then the boundary is held by ADR-0080's decision and not by code",
+    },
+  },
+  {
     // The client half of ADR-0006 rule 4. Both routes existed, were published
     // and were tested from P38, and NOTHING CALLED EITHER until P42 — the
     // shape this register exists to catch, one layer further out than the

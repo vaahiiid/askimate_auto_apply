@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P45 — a document running out is the student's choice, once, in writing (ADR-0079) |
+| **Phase** | P46 — the visa path is a compliance boundary, not a scheduling gap (ADR-0080) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,282 passing · 113 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 79 ADRs · 75 Accepted |
+| **Tests** | **2,283 passing · 113 files · zero skipped** · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 80 ADRs · 76 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

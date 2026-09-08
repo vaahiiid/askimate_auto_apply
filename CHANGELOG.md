@@ -19,6 +19,56 @@ not shipped artefacts.
 
 ---
 
+## [0.64.0] — 2026-09-08
+
+**P46 — the visa path is a compliance boundary, not a scheduling gap (ADR-0080).**
+
+### Changed · ADR-0021's decision stands; its reasoning was weaker than the truth
+
+ADR-0021 explains the visa/application line as **product scope and correctness** — a valid
+application should not be blocked waiting on evidence of a rule that may never apply. True, and
+insufficient. Vahid, 2026-09-08:
+
+> The entire visa path is outside this system's scope until the OISC position is resolved, and that
+> is a hard compliance boundary in the business plan, not a scheduling gap.
+
+**The word OISC appeared nowhere in this repository.** The strongest reason for the most consequential
+boundary in the product lived only in the business plan, and every "out of scope" citation in the
+code pointed at the version that sounds like a priority call.
+
+The difference is not academic: a product-scope reason is one a later engineer could reasonably
+decide to overturn citing product value. A compliance boundary is not theirs to overturn. That is
+also why `visa_document` is `out_of_scope` and never `undetermined` — *"`undetermined` would leave it
+open for someone to quietly decide later. `out_of_scope` says it is deliberately shut."*
+
+### Found · the line ADR-0021 calls "the single line" has no production caller
+
+Registering the boundary meant asking what enforces it. ADR-0021 answers in its own words —
+`blocksApplication(requirement)` — and `pnpm run reachability` said so the moment the claim was
+entered:
+
+```
+✗ blocksApplication — ADR-0021 says "the single line that keeps the visa journey out of the
+  application journey", and NOTHING IN PRODUCTION CALLS IT.
+```
+
+The cause is not neglect: **nothing in production carries a `Requirement` at all.**
+`packages/requirements` has no dependents, and the catalogue's `requiredDocuments` are free-text
+strings with no authority (ADR-0066, ADR-0070). There is no scope for the line to read.
+
+Listed as declared-but-unreachable rather than wired. A caller would be a control over unreachable
+code — the reason ADR-0071 declined one for `attach_document`. **What makes the absence safe today is
+that the visa journey is not built, not that this line is stopping it**, and the register says so.
+
+### Declared-but-unreachable surface: **6 → 7**
+
+It went **up**, and the direction is the point: nothing became less reachable. Something that was
+always unreachable is now *declared*, and the register can only be honest about what it has been told
+to check. When the Requirements Service phase lands it closes two at once —
+`blocksApplication` and `assessUsability`.
+
+---
+
 ## [0.63.0] — 2026-09-07
 
 **P45 — a document running out is the student's choice, once, in writing (ADR-0079).**

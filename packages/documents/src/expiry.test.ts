@@ -68,6 +68,31 @@ describe("every document type has a decided threshold", () => {
     );
   });
 
+  it("shuts the visa path on COMPLIANCE grounds, not on scope", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0080. The distinction is the whole point, and it is worth a test
+    // because the weaker reason is the one that reads naturally.
+    //
+    // "Visa evidence is out of scope for the MVP" is a product-scope argument,
+    // and a later engineer could reasonably decide to overturn it citing
+    // product value. "The visa path is shut until the OISC position is
+    // resolved" is not theirs to overturn. Both sentences describe the same
+    // table entry; only one of them holds.
+    //
+    // This asserts the reason names the compliance record, so that reverting
+    // the citation to ADR-0021 alone — which is how a boundary erodes, by
+    // everyone citing the version that sounds like a priority call — fails.
+    // ═══════════════════════════════════════════════════════════════════
+    const visa = thresholdFor("visa_document");
+    expect(visa.kind, "shut, not undecided — `undetermined` invites a later decision").toBe(
+      "out_of_scope",
+    );
+    if (visa.kind !== "out_of_scope") expect.unreachable("narrowed");
+    expect(visa.reason, "the compliance record, not the product-scope one").toContain("ADR-0080");
+    expect(visa.reason).toContain("OISC");
+    expect(visa.reason, "and it says what it is not").toMatch(/not a scheduling gap/i);
+  });
+
   it("says which types nobody has decided, rather than defaulting them to silent", () => {
     // An undetermined threshold means a held document can reach its expiry
     // with nobody warned. That must be visible, not absent.

@@ -1,7 +1,23 @@
 # ADR-0021 — University application requirements are not Student visa requirements
 
-**Status:** **Accepted** — Vahid's decision, 2026-08-26
+**Status:** **Accepted** — Vahid's decision, 2026-08-26 · **§"Why the confusion is easy" amended
+2026-09-08, see [ADR-0080](./0080-the-visa-path-is-a-compliance-boundary.md)**
 **Refines:** [ADR-0009](./0009-requirements-provenance-and-verification.md)
+
+> ### ⚠️ This ADR records a weaker reason than the real one
+>
+> Everything below is still the decision, and none of it is withdrawn. But the reasoning given for
+> it is a **product-scope and correctness** argument — a valid application should not be blocked
+> waiting on evidence of a rule that does not apply yet — and that is not why the boundary is
+> immovable.
+>
+> Vahid, 2026-09-08:
+>
+> > *"The entire visa path is outside this system's scope until the OISC position is resolved, and
+> > that is a hard compliance boundary in the business plan, not a scheduling gap."*
+>
+> The difference is not academic. **A product-scope reason permits somebody to decide, on product
+> grounds, to add visa support later.** A compliance boundary does not. See ADR-0080.
 
 ## The decision
 

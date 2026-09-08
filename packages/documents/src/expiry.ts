@@ -126,14 +126,28 @@ export const EXPIRY_THRESHOLDS = {
   bank_statement: {
     kind: "out_of_scope",
     reason:
-      "B1 row 12 is unresolved and blocking (ADR-0021 — financial evidence is a visa " +
-      "requirement, not a university application requirement). A threshold would make it look " +
-      "half-ready.",
+      "B1 row 12 is unresolved and blocking. Financial evidence is a visa requirement rather " +
+      "than a university application requirement (ADR-0021), and the visa path itself is shut on " +
+      "compliance grounds (ADR-0080). A threshold would make it look half-ready.",
   },
-  /** Same boundary, from the other side: a visa document is not an application document. */
+  /**
+   * Shut on COMPLIANCE grounds, which is a stronger reason than scope.
+   *
+   * Vahid, 2026-09-08: *"the entire visa path is outside this system's scope
+   * until the OISC position is resolved, and that is a hard compliance
+   * boundary in the business plan, not a scheduling gap… `undetermined` would
+   * leave it open for someone to quietly decide later. `out_of_scope` says it
+   * is deliberately shut."*
+   *
+   * The reason is ADR-0080's and not ADR-0021's, deliberately: ADR-0021 gives
+   * a product-scope argument, and a product-scope argument is one a later
+   * engineer could reasonably decide to overturn.
+   */
   visa_document: {
     kind: "out_of_scope",
-    reason: "ADR-0021 — the visa route is out of scope for the application this system makes.",
+    reason:
+      "ADR-0080 — the visa path is shut on compliance grounds until the OISC position is " +
+      "resolved. Not a scheduling gap, and not a product-scope call anyone here can reverse.",
   },
 
   // ── Not yet decided, and saying so rather than guessing ────────────────
