@@ -19,6 +19,64 @@ not shipped artefacts.
 
 ---
 
+## [0.67.0] — 2026-09-08
+
+**P49 — an ADR and the lists of it must agree (ADR-0083).**
+
+### Fixed · four decisions had been recorded as awaiting an approval that was given six weeks ago
+
+ADR-0082 asked whether the prose describing a check still matched the check. Asking the same of the
+records describing the **decisions** found not one hand-written copy but **three**, none compared
+with the others: the ADR file, the index, and `state-of-the-system.md` §3's full second copy of the
+same table.
+
+**Four of eighty-two disagreed.** The history is exact, all on 2026-08-26:
+
+| time | commit | |
+|---|---|---|
+| 08:05 | `4ee6b1c` | Phase 0. Five ADR files, all *"Proposed · awaiting Vahid's approval"*, index to match. |
+| 08:47 | `a27cb60` | *"Phase 0 approved by Vahid on 2026-08-26. ADRs 0001-0005 moved to Accepted."* Flips all five **files**. Never touches the index. |
+| 09:02 | `8786fff` | Edits the index — moves **only 0005**'s row. Four left behind. |
+
+Seventy-eight commits and six weeks carried it forward. **The direction is what makes this one
+different.** Eight consecutive phases had each found a record claiming *more* than the system did.
+This one claimed **less**, so it never failed loudly — it grew a standing blocker,
+*"12 · Accept or revise ADRs 0001–0004 · owner: You"*, **asking Vahid to decide something he had
+already decided**, plus a §9 recommendation to do the same. A record that understates generates work
+for a person who cannot tell it is wrong without reading git history.
+
+Blocker 12 is closed as never having existed.
+
+### Fixed · two ADRs were missing from the second table, added in the two previous phases
+
+§3's table had **80 rows for 82 ADRs**: ADR-0081 and ADR-0082 were absent, because P47 and P48 each
+added a row to the index and not to the second table. Not an old Phase 0 inheritance — a mistake made
+in the two phases immediately before this one, by the same hand that then went looking for exactly
+this shape. Two records are a thing that can drift; three is a thing that will.
+
+### Added · `scripts/adr-status-agrees.test.ts`
+
+Holds all three records to each other: every file's status matches its index row and its §3 row,
+every ADR is listed in both, no list names an ADR that does not exist, every file has a recognised
+status, and the index's stated Accepted count matches its own rows — it said *"Seventy-eight"*, right
+for the stale index and wrong for the decisions.
+
+A `CONTESTED` list, currently empty, exists so a future disagreement whose resolution is a founder's
+call can be declared with its evidence and owner rather than picked. **ADRs 0001–0004 are
+deliberately not in it:** their approval is recorded in three independent places — the four files,
+`a27cb60`'s message, and sibling ADR-0005 whose index row *was* updated — so only the listings
+disagreed, and they were wrong.
+
+### Decisions
+
+- [ADR-0083](./docs/decisions/0083-an-adr-and-the-lists-of-it-must-agree.md) — **Accepted**.
+
+Four deliberate regressions, each verified from disk, each caught by name.
+
+The declared-but-unreachable surface is **unchanged at seven**. Nothing here is a capability.
+
+---
+
 ## [0.66.0] — 2026-09-08
 
 **P48 — the record of what cannot be reached is checked too (ADR-0082).**

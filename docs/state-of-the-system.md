@@ -15,9 +15,9 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and six applications, five of which are deployable
-processes. **2,298 tests, 115 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+processes. **2,306 tests, 116 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
-Eighty-two architecture decision records, seventy-eight accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+Eighty-three architecture decision records, all eighty-three accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -95,6 +95,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P46** | The visa path is a compliance boundary, not a scheduling gap (ADR-0080) | ADR-0021's decision stands, its reasoning was weaker than the truth, and the word OISC appeared nowhere in the repository. Registering the boundary found that `blocksApplication` — the line ADR-0021 calls the single one that keeps the visa journey out — has no production caller |
 | **P47** | The browser tests run in a lane of their own (ADR-0081) | Two full runs in five failed on a browser test that passed alone. The seventeen files that launch a browser now run one at a time; the contention was fixed, not a single assertion or timeout. The list of them is checked in both directions against what the files actually do, following imports, because grepping found twelve of seventeen |
 | **P48** | The record of what cannot be reached is checked too (ADR-0082) | `checkMinorGate` — the minors gate — was in the enforced register and in no row of this document, and `packages/notify` sat under "Declared but unreachable" with a cell beginning "Reachable." Neither is a code defect and neither would have failed a build, which is why the prose is where a false record now accumulates |
+| **P49** | An ADR and the lists of it must agree (ADR-0083) | Three hand-written records of one fact, none compared. ADRs 0001–0004 were accepted on 2026-08-26 and a partial index edit fifteen minutes later missed four rows, so this document grew a blocker asking Vahid to decide what he had already decided. The first finding of this shape where the record claimed LESS than the system did, not more |
 
 ---
 
@@ -177,10 +178,10 @@ amended, and the amendment is always a later ADR that says so.
 
 | # | Decision | Status |
 |---|---|---|
-| 0001 | Integration via HTTPS API + signed webhooks | Proposed |
-| 0002 | AAS is the system of record for the confirmed profile | Proposed |
-| 0003 | Versioned migrations, not `drizzle-kit push --force` | Proposed |
-| 0004 | Branded types make model output unable to reach a form field | Proposed |
+| 0001 | Integration via HTTPS API + signed webhooks | Accepted · approved 2026-08-26 with Phase 0; the index missed the row until P49 |
+| 0002 | AAS is the system of record for the confirmed profile | Accepted · approved 2026-08-26 with Phase 0; the index missed the row until P49 |
+| 0003 | Versioned migrations, not `drizzle-kit push --force` | Accepted · approved 2026-08-26 with Phase 0; the index missed the row until P49 |
+| 0004 | Branded types make model output unable to reach a form field | Accepted · approved 2026-08-26 with Phase 0; hole closed by 0.2.1 — a brand cannot defend itself |
 | 0005 | Contract-first OpenAPI at the AskiMate↔AAS boundary | Accepted · generation claim corrected by 0072 |
 | 0006 | Re-application requires an explicit student instruction | Accepted · §1–§5 enforced in the machine by 0072; **§3 amended in P38** — a re-application opens a NEW case, and the path is reachable |
 | 0007 | Agent-led conversational intake — the student never fills in a form | Accepted |
@@ -257,13 +258,23 @@ amended, and the amendment is always a later ADR that says so.
 | 0078 | Documents are held and reused, and the twelve periods are set | Accepted |
 | 0079 | A document running out is the student's choice, once, in writing | Accepted |
 | 0080 | The visa path is a compliance boundary, not a scheduling gap | Accepted · amends 0021 |
+| 0081 | The browser tests run in a lane of their own | Accepted |
+| 0082 | The record of what cannot be reached is checked too | Accepted · completes 0073 |
+| 0083 | An ADR and the lists of it must agree | Accepted · continues 0082 |
 
-**On the four Proposed records (0001–0004):** they are the pre-implementation integration
-proposals. 0003 and 0004 are in force *in practice* — versioned migrations and branded types are
-both built and enforced — but they were never formally accepted, and 0001 and 0002 describe an
-AskiMate↔AAS integration that has not been built because the production AskiMate source is not
-accessible from here. **Worth a decision: accept 0003 and 0004, and re-examine 0001 and 0002 when
-the integration is real.**
+**On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
+2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
+
+The history is exact. At 08:05 `4ee6b1c` created five ADR files, all *"Proposed · awaiting Vahid's
+approval"*, and an index saying the same. At 08:47 `a27cb60` carried the message *"Phase 0 approved
+by Vahid on 2026-08-26. ADRs 0001-0005 moved to Accepted"* and flipped all five **files** — without
+touching the index. At 09:02 `8786fff` edited the index and moved **only 0005**'s row. Four rows were
+left behind, and six weeks and seventy-eight commits carried them forward into this document, into
+§6's blocker list, and into a recommendation that Vahid decide something he had already decided.
+
+0001 and 0002 remain accepted decisions describing an integration that has not been built, which is
+a different thing from an unaccepted decision and is recorded as blocker 10. `scripts/adr-status-agrees.test.ts`
+now holds all three records — the ADR files, the index, and §3 above — to each other.
 
 ---
 
@@ -388,22 +399,22 @@ open rather than quietly answered.
 | **7** | **B2 — the ADR-0022 lawful basis** | A named determiner | **Now the only policy blocker on documents.** Any document *entering* (`assertStorable` requires a registered basis as well as a retention policy) and any document *leaving* (`authoriseDisclosure` refuses without it) |
 | **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
-| **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are Proposed pending this |
+| **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
-| **12** | **Accept or revise ADRs 0001–0004** | You | Nothing operationally; it is a tidiness and honesty question |
+| **12** | ~~**Accept or revise ADRs 0001–0004**~~ | — | **Already answered on 2026-08-26, and this blocker should never have existed.** All four were accepted with Phase 0; a partial index edit fifteen minutes later missed the rows, and this list then asked Vahid to decide it again. Corrected in P49 (ADR-0083), and now checked |
 | **13** | ~~Arm the submission key, and make re-application reachable~~ | — | **Done in P38.** Both, together: the key is claimed at case-open and a refused second application has a route to a second case |
 | **14** | ~~A declared capability with no production caller fails the build~~ | — | **Done in P39 (ADR-0073).** Six entries on the reviewed unreachable list, each with a reason and what would close it |
 | **15** | ~~`start` on an ESCALATED run throws rather than resuming~~ | — | **Decided by Vahid and done in P40 (ADR-0074):** the student stays in the same conversation, and lands back in it |
 
-**Not blocked and available to work on now:** the ADR housekeeping (12) and the escalated-run
-question (15). The ADR re-audit that used to sit here was done in P37; see
+**Not blocked and available to work on now:** nothing on this list — 12 turned out to be already
+answered and 15 was done in P40. The ADR re-audit that used to sit here was done in P37; see
 [`p37-adr-audit.md`](./p37-adr-audit.md); its two open findings were closed in P38.
 
 ---
 
 ## 7 · Test and verification state
 
-**2,298 tests · 115 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,306 tests · 116 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -517,12 +528,12 @@ on this list that could produce a visible mistake in a real admissions system. I
 because the action is produced by nothing today, so it would be a control over unreachable code —
 but it should be the first thing built now that B5 is answered.
 
-### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · close the four Proposed ones
+### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · ~~close the four Proposed ones~~ — **there were none (P49)**
 
-Four records (0001–0004) have sat Proposed since Phase 0. Two of them — versioned migrations and
-branded types — are among the most load-bearing decisions in the system and are fully implemented;
-they should be Accepted. The other two describe an integration that does not exist and should be
-either re-examined or explicitly parked.
+This recommendation rested on a stale index. ADRs 0001–0004 were accepted on 2026-08-26 with Phase 0;
+a partial index edit fifteen minutes later missed four rows, and the omission propagated here. The
+observation underneath it was still right — branded types and versioned migrations are among the most
+load-bearing decisions in the system — but the conclusion, that they needed accepting, was not.
 
 More importantly, the last five phases each found that an **older ADR asserted a guarantee the code
 did not provide** — ADR-0022 on storage (P31), the transmission gate's case check (P34), the

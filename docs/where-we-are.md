@@ -2841,3 +2841,85 @@ B2 (ADR-0022's lawful basis) remains the only policy blocker on documents, and i
 still Proposed, and ADR-0004's branded types are among the most heavily enforced decisions in the
 repository while its status says Proposed), and widening this phase's check to the README's own
 counts.
+
+---
+
+# Where we are — 2026-09-08 (P49)
+
+**Date:** 2026-09-08 · **Phase:** P49 · **ADR:** [ADR-0083](./decisions/0083-an-adr-and-the-lists-of-it-must-agree.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**Four decisions had been recorded as awaiting an approval that was given six weeks ago, and one of
+the things that recorded it was a blocker asking you to give it.**
+
+P48 held one document to a checked register. Asking the same of the records describing the
+*decisions* found not one hand-written copy but **three**, none compared with the others: the ADR
+file, `docs/decisions/README.md`, and `state-of-the-system.md` §3 — a full second copy of the same
+table, in the document the README calls the standing account.
+
+Four of eighty-two disagreed. The history is exact, all on 2026-08-26:
+
+| time | commit | |
+|---|---|---|
+| 08:05 | `4ee6b1c` | Phase 0. Five ADR files, all *"Proposed · awaiting Vahid's approval"*, index to match. |
+| 08:47 | `a27cb60` | *"Phase 0 approved by Vahid on 2026-08-26. ADRs 0001-0005 moved to Accepted."* Flips all five **files**. Never touches the index. |
+| 09:02 | `8786fff` | Edits the index — moves **only 0005**'s row. Four left behind. |
+
+A partial edit fifteen minutes after the approval. Seventy-eight commits and six weeks carried it.
+
+## Why this one is different from the eight before it
+
+Every previous finding of this shape was a record claiming **more** than the system did — a
+capability with no caller, a refusal with no reader, a route with no client. Those fail loudly the
+moment anyone checks.
+
+This one claimed **less**, and understatement does not fail. It compounds. The stale column produced
+a standing blocker — *"12 · Accept or revise ADRs 0001–0004 · owner: **You**"* — and a §9
+recommendation to accept two of them. **You were being asked to decide something you had already
+decided, by a document that had forgotten.** You could not have told it was wrong without reading
+the git history.
+
+Blocker 12 is closed as never having existed.
+
+## A defect I made in the last two phases
+
+§3's table had **80 rows for 82 ADRs**. ADR-0081 and ADR-0082 were absent — because P47 and P48 each
+added a row to the index and not to the second table. That is not inherited from Phase 0; it is mine,
+from the two phases immediately before this one, made by the same hand that then went looking for
+exactly this shape. Two records are a thing that can drift. Three is a thing that will.
+
+## What is checked now
+
+`scripts/adr-status-agrees.test.ts` holds all three records to each other: every file's status
+matches its index row **and** its §3 row, every ADR is listed in both, no list names an ADR that does
+not exist, every file has a status the project recognises, and the index's stated Accepted count
+matches its own rows — it said *"Seventy-eight"*, which was right for the stale index and wrong for
+the decisions.
+
+A `CONTESTED` list exists and is **empty**. It is there so that a disagreement whose resolution is a
+founder's call can be declared with what each side says, the evidence, and who decides — rather than
+picked. ADRs 0001–0004 are deliberately not in it: their approval is recorded in three independent
+places (the four files, `a27cb60`'s message, and sibling ADR-0005, approved in the same sentence,
+whose index row *was* updated), so only the listings disagreed and the listings were wrong.
+
+## The one thing to check
+
+**If that approval never happened, this correction is wrong** — and so have the four ADR files been,
+for six weeks. Nothing here re-approves anything; four cells were corrected to match a decision the
+record says you made on 2026-08-26. Say so if the record is wrong and I will reverse it and declare
+the four contested instead.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** Nothing in this phase is a capability.
+
+## What is next
+
+B2 (ADR-0022's lawful basis) is with you and remains the only policy blocker on documents. Row 8's
+obligation — reading the English test providers' terms — may still move the
+`english_test_certificate` threshold. The unblocked list is now empty: blocker 12 was already
+answered and 15 was done in P40. What is left on it is yours — a real portal, a specialist review,
+Bedrock credentials, an account.
