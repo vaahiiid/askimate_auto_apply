@@ -19,6 +19,62 @@ not shipped artefacts.
 
 ---
 
+## [0.69.0] — 2026-09-08
+
+**P51 — a published demonstration is guarded on what it shows (ADR-0085).**
+
+### Added · the P37 precedent, applied to the four commands it skipped
+
+P37 found `pnpm run walkthrough` printing **REFUSED** through nine consecutive steps and exiting 0.
+ADR-0072 fixed that one. `package.json` publishes twelve commands, and five — `interview-demo`,
+`extraction-demo`, `catalogue`, `interventions`, `inspect-discovery` — had **no guard of any kind**.
+
+All five behave correctly today. That is the same sentence that was true of the walkthrough the day
+before it rotted.
+
+**Exit code is not the property** — the walkthrough's defect *passed* an exit-code check. So each is
+asserted on what it exists to show: `extraction-demo` an honest reader accepted **and** an inventing
+one discarded; `interview-demo` both asking and refusing; `catalogue` and `inspect-discovery`
+refusing with no argument and saying how to call them; `interventions` refusing without its service
+credential without printing a credential while it explains.
+
+**`extraction-demo`'s two halves are not symmetric.** A run where the honest reader is refused is
+P37's shape — visible and harmless. A run where the **inventing** reader is *accepted* means
+ADR-0016's guarantee, that an extracted value must quote the document, has stopped holding. It would
+exit 0 and look like a working demo. The regression proving that case is why the file exists.
+
+### Fixed · a summary that reported one section as the whole run
+
+`extraction-demo` closed with `0 readings accepted, 8 discarded` — the last line of a **three-section**
+demo whose first section accepted nine. Read on its own, and the last line of a long run *is* read on
+its own, it says the demonstration accepted nothing.
+
+I misread it exactly that way while looking for demos that report refusal as success, and reported a
+defect that was not there. The tally now names the reader it counts and gives the honest section's
+total beside it, because the **contrast is the demonstration**.
+
+### Decisions
+
+- [ADR-0085](./docs/decisions/0085-a-published-demonstration-is-guarded-on-what-it-shows.md) —
+  **Accepted**.
+
+### Fixed · a hand-written list that lasted exactly one ADR
+
+P49's guard checked the index's stated Accepted count against a **hand-written map** of numbers to
+words, 78 to 84. The eighty-fifth ADR — the one this phase added — failed it with *"no spelling for
+85"*. A list that must be extended every time the thing it counts grows is precisely the defect the
+last three phases removed, so it is computed now.
+
+A command added to `package.json` and guarded nowhere now fails the check. `discover` and `inspect`
+are excluded by name — both need a real portal, which is blocker 1, and a guard that cannot run is
+worse than none because it appears in the list as coverage.
+
+Four deliberate regressions, each verified from disk, each caught by name.
+
+The declared-but-unreachable surface is **unchanged at seven**. Nothing here is a capability.
+
+---
+
 ## [0.68.0] — 2026-09-08
 
 **P50 — the census is generated, and its arithmetic is checked (ADR-0084).**

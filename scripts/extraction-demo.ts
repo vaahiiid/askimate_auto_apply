@@ -196,10 +196,22 @@ async function main(): Promise<void> {
     );
   }
 
+  // ── Say WHICH reader this counts ────────────────────────────────────
+  //
+  // It used to read "0 readings accepted, 8 discarded", as the last line of a
+  // three-section demo whose FIRST section accepted nine. Read on its own — and
+  // the last line of a long run is exactly the line read on its own — it says
+  // the demonstration accepted nothing, which is the opposite of what it shows.
+  //
+  // P51 misread it that way, in this repository, while looking for demos that
+  // report a refusal as a success. The tally is section 3's; it now says so.
   console.log(
-    `\n  ${BOLD}${String(extracted(lying).length)}${RESET} readings accepted, ` +
+    `\n  ${BOLD}From the inventing reader:${RESET} ` +
+      `${BOLD}${String(extracted(lying).length)}${RESET} readings accepted, ` +
       `${BOLD}${String(ungrounded(lying).length)}${RESET} discarded. ` +
-      `${DIM}Nothing was shown to the student.${RESET}\n`,
+      `${DIM}Nothing was shown to the student.${RESET}\n` +
+      `  ${DIM}The honest reader in section 1 had all ${String(extracted(honest).length)} accepted — ` +
+      `the contrast IS the demonstration (ADR-0016).${RESET}\n`,
   );
 
   console.log(`  ${DIM}Usage: ${RESET}${usageLine(demo)}\n`);

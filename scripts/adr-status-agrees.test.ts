@@ -80,6 +80,30 @@ const CONTESTED: readonly {
   readonly decidedBy: string;
 }[] = [];
 
+/**
+ * A count, spelled the way the index writes it.
+ *
+ * This began as a hand-written map from 78 to 84, which lasted exactly one ADR:
+ * the eighty-fifth failed the check with "no spelling for 85 — add one". A list
+ * that must be extended every time the thing it counts grows is the defect the
+ * last three phases have been removing, so it is computed.
+ */
+function inWords(n: number): string | undefined {
+  const units = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
+    "Eighteen", "Nineteen",
+  ];
+  const tens = [
+    "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
+  ];
+  if (!Number.isInteger(n) || n < 1 || n > 99) return undefined;
+  if (n < 20) return units[n];
+  const ten = tens[Math.floor(n / 10)] ?? "";
+  const unit = units[n % 10] ?? "";
+  return unit === "" ? ten : `${ten}-${unit.toLowerCase()}`;
+}
+
 function statusIn(text: string): Status | null {
   const withoutEmphasis = text.replace(/\*/g, "");
   const found = STATUSES.find((status) =>
@@ -194,17 +218,8 @@ describe("an ADR and the index that lists it", () => {
     // the index and wrong for the decisions.
     const index = readFileSync(INDEX, "utf8");
     const accepted = [...rows.values()].filter((status) => status === "Accepted").length;
-    const words: Record<number, string> = {
-      78: "Seventy-eight",
-      79: "Seventy-nine",
-      80: "Eighty",
-      81: "Eighty-one",
-      82: "Eighty-two",
-      83: "Eighty-three",
-      84: "Eighty-four",
-    };
-    const expected = words[accepted];
-    expect(expected, `no spelling for ${String(accepted)} — add one`).toBeDefined();
+    const expected = inWords(accepted);
+    expect(expected, `no spelling for ${String(accepted)}`).toBeDefined();
     expect(
       index.includes(`${expected ?? ""} are **Accepted**.`),
       `the index has ${String(accepted)} Accepted rows and does not say "${expected ?? ""} are **Accepted**."`,

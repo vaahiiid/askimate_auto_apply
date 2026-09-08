@@ -3026,3 +3026,77 @@ obligation — reading the English test providers' terms — may still move the
 Absent one of those, the honest next targets are inside the system rather than its records: the
 walkthrough's coverage of the paths added since P37, and `apps/chat-integration`'s standing as a
 research build whose four browser files are a fifth of the serialised lane.
+
+---
+
+# Where we are — 2026-09-08 (P51)
+
+**Date:** 2026-09-08 · **Phase:** P51 · **ADR:** [ADR-0085](./decisions/0085-a-published-demonstration-is-guarded-on-what-it-shows.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**P37's precedent was applied to one command and left off four.** `pnpm run walkthrough` printed
+REFUSED through nine consecutive steps and exited 0, because a demonstration with no expectations
+cannot be wrong. ADR-0072 fixed that one. `package.json` publishes twelve commands, and five —
+`interview-demo`, `extraction-demo`, `catalogue`, `interventions`, `inspect-discovery` — had **no
+guard of any kind**.
+
+I ran all five. **Every one behaves correctly.** That is not reassurance: it is the same sentence
+that was true of the walkthrough the day before it rotted.
+
+## Exit code is not the property
+
+The walkthrough's defect **passed** an exit-code check. A guard that runs a command and looks at its
+status reproduces the failure it is meant to catch. So each is asserted on what it exists to show,
+and `extraction-demo`'s two halves are deliberately **not** symmetric:
+
+- The honest reader being refused is P37's shape — visible, embarrassing, harmless.
+- **The inventing reader being accepted** means ADR-0016's guarantee, that an extracted value must
+  quote the document, has stopped holding. It would exit 0 and look like a working demo.
+
+The regression proving the second case is the reason the file exists. Making the confabulating reader
+honest fails exactly one test, by name.
+
+## The mistake I made, and what it turned into
+
+Looking for demonstrations that report a refusal as a success, I found `extraction-demo` ending with
+
+> `0 readings accepted, 8 discarded. Nothing was shown to the student.`
+
+and reported it as exactly that defect. **It was not.** That is the tally of section *three* — a
+deliberately confabulating reader, correctly discarded — in a three-section demo whose first section
+accepts nine. I had read the tail of a run and taken half of it for the whole.
+
+But the line was worth changing, and the misreading is why: the last line of a long run *is* the line
+read on its own, and on its own it says the demonstration accepted nothing. It now names the reader
+it counts and gives the honest section's total beside it. The contrast **is** the demonstration, so a
+summary reporting one half is worse than no summary.
+
+## What is deliberately not done
+
+- **The walkthrough is not widened** to the paths added since P37 — the escalated-run resume, the
+  refusal wordings, the second-attempt exchange, retention and expiry. Those are exercised by
+  `scripts/p18`–`p21` and `journey.test.ts`. A walkthrough that narrates everything narrates nothing,
+  and what the demo is *for* is a decision rather than a gap.
+- **`discover` and `inspect` are not guarded**, and are excluded by name. Both drive a real browser at
+  a real portal, which is blocker 1. A guard that cannot run is worse than none, because it appears
+  in the list as coverage.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** Nothing in this phase is a capability.
+
+## What is next
+
+Nothing on the blocker list is mine. **B2** (the ADR-0022 lawful basis) is the only policy blocker on
+documents and it is with you; so are a real portal, a specialist review, Bedrock credentials and an
+account. Row 8's obligation — reading the English test providers' terms — may still move the
+`english_test_certificate` threshold.
+
+The remaining unblocked item I can see is `apps/chat-integration`: a research build against a
+codebase that is now ten weeks stale, whose four browser files are a quarter of the serialised lane
+and whose value is as evidence that the secure channel is implementable on AskiMate's real stack
+shape. Whether that evidence is still worth its cost is a judgement about the product, not the code,
+so it is a question for you rather than a phase I should take on my own.
