@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P57 — the document transport: the gates run before a byte is accepted (ADR-0090) |
+| **Phase** | P58 — robots.txt is read, obeyed and kept; requests are paced (ADR-0091) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,203 passing · 114 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 90 ADRs · all 90 Accepted |
+| **Tests** | **2,236 passing · 116 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 91 ADRs · all 91 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

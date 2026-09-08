@@ -36,6 +36,10 @@ beforeAll(async () => {
   const landing = `<!doctype html><html lang="en"><head><meta charset="utf-8">
     <title>How to apply</title></head><body>
     <a href="/application/start">Start your application</a>
+    <a href="/application/archive/2019">Archived application form</a>
+    <!-- A SUB-RESOURCE under a disallowed path. The crawl loop never queues an
+         image, so only the network guard can stop this one. -->
+    <img src="/private/tracker.png" alt="">
     <a href="/news/latest">Latest news</a></body></html>`;
 
   server = createServer((req, res) => {
@@ -43,6 +47,29 @@ beforeAll(async () => {
       // Reached only if the read-only guard failed.
       writesReachingServer += 1;
       res.writeHead(200).end("{}");
+      return;
+    }
+    // A REAL robots.txt, so obedience is proved against a real server rather
+    // than against a stub of the decision. `/news/` is disallowed and the
+    // landing page links to it, so a run that ignored robots.txt would visit
+    // it — and the assertions below would see it.
+    if ((req.url ?? "").startsWith("/robots.txt")) {
+      res
+        .writeHead(200, { "content-type": "text/plain" })
+        .end(
+          [
+            "User-agent: *",
+            "Disallow: /news/",
+            // ── The one that ONLY robots.txt can stop ────────────────────
+            //
+            // `/application/archive/` matches the target's link pattern, so
+            // the crawler would follow it. If it appears in the visited list,
+            // robots.txt was not obeyed.
+            "Disallow: /application/archive/",
+            "Disallow: /private/",
+            "",
+          ].join("\n"),
+        );
       return;
     }
     const body = (req.url ?? "").startsWith("/application") ? form : landing;
@@ -105,16 +132,62 @@ describe("the discovery CLI, run for real", () => {
     expect(stdout).toContain("Pages visited      2");
     expect(stdout).toContain("Blueprint status: DRAFT");
 
-    // It followed the in-scope application link and skipped /news.
+    // It followed the in-scope application link and skipped /news — which is
+    // now over-determined, because the link pattern excludes it AND robots.txt
+    // disallows it. The robots half is asserted on its own below.
     expect(stdout).toContain("/application/start");
     expect(stdout).not.toContain("/news/latest");
+
+    // ── robots.txt was READ, and the evidence was kept ───────────────────
+    //
+    // Vahid, 2026-09-08: "the difference between 'we respected the rules' and
+    // 'we did not look' is the whole difference if anyone ever asks." So the
+    // run says it read the file, and writes the file down.
+    expect(stdout).toContain("reading robots.txt");
+    expect(stdout).toContain("robots.json");
+
+    // ── OBEYED, and only robots.txt could have stopped this ──────────────
+    //
+    // `/application/archive/2019` is linked from the landing page and MATCHES
+    // the target's link pattern, so the crawler would follow it. The only
+    // thing standing in the way is the `Disallow` the fixture serves.
+    expect(stdout, "a disallowed path was visited").not.toContain("→ http://127.0.0.1:8123/application/archive");
+    expect(stdout, "the skip is stated, not silent").toContain("⊘ http://127.0.0.1:8123/application/archive");
+    expect(stdout).toContain("Skipped by robots  1 page(s)");
+
+    // ── The NETWORK guard, on its own ────────────────────────────────────
+    //
+    // `/private/tracker.png` is a sub-resource. The crawl loop only ever asks
+    // about pages it is about to navigate to, so it never sees this — the only
+    // thing that can refuse it is the per-request guard.
+    //
+    // Written after a regression showed the loop filter MASKING the guard:
+    // deleting the network check left every test green, which is P48's "two
+    // checks, one reachable" in a new place.
+    expect(stdout, "a robots refusal must be reported as its own kind").toContain(
+      "not made because robots.txt disallows them",
+    );
+    expect(stdout).toContain("THE OBSERVATION MAY BE INCOMPLETE");
+
+    // ── The pacing floor ─────────────────────────────────────────────────
+    expect(stdout).toContain("Paced at           1000ms between pages");
+
+    // ── The measurement that had never been made ─────────────────────────
+    //
+    // `maxPages` bounds navigations; nothing bounded or counted the CSS,
+    // scripts and images each page pulls. `docs/target-sheffield-pgt.md` said
+    // so and said it had never been measured. It is measured now.
+    expect(stdout).toMatch(/\d+ request\(s\) were made: \d+ navigation\(s\) and \d+ sub-resource\(s\)/);
 
     // The portal's POST-on-load was blocked and surfaced as a finding.
     // Two: the portal's own POST-on-load, and the reCAPTCHA script the fixture
     // loads from google.com. The second is not incidental — a real portal WILL
     // pull CAPTCHA from a third party, and discovery is scoped to one target's
     // hosts, so refusing it is the allow-list doing its job.
-    expect(stdout).toContain("Requests blocked   2");
+    // Three now: the portal's POST-on-load, the reCAPTCHA script from
+    // google.com (the allow-list doing its job), and `/private/tracker.png`,
+    // which only robots.txt stops. Three rules, three findings, one count.
+    expect(stdout).toContain("Requests blocked   3");
     expect(stdout).toContain("attempted state-changing requests");
     expect(writesReachingServer).toBe(0);
 
@@ -127,6 +200,28 @@ describe("the discovery CLI, run for real", () => {
     const blueprint = JSON.parse(
       await readFile(join(runRoot, latest, "blueprint.draft.json"), "utf8"),
     ) as { status: string; pages: { sections: { fields: { mapsTo?: string }[] }[] }[]; provenance: { observedUrls: string[] } };
+
+    // ── What robots.json holds: the file itself, not a claim about it ────
+    const robots = JSON.parse(await readFile(join(runRoot, latest, "robots.json"), "utf8")) as {
+      crawlDelayMs: number;
+      hosts: { host: string; kind: string; statusCode: number | null; body?: string }[];
+    };
+    expect(robots.crawlDelayMs).toBe(1_000);
+    const host = robots.hosts.find((entry) => entry.host.startsWith("127.0.0.1"));
+    expect(host?.kind).toBe("fetched");
+    expect(host?.statusCode).toBe(200);
+    expect(host?.body, "the file verbatim, so a reader can check it themselves").toContain(
+      "Disallow: /news/",
+    );
+
+    // ── The measured cost, in the run record ─────────────────────────────
+    const run = JSON.parse(await readFile(join(runRoot, latest, "run.json"), "utf8")) as {
+      crawlDelayMs: number;
+      requests: { navigations: number; subResources: number; total: number };
+    };
+    expect(run.crawlDelayMs).toBe(1_000);
+    expect(run.requests.navigations).toBe(2);
+    expect(run.requests.total).toBe(run.requests.navigations + run.requests.subResources);
 
     expect(blueprint.status).toBe("draft");
     expect(blueprint.provenance.observedUrls).toHaveLength(2);

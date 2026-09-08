@@ -19,6 +19,77 @@ not shipped artefacts.
 
 ---
 
+## [0.75.0] — 2026-09-08
+
+**P58 — robots.txt is read, obeyed and kept; requests are paced (ADR-0091).**
+
+The two preconditions Vahid set before any run against a live site, both of which
+`docs/target-sheffield-pgt.md` had just measured as absent.
+
+### Added · robots.txt, read before the browser opens
+
+> "The difference between 'we respected the rules' and 'we did not look' is the whole difference if
+> anyone ever asks." — Vahid, 2026-09-08
+
+Read over plain HTTP for every host the run may touch, **before anything navigates** — a page load
+runs the site's JavaScript, and reading a text file should not execute anything.
+
+| outcome | effect |
+|---|---|
+| `fetched` | its rules apply |
+| `absent` (4xx) — the site says there is no policy | everything allowed |
+| `unavailable` (5xx, timeout, network failure) — **we could not ask** | **nothing allowed** |
+
+RFC 9309 §2.3.1.4, and the only reading that satisfies the instruction: a run that could not read the
+rules has not respected them.
+
+**Obeying is half of it.** Every run writes `robots.json` — the file verbatim, the host, the status,
+the time it was read, the group applied. A crawler that quietly complies leaves no evidence that it
+complied.
+
+Applied to **every request**, not only navigations. The cost is recorded rather than hidden: a page
+whose stylesheet sits under a disallowed path did not render the way an applicant sees it, and the
+run's summary says so in those words.
+
+### Added · a delay floor nothing can lower
+
+`MINIMUM_CRAWL_DELAY_MS = 1000`. A target file may ask for slower; a site's `Crawl-delay` may raise
+it further; nothing may lower it. A target asking to go faster is **refused, not clamped** — a person
+wrote that number meaning something.
+
+### Fixed · four defects a second guard rule surfaced
+
+- **`portalAttemptedWrite` was `blocked.length > 0`** — so skipping one robots-disallowed stylesheet
+  would have reported *"the portal attempts writes during normal browsing"*. A serious finding,
+  invented.
+- **The CLI never called `summarise()`** — it printed a hard-coded warning, so the blocked log's
+  breakdown reached nobody. Three rules are now three findings.
+- **The robots fetch assumed `https://${host}`** — right for a real site, wrong for the fixture
+  portal's loopback HTTP. The fetch failed, the policy became `unavailable`, and the run correctly
+  fetched nothing. **Correct behaviour from a wrong input: it failed closed and looked exactly like
+  the rule working.** The origin now comes from the run's own seeds.
+- **The crawl-loop check masked the network guard** — a regression deleting the guard left every test
+  green. ADR-0082's *"two checks, one reachable"* in a new place; closed by a fixture page
+  referencing a disallowed **sub-resource** the loop never sees.
+
+### Added · the sub-resource count, measured
+
+`maxPages` bounds navigations; nothing bounded or counted the CSS, scripts, images and fonts each
+page pulls. `RequestTally` counts them — navigations, sub-resources, per-page average, breakdown by
+resource type — printed and written to `run.json`. `docs/target-sheffield-pgt.md`'s *"plausibly
+1,500–4,000 GETs"* was honest about being a guess; it does not have to be one any more.
+
+### Verification
+
+Four deliberate regressions, each verified from disk and restored from a file copy: an unavailable
+robots.txt allowing everything → 2 fail; removing the delay floor → 2; removing the network guard →
+**0 until the sub-resource test existed**, then 1; and a disallowed page reaching the visited list is
+caught by the run's own output.
+
+**No run has been made.** These are the preconditions; the run is a separate act.
+
+---
+
 ## [0.74.0] — 2026-09-08
 
 **P57 — the document transport: the gates run before a byte is accepted (ADR-0090).**

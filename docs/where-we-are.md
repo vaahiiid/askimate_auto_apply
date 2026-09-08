@@ -3521,3 +3521,68 @@ question is recorded with your instruction not to pre-empt it.
 
 The durable, encrypted document store — envelope encryption under the `DataKeyProvider` port that
 already exists, and the production refusal that comes off when it lands.
+
+---
+
+# P58 — robots.txt is read, obeyed and kept; requests are paced (ADR-0091)
+
+Your two preconditions, both built. **No run has been made.**
+
+## The first one shaped the design more than the parsing did
+
+> The difference between "we respected the rules" and "we did not look" is the whole difference if
+> anyone ever asks.
+
+Obeying is half of it. Every run now writes `robots.json` holding the file **verbatim**, the host,
+the status code, the time it was read and the group that was applied — because a crawler that quietly
+complies leaves no evidence that it complied, and the evidence is what the question is about.
+
+It is read over plain HTTP before the browser opens: a page load runs the site's JavaScript, and
+reading a text file should not execute anything, least of all before we know what the file permits.
+
+An **unreadable** robots.txt allows nothing — RFC 9309's rule, and the only reading that matches your
+sentence: a run that could not read the rules has not respected them. A **404** allows everything,
+because the site has told us there is no policy. The two are different facts and I kept them apart.
+
+It applies to every request, not only to navigations. That is the inconvenient reading and the
+defensible one, and it has a cost I recorded rather than hid: a page whose stylesheet sits under a
+disallowed path did not render the way an applicant sees it, and the run says so in those words.
+
+## The floor is structural
+
+One second, in one `Math.max`. A target file may ask for slower; a site's own `Crawl-delay` may raise
+it further; nothing may lower it. A target file asking to go *faster* is refused rather than clamped
+— somebody wrote that number meaning something, and silently ignoring it would leave them believing
+the run is doing what they asked.
+
+## What building it found — four defects, none in the new code
+
+Adding a second rule to a guard that had only ever had one is what surfaced them.
+
+1. **`portalAttemptedWrite` was `blocked.length > 0`.** A run that skipped a single
+   robots-disallowed stylesheet would have reported that the portal attempts writes during ordinary
+   browsing. A serious finding, invented.
+2. **The CLI never called `summarise()`.** The blocked log had a careful breakdown and the CLI
+   printed a hard-coded warning instead.
+3. **The robots fetch assumed `https://${host}`.** Against the fixture portal — loopback HTTP — it
+   failed, the policy became `unavailable`, and the run correctly fetched nothing. **Correct
+   behaviour from a wrong input**, which is the worst kind of bug to leave in a safety check: it
+   fails closed and looks exactly like the rule working. Only "Pages visited 0" gave it away.
+4. **The crawl-loop check masked the network guard.** I deleted the guard as a regression and every
+   test stayed green. ADR-0082's "two checks, one reachable", in a new place. Closed by a fixture
+   page referencing a disallowed *sub-resource*, which the loop never sees.
+
+## The measurement
+
+`RequestTally` counts navigations against sub-resources, with a per-page average and a breakdown by
+resource type, printed and written to `run.json`. The "plausibly 1,500–4,000 GETs" in the target
+document was honest about being a guess; it does not have to be one now.
+
+## What is next
+
+The scoped Sheffield run — 10 to 15 public course pages — needs a target file with real seed URLs,
+which I do not have and will not invent. Then the durable encrypted document store.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**

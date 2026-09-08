@@ -175,4 +175,17 @@ export interface SessionMode {
    * requirement's freshness calculation.
    */
   readonly now?: () => Date;
+  /**
+   * Decides a URL against the robots.txt of the host it belongs to.
+   *
+   * A function rather than the policies themselves, because the session should
+   * not know how a policy was obtained — fetched over the network in a real
+   * run, constructed in a test — and because the guard needs an answer per
+   * request, not a table to walk (ADR-0091).
+   *
+   * Absent means NO ROBOTS CHECK, which is only correct for a fixture portal
+   * on localhost. `openDiscoveryRun` supplies one for anything else, and the
+   * CLI cannot start a run without it.
+   */
+  readonly robots?: (url: string) => { readonly allowed: boolean; readonly reason: string };
 }

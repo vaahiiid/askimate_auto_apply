@@ -134,7 +134,8 @@ const REGISTER_PAGE = (error: string | null): string =>
   <p>Your password must be at least ${String(MINIMUM_PASSWORD_LENGTH)} characters.</p>
   <button type="submit" id="createAccount">Create account</button>
 </form>
-<p>Already registered? <a href="/login">Sign in</a></p>`,
+<p>Already registered? <a href="/login">Sign in</a></p>
+<p><a href="/private/staff-only">Staff area</a></p>`,
   );
 
 const LOGIN_PAGE = (error: string | null): string =>
@@ -252,6 +253,27 @@ export async function startFixturePortal(): Promise<FixturePortal> {
 
       const session = sessionOf(request);
       const signedInAs = session === null ? null : (sessions.get(session) ?? null);
+
+      // ── A real robots.txt, so obedience is proved against a real server ──
+      //
+      // Not permissive. `/private/` is disallowed and linked from the pages
+      // below, so a discovery run that ignored robots.txt would visit it and
+      // `cli.test.ts` would see it in the visited list. A fixture that allowed
+      // everything would prove only that the fetch happened.
+      if (method === "GET" && path === "/robots.txt") {
+        response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        response.end(
+          ["User-agent: *", "Disallow: /private/", "Crawl-delay: 1", ""].join("\n"),
+        );
+        return;
+      }
+
+      if (method === "GET" && path === "/private/staff-only") {
+        // Reachable only by ignoring robots.txt. If a run ever renders this,
+        // the guard is not working.
+        send(response, 200, "<html><body><h1>Staff only</h1></body></html>");
+        return;
+      }
 
       if (method === "GET" && (path === "/" || path === "/register")) {
         send(response, 200, REGISTER_PAGE(null));

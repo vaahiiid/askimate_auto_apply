@@ -28,9 +28,19 @@ export interface DiscoveryTarget {
   readonly linkPatterns: readonly string[];
   /** Hard cap on pages visited. */
   readonly maxPages: number;
+  /**
+   * Milliseconds to wait between page requests.
+   *
+   * Optional in the file and never below `MINIMUM_CRAWL_DELAY_MS`: a target may
+   * ask this run to be SLOWER, and nothing may ask it to be faster. A
+   * `Crawl-delay` in the site's own robots.txt raises it further (ADR-0091).
+   */
+  readonly crawlDelayMs: number;
   /** What this run is trying to confirm or refute. */
   readonly claimsToVerify: readonly string[];
 }
+
+import { MINIMUM_CRAWL_DELAY_MS } from "./robots.js";
 
 export class InvalidTargetError extends Error {
   public override readonly name = "InvalidTargetError";
@@ -81,6 +91,29 @@ export function parseTarget(raw: unknown): DiscoveryTarget {
     throw new InvalidTargetError("Target field \"maxPages\" must be an integer between 1 and 200.");
   }
 
+  // ── The floor is not negotiable ────────────────────────────────────────
+  //
+  // Absent means the floor. A number BELOW the floor is refused rather than
+  // clamped, because a target file asking to crawl faster than this is a
+  // person's intent, and silently ignoring it would leave them believing the
+  // run is doing something it is not.
+  const configuredDelay = source["crawlDelayMs"];
+  if (configuredDelay !== undefined) {
+    if (
+      typeof configuredDelay !== "number" ||
+      !Number.isInteger(configuredDelay) ||
+      configuredDelay < MINIMUM_CRAWL_DELAY_MS
+    ) {
+      throw new InvalidTargetError(
+        `Target field "crawlDelayMs" must be an integer of at least ${String(MINIMUM_CRAWL_DELAY_MS)}. ` +
+          `Sequential crawling at browser speed from one address is what gets it blocked; a target ` +
+          `may ask this run to be slower and nothing may ask it to be faster.`,
+      );
+    }
+  }
+  const crawlDelayMs =
+    typeof configuredDelay === "number" ? configuredDelay : MINIMUM_CRAWL_DELAY_MS;
+
   const seedUrls = requireStringArray(source, "seedUrls", 1);
   const allowedHosts = requireStringArray(source, "allowedHosts", 1);
 
@@ -128,6 +161,7 @@ export function parseTarget(raw: unknown): DiscoveryTarget {
     seedUrls,
     linkPatterns,
     maxPages,
+    crawlDelayMs,
     claimsToVerify: requireStringArray(source, "claimsToVerify", 0),
     ...(campus !== undefined ? { campus } : {}),
     ...(platformHypothesis !== undefined ? { platformHypothesis } : {}),

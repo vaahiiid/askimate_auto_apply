@@ -17,7 +17,13 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { chromium } from "playwright";
 
 import type { PageObservation, ReadOnlySession, SessionMode } from "./session.js";
-import { BlockedRequestLog, HostAllowList, decideDiscoveryRequestForHost } from "./safety.js";
+import {
+  BlockedRequestLog,
+  HostAllowList,
+  decideDiscoveryRequestForHost,
+  decideDiscoveryRequestWithRobots,
+  RequestTally,
+} from "./safety.js";
 import { OBSERVE_SCRIPT } from "./observe-script.js";
 
 export class PlaywrightDiscoverySession implements ReadOnlySession {
@@ -27,6 +33,7 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
   #context: BrowserContext | null = null;
   #page: Page | null = null;
   #shotCount = 0;
+  readonly #tally = new RequestTally();
 
   private constructor(private readonly mode: SessionMode) {
     this.#allowList = new HostAllowList(mode.allowedHosts);
@@ -90,12 +97,18 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
     // Every request, including ones the page's own scripts initiate.
     await session.#context.route("**/*", async (route) => {
       const request = route.request();
-      const decision = decideDiscoveryRequestForHost(
-        request.method(),
-        request.url(),
-        session.#allowList,
-      );
+      const robots = mode.robots;
+      const decision =
+        robots === undefined
+          ? decideDiscoveryRequestForHost(request.method(), request.url(), session.#allowList)
+          : decideDiscoveryRequestWithRobots(
+              request.method(),
+              request.url(),
+              session.#allowList,
+              robots,
+            );
 
+      session.#tally.record(request.resourceType(), decision.allowed);
       if (!decision.allowed) {
         session.#blocked.record(decision);
         await route.abort("blockedbyclient");
@@ -157,6 +170,26 @@ export class PlaywrightDiscoverySession implements ReadOnlySession {
 
   public currentUrl(): Promise<string> {
     return Promise.resolve(this.#requirePage().url());
+  }
+
+  /** The blocked log's summary: method, robots and host refusals, kept apart. */
+  public blockedSummary(): string {
+    return this.#blocked.summarise();
+  }
+
+  /**
+   * True only when a METHOD refusal happened — the portal tried to write.
+   *
+   * Not "something was blocked". A robots refusal and a host refusal are
+   * different findings and neither is the portal attempting to change state.
+   */
+  public portalAttemptedWrite(): boolean {
+    return this.#blocked.portalAttemptedWrite;
+  }
+
+  /** What the run actually cost the origin. Measured, not estimated. */
+  public tally(): RequestTally {
+    return this.#tally;
   }
 
   public blockedRequests(): readonly { readonly method: string; readonly url: string }[] {

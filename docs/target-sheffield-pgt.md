@@ -68,15 +68,20 @@ Two numbers, and only the first is bounded:
 - **Sub-resources per page: unbounded.** Each visited page pulls its own CSS, JavaScript, images and
   fonts as ordinary `GET`s, and those are permitted. `maxPages` does not count them. A realistic
   university page is 30–80 requests, so a 45-page run is plausibly **1,500–4,000 GETs** in total.
-  This repository has never measured that number, and I am not going to state one as though it had.
+  ~~This repository has never measured that number, and I am not going to state one as though it
+  had.~~ **P58 measures it.** `RequestTally` counts navigations against sub-resources on every run
+  and writes both to `run.json`, so the next sentence about the cost of a run will be a measurement
+  rather than a range.
 
 **Host confinement:** only hosts on the target's `allowedHosts` are reachable; everything else is
 aborted. That is a safety property and also a fidelity caveat — a page whose CDN or analytics host is
 blocked may render differently from what a real applicant sees.
 
-**No throttling.** There is no delay between navigations and no `robots.txt` check anywhere in the
-runner. A run is a sequential crawl at browser speed from one IP. Worth deciding on before a run,
-not after.
+**~~No throttling.~~ Closed in P58 (ADR-0091).** Both gaps this paragraph named were made
+preconditions by Vahid and are now built: robots.txt is read before the browser opens and obeyed at
+every request, with the file kept verbatim in `robots.json`; and there is a **one-second floor**
+between page requests that a target file may raise and nothing may lower. An unreadable robots.txt
+allows nothing.
 
 **It identifies itself honestly**, deliberately (brief §7):
 `Mozilla/5.0 (compatible; AskiMate-AAS-Discovery/0.1; +https://askimate.com/bot) read-only

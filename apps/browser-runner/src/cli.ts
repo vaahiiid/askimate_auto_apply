@@ -21,6 +21,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
+import type { RobotsPolicy } from "./robots.js";
+import { crawlDelayMs } from "./robots.js";
+import { fetchRobotsFor, originsFor, robotsSet } from "./robots-fetch.js";
+import type { RequestTally } from "./safety.js";
 import type { PageObservation } from "./session.js";
 import type { CapturedPage } from "./replay.js";
 import { draftBlueprintFrom } from "./discovery.js";
@@ -33,14 +37,70 @@ interface RunResult {
   readonly visited: readonly string[];
   readonly failed: readonly { readonly url: string; readonly error: string }[];
   readonly blockedRequests: readonly { readonly method: string; readonly url: string }[];
+  /** What the run cost the origin. Measured — see `RequestTally`. */
+  readonly tally: RequestTally;
+  /** Every host's robots.txt, kept so the report can quote it. */
+  readonly robots: ReadonlyMap<string, RobotsPolicy>;
+  readonly delayMs: number;
+  /** True only for a METHOD refusal — see the note where this is printed. */
+  readonly portalAttemptedWrite: boolean;
+  /**
+   * The blocked log's own summary — three findings, kept apart.
+   *
+   * The CLI used to print a hard-coded "the portal attempted state-changing
+   * requests" line and never called `summarise()` at all, so the log's careful
+   * breakdown reached nobody. Adding a second guard rule is what surfaced it.
+   */
+  readonly blockedSummary: string;
+  /** URLs the crawl would have visited and robots.txt forbids. */
+  readonly skippedByRobots: readonly { readonly url: string; readonly reason: string }[];
+}
+
+/** Waits, so the origin is not asked for the next page the instant this one lands. */
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function discover(target: DiscoveryTarget, outDir: string, runId: string): Promise<RunResult> {
+  // ── ROBOTS FIRST, before the browser opens ───────────────────────────────
+  //
+  // Read over plain HTTP, for every host this run may touch, BEFORE anything
+  // navigates. A host whose file could not be read allows nothing (RFC 9309
+  // §2.3.1.4) — the run may still start and will simply fetch nothing from it,
+  // which is a legible outcome rather than a crash.
+  const userAgent =
+    "Mozilla/5.0 (compatible; AskiMate-AAS-Discovery/0.1; +https://askimate.com/bot) " +
+    "read-only application-form discovery";
+  process.stdout.write(`  reading robots.txt for ${target.allowedHosts.join(", ")}\n`);
+  const robots = await fetchRobotsFor(originsFor(target.allowedHosts, target.seedUrls), {
+    userAgent,
+    // eslint-disable-next-line no-restricted-syntax -- run boundary
+    now: () => new Date(),
+  });
+  for (const [host, policy] of robots) {
+    const state =
+      policy.kind === "fetched"
+        ? `${String(policy.groups.length)} group(s), ${policy.applicable === null ? "none addressed to us" : "one addressed to us"}`
+        : policy.kind === "absent"
+          ? "no robots.txt published — everything allowed"
+          : `UNREADABLE (${policy.error}) — NOTHING will be fetched from this host`;
+    process.stdout.write(`    ${host}: ${state}\n`);
+  }
+
+  // The delay the run will keep. The floor is ours and neither the target file
+  // nor `Crawl-delay` may lower it (ADR-0091).
+  const delayMs = Math.max(
+    ...[...robots.values()].map((policy) => crawlDelayMs(policy, target.crawlDelayMs)),
+  );
+  process.stdout.write(`  pacing: ${String(delayMs)}ms between pages\n\n`);
+
+  const decider = robotsSet(robots);
   const session = await PlaywrightDiscoverySession.open({
     capability: "read_only",
     allowedHosts: [...target.allowedHosts],
     runId,
     traceDir: outDir,
+    robots: (url) => decider.decide(url),
   });
 
   const observations: PageObservation[] = [];
@@ -48,6 +108,7 @@ async function discover(target: DiscoveryTarget, outDir: string, runId: string):
   const visited: string[] = [];
   const failed: { url: string; error: string }[] = [];
   const seen = new Set<string>();
+  const skippedByRobots: { url: string; reason: string }[] = [];
   const queue = [...target.seedUrls];
 
   try {
@@ -58,6 +119,26 @@ async function discover(target: DiscoveryTarget, outDir: string, runId: string):
       const key = url.split("#")[0] ?? url;
       if (seen.has(key)) continue;
       seen.add(key);
+
+      // ── Asked BEFORE navigating, not only at the network guard ──────────
+      //
+      // The guard is the enforcement and it already refused this — measured:
+      // the page never loaded. But the crawler still queued the URL, waited a
+      // full delay for it, and printed an arrow, so the run's own output said
+      // it had gone somewhere robots.txt forbids. Politeness and legibility,
+      // on top of a rule that was already holding.
+      const verdict = decider.decide(url);
+      if (!verdict.allowed) {
+        process.stdout.write(`  ⊘ ${url}\n     ${verdict.reason}\n`);
+        skippedByRobots.push({ url, reason: verdict.reason });
+        continue;
+      }
+
+      // Paced BEFORE the request, and before the first one too. Sequential
+      // crawling at browser speed from one IP is what gets an address blocked,
+      // and being blocked by the first target before we have an account would
+      // be an expensive way to learn it (Vahid, 2026-09-08).
+      await pause(delayMs);
 
       process.stdout.write(`  → ${url}\n`);
       try {
@@ -94,6 +175,12 @@ async function discover(target: DiscoveryTarget, outDir: string, runId: string):
       visited,
       failed,
       blockedRequests: session.blockedRequests(),
+      tally: session.tally(),
+      robots,
+      delayMs,
+      portalAttemptedWrite: session.portalAttemptedWrite(),
+      blockedSummary: session.blockedSummary(),
+      skippedByRobots,
     };
   } finally {
     await session.close();
@@ -247,10 +334,53 @@ async function main(): Promise<void> {
       2,
     ) + "\n",
   );
+  // ── The compliance record, written beside the observations ─────────────
+  //
+  // Vahid: "the difference between 'we respected the rules' and 'we did not
+  // look' is the whole difference if anyone ever asks." Answering that needs
+  // the file itself, when it was read, and what it stopped — not a line saying
+  // we obeyed it. Written to its own file so it can be handed over on its own.
+  await writeFile(
+    resolve(outDir, "robots.json"),
+    JSON.stringify(
+      {
+        runId,
+        crawlDelayMs: result.delayMs,
+        hosts: [...result.robots.entries()].map(([host, policy]) => ({
+          host,
+          kind: policy.kind,
+          fetchedAt: policy.fetchedAt.toISOString(),
+          statusCode: policy.statusCode,
+          ...(policy.kind === "fetched"
+            ? { body: policy.body, appliedGroup: policy.applicable }
+            : {}),
+          ...(policy.kind === "unavailable" ? { error: policy.error } : {}),
+        })),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+
   await writeFile(
     resolve(outDir, "run.json"),
     JSON.stringify(
-      { runId, target, visited: result.visited, failed: result.failed, blockedRequests: result.blockedRequests },
+      {
+        runId,
+        target,
+        visited: result.visited,
+        failed: result.failed,
+        blockedRequests: result.blockedRequests,
+        crawlDelayMs: result.delayMs,
+        skippedByRobots: result.skippedByRobots,
+        requests: {
+          navigations: result.tally.navigations,
+          subResources: result.tally.subResources,
+          blocked: result.tally.blocked,
+          total: result.tally.total,
+          byType: Object.fromEntries(result.tally.byType),
+        },
+      },
       null,
       2,
     ) + "\n",
@@ -259,12 +389,29 @@ async function main(): Promise<void> {
   process.stdout.write(`\nPages visited      ${String(result.visited.length)}\n`);
   process.stdout.write(`Pages failed       ${String(result.failed.length)}\n`);
   process.stdout.write(`Requests blocked   ${String(result.blockedRequests.length)}\n`);
-  if (result.blockedRequests.length > 0) {
+  // ── The warning belongs to ONE of the three rules ────────────────────────
+  //
+  // This fired on `blockedRequests.length > 0`, so a run that skipped a single
+  // robots-disallowed stylesheet reported that the portal attempts writes
+  // during ordinary browsing — a serious finding, invented. Adding a second
+  // rule to the guard is what made the conflation visible.
+  if (result.portalAttemptedWrite) {
     process.stdout.write(
       `  ⚠ The portal attempted state-changing requests during ordinary browsing.\n` +
         `    A specialist must review this before any execution run.\n`,
     );
   }
+
+  process.stdout.write(`\n${result.blockedSummary}\n`);
+
+  // ── What the run cost the origin. Measured, never estimated ────────────
+  process.stdout.write(`\n${result.tally.summarise()}\n`);
+  process.stdout.write(`Paced at           ${String(result.delayMs)}ms between pages\n`);
+  process.stdout.write(
+    `Skipped by robots  ${String(result.skippedByRobots.length)} page(s) the crawl would ` +
+      `otherwise have visited\n`,
+  );
+  process.stdout.write(`robots.txt         see robots.json — the file, verbatim, and when it was read\n`);
   process.stdout.write(`\nOutput: ${outDir}\n`);
   process.stdout.write(`Blueprint status: DRAFT — not executable until reviewed.\n\n`);
 
