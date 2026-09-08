@@ -19,6 +19,72 @@ not shipped artefacts.
 
 ---
 
+## [0.68.0] — 2026-09-08
+
+**P50 — the census is generated, and its arithmetic is checked (ADR-0084).**
+
+### Fixed · a table that did not add up to its own stated total
+
+`state-of-the-system.md` §7 carried a per-area test table by hand. Six of twenty rows were wrong,
+every one understating — `packages/domain` 351→**373**, `apps/conversation-service` 292→**330**,
+`packages/documents` 52→**67**, `packages/profile` 39→**46**, `packages/case-store` 139→**143**,
+`packages/extraction` 23→**27** — and **`scripts`, with 264 tests, had no row at all.**
+
+**The part that needed no run:**
+
+```
+its rows summed to               1,824
+plus its own "everything else"    ~346
+                                ------
+                                 2,170
+against its own stated total     2,306
+```
+
+A hundred and thirty-six tests unaccounted for. Detecting the six wrong rows needs a suite run;
+detecting *this* needs addition, and nothing had ever added up the table it was reading.
+
+**The tilde is the mechanism.** `~346` cannot be wrong — no reader could tell 346 from 482 and no
+check could either. An approximation in a record is not modesty about precision; it is an assertion
+that cannot be falsified, in a document whose purpose is to be checkable.
+
+### Added · `pnpm run census`, and a guard that costs nothing
+
+The command runs the suite, groups every test file by its workspace, and rewrites §7 between two
+markers with an **exact** *everything else*. `scripts/census.test.ts` adds the rows up against the
+stated total, refuses a tilde, refuses a row naming a directory that does not exist, and refuses a
+table whose markers have gone — none of which needs a run.
+
+The table gains `scripts` (264) and `packages/conversation` (52), neither ever listed, and
+*everything else* falls from an approximate 346 to an exact 98.
+
+### Fixed · the generator survives a red suite
+
+The first version threw on a non-zero exit and deadlocked instantly: the guard fails while the table
+is stale, so the suite is red, so the census cannot run, so the table stays stale. That is the
+**normal** case, not an edge case. The report is now read either way, the table written, the failing
+files named, and the exit code passed through — it never reports a green suite it did not get.
+
+### Why this generates where ADR-0082 refused
+
+ADR-0082 declined to generate the declared-but-unreachable table because its second column is a
+judgement citing ADR-0019 and ADR-0071. This table has no such column: twenty names and twenty
+integers, nothing in it a person knows that a run does not. **Generate what is arithmetic, check what
+is judgement, and never confuse them.**
+
+### Decisions
+
+- [ADR-0084](./docs/decisions/0084-the-census-is-generated-and-its-arithmetic-is-checked.md) —
+  **Accepted**.
+
+Four deliberate regressions, each verified from disk. The fourth is recorded with a correction: it
+first failed as a *collection crash* — vitest reporting "no tests", failing the run without saying
+why — because the section lookup asserted at module scope. That is the P47 mistake inside the fix for
+a different one; the marker now has its own named test.
+
+The declared-but-unreachable surface is **unchanged at seven**. Nothing here is a capability.
+
+---
+
 ## [0.67.0] — 2026-09-08
 
 **P49 — an ADR and the lists of it must agree (ADR-0083).**

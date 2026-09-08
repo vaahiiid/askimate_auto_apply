@@ -2923,3 +2923,106 @@ obligation — reading the English test providers' terms — may still move the
 `english_test_certificate` threshold. The unblocked list is now empty: blocker 12 was already
 answered and 15 was done in P40. What is left on it is yours — a real portal, a specialist review,
 Bedrock credentials, an account.
+
+---
+
+# Where we are — 2026-09-08 (P50)
+
+**Date:** 2026-09-08 · **Phase:** P50 · **ADR:** [ADR-0084](./decisions/0084-the-census-is-generated-and-its-arithmetic-is-checked.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## The headline
+
+**§7's test table did not add up to its own stated total, and had not for weeks.**
+
+```
+its rows summed to               1,824
+plus its own "everything else"    ~346
+                                ------
+                                 2,170
+against its own stated total     2,306
+```
+
+A hundred and thirty-six tests unaccounted for, in the document the README says to read first.
+
+Six of the twenty rows were also individually wrong — `packages/domain` 351 against **373**,
+`apps/conversation-service` 292 against **330**, `packages/documents` 52 against **67**,
+`packages/profile` 39 against **46**, `packages/case-store` 139 against **143**,
+`packages/extraction` 23 against **27** — every one understating. And **`scripts`, with 264 tests,
+had no row at all**: the largest area outside the top three, invisible.
+
+## The distinction worth keeping
+
+Detecting the six wrong rows needs a suite run. **Detecting that the table does not add up needs
+addition**, and nothing had ever added up the table it was reading. The expensive half of the defect
+hid the free half.
+
+**The tilde is the mechanism.** `~346` cannot be wrong. No reader could tell 346 from 482, and no
+check could either, because the table was not claiming to be exact. An approximation inside a record
+is not modesty about precision — it is an assertion that cannot be falsified, sitting in a document
+whose whole purpose is to be checkable. The generated figure is exact, and a test fails if a tilde
+comes back.
+
+## Why this one is generated, when two phases ago I refused to generate
+
+ADR-0082 was asked exactly this about the declared-but-unreachable table and said no, because that
+table's second column is *"why it is kept"* — a judgement citing ADR-0019 and ADR-0071 that a
+generator would drop or force into a checker.
+
+This table has no such column. Twenty area names and twenty integers, and nothing in it a person
+knows that a run does not.
+
+**Generate what is arithmetic, check what is judgement, and never confuse them.** That is the rule
+the two decisions make together, and it is the useful thing to take from three phases of this.
+
+## A deadlock I built and then removed
+
+The generator's first version threw on a non-zero exit and locked immediately: the census guard fails
+while the table is stale → the suite is red → the census cannot run → the table stays stale. Not an
+edge case. It is the **normal** case, because the reason to run a census is that the suite changed
+and the table has not caught up.
+
+It now reads the report either way, writes the table, names the failing files, and passes the exit
+code through. It never reports a green suite it did not get.
+
+## And the P47 mistake, inside the fix for a different one
+
+The fourth regression — removing the census markers — first failed as a **collection crash**. Vitest
+reported *"no tests"*, which fails the run without saying why, because the section lookup asserted at
+module scope. That is exactly the thing P47 was about: a check that fails for a reason it never
+states. The absence is a value now, and the marker has its own named test.
+
+## The gap the phase found in its own fix
+
+A generated number that nobody regenerates decays exactly as a hand-written one. The guard checks the
+table **adds up**, not that anyone has re-run it — and that showed immediately: the census said 2,313
+while the suite was 2,314, because I added a test after generating.
+
+CI's integration job now *is* the census (`pnpm run census`, with a default reporter as well as the
+JSON one so a red job still prints test names), followed by `git diff --exit-code` on the document. It
+costs no extra suite run, and it is the only place the whole suite runs against a real database — the
+only run whose numbers are the true ones.
+
+That change also made ADR-0084 wrong mid-phase: it said the census would not run in CI. Corrected in
+the ADR rather than left standing, which is the least this particular phase could do.
+
+## Declared-but-unreachable surface
+
+**Unchanged at 7.** Nothing in this phase is a capability.
+
+## What is next, and a judgement about it
+
+This is the third consecutive phase about the integrity of the records rather than the system, and
+they were worth doing — each found something that had been wrong for weeks in the document the README
+points at. But the thread is finished. What was hand-maintained and checkable is now checked; what is
+arithmetic is generated; what is judgement stays prose and says so.
+
+Everything left on the blocker list is yours: **B2** (the ADR-0022 lawful basis, still the only policy
+blocker on documents), a real portal, a specialist review, Bedrock credentials, an account. Row 8's
+obligation — reading the English test providers' terms — may still move the
+`english_test_certificate` threshold.
+
+Absent one of those, the honest next targets are inside the system rather than its records: the
+walkthrough's coverage of the paths added since P37, and `apps/chat-integration`'s standing as a
+research build whose four browser files are a fifth of the serialised lane.

@@ -169,10 +169,35 @@ describe("CI still runs the database-backed security suites", () => {
   });
 
   it("runs the WHOLE suite there, rather than a list of paths that can go stale", () => {
-    // `vitest run` with no positional filter. A list would silently omit any
-    // database-backed suite added later somewhere it did not name, and the job
-    // would stay green while covering less.
-    expect(ci).toMatch(/run:\s*pnpm exec vitest run\s*$/m);
+    // ── The intent, which survived the command changing ──────────────────
+    //
+    // This used to assert the literal `pnpm exec vitest run`. P50 changed the
+    // step to `pnpm run census`, which IS that run — with a default reporter so
+    // failures stay readable and a JSON one it counts — and the assertion moved
+    // with it rather than being deleted.
+    //
+    // What matters is unchanged and is what this checks: NO POSITIONAL FILTER.
+    // A list of paths would silently omit any database-backed suite added later
+    // somewhere it did not name, and the job would stay green while covering
+    // less. `scripts/census.ts` passes no file arguments, and the assertion
+    // below fails if the step ever grows them.
+    expect(ci).toMatch(/run:\s*pnpm run census\s*$/m);
+
+    const census = readFileSync(join(import.meta.dirname, "census.ts"), "utf8");
+    expect(census, "the census must run the whole suite").toMatch(/"vitest",\s*"run"/);
+    expect(
+      /\["vitest",\s*"run",\s*"--reporter=default",\s*"--reporter=json",/.test(census),
+      "the census must keep a human-readable reporter, or a red CI job prints only JSON",
+    ).toBe(true);
+  });
+
+  it("fails when the committed census is stale", () => {
+    // A generated number that nobody re-runs decays exactly as a hand-written
+    // one does — the guard in `census.test.ts` checks the table ADDS UP, not
+    // that anyone has regenerated it. This step is what closes that, and it is
+    // free because the census run is the integration run.
+    expect(ci).toContain("The committed census is current");
+    expect(ci).toMatch(/git diff --exit-code -- docs\/state-of-the-system\.md/);
   });
 
   it("names every database-backed suite that exists, so a new one cannot be forgotten", () => {

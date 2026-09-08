@@ -169,10 +169,27 @@ jobs:
       # of quietly reporting green over tests that never executed.
       # `scripts/ci-guard.test.ts` asserts both of those facts about this file,
       # so removing them turns the default test run red.
-      - name: Integration tests
-        run: pnpm exec vitest run
+      # `pnpm run census` IS `vitest run` — with a default reporter so failures
+      # stay readable, plus a JSON one it counts. Running the census here rather
+      # than as a separate job is deliberate: it costs no extra suite run, and
+      # it is the only place the whole suite runs with a real database, which is
+      # the only run whose numbers are the true ones.
+      #
+      # The step after it fails if the committed census differs. Without that, a
+      # GENERATED number decays exactly as the hand-written one did (ADR-0084) —
+      # the guard in `census.test.ts` checks that the table adds up, not that
+      # anybody has re-run it.
+      - name: Integration tests, and the census they produce
+        run: pnpm run census
         env:
           AAS_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aas_test
           AAS_REQUIRE_DATABASE: "1"
           AAS_TEST_REDIS_URL: redis://localhost:6379
           AAS_REQUIRE_REDIS: "1"
+
+      - name: The committed census is current
+        run: |
+          if ! git diff --exit-code -- docs/state-of-the-system.md; then
+            echo "::error::The test census is stale. Run 'pnpm run census' and commit the result."
+            exit 1
+          fi

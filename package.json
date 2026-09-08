@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.67.0",
+  "version": "0.68.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -39,7 +39,8 @@
     "migrate:secure": "tsx apps/secure-service/src/bin.ts migrate",
     "version:check": "tsx scripts/version.ts check",
     "version:set": "tsx scripts/version.ts set",
-    "version:bump": "tsx scripts/version.ts bump"
+    "version:bump": "tsx scripts/version.ts bump",
+    "census": "tsx scripts/census.ts"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",
