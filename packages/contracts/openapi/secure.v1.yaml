@@ -849,6 +849,8 @@ components:
         - idempotency_key_conflict
         - intervention_already_resolved
         - content_changed
+        - content_hash_mismatch
+        - intake_not_open
         - secret_request_open
         # Not produced by this service — the Secure Plane opens no cases — but
         # `ProblemCode` is ONE closed set across both documents, and a code

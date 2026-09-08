@@ -92,6 +92,31 @@ const REGISTER_REACHABLE = CAPABILITIES.filter((c) => c.status.kind === "reachab
 
 const tableA = sectionBetween(TABLE_A_HEADING, TABLE_B_HEADING);
 
+/**
+ * A count, spelled. Computed rather than tabulated.
+ *
+ * The same function P49 wrote for `adr-status-agrees.test.ts`, for the same
+ * reason and after the same mistake: a hand-written map of the numbers you
+ * happen to need today is a guard with an expiry date nobody has written down.
+ * Duplicated rather than shared because these two files check different
+ * documents and a `scripts/` helper module for one function would couple them
+ * for no benefit — a judgement, and it is recorded so it can be revisited if a
+ * third file needs it.
+ */
+function inWords(n: number): string | undefined {
+  const units = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
+    "Eighteen", "Nineteen",
+  ];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  if (!Number.isInteger(n) || n < 1 || n > 99) return undefined;
+  if (n < 20) return units[n];
+  const ten = tens[Math.floor(n / 10)] ?? "";
+  const unit = units[n % 10] ?? "";
+  return unit === "" ? ten : `${ten}-${unit.toLowerCase()}`;
+}
+
 describe("the unreachable register and the document that describes it", () => {
   it("names every capability the register calls unreachable", () => {
     // The `checkMinorGate` direction. A reader of the standing account must be
@@ -129,15 +154,30 @@ describe("the unreachable register and the document that describes it", () => {
     expect(wrong, "the register says these DO have a production caller").toEqual([]);
   });
 
-  it("states the same count the register does", () => {
-    // The number in the phase report every time. It is quoted in prose rather
-    // than in the table, so it can drift on its own.
-    const stated = /Seven capabilities/.exec(tableA);
+  it("states the same count the register does, in words", () => {
+    // ── The hand-written word, caught a second time ────────────────────────
+    //
+    // This assertion used to be `/Seven capabilities/` with
+    // `expect(REGISTER_UNREACHABLE.length).toBe(7)` beside it — a guard that
+    // pinned the count rather than checking it, so the day the register
+    // shrank the failure said "the word Seven is now wrong" and named no
+    // replacement.
+    //
+    // P49 removed exactly this shape from `adr-status-agrees.test.ts`, where a
+    // hand-written number-to-words map covering 78 to 84 lasted one ADR. It
+    // survived here because the count had not moved since P39 — nine phases of
+    // a constant is a guard nobody sees fail. P57 moved it: `assertStorable`
+    // acquired a production caller and left the table.
+    //
+    // Computed now, in both directions. The document must state the register's
+    // count, and no OTHER count in words may appear in that sentence.
+    const expected = inWords(REGISTER_UNREACHABLE.length);
+    expect(expected, "no spelling for this count").toBeDefined();
     expect(
-      stated,
-      `the document must state the count in words; the register has ${String(REGISTER_UNREACHABLE.length)}`,
-    ).not.toBeNull();
-    expect(REGISTER_UNREACHABLE.length, "the word 'Seven' is now wrong").toBe(7);
+      tableA,
+      `the document must state ${String(expected)} capabilities; the register has ` +
+        `${String(REGISTER_UNREACHABLE.length)}`,
+    ).toMatch(new RegExp(`\\*?\\*?${String(expected)}\\*?\\*? capabilities`, "i"));
   });
 
   it("has no row that contradicts the heading it sits under", () => {

@@ -21,7 +21,7 @@
  */
 
 import type { NextFunction, Request, Response, Router } from "express";
-import { Router as makeRouter } from "express";
+import { Router as makeRouter, raw as rawBody } from "express";
 import { createHash } from "node:crypto";
 
 import type { ConversationEvent, PriorOutcome, ProblemCode } from "@askimate/aas-contracts";
@@ -69,6 +69,18 @@ import {
 
 import type { ReviewedTarget } from "@askimate/aas-catalogue";
 import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
+import type { DocumentUpload, StorableUpload } from "@askimate/aas-documents";
+import {
+  DOCUMENT_LIMITS,
+  IntakeRefusedError,
+  acceptBytes,
+  assertStorable,
+  limitFor,
+  openIntake,
+} from "@askimate/aas-documents";
+import type { DocumentIntakePort } from "./document-intake-store.js";
+import { ulid } from "./ulid.js";
+
 import { makeOffer, verifyRequest } from "./target-offers.js";
 import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
@@ -237,6 +249,15 @@ export interface ConversationRoutesOptions {
    * a refusal, not a bypass.
    */
   readonly targets?: TargetDirectoryPort;
+  /**
+   * The document transport (ADR-0090).
+   *
+   * Absent means no document can be supplied and the two routes answer
+   * `service_unavailable` — a refusal, not a bypass, and the same shape
+   * `targets` uses for the same reason. A deployment that has not configured
+   * a vault must not accept a passport into one that is not there.
+   */
+  readonly documents?: DocumentIntakePort;
   readonly now: () => Date;
   /** Answers a message. Replies arrive as events on the stream, not inline. */
   readonly answer?: (input: {
@@ -495,6 +516,18 @@ function onTheWire(record: StoredIntervention): OpenIntervention {
     announced: record.announcedAt !== undefined,
   };
 }
+
+/**
+ * The largest body the content route will read, before the type is known.
+ *
+ * The MAXIMUM over every per-type ceiling, computed rather than written down —
+ * a hand-copied number here would drift the day a limit changes, and it would
+ * drift SILENTLY, because a ceiling that is too low reads as a 413 the student
+ * cannot explain and one that is too high reads as nothing at all.
+ */
+const MAX_DOCUMENT_BYTES = Math.max(
+  ...Object.values(DOCUMENT_LIMITS).map((limit) => limit.maxBytes),
+);
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
   const router = makeRouter();
@@ -1836,6 +1869,200 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           return;
         }
         res.status(204).end();
+      })().catch(next);
+    },
+  );
+
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // The document transport (ADR-0090) — B4, open since ADR-0067 §8
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // TWO STEPS, and the split is the control. `POST .../documents` declares
+  // what is coming and runs the storage gates on it; only then does a route
+  // exist that will read a body. A refusal that arrives after a passport has
+  // crossed the wire has already failed — the bytes were received, and "we did
+  // not keep them" is a claim rather than a structure.
+  //
+  // This is also the first production caller `assertStorable` has ever had.
+  // It has been in the reachability register as declared-but-unreachable since
+  // P39, because every policy blocker in front of it was open. They are all
+  // answered now (ADR-0078, ADR-0087, ADR-0088, ADR-0089).
+
+  router.post(
+    "/v1/conversations/:conversationId/documents",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        const documents = options.documents;
+        if (documents === undefined) {
+          // No vault configured. A refusal, not a bypass — the same answer
+          // `targets` gives, for the same reason.
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const documentType = readString(req.body, "documentType");
+        const purpose = readString(req.body, "purpose");
+        const contentType = readString(req.body, "contentType");
+        const contentHash = readString(req.body, "contentHash");
+        const sizeBytes = (req.body as Record<string, unknown> | undefined)?.["sizeBytes"];
+
+        if (documentType === null || !(documentType in DOCUMENT_LIMITS)) {
+          problem(res, "validation_failed", { pointers: ["/documentType"] });
+          return;
+        }
+        if (purpose === null) {
+          problem(res, "validation_failed", { pointers: ["/purpose"] });
+          return;
+        }
+        if (contentType === null) {
+          problem(res, "validation_failed", { pointers: ["/contentType"] });
+          return;
+        }
+        if (contentHash === null) {
+          problem(res, "validation_failed", { pointers: ["/contentHash"] });
+          return;
+        }
+        if (typeof sizeBytes !== "number") {
+          problem(res, "validation_failed", { pointers: ["/sizeBytes"] });
+          return;
+        }
+
+        const upload = {
+          studentId: who.studentId,
+          documentType,
+          purpose,
+          contentType,
+          sizeBytes,
+          contentHash,
+          dates: {},
+        } as unknown as DocumentUpload;
+
+        let storable: StorableUpload;
+        try {
+          // ── THE GATES, before any body exists ─────────────────────────
+          //
+          // Retention (ADR-0010, ADR-0023) and lawful basis (ADR-0022), and
+          // the message is the one the gate wrote. It names the document type,
+          // the activity and what is missing, because a refusal a person
+          // cannot act on is a defect (ADR-0075).
+          storable = assertStorable({
+            schedule: documents.schedule,
+            register: documents.register,
+            upload,
+          });
+        } catch (error) {
+          problem(res, "forbidden", {
+            detail: error instanceof Error ? error.message : "This document cannot be stored.",
+          });
+          return;
+        }
+
+        try {
+          const intake = openIntake({
+            intakeId: ulid(options.now()),
+            conversationId,
+            upload: storable,
+            contentType,
+            declaredSizeBytes: sizeBytes,
+            now: options.now(),
+          });
+          await documents.open(intake);
+
+          const limit = limitFor(intake.upload.documentType);
+          res.status(201).json({
+            intakeId: intake.intakeId,
+            expiresAt: intake.expiresAt.toISOString(),
+            // STATED, not left for the client to guess and be refused about.
+            maxBytes: limit.maxBytes,
+            acceptedContentTypes: limit.contentTypes,
+            contentHash: intake.declaredHash,
+            retentionPolicyReference: storable.policyReference,
+          });
+        } catch (error) {
+          if (error instanceof IntakeRefusedError) {
+            problem(res, error.code, { detail: error.message });
+            return;
+          }
+          next(error);
+        }
+      })().catch(next);
+    },
+  );
+
+  router.put(
+    "/v1/conversations/:conversationId/documents/:intakeId/content",
+    // ── The only route on this service that reads a non-JSON body ────────
+    //
+    // `express.raw` with a hard ceiling, and the ceiling here is the LARGEST
+    // any document type is allowed — the per-type limit is then applied by
+    // `acceptBytes`. Two levels on purpose: this one stops a body that would
+    // exhaust memory before the type is even known, and that one enforces the
+    // decision about this particular kind of document.
+    rawBody({ type: () => true, limit: MAX_DOCUMENT_BYTES }),
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const intakeId = String(req.params["intakeId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        const documents = options.documents;
+        if (documents === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        // Taken and removed in one operation: an intake is permission to send
+        // one document once, and a read-then-delete leaves a window in which
+        // two concurrent requests both see it open.
+        const intake = await documents.take(conversationId, intakeId);
+        if (intake === null) {
+          problem(res, "intake_not_open", {
+            detail:
+              "This upload was not prepared, has expired, or has already been used. Prepare it " +
+              "again — the checks that permit it are re-run, which is the point.",
+          });
+          return;
+        }
+
+        const declaredType = req.header("Content-Type")?.split(";")[0]?.trim() ?? "";
+        if (declaredType !== intake.contentType) {
+          problem(res, "unsupported_media_type", {
+            detail:
+              `This upload was prepared for ${intake.contentType} and the body declares ` +
+              `${declaredType.length === 0 ? "nothing" : declaredType}.`,
+          });
+          return;
+        }
+
+        const body: unknown = req.body;
+        if (!Buffer.isBuffer(body)) {
+          problem(res, "validation_failed", { pointers: ["/body"] });
+          return;
+        }
+
+        try {
+          const bytes = acceptBytes(intake, new Uint8Array(body), options.now());
+          const record = await documents.vault.store(intake.upload, bytes, options.now());
+          res.status(201).json({
+            documentId: record.documentId,
+            documentType: record.documentType,
+            state: record.state,
+            contentHash: record.contentHash,
+            retentionPolicyReference: record.retentionPolicyReference,
+          });
+        } catch (error) {
+          if (error instanceof IntakeRefusedError) {
+            problem(res, error.code, { detail: error.message });
+            return;
+          }
+          next(error);
+        }
       })().catch(next);
     },
   );

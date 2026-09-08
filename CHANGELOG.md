@@ -19,6 +19,94 @@ not shipped artefacts.
 
 ---
 
+## [0.74.0] — 2026-09-08
+
+**P57 — the document transport: the gates run before a byte is accepted (ADR-0090).**
+
+**B4 is answered** — the last of the five blockers ADR-0067 enumerated four weeks ago, and the only
+one it called engineering rather than policy: *"There is no route, no schema and no client surface by
+which a student could supply a document."*
+
+### Added · a two-step upload, where the split is the control
+
+```
+POST /v1/conversations/{id}/documents                      declare it · THE GATES RUN HERE
+PUT  /v1/conversations/{id}/documents/{intakeId}/content    the bytes
+```
+
+Multipart would have been the obvious shape and has exactly the defect this avoids: the server would
+have to **read the body to find out whether it was allowed to.** A refusal that arrives after a
+passport has crossed the wire has already failed — the bytes were received, and *"we did not keep
+them"* is a claim rather than a structure.
+
+The **type** enforces it, not the order of statements in a handler: `openIntake` takes a
+`StorableUpload`, which only `assertStorable` can mint (ADR-0068), and `acceptBytes` returns a
+branded `AcceptedBytes` that `vault.store` takes nothing else in place of.
+
+The declaration answer **states** the constraints — the byte ceiling for that type, the accepted
+content types, the hash that will be checked, and the retention policy the gate actually resolved —
+instead of a client guessing and being refused.
+
+### Added · the bytes must be the ones the gates were run for
+
+The intake carries the SHA-256 the declaration passed the gates with; the content route recomputes it
+and refuses a mismatch. Without it a student could declare a two-megabyte personal statement, clear
+the gates for one, and send a passport. **ADR-0057 binds an authorisation to exact content by hash
+for the same reason, at the other end of the journey.** The same-length substitution is the case that
+proves the hash rather than the length is doing the work, and it is tested at both levels.
+
+An intake is spent **once** — read and removed in one operation, because read-then-delete leaves a
+window in which two concurrent requests both see it open. An unknown id, an expired one and a spent
+one answer `intake_not_open` identically, deliberately: telling a caller which is which would say
+what intake ids exist.
+
+`DOCUMENT_LIMITS` is total over `DocumentType` and deliberately unequal — one ceiling for a personal
+statement and a multi-page transcript means accepting a 20 MB "personal statement" nobody decided to
+accept. Engineering limits, not policy.
+
+### Changed · `assertStorable` is REACHABLE — the register table goes 7 → 6
+
+Declared-but-unreachable since P39, for a reason that was never engineering: every policy blocker in
+front of it was open. The register found the move itself and failed the build until the entry was
+corrected — *"a stale allow-list is what hides the next one"*. **First entry ever to leave that
+table.**
+
+### Not shipped, and refused rather than pretended
+
+The store is **in-memory**, and `assertDocumentStoreIsDurable` throws on `NODE_ENV=production`. One
+check, at wiring time, with no configuration check beside it that would make it unreachable — the
+mistake ADR-0055 recorded. The durable encrypted store is the next phase; a durable store without the
+customer-managed key ADR-0010 requires would be the thing the constraint constrains, shipped without
+the constraint.
+
+The student's page has no upload control yet, so `content_hash_mismatch` and `intake_not_open` are in
+`CANNOT_REACH_THIS_PAGE` with that reason rather than given wording nobody would see.
+
+### Verification
+
+- **Four deliberate regressions**, each verified from disk and restored from a file copy: remove the
+  hash comparison → **2** fail; replace `assertStorable` with a cast → **3** route tests fail *and*
+  `pnpm run reachability` fails; make `take` read without removing → **1**; remove the expiry check →
+  **2**.
+- The expiry regression exposed a **vacuous test of mine**: an assertion that lived only inside a
+  `catch`, so deleting the check made it pass. Second such find in two phases, both in tests written
+  to prevent exactly it (ADR-0072).
+- It also found `unreachable-is-documented.test.ts` **pinning** the unreachable count with a literal
+  `/Seven capabilities/` rather than checking it. P49 removed that shape once already; it survived
+  here because the number had not moved in nine phases. Computed now, both directions.
+
+### Added · the first target, and what a discovery run would do to it
+
+`docs/target-sheffield-pgt.md` — University of Sheffield PGT, September, direct. Chosen by Vahid for
+what it removes from the first blueprint. It records the open question discovery must settle
+(**three cases, or one case with three targets?**) with the instruction not to pre-empt it, and a
+measured account of what a read-only discovery run does: no account, no submission, `GET`/`HEAD`/
+`OPTIONS` only with everything else aborted before it leaves the machine, page visits bounded by
+`maxPages` and sub-resources unbounded, no throttling and no `robots.txt` check. **No run has been
+made.**
+
+---
+
 ## [0.73.0] — 2026-09-08
 
 **P56 — a national ID leaves the supported document types (ADR-0089).**

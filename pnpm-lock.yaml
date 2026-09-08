@@ -210,6 +210,12 @@ importers:
       '@askimate/aas-conversation':
         specifier: workspace:*
         version: link:../../packages/conversation
+      '@askimate/aas-disclosure':
+        specifier: workspace:*
+        version: link:../../packages/disclosure
+      '@askimate/aas-documents':
+        specifier: workspace:*
+        version: link:../../packages/documents
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../../packages/domain

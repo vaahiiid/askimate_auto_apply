@@ -229,6 +229,19 @@ export const PROBLEM_CODES = [
   "idempotency_key_conflict",
   "intervention_already_resolved",
   "content_changed",
+  // P57, the document transport (ADR-0090). The bytes that arrived are not the
+  // ones the upload was prepared for — a different hash, or a different length.
+  //
+  // Its own code because it is neither a validation error nor a conflict: the
+  // request was well formed and the intake was open, and what failed is the
+  // BINDING between the declaration that passed the storage gates and the body
+  // that followed it. A client that could not tell this from `validation_failed`
+  // would retry the same bytes.
+  "content_hash_mismatch",
+  // P57. The upload was prepared, and that permission has expired or has
+  // already been spent. Actionable in one specific way — prepare it again — and
+  // the re-preparation re-runs the gates, which is why it is not a plain 409.
+  "intake_not_open",
   "secret_request_open",
   // ADR-0006, armed in P38. This student already has an application for this
   // institution, course and intake — the submission identity is claimed, and

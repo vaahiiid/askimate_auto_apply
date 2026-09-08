@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-conversation-service",
-  "version": "0.73.0",
+  "version": "0.74.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -17,12 +17,14 @@
     "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
     "@askimate/aas-conversation": "workspace:*",
+    "@askimate/aas-disclosure": "workspace:*",
+    "@askimate/aas-documents": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
     "@askimate/aas-interview": "workspace:*",
     "@askimate/aas-llm": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",
-    "@askimate/aas-notify": "workspace:*",
     "@askimate/aas-migrate": "workspace:*",
+    "@askimate/aas-notify": "workspace:*",
     "@askimate/aas-oidc": "workspace:*",
     "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-profile": "workspace:*",

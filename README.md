@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P56 — a national ID leaves the supported document types (ADR-0089) |
+| **Phase** | P57 — the document transport: the gates run before a byte is accepted (ADR-0090) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,173 passing · 112 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 89 ADRs · all 89 Accepted |
+| **Tests** | **2,203 passing · 114 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 90 ADRs · all 90 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -36,6 +36,10 @@ implementation, no deployable holding a vault. `national_id` was removed from th
 types in **ADR-0089** — a passport is sufficient for identity, and a type refused at the gate is
 machinery no student can use — which takes the **DPA 2018 Sch. 1 appropriate policy document** out of
 the critical path. That requirement has not gone away: re-adding the type needs the document first.
+
+**A student can now supply a document** — `POST .../documents` runs the storage gates on the
+declaration, and only then does a route exist that will read a body (ADR-0090). The store behind it
+is in-memory and **refuses to start in production**; the durable, encrypted one is the next phase.
 
 **[Where we are](./docs/where-we-are.md)** — the per-phase journal.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.

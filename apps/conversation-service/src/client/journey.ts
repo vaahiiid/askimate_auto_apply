@@ -652,6 +652,22 @@ const CANNOT_REACH_THIS_PAGE: Readonly<Record<string, string>> = {
   // and the route refuses the missing field instead.
   unsupported_media_type:
     "one helper sets application/json, with no charset and no content-encoding",
+
+  // ── P57, and stated as an absence rather than left out ────────────────
+  //
+  // Both are refusals from the document transport (ADR-0090), and this page
+  // has no upload surface: it never opens an intake, so it can never be told
+  // that one is closed or that the bytes did not match. The routes exist and
+  // are exercised by `routes.test.ts`; the CLIENT half is a phase of its own.
+  //
+  // Listed here rather than given wording nobody would see, because the point
+  // of this list is that a code with no reader is a DECISION somebody made,
+  // not an omission — and when the upload surface lands, moving these two into
+  // REFUSALS is the visible act that says so.
+  content_hash_mismatch:
+    "this page never opens a document intake, so it cannot send bytes that fail to match one",
+  intake_not_open:
+    "this page never opens a document intake, so it cannot spend an expired one",
 };
 
 function report(code: string): void {

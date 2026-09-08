@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,173 tests, 112 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,203 tests, 114 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -102,6 +102,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P54** | The four lawful-basis determinations (ADR-0087) | B2 answered by Vahid — the last policy blocker on documents, open since P31. Contract for storing and disclosing, consent only for a minor's route, authorisation required for sending. A national ID additionally needs Article 9(2)(a); a passport does not. Ten of seventy (type, purpose) pairs now pass both gates, against none before |
 | **P55** | The Schedule 1 document must exist before the processing (ADR-0088) | `national_id` is refused at the storage gate until the DPA 2018 Sch. 1 appropriate policy document exists — structurally, naming what is missing and who holds it, so re-enabling is a deliberate act with a name on it. `other / audit_evidence` is recorded as **decided**-refused rather than open, giving the lawful-basis side the third state the retention side has had since ADR-0023 |
 | **P56** | A national ID leaves the supported document types (ADR-0089) | Vahid, reading P55's result: a type refused at the gate is *"unreachable surface with a policy justification attached"*. `national_id` leaves `DocumentType`, and the Article 9 clause, the separate-consent gate and the whole Schedule 1 module go with it — `assertStorable` is back to two gates. The determination was correct and is recorded in full, so re-adding starts from the reasoning; the Sch. 1 document comes first. Found the schedule parser CASTING `documentType` rather than checking it |
+| **P57** | The document transport: the gates run before a byte is accepted (ADR-0090) | **B4 answered** — the last of ADR-0067's five blockers, and the only one that was engineering. An upload is a two-step exchange: the declaration runs the storage gates, and only then does a route exist that will read a body. `assertStorable` has a production caller for the first time since P39, so the declared-but-unreachable table goes **7 → 6** — the first entry ever to leave it. The store is in-memory and refuses to start in production; the durable encrypted one is next |
 
 ---
 
@@ -273,6 +274,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0087 | The four lawful-basis determinations, and the condition a national ID needs | Accepted · answers 0022 |
 | 0088 | The Schedule 1 document must exist before the processing, and a decision not to determine is a decision | Accepted · completes 0087 |
 | 0089 | A national ID leaves the supported document types, and its gates leave with it | Accepted · supersedes 0088 §1 |
+| 0090 | The document transport: the gates run before a byte is accepted | Accepted · answers 0067's B4 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -329,14 +331,14 @@ in *no* row of the table, while `packages/notify` sat under this heading with a 
 
 #### A · The enforced register — `pnpm run reachability` fails if any of these acquires a caller
 
-Seven capabilities, each named by a decision, each with no caller inside any deployable's dependency
-closure. The reason and what would close it are the register's own words.
+**Six** capabilities, each named by a decision, each with no caller inside any deployable's
+dependency closure. It was seven until P57: `assertStorable` left this table when the document
+transport gave it a production caller (ADR-0090), which is the first time an entry has moved out. The reason and what would close it are the register's own words.
 
 | Capability | Record | Why it cannot be reached | What closes it |
 |---|---|---|---|
 | `blocksApplication` | ADR-0021, ADR-0080 | Nothing in production carries a `Requirement`, so there is no scope for it to read — the visa journey is absent rather than excluded | The Requirements Service phase, or anything else putting a scoped `Requirement` on a production path |
 | `checkMinorGate` | ADR-0011 | Its one BLOCKING condition is at the submission stage, and submission is out of scope (ADR-0014). The trigger that stops a case for review is a different thing and *is* reachable: `suggestsMinority` | The phase that brings submission into scope |
-| `assertStorable` | ADR-0068 | **Every policy decision is made** — B5, B1's eleven periods, B2's four determinations (ADR-0087), `other / audit_evidence` decided-refused (ADR-0088), `national_id` removed with the two gates it alone needed (ADR-0089). Nothing calls it because no transport exists by which bytes arrive, and no deployable holds a vault | The transport phase. Not a decision |
 | `authoriseDisclosure` | ADR-0022 | Same lawful basis, on the way out rather than in — and it is no longer the obstacle: determination 3 registers Article 6(1)(b) **and** required student authorisation (ADR-0087) | The transport phase — nothing yet holds a document to send |
 | `purgeContents` | ADR-0010, ADR-0023 | B1 is decided; what is missing is a vault holding something to purge | The transport phase, and the job that calls this when a period elapses |
 | `assessUsability` | ADR-0009 | Nothing feeds it; requirements come from the reviewed catalogue | The Requirements Service phase, if the KB workflow is ever wired |
@@ -425,7 +427,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,173 tests · 112 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,203 tests · 114 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -438,7 +440,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,173 tests**, by the workspace they live in. Generated — run
+**2,203 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -446,13 +448,13 @@ being able to see it (ADR-0084).
 | Area | Tests | Area | Tests |
 |---|---|---|---|
 | `packages/domain` | 376 | `packages/conversation` | 52 |
-| `apps/conversation-service` | 330 | `packages/disclosure` | 47 |
+| `apps/conversation-service` | 346 | `packages/disclosure` | 47 |
 | `scripts` | 263 | `packages/profile` | 46 |
 | `apps/browser-runner` | 204 | `packages/catalogue` | 39 |
 | `packages/case-store` | 143 | `packages/preparation` | 33 |
 | `packages/orchestrator` | 98 | `packages/extraction` | 27 |
-| `packages/contracts` | 78 | `packages/mapping` | 26 |
-| `packages/documents` | 73 | `packages/interview` | 22 |
+| `packages/documents` | 87 | `packages/mapping` | 26 |
+| `packages/contracts` | 78 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | everything else | 98 |
 | `apps/secure-service` | 64 |  |  |

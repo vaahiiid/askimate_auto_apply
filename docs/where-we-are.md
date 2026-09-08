@@ -3448,3 +3448,76 @@ machinery away rather than a register row.
 ## What is next
 
 The document transport phase.
+
+---
+
+# P57 — the document transport (ADR-0090)
+
+**B4 is answered.** It was the last of the five blockers ADR-0067 enumerated four weeks ago, and the
+only one that was engineering rather than policy.
+
+## The shape, and why it is two steps
+
+```
+POST .../documents           declare it   ← THE GATES RUN HERE
+PUT  .../documents/{id}/content   the bytes
+```
+
+Multipart was the obvious answer and it has exactly the defect this avoids: the server would have to
+read the body to find out whether it was allowed to. A refusal that arrives after a passport has
+crossed the wire has already failed — the bytes were received, and "we did not keep them" is a claim
+rather than a structure.
+
+What enforces it is the **type**, not the order of statements in a handler. `openIntake` takes a
+`StorableUpload`, which only `assertStorable` can mint. There is no way to get an intake for a
+document whose retention policy and lawful basis were never established.
+
+The declaration answer states the constraints rather than making a client guess: the ceiling for that
+document type, the content types it may arrive as, the hash that will be checked, and the retention
+policy reference the gate actually resolved — which a client can put in front of a person.
+
+## `assertStorable` is reachable
+
+It has been on the declared-but-unreachable list since P39, and the reason was never engineering:
+every policy blocker in front of it was open. **The table goes from seven to six — the first entry
+ever to leave it.**
+
+The register found the move itself and failed the build until I corrected the entry, which is what it
+was built for.
+
+## What I did not ship, and refused rather than pretended
+
+The store is in-memory, and it **refuses to start under `NODE_ENV=production`**. One check, at wiring
+time, with no configuration check beside it — ADR-0055 recorded what happens otherwise: two checks,
+one reachable, and a regression deleted the real one with every test still green.
+
+The durable encrypted store is the next phase. Rushing it in would have meant a durable store without
+the customer-managed key ADR-0010 requires — the thing the constraint constrains, shipped without the
+constraint.
+
+## Two things the regressions found
+
+**A vacuous test of mine.** The expiry assertion lived only inside a `catch`, so deleting the expiry
+check made the test pass — no throw, no catch, no assertion. Second one in two phases, and both times
+in a test written to prevent exactly that.
+
+**A guard that had not been exercised in nine phases.** `unreachable-is-documented.test.ts` PINNED
+the unreachable count with a literal `/Seven capabilities/` instead of checking it, so the day the
+number moved it failed saying "the word 'Seven' is now wrong" and named no replacement. P49 removed
+that shape once already; it survived here because the count had not changed since P39. A constant is
+a guard nobody sees fail.
+
+## Sheffield
+
+Recorded in `docs/target-sheffield-pgt.md`, not acted on. **No discovery run has been made**, and the
+impact note you asked for is in that file — the short version is in my report. The three-choices
+question is recorded with your instruction not to pre-empt it.
+
+## Declared-but-unreachable surface
+
+**Six, down from seven.** First time it has shrunk.
+
+## What is next
+
+The durable, encrypted document store — envelope encryption under the `DataKeyProvider` port that
+already exists, and the production refusal that comes off when it lands.

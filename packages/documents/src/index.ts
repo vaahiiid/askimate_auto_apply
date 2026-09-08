@@ -42,6 +42,17 @@ export {
 
 export { InMemoryDocumentVault } from "./in-memory-vault.js";
 
+// ── The transport: how bytes arrive, and what is true before they do ───────
+export type { AcceptedBytes, DocumentIntake, DocumentLimit, IntakeId } from "./intake.js";
+export {
+  DOCUMENT_LIMITS,
+  INTAKE_TTL_MS,
+  IntakeRefusedError,
+  acceptBytes,
+  limitFor,
+  openIntake,
+} from "./intake.js";
+
 // ── The expiry rule that makes holding safe (ADR-0078, ADR-0079) ───────────
 export type {
   ExpiryChoice,

@@ -297,22 +297,22 @@ export const CAPABILITIES: readonly Capability[] = [
     symbol: "assertStorable",
     kind: "call",
     declaredIn: ["packages/documents/src/vault.ts"],
-    record: "ADR-0068",
+    record: "ADR-0068, ADR-0090",
     promise:
       "the retention and lawful-basis gates both run, and their branded result is the only " +
       "thing `store` accepts",
-    status: {
-      kind: "unreachable",
-      reason:
-        "no transport exists by which a student can supply bytes, and no deployable holds a vault",
-      closedBy:
-        "EVERY POLICY GATE IS ANSWERED — B5 (hold, 2026-09-07), B1's eleven periods, B2's four " +
-        "determinations (2026-09-08, ADR-0087), `other / audit_evidence` decided-refused " +
-        "(ADR-0088), and `national_id` removed from the supported types along with the Article 9 " +
-        "and Schedule 1 gates it alone needed (ADR-0089). What is left is not a decision — no " +
-        "transport by which bytes arrive, no `DocumentStore` implementation, no deployable " +
-        "holding a vault",
-    },
+    // ── REACHABLE from P57, and it was the last thing keeping it out ─────
+    //
+    // Declared-but-unreachable from P39 to P56, for a reason that was never
+    // engineering: every policy blocker in front of it was open. B5
+    // (ADR-0078), B1's eleven periods, B2's four determinations (ADR-0087),
+    // `other / audit_evidence` decided-refused (ADR-0088), `national_id`
+    // removed (ADR-0089) — and then the transport, which is this.
+    //
+    // The caller is `POST /v1/conversations/:conversationId/documents` in the
+    // Conversation Service, and it runs the gates BEFORE the route that reads
+    // a body exists (ADR-0090). This entry moving is the visible act.
+    status: { kind: "reachable" },
   },
   {
     symbol: "authoriseDisclosure",

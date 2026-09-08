@@ -45,6 +45,8 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   forbidden: "Not permitted",
   not_found: "Not found",
   validation_failed: "The request could not be understood",
+  content_hash_mismatch: "These are not the bytes this upload was prepared for",
+  intake_not_open: "This upload is no longer open",
   unsupported_media_type: "Unsupported media type",
   payload_too_large: "Payload too large",
   idempotency_key_conflict: "Idempotency key already used with a different request",
@@ -64,6 +66,8 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   forbidden: 403,
   not_found: 404,
   validation_failed: 400,
+  content_hash_mismatch: 422,
+  intake_not_open: 409,
   unsupported_media_type: 415,
   payload_too_large: 413,
   idempotency_key_conflict: 409,
@@ -317,11 +321,19 @@ export function parseProblem(raw: unknown): Problem | null {
     // claim — is not on the wire. The three are one refusal to the student and
     // one instruction, and distinguishing them publicly would tell an
     // unauthenticated caller what a provider returned about somebody's account.
+    //
+    // `content_hash_mismatch` and `intake_not_open` (ADR-0090) carry none
+    // either. The refusal names the document type, the ceiling and the two
+    // hashes in its `detail`; putting the received hash on the wire as a FIELD
+    // would invite a client to retry by declaring it, which is the binding the
+    // check exists to make.
     case "unauthenticated":
     case "forbidden":
     case "not_found":
     case "unsupported_media_type":
     case "payload_too_large":
+    case "content_hash_mismatch":
+    case "intake_not_open":
     case "idempotency_key_conflict":
     case "intervention_already_resolved":
     case "content_changed":

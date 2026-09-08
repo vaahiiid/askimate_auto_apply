@@ -354,6 +354,135 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # The document transport (ADR-0090) — B4, open since ADR-0067 §8
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # TWO STEPS, and the split is the control. The declaration runs the storage
+  # gates; only then does a route exist that will read a body. A refusal that
+  # arrives after a passport has crossed the wire has already failed.
+  /v1/conversations/{conversationId}/documents:
+    parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    post:
+      operationId: declareDocumentUpload
+      tags: [documents]
+      summary: Declare a document you are about to send. Runs the storage gates.
+      description: >-
+        Runs the retention gate (ADR-0010, ADR-0023) and the lawful-basis gate
+        (ADR-0022, ADR-0087) on the DECLARATION, before any body exists. On
+        success it answers with an intake id and the exact constraints the
+        content request will be held to — the byte ceiling, the accepted
+        content types and the hash the bytes must match — so a client is told
+        rather than left to guess and be refused.
+
+
+        A 403 means a gate refused, and its `detail` is the gate's own words:
+        which document type, which activity, and what is missing. A 400 on
+        `/documentType` means the type is not one this system supports —
+        `national_id` was removed in ADR-0089.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentUploadDeclaration" }
+      responses:
+        "201":
+          description: The gates passed. Send the bytes to the content route.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentIntake" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403":
+          description: A storage gate refused. The detail names which, and why.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "413":
+          description: The declared size is over this document type's ceiling.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "415":
+          description: This document type may not arrive as that content type.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "503":
+          description: No document store is configured, so nothing can be supplied.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /v1/conversations/{conversationId}/documents/{intakeId}/content:
+    parameters:
+      - { $ref: "#/components/parameters/ConversationId" }
+      - name: intakeId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      operationId: sendDocumentContent
+      tags: [documents]
+      summary: Send the bytes an intake was opened for. Once.
+      description: >-
+        The body is the document itself, with the `Content-Type` the intake was
+        opened for. The bytes are checked against the declaration that passed
+        the gates — length and SHA-256 — and nothing is stored unless they
+        match: without that, the checks upstream would have been about a
+        document that was never sent (ADR-0057's binding, at the other end of
+        the journey).
+
+
+        An intake is spent once. A second attempt, an expired one and an id
+        nobody opened all answer `intake_not_open`, deliberately
+        indistinguishable — telling a caller which is which would say what
+        intake ids exist.
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/png:
+            schema: { type: string, format: binary }
+      responses:
+        "201":
+          description: Stored. The record's id, state and hash.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoredDocument" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: The intake is not open — unknown, expired, or already spent.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "413":
+          description: The body is over this document type's ceiling.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "415":
+          description: The body's content type is not the one prepared for.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422":
+          description: These are not the bytes the intake was prepared for.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "503":
+          description: No document store is configured.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
   /v1/conversations/{conversationId}/target-offers:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
     post:
@@ -2150,6 +2279,8 @@ components:
         - idempotency_key_conflict
         - intervention_already_resolved
         - content_changed
+        - content_hash_mismatch
+        - intake_not_open
         - secret_request_open
         - already_applying
         - specialist_reviewing
@@ -2157,6 +2288,61 @@ components:
         - rate_limited
         - internal_error
         - service_unavailable
+
+    DocumentUploadDeclaration:
+      type: object
+      additionalProperties: false
+      required: [documentType, purpose, contentType, contentHash, sizeBytes]
+      properties:
+        documentType:
+          type: string
+          description: >-
+            A supported document type. `national_id` is NOT one — it was removed
+            in ADR-0089, and re-adding it requires the DPA 2018 Sch. 1
+            appropriate policy document to exist first.
+        purpose:
+          type: string
+          description: Why it is held. Keys the storing activity's determination.
+        contentType: { type: string }
+        contentHash:
+          type: string
+          pattern: "^[0-9a-f]{64}$"
+          description: SHA-256 of the bytes about to be sent, lowercase hex.
+        sizeBytes: { type: integer, minimum: 1 }
+
+    DocumentIntake:
+      type: object
+      additionalProperties: false
+      required:
+        [intakeId, expiresAt, maxBytes, acceptedContentTypes, contentHash, retentionPolicyReference]
+      properties:
+        intakeId: { type: string }
+        expiresAt: { type: string, format: date-time }
+        maxBytes:
+          type: integer
+          description: The ceiling for THIS document type. Stated, not guessed at.
+        acceptedContentTypes:
+          type: array
+          items: { type: string }
+        contentHash:
+          type: string
+          description: The hash the bytes must match. Echoed so a client can check its own.
+        retentionPolicyReference:
+          type: string
+          description: >-
+            The retention policy the gate actually resolved — not a claim that
+            one exists. A client can put this in front of a person.
+
+    StoredDocument:
+      type: object
+      additionalProperties: false
+      required: [documentId, documentType, state, contentHash, retentionPolicyReference]
+      properties:
+        documentId: { type: string }
+        documentType: { type: string }
+        state: { type: string }
+        contentHash: { type: string }
+        retentionPolicyReference: { type: string }
 
     SecureStepBootstrap:
       type: object
