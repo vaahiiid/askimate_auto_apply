@@ -109,3 +109,42 @@ not something to slide into under the word "discovery".
 form. If one is made, make it a small, deliberately scoped run of the public course pages — say
 `maxPages` of 10–15 — to confirm the entry point, the intake wording and where the login boundary
 falls, and expect it to answer nothing about the form itself.
+
+---
+
+## The scoped run cannot be made from this environment
+
+**Attempted 2026-09-08, after ADR-0091 landed. Sheffield was never contacted.**
+
+Vahid authorised a scoped run of 10–15 public course pages once robots.txt and the delay floor
+existed. They exist. The run did not happen, and the reason is on our side, not Sheffield's:
+
+```
+$ curl https://www.sheffield.ac.uk/robots.txt
+curl: (56) CONNECT tunnel failed, response 403
+```
+
+The agent proxy's own status endpoint names it:
+
+```
+"kind": "connect_rejected",
+"detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+"host": "www.sheffield.ac.uk:443"
+```
+
+**The request was refused by this environment's egress policy before it left the machine.** No packet
+reached Sheffield, no robots.txt was read, and no page was fetched. Two attempts, both rejected at
+the same point.
+
+So the run needs one of:
+
+- **this environment's network policy widened** to allow `www.sheffield.ac.uk` (and whatever host the
+  Postgraduate Online Application Form lives on) — see
+  https://code.claude.com/docs/en/claude-code-on-the-web for how an environment's policy is set; or
+- **the run made somewhere with ordinary network access.** `pnpm run discover` is deliberately
+  runnable anywhere: it needs a target file, Chromium, and outbound HTTPS. Nothing about discovery
+  depends on where it runs.
+
+**The target file does not exist yet either**, and building it needs the entry URL for the PGT
+application — which is the sort of thing this document must not invent. Whoever makes the run
+supplies it, with `maxPages` of 10–15 and `crawlDelayMs` at or above the floor.
