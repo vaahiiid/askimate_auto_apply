@@ -86,6 +86,22 @@ let counter = 0;
  * service honours it.
  */
 interface StreamObservation {
+  /**
+   * The conversation this connection was for, from the request path.
+   *
+   * ── Why an observation must say whose it is (P52) ──────────────────────
+   *
+   * This array is shared by every test in the file, and two tests used to claim
+   * their own entries by snapshotting `length` and slicing. That is only sound
+   * while no OTHER test's page is still reconnecting — and a page closed at the
+   * end of a test is not instantly quiet. CI failed with
+   * `expected [ '3' ] to deeply equal [ null ]`: a stray reconnect from the
+   * previous test, carrying its cursor, landing inside this test's slice.
+   *
+   * Filtering by conversation is exact, because every page in this file opens
+   * its own.
+   */
+  readonly conversationId: string;
   /** `Last-Event-ID` as the SERVICE received it, or `null` if absent. */
   readonly resumeFrom: string | null;
   /** The ordinals the service wrote back on THIS connection, in order. */
@@ -94,9 +110,9 @@ interface StreamObservation {
 
 const streamObservations: StreamObservation[] = [];
 
-/** Just the resume cursors, oldest first — the common case. */
-const resumeCursors = (): (string | null)[] =>
-  streamObservations.map((observation) => observation.resumeFrom);
+/** Only the connections opened for one conversation, oldest first. */
+const observationsFor = (conversationId: string): readonly StreamObservation[] =>
+  streamObservations.filter((observation) => observation.conversationId === conversationId);
 async function newConversation(owner: string = studentId): Promise<string> {
   counter += 1;
   const id = `01JBXQ8Z9WKTQ6M4H2NPB${String(counter).padStart(5, "0")}`;
@@ -232,6 +248,7 @@ beforeAll(async () => {
     // the code it observes would report on a value nothing acted on.
     const raw = req.headers["last-event-id"];
     const observation: StreamObservation = {
+      conversationId: /\/conversations\/([^/?]+)\/stream/.exec(req.url ?? "")?.[1] ?? "",
       resumeFrom: (Array.isArray(raw) ? raw[0] : raw) ?? null,
       delivered: [],
     };
@@ -644,7 +661,31 @@ describeIfDatabase("two clients on one conversation", () => {
     // would re-send the whole conversation on every refresh and announce
     // `resumingAfter: 0`, which is not what the client needs resuming after.
     expect(streamUrls, "the page opened no stream after reloading").not.toHaveLength(0);
-    expect(streamUrls.at(-1)).toContain("lastEventId=1");
+
+    // ── Why the FIRST, and not `at(-1)` (P52) ───────────────────────────
+    //
+    // This asserted `streamUrls.at(-1)` and failed on CI with the URL not
+    // containing `lastEventId=1`. What that tells us is exact: a FURTHER stream
+    // request followed the one the reload made, and it was not the one being
+    // asserted on.
+    //
+    // What produced that further request is NOT established. Measured here: the
+    // page makes exactly one stream request in this window, so first and last
+    // are the same URL and the old form passed every time. A three-second stall
+    // before the assertion — long enough to cross the 1.5s `maxStreamMs`
+    // recycle — did NOT reproduce it, so "a recycle carrying a higher cursor"
+    // is a plausible story and not a demonstrated one. It is left unsaid rather
+    // than written down as a cause.
+    //
+    // What IS settled is that `at(-1)` was the wrong question. It asks "did the
+    // most recent connection resume at 1", which nothing guarantees and which
+    // any legitimate later connection can falsify. The property is "the
+    // connection the reload opened resumed at 1, and none ever resumed from
+    // zero" — asserted below, and true however many connections follow.
+    expect(streamUrls[0], "the reload did not resume by ordinal").toContain("lastEventId=1");
+    for (const url of streamUrls) {
+      expect(url, "a stream resumed from the beginning").not.toMatch(/lastEventId=0(?!\d)/);
+    }
     await page.close();
   }, 90_000);
 
@@ -716,8 +757,14 @@ describeIfDatabase("two clients on one conversation", () => {
     // browser's own — `EventSource` retries by itself and re-sends
     // `Last-Event-ID` carrying the last `id:` it saw, which is the mechanism
     // ADR-0035 chose SSE for and which no stubbed transport can exercise.
-    const before = streamObservations.length;
-    const sinceDrop = (): (string | null)[] => resumeCursors().slice(before);
+    // Indexed within THIS conversation's own connections, not the shared array:
+    // another test's page still reconnecting used to land inside this slice.
+    const mine = (): readonly StreamObservation[] => observationsFor(conversation);
+    const before = mine().length;
+    const sinceDrop = (): (string | null)[] =>
+      mine()
+        .slice(before)
+        .map((observation) => observation.resumeFrom);
 
     // Two events, written while the connection is being closed and remade.
     await store.append({
@@ -780,7 +827,7 @@ describeIfDatabase("two clients on one conversation", () => {
     // below what was asked for. Without this, a service that ignored the
     // header and replayed from zero would still pass everything above, because
     // the client deduplicates what it already holds.
-    for (const observation of streamObservations.slice(before)) {
+    for (const observation of mine().slice(before)) {
       const cursor = Number(observation.resumeFrom ?? 0);
       expect(
         observation.delivered.filter((ordinal) => ordinal <= cursor),
@@ -788,7 +835,7 @@ describeIfDatabase("two clients on one conversation", () => {
       ).toEqual([]);
     }
     // Across every connection, no ordinal was ever put on the wire twice.
-    const wire = streamObservations.slice(before).flatMap((o) => o.delivered);
+    const wire = mine().slice(before).flatMap((o) => o.delivered);
     expect(wire, "an event was delivered twice on the wire").toEqual([...new Set(wire)]);
     await page.close();
   }, 120_000);
@@ -808,22 +855,27 @@ describeIfDatabase("two clients on one conversation", () => {
     // test failing on a slower machine for a reason that looked like a flake.
     const conversation = await newConversation();
     const page = await chatPage(conversation);
-    const before = streamObservations.length;
+    const mine = (): readonly StreamObservation[] => observationsFor(conversation);
+    const before = mine().length;
 
     // Long enough for the first connection to be recycled and the browser to be
     // between attempts. `maxStreamMs` is 1.5s and Chromium's reconnect delay is
     // ~3s, so this lands inside the gap rather than merely after the close.
-    await expect
-      .poll(() => streamObservations.length, { timeout: 20_000 })
-      .toBeGreaterThan(before);
+    await expect.poll(() => mine().length, { timeout: 20_000 }).toBeGreaterThan(before);
 
     // The reconnect a connection that received nothing makes: no cursor, and
     // none to be had. If this ever carries one, the premise of the test above
     // has changed and it should be revisited rather than quietly passing.
-    expect(
-      resumeCursors().slice(before),
-      "a stream that received no event still claimed a cursor",
-    ).toEqual(resumeCursors().slice(before).map(() => null));
+    //
+    // Scoped to this conversation: the failure that sent this to CI red was a
+    // stray `'3'` from the PREVIOUS test's page, which was never this test's to
+    // assert on.
+    const cursors = mine()
+      .slice(before)
+      .map((observation) => observation.resumeFrom);
+    expect(cursors, "a stream that received no event still claimed a cursor").toEqual(
+      cursors.map(() => null),
+    );
 
     for (const content of ["first while down", "second while down", "third while down"]) {
       await store.append({

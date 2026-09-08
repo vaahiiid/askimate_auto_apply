@@ -3100,3 +3100,55 @@ codebase that is now ten weeks stale, whose four browser files are a quarter of 
 and whose value is as evidence that the secure channel is implementable on AskiMate's real stack
 shape. Whether that evidence is still worth its cost is a judgement about the product, not the code,
 so it is a question for you rather than a phase I should take on my own.
+
+---
+
+# Where we are — 2026-09-08 (P52, in progress)
+
+**Date:** 2026-09-08 · **Phase:** P52 · **Status: OPEN — `main` went red at P51 and the cause is only
+partly established.**
+
+## What happened
+
+CI run #132, on commit `04ea0d9`, failed three tests in
+`apps/chat-integration/src/conversation-service.test.ts` — all SSE reconnect-cursor assertions. The
+other job passed. Eleven consecutive CI runs before it were green.
+
+**That commit does not touch this file.** Whatever this is, it predates P51's changes to the test.
+
+## What is established
+
+**A real attribution defect, now fixed.** `streamObservations` is a single module-level array shared
+by every test in the file, and two tests claimed their own entries by snapshotting `.length` and
+slicing. That is sound only while no other test's page is still reconnecting, and a closed page is
+not instantly quiet. It explains CI's `expected [ '3' ] to deeply equal [ null ]` precisely: a stray
+reconnect from the previous test, carrying its cursor, inside this test's slice. Every page opens its
+own conversation, so observations now carry a `conversationId` and each test filters by it.
+
+**One assertion asked the wrong question, now fixed.** `expect(streamUrls.at(-1))` asserts that the
+*most recent* connection resumed at ordinal 1. Nothing guarantees that, and any legitimate later
+connection falsifies it. The property is that the connection the reload opened resumed at 1 and none
+ever resumed from zero. That is what it asserts now, and it holds however many connections follow.
+
+**It is fragile, not starved.** The file passes with the box saturated by four CPU burners. This is
+not the P47 contention class, and no assertion was made more patient.
+
+## What is NOT established, and must not be written down as though it were
+
+- **The cause of the `at(-1)` failure.** A three-second stall before the assertion — long enough to
+  cross the 1.5s `maxStreamMs` recycle — did **not** reproduce it. The recycle story is plausible and
+  undemonstrated, and the test file now says so rather than asserting a cause.
+- **That the fix closes it.** After the attribution fix the third test still failed **once in four**
+  whole-file runs, then a full suite passed. Measured rate is roughly one in five, before and after,
+  and 0-of-5 versus 1-of-5 does not separate them.
+
+## The honest position
+
+One demonstrated mechanism is fixed. **An intermittent failure in this file remains open**, at
+roughly one run in five, cause unknown. It is recorded here rather than closed, because a red result
+that gets re-run until it is green is precisely what makes red stop meaning anything.
+
+`apps/chat-integration` is a research build against a codebase now ten weeks stale, kept as evidence
+that the secure channel is implementable on AskiMate's real stack shape. It is now also the only
+thing making the suite intermittently red. Whether that evidence is still worth its cost is a product
+judgement, and it is yours.
