@@ -19,6 +19,71 @@ not shipped artefacts.
 
 ---
 
+## [0.71.0] — 2026-09-08
+
+**P54 — the four lawful-basis determinations (ADR-0087).**
+
+### Added · B2 answered — the last policy blocker on documents, open since P31
+
+Four determinations by **Vahid Mohammadi, 2026-09-08**, review **2027-09-08**:
+
+| # | activity | Article 6 | authorisation |
+|---|---|---|---|
+| 1 | Storing identity documents | (1)(b) contract | not required |
+| 2 | Storing academic documents | (1)(b) contract | not required |
+| 3 | Disclosing a document to an institution | (1)(b) contract | **required** |
+| 4 | A minor's route | (1)(a) consent, from the guardian | **required** |
+
+**Consent is deliberately not the basis for 1, 2 and 3**, on ADR-0022's own reasoning: a student who
+cannot get their application submitted without agreeing has not freely given anything, and a record
+claiming consent there looks like compliance and is not. `determineLawfulBasis` has refused
+consent-without-authorisation since P31; these three avoid it by not naming consent.
+
+**Storing and sending are different acts.** Determination 3 registers ADR-0059's preview, the
+authorisation text and ADR-0057's content hash as **required, not optional** — they were built for
+this and nothing had ever said they had to be used.
+
+### Added · a national identity card needs a condition, not just a basis
+
+Some carry religion or ethnicity on their face. **ADR-0077 does not cover this**: it made a
+special-category *field* unextractable, and holding the image is processing the data whether or not
+anything reads it.
+
+**Article 9(2)(a), explicit consent, asked separately at upload** — scoped to that one document type
+*inside* the determination rather than flagged on it, because **a passport needs none** and a consent
+asked without cause is not caution. The reason consent works here is recorded so it cannot outlive
+itself: the student has a passport as an alternative, so the choice is real. If that stops being
+true, the determination must be revisited.
+
+`assertStorable` now runs a third gate: a type listed under `article9Required` cannot be stored
+without a consent that was **asked separately** and **records its wording**.
+
+### Measured, not assumed
+
+**Ten of seventy (document type, purpose) pairs now pass both gates**, against none before. Refusals
+counted: 58 have no retention policy because the pair is not a real combination; 1 is the bank
+statement (B1 row 12, deliberately unresolved); 1 — `other / audit_evidence` — has a policy and no
+determination, because the audit record is not an uploaded document. **That last one is recorded as
+an open question rather than decided here.**
+
+**The vault does not open.** What remains is not a decision: no transport, no `DocumentStore`
+implementation, no deployable holding a vault. And **blocker 8 became live** — the DPA 2018 Sch. 1
+appropriate policy document must exist *before* special-category processing, and registering an
+Article 9 condition does not satisfy it.
+
+### Decisions
+
+- [ADR-0087](./docs/decisions/0087-the-four-lawful-basis-determinations.md) — **Accepted**.
+
+Four deliberate regressions, each verified from disk. Naming consent for determination 1 makes the
+whole register unbuildable, through a check that already existed.
+
+The declared-but-unreachable surface is **unchanged at seven** — both gates now have their inputs and
+neither has a caller. The register's two entries were rewritten to say the obstacle is no longer a
+decision.
+
+---
+
 ## [0.70.0] — 2026-09-08
 
 **P53 — the research build is removed, and what it proved is kept (ADR-0086).**

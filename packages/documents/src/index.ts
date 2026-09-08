@@ -29,6 +29,7 @@ export type {
   DocumentUpload,
   DocumentVault,
   StorableUpload,
+  SpecialCategoryConsent,
 } from "./vault.js";
 export {
   DocumentNotFoundError,
@@ -38,6 +39,7 @@ export {
   hasContents,
   isReusable,
   storageActivityFor,
+  SpecialCategoryConsentMissingError,
 } from "./vault.js";
 
 export { InMemoryDocumentVault } from "./in-memory-vault.js";

@@ -74,6 +74,49 @@ export interface DocumentUpload {
   readonly sizeBytes: number;
   readonly contentHash: string;
   readonly dates: DocumentDates;
+  /**
+   * The separate Article 9 consent, for the document types that need one.
+   *
+   * Absent for every type that does not — a passport carries none of this, and
+   * asking for a consent nobody needs is not caution (B2, ADR-0087).
+   */
+  readonly specialCategoryConsent?: SpecialCategoryConsent;
+}
+
+/**
+ * A student's explicit consent to hold a document that may carry
+ * special-category data on its face.
+ *
+ * ── The wording is the record, as it is for an expiry warning ────────────
+ *
+ * `wording` is what the student was actually shown. ADR-0079 made the same
+ * choice for the expiry warning and for the same reason: a record saying "they
+ * consented" without saying what they were asked is evidence of nothing.
+ *
+ * `askedSeparately` is not decoration. B2 requires this to be asked **at the
+ * point of upload, on its own** — a consent bundled into a general agreement is
+ * the bundled consent ADR-0022 rejects, and a boolean that is always true would
+ * be a field nobody can fail. It is asserted at the gate.
+ */
+export interface SpecialCategoryConsent {
+  readonly givenAt: Date;
+  readonly wording: string;
+  readonly askedSeparately: boolean;
+}
+
+/** A document whose type needs an Article 9 condition, offered without one. */
+export class SpecialCategoryConsentMissingError extends Error {
+  public override readonly name = "SpecialCategoryConsentMissingError";
+  public constructor(
+    public readonly documentType: DocumentType,
+    public readonly detail: string,
+  ) {
+    super(
+      `Storing a ${documentType} needs an Article 9 condition as well as an Article 6 basis, and ` +
+        `${detail} Holding the image is processing the data whether or not anything reads it — ` +
+        `ADR-0077 makes the FIELDS unextractable, which is a different question (ADR-0087).`,
+    );
+  }
 }
 
 export class DocumentNotFoundError extends Error {
@@ -241,9 +284,41 @@ export function assertStorable(input: {
 
   const activity = storageActivityFor(input.upload.purpose);
   const determination = requireLawfulBasis(input.register, activity);
-  const covered = determinationOf(determination).activity.documentTypes;
+  const record = determinationOf(determination);
+  const covered = record.activity.documentTypes;
   if (!covered.includes(input.upload.documentType)) {
     throw new DocumentTypeNotCoveredError(input.upload.documentType, activity, covered);
+  }
+
+  // ── The THIRD gate: an Article 9 condition, where the type needs one ────
+  //
+  // Scoped by the determination itself, so a passport passes untouched and a
+  // national identity card does not. See `article9Required` in
+  // `lawful-basis.ts` for why this is a subset rather than a flag.
+  if ((record.article9Required ?? []).includes(input.upload.documentType)) {
+    const consent = input.upload.specialCategoryConsent;
+    if (consent === undefined) {
+      throw new SpecialCategoryConsentMissingError(
+        input.upload.documentType,
+        `determination ${record.determinationId} names ${String(record.article9)} as that ` +
+          `condition — but this upload carries no record of the consent being given.`,
+      );
+    }
+    if (!consent.askedSeparately) {
+      throw new SpecialCategoryConsentMissingError(
+        input.upload.documentType,
+        `the consent on this upload was not asked separately. A consent bundled into a general ` +
+          `agreement is not freely given, which is the whole reason consent is NOT the Article 6 ` +
+          `basis here.`,
+      );
+    }
+    if (consent.wording.trim().length === 0) {
+      throw new SpecialCategoryConsentMissingError(
+        input.upload.documentType,
+        `the consent on this upload records no wording. What the student agreed to is the record; ` +
+          `a bare "they consented" is evidence of nothing.`,
+      );
+    }
   }
 
   return {

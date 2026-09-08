@@ -84,6 +84,30 @@ export interface LawfulBasisDeterminationRecord {
   /** Required when the activity can touch special-category data. */
   readonly article9?: Article9Condition;
   /**
+   * The document types WITHIN this determination's scope that additionally
+   * need the Article 9 condition above.
+   *
+   * ── Why a subset, and not a flag on the determination ─────────────────
+   *
+   * B2, 2026-09-08. Storing an identity document is one activity with one
+   * determination, and it covers a passport and a national identity card. Only
+   * one of them needs an Article 9 condition: *"Some national ID cards carry
+   * religion or ethnicity on their face … A passport does not need this. Only
+   * national IDs."*
+   *
+   * A flag on the determination would make the passport carry a condition it
+   * does not need — and a condition asked for without cause is not caution, it
+   * is a consent request the student cannot refuse without losing something,
+   * which is the exact failure this file's `consent_without_authorisation`
+   * check exists to prevent.
+   *
+   * Listing the types is also narrower than a global table over every document
+   * type: a table would have to say something about the twelve types nobody
+   * ruled on, and inventing "not required" for them is the false record
+   * ADR-0023 refuses.
+   */
+  readonly article9Required?: readonly string[];
+  /**
    * Whether this activity ALSO needs specific authorisation from the student
    * on top of the lawful basis.
    *
@@ -118,7 +142,9 @@ export type DeterminationRefusal =
   | { readonly kind: "no_reasoning"; readonly detail: string }
   | { readonly kind: "no_determiner"; readonly detail: string }
   | { readonly kind: "expired"; readonly detail: string }
-  | { readonly kind: "consent_without_authorisation"; readonly detail: string };
+  | { readonly kind: "consent_without_authorisation"; readonly detail: string }
+  | { readonly kind: "article9_without_condition"; readonly detail: string }
+  | { readonly kind: "article9_outside_scope"; readonly detail: string };
 
 export type DeterminationCheck =
   | { readonly valid: true; readonly determination: LawfulBasisDetermination }
@@ -168,6 +194,37 @@ export function determineLawfulBasis(
           `Determination ${record.determinationId} was due for review on ` +
           `${record.reviewBy.toISOString().slice(0, 10)}. Law and circumstances change; a lapsed ` +
           `determination is not relied on.`,
+      },
+    };
+  }
+
+  const needsCondition = record.article9Required ?? [];
+  if (needsCondition.length > 0 && record.article9 === undefined) {
+    return {
+      valid: false,
+      refusal: {
+        kind: "article9_without_condition",
+        detail:
+          `Determination ${record.determinationId} says ${needsCondition.join(", ")} need an ` +
+          `Article 9 condition and names none. Identifying special-category processing and then ` +
+          `not saying what permits it is worse than not identifying it: the record shows the ` +
+          `question was asked and left unanswered.`,
+      },
+    };
+  }
+
+  const outOfScope = needsCondition.filter(
+    (type) => !record.activity.documentTypes.includes(type),
+  );
+  if (outOfScope.length > 0) {
+    return {
+      valid: false,
+      refusal: {
+        kind: "article9_outside_scope",
+        detail:
+          `Determination ${record.determinationId} requires an Article 9 condition for ` +
+          `${outOfScope.join(", ")}, which it does not cover. A determination is scoped to what ` +
+          `it was made about.`,
       },
     };
   }

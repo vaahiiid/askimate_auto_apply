@@ -37,6 +37,17 @@ export type {
   WithdrawalRecord,
 } from "./disclosure.js";
 export {
+  B2_DETERMINATIONS,
+  B2_DETERMINED_AT,
+  B2_REVIEW_BY,
+  DISCLOSE_DOCUMENT,
+  MINOR_ROUTE,
+  STORE_ACADEMIC_DOCUMENT,
+  STORE_IDENTITY_DOCUMENT,
+  b2Register,
+} from "./b2-determinations.js";
+
+export {
   DISCLOSURE_ACTIVITY,
   authoriseDisclosure,
   disclosureOf,

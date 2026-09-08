@@ -306,9 +306,11 @@ export const CAPABILITIES: readonly Capability[] = [
       reason:
         "no transport exists by which a student can supply bytes, and no deployable holds a vault",
       closedBy:
-        "B5 is DECIDED (A — hold, 2026-09-07) and B1's eleven periods are set, so the " +
-        "retention gate opens. Still waiting on B2 (the ADR-0022 lawful basis, which " +
-        "`assertStorable` requires alongside the policy) and on the transport phase",
+        "BOTH POLICY GATES ARE ANSWERED — B5 (hold, 2026-09-07), B1's eleven periods, and B2's " +
+        "four determinations (2026-09-08, ADR-0087). Measured: ten of seventy (type, purpose) " +
+        "pairs now pass both gates, against none before. What is left is not a decision — no " +
+        "transport by which bytes arrive, no `DocumentStore` implementation, no deployable " +
+        "holding a vault",
     },
   },
   {
@@ -320,9 +322,10 @@ export const CAPABILITIES: readonly Capability[] = [
     status: {
       kind: "unreachable",
       reason:
-        "nothing acquires a document, and the `disclose_document_to_institution` lawful basis is " +
-        "undetermined (B2), so the function refuses everything it is given",
-      closedBy: "B2, which is the one of the three that is still undetermined, and the transport phase",
+        "nothing acquires a document, so there is nothing to disclose. The lawful basis is no " +
+        "longer the obstacle: B2's determination 3 registers Article 6(1)(b) AND specific " +
+        "student authorisation as REQUIRED (2026-09-08, ADR-0087)",
+      closedBy: "the transport phase — nothing yet holds a document to send",
     },
   },
   {

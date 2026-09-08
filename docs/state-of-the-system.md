@@ -15,9 +15,9 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,145 tests, 110 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,162 tests, 112 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
-Eighty-six architecture decision records, all eighty-six accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
+Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
@@ -99,6 +99,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P50** | The census is generated, and its arithmetic is checked (ADR-0084) | §7's per-area table had six of twenty rows wrong and `scripts` — 264 tests — with no row at all, but the finding that mattered needed no run: the table did not add up to its own stated total, by 136. The tilde in "everything else ~346" is what made that unfalsifiable |
 | **P51** | A published demonstration is guarded on what it shows (ADR-0085) | Five of twelve published commands had no guard — P37 fixed the walkthrough and left the rest. Exit code is not the property: `extraction-demo` accepting its INVENTING reader would exit 0 and mean ADR-0016's grounding guarantee had stopped holding |
 | **P53** | The research build is removed, and what it proved is kept (ADR-0086) | `apps/chat-integration` retired by Vahid's decision. Four properties in it were about the two DEPLOYABLES, not the research build, and moved to `scripts/plane-separation.test.ts` rather than going with it. Taking it away found that the PRODUCTION client's `postMessage` had never been covered by the wildcard-origin rule |
+| **P54** | The four lawful-basis determinations (ADR-0087) | B2 answered by Vahid — the last policy blocker on documents, open since P31. Contract for storing and disclosing, consent only for a minor's route, authorisation required for sending. A national ID additionally needs Article 9(2)(a); a passport does not. Ten of seventy (type, purpose) pairs now pass both gates, against none before |
 
 ---
 
@@ -267,6 +268,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0084 | The census is generated, and its arithmetic is checked | Accepted · continues 0083 |
 | 0085 | A published demonstration is guarded on what it shows | Accepted · completes 0072 |
 | 0086 | The research build is removed, and what it proved is kept | Accepted |
+| 0087 | The four lawful-basis determinations, and the condition a national ID needs | Accepted · answers 0022 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -401,8 +403,8 @@ open rather than quietly answered.
 | **4** | **An account** — QA HE sandbox, or a consenting applicant | You | The controlled live run |
 | **5** | ~~**B5 — hold or pass through**~~ | — | **Decided A — hold and reuse, 2026-09-07 (ADR-0078).** Documents are stored and reused; a student is never asked for the same document twice |
 | **6** | ~~**B1 — twelve retention determinations**~~ | — | **All twelve answered, 2026-09-07 (ADR-0078).** Eleven periods set in schedule `1.2026-09-07`; row 12 (`bank_statement`) stays unresolved and blocking by ADR-0021 |
-| **7** | **B2 — the ADR-0022 lawful basis** | A named determiner | **Now the only policy blocker on documents.** Any document *entering* (`assertStorable` requires a registered basis as well as a retention policy) and any document *leaving* (`authoriseDisclosure` refuses without it) |
-| **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing |
+| **7** | ~~**B2 — the ADR-0022 lawful basis**~~ | — | **Answered 2026-09-08 by Vahid Mohammadi (ADR-0087).** Four determinations, review 2027-09-08. Ten of seventy (type, purpose) pairs now pass both storage gates. The vault still does not open — what remains is transport, an implementation and a deployable, none of which is a decision |
+| **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing — and **B2 made this live rather than hypothetical**: ADR-0087 puts a national identity card in scope under Article 9(2)(a), and registering the condition does not satisfy this |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
@@ -419,7 +421,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,145 tests · 110 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,162 tests · 112 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -432,7 +434,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,145 tests**, by the workspace they live in. Generated — run
+**2,162 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -441,12 +443,12 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `packages/domain` | 373 | `packages/conversation` | 52 |
 | `apps/conversation-service` | 330 | `packages/profile` | 46 |
-| `scripts` | 260 | `packages/catalogue` | 39 |
-| `apps/browser-runner` | 204 | `packages/preparation` | 33 |
-| `packages/case-store` | 143 | `packages/disclosure` | 31 |
+| `scripts` | 260 | `packages/disclosure` | 42 |
+| `apps/browser-runner` | 204 | `packages/catalogue` | 39 |
+| `packages/case-store` | 143 | `packages/preparation` | 33 |
 | `packages/orchestrator` | 98 | `packages/extraction` | 27 |
 | `packages/contracts` | 78 | `packages/mapping` | 26 |
-| `packages/documents` | 67 | `packages/interview` | 22 |
+| `packages/documents` | 73 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | everything else | 98 |
 | `apps/secure-service` | 64 |  |  |

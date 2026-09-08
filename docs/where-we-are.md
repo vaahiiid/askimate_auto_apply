@@ -3218,3 +3218,88 @@ the register does not track — never in the register itself.
 Nothing on the blocker list is mine. **B2** is with you, and so are a real portal, a specialist
 review, Bedrock credentials and an account. The two browser properties above are the one piece of
 engineering I can name that is unblocked and worth doing.
+
+---
+
+# Where we are — 2026-09-08 (P54)
+
+**Date:** 2026-09-08 · **Phase:** P54 · **ADR:** [ADR-0087](./decisions/0087-the-four-lawful-basis-determinations.md)
+
+> Read [`state-of-the-system.md`](./state-of-the-system.md) first.
+
+## B2 is answered
+
+Four determinations, named to you, dated today, review 2027-09-08. Storing identity documents and
+storing academic documents on Article 6(1)(b) with no separate authorisation; **disclosing** on the
+same basis **and** specific student authorisation; a minor's route on Article 6(1)(a) consent from
+the guardian, plus authorisation.
+
+The reasoning is registered, not just the answers — consent is deliberately not the basis for the
+first three, because a student who cannot get their application submitted without agreeing has not
+freely given anything, and a record claiming consent there looks like compliance and is not. That was
+already ADR-0022's argument; it is now a property a test asserts, so an edit that changes the basis
+cannot leave the paragraph behind.
+
+**Determination 3 is the one that changes behaviour.** The preview, the authorisation text and the
+content hash existed and nothing said they were required. Now something does.
+
+## The national ID condition, and why it is a subset
+
+Article 9(2)(a), explicit consent, asked separately at upload — for the national identity card and
+**not** the passport.
+
+It is scoped to one document type *inside* one determination rather than flagged on the determination,
+because a flag would make the passport carry a condition it does not need, and a consent asked
+without cause is not caution: it is a request the student cannot refuse without losing something,
+which is exactly the bundled consent the determination avoids by naming contract. A global table over
+all fourteen document types was also rejected — it would have to say something about the twelve you
+did not rule on, and inventing "not required" for them is the false record ADR-0023 refuses.
+
+Your reason for why consent works here is in the determination itself: **the student has a passport
+as an alternative, so the choice is real**, and if that ceases to be true this must be revisited. A
+test asserts the reasoning still says so.
+
+**ADR-0077 does not cover this**, and the ADR says so explicitly. That decision made a
+special-category *field* unextractable. Holding the image is processing the data whether or not
+anything reads it — a different question, and one nothing had asked until you did.
+
+## What else assertStorable needs — measured
+
+I ran every (document type, purpose) pair through the real gate with the real schedule and the real
+register rather than reasoning about it:
+
+**Ten of seventy pass both gates. Before B2, none did.**
+
+| refusal | pairs |
+|---|---|
+| no retention policy — the pair is not a real combination | 58 |
+| the bank statement, B1 row 12, deliberately unresolved | 1 |
+| **a policy exists and no determination does** | **1** |
+
+That last one is **`other / audit_evidence`** — B1 row 5, six years from `case_concluded`. It has a
+retention policy and no storage determination, because the audit record is the transmission record,
+the preview hash and the authorisation text (ADR-0077), not an uploaded document. Storing a
+*document* under that purpose is therefore refused, which is probably right. **It is not mine to
+decide, so it is recorded as an open question rather than closed.**
+
+## What remains, and one thing that just became live
+
+**The vault does not open, and nothing left is a decision:** no transport by which bytes arrive, no
+`DocumentStore` implementation, no deployable holding a vault.
+
+**Blocker 8 changed character.** The DPA 2018 Sch. 1 appropriate policy document must exist *before*
+special-category processing. It was hypothetical while nothing was in scope; ADR-0087 puts a national
+identity card in scope, so it is now a live prerequisite, and registering the Article 9 condition does
+not satisfy it. That one is the DPIA owner's.
+
+## Declared-but-unreachable surface
+
+**Seven, unchanged — and what it does now is nothing, which is the honest answer.** Both policy gates
+have their inputs; neither `assertStorable` nor `authoriseDisclosure` has a caller. The blocker was
+never only policy. I rewrote both register entries so they no longer cite B2 and say plainly that the
+obstacle is transport, an implementation and a deployable.
+
+## What is next
+
+Yours: a real portal, a specialist review, Bedrock credentials, an account, and blocker 8. Mine, and
+now unblocked: the document transport phase is the thing these four determinations were waiting for.
