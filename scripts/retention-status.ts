@@ -308,19 +308,29 @@ async function main(): Promise<void> {
       `  ${String(blocked.length)} question(s) recorded as unresolved.\n`,
   );
 
-  // ── Retention is ONE of the two gates, and saying otherwise would lie ────
+  // ── Retention is ONE of four gates, and saying otherwise would lie ──────
   //
   // `assertStorable` requires a retention policy AND a registered lawful basis
-  // (ADR-0022). Until P44 the distinction did not matter, because no period
-  // was set and the answer was "nothing" either way. Now that eleven rows are
-  // determined, "10 of 12 could be stored today" would read as permission this
-  // report cannot grant and does not check.
+  // (ADR-0022) AND the DPA 2018 Sch. 1 appropriate policy document where one is
+  // needed (ADR-0088) AND the Article 9 consent where the type needs one
+  // (ADR-0087). Until P44 the distinction did not matter, because no period was
+  // set and the answer was "nothing" either way.
+  //
+  // B2 was answered on 2026-09-08, so this line had to change rather than
+  // stand: "NOT yet determined" became false the moment the four
+  // determinations were registered, and a report that says a decision is
+  // outstanding after it is made is the false record this repository keeps
+  // finding. What is still true is the sentence it was written for — a
+  // retention policy is not permission — and it is now true for three reasons
+  // rather than one.
   console.log(
     `  ${AMBER}A retention policy is not permission to store.${RESET} ` +
       `${DIM}\`assertStorable\` also requires a\n` +
-      `  registered lawful basis for the storing activity (ADR-0022, blocker B2), which this\n` +
-      `  report does not read and which is NOT yet determined. Retention resolved means one of\n` +
-      `  two gates opened.${RESET}\n`,
+      `  registered lawful basis for the storing activity (ADR-0022, B2 — DETERMINED on\n` +
+      `  2026-09-08, ADR-0087), the DPA 2018 Sch. 1 appropriate policy document where the type\n` +
+      `  needs one (ADR-0088, OUTSTANDING for national_id), and the separate Article 9 consent.\n` +
+      `  This report reads none of the three. Retention resolved means one of four gates\n` +
+      `  opened.${RESET}\n`,
   );
 
   if (storable === 0) {

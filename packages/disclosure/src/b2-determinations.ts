@@ -243,3 +243,99 @@ export function b2Register(now: Date): LawfulBasisRegister {
   }
   return register;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// What B2 decided NOT to determine
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * An activity somebody looked at and decided no determination should be made.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The retention side has had this distinction since ADR-0023 and the lawful
+ * basis side did not. `RetentionPolicyMissingError` means NOBODY LOOKED;
+ * `RetentionRequirementUnresolvedError` means somebody looked and could not
+ * responsibly say. Both refuse, and they are different facts about the world.
+ *
+ * Against that, `NoLawfulBasisError` said one thing for two situations: an
+ * activity awaiting a decision, and an activity whose decision IS this refusal.
+ * A later phase reading the second as the first would "fix" it by registering a
+ * determination — which is precisely the outcome the decision was made to
+ * prevent.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface DecidedRefusal {
+  /** The storing activity, in `storageActivityFor`'s vocabulary. */
+  readonly activity: string;
+  /** Named, as a determination is. A decision nobody owns is not a decision. */
+  readonly decidedBy: string;
+  readonly decidedAt: Date;
+  /** Why no determination will be made — the part a later phase must read. */
+  readonly reasoning: string;
+}
+
+export type DecidedRefusalRegister = Readonly<Record<string, DecidedRefusal>>;
+
+/**
+ * The activities B2 deliberately left without a determination.
+ *
+ * ── `other / audit_evidence` — B1 row 5, and the one that looked like a gap ──
+ *
+ * ADR-0087 measured every (type, purpose) pair through both gates and reported
+ * this one as an OPEN QUESTION: a retention policy exists — six years from
+ * `case_concluded` — and no storage determination does. Vahid closed it on
+ * 2026-09-08, and the answer was that it is not a gap:
+ *
+ *   "The audit record is the transmission record, the preview hash and the
+ *    authorisation text, not an uploaded document. Allowing a document to be
+ *    stored under that purpose would extend the six-year period from a receipt
+ *    to a passport scan, which is what ADR-0078 was written to prevent."
+ *
+ * That is a statement about the six-year period, not about documents in
+ * general: the same passport is storable under `identity_verification` for 365
+ * days after last use. The purpose is what carries the period, so a document
+ * admitted under this one would be held for six years by the retention rule
+ * doing exactly what it was told.
+ */
+export const DECIDED_NOT_TO_DETERMINE: DecidedRefusalRegister = {
+  "store_document:audit_evidence": {
+    activity: "store_document:audit_evidence",
+    decidedBy: DETERMINED_BY,
+    decidedAt: B2_DETERMINED_AT,
+    reasoning:
+      "Decided, not open (ADR-0088). The audit record IS the transmission record, the preview " +
+      "hash and the authorisation text (ADR-0077) — not an uploaded document, so there is nothing " +
+      "for a storage determination to be about. Admitting a document under this purpose would " +
+      "extend B1 row 5's six-year period from a receipt to a passport scan, which is what " +
+      "ADR-0078 was written to prevent. The period is carried by the PURPOSE, so the same passport " +
+      "remains storable under identity_verification for 365 days after last use; it is this " +
+      "purpose that must not accept one. Decided by Vahid Mohammadi, 2026-09-08. Do not close " +
+      "this by registering a determination.",
+  },
+};
+
+/** An activity whose refusal is a decision, not an absence. */
+export class DeterminationDecidedAgainstError extends Error {
+  public override readonly name = "DeterminationDecidedAgainstError";
+  public constructor(public readonly refusal: DecidedRefusal) {
+    super(
+      `No lawful basis will be determined for "${refusal.activity}", and that is a DECISION ` +
+        `rather than an omission. ${refusal.reasoning} Decided by ${refusal.decidedBy} on ` +
+        `${refusal.decidedAt.toISOString().slice(0, 10)}.`,
+    );
+  }
+}
+
+/**
+ * Throws when the activity's refusal was decided; silent otherwise.
+ *
+ * Silence here does NOT mean permission — it means this particular record has
+ * nothing to say, and `requireLawfulBasis` still has to find a determination.
+ */
+export function assertNotDecidedAgainst(
+  activity: string,
+  register: DecidedRefusalRegister = DECIDED_NOT_TO_DETERMINE,
+): void {
+  const refusal = register[activity];
+  if (refusal !== undefined) throw new DeterminationDecidedAgainstError(refusal);
+}

@@ -151,6 +151,7 @@ function storable(overrides: Partial<DocumentUpload> = {}): StorableUpload {
     schedule: SCHEDULE,
     register: REGISTER,
     upload: upload(overrides),
+    now: NOW,
   });
 }
 
@@ -211,13 +212,23 @@ describe("the lawful-basis gate at storage time", () => {
 
   it("REFUSES when no determination is registered for the storing activity", () => {
     expect(() =>
-      assertStorable({ schedule: SCHEDULE, register: new LawfulBasisRegister(), upload: upload() }),
+      assertStorable({
+        schedule: SCHEDULE,
+        register: new LawfulBasisRegister(),
+        upload: upload(),
+        now: NOW,
+      }),
     ).toThrow(NoLawfulBasisError);
   });
 
   it("names the activity nobody determined, so the gap is actionable", () => {
     expect(() =>
-      assertStorable({ schedule: SCHEDULE, register: new LawfulBasisRegister(), upload: upload() }),
+      assertStorable({
+        schedule: SCHEDULE,
+        register: new LawfulBasisRegister(),
+        upload: upload(),
+        now: NOW,
+      }),
     ).toThrow(/store_document:identity_verification/);
   });
 
@@ -236,7 +247,7 @@ describe("the lawful-basis gate at storage time", () => {
         },
       }),
     );
-    expect(() => assertStorable({ schedule: SCHEDULE, register: sending, upload: upload() })).toThrow(
+    expect(() => assertStorable({ schedule: SCHEDULE, register: sending, upload: upload(), now: NOW })).toThrow(
       NoLawfulBasisError,
     );
   });
@@ -255,7 +266,7 @@ describe("the lawful-basis gate at storage time", () => {
         },
       }),
     );
-    expect(() => assertStorable({ schedule: SCHEDULE, register: narrow, upload: upload() })).toThrow(
+    expect(() => assertStorable({ schedule: SCHEDULE, register: narrow, upload: upload(), now: NOW })).toThrow(
       DocumentTypeNotCoveredError,
     );
   });
@@ -266,23 +277,28 @@ describe("the lawful-basis gate at storage time", () => {
     expect(passed.policyReference).toBe("AAS-RET-001");
   });
 
-  it("keeps the two gates INDEPENDENT — neither implies the other", () => {
+  it("keeps RETENTION and LAWFUL BASIS independent — neither implies the other", () => {
     // A period somebody justified is not a basis for holding the data, and a
     // basis for holding it says nothing about for how long. Both are required
     // and each fails on its own.
     //
     // Retention configured, basis absent:
     expect(() =>
-      assertStorable({ schedule: SCHEDULE, register: new LawfulBasisRegister(), upload: upload() }),
+      assertStorable({
+        schedule: SCHEDULE,
+        register: new LawfulBasisRegister(),
+        upload: upload(),
+        now: NOW,
+      }),
     ).toThrow(NoLawfulBasisError);
 
     // Basis present and covering the type, retention absent:
     const covering = registerWith(
       determination({
-        determinationId: "lb-store-audit",
+        determinationId: "lb-store-minor",
         activity: {
-          activity: storageActivityFor("audit_evidence"),
-          purpose: "Hold a document as audit evidence.",
+          activity: storageActivityFor("minor_safeguarding"),
+          purpose: "Hold a document on a minor's route.",
           documentTypes: ["passport"],
         },
       }),
@@ -291,7 +307,8 @@ describe("the lawful-basis gate at storage time", () => {
       assertStorable({
         schedule: SCHEDULE,
         register: covering,
-        upload: upload({ purpose: "audit_evidence" }),
+        upload: upload({ purpose: "minor_safeguarding" }),
+        now: NOW,
       }),
     ).toThrow(RetentionPolicyMissingError);
   });
@@ -302,7 +319,7 @@ describe("the lawful-basis gate at storage time", () => {
     const empty = new LawfulBasisRegister();
     const once = (): unknown => {
       try {
-        assertStorable({ schedule: SCHEDULE, register: empty, upload: upload() });
+        assertStorable({ schedule: SCHEDULE, register: empty, upload: upload(), now: NOW });
         return "stored";
       } catch (error) {
         return (error as Error).message;

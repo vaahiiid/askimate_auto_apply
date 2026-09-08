@@ -21,8 +21,19 @@ import type {
   RetentionSchedule,
 } from "@askimate/aas-domain";
 import { requirePolicy } from "@askimate/aas-domain";
-import type { LawfulBasisDetermination, LawfulBasisRegister } from "@askimate/aas-disclosure";
-import { determinationOf, requireLawfulBasis } from "@askimate/aas-disclosure";
+import type {
+  AppropriatePolicyRegister,
+  LawfulBasisDetermination,
+  LawfulBasisRegister,
+  PolicyDocumentCleared,
+} from "@askimate/aas-disclosure";
+import {
+  APPROPRIATE_POLICY_DOCUMENTS,
+  assertNotDecidedAgainst,
+  determinationOf,
+  requireAppropriatePolicy,
+  requireLawfulBasis,
+} from "@askimate/aas-disclosure";
 
 import type { DocumentDates } from "./validity.js";
 
@@ -245,44 +256,96 @@ export type StorableUpload = Brand<
     readonly policyReference: string;
     /** The determination relied on to hold this document. */
     readonly lawfulBasis: LawfulBasisDetermination;
+    /**
+     * Proof that the DPA 2018 Sch. 1 prerequisite was checked (ADR-0088).
+     *
+     * Branded, and `requireAppropriatePolicy` is its only source, so this
+     * object cannot be assembled by a future edit that drops the fourth gate
+     * and leaves the other three — the brand is not decoration, it is the
+     * reason the field is here rather than a comment saying the check ran.
+     */
+    readonly policyDocumentCleared: PolicyDocumentCleared;
   },
   "StorableUpload"
 >;
 
 /**
- * The storage-time gate. Two refusals, for two independent decisions.
+ * The storage-time gate. Four refusals, for four independent questions.
  *
  * **Retention** (ADR-0010, ADR-0023) — throws `RetentionRequirementUnresolvedError`
  * when someone has looked and could not responsibly say, and
  * `RetentionPolicyMissingError` when nobody has looked. Absence of policy is
  * not permission to keep.
  *
- * **Lawful basis** (ADR-0022) — throws `NoLawfulBasisError` when no
- * determination is registered for this storing activity, and
- * `DocumentTypeNotCoveredError` when the determination that IS registered was
- * not made about this kind of document.
+ * **Lawful basis** (ADR-0022) — throws `DeterminationDecidedAgainstError` when
+ * somebody decided this activity gets no determination (ADR-0088),
+ * `NoLawfulBasisError` when none is registered and nobody has decided either
+ * way, and `DocumentTypeNotCoveredError` when the determination that IS
+ * registered was not made about this kind of document.
  *
- * The two are genuinely independent and neither implies the other: a period
- * somebody justified is not a basis for holding the data, and a basis for
- * holding it says nothing about for how long. Before P32 only the first ran,
- * so ADR-0022's *"the system will refuse to act until"* was true of sending
- * and false of storing.
+ * **The appropriate policy document** (DPA 2018 Sch. 1, ADR-0088) — throws
+ * `AppropriatePolicyMissingError` for a document type whose Schedule 1
+ * prerequisite is outstanding. Today that is `national_id`, and nothing an
+ * upload carries can satisfy it: the document is somebody else's to produce.
+ *
+ * **Article 9** (ADR-0087) — throws `SpecialCategoryConsentMissingError` for a
+ * type the determination lists under `article9Required` when the separate
+ * consent is absent, bundled, or records no wording.
+ *
+ * The four are genuinely independent and none implies another: a period
+ * somebody justified is not a basis for holding the data, a basis for holding
+ * it says nothing about for how long, and neither is the Schedule 1 document
+ * that has to exist before the processing at all. Before P32 only the first
+ * ran, so ADR-0022's *"the system will refuse to act until"* was true of
+ * sending and false of storing.
+ *
+ * ── Two staleness rules that look inconsistent, and are not ───────────────
  *
  * A determination's `reviewBy` is deliberately NOT re-checked here.
  * `determineLawfulBasis` refuses an expired one when it is made, and
  * `requirePolicy` does not re-check a policy's `reviewBy` either —
  * `validateSchedule` reports staleness and `pnpm run retention-status` prints
- * it. Adding a second, differently-placed staleness rule for one of the two
+ * it. Adding a second, differently-placed staleness rule for one of those two
  * gates would be an inconsistency, not a control.
+ *
+ * The appropriate policy document's `reviewBy` IS checked, and the difference
+ * is that **there is nowhere else it could be**. A determination is minted by a
+ * function that refuses a lapsed one; a retention schedule is validated by a
+ * command someone runs. A `held` policy-document entry is a plain record with
+ * no minting step and no report, so a lapse nobody checked here is a lapse
+ * nothing checks at all.
+ *
+ * ── Why `now` is a parameter rather than a default ────────────────────────
+ *
+ * Every dated decision in this repository is handed the time it should use —
+ * `store`, `transition`, `decideExpiryWarning`, `determineLawfulBasis`. A gate
+ * that read `new Date()` internally would be a gate no test could put on either
+ * side of a review date, which is most of what there is to check about one.
  */
 export function assertStorable(input: {
   readonly schedule: RetentionSchedule;
   readonly register: LawfulBasisRegister;
   readonly upload: DocumentUpload;
+  readonly now: Date;
+  /**
+   * The Schedule 1 register, defaulting to what the system actually holds.
+   *
+   * Injectable so a test can put a document type on the far side of the
+   * decision — a `held` entry is what re-enabling `national_id` will look like
+   * — and defaulted to the REFUSING one, so an omission fails closed.
+   */
+  readonly policyDocuments?: AppropriatePolicyRegister;
 }): StorableUpload {
   const policy = requirePolicy(input.schedule, input.upload.documentType, input.upload.purpose);
 
   const activity = storageActivityFor(input.upload.purpose);
+  // ── Decided-against comes BEFORE "not determined" ──────────────────────
+  //
+  // `other / audit_evidence` has a retention policy and no determination, and
+  // it will never have one (ADR-0088). Reaching `requireLawfulBasis` for it
+  // would report an absence, which reads as work outstanding — and the work
+  // that "closes" it is the thing ADR-0078 exists to prevent.
+  assertNotDecidedAgainst(activity);
   const determination = requireLawfulBasis(input.register, activity);
   const record = determinationOf(determination);
   const covered = record.activity.documentTypes;
@@ -290,7 +353,20 @@ export function assertStorable(input: {
     throw new DocumentTypeNotCoveredError(input.upload.documentType, activity, covered);
   }
 
-  // ── The THIRD gate: an Article 9 condition, where the type needs one ────
+  // ── The THIRD gate: DPA 2018 Sch. 1's appropriate policy document ──────
+  //
+  // Keyed on the DOCUMENT TYPE and not on the determination, because it is a
+  // prerequisite of the processing rather than a property of the decision. It
+  // runs before the Article 9 consent check on purpose: no consent, however
+  // well recorded, can substitute for a document that does not exist, and a
+  // developer told to add consent first would hit this wall on the next run.
+  const policyDocumentCleared = requireAppropriatePolicy(
+    input.policyDocuments ?? APPROPRIATE_POLICY_DOCUMENTS,
+    input.upload.documentType,
+    input.now,
+  );
+
+  // ── The FOURTH gate: an Article 9 condition, where the type needs one ───
   //
   // Scoped by the determination itself, so a passport passes untouched and a
   // national identity card does not. See `article9Required` in
@@ -325,6 +401,7 @@ export function assertStorable(input: {
     ...input.upload,
     policyReference: policy.policyReference,
     lawfulBasis: determination,
+    policyDocumentCleared,
   } as StorableUpload;
 }
 

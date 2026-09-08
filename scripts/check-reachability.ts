@@ -299,18 +299,20 @@ export const CAPABILITIES: readonly Capability[] = [
     declaredIn: ["packages/documents/src/vault.ts"],
     record: "ADR-0068",
     promise:
-      "the retention and lawful-basis gates both run, and their branded result is the only " +
-      "thing `store` accepts",
+      "all four storage gates run — retention, lawful basis, the DPA 2018 Sch. 1 appropriate " +
+      "policy document and the Article 9 consent — and their branded result is the only thing " +
+      "`store` accepts",
     status: {
       kind: "unreachable",
       reason:
         "no transport exists by which a student can supply bytes, and no deployable holds a vault",
       closedBy:
-        "BOTH POLICY GATES ARE ANSWERED — B5 (hold, 2026-09-07), B1's eleven periods, and B2's " +
-        "four determinations (2026-09-08, ADR-0087). Measured: ten of seventy (type, purpose) " +
-        "pairs now pass both gates, against none before. What is left is not a decision — no " +
-        "transport by which bytes arrive, no `DocumentStore` implementation, no deployable " +
-        "holding a vault",
+        "EVERY POLICY GATE IS ANSWERED — B5 (hold, 2026-09-07), B1's eleven periods, B2's four " +
+        "determinations (2026-09-08, ADR-0087), and the two things ADR-0087 left over: " +
+        "`national_id` refused pending the Sch. 1 policy document, and `other / audit_evidence` " +
+        "decided-refused (ADR-0088). Measured: ten of seventy (type, purpose) pairs pass. What " +
+        "is left is not a decision — no transport by which bytes arrive, no `DocumentStore` " +
+        "implementation, no deployable holding a vault",
     },
   },
   {

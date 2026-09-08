@@ -3303,3 +3303,70 @@ obstacle is transport, an implementation and a deployable.
 
 Yours: a real portal, a specialist review, Bedrock credentials, an account, and blocker 8. Mine, and
 now unblocked: the document transport phase is the thing these four determinations were waiting for.
+
+---
+
+# P55 — the Schedule 1 document must exist before the processing (ADR-0088)
+
+Two things P54 recorded and did not settle. You settled both on 2026-09-08, and both are now
+structural rather than written down.
+
+## `national_id` is refused at the gate, and the passport is not
+
+> Make it structural, not a note: `national_id` must be refused at the gate with a stated reason
+> naming the missing policy document, so re-enabling it is a deliberate act rather than an oversight
+> correcting itself.
+
+`assertStorable` refuses a national identity card **with a perfect Article 9 consent** — given, asked
+separately, wording recorded — because the missing thing is not the student's to give. The refusal
+names the DPA 2018 Schedule 1 appropriate policy document, names the DPIA owner as holding it, says
+it is *a deliberate refusal, not a defect*, and says what re-enabling would take.
+
+**The determination is untouched.** Nothing here says ADR-0087 is wrong: it is made, named, dated and
+correct. A different person owes a different document. That is why the record is separate from the
+determination rather than an edit to it — folding them together would make re-enabling read as a
+*correction to a determination that is not wrong*, when it is somebody else finishing something else.
+
+**`held` is not a boolean**, deliberately. It demands a reference, a named confirmer, a confirmation
+date and a review date. A `satisfied: false` becomes `true` in one keystroke with no record of what
+was relied on; this cannot, which is what *"a deliberate act"* means in code.
+
+## `other / audit_evidence` is decided, and the code now says which kind of refusal it is
+
+I had recorded it as an open question. Your answer:
+
+> Allowing a document to be stored under that purpose would extend the six-year period from a receipt
+> to a passport scan, which is what ADR-0078 was written to prevent.
+
+Recording that in prose would not have been enough, and the reason is worth stating. `NoLawfulBasisError`
+said one thing for two different facts: an activity **awaiting** a decision, and an activity whose
+decision **is** the refusal. A later phase reading the second as the first closes it by registering a
+determination — which is exactly the outcome the decision was made to prevent. The retention side has
+had this distinction since ADR-0023 (*nobody looked* vs *somebody looked and could not say*); the
+lawful-basis side now has it too, and the message a person reads ends **"do not close this by
+registering a determination."**
+
+`financial_evidence` is the control: no determination and no decision against one, so it must keep
+reporting an absence. A test holds both states apart.
+
+## A staleness I found by reading my own output
+
+`pnpm run retention-status` still closed with *"a registered lawful basis … which is **NOT yet
+determined**."* That became false one phase ago — by the change that determined it. Ninth consecutive
+phase to find a record asserting something untrue, and this one was produced by the fix for the
+previous one. `README.md` had the same shape: *"Two decisions are waiting on a person and block all
+document handling: B5 · B1"*, both answered on 2026-09-07.
+
+## Declared-but-unreachable surface
+
+**Seven, unchanged.** The Schedule 1 gate lives inside `assertStorable`, whose register entry already
+says it has no production caller; giving one of its four checks its own entry would answer the
+register's question at a granularity it does not work at, which is the rule ADR-0082 set when it
+refused to list `recommendWait`'s branch as a symbol.
+
+What it does now: still nothing, and that is still the honest answer. Every policy gate is answered.
+What holds the vault shut is transport, an implementation and a deployable.
+
+## What is next
+
+The document transport phase. Nothing is holding it.

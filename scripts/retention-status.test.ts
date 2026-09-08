@@ -182,12 +182,26 @@ describe("the schedule on disk says what was determined", () => {
   }, 120_000);
 
   it("does NOT say a resolved period is permission to store", async () => {
-    // The half-truth this phase created and had to close. Retention is one of
-    // two gates: `assertStorable` also requires a registered lawful basis
-    // (ADR-0022, B2), which this report does not read and which is not
-    // determined. "10 of 12 could be stored today" would read as permission.
+    // The half-truth P44 created and had to close. Retention is one of FOUR
+    // gates now: `assertStorable` also requires a registered lawful basis
+    // (ADR-0022), the Sch. 1 appropriate policy document where one is needed
+    // (ADR-0088) and the separate Article 9 consent (ADR-0087). This report
+    // reads none of them. "10 of 12 could be stored today" would read as
+    // permission it cannot grant.
     const out = await report([]);
     expect(out).toContain("A retention policy is not permission to store");
     expect(out).toContain("ADR-0022");
+    expect(out).toContain("ADR-0088");
+  }, 120_000);
+
+  it("does NOT still call B2 undetermined — it was answered on 2026-09-08", async () => {
+    // The staleness this phase found by reading its own output. B2 stood open
+    // from P31 to P54 and this line said so; P54 answered it and left the line
+    // behind. A report claiming a decision is outstanding after it is made is
+    // the exact defect P37 spent a phase cataloguing, produced by the fix for
+    // the previous one.
+    const out = await report([]);
+    expect(out).not.toContain("NOT yet determined");
+    expect(out).toContain("DETERMINED on");
   }, 120_000);
 });

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,162 tests, 112 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,190 tests, 114 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -100,6 +100,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P51** | A published demonstration is guarded on what it shows (ADR-0085) | Five of twelve published commands had no guard — P37 fixed the walkthrough and left the rest. Exit code is not the property: `extraction-demo` accepting its INVENTING reader would exit 0 and mean ADR-0016's grounding guarantee had stopped holding |
 | **P53** | The research build is removed, and what it proved is kept (ADR-0086) | `apps/chat-integration` retired by Vahid's decision. Four properties in it were about the two DEPLOYABLES, not the research build, and moved to `scripts/plane-separation.test.ts` rather than going with it. Taking it away found that the PRODUCTION client's `postMessage` had never been covered by the wildcard-origin rule |
 | **P54** | The four lawful-basis determinations (ADR-0087) | B2 answered by Vahid — the last policy blocker on documents, open since P31. Contract for storing and disclosing, consent only for a minor's route, authorisation required for sending. A national ID additionally needs Article 9(2)(a); a passport does not. Ten of seventy (type, purpose) pairs now pass both gates, against none before |
+| **P55** | The Schedule 1 document must exist before the processing (ADR-0088) | `national_id` is refused at the storage gate until the DPA 2018 Sch. 1 appropriate policy document exists — structurally, naming what is missing and who holds it, so re-enabling is a deliberate act with a name on it. `other / audit_evidence` is recorded as **decided**-refused rather than open, giving the lawful-basis side the third state the retention side has had since ADR-0023 |
 
 ---
 
@@ -269,6 +270,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0085 | A published demonstration is guarded on what it shows | Accepted · completes 0072 |
 | 0086 | The research build is removed, and what it proved is kept | Accepted |
 | 0087 | The four lawful-basis determinations, and the condition a national ID needs | Accepted · answers 0022 |
+| 0088 | The Schedule 1 document must exist before the processing, and a decision not to determine is a decision | Accepted · completes 0087 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -332,8 +334,8 @@ closure. The reason and what would close it are the register's own words.
 |---|---|---|---|
 | `blocksApplication` | ADR-0021, ADR-0080 | Nothing in production carries a `Requirement`, so there is no scope for it to read — the visa journey is absent rather than excluded | The Requirements Service phase, or anything else putting a scoped `Requirement` on a production path |
 | `checkMinorGate` | ADR-0011 | Its one BLOCKING condition is at the submission stage, and submission is out of scope (ADR-0014). The trigger that stops a case for review is a different thing and *is* reachable: `suggestsMinority` | The phase that brings submission into scope |
-| `assertStorable` | ADR-0068 | B5 is decided and B1's eleven periods are set, so the retention gate opens — but it also requires a registered lawful basis | **B2**, and the transport phase |
-| `authoriseDisclosure` | ADR-0022 | Same lawful basis, on the way out rather than in | **B2**, and the transport phase |
+| `assertStorable` | ADR-0068 | **All four policy gates are answered** — B5, B1's eleven periods, B2's four determinations (ADR-0087) and the Schedule 1 refusal (ADR-0088). Nothing calls it because no transport exists by which bytes arrive, and no deployable holds a vault | The transport phase. Not a decision |
+| `authoriseDisclosure` | ADR-0022 | Same lawful basis, on the way out rather than in — and it is no longer the obstacle: determination 3 registers Article 6(1)(b) **and** required student authorisation (ADR-0087) | The transport phase — nothing yet holds a document to send |
 | `purgeContents` | ADR-0010, ADR-0023 | B1 is decided; what is missing is a vault holding something to purge | The transport phase, and the job that calls this when a period elapses |
 | `assessUsability` | ADR-0009 | Nothing feeds it; requirements come from the reviewed catalogue | The Requirements Service phase, if the KB workflow is ever wired |
 | `attach_document` | ADR-0069 | Produced by nothing — `WorkKind` is `create_account \| execute` | The attachment intent identity ADR-0069 names, and a `WorkKind` that can carry it |
@@ -403,8 +405,8 @@ open rather than quietly answered.
 | **4** | **An account** — QA HE sandbox, or a consenting applicant | You | The controlled live run |
 | **5** | ~~**B5 — hold or pass through**~~ | — | **Decided A — hold and reuse, 2026-09-07 (ADR-0078).** Documents are stored and reused; a student is never asked for the same document twice |
 | **6** | ~~**B1 — twelve retention determinations**~~ | — | **All twelve answered, 2026-09-07 (ADR-0078).** Eleven periods set in schedule `1.2026-09-07`; row 12 (`bank_statement`) stays unresolved and blocking by ADR-0021 |
-| **7** | ~~**B2 — the ADR-0022 lawful basis**~~ | — | **Answered 2026-09-08 by Vahid Mohammadi (ADR-0087).** Four determinations, review 2027-09-08. Ten of seventy (type, purpose) pairs now pass both storage gates. The vault still does not open — what remains is transport, an implementation and a deployable, none of which is a decision |
-| **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | Any special-category document. Must exist *before* the processing — and **B2 made this live rather than hypothetical**: ADR-0087 puts a national identity card in scope under Article 9(2)(a), and registering the condition does not satisfy this |
+| **7** | ~~**B2 — the ADR-0022 lawful basis**~~ | — | **Answered 2026-09-08 by Vahid Mohammadi (ADR-0087).** Four determinations, review 2027-09-08. Ten of seventy (type, purpose) pairs now pass both storage gates. The one pair ADR-0087 left open — `other / audit_evidence` — was **decided-refused** on the same day (ADR-0088). The vault still does not open — what remains is transport, an implementation and a deployable, none of which is a decision |
+| **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | `national_id`, and it is now **enforced rather than noted** (ADR-0088): `assertStorable` refuses a national ID — with a perfect Article 9 consent — naming the missing document and its owner. The ADR-0087 determination stays registered and correct; the type is *not yet available* rather than available-and-non-compliant. Closed by recording the document as `held`, with a reference and a named confirmer. **The passport is unaffected** |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
@@ -421,7 +423,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,162 tests · 112 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,190 tests · 114 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -434,21 +436,21 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,162 tests**, by the workspace they live in. Generated — run
+**2,190 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `packages/domain` | 373 | `packages/conversation` | 52 |
-| `apps/conversation-service` | 330 | `packages/profile` | 46 |
-| `scripts` | 260 | `packages/disclosure` | 42 |
+| `packages/domain` | 373 | `packages/disclosure` | 56 |
+| `apps/conversation-service` | 330 | `packages/conversation` | 52 |
+| `scripts` | 261 | `packages/profile` | 46 |
 | `apps/browser-runner` | 204 | `packages/catalogue` | 39 |
 | `packages/case-store` | 143 | `packages/preparation` | 33 |
 | `packages/orchestrator` | 98 | `packages/extraction` | 27 |
-| `packages/contracts` | 78 | `packages/mapping` | 26 |
-| `packages/documents` | 73 | `packages/interview` | 22 |
+| `packages/documents` | 86 | `packages/mapping` | 26 |
+| `packages/contracts` | 78 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | everything else | 98 |
 | `apps/secure-service` | 64 |  |  |

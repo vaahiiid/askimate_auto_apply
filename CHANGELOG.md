@@ -19,6 +19,92 @@ not shipped artefacts.
 
 ---
 
+## [0.72.0] — 2026-09-08
+
+**P55 — the Schedule 1 document must exist before the processing (ADR-0088).**
+
+ADR-0087 answered B2 and left two things it deliberately did not settle. Vahid decided both on
+2026-09-08, and both are now structural rather than noted.
+
+### Added · `national_id` is refused at the storage gate, and re-enabling it needs a name on it
+
+DPA 2018 Schedule 1 requires an **appropriate policy document** to exist *before* certain
+special-category processing. ADR-0087 put a national identity card in scope under Article 9(2)(a),
+which turned blocker 8 from hypothetical into live — and the document does not exist.
+
+> Disable `national_id` for now. Passport only. The Article 9 determination stays registered and
+> correct, but the appropriate policy document must exist before that processing and it does not, so
+> the honest position is that the document type is **not yet available** rather than
+> available-and-non-compliant. Make it **structural, not a note**. — Vahid, 2026-09-08
+
+- `packages/disclosure/src/appropriate-policy.ts` — `APPROPRIATE_POLICY_DOCUMENTS`,
+  `requireAppropriatePolicy`, `AppropriatePolicyMissingError`, and the branded
+  `PolicyDocumentCleared` that only that function can mint.
+- **`held` is not a boolean.** It demands a reference, a named confirmer, a confirmation date and a
+  review date — the shape a lawful-basis determination and a retention policy already require. A
+  `satisfied: false` becomes `true` in one keystroke with no record of what was relied on; this
+  cannot.
+- **Kept SEPARATE from the determination**, because they have different owners. The determination is
+  Vahid's, made and correct; the policy document is the DPIA owner's and outstanding. Folding them
+  together would make re-enabling read as a correction to a determination that is not wrong.
+- A `held` entry **past its review date is treated as outstanding** — the one staleness rule
+  `assertStorable` applies itself, because a `held` entry is minted by no function and printed by no
+  report, so a lapse nobody checks there is a lapse nothing checks at all.
+
+### Added · `other / audit_evidence` is **decided**, not open
+
+> The audit record is the transmission record, the preview hash and the authorisation text, not an
+> uploaded document. Allowing a document to be stored under that purpose would extend the six-year
+> period from a receipt to a passport scan, which is what ADR-0078 was written to prevent. Record it
+> as decided, not open. — Vahid, 2026-09-08
+
+- `DECIDED_NOT_TO_DETERMINE` and `DeterminationDecidedAgainstError` give the lawful-basis side the
+  third state the retention side has had since ADR-0023. `NoLawfulBasisError` said one thing for two
+  facts — an activity awaiting a decision, and an activity whose decision **is** the refusal — and a
+  later phase reading the second as the first would close it by registering a determination.
+- The refusal a person reads ends **"Do not close this by registering a determination."**
+- `financial_evidence` is the control and still reports an *absence*: B1 row 12 is out of scope and
+  blocking (ADR-0021, ADR-0079), and nobody has decided either way.
+
+### Changed · `assertStorable` runs four gates and takes a clock
+
+| # | gate | refuses with |
+|---|---|---|
+| 1 | a configured retention policy | `RetentionPolicyMissingError` · `RetentionRequirementUnresolvedError` |
+| 2 | a registered lawful basis | `DeterminationDecidedAgainstError` · `NoLawfulBasisError` · `DocumentTypeNotCoveredError` |
+| 3 | the Sch. 1 appropriate policy document | `AppropriatePolicyMissingError` |
+| 4 | the separate Article 9 consent | `SpecialCategoryConsentMissingError` |
+
+Gate 3 runs **before** gate 4 on purpose: no consent can substitute for a document that does not
+exist, and a developer told to record a consent first would record one and hit the same wall on the
+next run. `StorableUpload` now carries the branded `PolicyDocumentCleared`, so a later edit cannot
+drop gate 3 and still assemble the object. `now` is a required parameter rather than an ambient
+`new Date()`, so a test can put a document type on either side of a review date.
+
+### Fixed · `pnpm run retention-status` still called B2 undetermined
+
+Its summary read *"a registered lawful basis … which this report does not read and which is **NOT
+yet determined**."* That became false one phase earlier, by the change that answered B2 — the ninth
+consecutive phase to find a record asserting something untrue, this one produced by the fix for the
+previous one. It now names the four gates, says B2 is determined, and says which prerequisite is
+outstanding. A test asserts the old phrase is gone.
+
+`README.md` carried the same shape: *"Two decisions are waiting on a person and block all document
+handling: B5 · B1"*, both answered on 2026-09-07.
+
+### Verification
+
+- **Five deliberate regressions**, each verified by reading the mutated file back from disk and each
+  restored from a file copy: removing gate 3 → 5 tests fail; flipping `national_id` to `held` with no
+  real document → 9; removing the decided-against check → 3; moving gate 3 behind gate 4 → exactly
+  the one ordering test; ignoring the policy document's review date → 3.
+- **The declared-but-unreachable surface is unchanged at seven.** Gate 3 lives inside
+  `assertStorable`, whose register entry already says it has no production caller; a second entry for
+  one of its four checks would answer the register's question at a granularity it does not work at
+  (ADR-0082).
+
+---
+
 ## [0.71.0] — 2026-09-08
 
 **P54 — the four lawful-basis determinations (ADR-0087).**

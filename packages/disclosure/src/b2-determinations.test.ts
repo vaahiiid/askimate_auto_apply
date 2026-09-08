@@ -18,6 +18,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   B2_DETERMINATIONS,
+  DECIDED_NOT_TO_DETERMINE,
+  DeterminationDecidedAgainstError,
+  assertNotDecidedAgainst,
   B2_DETERMINED_AT,
   B2_REVIEW_BY,
   DISCLOSE_DOCUMENT,
@@ -133,5 +136,43 @@ describe("the four B2 determinations", () => {
     // validation would leave storage proceeding on a basis nobody checked.
     const afterReview = new Date("2027-09-09T00:00:00Z");
     expect(() => b2Register(afterReview)).toThrow(/not usable/);
+  });
+});
+
+describe("what B2 decided NOT to determine", () => {
+  const AUDIT = "store_document:audit_evidence";
+
+  it("records `audit_evidence` as a decision rather than leaving it absent", () => {
+    // ADR-0087 reported this as an open question. Vahid closed it on
+    // 2026-09-08, and the answer was that the refusal is right — so the record
+    // has to say "decided", or the next phase reads it as work outstanding.
+    expect(Object.keys(DECIDED_NOT_TO_DETERMINE)).toEqual([AUDIT]);
+    expect(DECIDED_NOT_TO_DETERMINE[AUDIT]?.decidedBy).toBe("Vahid Mohammadi");
+  });
+
+  it("carries the reasoning, not merely the fact", () => {
+    const refusal = DECIDED_NOT_TO_DETERMINE[AUDIT];
+    expect(refusal?.reasoning).toMatch(/six-year period from a receipt to a passport scan/);
+    expect(refusal?.reasoning).toMatch(/ADR-0078/);
+    expect(refusal?.reasoning, "the instruction to the next phase").toMatch(
+      /Do not close this by registering a determination/,
+    );
+  });
+
+  it("throws for the decided activity and is SILENT for every other", () => {
+    expect(() => assertNotDecidedAgainst(AUDIT)).toThrow(DeterminationDecidedAgainstError);
+    // Silence is not permission — `requireLawfulBasis` still has to find one.
+    expect(() => assertNotDecidedAgainst("store_document:identity_verification")).not.toThrow();
+    expect(() => assertNotDecidedAgainst("store_document:financial_evidence")).not.toThrow();
+  });
+
+  it("registers no DETERMINATION for it, which is the point", () => {
+    // The two records must not disagree: a decision not to determine, and a
+    // determination, are contradictory claims about the same activity.
+    const register = b2Register(NOW);
+    expect(register.forActivity(AUDIT)).toBeUndefined();
+    for (const record of B2_DETERMINATIONS) {
+      expect(record.activity.activity, "an activity decided against was determined").not.toBe(AUDIT);
+    }
   });
 });
