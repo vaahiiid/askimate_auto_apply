@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | P59 — the document never enters a process we run (ADR-0092) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,250 passing · 117 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,255 passing · 117 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 92 ADRs · all 92 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
