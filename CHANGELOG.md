@@ -17,6 +17,15 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+### Fixed
+
+- `apps/conversation-service/src/document-routes.test.ts` listened on fixed ports 45617 and 45618,
+  inside Linux's ephemeral range (32768–60999), where the kernel hands out source ports to every
+  outbound connection the suite makes. CI run #143 lost that race: `listen(45618)` failed with
+  EADDRINUSE, `listening` never fired, and the `service_unavailable` test timed out. Reproduced
+  locally by occupying the port; the file now takes its ports from the kernel (`listen(0)`) and
+  passes under the same condition. Every other test file already sat below 32768.
+
 ---
 
 ## [0.76.1] — 2026-09-09

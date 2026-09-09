@@ -34,8 +34,23 @@ import { createConversationRoutes } from "./routes.js";
 import type { ConversationEventStore } from "./event-store.js";
 import { InMemoryDocumentIntakePort, assertDocumentStoreIsDurable } from "./document-intake-store.js";
 
-const PORT = 45_617;
-const BASE = `http://127.0.0.1:${String(PORT)}`;
+/**
+ * Ports are taken from the kernel (`listen(0)`), not chosen. This file used to
+ * listen on 45617 and 45618 — inside Linux's ephemeral range (32768–60999),
+ * which is where the kernel hands out SOURCE ports to every outbound
+ * connection the rest of the suite makes to Postgres, Redis and its own
+ * servers. On 2026-09-09 CI run #143 lost that race: `listen(45618)` failed
+ * with EADDRINUSE, `listening` never fired, and the test timed out. Every
+ * other test file in the repository sits below 32768; this one now asks
+ * rather than assumes.
+ */
+function portOf(listening: Server): number {
+  const address = listening.address();
+  if (address === null || typeof address === "string") throw new Error("server has no TCP port");
+  return address.port;
+}
+
+let BASE = "";
 const NOW = new Date("2026-09-08T12:00:00Z");
 const CONVERSATION = "conv_transport";
 const STUDENT = "stu_transport";
@@ -117,8 +132,9 @@ beforeAll(async () => {
       now: () => NOW,
     }),
   );
-  server = app.listen(PORT);
+  server = app.listen(0, "127.0.0.1");
   await new Promise<void>((resolve) => server.once("listening", () => resolve()));
+  BASE = `http://127.0.0.1:${String(portOf(server))}`;
 }, 30_000);
 
 afterAll(async () => {
@@ -328,10 +344,10 @@ describe("the transport refuses to exist when it cannot be honest", () => {
         now: () => NOW,
       }),
     );
-    const bare = app.listen(PORT + 1);
+    const bare = app.listen(0, "127.0.0.1");
     await new Promise<void>((resolve) => bare.once("listening", () => resolve()));
     try {
-      const response = await fetch(`http://127.0.0.1:${String(PORT + 1)}/v1/conversations/c/documents`, {
+      const response = await fetch(`http://127.0.0.1:${String(portOf(bare))}/v1/conversations/c/documents`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(passportDeclaration()),
