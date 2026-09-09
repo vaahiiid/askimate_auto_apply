@@ -206,3 +206,29 @@ describe("the command, with a bucket but no KMS key", () => {
     expect(result.out).not.toContain("record:");
   }, 60_000);
 });
+
+describe("the command, with a bucket and a key but no credential of its own", () => {
+  it("REFUSES before any request, and does not fall back to AWS_*", async () => {
+    // The sandbox sets placeholder AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+    // of its own, and what wins when the environment sets them too is not
+    // documented. So the credential lives under names nothing else sets, all
+    // three parts, and the SDK's default chain is never consulted. Here AWS_*
+    // is deliberately populated with junk: if the script fell back to it, it
+    // would get past the refusal and reach STS.
+    const result = await runCommand({
+      AAS_S3_VERIFY_BUCKET: "not-a-bucket-and-never-contacted",
+      AAS_S3_VERIFY_KMS_KEY_ID: "arn:aws:kms:eu-west-2:000000000000:key/never-contacted",
+      AAS_S3_VERIFY_ACCESS_KEY_ID: "",
+      AAS_S3_VERIFY_SECRET_ACCESS_KEY: "",
+      AAS_S3_VERIFY_SESSION_TOKEN: "",
+      AWS_ACCESS_KEY_ID: "AKIAJUNKJUNKJUNKJUNK",
+      AWS_SECRET_ACCESS_KEY: "junk",
+      AWS_SESSION_TOKEN: "junk",
+    });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain("AAS_S3_VERIFY_SESSION_TOKEN");
+    expect(result.out).toContain("Nothing was sent to AWS");
+    expect(result.out).not.toContain("Identity");
+    expect(result.out).not.toContain("record:");
+  }, 60_000);
+});

@@ -244,21 +244,47 @@ interface Env {
   readonly bucket: string;
   readonly region: string;
   readonly kmsKeyId: string;
+  /**
+   * The temporary credential, read from AAS_S3_VERIFY_* — NOT from AWS_*.
+   *
+   * The sandbox this runs in injects placeholder AWS_ACCESS_KEY_ID /
+   * AWS_SECRET_ACCESS_KEY values of its own (they begin `prox…`; STS answers
+   * InvalidClientTokenId — see docs/what-a-controlled-live-run-needs.md §17),
+   * and which value wins when the environment also sets AWS_* is not
+   * documented. So the SDK's default chain is never consulted: the credential
+   * is read from names nothing else sets and handed to the clients explicitly.
+   */
+  readonly credentials: {
+    readonly accessKeyId: string;
+    readonly secretAccessKey: string;
+    readonly sessionToken: string;
+  };
 }
 
-/** Which required variable is missing, if one is. Both halves need both. */
-type Missing = "bucket" | "kms";
+/** Which required variable is missing, if one is. Both halves need all of them. */
+type Missing = "bucket" | "kms" | "credential";
+
+function nonEmpty(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value === undefined || value.length === 0 ? undefined : value;
+}
 
 function readEnv(): Env | Missing {
-  const bucket = process.env["AAS_S3_VERIFY_BUCKET"]?.trim();
-  if (bucket === undefined || bucket.length === 0) return "bucket";
-  const kmsKeyId = process.env["AAS_S3_VERIFY_KMS_KEY_ID"]?.trim();
-  if (kmsKeyId === undefined || kmsKeyId.length === 0) return "kms";
-  const region = process.env["AAS_S3_VERIFY_REGION"]?.trim();
+  const bucket = nonEmpty("AAS_S3_VERIFY_BUCKET");
+  if (bucket === undefined) return "bucket";
+  const kmsKeyId = nonEmpty("AAS_S3_VERIFY_KMS_KEY_ID");
+  if (kmsKeyId === undefined) return "kms";
+  const accessKeyId = nonEmpty("AAS_S3_VERIFY_ACCESS_KEY_ID");
+  const secretAccessKey = nonEmpty("AAS_S3_VERIFY_SECRET_ACCESS_KEY");
+  const sessionToken = nonEmpty("AAS_S3_VERIFY_SESSION_TOKEN");
+  if (accessKeyId === undefined || secretAccessKey === undefined || sessionToken === undefined) {
+    return "credential";
+  }
   return {
     bucket,
-    region: region === undefined || region.length === 0 ? DEFAULT_REGION : region,
+    region: nonEmpty("AAS_S3_VERIFY_REGION") ?? DEFAULT_REGION,
     kmsKeyId,
+    credentials: { accessKeyId, secretAccessKey, sessionToken },
   };
 }
 
@@ -401,6 +427,19 @@ export async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+  if (env === "credential") {
+    // All three parts of a temporary credential, under names nothing else in
+    // this sandbox sets. A session token is required on purpose: the request
+    // asks for an assumed-role credential that expires, not an IAM user's key.
+    console.log(
+      `\n  ${AMBER}The temporary credential is not set.${RESET} All three are required:\n` +
+        `  AAS_S3_VERIFY_ACCESS_KEY_ID, AAS_S3_VERIFY_SECRET_ACCESS_KEY, AAS_S3_VERIFY_SESSION_TOKEN.\n` +
+        `  AWS_* is deliberately NOT read — this sandbox sets placeholder AWS_* values of its own.\n` +
+        `  Both halves stay ${BOLD}NOT CHECKED${RESET}. This is not a pass. Nothing was sent to AWS.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   console.log(
     `${DIM}Bucket: ${env.bucket} · Region: ${env.region} · writes under verify/<runId>/ only, then deletes${RESET}`,
@@ -408,7 +447,7 @@ export async function main(): Promise<void> {
 
   heading("1 · Identity");
   try {
-    const identity = await new STSClient({ region: env.region }).send(
+    const identity = await new STSClient({ region: env.region, credentials: env.credentials }).send(
       new GetCallerIdentityCommand({}),
     );
     console.log(
@@ -423,7 +462,7 @@ export async function main(): Promise<void> {
     return;
   }
 
-  const client = new S3Client({ region: env.region });
+  const client = new S3Client({ region: env.region, credentials: env.credentials });
   // eslint-disable-next-line no-restricted-syntax -- run boundary
   const startedAt = new Date();
   const runId = `${startedAt.toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;

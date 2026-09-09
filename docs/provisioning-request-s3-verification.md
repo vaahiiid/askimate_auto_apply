@@ -17,6 +17,11 @@ grant to, then D has a hole in it. I would rather find that now than after the p
 And: *"Billing alerts first, before any resource. All four thresholds."* This document was rewritten
 to match. Where it said "optional" of §4, it no longer does.
 
+**Recorded 2026-09-09, in Vahid's words, so the record is accurate:** *"a temporary credential was
+briefly exposed and has been revoked with a DateLessThan token-issue-time deny policy on the role.
+Nothing was created with it and the bucket is empty."* That credential was never set in this
+environment and never reached the script; the run has not happened.
+
 ## 0 · Before any resource: billing alerts
 
 *"Billing alerts first, before any resource. All four thresholds."* — the Phase-0 bootstrap plan's
@@ -98,9 +103,9 @@ the shape the experiment reproduces.
 
 **Form:** the Phase-0 plan says *"no long-lived IAM users"* (item 3) and *"GitHub Actions → AWS via
 OIDC, not stored access keys"* (item 11). For a one-off run from this environment, the honest ask is
-a **temporary credential** — an `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN`
-set from an assumed role with the policy above, expiring within hours. It is set as environment
-variables on this environment and **never written to the repository, a file in it, or a log.**
+a **temporary credential** — access key id, secret and session token from an assumed role with the
+policy above, expiring within hours. It is set as environment variables on the cloud environment
+and **never written to the repository, a file in it, or a log.**
 
 ### The environment variables the script reads
 
@@ -109,7 +114,50 @@ variables on this environment and **never written to the repository, a file in i
 | `AAS_S3_VERIFY_BUCKET` | yes | the bucket name you chose |
 | `AAS_S3_VERIFY_REGION` | no | defaults to `eu-west-2` |
 | `AAS_S3_VERIFY_KMS_KEY_ID` | **yes** | the CMK's ARN (§4). The script refuses to start without it |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | yes | the temporary credential |
+| `AAS_S3_VERIFY_ACCESS_KEY_ID` | **yes** | the temporary credential's access key id |
+| `AAS_S3_VERIFY_SECRET_ACCESS_KEY` | **yes** | its secret |
+| `AAS_S3_VERIFY_SESSION_TOKEN` | **yes** | its session token. Required on purpose: an assumed-role credential has one; an IAM user's key does not |
+
+**Why not `AWS_ACCESS_KEY_ID` and friends.** This sandbox injects placeholder `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY` values of its own into every session (they begin `prox…`; STS answers
+`InvalidClientTokenId` — `docs/what-a-controlled-live-run-needs.md` §17), and which value wins when
+the environment sets the same names is not documented. The script therefore never consults the
+SDK's default credential chain: it reads the three `AAS_S3_VERIFY_*` names, which nothing else sets,
+and hands them to its clients explicitly. Without all three it refuses before any request, and a
+test proves it does not fall back to `AWS_*` even when those are populated.
+
+### Where the variables go, so they never enter the repository, a file in it, or a log
+
+Established from the platform's own documentation (`code.claude.com/docs/en/cloud-environments`,
+*Set environment variables*) and checked against this container:
+
+1. At [claude.ai/code](https://claude.ai/code), open the **cloud environment** this repository's
+   sessions run in, for editing (*Update cloud environment*). The **Environment variables** field
+   takes `.env` format, one `KEY=value` per line. That field is the only place the values are typed.
+2. *"Each session copies the environment's values once, at startup, into ordinary environment
+   variables that any command Claude runs can read. Because running sessions don't re-read the
+   configuration, editing or adding variables affects sessions you start afterward; sessions already
+   running keep the values they started with."* So **a session that is already open will not see
+   them** — the run must be made from a session started after they are set.
+3. Inside the session they exist only as process environment variables. Nothing writes them to disk:
+   the script reads them into memory, and the run's JSON record (`verification-runs/`, git-ignored)
+   holds the bucket name, the region, the key ARN and the observations — never the credential, never
+   a pre-signed URL. The script prints no URL and no credential; what it prints is the STS caller
+   identity (account and role ARN), the bucket, the HTTP statuses and S3 error codes.
+4. The session transcript records commands and their output. That is the log to think about. It
+   never contains the values because no command prints them, and the agent does not run `env`,
+   `printenv`, or anything that would echo a variable's value — the command it runs is
+   `pnpm run verify-s3-checksum` and nothing else touching those names.
+5. The platform's **API credentials** feature is not used. It attaches a bearer header to requests
+   for listed hosts at the proxy; a pre-signed S3 URL is a SigV4 signature computed *inside* the
+   process from the secret, so the credential has to be in the process, and the experiment would not
+   be the experiment otherwise.
+6. When the run is done, delete the three credential lines from the environment (the credential
+   expires within the hour regardless) and revoke the credential if you wish. The bucket name and key
+   ARN can stay.
+
+*"Anyone who uses the environment can read the values"* (same page). In a personal organisation that
+is one person.
 
 ## 2 · What it costs
 
@@ -161,7 +209,12 @@ such rather than folded in."*
 
 0. **Nothing runs until Vahid says the variables are set.** *"I will tell you when the environment
    variables are set. Do not run anything until then, and do not create anything yourself."*
-1. `pnpm run verify-s3-checksum` from this environment, with the bucket, the key and the credential
+   Because a running session does not see new variables (§1, *Where the variables go*), the order
+   is: set the three non-secret variables first and start a session to confirm they arrive (names
+   only are echoed, never values); then fetch the one-hour credential, add its three variables, and
+   start the session that runs it. The repository is that session's memory — ADR-0092 and this
+   document say what to run and what to report — so no conversation history is needed.
+1. `pnpm run verify-s3-checksum` from that session, with the bucket, the key and the credential
    set in the environment (§1's table).
 2. The record lands in `verification-runs/s3-checksum/<runId>.json` and **both verdicts are reported
    separately, in the run's own words** — VERIFIED, REFUTED or NOT CHECKED for the binding and for

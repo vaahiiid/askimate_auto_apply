@@ -17,6 +17,19 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/verify-s3-checksum.ts` reads the temporary credential from `AAS_S3_VERIFY_ACCESS_KEY_ID`,
+  `AAS_S3_VERIFY_SECRET_ACCESS_KEY` and `AAS_S3_VERIFY_SESSION_TOKEN`, handed to its clients
+  explicitly, and never consults the SDK's default chain: the sandbox injects placeholder `AWS_*`
+  values of its own and precedence against the environment's is undocumented. Without all three it
+  refuses before any request; a test populates `AWS_*` with junk and proves no fallback.
+- `docs/provisioning-request-s3-verification.md` — the three credential names; where the variables
+  go so they never enter the repository, a file in it, or a log (the cloud environment's
+  *Environment variables* field, copied once at session start, so a running session does not see
+  them); the two-session order; Vahid's note that an exposed temporary credential was revoked with
+  nothing created.
+
 ### Fixed
 
 - `apps/conversation-service/src/document-routes.test.ts` listened on fixed ports 45617 and 45618,
