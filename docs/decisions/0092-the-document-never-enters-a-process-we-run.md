@@ -192,10 +192,12 @@ declaration answers with `uploadUrl`. `acceptBytes` — the in-process hash chec
 because S3 performs it. ADR-0090's sixteen route tests are rewritten around the new shape. The
 in-memory intake port stays for tests and keeps its production refusal.
 
-**None of that exists yet.** Condition 1 was met on 2026-09-09 with VERIFIED on both halves (§4,
-*Run 2026-09-09*); the reshaping has not started and starts on Vahid's word. When it does, it
-carries the run's one constraint: the checksum is a signed header the browser must send, and the
-minted URL is useless without it.
+**Built in P60 — [ADR-0093](./0093-an-upload-url-cannot-be-minted-unbound.md).** Condition 1 was met
+on 2026-09-09 with VERIFIED on both halves (§4, *Run 2026-09-09*), and Vahid: *"Reshape the port."*
+It carries the run's one constraint structurally: the checksum is a signed header the browser must
+send, and a URL whose signature does not cover it cannot be minted at all. What ADR-0093 leaves for
+the next phase: durable metadata and the production wiring, CORS for the page's origin, and the
+retrieval's caller.
 
 ## What was built in this phase, and what was not
 

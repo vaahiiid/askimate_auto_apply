@@ -4,12 +4,14 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * ADR-0090. The transport is the route and the checks in front of it; WHERE
  * the bytes come to rest is a separate question, and this is the seam between
- * them. `openIntake` and `acceptBytes` do not know what a vault is.
+ * them. `openIntake` does not know what a vault is, and since ADR-0092 the
+ * vault never sees bytes: it mints the upload URL and confirms what the bucket
+ * holds.
  *
  * ── Why the in-memory implementation refuses to run in production ─────────
  *
- * `InMemoryDocumentVault` satisfies the whole `DocumentVault` contract and
- * loses everything when the process restarts. That is fine for a test and is
+ * `InMemoryDocumentVault` satisfies the whole `DocumentVault` contract over an
+ * in-memory bucket, and loses everything when the process restarts. That is fine for a test and is
  * a data-loss incident for a student, so it is refused the way the secure
  * plane refuses `LocalDataKeyProvider` (ADR-0055): one function, called at
  * wiring time, that both processes go through.

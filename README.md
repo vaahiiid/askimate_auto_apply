@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P59 — the document never enters a process we run (ADR-0092) |
+| **Phase** | P60 — an upload URL cannot be minted unbound (ADR-0093) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,255 passing · 117 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 92 ADRs · all 92 Accepted |
+| **Tests** | **2,280 passing · 119 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 93 ADRs · all 93 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -37,11 +37,14 @@ types in **ADR-0089** — a passport is sufficient for identity, and a type refu
 machinery no student can use — which takes the **DPA 2018 Sch. 1 appropriate policy document** out of
 the critical path. That requirement has not gone away: re-adding the type needs the document first.
 
-**A student can now supply a document** — `POST .../documents` runs the storage gates on the
-declaration, and only then does a route exist that will read a body (ADR-0090). The store behind it
-is in-memory and **refuses to start in production**. The durable store is decided (ADR-0092): the
-bytes go browser → S3 under a pre-signed PUT and never enter a process we run — built only once the
-checksum binding is verified against a real bucket, which needs one to exist first.
+**A student can now supply a document, and the bytes never enter a process we run** —
+`POST .../documents` runs the storage gates on the declaration and answers with a pre-signed upload
+the browser PUTs straight to the bucket; `POST .../confirm` asks the bucket what it holds
+(ADR-0090, ADR-0092). The upload URL cannot be minted unbound: its signature must cover the checksum
+header, and the mint reads its own URL back and refuses one that does not (ADR-0093) — the SDK's
+default, which hoists the checksum where S3 never reads it, was found by a run against a real bucket
+and is refused structurally. Document metadata is still in-memory and **refuses to start in
+production**; durable metadata and the production wiring are the next phase.
 
 **[Where we are](./docs/where-we-are.md)** — the per-phase journal.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,255 tests, 117 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,280 tests, 119 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -105,6 +105,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P57** | The document transport: the gates run before a byte is accepted (ADR-0090) | **B4 answered** — the last of ADR-0067's five blockers, and the only one that was engineering. An upload is a two-step exchange: the declaration runs the storage gates, and only then does a route exist that will read a body. `assertStorable` has a production caller for the first time since P39, so the declared-but-unreachable table goes **7 → 6** — the first entry ever to leave it. The store is in-memory and refuses to start in production; the durable encrypted one is next |
 | **P58** | robots.txt is read, obeyed and kept; requests are paced (ADR-0091) | The two preconditions Vahid set before any run against a live site. Obeying is half of it — every run writes `robots.json` with the file verbatim, because a crawler that quietly complies leaves no evidence that it complied. An unreadable robots.txt allows **nothing**. A one-second floor nothing can lower. Adding a second rule to a one-rule guard surfaced **four** defects in the old code, including one that failed CLOSED and looked exactly like the rule working |
 | **P59** | The document never enters a process we run (ADR-0092) | Vahid's decision, in his words, for the durable store: the gates run, then a pre-signed upload is minted, and the bytes go browser → S3. Reached through the boundary check REFUSING the in-process design — a control working, recorded as such. `packages/keys` and a sixth deployable considered and not taken, with his reasons. Rests on one unverified fact about S3, so this phase builds the verification (`pnpm run verify-s3-checksum`, a judgement that cannot say VERIFIED without its control experiment) and the provisioning request. **Nothing provisioned, port untouched.** Run 2026-09-09 against Vahid's bucket: REFUTED under the SDK's hoisted checksum, then VERIFIED on both halves with the checksum a signed header (ADR-0092 §4). Port still untouched |
+| **P60** | An upload URL cannot be minted unbound (ADR-0093) | Condition 1 met on 2026-09-09 (both halves VERIFIED, ADR-0092 §4) and Vahid: *"Reshape the port … make that structural in the minting code, not a note in the ADR."* `BoundUploadUrl` is a branded type with one producer, and the producer reads the URL it minted back and refuses one whose signature does not cover the checksum header — the SDK's default, which hoists it into the query string where S3 never reads it, is refused rather than recorded. Proven against the real SDK offline. `DocumentVault` has no method that takes or returns bytes; `PUT …/content` and `acceptBytes` are gone, `POST …/confirm` asks the bucket what it holds; the S3 vault exists in the Conversation Service. **Not built:** durable metadata and production wiring (production start still refused), CORS, the retrieval's caller |
 
 ---
 
@@ -279,6 +280,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0090 | The document transport: the gates run before a byte is accepted | Accepted · answers 0067's B4 |
 | 0091 | robots.txt is read, obeyed and kept; and requests are paced | Accepted · conditions 0014 |
 | 0092 | The document never enters a process we run | Accepted · continues 0090, on two conditions |
+| 0093 | An upload URL cannot be minted unbound | Accepted · continues 0092, completes 0090 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -432,7 +434,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,255 tests · 117 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,280 tests · 119 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -445,7 +447,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,255 tests**, by the workspace they live in. Generated — run
+**2,280 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -453,12 +455,12 @@ being able to see it (ADR-0084).
 | Area | Tests | Area | Tests |
 |---|---|---|---|
 | `packages/domain` | 376 | `packages/conversation` | 52 |
-| `apps/conversation-service` | 346 | `packages/disclosure` | 47 |
+| `apps/conversation-service` | 359 | `packages/disclosure` | 47 |
 | `scripts` | 282 | `packages/profile` | 46 |
 | `apps/browser-runner` | 237 | `packages/catalogue` | 39 |
 | `packages/case-store` | 143 | `packages/preparation` | 33 |
-| `packages/orchestrator` | 98 | `packages/extraction` | 27 |
-| `packages/documents` | 87 | `packages/mapping` | 26 |
+| `packages/documents` | 99 | `packages/extraction` | 27 |
+| `packages/orchestrator` | 98 | `packages/mapping` | 26 |
 | `packages/contracts` | 78 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | everything else | 98 |

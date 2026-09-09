@@ -1,18 +1,20 @@
 /**
- * The document transport: the gates run before a single byte is accepted.
+ * The document transport: the gates run before a byte exists, and the bytes
+ * never enter this service.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * B4 has been open since the document boundary was drawn (ADR-0067 §8):
- * *"There is no route, no schema and no client surface by which a student
- * could supply a document."* Every policy blocker in front of it is answered
- * — B5 (ADR-0078), B1's eleven periods, B2's four determinations (ADR-0087),
- * and the two that followed (ADR-0088, ADR-0089).
+ * ADR-0090 shipped the two-step exchange with the bytes arriving on a PUT to
+ * this service. ADR-0092 — Vahid: *"the conversation service runs the gates,
+ * then mints a pre-signed upload rather than accepting bytes, and the
+ * document never enters any process we run"* — moved the second step to the
+ * bucket, and ADR-0093 made the minted URL unable to be unbound.
  *
  * These run against the REAL router, over a real HTTP server, with the real
- * retention schedule shape and the real B2 register. What they check is the
- * property the two-step exchange exists for:
+ * retention schedule shape and the real B2 register, and an in-memory bucket
+ * that refuses what the run of 2026-09-09 saw S3 refuse. What they check is
+ * the property the exchange exists for, restated for its new shape:
  *
- *     A REFUSAL ARRIVES BEFORE THE BYTES DO.
+ *     A REFUSAL ARRIVES BEFORE THE BYTES EXIST, AND THE BYTES NEVER COME HERE.
  *
  * No database. The document routes never touch `ConversationEventStore`, so
  * the store is a stub — stated here rather than left for a reader to wonder
@@ -29,6 +31,8 @@ import express from "express";
 
 import { b2Register } from "@askimate/aas-disclosure";
 import type { RetentionSchedule } from "@askimate/aas-domain";
+import type { InMemoryDocumentVault } from "@askimate/aas-documents";
+import { CHECKSUM_HEADER, SSE_HEADER, SSE_KEY_HEADER } from "@askimate/aas-documents";
 
 import { createConversationRoutes } from "./routes.js";
 import type { ConversationEventStore } from "./event-store.js";
@@ -94,13 +98,13 @@ const SCHEDULE: RetentionSchedule = {
       policyReference: "AAS-RET-B1-05",
       basis: {
         kind: "policy_decision",
-        statement: "Test fixture mirroring B1 row 5. The audit record holds no bytes.",
+        statement: "Test fixture. Audit evidence, redacted at case conclusion (ADR-0078).",
         authoritativeSource: "AAS test fixture",
         verifiedBy: "test",
-        verifiedAt: new Date("2026-09-07T00:00:00Z"),
-        reliesOnLegalClaims: true,
+        verifiedAt: new Date("2026-09-01T00:00:00Z"),
+        reliesOnLegalClaims: false,
       },
-      reviewBy: new Date("2027-09-07T00:00:00Z"),
+      reviewBy: new Date("2027-09-01T00:00:00Z"),
     },
   ],
   unresolved: [],
@@ -113,9 +117,12 @@ const PDF_HASH = createHash("sha256").update(PDF).digest("hex");
 
 let server: Server;
 let documents: InMemoryDocumentIntakePort;
+/** The in-memory bucket the vault mints into. The browser's PUT goes here, never to the server. */
+let bucket: InMemoryDocumentVault["objects"];
 
 beforeAll(async () => {
   documents = new InMemoryDocumentIntakePort(SCHEDULE, b2Register(NOW));
+  bucket = (documents.vault as InMemoryDocumentVault).objects;
 
   const app = express();
   app.use(express.json({ limit: "16kb" }));
@@ -143,8 +150,15 @@ afterAll(async () => {
 
 interface Declared {
   readonly intakeId: string;
+  readonly upload: {
+    readonly url: string;
+    readonly method: string;
+    readonly headers: Record<string, string>;
+    readonly expiresAt: string;
+  };
   readonly maxBytes: number;
   readonly acceptedContentTypes: readonly string[];
+  readonly contentHash: string;
   readonly retentionPolicyReference: string;
 }
 
@@ -167,20 +181,26 @@ function passportDeclaration(overrides: Record<string, unknown> = {}): Record<st
   };
 }
 
-async function send(
-  intakeId: string,
-  bytes: Buffer,
-  contentType = "application/pdf",
-): Promise<Response> {
-  return fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents/${intakeId}/content`, {
-    method: "PUT",
-    headers: { "content-type": contentType, "x-student": STUDENT },
-    body: new Uint8Array(bytes),
+async function declared(): Promise<Declared> {
+  const response = await declare(passportDeclaration());
+  if (response.status !== 201) throw new Error(`declaration answered ${String(response.status)}`);
+  return (await response.json()) as Declared;
+}
+
+/** The browser's PUT — to the bucket. The server is not on this path. */
+function upload(d: Declared, bytes: Buffer, headers = d.upload.headers) {
+  return bucket.put(d.upload.url, headers, new Uint8Array(bytes), NOW);
+}
+
+async function confirm(intakeId: string): Promise<Response> {
+  return fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents/${intakeId}/confirm`, {
+    method: "POST",
+    headers: { "x-student": STUDENT },
   });
 }
 
 describe("declaring an upload", () => {
-  it("runs the storage gates and STATES the constraints", async () => {
+  it("runs the storage gates and answers with a BOUND upload, stating the headers", async () => {
     const response = await declare(passportDeclaration());
     expect(response.status).toBe(201);
 
@@ -192,9 +212,28 @@ describe("declaring an upload", () => {
     // Stated, not left for the client to guess and be refused about.
     expect(body.maxBytes).toBe(10 * 1024 * 1024);
     expect(body.acceptedContentTypes).toContain("application/pdf");
+
+    // ── The upload: a URL whose signature covers the checksum header ────
+    //
+    // Read off the URL the way `assertBoundUploadUrl` does, so the test
+    // agrees with the structure rather than with itself.
+    const url = new URL(body.upload.url);
+    expect(body.upload.method).toBe("PUT");
+    expect(url.protocol).toBe("https:");
+    const signed = (url.searchParams.get("X-Amz-SignedHeaders") ?? "").split(";");
+    expect(signed).toContain(CHECKSUM_HEADER);
+    expect(signed).toContain(SSE_HEADER);
+    expect(signed).toContain(SSE_KEY_HEADER);
+    expect(url.searchParams.has(CHECKSUM_HEADER), "the checksum is NOT in the query string").toBe(false);
+    // And the headers the browser must send — the URL is refused without them.
+    expect(body.upload.headers[CHECKSUM_HEADER]).toBe(Buffer.from(PDF_HASH, "hex").toString("base64"));
+    expect(body.upload.headers[SSE_HEADER]).toBe("aws:kms");
+    expect(new Date(body.upload.expiresAt).getTime()).toBeLessThanOrEqual(
+      NOW.getTime() + 15 * 60 * 1000,
+    );
   });
 
-  it("REFUSES a document type with no retention policy, before any body", async () => {
+  it("REFUSES a document type with no retention policy, before any upload exists", async () => {
     // `degree_certificate` is inside determination 2's scope, so the lawful
     // basis is fine and the RETENTION policy is what is missing in this
     // fixture. The refusal is the gate's own words.
@@ -253,56 +292,105 @@ describe("declaring an upload", () => {
     // 404, never 403 — a 403 confirms the conversation exists.
     expect(elsewhere.status).toBe(404);
   });
+
+  it("mints NOTHING for a declaration the gates refuse", async () => {
+    // The bucket has no grant for a document the gates never passed. Checked
+    // against the bucket rather than inferred from the status: a refusal that
+    // still minted a URL would be a permission with no gate behind it.
+    const before = bucket.grantCount();
+    await declare(passportDeclaration({ documentType: "degree_certificate", purpose: "application_submission" }));
+    await declare(passportDeclaration({ contentType: "application/zip" }));
+    expect(bucket.grantCount()).toBe(before);
+  });
 });
 
-describe("sending the bytes", () => {
-  it("stores a document whose bytes are the ones the intake was prepared for", async () => {
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    const response = await send(declared.intakeId, PDF);
-    expect(response.status).toBe(201);
+describe("the bytes never come here", () => {
+  it("has NO route that reads a document body — `PUT …/content` is gone", async () => {
+    const d = await declared();
+    const response = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents/${d.intakeId}/content`, {
+      method: "PUT",
+      headers: { "content-type": "application/pdf", "x-student": STUDENT },
+      body: new Uint8Array(PDF),
+    });
+    expect(response.status).toBe(404);
+  });
 
+  it("sends the bytes to the bucket on the minted URL, and the bucket accepts exactly the declared ones", async () => {
+    const d = await declared();
+    expect(upload(d, PDF)).toEqual({ status: 200, code: null });
+    // What came to rest is the declared document, at the key the URL names —
+    // under this student, under this intake, and nowhere this service wrote.
+    const key = new URL(d.upload.url).pathname.slice(1);
+    expect(key).toBe(`documents/${STUDENT}/${d.intakeId}`);
+    expect(Buffer.from(bucket.peek(key) ?? new Uint8Array()).equals(PDF)).toBe(true);
+  });
+
+  it("the bucket REFUSES a same-length substitution — the binding S3 enforced (E2)", async () => {
+    const d = await declared();
+    const swapped = Buffer.from(PDF);
+    swapped[swapped.length - 2] = swapped[swapped.length - 2] === 0x41 ? 0x42 : 0x41;
+    expect(upload(d, swapped)).toEqual({ status: 400, code: "BadDigest" });
+  });
+
+  it("the bucket REFUSES the checksum header omitted or altered — the signature covers it (E6, E7)", async () => {
+    const d = await declared();
+    const { [CHECKSUM_HEADER]: _dropped, ...without } = d.upload.headers;
+    expect(upload(d, PDF, without)).toEqual({ status: 403, code: "SignatureDoesNotMatch" });
+
+    const other = Buffer.from("%PDF-1.7\nsomething else entirely, of a different length.\n");
+    const altered = { ...d.upload.headers, [CHECKSUM_HEADER]: createHash("sha256").update(other).digest("base64") };
+    expect(upload(d, other, altered)).toEqual({ status: 403, code: "SignatureDoesNotMatch" });
+  });
+});
+
+describe("confirming the upload", () => {
+  it("records a document whose bytes are the ones the intake was prepared for", async () => {
+    const d = await declared();
+    expect(upload(d, PDF).status).toBe(200);
+
+    const response = await confirm(d.intakeId);
+    expect(response.status).toBe(201);
     const body = (await response.json()) as { documentId: string; contentHash: string; state: string };
     expect(body.contentHash).toBe(PDF_HASH);
     expect(body.state).toBe("uploaded");
 
-    const stored = await documents.vault.retrieve(body.documentId);
-    expect(Buffer.from(stored).equals(PDF)).toBe(true);
+    // The bytes, fetched the way the runner will — by URL, never through
+    // this service.
+    const retrieval = await documents.vault.prepareRetrieval(body.documentId, NOW);
+    expect(retrieval.method).toBe("GET");
+    expect(Buffer.from(bucket.get(retrieval.url) ?? new Uint8Array()).equals(PDF)).toBe(true);
   });
 
-  it("REFUSES bytes that are not the ones the gates were run for", async () => {
-    // ── The property the hash exists for ────────────────────────────────
-    //
-    // Without it, a student could declare a two-megabyte personal statement,
-    // clear the gates for one, and send a passport. Every check upstream would
-    // have been about a document that was never sent.
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    const different = Buffer.from("%PDF-1.7\nsomething else entirely, of a different length.\n");
-    const response = await send(declared.intakeId, different);
+  it("REFUSES to take the browser's word for it — nothing in the bucket, nothing recorded", async () => {
+    // The confirm asks the bucket, not the caller. No PUT happened here.
+    const d = await declared();
+    const before = await documents.vault.listForStudent(STUDENT);
+    const response = await confirm(d.intakeId);
 
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(409);
     const problem = (await response.json()) as { code: string; detail?: string };
-    expect(problem.code).toBe("content_hash_mismatch");
-    expect(problem.detail).toMatch(/Nothing is stored|different document/);
+    expect(problem.code).toBe("upload_not_received");
+    expect(problem.detail).toMatch(/Declare the document again/);
+    expect((await documents.vault.listForStudent(STUDENT)).length).toBe(before.length);
   });
 
-  it("REFUSES the same length with different content", async () => {
-    // The size check alone would pass this. The hash is what catches it, and
-    // this is the case that proves the hash is doing work rather than the
-    // length agreeing by luck.
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    const swapped = Buffer.from(PDF);
-    swapped[swapped.length - 2] = swapped[swapped.length - 2] === 0x41 ? 0x42 : 0x41;
-    const response = await send(declared.intakeId, swapped);
-
-    expect(response.status).toBe(422);
-    expect(((await response.json()) as { code: string }).code).toBe("content_hash_mismatch");
+  it("does NOT record anything when the bucket refused the bytes", async () => {
+    // The whole point, asserted against the vault rather than inferred from a
+    // status code: a refusal by the bucket that still recorded would be worse
+    // than no check.
+    const d = await declared();
+    expect(upload(d, Buffer.from("not the prepared bytes at all, truly")).status).toBe(400);
+    const before = await documents.vault.listForStudent(STUDENT);
+    expect((await confirm(d.intakeId)).status).toBe(409);
+    expect((await documents.vault.listForStudent(STUDENT)).length).toBe(before.length);
   });
 
   it("spends an intake ONCE", async () => {
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    expect((await send(declared.intakeId, PDF)).status).toBe(201);
+    const d = await declared();
+    expect(upload(d, PDF).status).toBe(200);
+    expect((await confirm(d.intakeId)).status).toBe(201);
 
-    const second = await send(declared.intakeId, PDF);
+    const second = await confirm(d.intakeId);
     expect(second.status).toBe(409);
     expect(((await second.json()) as { code: string }).code).toBe("intake_not_open");
   });
@@ -310,30 +398,27 @@ describe("sending the bytes", () => {
   it("REFUSES an intake nobody opened, with the same answer as a spent one", async () => {
     // Deliberately indistinguishable. Telling a caller that an id is unknown
     // rather than spent would say which intake ids exist.
-    const response = await send("01JQZZZZZZZZZZZZZZZZZZZZZZ", PDF);
+    const response = await confirm("01JQZZZZZZZZZZZZZZZZZZZZZZ");
     expect(response.status).toBe(409);
     expect(((await response.json()) as { code: string }).code).toBe("intake_not_open");
   });
 
-  it("REFUSES a body whose Content-Type is not the one prepared for", async () => {
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    const response = await send(declared.intakeId, PDF, "image/png");
-    expect(response.status).toBe(415);
-  });
-
-  it("does NOT store anything when the bytes are refused", async () => {
-    // The whole point, asserted against the vault rather than inferred from a
-    // status code: a refusal that still stored would be worse than no check.
-    const declared = (await (await declare(passportDeclaration())).json()) as Declared;
-    const before = await documents.vault.listForStudent(STUDENT);
-    await send(declared.intakeId, Buffer.from("not the prepared bytes at all, truly"));
-    const after = await documents.vault.listForStudent(STUDENT);
-    expect(after.length).toBe(before.length);
+  it("REFUSES an unauthenticated confirm, and one on a conversation that is not theirs", async () => {
+    const d = await declared();
+    const anonymous = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents/${d.intakeId}/confirm`, {
+      method: "POST",
+    });
+    expect(anonymous.status).toBe(401);
+    const elsewhere = await fetch(`${BASE}/v1/conversations/conv_someone_else/documents/${d.intakeId}/confirm`, {
+      method: "POST",
+      headers: { "x-student": STUDENT },
+    });
+    expect(elsewhere.status).toBe(404);
   });
 });
 
 describe("the transport refuses to exist when it cannot be honest", () => {
-  it("answers `service_unavailable` when no vault is configured", async () => {
+  it("answers `service_unavailable` when no bucket is configured", async () => {
     const app = express();
     app.use(express.json());
     app.use(
@@ -354,6 +439,10 @@ describe("the transport refuses to exist when it cannot be honest", () => {
       });
       // A refusal, not a bypass. The same shape `targets` uses.
       expect(response.status).toBe(503);
+      const confirmed = await fetch(`http://127.0.0.1:${String(portOf(bare))}/v1/conversations/c/documents/x/confirm`, {
+        method: "POST",
+      });
+      expect(confirmed.status).toBe(503);
     } finally {
       await new Promise<void>((resolve) => bare.close(() => resolve()));
     }

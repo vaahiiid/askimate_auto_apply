@@ -21,7 +21,7 @@
  */
 
 import type { NextFunction, Request, Response, Router } from "express";
-import { Router as makeRouter, raw as rawBody } from "express";
+import { Router as makeRouter } from "express";
 import { createHash } from "node:crypto";
 
 import type { ConversationEvent, PriorOutcome, ProblemCode } from "@askimate/aas-contracts";
@@ -73,7 +73,8 @@ import type { DocumentUpload, StorableUpload } from "@askimate/aas-documents";
 import {
   DOCUMENT_LIMITS,
   IntakeRefusedError,
-  acceptBytes,
+  UnboundUploadError,
+  UnencryptedObjectError,
   assertStorable,
   limitFor,
   openIntake,
@@ -250,12 +251,12 @@ export interface ConversationRoutesOptions {
    */
   readonly targets?: TargetDirectoryPort;
   /**
-   * The document transport (ADR-0090).
+   * The document transport (ADR-0090, ADR-0092).
    *
    * Absent means no document can be supplied and the two routes answer
    * `service_unavailable` — a refusal, not a bypass, and the same shape
    * `targets` uses for the same reason. A deployment that has not configured
-   * a vault must not accept a passport into one that is not there.
+   * a bucket must not mint upload URLs into one that is not there.
    */
   readonly documents?: DocumentIntakePort;
   readonly now: () => Date;
@@ -516,18 +517,6 @@ function onTheWire(record: StoredIntervention): OpenIntervention {
     announced: record.announcedAt !== undefined,
   };
 }
-
-/**
- * The largest body the content route will read, before the type is known.
- *
- * The MAXIMUM over every per-type ceiling, computed rather than written down —
- * a hand-copied number here would drift the day a limit changes, and it would
- * drift SILENTLY, because a ceiling that is too low reads as a 413 the student
- * cannot explain and one that is too high reads as nothing at all.
- */
-const MAX_DOCUMENT_BYTES = Math.max(
-  ...Object.values(DOCUMENT_LIMITS).map((limit) => limit.maxBytes),
-);
 
 export function createConversationRoutes(options: ConversationRoutesOptions): Router {
   const router = makeRouter();
@@ -1875,14 +1864,21 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
 
 
   // ═══════════════════════════════════════════════════════════════════════
-  // The document transport (ADR-0090) — B4, open since ADR-0067 §8
+  // The document transport (ADR-0090, ADR-0092, ADR-0093) — B4, answered
   // ═══════════════════════════════════════════════════════════════════════
   //
   // TWO STEPS, and the split is the control. `POST .../documents` declares
-  // what is coming and runs the storage gates on it; only then does a route
-  // exist that will read a body. A refusal that arrives after a passport has
-  // crossed the wire has already failed — the bytes were received, and "we did
-  // not keep them" is a claim rather than a structure.
+  // what is coming and runs the storage gates on it, and answers with a
+  // pre-signed upload the browser sends the bytes on — STRAIGHT TO THE
+  // BUCKET. No route on this service reads a document body any more: the
+  // bytes never enter a process this repository runs (ADR-0092). The second
+  // step, `POST .../documents/{intakeId}/confirm`, asks the bucket what it
+  // holds and records the document only if it is exactly what was declared.
+  //
+  // The URL the declaration hands out is a `BoundUploadUrl`, which only
+  // `mintBoundUpload` produces, and it produces one only when the signature
+  // covers the checksum header (ADR-0093). An unbound URL has no path to a
+  // browser: the type does not admit one.
   //
   // This is also the first production caller `assertStorable` has ever had.
   // It has been in the reachability register as declared-but-unreachable since
@@ -1963,21 +1959,35 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         }
 
         try {
+          const now = options.now();
           const intake = openIntake({
-            intakeId: ulid(options.now()),
+            intakeId: ulid(now),
             conversationId,
             upload: storable,
             contentType,
             declaredSizeBytes: sizeBytes,
-            now: options.now(),
+            now,
           });
+          // Minted BEFORE the intake is recorded: a mint that throws leaves
+          // nothing behind, and an intake with no upload URL is not something
+          // a confirm should ever find.
+          const upload = await documents.vault.prepareUpload(intake, now);
           await documents.open(intake);
 
           const limit = limitFor(intake.upload.documentType);
           res.status(201).json({
             intakeId: intake.intakeId,
             expiresAt: intake.expiresAt.toISOString(),
-            // STATED, not left for the client to guess and be refused about.
+            // The upload itself: the URL, and the headers without which the
+            // bucket refuses it. STATED, because the run proved omitting or
+            // altering any of them is refused (ADR-0092 §4, E6 and E7).
+            upload: {
+              url: upload.url,
+              method: upload.method,
+              headers: upload.headers,
+              expiresAt: upload.expiresAt.toISOString(),
+            },
+            // The constraints, stated rather than guessed at.
             maxBytes: limit.maxBytes,
             acceptedContentTypes: limit.contentTypes,
             contentHash: intake.declaredHash,
@@ -1988,22 +1998,28 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             problem(res, error.code, { detail: error.message });
             return;
           }
+          if (error instanceof UnboundUploadError) {
+            // The presigner produced a URL that does not bind the body to the
+            // hash. Not handed out; the student is told the transport is
+            // unavailable, and the message names what happened for whoever
+            // reads the log. A refusal, not a bypass (ADR-0093).
+            problem(res, "service_unavailable", { detail: error.message });
+            return;
+          }
           next(error);
         }
       })().catch(next);
     },
   );
 
-  router.put(
-    "/v1/conversations/:conversationId/documents/:intakeId/content",
-    // ── The only route on this service that reads a non-JSON body ────────
+  router.post(
+    "/v1/conversations/:conversationId/documents/:intakeId/confirm",
+    // ── No body is read here either ──────────────────────────────────────
     //
-    // `express.raw` with a hard ceiling, and the ceiling here is the LARGEST
-    // any document type is allowed — the per-type limit is then applied by
-    // `acceptBytes`. Two levels on purpose: this one stops a body that would
-    // exhaust memory before the type is even known, and that one enforces the
-    // decision about this particular kind of document.
-    rawBody({ type: () => true, limit: MAX_DOCUMENT_BYTES }),
+    // `PUT …/content` used to be the one route on this service that read a
+    // non-JSON body. It is gone (ADR-0092). This route takes an intake id and
+    // asks the BUCKET what it holds; the browser's word that the upload
+    // happened is not taken, and the browser's bytes never came this way.
     (req: Request, res: Response, next: NextFunction): void => {
       void (async (): Promise<void> => {
         const conversationId = String(req.params["conversationId"]);
@@ -2017,38 +2033,23 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           return;
         }
 
-        // Taken and removed in one operation: an intake is permission to send
-        // one document once, and a read-then-delete leaves a window in which
-        // two concurrent requests both see it open.
+        // Taken and removed in one operation: an intake is permission to
+        // confirm one document once, and a read-then-delete leaves a window
+        // in which two concurrent confirms both see it open. A confirm that
+        // then finds nothing in the bucket has still spent the intake — the
+        // student declares again, and the checks re-run, which is the point.
         const intake = await documents.take(conversationId, intakeId);
         if (intake === null) {
           problem(res, "intake_not_open", {
             detail:
-              "This upload was not prepared, has expired, or has already been used. Prepare it " +
-              "again — the checks that permit it are re-run, which is the point.",
+              "This upload was not prepared, has expired, or has already been confirmed. Prepare " +
+              "it again — the checks that permit it are re-run, which is the point.",
           });
-          return;
-        }
-
-        const declaredType = req.header("Content-Type")?.split(";")[0]?.trim() ?? "";
-        if (declaredType !== intake.contentType) {
-          problem(res, "unsupported_media_type", {
-            detail:
-              `This upload was prepared for ${intake.contentType} and the body declares ` +
-              `${declaredType.length === 0 ? "nothing" : declaredType}.`,
-          });
-          return;
-        }
-
-        const body: unknown = req.body;
-        if (!Buffer.isBuffer(body)) {
-          problem(res, "validation_failed", { pointers: ["/body"] });
           return;
         }
 
         try {
-          const bytes = acceptBytes(intake, new Uint8Array(body), options.now());
-          const record = await documents.vault.store(intake.upload, bytes, options.now());
+          const record = await documents.vault.confirmUpload(intake, options.now());
           res.status(201).json({
             documentId: record.documentId,
             documentType: record.documentType,
@@ -2059,6 +2060,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         } catch (error) {
           if (error instanceof IntakeRefusedError) {
             problem(res, error.code, { detail: error.message });
+            return;
+          }
+          if (error instanceof UnencryptedObjectError) {
+            // The object is there and is not under the customer-managed key.
+            // A bucket fault, not the student's; the document is not
+            // recorded, and the message says which key S3 reported.
+            problem(res, "service_unavailable", { detail: error.message });
             return;
           }
           next(error);

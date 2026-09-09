@@ -13,6 +13,7 @@
  * be called without the check having happened.
  */
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -28,7 +29,8 @@ import {
 } from "@askimate/aas-disclosure";
 
 import { InMemoryDocumentVault } from "./in-memory-vault.js";
-import type { DocumentUpload, StorableUpload } from "./vault.js";
+import { openIntake } from "./intake.js";
+import type { DocumentRecord, DocumentUpload, StorableUpload } from "./vault.js";
 import {
   DocumentPurgedError,
   DocumentTypeNotCoveredError,
@@ -40,6 +42,38 @@ import {
 
 const NOW = new Date("2026-08-26T12:00:00Z");
 const BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+const BYTES_HASH = createHash("sha256").update(BYTES).digest("hex");
+
+/**
+ * The whole exchange, the way the routes drive it: an intake for the upload,
+ * a bound URL, the browser's PUT to the (in-memory) bucket, and the
+ * confirmation that records the document. `store(bytes)` no longer exists
+ * (ADR-0092); this is what replaced it, and it is what every test below that
+ * used to call `store` now calls.
+ */
+let intakeCounter = 0;
+async function stored(vault: InMemoryDocumentVault, upload: StorableUpload, bytes = BYTES): Promise<DocumentRecord> {
+  const intake = openIntake({
+    intakeId: `01JQ${String(++intakeCounter).padStart(22, "0")}`,
+    conversationId: "conv_vault",
+    upload,
+    contentType: upload.contentType,
+    declaredSizeBytes: upload.sizeBytes,
+    now: NOW,
+  });
+  const prepared = await vault.prepareUpload(intake, NOW);
+  const put = vault.objects.put(prepared.url, prepared.headers, bytes, NOW);
+  if (put.status !== 200) throw new Error(`the in-memory bucket refused the PUT: ${String(put.status)} ${put.code ?? ""}`);
+  return vault.confirmUpload(intake, NOW);
+}
+
+/** What came to rest, fetched the way the runner will: by URL. */
+async function contentsOf(vault: InMemoryDocumentVault, documentId: string): Promise<Uint8Array> {
+  const retrieval = await vault.prepareRetrieval(documentId, NOW);
+  const bytes = vault.objects.get(retrieval.url);
+  if (bytes === null) throw new Error("nothing at the retrieval URL");
+  return bytes;
+}
 
 /**
  * A deliberately PARTIAL schedule.
@@ -97,7 +131,7 @@ function upload(overrides: Partial<DocumentUpload> = {}): DocumentUpload {
     purpose: "identity_verification",
     contentType: "application/pdf",
     sizeBytes: BYTES.length,
-    contentHash: "sha256:abc",
+    contentHash: BYTES_HASH,
     dates: { expiresAt: new Date("2030-01-01T00:00:00Z") },
     ...overrides,
   };
@@ -157,7 +191,7 @@ function storable(overrides: Partial<DocumentUpload> = {}): StorableUpload {
 describe("the retention gate at storage time", () => {
   it("stores a document that has a configured policy", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
     expect(record.documentId).toBeDefined();
     expect(record.retentionPolicyReference).toBe("AAS-RET-001");
@@ -329,7 +363,7 @@ describe("the lawful-basis gate at storage time", () => {
     // record is what everything downstream carries, so a byte that reached it
     // would reach a log, an error and a snapshot with it.
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
     const serialised = JSON.stringify(record);
     expect(serialised).not.toContain(String.fromCharCode(...BYTES));
@@ -356,8 +390,15 @@ describe("the lawful-basis gate at storage time", () => {
     // currently satisfied.
     // ═══════════════════════════════════════════════════════════════════
     const source = readFileSync(join(import.meta.dirname, "vault.ts"), "utf8");
-    expect(source, "the port takes the branded value").toContain(
-      "store(upload: StorableUpload, contents: Uint8Array, now: Date): Promise<DocumentRecord>;",
+    expect(source, "the port takes an intake, and nothing looser").toContain(
+      "prepareUpload(intake: DocumentIntake, now: Date): Promise<PreparedUpload>;",
+    );
+    expect(source, "and nothing on it takes or returns bytes (ADR-0092)").not.toMatch(
+      /Uint8Array/,
+    );
+    const intake = readFileSync(join(import.meta.dirname, "intake.ts"), "utf8");
+    expect(intake, "an intake carries the branded upload").toContain(
+      "readonly upload: StorableUpload;",
     );
     expect(source, "and only the gate can make one").toContain(
       "): StorableUpload {",
@@ -373,24 +414,24 @@ describe("the lawful-basis gate at storage time", () => {
 describe("storing and reading", () => {
   it("returns the bytes it was given", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
-    expect(await vault.retrieve(record.documentId)).toEqual(BYTES);
+    const record = await stored(vault, storable());
+    expect(await contentsOf(vault, record.documentId)).toEqual(BYTES);
   });
 
   it("does not let a caller mutate stored contents through the returned array", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
-    const first = await vault.retrieve(record.documentId);
+    const first = await contentsOf(vault, record.documentId);
     first[0] = 0x00;
 
-    expect((await vault.retrieve(record.documentId))[0]).toBe(0x25);
+    expect((await contentsOf(vault, record.documentId))[0]).toBe(0x25);
   });
 
   it("records a content hash that survives everything", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
-    expect(record.contentHash).toBe("sha256:abc");
+    const record = await stored(vault, storable());
+    expect(record.contentHash).toBe(BYTES_HASH);
   });
 
   it("returns null describing an unknown document", async () => {
@@ -405,27 +446,27 @@ describe("erasure keeps the audit trail intact", () => {
     // what makes erasure workable — the case can still answer "which document
     // was used, and was it the one the student confirmed?" (ADR-0010).
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
     const purged = await vault.purgeContents(record.documentId, NOW);
 
     expect(purged.state).toBe("purged");
-    expect(purged.contentHash).toBe("sha256:abc");
+    expect(purged.contentHash).toBe(BYTES_HASH);
     expect(purged.documentType).toBe("passport");
     expect(hasContents(purged)).toBe(false);
   });
 
   it("refuses to return contents once purged", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     await vault.purgeContents(record.documentId, NOW);
 
-    await expect(vault.retrieve(record.documentId)).rejects.toThrow(DocumentPurgedError);
+    await expect(vault.prepareRetrieval(record.documentId, NOW)).rejects.toThrow(DocumentPurgedError);
   });
 
   it("still describes a purged document", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     await vault.purgeContents(record.documentId, NOW);
 
     expect(await vault.describe(record.documentId)).not.toBeNull();
@@ -436,13 +477,13 @@ describe("the retention clock", () => {
   it("does not start on upload", async () => {
     // It starts on the policy's trigger event, not when the file arrives.
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     expect(record.retentionTriggeredAt).toBeNull();
   });
 
   it("starts when triggered", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     const triggered = await vault.startRetentionClock(record.documentId, NOW);
     expect(triggered.retentionTriggeredAt).toEqual(NOW);
   });
@@ -450,7 +491,7 @@ describe("the retention clock", () => {
   it("is idempotent — re-triggering does not extend retention", async () => {
     // Otherwise a repeated event would quietly keep data longer each time.
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     await vault.startRetentionClock(record.documentId, NOW);
 
     const later = await vault.startRetentionClock(record.documentId, new Date("2027-01-01T00:00:00Z"));
@@ -461,7 +502,7 @@ describe("the retention clock", () => {
 describe("reuse eligibility", () => {
   it("allows reuse of a confirmed or verified document", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
     expect(isReusable(await vault.transition(record.documentId, "confirmed", NOW))).toBe(true);
     expect(isReusable(await vault.transition(record.documentId, "verified", NOW))).toBe(true);
@@ -470,13 +511,13 @@ describe("reuse eligibility", () => {
   it("does NOT allow reuse of an unconfirmed extraction", async () => {
     // Extract-then-confirm: what the machine read is not yet usable.
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
     expect(isReusable(await vault.transition(record.documentId, "extracted", NOW))).toBe(false);
   });
 
   it("does not allow reuse of a superseded or purged document", async () => {
     const vault = new InMemoryDocumentVault();
-    const record = await vault.store(storable(), BYTES, NOW);
+    const record = await stored(vault, storable());
 
     expect(isReusable(await vault.transition(record.documentId, "superseded", NOW))).toBe(false);
     expect(isReusable(await vault.purgeContents(record.documentId, NOW))).toBe(false);

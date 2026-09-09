@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-conversation-service",
-  "version": "0.76.1",
+  "version": "0.77.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -28,6 +28,8 @@
     "@askimate/aas-oidc": "workspace:*",
     "@askimate/aas-orchestrator": "workspace:*",
     "@askimate/aas-profile": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1128.0",
+    "@aws-sdk/s3-request-presigner": "^3.1128.0",
     "express": "^5.1.0",
     "pg": "^8.20.0"
   },

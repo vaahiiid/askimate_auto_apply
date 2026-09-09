@@ -370,10 +370,12 @@ paths:
       description: >-
         Runs the retention gate (ADR-0010, ADR-0023) and the lawful-basis gate
         (ADR-0022, ADR-0087) on the DECLARATION, before any body exists. On
-        success it answers with an intake id and the exact constraints the
-        content request will be held to — the byte ceiling, the accepted
-        content types and the hash the bytes must match — so a client is told
-        rather than left to guess and be refused.
+        success it answers with a pre-signed upload — the URL the browser PUTs
+        the bytes to, straight to the bucket, and the headers the bucket
+        refuses the PUT without — plus the exact constraints: the byte
+        ceiling, the accepted content types and the hash the bytes must match.
+        The bytes never pass through this service (ADR-0092); the upload URL
+        binds them to the declared hash (ADR-0093), and the bucket enforces it.
 
 
         A 403 means a gate refused, and its `detail` is the gate's own words:
@@ -387,7 +389,7 @@ paths:
             schema: { $ref: "#/components/schemas/DocumentUploadDeclaration" }
       responses:
         "201":
-          description: The gates passed. Send the bytes to the content route.
+          description: The gates passed. PUT the bytes to `upload.url` with `upload.headers`, then confirm.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/DocumentIntake" }
@@ -415,42 +417,36 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
 
-  /v1/conversations/{conversationId}/documents/{intakeId}/content:
+  /v1/conversations/{conversationId}/documents/{intakeId}/confirm:
     parameters:
       - { $ref: "#/components/parameters/ConversationId" }
       - name: intakeId
         in: path
         required: true
         schema: { type: string }
-    put:
-      operationId: sendDocumentContent
+    post:
+      operationId: confirmDocumentUpload
       tags: [documents]
-      summary: Send the bytes an intake was opened for. Once.
+      summary: Confirm the bytes reached the bucket. Once.
       description: >-
-        The body is the document itself, with the `Content-Type` the intake was
-        opened for. The bytes are checked against the declaration that passed
-        the gates — length and SHA-256 — and nothing is stored unless they
-        match: without that, the checks upstream would have been about a
-        document that was never sent (ADR-0057's binding, at the other end of
-        the journey).
+        The bytes went from the browser to the bucket on the declaration's
+        pre-signed upload; they never passed through this service (ADR-0092).
+        This route asks the bucket what it holds for the intake and records
+        the document only if it is exactly what was declared — the checksum
+        the bucket enforced, the length, and encryption under the
+        customer-managed key. The browser's word that the upload happened is
+        not taken.
 
 
-        An intake is spent once. A second attempt, an expired one and an id
-        nobody opened all answer `intake_not_open`, deliberately
-        indistinguishable — telling a caller which is which would say what
-        intake ids exist.
-      requestBody:
-        required: true
-        content:
-          application/pdf:
-            schema: { type: string, format: binary }
-          image/jpeg:
-            schema: { type: string, format: binary }
-          image/png:
-            schema: { type: string, format: binary }
+        No request body. An intake is spent once, by this call: a second
+        confirm, an expired intake and an id nobody opened all answer
+        `intake_not_open`, deliberately indistinguishable. A confirm that
+        finds nothing in the bucket answers `upload_not_received` and has
+        still spent the intake — declare the document again, and the checks
+        that permit it re-run.
       responses:
         "201":
-          description: Stored. The record's id, state and hash.
+          description: Recorded. The document exists, in the bucket, under the key.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StoredDocument" }
@@ -458,27 +454,26 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
-          description: The intake is not open — unknown, expired, or already spent.
+          description: >-
+            `intake_not_open` — spent, expired or never opened. Or
+            `upload_not_received` — the bucket holds nothing for it.
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
-        "413":
-          description: The body is over this document type's ceiling.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-        "415":
-          description: The body's content type is not the one prepared for.
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
         "422":
-          description: These are not the bytes the intake was prepared for.
+          description: >-
+            `content_hash_mismatch` — the bucket holds an object for this
+            upload whose checksum or length is not the declared one. Nothing
+            is recorded.
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         "503":
-          description: No document store is configured.
+          description: >-
+            No document store is configured, or the object is not encrypted
+            under the customer-managed key. Nothing is recorded.
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -2281,6 +2276,7 @@ components:
         - content_changed
         - content_hash_mismatch
         - intake_not_open
+        - upload_not_received
         - secret_request_open
         - already_applying
         - specialist_reviewing
@@ -2314,10 +2310,11 @@ components:
       type: object
       additionalProperties: false
       required:
-        [intakeId, expiresAt, maxBytes, acceptedContentTypes, contentHash, retentionPolicyReference]
+        [intakeId, expiresAt, upload, maxBytes, acceptedContentTypes, contentHash, retentionPolicyReference]
       properties:
         intakeId: { type: string }
         expiresAt: { type: string, format: date-time }
+        upload: { $ref: "#/components/schemas/PreparedUpload" }
         maxBytes:
           type: integer
           description: The ceiling for THIS document type. Stated, not guessed at.
@@ -2332,6 +2329,27 @@ components:
           description: >-
             The retention policy the gate actually resolved — not a claim that
             one exists. A client can put this in front of a person.
+
+    PreparedUpload:
+      type: object
+      additionalProperties: false
+      description: >-
+        A pre-signed PUT to the bucket, bound to the declared SHA-256. The
+        signature covers `headers`, so the browser must send every one of them
+        exactly: omitting or altering any is refused by the bucket
+        (ADR-0092 §4, E6 and E7). The URL is useless without them, and it is
+        never minted unbound (ADR-0093).
+      required: [url, method, headers, expiresAt]
+      properties:
+        url: { type: string, format: uri }
+        method: { type: string, enum: [PUT] }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: >-
+            `x-amz-checksum-sha256` (base64 of the declared digest) and the two
+            SSE-KMS headers. Send them as given.
+        expiresAt: { type: string, format: date-time }
 
     StoredDocument:
       type: object

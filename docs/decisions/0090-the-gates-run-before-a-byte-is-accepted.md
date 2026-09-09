@@ -7,7 +7,10 @@ enumerated — *"No transport: nothing by which a student can supply bytes"*
 has had no production caller since it was written
 **Continued by:** [ADR-0092](./0092-the-document-never-enters-a-process-we-run.md) — the store behind
 this transport becomes a bucket with pre-signed upload; the two-step declaration stays, `PUT …/content`
-will not. Nothing changes until the checksum binding is verified.
+does not. **Completed by** [ADR-0093](./0093-an-upload-url-cannot-be-minted-unbound.md) (P60): the
+binding was verified, the port was reshaped, and `PUT …/content` and `acceptBytes` are gone. The
+declaration and the gates in front of it are exactly as this record describes; the second step is
+now the browser's PUT to the bucket and a `POST …/confirm` that asks the bucket what it holds.
 
 ## Context
 

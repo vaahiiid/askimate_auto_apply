@@ -47,6 +47,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   validation_failed: "The request could not be understood",
   content_hash_mismatch: "These are not the bytes this upload was prepared for",
   intake_not_open: "This upload is no longer open",
+  upload_not_received: "The store holds nothing for this upload",
   unsupported_media_type: "Unsupported media type",
   payload_too_large: "Payload too large",
   idempotency_key_conflict: "Idempotency key already used with a different request",
@@ -68,6 +69,7 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   validation_failed: 400,
   content_hash_mismatch: 422,
   intake_not_open: 409,
+  upload_not_received: 409,
   unsupported_media_type: 415,
   payload_too_large: 413,
   idempotency_key_conflict: 409,
@@ -334,6 +336,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "payload_too_large":
     case "content_hash_mismatch":
     case "intake_not_open":
+    case "upload_not_received":
     case "idempotency_key_conflict":
     case "intervention_already_resolved":
     case "content_changed":

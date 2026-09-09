@@ -297,10 +297,10 @@ export const CAPABILITIES: readonly Capability[] = [
     symbol: "assertStorable",
     kind: "call",
     declaredIn: ["packages/documents/src/vault.ts"],
-    record: "ADR-0068, ADR-0090",
+    record: "ADR-0068, ADR-0090, ADR-0092",
     promise:
       "the retention and lawful-basis gates both run, and their branded result is the only " +
-      "thing `store` accepts",
+      "thing `openIntake` accepts — and an intake the only thing an upload is minted for",
     // ── REACHABLE from P57, and it was the last thing keeping it out ─────
     //
     // Declared-but-unreachable from P39 to P56, for a reason that was never
@@ -326,7 +326,9 @@ export const CAPABILITIES: readonly Capability[] = [
         "nothing acquires a document, so there is nothing to disclose. The lawful basis is no " +
         "longer the obstacle: B2's determination 3 registers Article 6(1)(b) AND specific " +
         "student authorisation as REQUIRED (2026-09-08, ADR-0087)",
-      closedBy: "the transport phase — nothing yet holds a document to send",
+      closedBy:
+        "a document to SEND: the transport now exists (ADR-0090, ADR-0092), and what is left " +
+        "is `attach_document` leaving its hold (B5) and the runner fetching the retrieval URL",
     },
   },
   {
@@ -335,16 +337,21 @@ export const CAPABILITIES: readonly Capability[] = [
     declaredIn: [
       "packages/documents/src/vault.ts",
       "packages/documents/src/in-memory-vault.ts",
+      // P60 (ADR-0093): the S3 vault IMPLEMENTS it — deletes the object — and
+      // is listed here as a declaration for that reason. Nothing calls it.
+      "apps/conversation-service/src/s3-document-vault.ts",
     ],
-    record: "ADR-0010",
+    record: "ADR-0010, ADR-0092",
     promise: "a document's contents are destroyed when its retention schedule expires",
     status: {
       kind: "unreachable",
-      reason: "the vault holds nothing, because nothing can put anything into it",
+      reason:
+        "nothing calls it. Since P60 the bucket CAN hold something to purge — the transport " +
+        "mints the upload and confirms it (ADR-0092, ADR-0093) — but the job that fires when a " +
+        "retention period elapses does not exist, and production wiring waits on durable metadata",
       closedBy:
-        "B1 is DECIDED (2026-09-07): eleven periods set, row 12 still blocking. What is " +
-        "left is a vault holding something to purge, and the job that calls this when a " +
-        "period elapses — the transport phase",
+        "the retention sweep: the job that calls this when a period elapses, once document " +
+        "metadata is durable and the S3 vault is wired in production",
     },
   },
   {

@@ -19,7 +19,6 @@ import {
   DOCUMENT_LIMITS,
   INTAKE_TTL_MS,
   IntakeRefusedError,
-  acceptBytes,
   limitFor,
   openIntake,
 } from "./intake.js";
@@ -161,66 +160,7 @@ describe("opening an intake", () => {
   });
 });
 
-describe("accepting the bytes", () => {
-  it("accepts the bytes the intake was opened for", () => {
-    expect(acceptBytes(intake(), BYTES, NOW)).toBe(BYTES);
-  });
-
-  it("REFUSES a different document of a different length", () => {
-    const other = new Uint8Array(Buffer.from("something else entirely"));
-    try {
-      acceptBytes(intake(), other, NOW);
-      expect.unreachable("the wrong bytes were accepted");
-    } catch (error) {
-      expect((error as IntakeRefusedError).code).toBe("content_hash_mismatch");
-    }
-  });
-
-  it("REFUSES a different document of the SAME length", () => {
-    // The case that proves the hash is doing the work. A size check alone
-    // passes this, and it is the shape an attacker would reach for: clear the
-    // gates for a personal statement, send a passport of the same size.
-    const swapped = new Uint8Array(BYTES);
-    swapped[swapped.length - 2] = swapped[swapped.length - 2] === 0x41 ? 0x42 : 0x41;
-    try {
-      acceptBytes(intake(), swapped, NOW);
-      expect.unreachable("a same-length substitution was accepted");
-    } catch (error) {
-      expect((error as IntakeRefusedError).code).toBe("content_hash_mismatch");
-      expect(String(error)).toMatch(/Nothing is stored/);
-    }
-  });
-
-  it("names BOTH hashes, so the refusal is diagnosable", () => {
-    try {
-      acceptBytes(intake(), new Uint8Array(Buffer.from("x".repeat(BYTES.byteLength))), NOW);
-    } catch (error) {
-      expect(String(error)).toContain(HASH);
-      expect(String(error)).toMatch(/hashes to [0-9a-f]{64}/);
-    }
-  });
-
-  it("REFUSES an intake past its expiry, on the second it is due", () => {
-    const opened = intake();
-    expect(() => acceptBytes(opened, BYTES, opened.expiresAt)).toThrow(/no longer open/);
-    expect(() =>
-      acceptBytes(opened, BYTES, new Date(opened.expiresAt.getTime() - 1)),
-    ).not.toThrow();
-  });
-
-  it("says that starting again re-runs the checks, rather than just refusing", () => {
-    // ADR-0075's rule: a refusal a person cannot act on is a defect. "Expired"
-    // with no next step is one; "start it again, and the checks re-run" is not.
-    const opened = intake();
-    try {
-      acceptBytes(opened, BYTES, opened.expiresAt);
-      // Without this, the whole test passes when the expiry check is deleted:
-      // no throw, no catch, no assertion. Found by the regression that removed
-      // it — the same vacuous shape ADR-0072 names, and the second one this
-      // pair of phases has caught in a test written to prevent it.
-      expect.unreachable("an expired intake was accepted");
-    } catch (error) {
-      expect(String(error)).toMatch(/Start the upload again/);
-    }
-  });
-});
+// `acceptBytes` and its group of tests are gone with it (ADR-0092, ADR-0093):
+// the bytes no longer pass through a process this repository runs. What the
+// bytes must match, and what refuses them when they do not, is now the bound
+// upload URL — see `bound-upload.test.ts` — and the bucket the run verified.

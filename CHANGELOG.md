@@ -17,6 +17,55 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+---
+
+## [0.77.0] — 2026-09-09
+
+**P60 — an upload URL cannot be minted unbound (ADR-0093). The port is reshaped.**
+
+Vahid, on the run: *"Both halves VERIFIED. Condition 1 of ADR-0092 is met. Reshape the port. The
+constraint you found is the important output of this, more than the verdict: the property holds only
+when the checksum is a signed header the browser sends, and the SDK's default hoists it into the
+query string where S3 never reads it. Make that structural in the minting code, not a note in the
+ADR … If it can be made impossible to mint an upload URL without that header signed, do that."*
+
+### Added
+
+- `packages/documents/src/bound-upload.ts` — `BoundUploadUrl`, a branded type with one producer.
+  `mintBoundUpload` computes the checksum header from the intake, names the headers the presigner
+  must not hoist, and **reads the URL back**: hoisted checksum, uncovered header, non-https, no
+  expiry, or an expiry past the intake, and it throws `UnboundUploadError` instead of returning.
+  `receiveUpload` is the read-back on the other end — the only producer of the `ReceivedUpload` a
+  record is written from. 18 tests.
+- `apps/conversation-service/src/s3-document-vault.ts` — the S3 + KMS vault, minted from the process
+  ADR-0092 says mints it. Its test presigns with the REAL SDK offline, both the adapter's way and
+  the SDK's default, and shows the mint accepting the one and refusing the other. 9 tests.
+- `InMemoryObjectStore` — an in-memory bucket that refuses what the run saw S3 refuse: the
+  substitution (`BadDigest`), the header omitted or altered (`SignatureDoesNotMatch`), an expired
+  URL, a forged signature.
+- `POST /v1/conversations/{id}/documents/{intakeId}/confirm`, and the problem code
+  `upload_not_received`.
+
+### Changed
+
+- `DocumentVault` has no method that takes or returns bytes: `prepareUpload`, `confirmUpload` and
+  `prepareRetrieval` replace `store` and `retrieve`. The declaration's response carries `upload:
+  { url, method, headers, expiresAt }`.
+- `document-routes.test.ts` — 20 tests around the new shape, over an in-memory bucket.
+- The reachability register: `purgeContents` gained an implementation, not a caller; the reasons
+  on it and on `authoriseDisclosure` say what is now true.
+
+### Removed
+
+- `PUT /v1/conversations/{id}/documents/{intakeId}/content`, `acceptBytes`, `AcceptedBytes`, and
+  `express.raw` from the Conversation Service — **no route on it reads a non-JSON body.**
+
+### Not built
+
+Durable document metadata and production wiring of the S3 vault (the in-memory intake port keeps its
+production refusal); CORS on the bucket; the retrieval's caller. Content-type is not bound by the
+upload URL and is not trusted from the bucket. Declared-but-unreachable: six, unchanged.
+
 **P59 — the verification ran. Binding VERIFIED, SSE-KMS VERIFIED, with the checksum a signed header.**
 
 Two runs on 2026-09-09 against the bucket Vahid created (ADR-0092 §4, *Run 2026-09-09*). The first

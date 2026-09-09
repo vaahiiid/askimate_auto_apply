@@ -668,6 +668,10 @@ const CANNOT_REACH_THIS_PAGE: Readonly<Record<string, string>> = {
     "this page never opens a document intake, so it cannot send bytes that fail to match one",
   intake_not_open:
     "this page never opens a document intake, so it cannot spend an expired one",
+  // P60 (ADR-0093): the third code of the same transport. The page never
+  // confirms an upload, so it can never be told the bucket holds nothing.
+  upload_not_received:
+    "this page never confirms a document upload, so it cannot be told the bucket holds nothing",
 };
 
 function report(code: string): void {

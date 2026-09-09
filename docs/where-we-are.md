@@ -3667,3 +3667,50 @@ then D has a hole in it."* Billing alerts first, all four thresholds.
 
 Nothing has run against AWS. Nothing has been created by me. I am waiting for your message that the
 variables are set, and until then the command is not invoked — not even to see the STS identity.
+
+---
+
+# P60 — an upload URL cannot be minted unbound (ADR-0093)
+
+You said: both halves VERIFIED, condition 1 met, reshape the port — and make the run's constraint
+structural in the minting code, impossible rather than noted. Done, and the second part is the part
+I want you to look at.
+
+## Where the impossibility lives
+
+`mintBoundUpload` in `packages/documents/src/bound-upload.ts` is the only thing that can produce a
+`BoundUploadUrl`, and the route can only put a `BoundUploadUrl` on the wire. It computes the
+checksum header from the intake, tells the presigner which headers may not be hoisted, and then
+reads the URL it gets back and refuses it if the checksum is in the query string, if the signature
+does not cover the three headers, or if it would outlive the intake. A presigner that hoisted — this
+SDK by default, or a future one by regression — produces a URL the mint throws on. The declaration
+answers 503 and nothing reaches a browser.
+
+The proof I would show you first is `s3-document-vault.test.ts`: it presigns with the real SDK,
+offline, the way the adapter does and the way the SDK does by default, and the same function accepts
+the first and refuses the second. That is your finding, as a test that fails if it stops being true.
+
+## What the port is
+
+Declare (gates run, bound upload minted, headers stated) → the browser PUTs to the bucket → confirm
+(the bucket is asked what it holds; recorded only from a `ReceivedUpload`). `PUT …/content` is gone,
+`acceptBytes` with it, and `express.raw` is no longer imported by the conversation service: no route
+on it reads a document body. `prepareRetrieval` mints a short GET for the runner; nothing calls it
+yet.
+
+## What I did not do
+
+Durable metadata and production wiring — records and object keys are in a Map in both
+implementations, and `assertDocumentStoreIsDurable` still refuses production. CORS on the bucket.
+Binding content-type (the run did not verify it, so the URL does not sign it, and nothing trusts the
+bucket's). Nothing ran against AWS: the adapter tests sign with fake credentials and send nothing.
+
+## The two things you asked before the reshape
+
+The branch is merged into `main` as a fast-forward. Its CI was red at one step only — the committed
+census was one run behind the five tests it added — and every test step in both jobs passed,
+browser-runner suites included; the census is regenerated and `main` is green.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.** `purgeContents` has an implementation now, not a caller.

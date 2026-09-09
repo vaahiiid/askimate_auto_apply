@@ -249,6 +249,12 @@ importers:
       '@askimate/aas-profile':
         specifier: workspace:*
         version: link:../../packages/profile
+      '@aws-sdk/client-s3':
+        specifier: ^3.1128.0
+        version: 3.1128.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.1128.0
+        version: 3.1128.0
       express:
         specifier: ^5.1.0
         version: 5.2.1
@@ -2755,7 +2761,7 @@ snapshots:
   '@aws-sdk/client-bedrock-runtime@3.1118.0':
     dependencies:
       '@aws-sdk/core': 3.977.9
-      '@aws-sdk/credential-provider-node': 3.972.81
+      '@aws-sdk/credential-provider-node': 3.972.82
       '@aws-sdk/eventstream-handler-node': 3.972.34
       '@aws-sdk/middleware-eventstream': 3.972.29
       '@aws-sdk/middleware-websocket': 3.972.52
@@ -2941,7 +2947,7 @@ snapshots:
       '@aws-sdk/credential-provider-http': 3.972.72
       '@aws-sdk/credential-provider-ini': 3.973.15
       '@aws-sdk/credential-provider-login': 3.972.77
-      '@aws-sdk/credential-provider-node': 3.972.81
+      '@aws-sdk/credential-provider-node': 3.972.82
       '@aws-sdk/credential-provider-process': 3.972.70
       '@aws-sdk/credential-provider-sso': 3.973.14
       '@aws-sdk/credential-provider-web-identity': 3.972.76

@@ -9,9 +9,19 @@
  *   • audit records reference document IDs, never contents (brief §8)
  *   • deterministic validity checked before any reuse (brief §2.4)
  *
- * This file defines the port and the rules. The S3 + KMS implementation is a
- * deployment concern; an in-memory implementation satisfying the same contract
- * ships alongside, so the whole flow is testable with no AWS account.
+ * This file defines the port and the rules. The S3 + KMS implementation lives
+ * in the Conversation Service, which is the process that mints upload URLs
+ * (ADR-0092); an in-memory implementation satisfying the same contract ships
+ * here, behaving as the verified bucket did, so the whole flow is testable
+ * with no AWS account.
+ *
+ * ── The bytes never enter a process we run (ADR-0092, ADR-0093) ───────────
+ *
+ * There is no `store(bytes)` on this port. A document is uploaded by the
+ * browser straight to the bucket, on a URL this port PREPARES and the port
+ * then CONFIRMS by asking the bucket what it holds. Contents are never a
+ * parameter and never a return value: the runner is handed a short-lived URL
+ * after `mayTransmit`, not a buffer.
  */
 
 import type {
@@ -29,6 +39,8 @@ import {
 } from "@askimate/aas-disclosure";
 
 import type { DocumentDates } from "./validity.js";
+import type { DocumentIntake } from "./intake.js";
+import type { PreparedRetrieval, PreparedUpload } from "./bound-upload.js";
 
 /** Opaque handle to a stored document. IDs travel; contents do not. */
 export type DocumentId = string;
@@ -103,23 +115,47 @@ export class DocumentPurgedError extends Error {
  * Note the absence of an `update` for contents: a document's bytes are written
  * once. A corrected document is a NEW document that supersedes the old one,
  * which keeps "what exactly did we submit?" answerable.
+ *
+ * And note the absence of the bytes themselves. Nothing on this port takes or
+ * returns document contents (ADR-0092).
  */
 export interface DocumentVault {
   /**
-   * Stores a document that has already passed the gates.
+   * Mints the upload for an intake that has already passed the gates.
    *
-   * Takes a `StorableUpload`, which only `assertStorable` can produce, so an
-   * implementation cannot store a document whose retention policy and lawful
-   * basis were never established. It is not that this method must remember to
-   * check — it is that it cannot be called without the check having run.
+   * Takes a `DocumentIntake`, which only `openIntake` produces, from a
+   * `StorableUpload`, which only `assertStorable` produces — so an
+   * implementation cannot prepare an upload for a document whose retention
+   * policy and lawful basis were never established. And the `PreparedUpload`
+   * it returns carries a `BoundUploadUrl`, which only `mintBoundUpload`
+   * produces, so it cannot hand out a URL whose signature does not cover the
+   * checksum header (ADR-0093). Neither is a check to remember; both are the
+   * signature.
    */
-  store(upload: StorableUpload, contents: Uint8Array, now: Date): Promise<DocumentRecord>;
+  prepareUpload(intake: DocumentIntake, now: Date): Promise<PreparedUpload>;
+
+  /**
+   * Asks the store what it holds for the intake, and records the document if
+   * it is exactly what was declared.
+   *
+   * The confirmation does not take the browser's word for it: the store is
+   * asked (a HEAD), and `receiveUpload` — the only producer of the branded
+   * `ReceivedUpload` a record is written from — refuses a missing object, a
+   * different checksum or length, and an object not encrypted under the
+   * customer-managed key.
+   */
+  confirmUpload(intake: DocumentIntake, now: Date): Promise<DocumentRecord>;
 
   /** Metadata only. Cheap, and safe to call for a purged document. */
   describe(documentId: DocumentId): Promise<DocumentRecord | null>;
 
-  /** The bytes. Throws `DocumentPurgedError` once contents are gone. */
-  retrieve(documentId: DocumentId): Promise<Uint8Array>;
+  /**
+   * A short-lived URL the runner fetches the bytes from, after `mayTransmit`.
+   * Throws `DocumentPurgedError` once contents are gone. The bytes still do
+   * not pass through this process: the runner holds a URL, not a key
+   * (ADR-0042 kept).
+   */
+  prepareRetrieval(documentId: DocumentId, now: Date): Promise<PreparedRetrieval>;
 
   /** Every document held for a student. */
   listForStudent(studentId: string): Promise<readonly DocumentRecord[]>;
@@ -189,8 +225,8 @@ export class DocumentTypeNotCoveredError extends Error {
  * An upload that has passed BOTH storage gates.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * Branded, and `assertStorable` is the only way to obtain one, so `store`
- * cannot be reached without the gates having run. That is the point, and it is
+ * Branded, and `assertStorable` is the only way to obtain one, so `openIntake`
+ * — and through it every upload — cannot be reached without the gates having run. That is the point, and it is
  * ADR-0017's sentence applied to documents: *"was this reviewed?" is answered
  * by the function signature rather than by a check someone has to remember to
  * call.*

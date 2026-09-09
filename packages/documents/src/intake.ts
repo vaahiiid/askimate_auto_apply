@@ -22,6 +22,14 @@
  * (ADR-0068). There is no way to obtain an intake without the retention policy
  * and the lawful basis having been established for that exact document.
  *
+ * ── Since ADR-0092 the bytes never arrive here at all ─────────────────────
+ *
+ * The second step used to be a PUT to this service, checked by `acceptBytes`.
+ * Now the declaration answers with a pre-signed upload the browser sends the
+ * bytes on, straight to the bucket, and S3 performs the hash check the upload
+ * URL's signature binds it to (ADR-0093). `acceptBytes` is retired; the
+ * declaration and the gates in front of it are unchanged.
+ *
  * ── Why not one request with the metadata alongside the bytes ─────────────
  *
  * Because the server would have to read the body to find out whether it was
@@ -36,9 +44,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { createHash } from "node:crypto";
-
-import type { Brand, DocumentType } from "@askimate/aas-domain";
+import type { DocumentType } from "@askimate/aas-domain";
 
 import type { StorableUpload } from "./vault.js";
 
@@ -130,6 +136,7 @@ export class IntakeRefusedError extends Error {
       | "payload_too_large"
       | "content_hash_mismatch"
       | "intake_not_open"
+      | "upload_not_received"
       | "validation_failed",
     message: string,
   ) {
@@ -197,74 +204,4 @@ export function openIntake(input: {
     openedAt: input.now,
     expiresAt: new Date(input.now.getTime() + INTAKE_TTL_MS),
   };
-}
-
-/**
- * Bytes that are the ones the intake was opened for.
- *
- * Branded, and `acceptBytes` is its only source, so `store` cannot be reached
- * with a buffer nobody checked against the declaration. Same device as
- * `StorableUpload`, one layer out, and for the same reason: the check is in
- * the signature rather than in a step somebody has to remember.
- */
-export type AcceptedBytes = Brand<Uint8Array, "AcceptedBytes">;
-
-/**
- * Checks received bytes against the intake that permitted them.
- *
- * ── Why the hash is re-computed rather than trusted ───────────────────────
- *
- * The declaration is what passed the gates. If the bytes could differ from it,
- * every check upstream would be about a document that was never sent — a
- * student could declare a personal statement, clear the gates for one, and
- * send a passport. ADR-0057 binds an authorisation to exact content by hash
- * for the same reason, at the other end of the journey.
- *
- * The comparison is over the whole digest and is not short-circuited on the
- * first differing character, because there is nothing here worth leaking a
- * timing signal about — but the digest is compared as a string rather than
- * byte-by-byte in application code, which keeps that decision in one place.
- */
-export function acceptBytes(
-  intake: DocumentIntake,
-  bytes: Uint8Array,
-  now: Date,
-): AcceptedBytes {
-  if (now.getTime() >= intake.expiresAt.getTime()) {
-    throw new IntakeRefusedError(
-      "intake_not_open",
-      `This upload was prepared at ${intake.openedAt.toISOString()} and is no longer open. ` +
-        `Start the upload again — the checks that permitted it are re-run, which is the point.`,
-    );
-  }
-
-  const limit = limitFor(intake.upload.documentType);
-  if (bytes.byteLength > limit.maxBytes) {
-    throw new IntakeRefusedError(
-      "payload_too_large",
-      `A ${intake.upload.documentType} may be up to ${String(limit.maxBytes)} bytes and this ` +
-        `body is ${String(bytes.byteLength)}.`,
-    );
-  }
-
-  if (bytes.byteLength !== intake.declaredSizeBytes) {
-    throw new IntakeRefusedError(
-      "content_hash_mismatch",
-      `This upload was prepared for ${String(intake.declaredSizeBytes)} bytes and ` +
-        `${String(bytes.byteLength)} arrived. The checks that permitted it were about a different ` +
-        `document.`,
-    );
-  }
-
-  const received = createHash("sha256").update(bytes).digest("hex");
-  if (received !== intake.declaredHash) {
-    throw new IntakeRefusedError(
-      "content_hash_mismatch",
-      `These are not the bytes this upload was prepared for. The retention policy and the lawful ` +
-        `basis were established for a document with hash ${intake.declaredHash}, and what arrived ` +
-        `hashes to ${received}. Nothing is stored.`,
-    );
-  }
-
-  return bytes as AcceptedBytes;
 }

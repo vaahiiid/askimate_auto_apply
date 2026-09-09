@@ -40,18 +40,42 @@ export {
   storageActivityFor,
 } from "./vault.js";
 
-export { InMemoryDocumentVault } from "./in-memory-vault.js";
+export { InMemoryDocumentVault, InMemoryObjectStore } from "./in-memory-vault.js";
+export type { FakePutResult } from "./in-memory-vault.js";
 
 // ── The transport: how bytes arrive, and what is true before they do ───────
-export type { AcceptedBytes, DocumentIntake, DocumentLimit, IntakeId } from "./intake.js";
+export type { DocumentIntake, DocumentLimit, IntakeId } from "./intake.js";
 export {
   DOCUMENT_LIMITS,
   INTAKE_TTL_MS,
   IntakeRefusedError,
-  acceptBytes,
   limitFor,
   openIntake,
 } from "./intake.js";
+
+// ── The bound upload: a URL that cannot be minted unbound (ADR-0093) ───────
+export type {
+  BoundUploadUrl,
+  ObjectReceipt,
+  PreparedRetrieval,
+  PreparedUpload,
+  PresignRequest,
+  Presigner,
+  ReceivedUpload,
+} from "./bound-upload.js";
+export {
+  CHECKSUM_HEADER,
+  REQUIRED_SIGNED_HEADERS,
+  SSE_HEADER,
+  SSE_KEY_HEADER,
+  UnboundUploadError,
+  UnencryptedObjectError,
+  assertBoundUploadUrl,
+  checksumHeaderValue,
+  mintBoundUpload,
+  objectKeyFor,
+  receiveUpload,
+} from "./bound-upload.js";
 
 // ── The expiry rule that makes holding safe (ADR-0078, ADR-0079) ───────────
 export type {

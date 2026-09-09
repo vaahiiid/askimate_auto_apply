@@ -242,6 +242,16 @@ export const PROBLEM_CODES = [
   // already been spent. Actionable in one specific way — prepare it again — and
   // the re-preparation re-runs the gates, which is why it is not a plain 409.
   "intake_not_open",
+  // P60, the bound upload (ADR-0092, ADR-0093). The confirmation asked the
+  // bucket what it holds for this upload and it holds nothing: the browser's
+  // PUT did not complete, or the bucket refused it — a body that does not
+  // hash to the declared value, or a required header omitted or altered, is
+  // refused by the bucket itself, before any process of ours is involved.
+  //
+  // Its own code because it is neither `intake_not_open` (the intake WAS open
+  // and has now been spent) nor `content_hash_mismatch` (nothing arrived to
+  // mismatch). Actionable in one way: declare the document again.
+  "upload_not_received",
   "secret_request_open",
   // ADR-0006, armed in P38. This student already has an application for this
   // institution, course and intake — the submission identity is claimed, and

@@ -225,7 +225,7 @@ such rather than folded in."*
    SSE-KMS, with the HTTP statuses and S3 error codes for each experiment. The exit code is zero only
    when both are VERIFIED.
 3. **Binding VERIFIED and SSE-KMS VERIFIED** → the port is reshaped around pre-signed upload
-   (ADR-0092 §"What the port becomes").
+   (ADR-0092 §"What the port becomes"). **This is the outcome that was reached: P60, ADR-0093.**
    **Binding REFUTED** → *"stop and tell me before touching the port, as agreed."* You are told, with
    the evidence, and the port is not touched.
    **SSE-KMS REFUTED** → named as a different problem, not folded in. The port is not touched either:
