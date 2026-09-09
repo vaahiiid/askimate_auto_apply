@@ -20,7 +20,11 @@ to match. Where it said "optional" of §4, it no longer does.
 **Recorded 2026-09-09, in Vahid's words, so the record is accurate:** *"a temporary credential was
 briefly exposed and has been revoked with a DateLessThan token-issue-time deny policy on the role.
 Nothing was created with it and the bucket is empty."* That credential was never set in this
-environment and never reached the script; the run has not happened.
+environment and never reached the script; that run did not happen.
+
+**Ran 2026-09-09, twice, from a session with the variables set** — see §6. Both verdicts VERIFIED on
+the second run. The resources exist and were created by Vahid; the credential was the one-hour
+assumed-role credential the script reads from `AAS_S3_VERIFY_*`.
 
 ## 0 · Before any resource: billing alerts
 
@@ -229,3 +233,20 @@ such rather than folded in."*
    around.
    **Either NOT CHECKED** → the reason is in the record and the run is repeated once it is fixed;
    nothing is inferred from a run that did not complete.
+
+## 6 · What happened
+
+Two runs on 2026-09-09, both against `askimate-aas-vault-4471` in `eu-west-2` as
+`AskiMate-S3-Verify-Role`; records in `verification-runs/s3-checksum/` (gitignored — they stay with
+Vahid), outcomes in ADR-0092 §4.
+
+| Run | Checksum carried as | Binding | SSE-KMS | Exit |
+|---|---|---|---|---|
+| `…13-31-02-151Z-e31c17` | query parameter (the SDK's default hoisting) | REFUTED — S3 never read it; no checksum stored | VERIFIED | 1 |
+| `…13-38-58-676Z-ddbb99` | signed header the uploader must send | VERIFIED — E2 400 `BadDigest`; omitted and altered headers 403 `SignatureDoesNotMatch` | VERIFIED — `aws:kms` under the CMK, checksum stored, substitution 400 `BadDigest` | 0 |
+
+The first verdict was a verdict on the SDK's default, not on S3, and Vahid said so before the
+second run: *"Treating that as final would have abandoned D over a client-side hoisting default."*
+The script now signs the checksum header and refuses to say VERIFIED unless omitting and altering
+it are both refused. Each object the runs wrote was deleted; the bucket was left as it was found.
+The port is untouched; §5.3's first outcome is reached, and the reshaping starts on his word.

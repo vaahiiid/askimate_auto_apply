@@ -101,7 +101,8 @@ after mayTransmit (ADR-0022):
 > before building further — the whole gates-before-bytes property rests on it, and I would rather
 > know while the port is still the shape it is.
 
-`pnpm run verify-s3-checksum` is that verification, built in this phase. Five experiments, and a
+`pnpm run verify-s3-checksum` is that verification, built in this phase. Five experiments as first
+written (eight since the run — see *Run 2026-09-09* below), and a
 judgement that **cannot say VERIFIED by accident**: the refusal of a same-length substitution (E2)
 counts only if the bound URL accepted the right bytes (E1) *and an unbound URL accepted the same
 substitution* (E3), so that the refusal is attributable to the binding and to nothing else. A
@@ -132,6 +133,36 @@ second thing he asked:
 A KMS refusal therefore says, in the run's own text, that it is a different problem from the binding
 — D's encryption at rest would have a hole — and the port is not touched on either refusal.
 
+**Run 2026-09-09 — two runs, and condition 1 is met.** Both records are in
+`verification-runs/s3-checksum/` (gitignored, so the files live with Vahid; the outcomes are here).
+
+*Run 1* (`2026-09-09T13-31-02-151Z-e31c17`): **binding REFUTED, SSE-KMS VERIFIED.** The record
+showed why: the SDK had hoisted `x-amz-checksum-sha256` into the URL's query string, the only
+signed header was `host`, S3 stored **no** checksum (E4 empty), and the bound and unbound URLs
+behaved identically (E1, E2, E3 all 200). Vahid, reading it:
+
+> The run refuted the property under the SDK's default presign, not the property itself. S3 stored
+> no checksum and the bound and unbound URLs behaved identically, which is what a checksum never
+> seen looks like, not one seen and ignored. Treating that as final would have abandoned D over a
+> client-side hoisting default.
+
+He asked for a second run with the checksum forced into the signed headers, establishing three
+things: *"Does S3 reject a body that does not match the declared hash. Does an uploader who omits or
+alters the header get refused, because the signature covers it. Does the KMS half still hold with
+both in place."* The script now marks the checksum header unhoistable and has three more
+experiments — E6 (header omitted), E7 (header altered to match the substituted body), E8 (the
+substitution under the SSE-KMS URL) — and the judgement requires all of them.
+
+*Run 2* (`2026-09-09T13-38-58-676Z-ddbb99`), signed header: **binding VERIFIED, SSE-KMS VERIFIED,
+exit 0.** E1 200; E2 400 `BadDigest`; E6 403 `SignatureDoesNotMatch`; E7 403
+`SignatureDoesNotMatch`; E3 (control) 200; E4 stored checksum equals the declared one; E5 200 with
+HEAD `aws:kms` under the CMK and the declared checksum stored; E8 400 `BadDigest`. So the property
+holds, by this mechanism and only by it: **the checksum must be a signed header the uploader sends,
+never a query parameter.** That is a constraint the port must carry when it is reshaped.
+
+The port has not been touched. Condition 1 is met; the reshaping is a phase of its own and starts
+on Vahid's word.
+
 **2 · Nothing is provisioned by the agent.**
 
 > Do not provision anything. When you are ready for a real bucket, tell me exactly what needs to
@@ -147,7 +178,9 @@ bucket, because inventing one would be the kind of record this repository remove
 Approved 2026-09-09: *"Provisioning request read and approved. I am creating it."* — with the
 amendment above, and: *"Billing alerts first, before any resource. All four thresholds."* And the
 sequencing: *"I will tell you when the environment variables are set. Do not run anything until
-then, and do not create anything yourself."* Nothing has run and nothing has been created.
+then, and do not create anything yourself."* Created by Vahid on 2026-09-09 — bucket
+`askimate-aas-vault-4471`, the CMK, and the role `AskiMate-S3-Verify-Role` — and the run happened
+that day, twice (condition 1, above). The agent created nothing.
 
 ## What the port becomes — described, not built
 
@@ -159,7 +192,10 @@ declaration answers with `uploadUrl`. `acceptBytes` — the in-process hash chec
 because S3 performs it. ADR-0090's sixteen route tests are rewritten around the new shape. The
 in-memory intake port stays for tests and keeps its production refusal.
 
-**None of that exists yet**, and it will not until condition 1 is met with VERIFIED on both halves.
+**None of that exists yet.** Condition 1 was met on 2026-09-09 with VERIFIED on both halves (§4,
+*Run 2026-09-09*); the reshaping has not started and starts on Vahid's word. When it does, it
+carries the run's one constraint: the checksum is a signed header the browser must send, and the
+minted URL is useless without it.
 
 ## What was built in this phase, and what was not
 

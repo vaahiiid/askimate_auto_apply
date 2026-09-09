@@ -40,6 +40,31 @@
  * separately, and the exit code is zero only when BOTH are VERIFIED. And,
  * as he asked: "If the SSE-KMS half is REFUTED, that is a different problem
  * and I want it named as such rather than folded in." The reasons say so.
+ *
+ * ── The checksum is a SIGNED HEADER, not a query parameter ────────────────
+ *
+ * The first run against the real bucket (2026-09-09, run
+ * 2026-09-09T13-31-02-151Z-e31c17) said REFUTED — and the record showed why:
+ * the SDK had hoisted `x-amz-checksum-sha256` into the URL's query string,
+ * the only signed header was `host`, S3 stored NO checksum, and the bound and
+ * unbound URLs behaved identically. That is what a checksum never seen looks
+ * like, not one seen and ignored. Vahid, on reading it:
+ *
+ *   "The run refuted the property under the SDK's default presign, not the
+ *    property itself. … Treating that as final would have abandoned D over a
+ *    client-side hoisting default."
+ *
+ * So the checksum header is now UNHOISTABLE: it is signed into the URL and
+ * the uploader must send it, and the signature covers its value. He asked
+ * this run to establish three things, not one:
+ *
+ *   1. S3 rejects a body that does not match the declared hash          (E2)
+ *   2. an uploader who omits or alters the header is refused, because
+ *      the signature covers it                                       (E6, E7)
+ *   3. the KMS half still holds with both in place                   (E5, E8)
+ *
+ * The mechanism is recorded per experiment, so this run and the first can be
+ * read side by side rather than guessed at.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * ── What it does to the bucket, precisely ─────────────────────────────────
@@ -97,7 +122,13 @@ export type ExperimentId =
   | "E2_same_length_substitution_bound"
   | "E3_unbound_put_accepts_anything"
   | "E4_stored_checksum_matches"
-  | "E5_sse_kms_via_presigned";
+  | "E5_sse_kms_via_presigned"
+  /** Bound URL, body B, and the uploader SENDS NO checksum header. Must be refused. */
+  | "E6_header_omitted_refused"
+  /** Bound URL, body B, and the uploader sends a header that matches B. Must be refused. */
+  | "E7_header_altered_refused"
+  /** The KMS URL, body B, header H(A): the binding must still hold under SSE-KMS. */
+  | "E8_sse_kms_substitution_refused";
 
 /** What one experiment observed. `status` is the HTTP status, or null if the call did not complete. */
 export interface Observation {
@@ -156,34 +187,65 @@ export function judge(observations: readonly Observation[]): Judgement {
   const e3 = by.get("E3_unbound_put_accepts_anything");
   const e4 = by.get("E4_stored_checksum_matches");
   const e5 = by.get("E5_sse_kms_via_presigned");
+  const e6 = by.get("E6_header_omitted_refused");
+  const e7 = by.get("E7_header_altered_refused");
+  const e8 = by.get("E8_sse_kms_substitution_refused");
+
+  // Deliberately not a type predicate: its false branch would narrow the
+  // observation to `undefined`, and a failed experiment is still one to read.
+  const completed = (o: Observation | undefined): boolean =>
+    o !== undefined && o.error === null && o.status !== null;
 
   let binding: Verdict;
   let bindingReason: string;
 
-  if (e2 !== undefined && ok(e2.status)) {
+  // Any URL minted for H(A) that stored a body not hashing to H(A) refutes the
+  // property — whichever way the uploader got it past: a plain substitution
+  // (E2), dropping the header (E6), rewriting the header to match (E7), or the
+  // same substitution under the KMS URL (E8).
+  const accepted: { readonly id: ExperimentId; readonly what: string }[] = [];
+  if (e2 !== undefined && ok(e2.status)) accepted.push({ id: e2.id, what: "a same-length substitution" });
+  if (e6 !== undefined && ok(e6.status)) accepted.push({ id: e6.id, what: "a substitution with the checksum header OMITTED" });
+  if (e7 !== undefined && ok(e7.status)) accepted.push({ id: e7.id, what: "a substitution with the checksum header ALTERED to match it" });
+  if (e8 !== undefined && ok(e8.status)) accepted.push({ id: e8.id, what: "a same-length substitution under the SSE-KMS URL" });
+
+  if (accepted.length > 0) {
     binding = "REFUTED";
     bindingReason =
-      `S3 ACCEPTED a body that does not hash to the declared value (E2 returned ` +
-      `${String(e2.status)}). A pre-signed PUT does not bind the body to the hash by this ` +
-      `mechanism. Do not reshape the port around it.`;
+      `S3 ACCEPTED a body that does not hash to the declared value: ` +
+      accepted.map((a) => `${a.what} (${a.id} returned ${String(by.get(a.id)?.status)})`).join("; ") +
+      `. A pre-signed PUT does not bind the body to the hash by this mechanism. Do not reshape the ` +
+      `port around it.`;
   } else if (
     e1 !== undefined &&
+    completed(e1) &&
     ok(e1.status) &&
     e2 !== undefined &&
+    completed(e2) &&
     refused(e2.status) &&
     e3 !== undefined &&
+    completed(e3) &&
     ok(e3.status) &&
+    e6 !== undefined &&
+    completed(e6) &&
+    refused(e6.status) &&
+    e7 !== undefined &&
+    completed(e7) &&
+    refused(e7.status) &&
     e4 !== undefined &&
     e4.head?.checksumSha256 !== null &&
     e4.head?.checksumSha256 !== undefined &&
     e4.error === null
   ) {
+    const code = (o: Observation): string => (o.s3Code === null ? "" : ` ${o.s3Code}`);
     binding = "VERIFIED";
     bindingReason =
       `The bound URL accepted the right bytes (E1 ${String(e1.status)}), refused a same-length ` +
-      `substitution (E2 ${String(e2.status)}${e2.s3Code === null ? "" : ` ${e2.s3Code}`}), an ` +
-      `UNBOUND URL accepted that same substitution (E3 ${String(e3.status)}) so the refusal was the ` +
-      `binding and nothing else, and S3 stored the checksum it enforced (E4).`;
+      `substitution (E2 ${String(e2.status)}${code(e2)}), an UNBOUND URL accepted that same ` +
+      `substitution (E3 ${String(e3.status)}) so the refusal was the binding and nothing else, ` +
+      `S3 stored the checksum it enforced (E4), and the signature covers the header: omitting it ` +
+      `(E6 ${String(e6.status)}${code(e6)}) and altering it to match the substituted body ` +
+      `(E7 ${String(e7.status)}${code(e7)}) were both refused.`;
   } else {
     binding = "NOT CHECKED";
     const required = [
@@ -191,17 +253,16 @@ export function judge(observations: readonly Observation[]): Judgement {
       "E2_same_length_substitution_bound",
       "E3_unbound_put_accepts_anything",
       "E4_stored_checksum_matches",
+      "E6_header_omitted_refused",
+      "E7_header_altered_refused",
     ] as const;
-    const missing = required.filter((id) => {
-      const o = by.get(id);
-      return o === undefined || o.error !== null || o.status === null;
-    });
+    const missing = required.filter((id) => !completed(by.get(id)));
     bindingReason =
       missing.length > 0
         ? `Could not run: ${missing.join(", ")}. A verification that did not complete is not a pass.`
         : `The experiments completed but not in the pattern that proves the property — E1 ` +
-          `${String(e1?.status)}, E2 ${String(e2?.status)}, E3 ${String(e3?.status)}. Read the ` +
-          `record; do not infer.`;
+          `${String(e1?.status)}, E2 ${String(e2?.status)}, E3 ${String(e3?.status)}, E6 ` +
+          `${String(e6?.status)}, E7 ${String(e7?.status)}. Read the record; do not infer.`;
   }
 
   let sseKms: Verdict;
@@ -216,8 +277,32 @@ export function judge(observations: readonly Observation[]): Judgement {
     e5.head?.serverSideEncryption === "aws:kms" &&
     e5.head.kmsKeyId !== null
   ) {
-    sseKms = "VERIFIED";
-    sseKmsReason = `A pre-signed PUT with SSE-KMS headers was accepted and HEAD reports aws:kms under ${e5.head.kmsKeyId}.`;
+    // The encryption was applied. "With both in place" (Vahid) also needs the
+    // binding to hold under the same URL — E8 — and that is asked separately
+    // here, so a KMS verdict cannot be read as covering it by implication.
+    if (e8 === undefined || !completed(e8)) {
+      sseKms = "NOT CHECKED";
+      sseKmsReason =
+        `A pre-signed PUT with SSE-KMS headers was accepted and HEAD reports aws:kms under ` +
+        `${e5.head.kmsKeyId}, but whether the binding still holds under that URL (E8) ` +
+        `${e8 === undefined ? "was not tried" : `did not complete: ${e8.error ?? "no response"}`}. ` +
+        `The KMS half is VERIFIED only with both in place.`;
+    } else if (refused(e8.status)) {
+      sseKms = "VERIFIED";
+      sseKmsReason =
+        `A pre-signed PUT with SSE-KMS headers was accepted and HEAD reports aws:kms under ` +
+        `${e5.head.kmsKeyId}` +
+        `${e5.head.checksumSha256 === null ? "" : ` with the declared checksum stored`}; and the ` +
+        `same kind of URL refused a substituted body (E8 ${String(e8.status)}` +
+        `${e8.s3Code === null ? "" : ` ${e8.s3Code}`}), so the binding holds with SSE-KMS in place.`;
+    } else {
+      sseKms = "REFUTED";
+      sseKmsReason =
+        `SSE-KMS itself was applied (E5 ${String(e5.status)}, HEAD aws:kms under ${e5.head.kmsKeyId}) ` +
+        `but the KMS URL ACCEPTED a substituted body (E8 ${String(e8.status)}). The two properties ` +
+        `do not hold together, which is the question asked. This is the binding failing under the ` +
+        `KMS URL, not the encryption failing — the binding verdict names it as well.`;
+    }
   } else if (e5.error === null && e5.status !== null && !ok(e5.status)) {
     sseKms = "REFUTED";
     sseKmsReason =
@@ -307,36 +392,32 @@ function sha256Base64(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("base64");
 }
 
+/** The header S3 reads a declared SHA-256 from. It is never read from the query string. */
+const CHECKSUM_HEADER = "x-amz-checksum-sha256";
+
 /**
  * Uploads to a pre-signed URL and records what happened.
  *
- * The checksum can travel two ways in a pre-signed request and the SDK decides
- * which: hoisted into the query string, or left as a signed header the client
- * must send. This sends the header only when the URL does not already carry
- * the value, and records which — so a second run, or a differently-versioned
- * SDK, can be compared against this one rather than guessed at.
+ * The caller decides exactly which headers the uploader sends — that is the
+ * experiment. What is recorded alongside is how the URL was minted: whether
+ * the checksum was hoisted into the query string (the SDK's default, and the
+ * first run's REFUTED) or signed as a header the uploader must send, and
+ * which headers the signature covers. A second run, or a differently-versioned
+ * SDK, can then be compared against this one rather than guessed at.
  */
 async function put(
   id: ExperimentId,
   url: string,
   body: Uint8Array,
-  checksumBase64: string | null,
-  extraHeaders: Record<string, string> = {},
+  headers: Record<string, string>,
+  note: string,
 ): Promise<Observation> {
   const parsed = new URL(url);
-  const inQuery = parsed.searchParams.get("x-amz-checksum-sha256");
-  const headers: Record<string, string> = { ...extraHeaders };
-  let mechanism: string;
-  if (checksumBase64 === null) {
-    mechanism = "no checksum bound";
-  } else if (inQuery !== null) {
-    mechanism = "x-amz-checksum-sha256 hoisted into the signed query string";
-  } else {
-    headers["x-amz-checksum-sha256"] = checksumBase64;
-    mechanism = "x-amz-checksum-sha256 sent as a signed header";
-  }
-  const signed = parsed.searchParams.get("X-Amz-SignedHeaders");
-  mechanism += `; X-Amz-SignedHeaders=${signed ?? "(none)"}`;
+  const inQuery = parsed.searchParams.get(CHECKSUM_HEADER) !== null;
+  const signed = parsed.searchParams.get("X-Amz-SignedHeaders") ?? "(none)";
+  const mechanism =
+    `${note}; ${CHECKSUM_HEADER} ${inQuery ? "HOISTED into the query string" : "not in the query string"}; ` +
+    `X-Amz-SignedHeaders=${signed}; uploader sent ${Object.keys(headers).join(",") || "no extra headers"}`;
 
   try {
     const response = await fetch(url, { method: "PUT", headers, body: new Uint8Array(body) });
@@ -477,6 +558,7 @@ export async function main(): Promise<void> {
   const b = new Uint8Array(a);
   b[b.length - 1] = "B".charCodeAt(0);
   const hashA = sha256Base64(a);
+  const hashB = sha256Base64(b);
 
   const keys = {
     bound: `${prefix}/bound.txt`,
@@ -485,96 +567,119 @@ export async function main(): Promise<void> {
   };
   const observations: Observation[] = [];
 
+  // The SSE headers must be signed and sent — S3 requires them on the request
+  // itself. And so must the checksum: hoisted into the query string it is
+  // never read (the first run), so it is signed as a header the uploader has
+  // to send, and the signature then covers its value.
+  const SSE_HEADERS = {
+    "x-amz-server-side-encryption": "aws:kms",
+    "x-amz-server-side-encryption-aws-kms-key-id": env.kmsKeyId,
+  } as const;
+  const unhoistable = (...names: readonly string[]): Set<string> => new Set(names);
+
+  /** A fresh URL minted for H(A), with the checksum as a signed header. */
+  const boundUrl = (): Promise<string> =>
+    getSignedUrl(
+      client,
+      new PutObjectCommand({
+        Bucket: env.bucket,
+        Key: keys.bound,
+        ChecksumSHA256: hashA,
+        ChecksumAlgorithm: "SHA256",
+      }),
+      { expiresIn: URL_TTL_SECONDS, unhoistableHeaders: unhoistable(CHECKSUM_HEADER) },
+    );
+
+  /** A fresh URL minted for H(A) under SSE-KMS, checksum and SSE headers all signed. */
+  const kmsUrl = (): Promise<string> =>
+    getSignedUrl(
+      client,
+      new PutObjectCommand({
+        Bucket: env.bucket,
+        Key: keys.kms,
+        ChecksumSHA256: hashA,
+        ChecksumAlgorithm: "SHA256",
+        ServerSideEncryption: "aws:kms",
+        SSEKMSKeyId: env.kmsKeyId,
+      }),
+      {
+        expiresIn: URL_TTL_SECONDS,
+        unhoistableHeaders: unhoistable(CHECKSUM_HEADER, ...Object.keys(SSE_HEADERS)),
+      },
+    );
+
+  const record = (o: Observation): void => {
+    observations.push(o);
+    print(o);
+  };
+
   try {
     heading("2 · The experiments");
 
-    // E1 — a URL bound to H(A), given A. Must succeed, or nothing below means anything.
-    const boundUrl = await getSignedUrl(
-      client,
-      new PutObjectCommand({
-        Bucket: env.bucket,
-        Key: keys.bound,
-        ChecksumSHA256: hashA,
-        ChecksumAlgorithm: "SHA256",
-      }),
-      { expiresIn: URL_TTL_SECONDS },
+    // E1 — a URL bound to H(A), given A with the header. Must succeed, or
+    // nothing below means anything.
+    record(
+      await put("E1_correct_bytes_bound", await boundUrl(), a, { [CHECKSUM_HEADER]: hashA },
+        "body A, header H(A)"),
     );
-    const e1 = await put("E1_correct_bytes_bound", boundUrl, a, hashA);
-    observations.push(e1);
-    print(e1);
 
-    // E2 — a FRESH URL bound to H(A), given B. THE PROPERTY. Must be refused.
-    const boundUrl2 = await getSignedUrl(
-      client,
-      new PutObjectCommand({
-        Bucket: env.bucket,
-        Key: keys.bound,
-        ChecksumSHA256: hashA,
-        ChecksumAlgorithm: "SHA256",
-      }),
-      { expiresIn: URL_TTL_SECONDS },
+    // E2 — a FRESH URL bound to H(A), given B with the header still saying
+    // H(A). THE PROPERTY. Must be refused.
+    record(
+      await put("E2_same_length_substitution_bound", await boundUrl(), b, { [CHECKSUM_HEADER]: hashA },
+        "body B, header H(A)"),
     );
-    const e2 = await put("E2_same_length_substitution_bound", boundUrl2, b, hashA);
-    observations.push(e2);
-    print(e2);
+
+    // E6 — the uploader drops the header. The signature covers it, so this
+    // must be refused: a binding the uploader can opt out of is not one.
+    record(await put("E6_header_omitted_refused", await boundUrl(), b, {}, "body B, header omitted"));
+
+    // E7 — the uploader rewrites the header to match the substituted body.
+    // Same reason: the signed value is H(A), and H(B) is not it.
+    record(
+      await put("E7_header_altered_refused", await boundUrl(), b, { [CHECKSUM_HEADER]: hashB },
+        "body B, header altered to H(B)"),
+    );
 
     // E3 — the CONTROL. A URL with nothing bound, given B. Must succeed, so that
-    // E2's refusal is attributable to the binding and to nothing else.
+    // the refusals above are attributable to the binding and to nothing else.
     const unboundUrl = await getSignedUrl(
       client,
       new PutObjectCommand({ Bucket: env.bucket, Key: keys.unbound }),
       { expiresIn: URL_TTL_SECONDS },
     );
-    const e3 = await put("E3_unbound_put_accepts_anything", unboundUrl, b, null);
-    observations.push(e3);
-    print(e3);
+    record(await put("E3_unbound_put_accepts_anything", unboundUrl, b, {}, "no checksum bound; body B"));
 
     // E4 — what S3 says it stored for E1. The checksum it enforced, read back.
     const e4 = await head("E4_stored_checksum_matches", client, env.bucket, keys.bound);
-    const e4Checked: Observation =
+    record(
       e4.head !== undefined && e4.head.checksumSha256 !== hashA
         ? { ...e4, error: `stored checksum ${e4.head.checksumSha256 ?? "—"} ≠ declared ${hashA}` }
-        : e4;
-    observations.push(e4Checked);
-    print(e4Checked);
+        : e4,
+    );
 
-    // E5 — required: SSE-KMS under a CMK, through the same kind of URL.
-    {
-      const kmsUrl = await getSignedUrl(
-        client,
-        new PutObjectCommand({
-          Bucket: env.bucket,
-          Key: keys.kms,
-          ChecksumSHA256: hashA,
-          ChecksumAlgorithm: "SHA256",
-          ServerSideEncryption: "aws:kms",
-          SSEKMSKeyId: env.kmsKeyId,
-        }),
-        {
-          expiresIn: URL_TTL_SECONDS,
-          // SSE headers must be SIGNED and SENT, not hoisted — S3 requires them
-          // on the request itself.
-          unhoistableHeaders: new Set([
-            "x-amz-server-side-encryption",
-            "x-amz-server-side-encryption-aws-kms-key-id",
-          ]),
-        },
+    // E5 — required: SSE-KMS under a CMK, through the same kind of URL, with
+    // the checksum header signed alongside the SSE headers.
+    const e5put = await put("E5_sse_kms_via_presigned", await kmsUrl(), a,
+      { [CHECKSUM_HEADER]: hashA, ...SSE_HEADERS }, "body A, header H(A), SSE-KMS headers");
+    const e5head = ok(e5put.status)
+      ? await head("E5_sse_kms_via_presigned", client, env.bucket, keys.kms)
+      : null;
+    const e5: Observation =
+      e5head === null
+        ? e5put
+        : e5head.head === undefined
+          ? { ...e5put, error: e5head.error }
+          : { ...e5put, head: e5head.head, error: e5head.error };
+    record(e5);
+
+    // E8 — "with both in place": the KMS URL, given B with the header saying
+    // H(A). Must be refused. Only meaningful if E5 worked, so it runs only then.
+    if (ok(e5.status)) {
+      record(
+        await put("E8_sse_kms_substitution_refused", await kmsUrl(), b,
+          { [CHECKSUM_HEADER]: hashA, ...SSE_HEADERS }, "body B, header H(A), SSE-KMS headers"),
       );
-      const e5put = await put("E5_sse_kms_via_presigned", kmsUrl, a, hashA, {
-        "x-amz-server-side-encryption": "aws:kms",
-        "x-amz-server-side-encryption-aws-kms-key-id": env.kmsKeyId,
-      });
-      const e5head = ok(e5put.status)
-        ? await head("E5_sse_kms_via_presigned", client, env.bucket, keys.kms)
-        : null;
-      const e5: Observation =
-        e5head === null
-          ? e5put
-          : e5head.head === undefined
-            ? { ...e5put, error: e5head.error }
-            : { ...e5put, head: e5head.head, error: e5head.error };
-      observations.push(e5);
-      print(e5);
     }
   } finally {
     // Leave the bucket as it was found, on every path.

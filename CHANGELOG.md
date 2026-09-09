@@ -17,7 +17,34 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+**P59 — the verification ran. Binding VERIFIED, SSE-KMS VERIFIED, with the checksum a signed header.**
+
+Two runs on 2026-09-09 against the bucket Vahid created (ADR-0092 §4, *Run 2026-09-09*). The first
+said **binding REFUTED**: the SDK had hoisted `x-amz-checksum-sha256` into the query string, where
+S3 never reads it — no checksum stored, bound and unbound URLs identical. Vahid: *"The run refuted
+the property under the SDK's default presign, not the property itself. … Treating that as final would
+have abandoned D over a client-side hoisting default."* The second run, with the header signed,
+said **VERIFIED on both halves** and exited 0. The port is untouched; the reshaping starts on his word.
+
 ### Changed
+
+- `scripts/verify-s3-checksum.ts` — the checksum header is unhoistable: signed into the URL, sent by
+  the uploader, covered by the signature. Three experiments added for the three things he asked the
+  run to establish: **E6** the uploader omits the header, **E7** the uploader alters it to match the
+  substituted body, **E8** the substitution under the SSE-KMS URL. The binding is VERIFIED only if
+  E6 and E7 are refused as well, and REFUTED if any of E2/E6/E7/E8 is accepted; the KMS half is
+  VERIFIED only *with both in place* — `aws:kms` on HEAD **and** E8 refused — and NOT CHECKED if E8
+  did not run. Each observation records how the checksum travelled and which headers were signed, so
+  the two runs read side by side. E8 runs only when E5 succeeded, so a KMS refusal is never mistaken
+  for a binding refusal.
+- `scripts/verify-s3-checksum.test.ts` — five more judgement tests: omitted-header accepted →
+  REFUTED; altered-header accepted → REFUTED; E6/E7 missing → NOT CHECKED; KMS applied but E8 untried
+  or incomplete → NOT CHECKED with the binding standing on its own; substitution accepted under the
+  KMS URL → both verdicts refuted, the KMS reason saying the encryption itself worked.
+- ADR-0092 §4 — the two runs, the outcome, Vahid's words, and the one constraint the port carries
+  when reshaped: the checksum is a signed header, never a query parameter. §2 — created by Vahid.
+- `docs/provisioning-request-s3-verification.md` §6 and `docs/state-of-the-system.md` blocker 16 —
+  closed by the run; port still untouched.
 
 - `scripts/verify-s3-checksum.ts` reads the temporary credential from `AAS_S3_VERIFY_ACCESS_KEY_ID`,
   `AAS_S3_VERIFY_SECRET_ACCESS_KEY` and `AAS_S3_VERIFY_SESSION_TOKEN`, handed to its clients

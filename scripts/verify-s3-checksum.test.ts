@@ -40,7 +40,12 @@ function obs(
   return { id, status, s3Code: null, error: null, ...extra };
 }
 
-/** The pattern that proves the property: bound accepts A, bound refuses B, unbound accepts B, checksum stored. */
+/**
+ * The pattern that proves the property: bound accepts A, bound refuses B,
+ * unbound accepts B, checksum stored — and, because the checksum is a signed
+ * header (the first real run showed a hoisted one is never read), the
+ * uploader can neither omit it nor alter it.
+ */
 const PROVEN: readonly Observation[] = [
   obs("E1_correct_bytes_bound", 200),
   obs("E2_same_length_substitution_bound", 400, { s3Code: "XAmzContentChecksumMismatch" }),
@@ -48,7 +53,17 @@ const PROVEN: readonly Observation[] = [
   obs("E4_stored_checksum_matches", 200, {
     head: { checksumSha256: "abc=", serverSideEncryption: null, kmsKeyId: null },
   }),
+  obs("E6_header_omitted_refused", 403, { s3Code: "SignatureDoesNotMatch" }),
+  obs("E7_header_altered_refused", 403, { s3Code: "SignatureDoesNotMatch" }),
 ];
+
+const KMS_KEY = "arn:aws:kms:eu-west-2:000000000000:key/example";
+const KMS_APPLIED = obs("E5_sse_kms_via_presigned", 200, {
+  head: { checksumSha256: "abc=", serverSideEncryption: "aws:kms", kmsKeyId: KMS_KEY },
+});
+const KMS_SUBSTITUTION_REFUSED = obs("E8_sse_kms_substitution_refused", 400, {
+  s3Code: "XAmzContentChecksumMismatch",
+});
 
 describe("the judgement", () => {
   it("says VERIFIED only for the full pattern", () => {
@@ -65,6 +80,36 @@ describe("the judgement", () => {
     const verdict = judge(accepted);
     expect(verdict.binding).toBe("REFUTED");
     expect(verdict.bindingReason).toMatch(/Do not reshape the port/);
+  });
+
+  it("says REFUTED when the uploader could OMIT the header and be accepted", () => {
+    // Vahid's second question: "Does an uploader who omits or alters the
+    // header get refused, because the signature covers it." A binding the
+    // uploader can opt out of is not one — a URL minted for H(A) stored a
+    // body that does not hash to H(A).
+    const omitted = PROVEN.map((o) => (o.id === "E6_header_omitted_refused" ? obs(o.id, 200) : o));
+    const verdict = judge(omitted);
+    expect(verdict.binding).toBe("REFUTED");
+    expect(verdict.bindingReason).toMatch(/OMITTED/);
+  });
+
+  it("says REFUTED when the uploader could ALTER the header to match and be accepted", () => {
+    const altered = PROVEN.map((o) => (o.id === "E7_header_altered_refused" ? obs(o.id, 200) : o));
+    const verdict = judge(altered);
+    expect(verdict.binding).toBe("REFUTED");
+    expect(verdict.bindingReason).toMatch(/ALTERED/);
+  });
+
+  it("does NOT say VERIFIED when the omit/alter experiments did not run", () => {
+    // The full pattern is six experiments now. Four of them proving the
+    // substitution is refused says nothing about whether the uploader could
+    // simply not send the header.
+    const withoutSignatureChecks = PROVEN.filter(
+      (o) => o.id !== "E6_header_omitted_refused" && o.id !== "E7_header_altered_refused",
+    );
+    const verdict = judge(withoutSignatureChecks);
+    expect(verdict.binding).toBe("NOT CHECKED");
+    expect(verdict.bindingReason).toMatch(/E6_header_omitted_refused, E7_header_altered_refused/);
   });
 
   it("does NOT say VERIFIED when the control experiment failed", () => {
@@ -125,13 +170,9 @@ describe("the judgement", () => {
     // must say so rather than read as a harmless omission.
     expect(judge(PROVEN).sseKmsReason).toMatch(/required/);
 
-    const kmsOk: Observation[] = [
-      ...PROVEN,
-      obs("E5_sse_kms_via_presigned", 200, {
-        head: { checksumSha256: "abc=", serverSideEncryption: "aws:kms", kmsKeyId: "arn:aws:kms:eu-west-2:000000000000:key/example" },
-      }),
-    ];
+    const kmsOk: Observation[] = [...PROVEN, KMS_APPLIED, KMS_SUBSTITUTION_REFUSED];
     expect(judge(kmsOk).sseKms).toBe("VERIFIED");
+    expect(judge(kmsOk).sseKmsReason).toMatch(/binding holds with SSE-KMS in place/);
 
     const kmsRefused: Observation[] = [
       ...PROVEN,
@@ -141,6 +182,44 @@ describe("the judgement", () => {
     expect(judge(kmsRefused).binding, "a KMS refusal does not touch the binding verdict").toBe(
       "VERIFIED",
     );
+  });
+
+  it("says the KMS half is VERIFIED only WITH the binding in place — E8 is not optional", () => {
+    // Vahid's third question: "Does the KMS half still hold with both in
+    // place. … SSE-KMS passed under the hoisted arrangement, and I do not
+    // want to assume it survives a different one." So aws:kms on HEAD is not
+    // enough: the same URL has to have refused a substituted body.
+    const encryptionOnly: Observation[] = [...PROVEN, KMS_APPLIED];
+    const untried = judge(encryptionOnly);
+    expect(untried.sseKms).toBe("NOT CHECKED");
+    expect(untried.sseKmsReason).toMatch(/was not tried/);
+    expect(untried.binding, "the binding verdict stands on its own").toBe("VERIFIED");
+
+    const didNotComplete: Observation[] = [
+      ...PROVEN,
+      KMS_APPLIED,
+      obs("E8_sse_kms_substitution_refused", null, { error: "TypeError: fetch failed" }),
+    ];
+    expect(judge(didNotComplete).sseKms).toBe("NOT CHECKED");
+  });
+
+  it("names a substitution ACCEPTED under the KMS URL in BOTH verdicts, as the binding failing", () => {
+    // The encryption was applied and the body was wrong. Neither verdict may
+    // read as a pass: the binding is refuted (a URL for H(A) stored not-A),
+    // and the KMS half does not hold "with both in place" — but its reason
+    // must say the encryption itself worked, so nobody goes looking for a
+    // KMS grant problem that is not there.
+    const accepted: Observation[] = [
+      ...PROVEN,
+      KMS_APPLIED,
+      obs("E8_sse_kms_substitution_refused", 200),
+    ];
+    const verdict = judge(accepted);
+    expect(verdict.binding).toBe("REFUTED");
+    expect(verdict.bindingReason).toMatch(/under the SSE-KMS URL/);
+    expect(verdict.sseKms).toBe("REFUTED");
+    expect(verdict.sseKmsReason).toMatch(/SSE-KMS itself was applied/);
+    expect(verdict.sseKmsReason).toMatch(/not the encryption failing/);
   });
 
   it("names a KMS refusal as a DIFFERENT problem from the binding, not folded in", () => {
