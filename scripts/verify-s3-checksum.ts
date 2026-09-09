@@ -24,6 +24,22 @@
  * bucket and says VERIFIED, REFUTED or NOT CHECKED — and it cannot say
  * VERIFIED by accident, because the control experiment (E3) has to succeed
  * for the refusal in E2 to mean anything. See `judge`.
+ *
+ * ── Two halves, both required ─────────────────────────────────────────────
+ *
+ * The SSE-KMS experiment (E5) was optional when this was written. Vahid made
+ * it required on 2026-09-09, in his words:
+ *
+ *   "The KMS half is not a nice-to-have — ADR-0010 requires the vault to be
+ *    encrypted with a customer-managed key, and under D the encryption is
+ *    S3's, so if a pre-signed PUT cannot carry SSE-KMS under a CMK the
+ *    uploader has no grant to, then D has a hole in it. I would rather find
+ *    that now than after the port is reshaped."
+ *
+ * So the run refuses to start without a key, the two verdicts are reported
+ * separately, and the exit code is zero only when BOTH are VERIFIED. And,
+ * as he asked: "If the SSE-KMS half is REFUTED, that is a different problem
+ * and I want it named as such rather than folded in." The reasons say so.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * ── What it does to the bucket, precisely ─────────────────────────────────
@@ -107,7 +123,7 @@ export interface Judgement {
   /** The load-bearing one. ADR-0090's property rests on this. */
   readonly binding: Verdict;
   readonly bindingReason: string;
-  /** Separate, and optional: can the same pre-signed PUT carry SSE-KMS under a CMK? */
+  /** Separate, and required: can the same pre-signed PUT carry SSE-KMS under a CMK? */
   readonly sseKms: Verdict;
   readonly sseKmsReason: string;
 }
@@ -193,7 +209,8 @@ export function judge(observations: readonly Observation[]): Judgement {
   if (e5 === undefined) {
     sseKms = "NOT CHECKED";
     sseKmsReason =
-      "No AAS_S3_VERIFY_KMS_KEY_ID was set, so SSE-KMS through a pre-signed PUT was not tried.";
+      "SSE-KMS through a pre-signed PUT was not tried. It is required (Vahid, 2026-09-09): a run " +
+      "without it is not the run that was approved.";
   } else if (
     ok(e5.status) &&
     e5.head?.serverSideEncryption === "aws:kms" &&
@@ -205,8 +222,12 @@ export function judge(observations: readonly Observation[]): Judgement {
     sseKms = "REFUTED";
     sseKmsReason =
       `S3 refused the SSE-KMS pre-signed PUT (${String(e5.status)}` +
-      `${e5.s3Code === null ? "" : ` ${e5.s3Code}`}). The uploader's credential may need ` +
-      `kms:GenerateDataKey, or the headers were not signed.`;
+      `${e5.s3Code === null ? "" : ` ${e5.s3Code}`}). This is a DIFFERENT PROBLEM from the ` +
+      `checksum binding and is reported as one: ADR-0010 requires the vault to be encrypted under ` +
+      `a customer-managed key, and under ADR-0092 that encryption is S3's — if a pre-signed PUT ` +
+      `cannot carry it, D has a hole in it. The signing credential may lack kms:GenerateDataKey ` +
+      `on the key, or the SSE headers were not signed into the URL. Establish which before ` +
+      `reading this as a verdict on the design.`;
   } else {
     sseKms = "NOT CHECKED";
     sseKmsReason = e5.error ?? "E5 completed without a readable HEAD.";
@@ -222,18 +243,22 @@ export function judge(observations: readonly Observation[]): Judgement {
 interface Env {
   readonly bucket: string;
   readonly region: string;
-  readonly kmsKeyId: string | undefined;
+  readonly kmsKeyId: string;
 }
 
-function readEnv(): Env | null {
-  const bucket = process.env["AAS_S3_VERIFY_BUCKET"];
-  if (bucket === undefined || bucket.trim().length === 0) return null;
-  const region = process.env["AAS_S3_VERIFY_REGION"]?.trim();
+/** Which required variable is missing, if one is. Both halves need both. */
+type Missing = "bucket" | "kms";
+
+function readEnv(): Env | Missing {
+  const bucket = process.env["AAS_S3_VERIFY_BUCKET"]?.trim();
+  if (bucket === undefined || bucket.length === 0) return "bucket";
   const kmsKeyId = process.env["AAS_S3_VERIFY_KMS_KEY_ID"]?.trim();
+  if (kmsKeyId === undefined || kmsKeyId.length === 0) return "kms";
+  const region = process.env["AAS_S3_VERIFY_REGION"]?.trim();
   return {
-    bucket: bucket.trim(),
+    bucket,
     region: region === undefined || region.length === 0 ? DEFAULT_REGION : region,
-    kmsKeyId: kmsKeyId === undefined || kmsKeyId.length === 0 ? undefined : kmsKeyId,
+    kmsKeyId,
   };
 }
 
@@ -352,12 +377,26 @@ export async function main(): Promise<void> {
   );
 
   const env = readEnv();
-  if (env === null) {
+  if (env === "bucket") {
     console.log(
       `\n  ${AMBER}No AAS_S3_VERIFY_BUCKET is set.${RESET} Nothing can be verified, and the property\n` +
         `  ADR-0090 rests on stays ${BOLD}NOT CHECKED${RESET}. This is not a pass.\n\n` +
         `  What needs to exist, what it costs and what it can reach is in\n` +
         `  ${DIM}docs/provisioning-request-s3-verification.md${RESET}. Nothing is provisioned by this script.\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (env === "kms") {
+    // Refused before a single request is made: a run without the KMS half is
+    // not the run that was approved, and a binding verdict on its own would
+    // invite reading half an experiment as the whole.
+    console.log(
+      `\n  ${AMBER}No AAS_S3_VERIFY_KMS_KEY_ID is set.${RESET} The SSE-KMS half is ${BOLD}required${RESET}, not\n` +
+        `  optional — Vahid, 2026-09-09: "if a pre-signed PUT cannot carry SSE-KMS under a CMK the\n` +
+        `  uploader has no grant to, then D has a hole in it." Both halves stay ${BOLD}NOT CHECKED${RESET}.\n` +
+        `  This is not a pass. Nothing was sent to AWS.\n\n` +
+        `  The key to create is in ${DIM}docs/provisioning-request-s3-verification.md${RESET} §4.\n`,
     );
     process.exitCode = 1;
     return;
@@ -460,8 +499,8 @@ export async function main(): Promise<void> {
     observations.push(e4Checked);
     print(e4Checked);
 
-    // E5 — optional: SSE-KMS under a CMK, through the same kind of URL.
-    if (env.kmsKeyId !== undefined) {
+    // E5 — required: SSE-KMS under a CMK, through the same kind of URL.
+    {
       const kmsUrl = await getSignedUrl(
         client,
         new PutObjectCommand({
@@ -542,7 +581,10 @@ export async function main(): Promise<void> {
   );
   console.log(`\n  ${DIM}record: ${file}${RESET}`);
 
-  if (verdict.binding !== "VERIFIED") process.exitCode = 1;
+  // Zero only when BOTH halves are VERIFIED. They are still two verdicts:
+  // a person reads them separately, and a KMS refusal is named above as the
+  // different problem it is rather than folded into the binding's.
+  if (verdict.binding !== "VERIFIED" || verdict.sseKms !== "VERIFIED") process.exitCode = 1;
   console.log("");
 }
 

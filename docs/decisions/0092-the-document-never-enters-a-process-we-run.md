@@ -110,16 +110,44 @@ needs only one observation — S3 accepted a body that does not hash to the decl
 verdict then says *"Do not reshape the port around it."* Without a bucket it says NOT CHECKED, exits
 non-zero and writes no record. The judgement is tested offline in all its branches.
 
+**Amended 2026-09-09 — the second half is required.** As first written, the fifth experiment (E5:
+can the same pre-signed PUT carry SSE-KMS under a CMK the uploader has no grant to?) was optional.
+Vahid, on reading the provisioning request:
+
+> One change: do section 4 as well, not optionally. The KMS half is not a nice-to-have — ADR-0010
+> requires the vault to be encrypted with a customer-managed key, and under D the encryption is S3's,
+> so if a pre-signed PUT cannot carry SSE-KMS under a CMK the uploader has no grant to, then D has a
+> hole in it. I would rather find that now than after the port is reshaped. And as you noted, that
+> key is the one the real vault needs anyway, so this is early spend, not new spend.
+
+So condition 1 has two halves, both checked in the same run: the **binding** and **SSE-KMS**. The
+script refuses to start without the key, reports the two verdicts separately, and exits zero only
+when both are VERIFIED. They remain two verdicts because they are two facts, and because of the
+second thing he asked:
+
+> If the checksum binding is REFUTED, stop and tell me before touching the port, as agreed. If the
+> SSE-KMS half is REFUTED, that is a different problem and I want it named as such rather than
+> folded in.
+
+A KMS refusal therefore says, in the run's own text, that it is a different problem from the binding
+— D's encryption at rest would have a hole — and the port is not touched on either refusal.
+
 **2 · Nothing is provisioned by the agent.**
 
 > Do not provision anything. When you are ready for a real bucket, tell me exactly what needs to
 > exist, what it costs, and what it can reach, and I will create it. AWS spend stays my act.
 
 [`docs/provisioning-request-s3-verification.md`](../provisioning-request-s3-verification.md) is that
-statement: one bucket in `eu-west-2`, a credential whose whole reach is `s3:PutObject` /
-`GetObject` / `DeleteObject` on the prefix `verify/*`, cost that rounds to zero and is drawn from a
-credit with $0 spent, and reach of nothing. It names no bucket, because inventing one would be the
-kind of record this repository removes.
+statement: billing alerts at all four thresholds first, then one bucket in `eu-west-2`, the
+customer-managed key ADR-0010 requires, and a credential whose whole reach is `s3:PutObject` /
+`GetObject` / `DeleteObject` on the prefix `verify/*` plus `kms:GenerateDataKey` on that one key;
+cost that rounds to zero and is drawn from a credit with $0 spent; reach of nothing. It names no
+bucket, because inventing one would be the kind of record this repository removes.
+
+Approved 2026-09-09: *"Provisioning request read and approved. I am creating it."* — with the
+amendment above, and: *"Billing alerts first, before any resource. All four thresholds."* And the
+sequencing: *"I will tell you when the environment variables are set. Do not run anything until
+then, and do not create anything yourself."* Nothing has run and nothing has been created.
 
 ## What the port becomes — described, not built
 
@@ -131,7 +159,7 @@ declaration answers with `uploadUrl`. `acceptBytes` — the in-process hash chec
 because S3 performs it. ADR-0090's sixteen route tests are rewritten around the new shape. The
 in-memory intake port stays for tests and keeps its production refusal.
 
-**None of that exists yet**, and it will not until condition 1 is met with VERIFIED.
+**None of that exists yet**, and it will not until condition 1 is met with VERIFIED on both halves.
 
 ## What was built in this phase, and what was not
 

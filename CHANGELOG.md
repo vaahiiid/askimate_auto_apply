@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.76.1] — 2026-09-09
+
+**P59, amended — the SSE-KMS half of the verification is required, and the request is approved.**
+
+Vahid, on reading the provisioning request: *"Provisioning request read and approved. I am creating
+it. One change: do section 4 as well, not optionally. The KMS half is not a nice-to-have — ADR-0010
+requires the vault to be encrypted with a customer-managed key, and under D the encryption is S3's,
+so if a pre-signed PUT cannot carry SSE-KMS under a CMK the uploader has no grant to, then D has a
+hole in it."* And: *"Billing alerts first, before any resource. All four thresholds."*
+
+### Changed
+
+- `scripts/verify-s3-checksum.ts` — `AAS_S3_VERIFY_KMS_KEY_ID` is required. Without it the command
+  refuses before any request, says the half is required, and writes no record. E5 runs on every run.
+  The exit code is zero only when **both** verdicts are VERIFIED. A KMS refusal's reason names it as
+  a different problem from the checksum binding, per *"named as such rather than folded in."*
+- `scripts/verify-s3-checksum.test.ts` — two more tests: the KMS refusal is named as a different
+  problem and the binding's reason does not absorb it; and the bucket-without-key refusal exits 1,
+  reports "Nothing was sent to AWS", and writes no record.
+- `docs/provisioning-request-s3-verification.md` — §0 billing alerts before any resource; the CMK
+  and the credential's single KMS action added to §1; the key variable required; §4 retitled
+  *required* with his words; §5 rewritten for four outcomes, nothing running until he says so.
+- ADR-0092 §4 and `docs/state-of-the-system.md` blocker 16 — the amendment and the approval, quoted.
+
+### Not done
+
+Nothing has run against AWS and nothing has been created. *"I will tell you when the environment
+variables are set. Do not run anything until then, and do not create anything yourself."*
+
+---
+
 ## [0.76.0] — 2026-09-09
 
 **P59 — the document never enters a process we run (ADR-0092).**

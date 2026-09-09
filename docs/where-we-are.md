@@ -3637,3 +3637,33 @@ anything in AWS.
 
 Yours: the bucket and the credential. Then mine: the run, the verdict reported in the run's own
 words, and — only on VERIFIED — the port.
+
+---
+
+# P59, amended — the KMS half is required, and the request is approved
+
+Your words, on reading the provisioning request: approved, you are creating it, and *"do section 4
+as well, not optionally"* — because ADR-0010 requires a customer-managed key, under D the encryption
+is S3's, and *"if a pre-signed PUT cannot carry SSE-KMS under a CMK the uploader has no grant to,
+then D has a hole in it."* Billing alerts first, all four thresholds.
+
+## What changed to match
+
+- `verify-s3-checksum` **refuses to start without `AAS_S3_VERIFY_KMS_KEY_ID`**, before any request
+  is made — a run without the KMS half is not the run you approved, and a binding verdict on its own
+  would invite reading half an experiment as the whole. Tested: with a bucket name set and no key,
+  it exits 1, says the half is required, says nothing was sent to AWS, and writes no record.
+- The exit code is **zero only when both halves are VERIFIED.** They stay two verdicts.
+- A KMS refusal is named, in the run's own text, as **a different problem** from the binding — your
+  instruction: *"named as such rather than folded in."* Tested on the reason text, and the binding's
+  reason is asserted not to absorb it.
+- The provisioning request now has §0 (billing alerts before any resource), the CMK under §1, the
+  credential's one KMS action (`kms:GenerateDataKey` on that key, no `kms:Decrypt`), the key
+  variable marked required, and §4 retitled *required*. §5 says what happens on each of the four
+  outcomes, including KMS REFUTED on its own.
+- ADR-0092 §4 carries the amendment and the approval, quoted.
+
+## What has not happened
+
+Nothing has run against AWS. Nothing has been created by me. I am waiting for your message that the
+variables are set, and until then the command is not invoked — not even to see the STS identity.

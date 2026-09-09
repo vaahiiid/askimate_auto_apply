@@ -121,6 +121,9 @@ describe("the judgement", () => {
     // not read as "encryption verified", and a refused KMS path must not
     // drag the binding verdict down with it.
     expect(judge(PROVEN).sseKms).toBe("NOT CHECKED");
+    // Untried is not "optional" any more — Vahid, 2026-09-09 — and the reason
+    // must say so rather than read as a harmless omission.
+    expect(judge(PROVEN).sseKmsReason).toMatch(/required/);
 
     const kmsOk: Observation[] = [
       ...PROVEN,
@@ -139,7 +142,32 @@ describe("the judgement", () => {
       "VERIFIED",
     );
   });
+
+  it("names a KMS refusal as a DIFFERENT problem from the binding, not folded in", () => {
+    // Vahid: "If the SSE-KMS half is REFUTED, that is a different problem and
+    // I want it named as such rather than folded in." The reason is the text
+    // a person reads, so the naming is asserted on the reason, and the
+    // binding's reason must not absorb it.
+    const kmsRefused: Observation[] = [
+      ...PROVEN,
+      obs("E5_sse_kms_via_presigned", 403, { s3Code: "AccessDenied" }),
+    ];
+    const verdict = judge(kmsRefused);
+    expect(verdict.sseKmsReason).toMatch(/DIFFERENT PROBLEM/);
+    expect(verdict.sseKmsReason).toMatch(/ADR-0010/);
+    expect(verdict.bindingReason).not.toMatch(/KMS/);
+  });
 });
+
+function runCommand(env: NodeJS.ProcessEnv): Promise<{ code: number | null; out: string }> {
+  return new Promise((done) => {
+    const child = spawn("npx", ["tsx", SCRIPT], { cwd: ROOT, env: { ...process.env, ...env } });
+    let out = "";
+    child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+    child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+    child.on("close", (code) => done({ code, out }));
+  });
+}
 
 describe("the command, with no bucket configured", () => {
   it("says NOT CHECKED, points at the provisioning request, and exits non-zero", async () => {
@@ -147,20 +175,34 @@ describe("the command, with no bucket configured", () => {
     // `verify-bedrock`'s rule. And it must not write a record, because a
     // record of a run that did not happen is the false-record shape this
     // repository keeps finding.
-    const result = await new Promise<{ code: number | null; out: string }>((done) => {
-      const child = spawn("npx", ["tsx", SCRIPT], {
-        cwd: ROOT,
-        env: { ...process.env, AAS_S3_VERIFY_BUCKET: "" },
-      });
-      let out = "";
-      child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
-      child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
-      child.on("close", (code) => done({ code, out }));
-    });
+    const result = await runCommand({ AAS_S3_VERIFY_BUCKET: "", AAS_S3_VERIFY_KMS_KEY_ID: "" });
     expect(result.code).toBe(1);
     expect(result.out).toContain("NOT CHECKED");
     expect(result.out).toContain("This is not a pass");
     expect(result.out).toContain("provisioning-request-s3-verification.md");
+    expect(result.out).not.toContain("record:");
+  }, 60_000);
+});
+
+describe("the command, with a bucket but no KMS key", () => {
+  it("REFUSES to run half the experiment, sends nothing to AWS, and exits non-zero", async () => {
+    // The KMS half is required (Vahid, 2026-09-09). A run that produced a
+    // binding verdict and left KMS untried would be half an experiment that
+    // reads as the whole. So it refuses BEFORE any request — which is also
+    // what makes this test safe to run anywhere: the bucket name below is
+    // never sent to anything, and the assertion on "Nothing was sent" is
+    // backed by the refusal happening before a client exists.
+    const result = await runCommand({
+      AAS_S3_VERIFY_BUCKET: "not-a-bucket-and-never-contacted",
+      AAS_S3_VERIFY_KMS_KEY_ID: "",
+      AWS_ACCESS_KEY_ID: "",
+      AWS_SECRET_ACCESS_KEY: "",
+      AWS_SESSION_TOKEN: "",
+    });
+    expect(result.code).toBe(1);
+    expect(result.out).toContain("required");
+    expect(result.out).toContain("Nothing was sent to AWS");
+    expect(result.out).toContain("NOT CHECKED");
     expect(result.out).not.toContain("record:");
   }, 60_000);
 });
