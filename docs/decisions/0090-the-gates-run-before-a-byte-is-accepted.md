@@ -5,6 +5,9 @@
 enumerated — *"No transport: nothing by which a student can supply bytes"*
 **Completes:** [ADR-0068](./0068-the-storage-boundary-refuses-what-adr-0022-says-it-refuses.md), whose gate
 has had no production caller since it was written
+**Continued by:** [ADR-0092](./0092-the-document-never-enters-a-process-we-run.md) — the store behind
+this transport becomes a bucket with pre-signed upload; the two-step declaration stays, `PUT …/content`
+will not. Nothing changes until the checksum binding is verified.
 
 ## Context
 

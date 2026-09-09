@@ -208,6 +208,9 @@ describe("the published demonstrations", () => {
     // Guarded here, or by a file of its own that predates this one.
     const GUARDED_ELSEWHERE = [
       "walkthrough", "end-to-end", "retention-status", "analyse-journey", "verify-bedrock",
+      // P59 — `verify-s3-checksum.test.ts` checks the judgement offline and the
+      // no-bucket path (NOT CHECKED, exit 1, no record written).
+      "verify-s3-checksum",
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",

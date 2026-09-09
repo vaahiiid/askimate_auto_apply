@@ -32,3 +32,4 @@ inspection-runs/
 # off afterwards — Redis creates the directory in the moment in between. It
 # holds a zero-length temp file and no data. The proof is worth the artefact.
 appendonlydir/
+verification-runs/

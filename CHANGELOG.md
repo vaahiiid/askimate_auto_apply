@@ -19,6 +19,63 @@ not shipped artefacts.
 
 ---
 
+## [0.76.0] — 2026-09-09
+
+**P59 — the document never enters a process we run (ADR-0092).**
+
+The durable document store, decided by Vahid in his own words:
+
+> D. In my own words: the conversation service runs the gates, then mints a pre-signed upload rather
+> than accepting bytes, and the document never enters any process we run.
+
+### How it was reached · a control that worked
+
+The obvious durable store encrypts in-process and needs the key providers in `packages/secrets`.
+`check-boundaries.ts` **failed the build** rather than let the conversation plane depend on the
+package that holds the only plaintext password. Recorded, at Vahid's instruction, *"as what it was —
+a real control that stopped a wrong design early, not an obstacle that was routed around."*
+
+### Considered and not taken, with his reasons
+
+- **A · extract `packages/keys`** — *"under D, SSE-KMS does the encryption and the extraction would be
+  thrown-away work."*
+- **B · a sixth deployable** — he leaned toward it and asked to be told if he was wrong. The premise
+  was: the Phase-0 record has separate *storage with direct upload*, not a separate *service*. The
+  argument that decided it: *"B does not deliver its own promise: with the session bound to one
+  origin, either we build a new auth mechanism or the conversation service proxies every document —
+  which is the exact thing I was trying to prevent. A sixth process that still touches every file is
+  worse than no sixth process, because it looks solved."*
+- **C · amend the boundary rule** — out. *"Same reasoning as ADR-0080."*
+
+### Added · the verification the decision is conditioned on
+
+D rests on one fact about S3: a pre-signed PUT bound to hash H refuses any body that does not hash
+to H. Flagged as unverified from the sandbox; Vahid made the flag a condition — *"verify the S3
+checksum enforcement against a real bucket BEFORE reshaping the port around it."*
+
+`pnpm run verify-s3-checksum` is that experiment. Five observations, and a judgement that **cannot
+say VERIFIED by accident**: the refusal of a same-length substitution counts only if the bound URL
+accepted the right bytes *and an unbound URL accepted the same substitution*, so the refusal is
+attributable to the binding and to nothing else. REFUTED needs one observation and answers *"Do not
+reshape the port around it."* Without a bucket: NOT CHECKED, exit 1, no record written. The judgement
+is tested offline in every branch; a regression removing the control requirement fails exactly the
+vacuity guard.
+
+### Added · the provisioning request
+
+`docs/provisioning-request-s3-verification.md` — one bucket in `eu-west-2`, a credential whose whole
+reach is three actions on the prefix `verify/*`, cost that rounds to zero against a credit with $0
+spent, reach of nothing. **It names no bucket.** Nothing has been created; AWS spend is Vahid's act.
+
+### Not built, deliberately
+
+No change to `packages/documents`, the transport routes, `packages/secrets`, the boundary rules, or
+any AWS resource. The S3 SDK and pre-signer are root dev-dependencies for the script; no package
+depends on them. The port's new shape is described in the ADR and will not exist until the
+verification says VERIFIED.
+
+---
+
 ## [0.75.0] — 2026-09-08
 
 **P58 — robots.txt is read, obeyed and kept; requests are paced (ADR-0091).**

@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.75.0",
+  "version": "0.76.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -40,7 +40,8 @@
     "version:check": "tsx scripts/version.ts check",
     "version:set": "tsx scripts/version.ts set",
     "version:bump": "tsx scripts/version.ts bump",
-    "census": "tsx scripts/census.ts"
+    "census": "tsx scripts/census.ts",
+    "verify-s3-checksum": "tsx scripts/verify-s3-checksum.ts"
   },
   "devDependencies": {
     "@askimate/aas-account": "workspace:*",
@@ -72,7 +73,9 @@
     "@askimate/aas-secure-service": "workspace:*",
     "@askimate/aas-worker": "workspace:*",
     "@aws-sdk/client-bedrock": "^3.1118.0",
+    "@aws-sdk/client-s3": "^3.1128.0",
     "@aws-sdk/client-sts": "^3.1118.0",
+    "@aws-sdk/s3-request-presigner": "^3.1128.0",
     "@eslint/js": "^9.18.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.5",

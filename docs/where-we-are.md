@@ -3586,3 +3586,54 @@ which I do not have and will not invent. Then the durable encrypted document sto
 ## Declared-but-unreachable surface
 
 **Six, unchanged.**
+
+---
+
+# P59 — the document never enters a process we run (ADR-0092)
+
+Your decision, recorded in your words and nobody else's. This phase built what the decision is
+conditioned on, and nothing it is not.
+
+## What the boundary check did, and how it is recorded
+
+I tried the obvious durable store first — encrypt in-process, key providers from `packages/secrets` —
+and `check-boundaries.ts` failed the build. That is now written down the way you asked: a real
+control that stopped a wrong design early. It fired on a design rather than on a stray import, and
+it fired correctly.
+
+## What is recorded as considered and not taken
+
+`packages/keys`, with your reason: under D, SSE-KMS does the encryption and the extraction would be
+thrown-away work. The sixth deployable, with the argument that decided it — that it does not deliver
+its own promise once the session is bound to one origin. Amending the rule, out, on ADR-0080's
+reasoning. All three in ADR-0092, quoted rather than paraphrased.
+
+## The verification
+
+`pnpm run verify-s3-checksum`. It runs five experiments against a real bucket and says VERIFIED,
+REFUTED or NOT CHECKED. The part I want you to look at is `judge`: it will not say VERIFIED unless
+an *unbound* URL accepted the same substituted bytes that the *bound* one refused, because a refusal
+with no control is a result that cannot fail. I removed the control requirement as a regression and
+exactly the vacuity-guard test failed. Without a bucket it says NOT CHECKED, exits non-zero and writes
+nothing — a verification that could not run must not look like one that passed.
+
+## The request
+
+`docs/provisioning-request-s3-verification.md`. One bucket, `eu-west-2`, one prefix, three actions,
+a temporary credential, cost rounding to zero. It does not name the bucket. This environment can
+reach S3 — I checked the tunnel before writing the request — so the run can be made from here once
+the credential exists.
+
+## What I did not do
+
+Reshape the port. Add the SDK to any package. Touch `packages/secrets` or the boundary rules. Create
+anything in AWS.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**
+
+## What is next
+
+Yours: the bucket and the credential. Then mine: the run, the verdict reported in the run's own
+words, and — only on VERIFIED — the port.

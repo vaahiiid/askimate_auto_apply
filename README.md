@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P58 — robots.txt is read, obeyed and kept; requests are paced (ADR-0091) |
+| **Phase** | P59 — the document never enters a process we run (ADR-0092) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,236 passing · 116 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 91 ADRs · all 91 Accepted |
+| **Tests** | **2,247 passing · 117 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 92 ADRs · all 92 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -39,7 +39,9 @@ the critical path. That requirement has not gone away: re-adding the type needs 
 
 **A student can now supply a document** — `POST .../documents` runs the storage gates on the
 declaration, and only then does a route exist that will read a body (ADR-0090). The store behind it
-is in-memory and **refuses to start in production**; the durable, encrypted one is the next phase.
+is in-memory and **refuses to start in production**. The durable store is decided (ADR-0092): the
+bytes go browser → S3 under a pre-signed PUT and never enter a process we run — built only once the
+checksum binding is verified against a real bucket, which needs one to exist first.
 
 **[Where we are](./docs/where-we-are.md)** — the per-phase journal.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.
