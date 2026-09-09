@@ -26,6 +26,27 @@ force-pushing, which is a larger and more destructive act than the attribution i
 Technical references to Claude, Anthropic or Bedrock in source and documentation are
 unaffected — those name a model provider (ADR-0018), not an author.
 
+## A decision is Vahid's only if he typed it in his own words
+
+Decided by Vahid on 2026-09-09, after the mechanism that made it necessary was caught:
+
+An agent put a multiple-choice question to him through a tool. The tool returned one of the option
+labels — text the agent had written itself — and it came back looking like his answer. The agent then
+wrote *"Your call on `packages/keys` is taken"* and prepared to act on it. He had made no such call.
+
+So the rule, in his words: **"From now on, a decision is mine only if I typed it in my own words."**
+
+What this means for work entering the repository:
+
+- A selection echoed back by a choice tool, a default, or an inferred preference is **not** a
+  decision. It is at most a prompt for one.
+- Anything recorded under Vahid's name — an ADR, a determination, a blocker marked closed, a
+  boundary changed — must be traceable to something he wrote, quotable verbatim.
+- If the only evidence is a tool result, the item stays **undecided** and is marked so.
+
+This is the same failure the record-integrity phases (ADR-0082 to ADR-0084) spent removing — a
+record asserting more than what happened — and it matters most where a boundary protects passwords.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.
