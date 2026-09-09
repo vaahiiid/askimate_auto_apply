@@ -61,6 +61,18 @@ export interface ConversationConfig {
   readonly publicDir: string | undefined;
   readonly devSession: boolean;
   readonly production: boolean;
+  /**
+   * The document transport (ADR-0092, ADR-0094). All four together or none:
+   * absent, the document routes answer `service_unavailable`.
+   */
+  readonly documents:
+    | {
+        readonly bucket: string;
+        readonly kmsKeyArn: string;
+        readonly region: string;
+        readonly retentionScheduleDir: string;
+      }
+    | undefined;
 }
 
 /**
@@ -145,6 +157,57 @@ export function conversationConfigFrom(
       publicDir: r.optionalString("AAS_PUBLIC_DIR"),
       devSession,
       production: r.production,
+      documents: readDocumentsConfig(r),
     };
   });
+}
+
+/**
+ * The bucket, the key, the region and the schedule — or none of them.
+ *
+ * A bucket with no key would mint upload URLs that S3 encrypts under nothing
+ * ADR-0010 permits; a key with no schedule would run the retention gate
+ * against nothing. So the four are read as one setting, and a partial one is
+ * refused at startup with every missing name listed, not discovered at the
+ * first declaration.
+ */
+function readDocumentsConfig(r: Reader): ConversationConfig["documents"] {
+  const bucket = r.optionalString("AAS_DOCUMENTS_BUCKET");
+  const kmsKeyArn = r.optionalString("AAS_DOCUMENTS_KMS_KEY_ARN");
+  const retentionScheduleDir = r.optionalString("AAS_RETENTION_SCHEDULE_DIR");
+  const region = r.optionalString("AAS_DOCUMENTS_REGION", "eu-west-2") ?? "eu-west-2";
+
+  const set = [bucket, kmsKeyArn, retentionScheduleDir].filter((v) => v !== undefined).length;
+  if (set === 0) return undefined;
+  if (bucket === undefined) {
+    r.refuse("AAS_DOCUMENTS_BUCKET", "is required with the other document-transport variables.");
+  }
+  if (kmsKeyArn === undefined) {
+    r.refuse(
+      "AAS_DOCUMENTS_KMS_KEY_ARN",
+      "is required with AAS_DOCUMENTS_BUCKET: the vault is encrypted under a customer-managed " +
+        "key (ADR-0010), and the upload URL signs its ARN.",
+    );
+  } else if (!/^arn:aws:kms:[a-z0-9-]+:\d{12}:key\/[0-9a-f-]{36}$/.test(kmsKeyArn)) {
+    r.refuse(
+      "AAS_DOCUMENTS_KMS_KEY_ARN",
+      "must be the key's ARN (arn:aws:kms:<region>:<account>:key/<id>), not an alias or a bare " +
+        "id: S3 reports the ARN on HEAD, and the confirmation compares against it.",
+    );
+  }
+  if (retentionScheduleDir === undefined) {
+    r.refuse(
+      "AAS_RETENTION_SCHEDULE_DIR",
+      "is required with AAS_DOCUMENTS_BUCKET: the storage gate needs the governing retention " +
+        "schedule (ADR-0010, ADR-0023), and defaulting to a directory would be guessing which " +
+        "approved schedule a deployment means to enforce.",
+    );
+  }
+  if (region !== "eu-west-2") {
+    r.refuse("AAS_DOCUMENTS_REGION", "must be eu-west-2 (ADR-0012).");
+  }
+  if (bucket === undefined || kmsKeyArn === undefined || retentionScheduleDir === undefined) {
+    return undefined;
+  }
+  return { bucket, kmsKeyArn, region, retentionScheduleDir };
 }

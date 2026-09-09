@@ -16,15 +16,15 @@
  * beside this file feeds `assertBoundUploadUrl` URLs the REAL SDK produces
  * both ways, so the refusal is proven against the library, not a string.
  *
- * ── What is in memory here, and why that is not yet the vault ─────────────
+ * ── Metadata lives behind a port ──────────────────────────────────────────
  *
- * Document METADATA — `DocumentRecord`s and the object key each one lives
- * under — is held in a Map. That is the next phase: a durable metadata store
- * in the conversation plane's database, and the production wiring that goes
- * with it. Until then `assertDocumentStoreIsDurable` keeps refusing a
- * production start, exactly as it did before this class existed. The bytes,
- * though, are already where D puts them: in the bucket, under the CMK, and in
- * no process this repository runs.
+ * `DocumentRecord`s and the object key each one rests under go through a
+ * `DocumentRecordStore` (ADR-0094): the `documents` table in production, a
+ * Map in tests. This class is the same either way, and `durable` says which
+ * it was handed — that is what `assertDocumentStoreIsDurable` reads, so a
+ * production start with an in-memory record store is refused at wiring time
+ * rather than discovered at the first restart. The bytes are where D puts
+ * them: in the bucket, under the CMK, and in no process this repository runs.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -56,6 +56,8 @@ import {
   receiveUpload,
 } from "@askimate/aas-documents";
 
+import type { DocumentRecordStore } from "./document-record-store.js";
+import { InMemoryDocumentRecordStore, PostgresDocumentRecordStore } from "./document-record-store.js";
 import { ulid } from "./ulid.js";
 
 /** How long a retrieval URL lives. The runner fetches at once; a minute is generous. */
@@ -66,6 +68,8 @@ export interface S3DocumentVaultOptions {
   readonly bucket: string;
   /** The customer-managed key's ARN (ADR-0010). HEAD reports the ARN, so the ARN is what is compared. */
   readonly kmsKeyId: string;
+  /** Where the metadata goes. Defaults to memory, which production refuses. */
+  readonly records?: DocumentRecordStore;
 }
 
 /**
@@ -104,13 +108,18 @@ export class S3DocumentVault implements DocumentVault {
   readonly #client: S3Client;
   readonly #bucket: string;
   readonly #kmsKeyId: string;
-  readonly #records = new Map<DocumentId, DocumentRecord>();
-  readonly #keys = new Map<DocumentId, string>();
+  readonly #records: DocumentRecordStore;
 
   public constructor(options: S3DocumentVaultOptions) {
     this.#client = options.client;
     this.#bucket = options.bucket;
     this.#kmsKeyId = options.kmsKeyId;
+    this.#records = options.records ?? new InMemoryDocumentRecordStore();
+  }
+
+  /** True when the metadata survives a restart. Read by `assertDocumentStoreIsDurable`. */
+  public get durable(): boolean {
+    return this.#records instanceof PostgresDocumentRecordStore;
   }
 
   public prepareUpload(intake: DocumentIntake, now: Date): Promise<PreparedUpload> {
@@ -143,59 +152,59 @@ export class S3DocumentVault implements DocumentVault {
       retentionPolicyReference: upload.policyReference,
       retentionTriggeredAt: null,
     };
-    this.#records.set(documentId, record);
-    this.#keys.set(documentId, received.key);
+    await this.#records.insert(record, received.key);
     return record;
   }
 
-  public describe(documentId: DocumentId): Promise<DocumentRecord | null> {
-    return Promise.resolve(this.#records.get(documentId) ?? null);
+  public async describe(documentId: DocumentId): Promise<DocumentRecord | null> {
+    return (await this.#records.get(documentId))?.record ?? null;
   }
 
   public async prepareRetrieval(documentId: DocumentId, now: Date): Promise<PreparedRetrieval> {
-    const record = this.#records.get(documentId);
-    if (record === undefined) throw new DocumentNotFoundError(documentId);
-    const key = this.#keys.get(documentId);
-    if (record.state === "purged" || key === undefined) throw new DocumentPurgedError(documentId);
+    const stored = await this.#records.get(documentId);
+    if (stored === null) throw new DocumentNotFoundError(documentId);
+    if (stored.record.state === "purged") throw new DocumentPurgedError(documentId);
     const url = await getSignedUrl(
       this.#client,
-      new GetObjectCommand({ Bucket: this.#bucket, Key: key }),
+      new GetObjectCommand({ Bucket: this.#bucket, Key: stored.objectKey }),
       { expiresIn: RETRIEVAL_TTL_SECONDS },
     );
     return { url, method: "GET", expiresAt: new Date(now.getTime() + RETRIEVAL_TTL_SECONDS * 1000) };
   }
 
   public listForStudent(studentId: string): Promise<readonly DocumentRecord[]> {
-    return Promise.resolve([...this.#records.values()].filter((r) => r.studentId === studentId));
+    return this.#records.listForStudent(studentId);
   }
 
-  public transition(documentId: DocumentId, state: DocumentState, _now: Date): Promise<DocumentRecord> {
-    const record = this.#records.get(documentId);
-    if (record === undefined) return Promise.reject(new DocumentNotFoundError(documentId));
-    const updated: DocumentRecord = { ...record, state };
-    this.#records.set(documentId, updated);
-    return Promise.resolve(updated);
+  public async transition(documentId: DocumentId, state: DocumentState, now: Date): Promise<DocumentRecord> {
+    const stored = await this.#records.get(documentId);
+    if (stored === null) throw new DocumentNotFoundError(documentId);
+    if (state === "purged") return this.purgeContents(documentId, now);
+    const updated: DocumentRecord = { ...stored.record, state };
+    await this.#records.update(updated, null);
+    return updated;
   }
 
-  public startRetentionClock(documentId: DocumentId, at: Date): Promise<DocumentRecord> {
-    const record = this.#records.get(documentId);
-    if (record === undefined) return Promise.reject(new DocumentNotFoundError(documentId));
-    if (record.retentionTriggeredAt !== null) return Promise.resolve(record);
-    const updated: DocumentRecord = { ...record, retentionTriggeredAt: at };
-    this.#records.set(documentId, updated);
-    return Promise.resolve(updated);
+  public async startRetentionClock(documentId: DocumentId, at: Date): Promise<DocumentRecord> {
+    const stored = await this.#records.get(documentId);
+    if (stored === null) throw new DocumentNotFoundError(documentId);
+    if (stored.record.retentionTriggeredAt !== null) return stored.record;
+    const updated: DocumentRecord = { ...stored.record, retentionTriggeredAt: at };
+    await this.#records.update(updated, null);
+    return updated;
   }
 
-  public async purgeContents(documentId: DocumentId, _now: Date): Promise<DocumentRecord> {
-    const record = this.#records.get(documentId);
-    if (record === undefined) throw new DocumentNotFoundError(documentId);
-    const key = this.#keys.get(documentId);
-    if (key !== undefined) {
-      await this.#client.send(new DeleteObjectCommand({ Bucket: this.#bucket, Key: key }));
-      this.#keys.delete(documentId);
-    }
-    const updated: DocumentRecord = { ...record, state: "purged" };
-    this.#records.set(documentId, updated);
+  public async purgeContents(documentId: DocumentId, now: Date): Promise<DocumentRecord> {
+    const stored = await this.#records.get(documentId);
+    if (stored === null) throw new DocumentNotFoundError(documentId);
+    if (stored.record.state === "purged") return stored.record;
+    // The object goes first. If the delete fails the record still says the
+    // contents exist, which is the truthful state; a record that said
+    // "purged" over an object still in the bucket would be the lie ADR-0010
+    // exists to prevent.
+    await this.#client.send(new DeleteObjectCommand({ Bucket: this.#bucket, Key: stored.objectKey }));
+    const updated: DocumentRecord = { ...stored.record, state: "purged" };
+    await this.#records.update(updated, now);
     return updated;
   }
 

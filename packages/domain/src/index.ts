@@ -257,6 +257,8 @@ export {
   validateHistory,
   validateSchedule,
 } from "./retention.js";
+export type { OutOfScopeRow, ParsedSchedule } from "./retention-file.js";
+export { parseRetentionSchedule } from "./retention-file.js";
 
 export type { AuditAction, AuditEntry, AuditOutcome, AuditSafeText, RedactedDetail } from "./audit.js";
 export { AuditRedactionError, auditEntry, auditLabel, auditRef } from "./audit.js";

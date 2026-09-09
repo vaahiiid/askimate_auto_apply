@@ -19,6 +19,47 @@ not shipped artefacts.
 
 ---
 
+## [0.78.0] — 2026-09-09
+
+**P61 — document metadata is durable, and the transport starts in production (ADR-0094).**
+
+The first thing ADR-0093 left unbuilt. Intakes and document records move from Maps into the
+conversation database; the entry point builds the transport from the environment; the process
+starts with it, or without it and answers 503.
+
+### Added
+
+- `apps/conversation-service/migrations/0017_documents.sql` — `document_intakes` and `documents`.
+  No column of any type that could hold a document's contents, asserted on the file's text and, at
+  startup, on `information_schema`. A purged record names when; a superseded one names what.
+- `PostgresDocumentIntakePort` — `take` is one `DELETE … RETURNING` (three racing takes, one wins;
+  an expired row is never returned) and **re-runs the gates** on the schedule in force, so a
+  schedule that stopped permitting the document between declare and confirm refuses the confirm.
+- `DocumentRecordStore` (`document-record-store.ts`) with Postgres and in-memory implementations;
+  `S3DocumentVault` over it, with `durable`; `purgeContents` deletes the object before the record.
+- `readDocumentsConfig` — `AAS_DOCUMENTS_BUCKET`, `AAS_DOCUMENTS_KMS_KEY_ARN` (must be an ARN),
+  `AAS_RETENTION_SCHEDULE_DIR`, optional `AAS_DOCUMENTS_REGION` (`eu-west-2` only). All or none.
+- `loadGoverningSchedule` and `buildDocumentPort` in `wiring.ts`; `main.ts` builds and reports
+  `documents=s3` or `none`.
+- `parseRetentionSchedule` in `packages/domain` — the parser moved out of `retention-status.ts`
+  so the service and the script read a schedule the same way.
+- `docs/provisioning-request-document-vault.md` — the service role's policy, the CORS rule, the
+  lifecycle, the variables, the cost, the reach.
+- Tests: `document-store.test.ts` (17, against Postgres), `config.test.ts` (5), two startup cases.
+
+### Changed
+
+- `assertDocumentStoreIsDurable` refuses three things and names which: an in-memory intake store,
+  an in-memory vault, an S3 vault whose metadata store is in memory.
+
+### Not built
+
+The client's upload control (the CORS rule's first exercise); the retention sweep; the runner's
+fetch; an intake sweep beyond delete-on-take. Nothing ran against AWS. Declared-but-unreachable:
+six, unchanged.
+
+---
+
 ## [0.77.0] — 2026-09-09
 
 **P60 — an upload URL cannot be minted unbound (ADR-0093). The port is reshaped.**
@@ -1501,7 +1542,7 @@ makes the wait recommendation *advisory in effect and mandatory in presentation*
 
 `already_applying` is a published problem code at 409 with `existingCaseId` and `concluded`;
 `reapplication_advised` is a published event kind with its own columns and two CHECK constraints
-(migration 0016).
+(migration 0017).
 
 ### Fixed · a test fixture that was right by accident
 

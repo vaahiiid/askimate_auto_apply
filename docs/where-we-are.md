@@ -3714,3 +3714,35 @@ browser-runner suites included; the census is regenerated and `main` is green.
 ## Declared-but-unreachable surface
 
 **Six, unchanged.** `purgeContents` has an implementation now, not a caller.
+
+---
+
+# P61 — document metadata is durable, and the transport starts in production (ADR-0094)
+
+The first thing P60 left. Intakes and records are in the database now, in two tables that have no
+column a byte could go in, and the real entry point builds the transport from four environment
+variables. Started with them set, it says `documents=s3`; without them it starts as before and the
+routes answer 503.
+
+## The two things worth reading
+
+`PostgresDocumentIntakePort.take` — one `DELETE … WHERE … AND expires_at > now() RETURNING`. Three
+takes racing for one intake, and one wins; that is tested. And the intake handed back is not a cast
+from the row: `assertStorable` runs again on the schedule in force, so a document the schedule
+stopped permitting is refused at confirm, in the gate's words.
+
+`docs/provisioning-request-document-vault.md` — what the service's role must be allowed (put, get,
+delete under `documents/*`, generate-data-key and decrypt on the CMK, no list), the CORS rule for
+the page's origin with exactly the headers the run proved the URL is refused without, and the
+lifecycle it should not have (no expiry under `documents/`; retention is the schedule's, not S3's).
+
+## What I did not do
+
+Run anything against AWS. The startup test constructs the client and sends nothing; the first
+request this service makes to AWS happens on your deployment when you set the variables. The client
+has no upload control yet, the retention sweep has no caller, and the runner's fetch waits on
+`attach_document`.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**

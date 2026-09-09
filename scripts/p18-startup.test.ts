@@ -384,6 +384,66 @@ describeIfDatabase("running, and stopping", () => {
     }
   }, 180_000);
 
+  it("starts WITH the document transport when it is configured, and says so", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // P61 (ADR-0094). Until this phase the transport ran only in tests: the
+    // routes existed, and nothing in the process could produce the schedule,
+    // the register, the bucket or the durable stores they needed. This is the
+    // real entry point building all four from the environment — the same
+    // `config/retention` files the retention-status command reads, parsed by
+    // the same parser — and reporting it. Nothing is sent to AWS: the client
+    // is constructed, and no request leaves until a declaration is made.
+    // ═══════════════════════════════════════════════════════════════════
+    const service = await startAndWait(
+      "conversation-service",
+      {
+        ...conversationEnv,
+        AAS_DOCUMENTS_BUCKET: "askimate-aas-vault-never-contacted",
+        AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000",
+        AAS_RETENTION_SCHEDULE_DIR: "config/retention",
+        AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE",
+        AWS_SECRET_ACCESS_KEY: "not-a-secret",
+      },
+      /listening on 4870/,
+    );
+    try {
+      expect(service.output()).toContain("documents=s3");
+      // The migration that holds the metadata is applied, and holds no bytes.
+      const pool = new pg.Pool({ connectionString: urlFor(CONVERSATION_DB), max: 2 });
+      try {
+        const applied = await pool.query("SELECT 1 FROM schema_migrations WHERE version = '0017_documents'");
+        expect(applied.rowCount).toBe(1);
+        const columns = await pool.query<{ data_type: string }>(
+          "SELECT data_type FROM information_schema.columns WHERE table_name IN ('documents', 'document_intakes')",
+        );
+        expect(columns.rows.map((r) => r.data_type)).not.toContain("bytea");
+      } finally {
+        await pool.end();
+      }
+    } finally {
+      await service.stop("SIGTERM");
+    }
+  }, 180_000);
+
+  it("REFUSES a partial document configuration, and a schedule directory with nothing in it", async () => {
+    const partial = await runToCompletion("conversation-service", {
+      ...conversationEnv,
+      AAS_DOCUMENTS_BUCKET: "askimate-aas-vault-never-contacted",
+    });
+    expect(partial.code).toBe(1);
+    expect(partial.stderr).toContain("AAS_DOCUMENTS_KMS_KEY_ARN");
+    expect(partial.stderr).toContain("AAS_RETENTION_SCHEDULE_DIR");
+
+    const empty = await runToCompletion("conversation-service", {
+      ...conversationEnv,
+      AAS_DOCUMENTS_BUCKET: "askimate-aas-vault-never-contacted",
+      AAS_DOCUMENTS_KMS_KEY_ARN: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000",
+      AAS_RETENTION_SCHEDULE_DIR: "docs/phase-0",
+    });
+    expect(empty.code).toBe(1);
+    expect(empty.stderr).toContain("no retention schedule");
+  }, 180_000);
+
   it("starts the worker, which listens on nothing, and RELEASES ITS LEASES before it exits", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Graceful shutdown, asserted by its CONSEQUENCE rather than by its exit

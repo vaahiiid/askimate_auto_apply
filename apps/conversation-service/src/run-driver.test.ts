@@ -6427,23 +6427,41 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     expect(source).toContain("uploads");
   }, 60_000);
 
-  it("stores NO document anywhere, and has nowhere to put one", async () => {
-    // The invariant of this phase, asserted against the schema itself rather
-    // than against intent: `request_document` gets a durable outcome and NO
-    // upload path was built. The disclosure (ADR-0022) and retention (ADR-0023)
-    // decisions it depends on are unapproved, so adding storage must fail here
-    // until they are decided.
-    const tables = await pool.query(
-      `SELECT 1 FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name ILIKE '%document%'`,
+  it("holds document METADATA, and has nowhere to put a document's contents", async () => {
+    // ── The invariant, sharpened by three decisions ─────────────────────
+    //
+    // As written in P30 this asserted that NO table or column so much as
+    // mentioned documents: no upload path existed, and the disclosure and
+    // retention decisions it depended on were unapproved. Those were decided
+    // (ADR-0078, ADR-0087), the transport was built (ADR-0090), the bytes go
+    // from the browser to the bucket and never enter this process (ADR-0092),
+    // and P61 made the METADATA durable here (ADR-0094). So the schema now
+    // names documents — exactly two tables — and what survives of the
+    // original assertion is the half that was always the point: nothing in
+    // this database can hold a document's contents.
+    const tables = await pool.query<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name ILIKE '%document%'
+        ORDER BY table_name`,
     );
-    expect(tables.rowCount, "no table holds documents").toBe(0);
-    const columns = await pool.query(
-      `SELECT 1 FROM information_schema.columns
+    expect(tables.rows.map((r) => r.table_name)).toEqual(["document_intakes", "documents"]);
+
+    const binary = await pool.query<{ table_name: string; column_name: string }>(
+      `SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND data_type IN ('bytea', 'oid')`,
+    );
+    expect(binary.rows, "no column anywhere in this schema can hold bytes").toEqual([]);
+
+    const contents = await pool.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND (column_name ILIKE '%document%' OR column_name ILIKE '%upload%')`,
+          AND table_name IN ('documents', 'document_intakes')
+          AND column_name NOT IN ('content_hash', 'content_type')
+          AND (column_name ILIKE '%content%' OR column_name ILIKE '%body%' OR column_name ILIKE '%bytes')`,
     );
-    expect(columns.rowCount, "and no column does either").toBe(0);
+    // `declared_size_bytes` and `size_bytes` are numbers about the bytes, not
+    // the bytes; they are the only names that end in `bytes`.
+    expect(contents.rows.map((r) => r.column_name).sort()).toEqual(["declared_size_bytes", "size_bytes"]);
   }, 300_000);
 });
 

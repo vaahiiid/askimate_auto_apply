@@ -127,10 +127,10 @@ test that passes against it and would fail against S3 has to be one the run did 
 
 ## What was not built, and is next
 
-- **Durable metadata.** `DocumentRecord`s and the object key each one lives under are held in a Map
-  in both implementations. The bytes are where D puts them; the record of them is not yet in the
-  conversation plane's database. `assertDocumentStoreIsDurable` keeps refusing a production start,
-  as it has since ADR-0090, and production wiring of the S3 vault waits for that phase.
+- **Durable metadata.** ~~Held in a Map in both implementations.~~ **Built in P61 —
+  [ADR-0094](./0094-document-metadata-is-durable-and-the-transport-starts.md):** the `document_intakes`
+  and `documents` tables, the S3 vault over a record store, and the entry point building the
+  transport from the environment.
 - **CORS on the bucket**, for the page's origin — a provisioning request when the client surface
   exists.
 - **The retrieval's caller.** `prepareRetrieval` exists on the port; nothing calls it until

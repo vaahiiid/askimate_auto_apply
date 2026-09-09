@@ -30,7 +30,7 @@ import { conversationConfigFrom, type ConversationConfig } from "./config.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { httpSecureRequestOpener } from "./secure-requests.js";
-import { buildRunDriver, conversationStore, resolveCatalogue } from "./wiring.js";
+import { buildDocumentPort, buildRunDriver, conversationStore, resolveCatalogue } from "./wiring.js";
 
 /**
  * Both schemas, in the order they must be applied.
@@ -146,6 +146,26 @@ export async function start(options: StartOptions): Promise<RunningService | nul
             },
           };
 
+    // ── The document transport, if configured (ADR-0092, ADR-0094) ─────
+    //
+    // Built here, at the composition root, and REFUSED here if any part of
+    // it is in memory: intakes and records in this database, bytes in the
+    // bucket. Absent, the document routes answer service_unavailable — a
+    // refusal, not a bypass.
+    const documents =
+      config.documents === undefined
+        ? undefined
+        : await buildDocumentPort({
+            pool,
+            bucket: config.documents.bucket,
+            kmsKeyArn: config.documents.kmsKeyArn,
+            region: config.documents.region,
+            retentionScheduleDir: config.documents.retentionScheduleDir,
+            environment: options.env["NODE_ENV"],
+            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+            now: () => new Date(),
+          });
+
     const app = createConversationApp({
       store,
       sessionSecret: config.sessionSecret,
@@ -175,6 +195,7 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       secureRequests,
       secureOrigin: config.secureOrigin,
       ...(auth === undefined ? {} : { auth }),
+      ...(documents === undefined ? {} : { documents }),
       ...(config.publicDir === undefined ? {} : { publicDir: config.publicDir }),
       // PROVISIONAL and refused in production by `conversationConfigFrom`.
       ...(config.devSession
@@ -191,7 +212,8 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     options.log(
       `conversation service listening on ${String(config.port)} ` +
         `(catalogue=${config.catalogue}, dev-session=${String(config.devSession)}, ` +
-        `identity=${config.oidc === undefined ? "none" : "oidc"})`,
+        `identity=${config.oidc === undefined ? "none" : "oidc"}, ` +
+        `documents=${config.documents === undefined ? "none" : "s3"})`,
     );
 
     const close = async (): Promise<void> => {

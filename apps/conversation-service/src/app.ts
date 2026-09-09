@@ -82,6 +82,8 @@ export interface ConversationAppOptions {
    * direction for a deployment that has not resolved a catalogue.
    */
   readonly targets?: ConversationRoutesOptions["targets"];
+  /** The document transport (ADR-0090, ADR-0092). Absent: the document routes answer 503. */
+  readonly documents?: ConversationRoutesOptions["documents"];
   /**
    * Mints a session for a subject. PROVISIONAL, and mounted only when supplied.
    *
@@ -190,6 +192,7 @@ export function createConversationApp(options: ConversationAppOptions): Express 
       ...(options.secureOrigin === undefined ? {} : { secureOrigin: options.secureOrigin }),
       ...(options.runs === undefined ? {} : { runs: options.runs }),
       ...(options.targets === undefined ? {} : { targets: options.targets }),
+      ...(options.documents === undefined ? {} : { documents: options.documents }),
     }),
   );
 

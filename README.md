@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P60 — an upload URL cannot be minted unbound (ADR-0093) |
+| **Phase** | P61 — document metadata is durable, and the transport starts in production (ADR-0094) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,280 passing · 119 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 93 ADRs · all 93 Accepted |
+| **Tests** | **2,304 passing · 121 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 94 ADRs · all 94 Accepted |
 | **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -43,8 +43,11 @@ the browser PUTs straight to the bucket; `POST .../confirm` asks the bucket what
 (ADR-0090, ADR-0092). The upload URL cannot be minted unbound: its signature must cover the checksum
 header, and the mint reads its own URL back and refuses one that does not (ADR-0093) — the SDK's
 default, which hoists the checksum where S3 never reads it, was found by a run against a real bucket
-and is refused structurally. Document metadata is still in-memory and **refuses to start in
-production**; durable metadata and the production wiring are the next phase.
+and is refused structurally. Document metadata is durable (ADR-0094): intakes and records in the
+conversation database, in tables with no column that could hold a byte, and the entry point builds
+the transport from four environment variables — or starts without it and answers 503. What the
+service's role, the bucket's CORS rule and its lifecycle need to be is in
+[`docs/provisioning-request-document-vault.md`](./docs/provisioning-request-document-vault.md).
 
 **[Where we are](./docs/where-we-are.md)** — the per-phase journal.
 **[What a controlled live run needs](./docs/what-a-controlled-live-run-needs.md)** — the remaining blockers.

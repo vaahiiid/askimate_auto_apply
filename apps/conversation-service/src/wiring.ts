@@ -14,7 +14,20 @@
  * of its own.
  */
 
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import type { Pool } from "pg";
+import { S3Client } from "@aws-sdk/client-s3";
+
+import { b2Register } from "@askimate/aas-disclosure";
+import type { RetentionSchedule } from "@askimate/aas-domain";
+import { effectiveFor, parseRetentionSchedule, validateHistory, validateSchedule } from "@askimate/aas-domain";
+
+import type { DocumentIntakePort } from "./document-intake-store.js";
+import { PostgresDocumentIntakePort, assertDocumentStoreIsDurable } from "./document-intake-store.js";
+import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import { S3DocumentVault } from "./s3-document-vault.js";
 
 import {
   loadCatalogueDirectory,
@@ -203,4 +216,72 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     interventions: new PostgresInterventionStore(wiring.pool),
     now: wiring.now,
   });
+}
+
+// ── The document transport (ADR-0092, ADR-0094) ────────────────────────────
+
+/**
+ * The governing retention schedule, loaded from a directory of approved
+ * versions and REFUSED if it does not validate.
+ *
+ * The same files `pnpm run retention-status` reads, through the same parser
+ * (`parseRetentionSchedule`, in the domain package since P61). A schedule
+ * with problems does not gate uploads: a process that started against one
+ * would be enforcing periods nobody could responsibly say were right, and
+ * ADR-0023's rule is that absence of policy is not permission to keep.
+ */
+export async function loadGoverningSchedule(directory: string, now: Date): Promise<RetentionSchedule> {
+  const names = (await readdir(directory)).filter((name) => name.endsWith(".json")).sort();
+  if (names.length === 0) {
+    throw new Error(`no retention schedule in ${directory}: nothing can gate a document (ADR-0023)`);
+  }
+  const versions: RetentionSchedule[] = [];
+  for (const name of names) {
+    versions.push(parseRetentionSchedule(await readFile(join(directory, name), "utf8"), name).schedule);
+  }
+  const historyProblems = validateHistory({ versions });
+  if (historyProblems.length > 0) {
+    throw new Error(`the retention schedule history in ${directory} is inconsistent:\n  ${historyProblems.join("\n  ")}`);
+  }
+  const governing = effectiveFor({ versions }, now);
+  if (governing === null) {
+    throw new Error(`no retention schedule version in ${directory} is effective at ${now.toISOString()}`);
+  }
+  const problems = validateSchedule(governing, now);
+  if (problems.length > 0) {
+    throw new Error(
+      `retention schedule ${governing.version} does not validate and cannot gate documents:\n  ` +
+        problems.join("\n  "),
+    );
+  }
+  return governing;
+}
+
+/**
+ * The durable transport: intakes and records in the conversation database,
+ * bytes in the bucket, and the one durability check at wiring time.
+ *
+ * The S3 client carries NO credential of its own: it signs with whatever the
+ * process's role provides, which in production is the task role the
+ * provisioning request describes and in a test is a fake static pair.
+ */
+export async function buildDocumentPort(input: {
+  readonly pool: Pool;
+  readonly bucket: string;
+  readonly kmsKeyArn: string;
+  readonly region: string;
+  readonly retentionScheduleDir: string;
+  readonly environment: string | undefined;
+  readonly now: () => Date;
+}): Promise<DocumentIntakePort> {
+  const schedule = await loadGoverningSchedule(input.retentionScheduleDir, input.now());
+  const vault = new S3DocumentVault({
+    client: new S3Client({ region: input.region }),
+    bucket: input.bucket,
+    kmsKeyId: input.kmsKeyArn,
+    records: new PostgresDocumentRecordStore(input.pool),
+  });
+  const port = new PostgresDocumentIntakePort(input.pool, schedule, b2Register(input.now()), vault);
+  assertDocumentStoreIsDurable(port, input.environment);
+  return port;
 }
