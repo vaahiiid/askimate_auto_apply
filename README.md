@@ -17,7 +17,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P67 — the page decides whether it can show the secure step before it asks for the capability (ADR-0100) |
+| **Phase** | P68 — blocker 19 framed as a decision sheet: how a runner is signed in when execute work arrives |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
 | **Tests** | **2,346 passing · 125 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 100 ADRs · all 100 Accepted |

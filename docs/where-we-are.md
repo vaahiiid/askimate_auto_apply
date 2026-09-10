@@ -3925,3 +3925,24 @@ already said since P59.
 ## Declared-but-unreachable surface
 
 **Six** — unchanged.
+
+# P68 — blocker 19, framed as a decision sheet
+
+[`decision-sheet-blocker-19-how-a-runner-is-signed-in.md`](./decision-sheet-blocker-19-how-a-runner-is-signed-in.md),
+as you asked, in the shape of B5 and B1. Five options for how a runner is signed in when execute
+work arrives, each costed against what the tree actually does, what each forecloses, and a
+recommendation: one signed-in sitting with authorisation moved before account creation, a second
+ask through the secure box as the resume path, co-browsing deferred until a portal with a second
+factor is a target, a persisted cookie rejected. "The student authenticates in a handed-off session
+and the runner resumes with it" is costed as instructed: it works in exactly one form, a remote
+desktop with a consent screen, and that form is the largest thing on the sheet.
+
+On portals with no login: I cannot tell the fraction from here and the sheet says so. Both real
+targets are behind an account; my expectation that open portals are an edge case is stated as an
+expectation, with two ways to measure it.
+
+Four questions in §7, each a sentence in your words. Nothing is built and nothing is provisioned.
+
+## Declared-but-unreachable surface
+
+**Six** — unchanged.

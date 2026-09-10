@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.85.0] — 2026-09-10
+
+**P68 — blocker 19 framed as a decision sheet.**
+[`docs/decision-sheet-blocker-19-how-a-runner-is-signed-in.md`](./docs/decision-sheet-blocker-19-how-a-runner-is-signed-in.md):
+how a runner is signed in when execute work arrives. What the tree already does; five options
+costed (one signed-in sitting with `authorise` moved first; a second ask through the secure box as
+`portal_sign_in`; co-browsing, the only honest form of a handed-off session; a persisted cookie,
+rejected; password reset, recovery only); a side-by-side table; a recommendation; the open-portal
+fraction stated as unmeasured, with two ways to measure it; four questions for Vahid. Documents
+only. Nothing built, nothing provisioned.
+
+---
+
 ## [0.84.0] — 2026-09-10
 
 **P67 — the page decides whether it can show the secure step before it asks for the capability
