@@ -2300,6 +2300,9 @@ components:
         - content_hash_mismatch
         - intake_not_open
         - upload_not_received
+        - document_not_retainable
+        - document_basis_undetermined
+        - document_type_refused
         - secret_request_open
         - already_applying
         - specialist_reviewing

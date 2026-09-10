@@ -73,6 +73,7 @@ import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
 import type { DocumentRecord, DocumentUpload, StorableUpload } from "@askimate/aas-documents";
 import {
   DOCUMENT_LIMITS,
+  DocumentTypeNotCoveredError,
   IntakeRefusedError,
   UnboundUploadError,
   UnencryptedObjectError,
@@ -80,6 +81,8 @@ import {
   limitFor,
   openIntake,
 } from "@askimate/aas-documents";
+import { DeterminationDecidedAgainstError, NoLawfulBasisError } from "@askimate/aas-disclosure";
+import { RetentionPolicyMissingError, RetentionRequirementUnresolvedError } from "@askimate/aas-domain";
 import type { DocumentIntakePort } from "./document-intake-store.js";
 import { ulid } from "./ulid.js";
 
@@ -409,6 +412,26 @@ function reapplicationProblem(res: Response, refusal: RunRefusal): void {
       problem(res, "service_unavailable");
       return;
   }
+}
+
+/**
+ * The storage gate's refusal, as one of three published codes (ADR-0098).
+ *
+ * Retention first, lawful basis second, matching the order the gate runs
+ * them. Anything else is not a gate refusal and answers null, so the caller
+ * treats it as the defect it is rather than as `forbidden`.
+ */
+function gateRefusalCode(
+  error: unknown,
+): "document_not_retainable" | "document_basis_undetermined" | "document_type_refused" | null {
+  if (error instanceof RetentionPolicyMissingError || error instanceof RetentionRequirementUnresolvedError) {
+    return "document_not_retainable";
+  }
+  if (error instanceof DeterminationDecidedAgainstError) return "document_type_refused";
+  if (error instanceof NoLawfulBasisError || error instanceof DocumentTypeNotCoveredError) {
+    return "document_basis_undetermined";
+  }
+  return null;
 }
 
 /**
@@ -891,7 +914,6 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             title: "Several reviewed targets match",
             status: 409,
             code: "validation_failed",
-            detail: made.refusal.detail,
             candidates: made.refusal.candidates.map((candidate) => ({
               blueprintId: candidate.blueprintId,
               route: candidate.route,
@@ -1034,7 +1056,6 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
               title: "That offer no longer describes an available target",
               status: 409,
               code: "content_changed",
-              detail: verified.refusal.detail,
             });
           } else {
             problem(res, "not_found");
@@ -1951,12 +1972,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         // taken at its word and the gates judge it, exactly as before.
         const purpose = statedPurpose ?? purposeFor(documents.schedule, documentType);
         if (purpose === null) {
-          problem(res, "validation_failed", {
-            pointers: ["/purpose"],
-            detail:
-              `The governing retention schedule holds no single purpose for ${documentType}, so ` +
-              "the purpose cannot be derived. State one.",
-          });
+          // No sentence on the wire (ADR-0098): the pointer says which field,
+          // and the contract's description says what a caller must do.
+          problem(res, "validation_failed", { pointers: ["/purpose"] });
           return;
         }
         if (contentType === null) {
@@ -1996,9 +2014,20 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             upload,
           });
         } catch (error) {
-          problem(res, "forbidden", {
-            detail: error instanceof Error ? error.message : "This document cannot be stored.",
-          });
+          // ── A closed set, not the gate's sentence (ADR-0098) ───────────
+          //
+          // The gate writes its reason for a person, and the route tests
+          // read it off the error. It does not go on the wire: `Problem`
+          // carries no free text by decision, and each gate refusal is one
+          // of three codes the page has words for. A gate that threw
+          // something else is a defect in this mapping, and `next` makes it
+          // a 500 rather than a quiet `forbidden`.
+          const code = gateRefusalCode(error);
+          if (code === null) {
+            next(error);
+            return;
+          }
+          problem(res, code);
           return;
         }
 
@@ -2039,7 +2068,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           });
         } catch (error) {
           if (error instanceof IntakeRefusedError) {
-            problem(res, error.code, { detail: error.message });
+            problem(res, error.code);
             return;
           }
           if (error instanceof UnboundUploadError) {
@@ -2047,7 +2076,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             // hash. Not handed out; the student is told the transport is
             // unavailable, and the message names what happened for whoever
             // reads the log. A refusal, not a bypass (ADR-0093).
-            problem(res, "service_unavailable", { detail: error.message });
+            problem(res, "service_unavailable");
             return;
           }
           next(error);
@@ -2084,11 +2113,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         // student declares again, and the checks re-run, which is the point.
         const intake = await documents.take(conversationId, intakeId);
         if (intake === null) {
-          problem(res, "intake_not_open", {
-            detail:
-              "This upload was not prepared, has expired, or has already been confirmed. Prepare " +
-              "it again — the checks that permit it are re-run, which is the point.",
-          });
+          problem(res, "intake_not_open");
           return;
         }
 
@@ -2097,14 +2122,14 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           res.status(201).json(renderDocument(record));
         } catch (error) {
           if (error instanceof IntakeRefusedError) {
-            problem(res, error.code, { detail: error.message });
+            problem(res, error.code);
             return;
           }
           if (error instanceof UnencryptedObjectError) {
             // The object is there and is not under the customer-managed key.
             // A bucket fault, not the student's; the document is not
             // recorded, and the message says which key S3 reported.
-            problem(res, "service_unavailable", { detail: error.message });
+            problem(res, "service_unavailable");
             return;
           }
           next(error);

@@ -192,7 +192,12 @@ describe("the preview", () => {
   });
 
   it("names the documents that will be attached", () => {
-    expect(renderPreview(previewFor())).toContain("Upload your passport: passport");
+    const text = renderPreview(previewFor());
+    // ADR-0098: which document, going where, for what — per attachment.
+    expect(text).toContain("Documents that will be sent:");
+    expect(text).toContain("Upload your passport: your passport");
+    expect(text).toContain("going to: Example University (apply.example.test)");
+    expect(text).toMatch(/for: this application — .+, .+/);
   });
 
   it("says what the student will do themselves", () => {
@@ -236,6 +241,27 @@ describe("the content hash", () => {
     ]);
 
     expect(previewFor(planFor(corrected)).contentHash).not.toBe(original);
+  });
+
+  it("changes when the application is re-pointed at a DIFFERENT portal host", () => {
+    // ADR-0022's "where", inside the yes (ADR-0098): the same fields and the
+    // same passport, sent to another host, is not what the student agreed to.
+    const elsewhere = {
+      ...FIXTURE_BLUEPRINT,
+      provenance: { ...FIXTURE_BLUEPRINT.provenance, observedUrls: ["https://other.example.test/apply"] },
+    };
+    const result = buildPreview(elsewhere, planFor(), DOCUMENTS);
+    if (!result.built) expect.unreachable("expected a preview");
+    expect(result.preview.portalHost).toBe("other.example.test");
+    expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
+  });
+
+  it("REFUSES to preview a blueprint that observed no URL", () => {
+    const blind = { ...FIXTURE_BLUEPRINT, provenance: { ...FIXTURE_BLUEPRINT.provenance, observedUrls: [] } };
+    const result = buildPreview(blind, planFor(), DOCUMENTS);
+    expect(result.built).toBe(false);
+    if (result.built) expect.unreachable("no destination, no preview");
+    expect(result.refusal.kind).toBe("destination_unknown");
   });
 
   it("changes when the SAME name holds a different document", () => {

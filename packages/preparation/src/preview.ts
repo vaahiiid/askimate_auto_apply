@@ -125,6 +125,13 @@ export interface SubmissionPreview {
   readonly blueprintVersion: string;
   readonly mappingSetId: string;
   readonly institutionName: string;
+  /**
+   * The portal host the application — and every attachment — goes to. In
+   * the content hash (ADR-0098): ADR-0022's "where" is part of what the
+   * student authorises, and a blueprint re-pointed at another host is a
+   * different thing to say yes to.
+   */
+  readonly portalHost: string;
   readonly courseName: string;
   readonly intake: string;
   readonly entries: readonly PreviewEntry[];
@@ -178,6 +185,8 @@ export class PreviewSerialisationError extends Error {
 export type PreviewRefusal =
   /** The plan still has blockers — there is no complete content to show. */
   | { readonly kind: "plan_incomplete"; readonly detail: string }
+  /** The blueprint observed no URL, so there is no host to name as the destination. */
+  | { readonly kind: "destination_unknown"; readonly detail: string }
   /** A mapped upload has no document behind it. */
   | { readonly kind: "document_missing"; readonly documentRef: string; readonly detail: string };
 
@@ -208,6 +217,25 @@ export function buildPreview(
       },
     };
   }
+
+  // ── Where it is going, from what discovery actually loaded ─────────────
+  //
+  // The host of the first URL the blueprint's discovery run observed. Not the
+  // catalogue entry's `portalAuthentication.portalHost`, which is absent for a
+  // portal with no login; not a field somebody typed. A blueprint that
+  // observed nothing is not executable (`isExecutable`), and a preview with
+  // no destination to name is not a preview a student can authorise.
+  const observed = blueprint.provenance.observedUrls[0];
+  if (observed === undefined) {
+    return {
+      built: false,
+      refusal: {
+        kind: "destination_unknown",
+        detail: "The blueprint observed no URL, so the preview cannot say where the application goes.",
+      },
+    };
+  }
+  const portalHost = new URL(observed).host;
 
   const optionLabels = optionLabelsOf(blueprint);
 
@@ -279,6 +307,7 @@ export function buildPreview(
     blueprintId: plan.blueprintId,
     blueprintVersion: plan.blueprintVersion,
     mappingSetId: plan.mappingSetId,
+    portalHost,
     entries,
     attachments,
     handoffs,
@@ -292,6 +321,7 @@ export function buildPreview(
       blueprintVersion: plan.blueprintVersion,
       mappingSetId: plan.mappingSetId,
       institutionName: blueprint.institutionName,
+      portalHost,
       courseName: blueprint.courseName,
       intake: blueprint.intake,
       entries,
@@ -326,6 +356,7 @@ function hashContent(content: {
   readonly blueprintId: string;
   readonly blueprintVersion: string;
   readonly mappingSetId: string;
+  readonly portalHost: string;
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
@@ -334,6 +365,8 @@ function hashContent(content: {
   const lines: string[] = [
     `blueprint${content.blueprintId}${content.blueprintVersion}`,
     `mapping${content.mappingSetId}`,
+    // ADR-0022's "where", inside what the yes binds to (ADR-0098).
+    `destination${content.portalHost}`,
   ];
 
   for (const entry of [...content.entries].sort(byFieldRef)) {
@@ -406,9 +439,21 @@ export function renderPreview(preview: SubmissionPreview): string {
   }
 
   if (preview.attachments.length > 0) {
-    lines.push("", "Documents attached:");
+    // ── Each attachment, plainly: which document, going where, for what ──
+    //
+    // ADR-0098, in Vahid's words: *"the preview must name each attachment
+    // plainly — which document, going where, for what. 'Your documents will
+    // be sent' is not a preview. If a student cannot tell from it exactly
+    // what leaves, the single yes is not the instrument ADR-0087 meant."*
+    // Deterministic, from the preview itself — the same reason no model
+    // writes any line of this text.
+    lines.push("", "Documents that will be sent:");
     for (const attachment of preview.attachments) {
-      lines.push(`  ${attachment.label}: ${attachment.document.describedAs}`);
+      lines.push(
+        `  ${attachment.label}: your ${attachment.document.describedAs}`,
+        `    going to: ${preview.institutionName} (${preview.portalHost})`,
+        `    for: this application — ${preview.courseName}, ${preview.intake}`,
+      );
     }
   }
 

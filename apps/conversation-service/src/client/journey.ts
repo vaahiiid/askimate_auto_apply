@@ -743,6 +743,21 @@ const REFUSALS: Readonly<Record<string, string>> = {
   upload_not_received:
     "The file did not reach the vault. Nothing was kept. Choose it and send " +
     "it again.",
+
+  // ── P65 (ADR-0098). The storage gates, in a closed set ───────────────
+  //
+  // Vahid: "Free text composed at the point of failure is where a thing
+  // nobody meant to publish gets published." So the gate's own sentence
+  // stays off the wire, and these three say what a person can act on: not
+  // yet, not yet, and not at all. None of them is the student's doing.
+  document_not_retainable:
+    "I cannot keep that kind of document yet: how long it may be held has " +
+    "not been decided. Nothing was kept.",
+  document_basis_undetermined:
+    "I cannot keep that kind of document yet: the basis for holding it has " +
+    "not been decided. Nothing was kept.",
+  document_type_refused:
+    "That kind of document is not one I keep. Nothing was kept.",
 };
 
 /**

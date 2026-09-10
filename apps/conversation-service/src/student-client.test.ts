@@ -1554,8 +1554,9 @@ describeIfDatabase("the student's page sends a document (ADR-0095)", () => {
     // `other` is offered — the schedule has a row for it — and refused at the
     // declaration, because its determination was decided against (ADR-0088).
     // The page has no opinion about that; it shows the refusal and makes no
-    // PUT. The wording is per code (`forbidden`): the gate's own sentence is a
-    // `detail`, and the contract carries no free text to a client.
+    // PUT. The wording is per CODE — `document_type_refused`, one of the
+    // closed set ADR-0098 gave the gates — and the gate's own sentence never
+    // reaches the wire.
     bucketLog.length = 0;
     await page.selectOption("#document-type", "other");
     await page.setInputFiles("#document-file", {
@@ -1565,7 +1566,7 @@ describeIfDatabase("the student's page sends a document (ADR-0095)", () => {
     });
     await page.locator("#document-form button").click();
     const notice = await textOf("#notice", 20_000);
-    expect(notice).toContain("not something you can do here");
+    expect(notice).toContain("not one I keep");
     expect(bucketLog, "nothing reached the bucket — no preflight, no PUT").toEqual([]);
     // Still one document held: the refusal recorded nothing.
     expect(await textOf("#held-documents")).toContain("passport — uploaded");

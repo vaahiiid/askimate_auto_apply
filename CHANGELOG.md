@@ -19,6 +19,41 @@ not shipped artefacts.
 
 ---
 
+## [0.82.0] — 2026-09-10
+
+**P65 — one yes over a preview that names each attachment, and the gates refuse in a closed set
+(ADR-0098).** Vahid's two decisions of 2026-09-10, recorded verbatim, and built.
+
+### Added
+
+- `renderPreview` names each attachment plainly under *Documents that will be sent:* — which
+  document, going where (institution and portal host), for what (the form's label, this application
+  by course and intake). His condition, in his words: *"'Your documents will be sent' is not a
+  preview."*
+- `SubmissionPreview.portalHost`, derived from the blueprint's first observed URL and INSIDE the
+  content hash: ADR-0022's "where" is part of the yes, and a re-pointed application voids it. A
+  blueprint that observed no URL cannot be previewed (`destination_unknown`).
+- Three problem codes for the storage gates — `document_not_retainable`,
+  `document_basis_undetermined`, `document_type_refused` — in the vocabulary, both OpenAPI documents,
+  the titles and statuses, and `REFUSALS` on the page. Each is 403.
+- `scripts/no-free-text-on-the-wire.test.ts` — refuses a `detail:` member in any route file of any
+  process that answers a problem document.
+- Tests: the destination changes the hash; no URL, no preview; each gate refusal answers its code
+  and no `detail`; the driver's authorisation preview names the passport, the host and the
+  application.
+
+### Removed
+
+- Every `detail` from the wire in the Conversation Service: the four document-route ones, the
+  `validation_failed` on `/purpose`, and two hand-rolled problem documents older than the transport
+  (the ambiguous-target 409 and `content_changed`). The contract's parser had dropped them all along.
+
+### Not built
+
+Slices c–e of the attachment path. Nothing is sent. Declared-but-unreachable: six, unchanged.
+
+---
+
 ## [0.81.0] — 2026-09-10
 
 **P64 — the preview names what the student holds (ADR-0097).** Slice a of the attachment path.

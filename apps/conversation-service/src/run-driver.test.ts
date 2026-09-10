@@ -7482,8 +7482,11 @@ describeIfDatabase("the preview names what the student holds (ADR-0097, P64)", (
 
       const preview = await instance.driver.previewFor(runId, conversation);
       if (preview === null) expect.unreachable("a preview exists at authorise");
-      expect(preview.presentedText).toContain("Documents attached:");
-      expect(preview.presentedText).toContain("Upload your passport: passport");
+      expect(preview.presentedText).toContain("Documents that will be sent:");
+      expect(preview.presentedText).toContain("Upload your passport: your passport");
+      // ADR-0098: going where, for what — named per attachment, not "your documents will be sent".
+      expect(preview.presentedText).toContain("going to: Example University (apply.example.test)");
+      expect(preview.presentedText).toMatch(/for: this application — /);
       // The record, not a filename nobody has: no ".pdf" and no path.
       expect(preview.presentedText).not.toMatch(/\.pdf|documents\//);
     } finally {

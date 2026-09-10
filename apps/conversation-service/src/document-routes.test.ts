@@ -241,8 +241,11 @@ describe("declaring an upload", () => {
       passportDeclaration({ documentType: "degree_certificate", purpose: "application_submission" }),
     );
     expect(response.status).toBe(403);
-    const problem = (await response.json()) as { detail?: string };
-    expect(problem.detail).toMatch(/retention policy/i);
+    // A CODE, not the gate's sentence (ADR-0098): the reason is on the wire
+    // as one of three the page has words for, and no free text beside it.
+    const problem = (await response.json()) as { code: string; detail?: string };
+    expect(problem.code).toBe("document_not_retainable");
+    expect(problem).not.toHaveProperty("detail");
   });
 
   it("REFUSES a purpose whose determination was decided against (ADR-0088)", async () => {
@@ -253,8 +256,9 @@ describe("declaring an upload", () => {
       passportDeclaration({ documentType: "other", purpose: "audit_evidence" }),
     );
     expect(response.status).toBe(403);
-    const problem = (await response.json()) as { detail?: string };
-    expect(problem.detail).toMatch(/Do not close this by registering a determination/);
+    const problem = (await response.json()) as { code: string; detail?: string };
+    expect(problem.code, "decided against — not an absence").toBe("document_type_refused");
+    expect(problem).not.toHaveProperty("detail");
   });
 
   it("REFUSES `national_id` — the type does not exist any more (ADR-0089)", async () => {
@@ -272,8 +276,7 @@ describe("declaring an upload", () => {
   it("REFUSES a declared size over the ceiling, so nobody waits for a doomed upload", async () => {
     const response = await declare(passportDeclaration({ sizeBytes: 40 * 1024 * 1024 }));
     expect(response.status).toBe(413);
-    const problem = (await response.json()) as { detail?: string };
-    expect(problem.detail).toMatch(/before it was sent/);
+    expect((await response.json()) as object).not.toHaveProperty("detail");
   });
 
   it("REFUSES an unauthenticated caller, and a conversation that is not theirs", async () => {
@@ -370,7 +373,7 @@ describe("confirming the upload", () => {
     expect(response.status).toBe(409);
     const problem = (await response.json()) as { code: string; detail?: string };
     expect(problem.code).toBe("upload_not_received");
-    expect(problem.detail).toMatch(/Declare the document again/);
+    expect(problem, "no sentence beside the code (ADR-0098)").not.toHaveProperty("detail");
     expect((await documents.vault.listForStudent(STUDENT)).length).toBe(before.length);
   });
 

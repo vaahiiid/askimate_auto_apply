@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,322 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,327 tests, 123 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -110,6 +110,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P62** | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes (ADR-0095) | The page has a document panel: type from the server's list, file, and the page hashes the file (the ONE hash it computes, stated in its header as the exception ADR-0092 forces), declares, PUTs the bytes to the bucket on the URL the declaration answered with, confirms, and re-reads `GET …/documents`. The purpose is derived by the server from the governing schedule — the page never sends one. The browser test stands a real HTTPS bucket on a second origin that admits **exactly the CORS rule parsed out of `docs/provisioning-request-document-vault.md`**, so the page's PUT is proved against the rule as written, with a real preflight. The three transport codes moved to `REFUSALS`. **Found, not resolved:** the gates' `detail` is on the wire and the contract says no `detail` exists (blocker 18). **Not built:** the retention sweep, the runner's fetch, a document the interview asks for |
 | **P63** | Expired document intakes are swept by the worker (ADR-0096) | The worker's fourth job, `sweep_document_intakes`: migration 0018 widens the closed `job_kind` vocabulary; `sweepExpiredIntakes` is one bounded DELETE, oldest first, idempotent; sixty seconds under the same lease discipline as the other three, `AAS_WORKER_SWEEP_MS` to change it. The worker still names no vault — the table it deletes from cannot hold a byte, and the worker's test writes its abandoned rows by hand because the app is forbidden the documents package. The race with `take` is shown not to be one. **Not built:** the retention sweep (`purgeContents` still has no caller), the runner's fetch |
 | **P64** | The preview names what the student holds (ADR-0097) | Slice a of the attachment path (§2). `RunDriver` hands the orchestrator the student's held documents from the vault's METADATA store, keyed by document type — one per type, the current one, never a superseded or purged record — so a run whose student holds the passport the mapping attaches reaches `authorise` with it named in the preview, and the authorisation binds to a hash that covers `(fieldRef, documentRef, contentHash)` (ADR-0069). `PreviewDocument.filename` → `describedAs`. The driver names no vault method that yields bytes, asserted. **Not built:** slices b–e; nothing is sent |
+| **P65** | One yes over a preview that names each attachment, and the gates refuse in a closed set (ADR-0098) | Vahid's two decisions of 2026-09-10, verbatim in the ADR. Slice b: `renderPreview` writes, per attachment, which document, going where (institution and portal host) and for what (the form's label, this application); `SubmissionPreview.portalHost` is derived from the blueprint's first observed URL and is INSIDE the content hash, so a re-pointed application voids the yes. Blocker 18 closed: the storage gates' five refusals are three published codes (`document_not_retainable`, `document_basis_undetermined`, `document_type_refused`) with words on the page; every `detail` left the wire in the Conversation Service, two of them older than the transport; `no-free-text-on-the-wire.test.ts` refuses the next one. **Not built:** slices c–e; nothing is sent |
 
 ---
 
@@ -289,6 +290,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0095 | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes | Accepted · continues 0094 and 0092 |
 | 0096 | Expired document intakes are swept by the worker | Accepted · continues 0094, extends 0052 |
 | 0097 | The preview names what the student holds | Accepted · continues 0095 and 0096 |
+| 0098 | One yes over a preview that names each attachment, and the gates refuse in a closed set | Accepted · Vahid's decisions · continues 0097 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -434,7 +436,7 @@ open rather than quietly answered.
 | **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | **Nothing today — and it is a live constraint, not a closed one.** `national_id` was the only special-category document type in scope and it was removed in ADR-0089, so no processing currently needs this. It binds again the moment one is added: **the document must exist BEFORE that processing**, which is why ADR-0089 puts the requirement at the `DocumentType` union itself and not only in an ADR |
 | **16** | ~~**Billing alerts, one S3 bucket, the vault's CMK and a prefix-scoped credential, to verify the checksum binding AND SSE-KMS through a pre-signed PUT**~~ | — | **Created by you and run on 2026-09-09; VERIFIED on both halves (ADR-0092 §4, *Run 2026-09-09*).** The first run said REFUTED because the SDK hoisted the checksum into the query string, where S3 never reads it — your reading: *"the run refuted the property under the SDK's default presign, not the property itself."* The second run, with the checksum a signed header, established all three things you asked for: a mismatched body is refused (400 `BadDigest`), an uploader who omits or alters the header is refused (403 `SignatureDoesNotMatch`), and SSE-KMS holds with the binding in place. **The port is still untouched** — the reshaping starts on your word, and carries the constraint that the checksum is a signed header, never a query parameter |
 | **17** | **The vault's service role, the bucket's CORS rule and its lifecycle** | You — AWS spend is your act | **The transport in production (ADR-0094).** The service starts with the transport once four variables are set; what its role must be allowed, what CORS the page's origin needs, and what lifecycle the bucket should and should not have: `docs/provisioning-request-document-vault.md`. Nothing has been created by the agent. The first request this service makes to AWS is on your deployment |
-| **18** | **The gate's reason on the wire — two of your rules disagree** | You | **Found in P62 (ADR-0095).** The storage gates write a `detail` for a person and `POST …/documents` puts it on the wire, under ADR-0075 (*a refusal a person cannot act on is a defect*). The contract's `Problem` has no `detail` member under your rule of 2026-08-28 — *"Define all error responses as closed, explicit contracts"* — and `problems.ts` says *"there is nowhere on the wire for a sentence to be assembled"*; `parseProblem` drops it. So the route sends a sentence the contract says cannot exist, the route tests read it off the raw body, and the page can only say *"That is not something you can do here"* for a refused document. The honest options are a structured member (which gate refused, as a closed enum on a new problem shape) or removing `detail` from the route. Both rules are yours; nothing here chooses. Until you do, the page words a refused document per code and the route keeps sending `detail` |
+| **18** | ~~**The gate's reason on the wire — two of your rules disagree**~~ | — | **Closed by Vahid, 2026-09-10 (ADR-0098):** *"The contract's Problem stays without detail. Close the gap the way P41 closed its own: a closed set of refusal codes, each with wording written for the student and covered by the wording-coverage guard."* Done in P65: three codes, words on the page, every `detail` off the wire, and a guard. He asked to be told if a gate's refusal could not be expressed as a code; all five could |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
@@ -451,7 +453,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,322 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,327 tests · 123 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -464,7 +466,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,322 tests**, by the workspace they live in. Generated — run
+**2,327 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -473,9 +475,9 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 393 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 287 | `packages/profile` | 46 |
+| `scripts` | 290 | `packages/profile` | 46 |
 | `apps/browser-runner` | 237 | `packages/catalogue` | 39 |
-| `packages/case-store` | 143 | `packages/preparation` | 33 |
+| `packages/case-store` | 143 | `packages/preparation` | 35 |
 | `packages/documents` | 99 | `packages/extraction` | 27 |
 | `packages/orchestrator` | 98 | `packages/mapping` | 26 |
 | `packages/contracts` | 78 | `packages/interview` | 22 |
@@ -590,7 +592,7 @@ The order is forced by the dependencies, and it goes through the transmission ga
 | Slice | What | Gate it keeps |
 |---|---|---|
 | **a** ✅ | **Built in P64 (ADR-0097).** The driver supplies the student's held documents to the preview, keyed by the reviewed mapping's `documentRef` (the domain document type). The preview then names each attachment, and the `authorise` decision covers `(fieldRef, documentRef, contentHash)` as ADR-0069 froze it | ADR-0057/0059 — the authorisation binds to content |
-| **b** | The preview's presented text carries, per attachment, the four things ADR-0022 requires (what, where, why, which application — `renderDisclosureRequest`'s lines), so the recorded `AuthorisationCaptured` IS the specific student authorisation determination 3 requires. `StudentDisclosureAuthorisation` is built from that event: `presentedText` = the preview, `method` = `chat_affirmation` | ADR-0022 — no `consented: boolean`; the text names all four |
+| **b** ✅ | **Built in P65 (ADR-0098), on Vahid's decision.** The preview's presented text carries, per attachment, which document, going where and for what, and the destination host is inside the content hash, so the recorded `AuthorisationCaptured` IS the specific student authorisation determination 3 requires. `StudentDisclosureAuthorisation` is built from that event in slice c: `presentedText` = the preview, `method` = `chat_affirmation` | ADR-0022 — no `consented: boolean`; the text names what, where and for what |
 | **c** | Plan transport carries uploads as **references** (`fieldRef`, `documentRef`, locators; no bytes, no ids). The runner asks the service, under its lease, for each `documentRef`; the service builds the `DisclosureRequestRecord` from the case's authorisation, runs `authoriseDisclosure` and `mayTransmit` **with the case**, and answers a sixty-second retrieval URL plus the authorisation record | ADR-0069 — the case binding, checked server-side before any URL exists |
 | **d** | The runner's `DocumentSource` fetches the bytes from the URL and hands `executePlan` the `AuthorisedDocument`; `executePlan` runs `mayTransmit` again in-process — the gate twice, on two machines, same inputs | ADR-0022 — the gate at the moment of sending |
 | **e** | `attach_document` intent per upload, target `(fieldRef, documentRef, contentHash)`, written at claim beside the page intents; `assessIntent` consults it; `TransmissionRecord` written from the runner's report | ADR-0054 — verify first, never repeat |
@@ -601,10 +603,9 @@ specific authorisation names is the two-line failure ADR-0022 was written agains
 phase with its own ADR; none weakens `mayTransmit`'s case check, the content hash, or the
 mandatory-review categories, which are Vahid's hard limits on this work.
 
-**What is Vahid's here, and not yet decided:** whether one `authorise` over a preview that names
-every attachment is the *"specific"* authorisation determination 3 means, or whether each document
-needs its own yes. Determination 3's own words point at the preview; this section records that
-reading and does not act on it until slice b, so he can say otherwise first.
+**Decided by Vahid, 2026-09-10 (ADR-0098):** *"One authorisation, over a preview that names each
+attachment separately."* With the condition that *"the preview must name each attachment plainly —
+which document, going where, for what."* Slice b is built to that condition.
 
 ### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · ~~close the four Proposed ones~~ — **there were none (P49)**
 

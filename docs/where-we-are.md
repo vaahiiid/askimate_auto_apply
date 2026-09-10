@@ -3849,3 +3849,26 @@ written that reading down without acting on it.
 **Six, unchanged.**
 
 ---
+
+# P65 — one yes over a preview that names each attachment, and the gates refuse in a closed set (ADR-0098)
+
+Both your answers are in ADR-0098 in your own words, and both are built.
+
+The preview now writes, for each attachment, "Upload your passport: your passport / going to:
+Example University (apply.example.test) / for: this application — MSc Example Studies, 2026-09".
+The host is inside the hash, so the same fields and the same passport pointed at another portal is
+a different thing to say yes to. That is the condition you set, and the test reads the lines back.
+
+The gates' five refusals are three codes with words on the page, and every `detail` has left the
+wire in the Conversation Service — including two that predate the transport, on the ambiguous-target
+and content-changed answers, which the contract had been silently dropping since P21. A guard
+refuses the next one. You asked to be told if a refusal could not be said as a code: all five could.
+
+Nothing is sent yet. Slice c is next: uploads cross to the runner as references, and the service
+answers a retrieval URL only after `authoriseDisclosure` and `mayTransmit` with the case.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**
+
+---

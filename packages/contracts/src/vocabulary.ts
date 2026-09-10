@@ -252,6 +252,21 @@ export const PROBLEM_CODES = [
   // and has now been spent) nor `content_hash_mismatch` (nothing arrived to
   // mismatch). Actionable in one way: declare the document again.
   "upload_not_received",
+  // P65 (ADR-0098). The storage gates' three refusals, as a CLOSED set with
+  // wording written for the student, in place of a `detail` composed at the
+  // point of failure. Vahid, 2026-09-10: "A closed set is reviewable; a
+  // detail string is not."
+  //
+  // `document_not_retainable` — no retention policy for this type and
+  // purpose, or a requirement someone looked at and could not resolve
+  // (ADR-0010, ADR-0023). `document_basis_undetermined` — no lawful-basis
+  // determination covers holding this kind of document (ADR-0022, ADR-0087).
+  // `document_type_refused` — somebody DECIDED this activity gets no
+  // determination (ADR-0088); not an absence, and not to be closed by
+  // registering one.
+  "document_not_retainable",
+  "document_basis_undetermined",
+  "document_type_refused",
   "secret_request_open",
   // ADR-0006, armed in P38. This student already has an application for this
   // institution, course and intake — the submission identity is claimed, and

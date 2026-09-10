@@ -48,6 +48,9 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   content_hash_mismatch: "These are not the bytes this upload was prepared for",
   intake_not_open: "This upload is no longer open",
   upload_not_received: "The store holds nothing for this upload",
+  document_not_retainable: "How long this kind of document may be kept has not been decided",
+  document_basis_undetermined: "No lawful basis has been determined for holding this kind of document",
+  document_type_refused: "This kind of document is not held, by decision",
   unsupported_media_type: "Unsupported media type",
   payload_too_large: "Payload too large",
   idempotency_key_conflict: "Idempotency key already used with a different request",
@@ -70,6 +73,12 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   content_hash_mismatch: 422,
   intake_not_open: 409,
   upload_not_received: 409,
+  // 403, all three: the declaration is well formed and the student is who they
+  // say; what refuses is a policy gate, and there is nothing they can change
+  // in the request to pass it.
+  document_not_retainable: 403,
+  document_basis_undetermined: 403,
+  document_type_refused: 403,
   unsupported_media_type: 415,
   payload_too_large: 413,
   idempotency_key_conflict: 409,
@@ -337,6 +346,9 @@ export function parseProblem(raw: unknown): Problem | null {
     case "content_hash_mismatch":
     case "intake_not_open":
     case "upload_not_received":
+    case "document_not_retainable":
+    case "document_basis_undetermined":
+    case "document_type_refused":
     case "idempotency_key_conflict":
     case "intervention_already_resolved":
     case "content_changed":
