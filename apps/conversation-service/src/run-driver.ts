@@ -4728,16 +4728,36 @@ export class RunDriver {
     readonly holder: string;
     readonly leaseSeconds: number;
     readonly limit?: number;
+    /**
+     * The runs this runner holds a signed-in browser context for (ADR-0101
+     * §2). `execute` work goes only to a runner that names the run, and such
+     * a runner is offered that run first. Absent — an in-process caller, which
+     * is this file's tests — nothing is withheld; the route requires it, so a
+     * deployed runner always says.
+     */
+    readonly sessions?: readonly string[];
   }): Promise<ClaimedWork | null> {
     const leases = this.#options.leases;
     if (leases === undefined) return null;
 
     const now = this.#options.now();
-    const candidates = await leases.candidates({
+    const found = await leases.candidates({
       phases: BROWSER_PHASES,
       now,
       limit: input.limit ?? 10,
     });
+    // The holder of a run's session is offered that run before any other:
+    // a fill that goes to the runner signed in to it is a fill that needs no
+    // second sign-in (ADR-0101 §2). Stable, so the ordering among the rest is
+    // the store's.
+    const sessions = input.sessions;
+    const candidates =
+      sessions === undefined
+        ? found
+        : [
+            ...found.filter((candidate) => sessions.includes(candidate.runId)),
+            ...found.filter((candidate) => !sessions.includes(candidate.runId)),
+          ];
 
     for (const candidate of candidates) {
       const conversationId = await this.#options.bindings.conversationForCase(candidate.caseId);
@@ -4779,6 +4799,12 @@ export class RunDriver {
       // step kinds kept here — see `browserWorkFor`.
       const kind = browserWorkFor(situation.step);
       if (kind === null) continue;
+      // A fill needs the session the account was created in. A runner that
+      // does not hold it is not handed the page — the run waits for the one
+      // that does, or for the resume path (ADR-0101 §3) to sign one in.
+      if (kind === "execute" && sessions !== undefined && !sessions.includes(candidate.runId)) {
+        continue;
+      }
 
       // ── An action that may already have happened is not work ────────────
       //

@@ -314,6 +314,21 @@ export type FrameInboundKind = (typeof FRAME_INBOUND_KINDS)[number];
 /** The postMessage protocol version. Bumped only for a breaking change. */
 export const FRAME_PROTOCOL_VERSION = 1;
 
+/**
+ * How long anything sensitive may be held in memory: five minutes.
+ *
+ * ONE number for two things. The envelope vault's ceiling on a ciphertext
+ * (ADR-0034) and the runner's ceiling on an idle signed-in browser context
+ * (ADR-0101 §2) are the same constant, on Vahid's rule — 2026-09-10: *"Match
+ * the vault's ceiling from ADR-0034. Two different timeouts for two sensitive
+ * things is how someone eventually applies the wrong one. If five minutes
+ * turns out to be too short in practice, tell me with the measurement and I
+ * will reconsider it — do not quietly widen it."* It lives here because this
+ * package is the one both planes may depend on; the vault and the runner each
+ * reference it and neither may declare its own.
+ */
+export const SECURE_HOLD_CEILING_SECONDS = 300;
+
 // ───────────────────────────────────────────────────────────────────────────
 // Parsers — the fail-closed boundary
 // ───────────────────────────────────────────────────────────────────────────

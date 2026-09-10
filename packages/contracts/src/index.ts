@@ -115,6 +115,7 @@ export type {
   FrameSecretStatusMessage,
 } from "./frame.js";
 export { parseFrameInbound, parseFrameOutbound, secureControlPath } from "./frame.js";
+export { SECURE_HOLD_CEILING_SECONDS } from "./vocabulary.js";
 
 export type { SseResumeFrame } from "./sse.js";
 export {

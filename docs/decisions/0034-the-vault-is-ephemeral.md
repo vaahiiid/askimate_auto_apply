@@ -62,6 +62,12 @@ Two independent compromises are now required: the cache **and** KMS. Memory-only
   `packages/secrets` and it is kept exactly.
 - **No key caching across requests.** A data key is requested per secret and zeroed after use.
 
+> **Note, 2026-09-10 (ADR-0101 §2).** The five-minute ceiling is now `SECURE_HOLD_CEILING_SECONDS`
+> in `packages/contracts`, and the vault's `VAULT_TTL_CEILING_SECONDS` is defined from it. The
+> runner's signed-in browser session is bounded by the same constant, on Vahid's rule that two
+> sensitive lifetimes must not differ: *"Two different timeouts for two sensitive things is how
+> someone eventually applies the wrong one."* Nothing about the vault's behaviour changed.
+
 ## Operational requirements this creates
 
 - **Core dumps disabled** on the secure service; a heap dump is the remaining plaintext exposure.

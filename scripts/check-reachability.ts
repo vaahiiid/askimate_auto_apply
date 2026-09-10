@@ -344,20 +344,19 @@ export const CAPABILITIES: readonly Capability[] = [
     symbol: "fillApplication",
     kind: "call",
     declaredIn: ["apps/browser-runner/src/fill-application.ts"],
-    record: "ADR-0046, ADR-0099",
+    record: "ADR-0046, ADR-0099, ADR-0101",
     promise: "execute work is performed by the Automation Runner: the plan is typed and the page saved",
-    status: {
-      kind: "unreachable",
-      reason:
-        "the runner's entry point performs `create_account` only. The browser session an account " +
-        "was created in does not survive to the next work item, and the password that would sign " +
-        "in again was single-use and is gone (ADR-0042); nothing yet decides how the runner is " +
-        "signed in when execute work arrives",
-      closedBy:
-        "a design for the signed-in session across work items — state-of-the-system blocker 19, " +
-        "Vahid's — and `main.ts` performing execute work through this function with " +
-        "`documentSourceFor` as its document source",
-    },
+    // ── REACHABLE from P71 (ADR-0101 §2) ─────────────────────────────────
+    //
+    // Declared-but-unreachable from P66 to P70: the entry point performed
+    // `create_account` only, because the session an account was created in
+    // died with the work item. Vahid decided blocker 19 on 2026-09-10 — one
+    // sitting, in memory, five minutes — and `runnerPerformer`, which
+    // `main.ts` runs, now performs execute work through this function in the
+    // context `SessionHold` kept, with `documentSourceFor` as its document
+    // source and the challenge probe in front of it. This entry moving is the
+    // visible act.
+    status: { kind: "reachable" },
   },
   {
     symbol: "purgeContents",

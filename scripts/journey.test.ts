@@ -83,15 +83,15 @@ import { SecureLogger } from "@askimate/aas-secure-logging";
 import { startWorker } from "@askimate/aas-worker";
 import { createFillAgentApp, httpUseAuthoriser } from "@askimate/aas-secure-filler";
 import {
-  createPortalAccount,
-  fillApplication,
+  SessionHold,
   httpWorkIntake,
   openSensitiveContext,
-  PlaywrightPreparationSession,
   runOneTurn,
+  runnerPerformer,
   startFixturePortal,
   type FixturePortal,
 } from "@askimate/aas-browser-runner";
+import { b2Register } from "@askimate/aas-disclosure";
 import type { BrowserContext, Page, Request as BrowserRequest } from "playwright";
 import {
   ApplicationBindingStore,
@@ -162,15 +162,19 @@ let studentUuid: string;
 let logLines: string[] = [];
 let wire: { where: string; body: string }[] = [];
 /**
- * The runner's context for this case, opened once and kept.
+ * The runner, as deployed: the hold that keeps the signed-in context between
+ * work items (ADR-0101 §2), the intake that declares it on every claim, and
+ * the ONE performer `main.ts` runs.
  *
  * Creating the account SIGNS THE STUDENT IN — the portal sets a session cookie
  * exactly as it would for a person — and the application form is unreachable
- * without it. A runner that opened a fresh context to fill would arrive logged
- * out with no way back, because the password was single-use and is gone.
+ * without it. Until P71 this file kept a context of its own for that; now the
+ * production `SessionHold` keeps it, in memory, for five minutes idle, and the
+ * fill is performed by the same code a deployed runner performs it with.
  */
-let caseContext: BrowserContext;
-let casePage: Page;
+let journeyHold: SessionHold;
+let journeyIntake: ReturnType<typeof httpWorkIntake>;
+let journeyPerformer: ReturnType<typeof runnerPerformer>;
 /** The profile as the interview confirmed it. The preview hashes this one. */
 let journeyProfile: ConfirmedProfile;
 /** Held so a restarted instance can be rebuilt from the same reviewed inputs. */
@@ -411,8 +415,25 @@ beforeAll(async () => {
     await fetch(`http://127.0.0.1:${String(CDP_PORT)}/json/version`)
   ).json()) as { webSocketDebuggerUrl: string };
   cdpEndpoint = version.webSocketDebuggerUrl;
-  caseContext = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
-  casePage = await caseContext.newPage();
+  journeyHold = new SessionHold({ browser: runnerBrowser, now: () => new Date() });
+  journeyIntake = httpWorkIntake({
+    baseUrl: CONVERSATION_URL,
+    holder: "runner-journey",
+    serviceToken: RUNNER_CERT,
+    fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    sessions: () => journeyHold.held(),
+  });
+  journeyPerformer = runnerPerformer({
+    browser: runnerBrowser,
+    browserEndpoint: cdpEndpoint,
+    agentBaseUrl: AGENT,
+    agentServiceToken: RUNNER_CERT,
+    intake: journeyIntake,
+    hold: journeyHold,
+    register: b2Register(new Date()),
+    now: () => new Date(),
+    fetch: recordingFetch as unknown as typeof globalThis.fetch,
+  });
 
   // ── The interview, answered ─────────────────────────────────────────────
   //
@@ -442,7 +463,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (!HAVE_DATABASE) return;
-  await caseContext.close().catch(() => undefined);
+  await journeyHold.closeAll();
   await runnerBrowser.close();
   await portal.stop();
   await new Promise<void>((resolve) => conversationServer.close(() => resolve()));
@@ -544,9 +565,9 @@ let devCookie = "";
  * matters again here.
  * ═══════════════════════════════════════════════════════════════════════════
  */
-async function restartedInstance(): Promise<{
+async function restartedInstance(runId: string): Promise<{
   readonly intake: ReturnType<typeof httpWorkIntake>;
-  readonly page: Page;
+  readonly performer: ReturnType<typeof runnerPerformer>;
   readonly close: () => Promise<void>;
 }> {
   const pool = new pg.Pool({ connectionString: conversationPool.options.connectionString ?? "", max: 4 });
@@ -582,23 +603,46 @@ async function restartedInstance(): Promise<{
   });
 
   // A NEW context: the old one's cookie is gone with the process that held it.
+  //
+  // ── The sign-in below is this TEST's, not the runner's ─────────────────
+  //
+  // A restarted runner holds no session, and a password that was single-use
+  // is gone; the way back in is the resume path — a second ask through the
+  // secure box, ADR-0101 §3 — which P72 builds. Until then this file signs in
+  // with the password it happens to know, and hands the context to a fresh
+  // hold through the seam that path will use (`adopt`). What is proved here
+  // is ADR-0047's resume: page two, not page one again.
   const context = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
   const page = await context.newPage();
   await page.goto(`${portal.baseUrl}/login`);
   await page.getByLabel("Email address").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
+  const hold = new SessionHold({ browser: runnerBrowser, now: () => new Date() });
+  await hold.adopt(runId, context);
 
+  const intake = httpWorkIntake({
+    baseUrl: `http://127.0.0.1:${String(port)}`,
+    holder: "runner-restarted",
+    serviceToken: RUNNER_CERT,
+    fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    sessions: () => hold.held(),
+  });
   return {
-    intake: httpWorkIntake({
-      baseUrl: `http://127.0.0.1:${String(port)}`,
-      holder: "runner-restarted",
-      serviceToken: RUNNER_CERT,
+    intake,
+    performer: runnerPerformer({
+      browser: runnerBrowser,
+      browserEndpoint: cdpEndpoint,
+      agentBaseUrl: AGENT,
+      agentServiceToken: RUNNER_CERT,
+      intake,
+      hold,
+      register: b2Register(new Date()),
+      now: () => new Date(),
       fetch: recordingFetch as unknown as typeof globalThis.fetch,
     }),
-    page,
     close: async () => {
-      await context.close().catch(() => undefined);
+      await hold.closeAll();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await pool.end();
     },
@@ -965,32 +1009,19 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
 
   it("the RUNNER claims it, creates the account, and reports back", async () => {
     // ═══════════════════════════════════════════════════════════════════
-    // The real loop. `runOneTurn` claims over real HTTP, performs with a real
-    // browser against a real portal, and reports over real HTTP.
+    // The real loop. `runOneTurn` claims over real HTTP, performs with the
+    // PRODUCTION performer in a real browser against a real portal, and
+    // reports over real HTTP. The context the account is created in is the
+    // hold's, and it is what the fill below is performed in (ADR-0101 §2).
     // ═══════════════════════════════════════════════════════════════════
-    const intake = httpWorkIntake({
-      baseUrl: CONVERSATION_URL,
-      holder: "runner-journey",
-      serviceToken: RUNNER_CERT,
-      fetch: recordingFetch as unknown as typeof globalThis.fetch,
-    });
-
-    const turn = await runOneTurn(intake, (work) =>
-      createPortalAccount(work, {
-        browser: runnerBrowser,
-        browserEndpoint: cdpEndpoint,
-        agentBaseUrl: AGENT,
-        serviceToken: RUNNER_CERT,
-        fetch: recordingFetch as unknown as typeof globalThis.fetch,
-        // Kept open: the cookie it is about to hold is the run's only session.
-        context: caseContext,
-      }),
-    );
+    expect(await journeyHold.held(), "nothing held before the account exists").toEqual([]);
+    const turn = await runOneTurn(journeyIntake, journeyPerformer);
     expect(turn).toEqual({
       kind: "worked",
       runId,
       report: { leaseId: expect.any(String), outcome: "succeeded" },
     });
+    expect(await journeyHold.held(), "the signed-in session, kept for the fill").toEqual([runId]);
 
     // ── Asked of the PORTAL ───────────────────────────────────────────────
     expect(portal.accounts()).toEqual([EMAIL]);
@@ -1036,44 +1067,20 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // mint. What runs is `executePlan` — the same function the in-process demo
     // has always run, on the same plan the Application Plane built.
     // ═══════════════════════════════════════════════════════════════════
-    const intake = httpWorkIntake({
-      baseUrl: CONVERSATION_URL,
-      holder: "runner-journey",
-      serviceToken: RUNNER_CERT,
-      fetch: recordingFetch as unknown as typeof globalThis.fetch,
-    });
-
-    let received: NonNullable<Parameters<typeof fillApplication>[0]["plan"]> | undefined;
-    const turn = await runOneTurn(intake, (work) => {
+    // The PRODUCTION performer, in the context the hold kept from the
+    // account's creation (ADR-0101 §2): the real session, the real document
+    // source under the lease (ADR-0099 — this plan references no upload, so
+    // the plane is not asked), and the challenge probe on the real page
+    // (ADR-0101 §6). Not a performer of this file's own: the first version of
+    // this test wrote one and lost the option check, the checkbox handling
+    // and the read-back that catches a portal silently truncating a personal
+    // statement — and typed "IR" into a `<select>`.
+    let received: ReturnType<typeof journeyPerformer> extends Promise<unknown>
+      ? Parameters<typeof journeyPerformer>[0]["plan"]
+      : never;
+    const turn = await runOneTurn(journeyIntake, (work) => {
       received = work.plan;
-      const advance = work.advanceLocator;
-      if (advance === undefined) expect.unreachable("execute work carries its save control");
-      // The REAL session, attached to the page the account was created in.
-      // Not a hand-rolled adapter: the first version of this test wrote one
-      // and lost the option check, the checkbox handling and the read-back
-      // that catches a portal silently truncating a personal statement — and
-      // typed "IR" into a `<select>`.
-      const attached = PlaywrightPreparationSession.attach(casePage, {
-        capability: "fillable",
-        runId: "run-journey",
-        allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
-        // EXACTLY the control the plane sent, and nothing else. The guard
-        // is a whitelist, so the submit button is unreachable however the
-        // blueprint changes — structural rather than a promise (ADR-0014).
-        clickableControls: [advance],
-      });
-      return fillApplication(work, {
-        now: () => new Date(),
-        // The gated fixture's plan references no upload, so no plane is asked
-        // (ADR-0099). A plan that did would be answered `null` here and fail
-        // on that field by name, never silently.
-        documents: () => Promise.resolve(null),
-        session: attached,
-        // The page is read for a CAPTCHA or a second factor before anything
-        // is typed (ADR-0101 §6). The gated fixture has neither; the probe
-        // runs on the real page all the same.
-        challenge: () => attached.challenge(),
-      });
+      return journeyPerformer(work);
     });
     expect(turn.kind, JSON.stringify(turn)).toBe("worked");
     if (turn.kind !== "worked") expect.unreachable("the fill should have been reported");
@@ -1135,7 +1142,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // A run that had lost that would either re-type page one (pressing "Save
     // and continue" a second time on a real portal) or stall entirely.
     // ═══════════════════════════════════════════════════════════════════
-    const restarted = await restartedInstance();
+    const restarted = await restartedInstance(runId);
     try {
       const claimed = await restarted.intake.claim();
       if (claimed === null) expect.unreachable("page two is still to do");
@@ -1146,18 +1153,8 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         "and only the fields on it",
       ).toEqual(["personal_statement"]);
 
-      const attachedAgain = PlaywrightPreparationSession.attach(restarted.page, {
-        capability: "fillable",
-        runId: "run-journey-2",
-        allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
-        clickableControls: [claimed.advanceLocator!],
-      });
-      const outcome = await fillApplication(claimed, {
-        now: () => new Date(),
-        documents: () => Promise.resolve(null),
-        session: attachedAgain,
-        challenge: () => attachedAgain.challenge(),
-      });
+      // The production performer again, on the restarted instance's own hold.
+      const outcome = await restarted.performer(claimed);
       expect(outcome).toEqual({ kind: "succeeded" });
       expect(
         await restarted.intake.report(claimed.runId, {
@@ -1196,7 +1193,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // a courtesy after the work; it is part of the work, and until P12 nothing
     // in the system could do it: no account had ever left `active`.
     // ═══════════════════════════════════════════════════════════════════
-    const restarted = await restartedInstance();
+    const restarted = await restartedInstance(runId);
     try {
       expect(await restarted.intake.claim(), "no page remains").toBeNull();
 

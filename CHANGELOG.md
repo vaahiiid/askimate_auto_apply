@@ -19,6 +19,36 @@ not shipped artefacts.
 
 ---
 
+## [0.88.0] — 2026-09-10
+
+**P71 — one sitting, in memory, five minutes (ADR-0101 §2).** Slice d of the attachment path;
+Vahid's decision A2. The runner fills in the browser session it created the account in.
+
+### Added
+
+- `SECURE_HOLD_CEILING_SECONDS` (300) in `packages/contracts`. The vault's
+  `VAULT_TTL_CEILING_SECONDS` is defined from it, so the two sensitive lifetimes are one constant
+  (ADR-0034, ADR-0101 §2).
+- `apps/browser-runner/src/session-hold.ts` — `SessionHold`: the signed-in context per run, in
+  memory only; `open`, `adopt`, `pageFor`, `held`, `release`, `sweep` after the ceiling, `closeAll`.
+- `apps/browser-runner/src/performer.ts` — `runnerPerformer`: `create_account` in a held
+  context; `execute` on the held page, attached as a fillable session confined to the portal's
+  host, through `fillApplication` and the disclosure source of ADR-0099. The hold is released
+  when the last page is saved, on a challenge, when the student is needed, and at shutdown.
+- `ClaimWorkRequest.sessions` — required: the runs this runner holds a session for. The Run
+  Driver offers a run to its holder first, and `execute` to nobody else.
+- `httpWorkIntake({ sessions })`, awaited per claim.
+
+### Changed
+
+- `apps/browser-runner/src/main.ts` performs `execute`. `fillApplication` leaves the
+  declared-but-unreachable register — five entries remain.
+- `scripts/journey.test.ts` drives the fill through the real performer; the restart test signs
+  in by a cheat marked as such, through `SessionHold.adopt`, until P72 builds the resume path.
+- `packages/secrets` depends on `@askimate/aas-contracts`.
+
+---
+
 ## [0.87.0] — 2026-09-10
 
 **P70 — a runner that meets a CAPTCHA or a second factor stops and says which (ADR-0101 §6).**

@@ -110,6 +110,20 @@ goes to Vahid; the bound is not widened.
 ADR-0047 holds: a lease still names one page; the intent ledger still says which pages are saved;
 any runner may still claim a run — it arrives logged out, which is §3.
 
+**Built in P71 (2026-09-10).** `SessionHold` (`apps/browser-runner/src/session-hold.ts`) keeps
+the sensitive browser context a run's account was created in, keyed by run, in memory, and
+closes it once it has been idle for `SECURE_HOLD_CEILING_SECONDS` — one constant in
+`packages/contracts`, from which the vault's `VAULT_TTL_CEILING_SECONDS` is now defined rather
+than a second literal beside it, so the two lifetimes cannot drift apart. The runner's entry point
+performs `execute` through `runnerPerformer`: the held page, attached as a fillable session
+confined to the portal's host, `fillApplication`, and the disclosure source of ADR-0099. A claim
+names the runs the runner holds a session for — `sessions`, required on the wire — and the Run
+Driver offers such a run to its holder first, and offers `execute` to nobody else: the run waits
+for its holder, or for §3. The hold is released when the run's last page is saved, on a challenge
+(§6), when the student is needed, and when the process stops. `fillApplication` leaves the
+register: the runner reaches it. Not built: the resume path, so the journey's restart test still
+signs in by a cheat it marks as such, and `SessionHold.adopt` is the seam §3 fills.
+
 ## 3 · `portal_sign_in` is the resume path, and the reason is recorded — P72
 
 When execute work needs a session and no runner holds one — a crash, a timeout, a portal that
@@ -220,4 +234,4 @@ accepted — and both are met by the real runner in a real browser.
 
 ## What follows
 
-P70 (§6), P71 (§2, slice d), P72 (§3, then slice e). Nothing in §5 is built.
+P70 (§6) and P71 (§2, slice d) are built. P72 — §3, then slice e. Nothing in §5 is built.

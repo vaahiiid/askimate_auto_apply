@@ -771,6 +771,9 @@ importers:
 
   packages/secrets:
     dependencies:
+      '@askimate/aas-contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../domain

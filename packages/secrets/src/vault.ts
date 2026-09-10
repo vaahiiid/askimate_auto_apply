@@ -35,6 +35,7 @@
  * required one compromise; this requires both.
  */
 
+import { SECURE_HOLD_CEILING_SECONDS } from "@askimate/aas-contracts";
 import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from "node:crypto";
 
 /** AES-256-GCM. 32-byte key, 12-byte nonce, 16-byte tag. */
@@ -52,7 +53,7 @@ const ALGORITHM = "aes-256-gcm";
  * validation — a future code path, a test, a mistake — still cannot store a
  * ciphertext that outlives five minutes.
  */
-export const VAULT_TTL_CEILING_SECONDS = 300;
+export const VAULT_TTL_CEILING_SECONDS: number = SECURE_HOLD_CEILING_SECONDS;
 
 /**
  * A data key, as KMS returns one.

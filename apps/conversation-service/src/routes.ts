@@ -165,6 +165,8 @@ export interface RunCoordinator {
   claimWork(input: {
     readonly holder: string;
     readonly leaseSeconds: number;
+    /** The runs the runner is signed in to (ADR-0101 §2). Required on the wire. */
+    readonly sessions: readonly string[];
   }): Promise<ClaimedWork | null>;
   /** Records how a unit of work ended. `false` when the caller is not the holder. */
   reportWork(input: {
@@ -1589,8 +1591,25 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           typeof asked === "number" && Number.isInteger(asked) && asked > 0
             ? Math.min(asked, MAX_LEASE_SECONDS)
             : DEFAULT_LEASE_SECONDS;
+        // Required, not defaulted (ADR-0101 §2): a runner that did not say
+        // which runs it is signed in to would be handed fills it cannot do.
+        const sessions = record["sessions"];
+        if (
+          !Array.isArray(sessions) ||
+          sessions.length > 50 ||
+          !sessions.every(
+            (runId) => typeof runId === "string" && runId.length > 0 && runId.length <= 64,
+          )
+        ) {
+          problem(res, "validation_failed", { pointers: ["/sessions"] });
+          return;
+        }
 
-        const work = await options.runs.claimWork({ holder, leaseSeconds });
+        const work = await options.runs.claimWork({
+          holder,
+          leaseSeconds,
+          sessions: sessions as string[],
+        });
         if (work === null) {
           res.status(204).end();
           return;

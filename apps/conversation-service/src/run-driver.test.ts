@@ -3073,10 +3073,19 @@ describeIfDatabase("leasing browser work to a runner", () => {
       "x-service-cert": "runner",
     };
     try {
-      const claimed = await fetch(`${base}/internal/v1/work/claims`, {
+      // A claim that does not say which runs it is signed in to is refused
+      // (ADR-0101 §2): required on the wire, never defaulted.
+      const undeclared = await fetch(`${base}/internal/v1/work/claims`, {
         method: "POST",
         headers,
         body: JSON.stringify({ holder: "runner-http", leaseSeconds: 120 }),
+      });
+      expect(undeclared.status).toBe(400);
+
+      const claimed = await fetch(`${base}/internal/v1/work/claims`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ holder: "runner-http", leaseSeconds: 120, sessions: [] }),
       });
       expect(claimed.status).toBe(200);
       expect(claimed.headers.get("cache-control")).toBe("no-store");
@@ -3301,6 +3310,44 @@ describeIfDatabase("which page a multi-page run does next", () => {
       page_ref: "page-application",
       kind: "execute",
     });
+  }, 300_000);
+
+  it("hands a page ONLY to a runner that holds the run's session, and to it FIRST (ADR-0101 §2)", async () => {
+    // Vahid, 2026-09-10: one sitting, in memory. A fill needs the session the
+    // account was created in, so a runner that does not name the run is not
+    // handed its page — and the one that does is offered it ahead of anything
+    // older in the pool.
+    //
+    // The test above claimed the first page and never reported it, so its
+    // intent is open — and an open fill intent is the uncertain case, which
+    // `claimWork` pauses rather than hands out (ADR-0054). Close it as the
+    // portal having taken nothing, so the page is offered again and what is
+    // under test here is the session gate and not that pause.
+    await pool.query("DELETE FROM work_leases");
+    await recordPage("page-application", "failed_cleanly");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const withoutTheSession = await instance.driver.claimWork({
+        holder: "runner-signed-out",
+        leaseSeconds: 60,
+        sessions: [],
+      });
+      expect(withoutTheSession?.runId, "not this run's page").not.toBe(runId);
+      expect(withoutTheSession?.kind, "a fill goes to nobody without the session").not.toBe(
+        "execute",
+      );
+      await pool.query("DELETE FROM work_leases WHERE holder = 'runner-signed-out'");
+
+      const withTheSession = await instance.driver.claimWork({
+        holder: "runner-signed-in",
+        leaseSeconds: 60,
+        sessions: [runId],
+      });
+      expect(withTheSession?.runId, "the holder of the session is offered it first").toBe(runId);
+      expect(withTheSession?.kind).toBe("execute");
+    } finally {
+      await instance.pool.end();
+    }
   }, 300_000);
 
   it("offers the SECOND page once the first is recorded, and never the first again", async () => {

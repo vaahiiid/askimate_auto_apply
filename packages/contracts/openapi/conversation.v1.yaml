@@ -1953,9 +1953,10 @@ components:
     ClaimWorkRequest:
       type: object
       additionalProperties: false
-      required: [holder]
+      required: [holder, sessions]
       description: >-
-        Who is asking, and for how long. ADR-0045.
+        Who is asking, for how long, and which runs it is signed in to. ADR-0045,
+        ADR-0101 §2.
       properties:
         holder:
           type: string
@@ -1965,6 +1966,17 @@ components:
             Which runner. An identifier for an operator reading the lease table
             during an incident — never a credential, and never used for
             authorisation. The client certificate does that.
+        sessions:
+          type: array
+          maxItems: 50
+          items: { type: string, minLength: 1, maxLength: 64 }
+          description: >-
+            The runs this runner holds a signed-in browser context for, in
+            memory, for at most five minutes idle (ADR-0101 §2). `execute` work
+            is handed only to a runner that names the run here — a fill needs
+            the session the account was created in — and a runner that names it
+            is preferred for it. `create_account` work needs no session. Empty
+            is the ordinary value for a runner that has just started.
         leaseSeconds:
           type: integer
           minimum: 1

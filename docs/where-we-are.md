@@ -3998,3 +3998,43 @@ the form is accepted — and the real runner meets both in a real browser.
 ## Declared-but-unreachable surface
 
 **Six** — unchanged.
+
+# P71 — one sitting, in memory, five minutes (ADR-0101 §2)
+
+Your A2, built. The runner now keeps the browser context it created the account in, keyed by
+run, in memory, and fills the run's pages in it. `SessionHold` closes a context once it has been
+idle for `SECURE_HOLD_CEILING_SECONDS` — a single constant in `packages/contracts`, and the
+vault's ceiling is now defined from it rather than being a second literal that happens to agree.
+Your rule was that two sensitive lifetimes must not differ; the way to make that hold is to have
+one number, not two equal ones.
+
+The runner's entry point performs `execute` for the first time. The held page is attached as a
+fillable session confined to the portal's host, `fillApplication` types the plan and saves, and
+the disclosure source of ADR-0099 fetches what the mapping named. `fillApplication` leaves the
+declared-but-unreachable register: a deployable reaches it. It entered in P66 because building the
+hand-over measured that no deployable did, and it leaves for the same kind of reason — the
+measurement changed, not the list.
+
+A claim now names the runs the runner holds a session for, and the wire requires it. The Run
+Driver offers such a run to its holder first, and offers a fill to nobody else: a page handed to
+any other runner would arrive logged out, so the run waits — for its holder, or for the resume
+path. The hold is released when the last page is saved, when a challenge is met, when the student
+is needed, and when the process stops. No password, cookie or token is written anywhere.
+
+What is not built is the resume path, §3. The journey's restart test proves ADR-0047 — page two,
+not page one again — but it signs the new context in with the password the test happens to know,
+and hands it to a fresh hold through `adopt`. That is this test's cheat, marked as such in the
+file, and `adopt` is the seam P72 fills with `portal_sign_in` through the secure box.
+
+One finding while fixing a test: a claim that is never reported leaves its intent open, and an
+open fill intent is the uncertain case the driver pauses rather than hands out. That is ADR-0054
+working as written; the test that met it now closes the intent it inherits and says why.
+
+## What follows
+
+P72 — B: `portal_sign_in` into the published contract, the sign-in step and reason, a performer
+that types into the login form, and the journey's cheat replaced. Then slice e.
+
+## Declared-but-unreachable surface
+
+**Five** — `fillApplication` left.

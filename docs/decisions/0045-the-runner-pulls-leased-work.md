@@ -72,6 +72,16 @@ A lease is deleted when the work is reported. Nothing marks a run as "done with
 work" — its checkpoint moves, `nextStep` answers something else, and it stops
 being a candidate. One authority, not two.
 
+> **Amended by [ADR-0101 §2](./0101-the-yes-comes-first-and-a-runner-is-signed-in-for-one-sitting.md),
+> 2026-09-10.** A claim now says which runs the runner holds a signed-in browser
+> session for. `execute` work is handed only to a runner that names the run, and
+> that runner is offered the run before anything older in the pool. The lease is
+> unchanged — one run, one holder, and the run's own position still says what
+> work exists — but the claim path is no longer indifferent to which runner asks
+> for a fill: the session an account was created in lives in one process, and a
+> page handed to any other would arrive logged out. A run whose holder is gone
+> waits for the resume path (ADR-0101 §3).
+
 ### 3 · What crosses to the runner, and what does not
 
 A claimed unit of work carries identifiers, closed-set words, a portal host, the

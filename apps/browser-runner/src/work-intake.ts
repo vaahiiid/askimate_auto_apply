@@ -59,6 +59,13 @@ export interface WorkIntakeOptions {
   readonly serviceToken?: string;
   readonly leaseSeconds?: number;
   readonly fetch?: typeof globalThis.fetch;
+  /**
+   * The runs this runner holds a signed-in browser context for, read at the
+   * moment of each claim (ADR-0101 §2). `SessionHold.held` in production.
+   * Absent, the runner declares none — which is the truth of a runner that
+   * holds no sessions, and the only fills it is then handed are none.
+   */
+  readonly sessions?: () => readonly string[] | Promise<readonly string[]>;
 }
 
 /** The two calls the runner makes. A PORT, so the loop can be tested without a network. */
@@ -83,6 +90,10 @@ export function httpWorkIntake(options: WorkIntakeOptions): WorkIntake {
 
   return {
     claim: async (): Promise<ClaimedWork | null> => {
+      // Read at the moment of the claim, after the hold has swept its idle
+      // contexts: a session declared and gone would be a fill handed to a
+      // runner that cannot do it.
+      const sessions = (await options.sessions?.()) ?? [];
       let response: Response;
       try {
         response = await doFetch(`${options.baseUrl}/internal/v1/work/claims`, {
@@ -91,6 +102,7 @@ export function httpWorkIntake(options: WorkIntakeOptions): WorkIntake {
           body: JSON.stringify({
             holder: options.holder,
             leaseSeconds: options.leaseSeconds ?? 120,
+            sessions,
           }),
         });
       } catch {
