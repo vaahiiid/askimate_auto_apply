@@ -2705,6 +2705,16 @@ export class RunDriver {
     if (upload === undefined) return { ok: false, refusal: "no_such_upload" };
 
     // 3 · The yes, and that it still covers what would leave.
+    //
+    // A SECOND reading of that fact. `#situation` above already refused a run
+    // whose yes no longer matches — the orchestrator's step is `authorise`,
+    // not `execute`, and step 2 answered `not_executing`. The comparison
+    // below reads the same log and builds the same preview, so it can only
+    // disagree with the orchestrator in a race between the two reads. The
+    // P77 audit removed it and no test could tell (M10); it is kept as the
+    // belt to that brace, and this comment is the honest record of what it
+    // adds: nothing a test can see, and one more place a substitution has
+    // to get past.
     const events = await this.#options.stores.cases.read(record.caseId);
     let captured: { contentHash: string; authorisedAt: Date } | null = null;
     for (const event of events) {

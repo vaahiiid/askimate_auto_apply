@@ -4222,3 +4222,26 @@ against anything.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P77 — deliberate regressions over the attachment path and the destination inside the yes
+
+The repository's habit after a run of building phases: break each gate on purpose and see what
+notices. Eleven mutations across P73–P75's gates, each applied to disk, run against its governing
+tests, and restored from a byte copy with `cmp` — never from `git checkout`. Ten were caught.
+
+Two are worth the read. Making the preview name the observed host, or making the driver stop
+reading the deployment, fails the journey from its fourth test onward — nineteen and sixteen
+failures — because the journey's entry *is* a deployment, and a yes over the wrong host stops the
+run at the yes. That is P74's defect reproduced on demand, and it is also the answer to "why does
+the journey carry a document now": before P74 it did not, and this mutation passed.
+
+The eleventh was not caught, and the reason is not a missing test. The document hand-over compares
+the preview's hash with the student's yes at its step 3; the orchestrator's assessment at step 2 has
+already compared the same two things and refused. The comparison can differ only in a race between
+two reads of one log, which no deterministic test can stage. Kept, as the second reading it is, and
+the comment above it now says what the audit measured. The full account is
+`docs/p77-regression-audit.md`.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

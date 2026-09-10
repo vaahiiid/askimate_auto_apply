@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.94.0] — 2026-09-10
+
+**P77 — deliberate regressions over the attachment path and the destination inside the yes.**
+Eleven mutations, ten caught; `docs/p77-regression-audit.md`.
+
+### Changed
+
+- The document hand-over's step-3 hash comparison is annotated as the second reading it is: the
+  orchestrator's assessment one step earlier already refuses a run whose yes no longer matches,
+  and removing the comparison changes nothing a test can see (M10). Kept.
+
+---
+
 ## [0.93.0] — 2026-09-10
 
 **P76 — the live-run record catches up with what was built.** Documentation only.
