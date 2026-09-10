@@ -56,6 +56,17 @@
 <input type="password" name="password_confirm" aria-label="Confirm password">
 <input type="text" name="otp" autocomplete="one-time-code" aria-label="Verification code">
 <input type="text" name="sponsor_name" style="display: none" aria-label="Sponsor name">
+<!--
+  And things a real form shows that are NOT flow signals, so the detector is
+  exercised against the false positives it produced on the first real form
+  (Sheffield, 2026-09-10, P82): a postcode box is not a one-time code, a course
+  code is not one either, and "Registered charity" is not an invitation to
+  register.
+-->
+<label>Postcode <input type="text" name="corrPostcode" maxlength="4"></label>
+<label>Course code <input type="text" name="course_code"></label>
+<footer><p>The University of Somewhere is a registered charity. Registration number 000000.</p></footer>
+<img src="/pixel.gif" alt="" width="1" height="1">
 
 <script>
   // A portal that tries to register a partial application on page load.

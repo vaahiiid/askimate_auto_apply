@@ -4404,3 +4404,37 @@ the mint's and the bound holds. The check is unchanged.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P82 — the observation script stops reading a postcode as a one-time code
+
+The first real form produced two signals that were not true, and both were made on our side.
+Six postcode boxes on Sheffield's contact page — `corrPostcode`, `permPostcode` and their
+neighbours — matched `input[name*=code]`, and the draft blueprint carried an `mfa` handoff point
+on a page that has no second factor. And the word "register", found inside "registered" on two
+pages, made each an account-creation page.
+
+Both are fixed where they were made. The observe script now records a one-time-code input only
+when the name or id IS a code field — the same closed set the runner's challenge detector has
+required since P70, which is why the runner would not have stopped on that page even when
+discovery said it might — or when the input carries `autocomplete="one-time-code"`. Page-text
+signals match whole words, and the text they read has script, style, noscript and template
+bodies cut out first: the fixture's own inline script mentioned registering, and that was the
+second reason the word matched.
+
+The first version of that cut the scripts out by cloning the body, and the CLI test caught it: a
+cloned `<img>` fetches its source, so the observer had made a request the page had not, and the
+run counted one refusal too many. An observer that fetches has touched the network. The text is
+read by walking the tree, and a test now asserts the fixture's pixel is fetched once, by the page.
+
+The signals fixture now carries a postcode box, a course-code box and a "registered charity"
+footer. The two new tests failed before the fix with Sheffield's exact evidence — `name=
+"corrPostcode"` under `mfa_or_otp`, `"register"` under `account_creation` — and pass after it.
+The draft in `docs/captures/sheffield-pgt-2026-09-10/` is left as the tool wrote it; its README
+says which of its signals a re-run would no longer produce.
+
+CI #177, on the P83 push, was red for a different reason: every test passed and the census table
+was stale, because P83 added a test without regenerating it. This commit regenerates it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

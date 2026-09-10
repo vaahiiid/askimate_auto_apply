@@ -160,7 +160,29 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     signals.push(locator === undefined ? { kind, evidence } : { kind, evidence, locator });
   };
 
-  const pageText = (document.body.textContent ?? "").replace(/\s+/g, " ");
+  // What the page SHOWS. `textContent` of the body would include the source
+  // of every inline script and stylesheet, and a script that mentions
+  // registering is not a page that invites it — so those are left out. By
+  // WALKING the tree, not by cloning it: a cloned <img> fetches its source,
+  // and an observer that fetches has touched the network the page did not.
+  const notText = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node.nodeType === Node.ELEMENT_NODE
+        ? notText.has((node as Element).tagName)
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_SKIP
+        : NodeFilter.FILTER_ACCEPT,
+  });
+  const textParts: string[] = [];
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    textParts.push(node.textContent ?? "");
+  }
+  const pageText = textParts.join(" ").replace(/\s+/g, " ");
+  // Whole words only. On the first real form (Sheffield, 2026-09-10, P82) a
+  // substring match read "registered charity" as an invitation to register.
+  const pageSays = (phrase: string): boolean =>
+    new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(pageText);
 
   // Password fields are the least ambiguous evidence of authentication there
   // is, and they distinguish a login from a registration by their count: a
@@ -186,21 +208,36 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
   }
 
   // One-time codes: autocomplete="one-time-code" is the standard hint, and
-  // the wording is distinctive enough to be worth recording as a phrase.
-  for (const field of [...document.querySelectorAll("input[autocomplete='one-time-code'], input[name*=otp], input[name*=code], input[id*=otp]")]) {
-    const name = field.getAttribute("name") ?? field.getAttribute("id") ?? "code";
-    add("mfa_or_otp", `one-time-code style input name="${name}"`, { strategy: "name", value: name });
+  // a name or id that IS a code field — the same set the runner's challenge
+  // detector uses (challenge.ts, P70). Not a name that merely contains
+  // "code": on the first real form (Sheffield, 2026-09-10) `input[name*=code]`
+  // matched six postcode boxes and wrote an `mfa` handoff on a page with no
+  // second factor (P82). The wording is distinctive enough to record as well.
+  const codeFieldName =
+    /^(otp|one[-_]?time[-_]?(code|passcode|password)|mfa[-_]?(code)?|totp|2fa|two[-_]?factor|passcode|verification[-_]?code|verify[-_]?code|auth(entication)?[-_]?code|security[-_]?code)$/i;
+  for (const field of [...document.querySelectorAll("input")]) {
+    const type = (field.getAttribute("type") ?? "text").toLowerCase();
+    if (type === "hidden" || type === "submit" || type === "button" || type === "checkbox") continue;
+    const name = field.getAttribute("name") ?? "";
+    const id = field.getAttribute("id") ?? "";
+    const isCodeField =
+      (field.getAttribute("autocomplete") ?? "").toLowerCase() === "one-time-code" ||
+      codeFieldName.test(name) ||
+      codeFieldName.test(id);
+    if (!isCodeField) continue;
+    const label = name || id || "code";
+    add("mfa_or_otp", `one-time-code style input name="${label}"`, { strategy: "name", value: label });
   }
   for (const phrase of ["verification code", "authentication code", "two-factor", "2-step", "authenticator app", "one-time passcode", "security code"]) {
-    if (pageText.toLowerCase().includes(phrase)) add("mfa_or_otp", `page text contains "${phrase}"`);
+    if (pageSays(phrase)) add("mfa_or_otp", `page text contains "${phrase}"`);
   }
 
   for (const phrase of ["verify your email", "confirm your email", "check your inbox", "verification email", "we have sent you an email", "activation link"]) {
-    if (pageText.toLowerCase().includes(phrase)) add("email_verification", `page text contains "${phrase}"`);
+    if (pageSays(phrase)) add("email_verification", `page text contains "${phrase}"`);
   }
 
   for (const phrase of ["create an account", "register", "sign up", "new applicant", "create your account"]) {
-    if (pageText.toLowerCase().includes(phrase)) add("account_creation", `page text contains "${phrase}"`);
+    if (pageSays(phrase)) add("account_creation", `page text contains "${phrase}"`);
   }
 
   // Submission controls. Recorded so preparation's network guard can refuse
@@ -218,7 +255,7 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
   }
 
   for (const phrase of ["application fee", "card payment", "pay now", "payment details"]) {
-    if (pageText.toLowerCase().includes(phrase)) add("payment", `page text contains "${phrase}"`);
+    if (pageSays(phrase)) add("payment", `page text contains "${phrase}"`);
   }
 
   // Conditional logic: fields the page itself marks as conditional, or that

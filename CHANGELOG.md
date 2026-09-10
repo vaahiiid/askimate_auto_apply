@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.97.2] — 2026-09-10
+
+**P82 — the observation script stops reading a postcode as a one-time code.** The two false
+signals the first real form produced, fixed where they were made and proved on fixture cases
+that reproduce Sheffield's markup.
+
+### Fixed
+
+- `observe-script.ts` no longer records `mfa_or_otp` for any input whose name merely contains
+  `code`: on Sheffield's contact page `input[name*=code]` matched `corrPostcode`, `permPostcode`
+  and four neighbours, and the draft carried an `mfa` handoff on a page with no second factor. The
+  name or id now has to BE a code field — the same set the runner's challenge detector has used
+  since P70 — or carry `autocomplete="one-time-code"`.
+- Page-text signals (`account_creation`, `mfa_or_otp`, `email_verification`, `payment`) match
+  whole words, and the text they read excludes `<script>`, `<style>`, `<noscript>` and
+  `<template>` bodies. "Registered charity" is no longer an invitation to register, and a script
+  that mentions registering is not a page that does.
+- The signals fixture carries a postcode box, a course-code box and a "registered charity" footer;
+  the two new tests failed on exactly Sheffield's evidence before the fix and pass after it.
+- The observer reads the page's text by walking the DOM, not by cloning it. The first version of
+  this fix cloned the body to cut the scripts out, and a cloned `<img>` fetches its source — the
+  CLI test counted one refusal too many, and a third test now asserts the fixture's pixel is
+  fetched once, by the page, never by the observer.
+- The test census, which CI #177 found stale after P83 added a test without regenerating it.
+
+---
+
 ## [0.97.1] — 2026-09-10
 
 **P83 — the presigned URL is dated at the mint's `now`.** CI #176, on the docs-only push

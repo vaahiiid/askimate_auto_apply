@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,418 tests, 128 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,423 tests, 128 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -129,6 +129,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P80** | The first real attached read, and what it found | Vahid's first run against Sheffield's PGT form: the attach, his session, the guard, the pacing and the exit all worked; the read failed with `page.evaluate: ReferenceError: __name is not defined`. tsx injects esbuild's helper into the serialised in-page script; the three launching sessions shim it on the contexts they create and the attached session did not, and vitest's transform hid it from every in-process test. Vahid: *"Fix the transform, not the script … make the test fail first without the fix."* A test that spawns the real command under tsx against the fixture login failed on that error first, then passed with the shim. Found on the way: the test's first version spawned synchronously and starved the fixture portal it was serving. `run.json` now says which rule refused each request and why |
 | **P81** | The first real form, read | Vahid's attached inspection of Sheffield's PGT application: eleven pages, zero failed, nine of them Part 1 form pages, 309 controls, seventeen document slots, Part 2 unread. Recorded in `docs/captures/sheffield-pgt-2026-09-10/`. The finding he named — a `POST getGradingSystemsForCountry.do` fired on the education page — is one link of a chain the structure shows whole: country → institution (typeahead) → grading system (server lookup) → grade, plus a subject search; every other dependency on the form is static show/hide, tabulated. The site's search form on every page is excluded by design. Mandatory fields are marked by `*` in labels and enforced on save, and on five of nine pages the tool read no labels at all. The password question and the three-choices question are answered as far as the captures allow and named as open. Three schema gaps for step 4: options that arrive after another field, a typeahead as a fill mechanism, a repeatable entry. **Found on our side:** the one-time-code heuristic flagged six postcode boxes and wrote a false `mfa` handoff (P82) |
 | **P83** | The presigned URL is dated at the mint's `now` | CI #176 went red on the docs-only push `a02d989`: `s3-document-vault.test` refused a URL valid until `16:48:04.000` against an intake at `16:48:03.964`. Root cause on our side, not CI's: the SDK dated the signature at its own clock, truncated to the second, which can land one second after the `now` the bound was computed from, and the exact check in `assertBoundUploadUrl` rightly refused it. `PresignRequest` now carries `signingDate`, set by the mint to its `now` and passed to the SDK's `getSignedUrl`; the in-memory store stamps the same date. A test reproduces CI's failure before the fix — an SDK-like presigner dating at the next second — and passes after. The check is unchanged; only the date the signature carries is |
+| **P82** | The observation script stops reading a postcode as a one-time code | The two false signals from the first real form, fixed where they were made. `input[name*=code]` had matched six postcode boxes on Sheffield's contact page and written an `mfa` handoff where there is no second factor; the observe script now requires the name or id to BE a code field, the set the runner's challenge detector has used since P70, or `autocomplete="one-time-code"`. Page-text signals match whole words and read the page with script and style bodies cut out, so "registered charity" and a script that mentions registering no longer make an account-creation page. The signals fixture carries the three false positives; the two new tests failed on Sheffield's exact evidence before the fix. The first version cloned the body to cut scripts out and a cloned `<img>` fetched its source — caught by the CLI test's refusal count; the text is read by walking the tree, and a test asserts the observer fetches nothing. Also regenerates the census CI #177 found stale after P83 |
 
 ---
 
@@ -480,7 +481,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,418 tests · 128 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,423 tests · 128 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -493,7 +494,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,418 tests**, by the workspace they live in. Generated — run
+**2,423 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -502,11 +503,11 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 295 | `packages/profile` | 46 |
-| `apps/browser-runner` | 269 | `packages/catalogue` | 39 |
+| `scripts` | 296 | `packages/profile` | 46 |
+| `apps/browser-runner` | 272 | `packages/catalogue` | 39 |
 | `packages/case-store` | 145 | `packages/preparation` | 38 |
 | `packages/orchestrator` | 114 | `packages/extraction` | 27 |
-| `packages/documents` | 99 | `packages/mapping` | 26 |
+| `packages/documents` | 100 | `packages/mapping` | 26 |
 | `packages/contracts` | 87 | `packages/interview` | 22 |
 | `apps/secure-service` | 68 | `packages/requirements` | 22 |
 | `packages/secrets` | 67 | `apps/worker` | 21 |

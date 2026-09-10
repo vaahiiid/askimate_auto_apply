@@ -195,9 +195,13 @@ is confirmed by structure.
 1. **The observation script misread six postcode boxes as one-time-code inputs** and wrote an
    `mfa` handoff point on the contact page. `corrPostcode`, `permPostcode` and their neighbours
    matched a heuristic on the word "code". There is no second factor on that page. The heuristic
-   is wrong and is a fix on our side (P81); the handoff point does not enter the curated blueprint.
+   was wrong and is fixed in P82: the name has to be a code field, as the runner's challenge
+   detector already required. A re-run would not write that handoff point, and it does not enter
+   the curated blueprint. The draft here is left as the tool wrote it.
 2. **`account_creation` signals from the word "register"** on the education and equal-opportunities
-   pages. Noise from page text, not an account-creation control.
+   pages. Noise from page text, not an account-creation control — a substring match, most likely
+   on "registered" or on script text, both of which P82 stops counting. A re-run would not
+   produce those two signals either.
 3. **The grading lookup fires on page load**, with an empty institution — so the page is built to
    re-query, and the fill must wait for the answer after choosing the institution.
 4. **Typeahead widgets** for country and institution on the education page. The fill agent has

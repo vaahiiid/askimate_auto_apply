@@ -296,13 +296,16 @@ describe("what the page shows about the flow", () => {
   let server: Server;
   let session: PlaywrightDiscoverySession;
   let signals: readonly FlowSignal[];
+  const requestsFor = new Map<string, number>();
 
   beforeAll(async () => {
     const html = await readFile(
       join(import.meta.dirname, "..", "fixtures", "application-form.html"),
       "utf8",
     );
-    server = createServer((_req, res) => {
+    server = createServer((req, res) => {
+      const path = req.url ?? "/";
+      requestsFor.set(path, (requestsFor.get(path) ?? 0) + 1);
       res.writeHead(200, { "content-type": "text/html" }).end(html);
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -348,6 +351,24 @@ describe("what the page shows about the flow", () => {
     expect(evidenceFor("mfa_or_otp")).toContain("one-time-code");
   });
 
+  it("does not mistake a postcode or a course code for a one-time code", () => {
+    // Sheffield, 2026-09-10 (P81): `input[name*=code]` matched corrPostcode,
+    // permPostcode and four neighbours, and the draft carried an `mfa` handoff
+    // on a page with no second factor. The name has to BE a code field, as the
+    // runner's challenge detector already requires (P70), not contain the word.
+    expect(evidenceFor("mfa_or_otp")).toContain('name="otp"');
+    expect(evidenceFor("mfa_or_otp")).not.toMatch(/postcode/i);
+    expect(evidenceFor("mfa_or_otp")).not.toContain("course_code");
+  });
+
+  it("does not read 'registered charity' as an invitation to register", () => {
+    // Sheffield's education and equal-opportunities pages carry the word
+    // inside another word; a substring match called each an account-creation
+    // page. Whole words only.
+    expect(evidenceFor("account_creation")).toContain("create an account");
+    expect(evidenceFor("account_creation")).not.toContain('"register"');
+  });
+
   it("detects email verification from the portal's own wording", () => {
     expect(evidenceFor("email_verification")).toContain("verify your email");
   });
@@ -367,6 +388,15 @@ describe("what the page shows about the flow", () => {
     for (const signal of signals) {
       expect(signal.evidence.length).toBeGreaterThan(3);
     }
+  });
+
+  it("reads the page without fetching anything the page did not", () => {
+    // P82's first fix cloned the body to read its text with the scripts cut
+    // out. A cloned <img> fetches its source, so observation made a request
+    // the page had not — the CLI test counted one refusal too many. Reading
+    // is walking the DOM, never copying it: the pixel is fetched once, by the
+    // page, and never by the observer.
+    expect(requestsFor.get("/pixel.gif")).toBe(1);
   });
 
   it("does not click, type or otherwise touch the page to find them", () => {
