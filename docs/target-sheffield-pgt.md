@@ -52,6 +52,18 @@ over the signed-in pages. Read-only, through their session, paced, values scrubb
 captures. The exact browser flags and the order of things are in
 [the runbook](./runbook-discovery-handoff.md#attached-inspection--reading-a-form-behind-a-login).
 
+## Step 5 — who reviews, decided
+
+Vahid, 2026-09-10: *"Second reviewer for step 5: author Vahid Mohammadi, approver Iman Behravan."*
+
+So the mapping set for this target is authored by Vahid Mohammadi and reviewed by Iman Behravan
+(`reviewedBy`, never the author — ADR-0017), and the approval record in `approvals.json` for the
+reviewed entry carries `authoredBy: "Vahid Mohammadi"`, `approvedBy: "Iman Behravan"`, the
+canonical hash from `pnpm run catalogue hash`, the date, and a note of what was checked
+(ADR-0057). The loader refuses an approval whose author and approver are the same person. The
+approver's identity is asserted in that file, not authenticated — the same scope ADR-0048 §3
+records for the one-operator model.
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 Vahid, 2026-09-10: *"Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new
