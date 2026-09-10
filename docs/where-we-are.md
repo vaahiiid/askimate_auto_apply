@@ -4158,3 +4158,39 @@ anything. The attachment path is otherwise proved end to end, against a served p
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P75 — the destination inside the yes, made a named property at every level
+
+Vahid, on P74's report: *"The deployment-host defect is the important part of that report, more
+than the milestone. The preview named one host and the run would have sent to another, and the
+gate caught it — which is the whole argument for putting the destination inside what the student
+authorises rather than treating it as configuration. Keep it that way, and keep the property that
+re-pointing a run after a yes stops at the yes again."*
+
+Kept by naming it. The property was implied by the journey and by one assertion in a sandbox
+test; it is now stated three times, at the three levels it holds. The orchestrator: a state with a
+recorded authorisation, re-pointed at a deployment, asks again, and what it asks for names the
+new host in the text and in the hash. The Run Driver, over the database and the catalogue: a run
+past the yes, the entry re-pointed, `advance` stops at `authorise`, the preview the student would
+read names the new host and not the old, no runner is handed the work, a yes to *that* host lets
+the run go on, and pointing it back at the observed host stops it again — the latest yes is the
+one that counts, in either direction. The journey: the preview the student reads over the real
+route names the fixture portal's host and not the one the reviewed blueprint observed.
+
+Writing the driver test found the thing worth finding. The preview it stopped over named no host
+at all: the rendering put the destination only under each attachment, per ADR-0098, and an
+application with nothing to attach had no such line. The host was inside the hash and outside the
+text — a yes to a destination the student could not read, which is the gap ADR-0059 exists to
+close. Every preview now carries a `Portal:` line under its heading. No hash changed, because the
+rendering was never in the hash; `Reference:` still ties the text to it.
+
+## What follows
+
+Blocker 17 and the Sheffield target are Vahid's; nothing here provisions or runs against a live
+site. The next work that needs neither is the plane's side of what P74 proved: the attachment
+path over the real vault port once a bucket exists, and, before that, whatever the live-run
+checklist still names as open.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

@@ -438,6 +438,13 @@ function byFieldRef(a: { fieldRef: string }, b: { fieldRef: string }): number {
 export function renderPreview(preview: SubmissionPreview): string {
   const lines: string[] = [
     `${preview.institutionName} — ${preview.courseName}, ${preview.intake}`,
+    // Where it goes, for EVERY application and not only one with documents
+    // (P75). The host has been inside the hash since ADR-0098; until P75 the
+    // text named it only per attachment, so a student with nothing to attach
+    // said yes to a destination they could not read. ADR-0059's point is that
+    // they can read what they are authorising, and the destination is part of
+    // it — the whole reason it is inside the yes rather than in configuration.
+    `Portal: ${preview.portalHost}`,
     "",
     "This is exactly what will be submitted.",
     "",

@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.92.0] — 2026-09-10
+
+**P75 — the destination inside the yes, made a named property at every level.** Vahid: *"keep
+the property that re-pointing a run after a yes stops at the yes again."*
+
+### Added
+
+- Regression tests for that property at the orchestrator (`RunInputs.portalHost` re-pointed after
+  a recorded authorisation), the Run Driver (a run past the yes, the catalogue entry re-pointed at
+  a deployment: `advance` stops at `authorise`, `previewFor` names the new host, `claimWork` hands
+  out nothing, a yes to that host lets it go on, removing the deployment stops it again) and the
+  journey (the preview the student reads names the fixture portal's host).
+
+### Changed
+
+- `renderPreview` writes a `Portal:` line under the heading for every application (ADR-0059
+  amended). The host was inside the hash since ADR-0098 but in the text only under each
+  attachment, so an application without documents named no destination the student could read.
+  No hash changes.
+
+---
+
 ## [0.91.0] — 2026-09-10
 
 **P74 — the attachment path meets a portal that takes a file.** The fixture portal's documents

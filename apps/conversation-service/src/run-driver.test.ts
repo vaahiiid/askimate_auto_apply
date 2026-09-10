@@ -10278,3 +10278,112 @@ describeIfDatabase("one intent per attachment, and the record of what left (ADR-
     }
   }, 300_000);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The destination is inside the yes (ADR-0098, amended in P74)
+//
+// Vahid, 2026-09-10: *"The preview named one host and the run would have sent
+// to another, and the gate caught it — which is the whole argument for putting
+// the destination inside what the student authorises rather than treating it
+// as configuration. Keep it that way, and keep the property that re-pointing a
+// run after a yes stops at the yes again."*
+//
+// The orchestrator's own test states the rule over a state in memory. This
+// group states it over the driver, the catalogue and the database: the yes is
+// a case event, the deployment is a catalogue fact, and the run is what the
+// driver derives from the two on the next advance.
+// ═══════════════════════════════════════════════════════════════════════════
+describeIfDatabase("re-pointing a run after the yes stops at the yes again (P74)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPC000H0";
+  const SANDBOX = "http://127.0.0.1:45999";
+  const sandboxed: CatalogueEntry = { ...GATED_ENTRY, portalOrigin: SANDBOX };
+  const sandbox: TestCatalogue = {
+    targets: () => [],
+    find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? sandboxed : null),
+  };
+  let runId = "";
+
+  async function yesHashes(): Promise<string[]> {
+    const rows = await pool.query<{ hash: string }>(
+      `SELECT event->>'contentHash' AS hash FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'AuthorisationCaptured' ORDER BY "sequence" ASC`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    return rows.rows.map((row) => row.hash);
+  }
+
+  beforeAll(async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      // Past the yes, to the observed host: the password box is the next stop.
+      expect(started.position.step).toBe("request_secret");
+      runId = started.position.runId;
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("stops at the yes again, over a preview naming the NEW host", async () => {
+    await pool.query("DELETE FROM work_leases");
+    const instance = buildInstance(connectionString(), opener(), sandbox);
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "the yes named gated.portal.test; this run goes elsewhere").toBe(
+        "authorise",
+      );
+
+      // What the student is asked to read now names where the bytes would go.
+      const shown = await instance.driver.previewFor(runId, conversation);
+      if (shown === null) expect.unreachable("a run at the yes has a preview");
+      expect(shown.presentedText).toContain("Portal: 127.0.0.1:45999");
+      expect(shown.presentedText).not.toContain("gated.portal.test");
+      const [first] = await yesHashes();
+      expect(shown.contentHash).not.toBe(first);
+
+      // And no runner is handed the work in the meantime.
+      expect(
+        await instance.driver.claimWork({ holder: "runner-repointed", leaseSeconds: 60 }),
+      ).toBeNull();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("goes on once the student has said yes to THAT host", async () => {
+    const instance = buildInstance(connectionString(), opener(), sandbox);
+    try {
+      await captureAuthorisation(instance.pool, conversation, sandboxed);
+      const hashes = await yesHashes();
+      expect(hashes).toHaveLength(2);
+      expect(hashes[0]).not.toBe(hashes[1]);
+
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step).not.toBe("authorise");
+      expect(advanced.position.step).toBe("request_secret");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("and the OLD yes does not come back when the deployment is removed", async () => {
+    // Symmetry. The latest yes names the sandbox; a run pointed back at the
+    // observed host is, again, going somewhere the student has not agreed to.
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step).toBe("authorise");
+      const shown = await instance.driver.previewFor(runId, conversation);
+      expect(shown?.presentedText).toContain("Portal: gated.portal.test");
+      expect(shown?.presentedText).not.toContain("127.0.0.1:45999");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+});

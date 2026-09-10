@@ -325,6 +325,46 @@ describe("authorisation", () => {
     // The old authorisation covers a different application. It is not reused.
     expect((await nextStep(changed, model)).kind).toBe("authorise");
   });
+
+  it("asks AGAIN when the run is RE-POINTED at a deployment after the authorisation (P74)", async () => {
+    // Vahid, 2026-09-10: *"The preview named one host and the run would have
+    // sent to another, and the gate caught it — which is the whole argument for
+    // putting the destination inside what the student authorises rather than
+    // treating it as configuration. Keep it that way, and keep the property
+    // that re-pointing a run after a yes stops at the yes again."*
+    const ledger = new InMemoryAuthorisationLedger();
+    const state = runWith(COMPLETE);
+
+    const plan = planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE);
+    const previewResult = buildPreview(FIXTURE_BLUEPRINT, plan, state.inputs.documents);
+    if (!previewResult.built) expect.unreachable("expected a preview");
+    const check = checkAuthorisable(previewResult.preview, validatePlan(FIXTURE_BLUEPRINT, plan));
+    if (!check.authorisable) expect.unreachable("expected authorisable");
+    const record = await ledger.record({
+      authorisationId: "auth-1",
+      caseId: "case-1",
+      studentRef: STUDENT,
+      preview: check.preview,
+      authorisedAt: NOW,
+    });
+    const authorised = withAuthorisation(state, record);
+    expect((await nextStep(authorised, model)).kind, "the yes covers the observed host").toBe("execute");
+
+    // The deployment changes underneath the yes — configuration, not the
+    // student. The bytes would go to the new host; the yes named the old one.
+    const rePointed: RunState = {
+      ...authorised,
+      inputs: { ...authorised.inputs, portalHost: "uat.example.test" },
+    };
+    const step = await nextStep(rePointed, model);
+    expect(step.kind).toBe("authorise");
+    if (step.kind !== "authorise") expect.unreachable("checked above");
+    // And what is asked for is a yes to THAT host, by name and in the hash.
+    expect(step.preview.portalHost).toBe("uat.example.test");
+    expect(step.presentedText).toContain("(uat.example.test)");
+    expect(step.presentedText).not.toContain(record.presentedText);
+    expect(step.preview.contentHash).not.toBe(record.contentHash);
+  });
 });
 
 describe("where the system stops", () => {

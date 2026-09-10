@@ -191,6 +191,23 @@ describe("the preview", () => {
     expect(text).toContain("(set by AskiMate:");
   });
 
+  it("names the portal for EVERY application, with or without documents (P75)", () => {
+    // The host has been in the hash since ADR-0098; the text named it only
+    // under each attachment, so an application with nothing to attach was a
+    // yes to a destination the student could not read.
+    const withoutDocuments = buildPreview(FIXTURE_BLUEPRINT, { ...planFor(), uploads: [] }, new Map());
+    if (!withoutDocuments.built) expect.unreachable("expected a preview");
+    expect(withoutDocuments.preview.attachments).toEqual([]);
+    const plain = renderPreview(withoutDocuments.preview);
+    expect(plain).not.toContain("going to:");
+    expect(plain).toContain("Portal: apply.example.test");
+    const deployed = buildPreview(FIXTURE_BLUEPRINT, planFor(), DOCUMENTS, { portalHost: "uat.example.test" });
+    if (!deployed.built) expect.unreachable("expected a preview");
+    const text = renderPreview(deployed.preview);
+    expect(text).toContain("Portal: uat.example.test");
+    expect(text).not.toContain("apply.example.test");
+  });
+
   it("names the documents that will be attached", () => {
     const text = renderPreview(previewFor());
     // ADR-0098: which document, going where, for what — per attachment.

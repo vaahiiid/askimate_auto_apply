@@ -46,6 +46,15 @@ GET /v1/conversations/{conversationId}/runs/{runId}/preview
 is hashed cannot come from two different renderings. That property was already promised by
 `previewHashFor`'s comment; this makes it structural by returning both from one read.
 
+> **Amended in P75 (2026-09-10).** The rendered text names the portal host for **every**
+> application — a `Portal:` line under the heading — and not only under each attachment as
+> ADR-0098 had it. The host has been inside the hash since ADR-0098, so a student with nothing to
+> attach was saying yes to a destination they could not read: the hash covered it and the text
+> did not, which is exactly the gap this ADR exists to close. Found while making P74's property —
+> re-pointing a run at a deployment after the yes stops at the yes again — a named test at the
+> driver: the preview it stopped over named no host at all. No hash changed; the rendering is
+> not in the hash, and `Reference:` still ties the text to it.
+
 ### Why it is fetched rather than appended to the conversation log
 
 The obvious alternative is to append the rendered preview as an assistant message. It would reuse

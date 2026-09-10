@@ -74,6 +74,13 @@ previewed (`destination_unknown`); it could not be executed either (`isExecutabl
 > one this section already states: a run re-pointed at a deployment after the yes is a different
 > thing to authorise, and stops at the authorisation again. The observed URL is still required;
 > a deployment says *where* a reviewed blueprint runs, not that an unreviewable one may.
+>
+> **P75 (2026-09-10)** made both halves named tests at every level — the orchestrator, the Run
+> Driver over the database and the catalogue, and the journey — after Vahid: *"the whole
+> argument for putting the destination inside what the student authorises rather than treating
+> it as configuration. Keep it that way, and keep the property that re-pointing a run after a yes
+> stops at the yes again."* And found that the text named the host only per attachment; every
+> preview now carries a `Portal:` line (ADR-0059 amended).
 
 ### What this makes true
 

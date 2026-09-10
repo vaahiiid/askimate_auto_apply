@@ -901,6 +901,13 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(preview.presentedText).toContain("Gated University");
     expect(preview.presentedText).toContain("This is exactly what will be submitted.");
     expect(preview.presentedText).toContain(`Reference: ${preview.contentHash}`);
+    // The destination the student reads is the one the bytes go to — the
+    // fixture portal this entry is deployed against — and not the host the
+    // reviewed blueprint observed (ADR-0098 as amended in P74). The runner's
+    // transmission gate is asked about exactly this host later.
+    expect(preview.presentedText).toContain(`Portal: ${portal.host}`);
+    expect(preview.presentedText).toContain(`going to: Gated University (${portal.host})`);
+    expect(preview.presentedText).not.toContain("gated.portal.test");
 
     // And it is the SAME content the orchestrator would fill from. Re-derived
     // independently here — the old path — purely to prove the route did not
