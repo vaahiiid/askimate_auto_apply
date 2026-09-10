@@ -4038,3 +4038,52 @@ that types into the login form, and the journey's cheat replaced. Then slice e.
 ## Declared-but-unreachable surface
 
 **Five** — `fillApplication` left.
+
+# P72 — `portal_sign_in` is the resume path, and the run says why (ADR-0101 §3)
+
+Your B, built as you decided it: the resume path only, with the argument in the ADR and now in
+the words the student reads.
+
+The plane learns that a session is gone from the runners themselves. Every report that could only
+have come from a signed-in browser — an account created, a sign-in done, a page saved — records
+who and until when: the report's time plus the one ceiling, the same number the runner sweeps by.
+The failures on which the runner lets its context go are one list in the contract, and the plane
+erases the record on exactly those. So "no runner holds a session" is a question a table answers,
+and nothing here is a cookie or a token.
+
+Past the ceiling, and only where there is an account to sign back in to, the run asks a second
+time. The box is the same secure box, typed once because the portal is the check, and the reason
+is rendered inside the frame: that I have been signed out, that this is the exception, and what
+happens to the password. Then the sign-in is work for any runner — the login form the reviewed
+blueprint records, the handle, and no plan. The runner types the email, the fill agent types the
+password, the page is asked whether it worked, and the context that signed in is the held session
+the next page fills in. A sign-in writes no intent: the one thing it spends is already recorded
+by the plane that spends it, and repeating one creates nothing on the portal.
+
+Where the path cannot apply, the run says so to a specialist before any box is opened: the student
+typed their password into the portal themselves and was promised we never see it; no password ever
+reached us; the blueprint records no login form. The login form is new on the blueprint and
+optional, so no reviewed hash moved.
+
+Which request is the sign-in's I read from two records the system already keeps: the log says
+when a box was opened, the ledger says when the account came to be, and a request opened after
+the account can only be the resume path's. The Secure Plane would refuse a stale creation handle
+spent for a sign-in in any case; this reading means it is never offered one.
+
+The contract took the domain's word. `portal_password_reset` left, because nothing had ever
+asked for it and a reset is the student's own act; the drift test that recorded the divergence
+since P27 now asserts the agreement.
+
+The journey's restart is the real thing now: an empty hold, the plane looked at from past the
+ceiling, the second ask in the real frame, the production performer signing in over CDP, and page
+two — not page one again. The password crosses exactly two wires in the whole journey, and both
+are the student's own submissions.
+
+## What follows
+
+Slice e — the `attach_document` intent identity and a `WorkKind` that carries it. C stays
+recorded, not built.
+
+## Declared-but-unreachable surface
+
+**Five** — unchanged.

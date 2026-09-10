@@ -69,6 +69,9 @@ export const RUN_STEP_KINDS = [
   "student_handoff",
   "ready_to_submit",
   "hand_over_account",
+  // The resume path (ADR-0101 §3): a runner signs in with the password the
+  // student typed once more, before the fill goes on.
+  "sign_in",
 ] as const;
 export type RunStepKind = (typeof RUN_STEP_KINDS)[number];
 

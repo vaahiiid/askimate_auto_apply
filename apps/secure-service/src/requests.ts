@@ -27,7 +27,7 @@ export type Lifecycle =
   | "secret_expired"
   | "secret_cancelled";
 
-export type Purpose = "portal_account_creation" | "portal_password_reset";
+export type Purpose = "portal_account_creation" | "portal_sign_in";
 
 export interface SecretRequestRow {
   readonly requestId: string;

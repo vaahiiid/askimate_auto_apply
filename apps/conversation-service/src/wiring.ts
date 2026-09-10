@@ -54,6 +54,7 @@ import { RunDriver } from "./run-driver.js";
 import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import { WorkLeaseStore } from "./work-store.js";
+import { RunSessionStore } from "./session-store.js";
 
 /**
  * The gated TEST portal, as a catalogue.
@@ -221,6 +222,8 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     secureRequests: wiring.secureRequests,
     ...(wiring.identities === undefined ? {} : { identities: wiring.identities }),
     leases: new WorkLeaseStore(wiring.pool),
+    // ADR-0101 §2, §3: who last reported a run's session live, and until when.
+    sessions: new RunSessionStore(wiring.pool),
     interventions: new PostgresInterventionStore(wiring.pool),
     // ADR-0097: the preview names what the student holds. The METADATA
     // store, in every deployment that has the table — the service and the

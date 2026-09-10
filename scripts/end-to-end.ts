@@ -546,6 +546,13 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (step.kind === "sign_in") {
+      // The resume path (ADR-0101 §3). Unreachable in a replay, which tracks
+      // no session; named so the switch stays total.
+      console.log(`\n  ${AMBER}SIGN IN${RESET}  ${step.say}`);
+      return;
+    }
+
     // ── The end ───────────────────────────────────────────────────────────
     heading("8", "Where this stops");
     console.log(`  ${GREEN}✓${RESET} The application is filled and authorised.`);

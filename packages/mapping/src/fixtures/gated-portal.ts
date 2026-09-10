@@ -45,6 +45,13 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
   authentication: {
     required: true,
     loginUrl: `${GATED_PORTAL_ORIGIN}/login`,
+    // The login form's controls, for the resume path (ADR-0101 §3). Recorded
+    // from the page `loginUrl` names, exactly as the fixture portal renders it.
+    login: {
+      emailLocator: { strategy: "label", value: "Email address" },
+      passwordLocator: { strategy: "label", value: "Password" },
+      submitLocator: { strategy: "role", value: "button:Sign in" },
+    },
     accountCreationRequired: true,
     notes:
       "The application form redirects to /register without a session. The applicant chooses " +

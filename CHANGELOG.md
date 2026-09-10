@@ -19,6 +19,42 @@ not shipped artefacts.
 
 ---
 
+## [0.89.0] — 2026-09-10
+
+**P72 — `portal_sign_in` is the resume path, and the run says why (ADR-0101 §3).** Vahid's
+decision B, as the resume path only: *"Your phishing-normalisation argument is the reason it is
+the resume path and not the routine one."*
+
+### Added
+
+- `run_sessions` (conversation-service migration 0019) and `RunSessionStore`: who last reported
+  a run's session live, and until when — the report's time plus `SECURE_HOLD_CEILING_SECONDS`.
+  Written from every runner report, read by the Run Driver to decide fill or resume. No cookie,
+  no token.
+- `SESSION_ENDING_FAILURES` in `packages/contracts`: the one list on which the runner releases
+  its held context and the plane records the session gone.
+- `sign_in` — a `RunStep`, a `RunStepKind`, a `WorkKind`, and `sign_in_to_portal` in the domain's
+  consequential-action vocabulary (named for a stop; not ledgered as an intent).
+- `LoginTargets` on `ClaimedWork.login`; `AuthenticationModel.login` (optional) in the blueprint
+  and its parser — the login form's email box, password box and sign-in control.
+- `apps/browser-runner/src/sign-in.ts` — `signInToPortal`; the performer's `sign_in` branch.
+- `describeSignInResume` in `packages/account`: the second ask's words.
+- Orchestrator: `RunState.session`, `withSession`, `signInWorkOf`, `secret.requestedAt`;
+  `accountCreated` takes `createdAt`; `resumeStepFor` with three named refusals.
+- `SecureRequestInput.requiresConfirmation`; a sign-in is typed once.
+- Secure-service migration 0003: `portal_sign_in` is a purpose; `portal_password_reset` is not.
+
+### Changed
+
+- `FILL_PURPOSES`, `CREDENTIAL_PURPOSES`, the Secure Plane's `Purpose` and all three enums in
+  `secure.v1.yaml`: `portal_account_creation | portal_sign_in`. The domain and the contract
+  agree; `scripts/contract-drift.test.ts` asserts it.
+- The gated fixture blueprint records its login form.
+- `scripts/journey.test.ts` drives the restart through the real resume path; the sign-in cheat
+  is gone. The password crosses exactly two wires — the student's two submissions.
+
+---
+
 ## [0.88.0] — 2026-09-10
 
 **P71 — one sitting, in memory, five minutes (ADR-0101 §2).** Slice d of the attachment path;

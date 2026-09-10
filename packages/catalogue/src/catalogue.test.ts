@@ -289,7 +289,7 @@ describe("an approval binds to content", () => {
             (mapping) => (mapping["source"] as Record<string, unknown>)["kind"] === "secure_credential",
           );
           if (credential === undefined) expect.unreachable("fixture has no secure_credential");
-          (credential["source"] as Record<string, unknown>)["purpose"] = "portal_password_reset";
+          (credential["source"] as Record<string, unknown>)["purpose"] = "portal_sign_in";
         },
       },
       {

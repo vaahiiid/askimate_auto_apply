@@ -71,7 +71,7 @@ import {
   GATED_PORTAL_BLUEPRINT,
   GATED_PORTAL_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
-import { parseConversationRun, parseRunPreview } from "@askimate/aas-contracts";
+import { parseConversationRun, parseRunPreview, SECURE_HOLD_CEILING_SECONDS } from "@askimate/aas-contracts";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import {
@@ -85,7 +85,6 @@ import { createFillAgentApp, httpUseAuthoriser } from "@askimate/aas-secure-fill
 import {
   SessionHold,
   httpWorkIntake,
-  openSensitiveContext,
   runOneTurn,
   runnerPerformer,
   startFixturePortal,
@@ -100,6 +99,7 @@ import {
   RunDriver,
   StudentIdentityStore,
   WorkLeaseStore,
+  RunSessionStore,
   buildStudentClient,
   createConversationApp,
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
@@ -349,6 +349,9 @@ beforeAll(async () => {
     secureRequests: journeySecureRequests,
     identities: new StudentIdentityStore(conversationPool),
     leases: new WorkLeaseStore(conversationPool),
+    // ADR-0101 §2, §3: who last reported the run's session live, and until
+    // when — what makes the restart below a resume rather than a stall.
+    sessions: new RunSessionStore(conversationPool),
     now: () => new Date(),
   });
   const conversationApp = createConversationApp({
@@ -565,9 +568,11 @@ let devCookie = "";
  * matters again here.
  * ═══════════════════════════════════════════════════════════════════════════
  */
-async function restartedInstance(runId: string): Promise<{
+async function restartedInstance(clock: () => Date = () => new Date()): Promise<{
+  readonly baseUrl: string;
   readonly intake: ReturnType<typeof httpWorkIntake>;
   readonly performer: ReturnType<typeof runnerPerformer>;
+  readonly held: () => Promise<readonly string[]>;
   readonly close: () => Promise<void>;
 }> {
   const pool = new pg.Pool({ connectionString: conversationPool.options.connectionString ?? "", max: 4 });
@@ -583,15 +588,17 @@ async function restartedInstance(runId: string): Promise<{
     profiles: new PostgresConfirmedProfileStore(pool),
     conversations: store,
     secureRequests: journeySecureRequests,
+    identities: new StudentIdentityStore(pool),
     leases: new WorkLeaseStore(pool),
-    now: () => new Date(),
+    sessions: new RunSessionStore(pool),
+    now: clock,
   });
   const app = createConversationApp({
     store,
     sessionSecret: SESSION_SECRET,
     authorise: () => Promise.resolve(true),
     authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
-    now: () => new Date(),
+    now: clock,
     runs: driver,
     targets: journeyCatalogue,
     secureRequests: journeySecureRequests,
@@ -602,24 +609,13 @@ async function restartedInstance(runId: string): Promise<{
     const listening = app.listen(port, "127.0.0.1", () => resolve(listening));
   });
 
-  // A NEW context: the old one's cookie is gone with the process that held it.
-  //
-  // ── The sign-in below is this TEST's, not the runner's ─────────────────
-  //
-  // A restarted runner holds no session, and a password that was single-use
-  // is gone; the way back in is the resume path — a second ask through the
-  // secure box, ADR-0101 §3 — which P72 builds. Until then this file signs in
-  // with the password it happens to know, and hands the context to a fresh
-  // hold through the seam that path will use (`adopt`). What is proved here
-  // is ADR-0047's resume: page two, not page one again.
-  const context = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
-  const page = await context.newPage();
-  await page.goto(`${portal.baseUrl}/login`);
-  await page.getByLabel("Email address").fill(EMAIL);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // A restarted runner holds NOTHING: the old context's cookie is gone with
+  // the process that held it, and the password that made it was single-use
+  // and is gone. Until P72 this file signed the new context in with the
+  // password it happened to know; now the way back in is the resume path
+  // (ADR-0101 §3), driven below through the real secure box and the real
+  // performer. The hold starts empty.
   const hold = new SessionHold({ browser: runnerBrowser, now: () => new Date() });
-  await hold.adopt(runId, context);
 
   const intake = httpWorkIntake({
     baseUrl: `http://127.0.0.1:${String(port)}`,
@@ -629,6 +625,8 @@ async function restartedInstance(runId: string): Promise<{
     sessions: () => hold.held(),
   });
   return {
+    baseUrl: `http://127.0.0.1:${String(port)}`,
+    held: () => hold.held(),
     intake,
     performer: runnerPerformer({
       browser: runnerBrowser,
@@ -1133,17 +1131,144 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(portal.submissions()).toEqual([]);
   }, 300_000);
 
-  it("RESUMES on the second page after a restart, and does not re-do the first", async () => {
+  it("RESUMES on the second page after a restart — signed back in by the resume path — and does not re-do the first", async () => {
     // ═══════════════════════════════════════════════════════════════════
-    // The whole point of ADR-0047. Everything in memory is thrown away — a new
-    // driver, a new pool, a new browser context — and the run picks up on page
-    // two because the intent ledger says page one is saved.
-    //
-    // A run that had lost that would either re-type page one (pressing "Save
-    // and continue" a second time on a real portal) or stall entirely.
+    // ADR-0047 and ADR-0101 §3 together. Everything in memory is thrown away
+    // — a new driver, a new pool, an EMPTY session hold — and the plane is
+    // looked at from five minutes later, which is what a runner that died
+    // looks like to it: the session it recorded from the last report is past
+    // the ceiling. So the run does the one thing that ever asks a student
+    // for their password twice: it says why, opens the same secure box, a
+    // runner signs in with what they typed, and page two is filled — not
+    // page one again, because the intent ledger says page one is saved.
     // ═══════════════════════════════════════════════════════════════════
-    const restarted = await restartedInstance(runId);
+    const afterTheCeiling = (): Date =>
+      new Date(Date.now() + (SECURE_HOLD_CEILING_SECONDS + 1) * 1000);
+    const restarted = await restartedInstance(afterTheCeiling);
     try {
+      // The Secure Plane settled the creation's handle when the fill agent
+      // spent it, and tells this plane through its outbox — drained by the
+      // worker's loop in a deployment, and here by hand, as every other
+      // lifecycle word in this file reaches the log. Without it the log still
+      // says the first password is "received", and the run would rightly not
+      // open a second box while a first is unsettled.
+      const consumed = await secureOutbox.publish(
+        internalAppend({
+          baseUrl: CONVERSATION_URL,
+          serviceCertificate: SECURE_CERT,
+          fetch: recordingFetch as unknown as typeof globalThis.fetch,
+        }),
+        { now: new Date() },
+      );
+      expect(consumed.failed).toBe(0);
+
+      // ── Nothing to claim: the fill waits for a session nobody holds ────
+      expect(await restarted.intake.claim(), "no runner holds the session").toBeNull();
+
+      // ── The run asks, once more, and says why ─────────────────────────
+      const asked = await recordingFetch(`${restarted.baseUrl}/v1/conversations/${CONVERSATION}/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
+      });
+      expect(asked.status).toBe(200);
+      const asking = (await asked.json()) as { step: string; phase: string };
+      expect(asking.step).toBe("request_secret");
+      expect(asking.phase).toBe("awaiting_secret");
+
+      const requests = await conversationPool.query<{ request_id: string }>(
+        "SELECT request_id FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested' ORDER BY ordinal",
+        [CONVERSATION],
+      );
+      expect(requests.rows, "the creation's ask, and now the resume path's").toHaveLength(2);
+      const resumeRequest = requests.rows[1]!.request_id;
+      const purpose = await securePool.query<{ purpose: string; requires_confirmation: boolean }>(
+        "SELECT purpose, requires_confirmation FROM secret_requests WHERE request_id = $1",
+        [resumeRequest],
+      );
+      expect(purpose.rows[0]).toEqual({ purpose: "portal_sign_in", requires_confirmation: false });
+
+      // ── The student types it again, into the REAL frame — once ─────────
+      //
+      // And reads WHY there, on the secure origin: the explanation is stored
+      // by the Secure Plane and rendered inside the frame, so no text about a
+      // password crosses into the conversation log.
+      const { page, context } = await studentPage();
+      const frame = page.frameLocator("#secure iframe");
+      await frame.locator("#secure-form").waitFor({ state: "visible", timeout: 20_000 });
+      expect(await frame.locator("#secure-title").textContent()).toBe(
+        `Enter your password for ${GATED_PORTAL_BLUEPRINT.institutionName}`,
+      );
+      const why = await frame.locator("#secure-explanation").textContent();
+      expect(why).toContain("signed out of your account");
+      expect(why).toContain("only reason I would ever ask for it a second time");
+      expect(
+        await frame.locator("#secure-confirmation").isVisible(),
+        "typed once on a sign-in: the portal is the check",
+      ).toBe(false);
+      await frame.locator("#secure-password").fill(PASSWORD);
+      await frame.locator("#secure-submit").click();
+      await expect
+        .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
+        .toContain("received");
+      await context.close();
+      const drained = await secureOutbox.publish(
+        internalAppend({
+          baseUrl: CONVERSATION_URL,
+          serviceCertificate: SECURE_CERT,
+          fetch: recordingFetch as unknown as typeof globalThis.fetch,
+        }),
+        { now: new Date() },
+      );
+      expect(drained.failed).toBe(0);
+
+      // ── The run's next step is the sign-in, and it is work for any runner ─
+      const typed = await recordingFetch(`${restarted.baseUrl}/v1/conversations/${CONVERSATION}/runs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
+      });
+      const signingIn = (await typed.json()) as { step: string; phase: string };
+      expect(signingIn.step).toBe("sign_in");
+      expect(signingIn.phase).toBe("filling");
+
+      const signIn = await restarted.intake.claim();
+      if (signIn === null) expect.unreachable("the sign-in is work");
+      expect(signIn.kind).toBe("sign_in");
+      expect(signIn.login?.url).toBe(`${portal.baseUrl}/login`);
+      expect(signIn.secretHandle).toMatch(/^sh_[0-9a-f]{32}$/);
+      expect(await restarted.held(), "held nothing yet").toEqual([]);
+      expect(await restarted.performer(signIn)).toEqual({ kind: "succeeded" });
+      expect(await restarted.held(), "and now the session, for the fill").toEqual([runId]);
+      expect(
+        await restarted.intake.report(signIn.runId, { leaseId: signIn.leaseId, outcome: "succeeded" }),
+      ).toBe(true);
+      // The plane's own record of who is signed in, and the handle gone.
+      const session = await conversationPool.query<{ holder: string }>(
+        "SELECT holder FROM run_sessions WHERE run_id = $1",
+        [runId],
+      );
+      expect(session.rows[0]?.holder).toBe("runner-restarted");
+      const settled = await secureOutbox.publish(
+        internalAppend({
+          baseUrl: CONVERSATION_URL,
+          serviceCertificate: SECURE_CERT,
+          fetch: recordingFetch as unknown as typeof globalThis.fetch,
+        }),
+        { now: new Date() },
+      );
+      expect(settled.failed).toBe(0);
+      const lifecycle = await conversationPool.query<{ kind: string }>(
+        "SELECT kind FROM conversation_events WHERE conversation_id = $1 AND request_id = $2 ORDER BY ordinal",
+        [CONVERSATION, resumeRequest],
+      );
+      expect(lifecycle.rows.map((row) => row.kind)).toEqual([
+        "secret_requested",
+        "secret_received",
+        "secret_consumed",
+      ]);
+
+      // ── Page two, in the session the sign-in gave this runner ─────────
       const claimed = await restarted.intake.claim();
       if (claimed === null) expect.unreachable("page two is still to do");
       expect(claimed.kind).toBe("execute");
@@ -1193,7 +1318,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // a courtesy after the work; it is part of the work, and until P12 nothing
     // in the system could do it: no account had ever left `active`.
     // ═══════════════════════════════════════════════════════════════════
-    const restarted = await restartedInstance(runId);
+    const restarted = await restartedInstance();
     try {
       expect(await restarted.intake.claim(), "no page remains").toBeNull();
 
@@ -1417,12 +1542,20 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(portal.accounts(), "still exactly one account").toEqual([EMAIL]);
   }, 300_000);
 
-  it("put the password on exactly ONE wire, and in no log line", () => {
+  it("put the password on exactly TWO wires — the student's two submissions — and in no log line", () => {
+    // Two, since P72: the student typed it once to create the account and once
+    // more on the resume path (ADR-0101 §3), each time into the secure box and
+    // towards the one endpoint designed to take it, under two different
+    // requests. Every other body that crossed a boundary — the agent asking
+    // for authority, the service answering, the runner reporting, the sign-in
+    // — carries nothing.
     const carrying = wire.filter((entry) => entry.body.includes(PASSWORD));
-    expect(carrying, "the recording must have caught the submission").toHaveLength(1);
-    expect(carrying[0]?.where).toMatch(
-      new RegExp(`^→ ${SECURE}/v1/secret-requests/sr_[0-9a-f]{32}/secret$`),
-    );
+    expect(carrying, "the recording must have caught both submissions").toHaveLength(2);
+    const submission = new RegExp(`^→ ${SECURE}/v1/secret-requests/(sr_[0-9a-f]{32})/secret$`);
+    const requests = carrying.map((entry) => submission.exec(entry.where)?.[1]);
+    expect(requests[0]).toMatch(/^sr_/);
+    expect(requests[1]).toMatch(/^sr_/);
+    expect(requests[0], "two asks, two requests").not.toBe(requests[1]);
 
     const log = logLines.join("\n");
     for (let at = 0; at + 6 <= PASSWORD.length; at += 1) {

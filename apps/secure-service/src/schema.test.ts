@@ -79,7 +79,7 @@ beforeAll(async () => {
   // without being considered here fails rather than sliding in — and so the
   // "no column can hold a secret" scan below is known to be looking at the
   // whole schema, not at whatever happened to be migrated.
-  expect(applied).toEqual(["0001_secret_requests", "0002_lifecycle_outbox"]);
+  expect(applied).toEqual(["0001_secret_requests", "0002_lifecycle_outbox", "0003_sign_in_purpose"]);
 }, 120_000);
 
 afterAll(async () => {

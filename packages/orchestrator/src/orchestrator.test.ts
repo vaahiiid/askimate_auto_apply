@@ -31,7 +31,7 @@ import type {
   PortalAccount,
 } from "@askimate/aas-account";
 import { chooseApproach, outstandingHandoverItems } from "@askimate/aas-account";
-import { isFieldUnavailable } from "@askimate/aas-domain";
+import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import { resolveField } from "@askimate/aas-profile";
 
 import type { ApplicationSession, DocumentSource, ExecutionContext } from "@askimate/aas-execution";
@@ -39,12 +39,16 @@ import { executePlan, failures } from "@askimate/aas-execution";
 import {
   assess,
   beginRun,
+  browserWorkFor,
   markFilled,
   nextStep,
   requiredFieldsFor,
+  signInWorkOf,
   withAccount,
   withAuthorisation,
   withProfile,
+  withSecret,
+  withSession,
 } from "./run.js";
 import type { RunInputs, RunState } from "./run.js";
 
@@ -1057,5 +1061,183 @@ describe("asking a student for a password", () => {
     ]);
     expect(JSON.stringify(received.secret)).toContain("sh_abcdef");
     expect(JSON.stringify(received.secret)).toContain("secret_received");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// The resume path: the session is gone (ADR-0101 §3, P72)
+// ───────────────────────────────────────────────────────────────────────────
+
+/** The login blueprint with its login form recorded, as the resume path needs. */
+const NEEDS_LOGIN_WITH_FORM = {
+  ...NEEDS_LOGIN,
+  authentication: {
+    ...NEEDS_LOGIN.authentication,
+    login: {
+      emailLocator: { strategy: "label", value: "Email address" },
+      passwordLocator: { strategy: "label", value: "Password" },
+      submitLocator: { strategy: "role", value: "button:Sign in" },
+    },
+  },
+} as const;
+
+const ACCOUNT_CREATED_AT = new Date("2026-08-31T10:00:00Z");
+const BEFORE_THE_ACCOUNT = new Date("2026-08-31T09:55:00Z");
+const AFTER_THE_ACCOUNT = new Date("2026-08-31T10:05:00Z");
+const SIGN_IN_REQUEST = `sr_${"5".repeat(32)}`;
+const SIGN_IN_HANDLE = `sh_${"5".repeat(32)}`;
+
+/**
+ * An active account the student chose the password for, created at a known
+ * instant — what `accountCreated` builds from the ledger's completion time.
+ */
+function accountTheStudentSignsInTo(): PortalAccount {
+  const choice = chooseApproach({ observed: OBSERVED_AUTH, studentPresentAtCreation: true });
+  if (!choice.chosen) expect.unreachable("the fixture portal is workable");
+  return {
+    ...accountAt("active", COMPLETE),
+    authentication: choice.plan,
+    createdAt: ACCOUNT_CREATED_AT,
+  };
+}
+
+/** An authorised run whose account exists, on the secure channel, with the session state given. */
+async function runWithSession(
+  signedIn: boolean | undefined,
+  overrides: Partial<RunInputs> = {},
+): Promise<RunState> {
+  const state = withAccount(
+    await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        blueprint: NEEDS_LOGIN_WITH_FORM,
+        passwordDelivery: "askimate_secure_channel",
+        ...overrides,
+      }),
+    ),
+    accountTheStudentSignsInTo(),
+  );
+  return signedIn === undefined ? state : withSession(state, { signedIn });
+}
+
+describe("the resume path — the session is gone (ADR-0101 §3)", () => {
+  it("fills while a runner holds the session, and when the session is not tracked at all", async () => {
+    // Vahid: *"as the resume path only"*. A run whose session is live is never
+    // asked again; a run nobody tracks — a replay, a test — fills as before.
+    expect((await nextStep(await runWithSession(true), model)).kind).toBe("execute");
+    expect((await nextStep(await runWithSession(undefined), model)).kind).toBe("execute");
+  });
+
+  it("asks for the password a SECOND time when the session is gone, and says why", async () => {
+    const step = await nextStep(await runWithSession(false), model);
+    expect(step.kind).toBe("request_secret");
+    if (step.kind !== "request_secret") expect.unreachable("checked above");
+
+    expect(step.request.purpose).toBe("portal_sign_in");
+    expect(step.request.target.host).toBe("apply.example.test");
+    expect(step.request.singleUse).toBe(true);
+    expect(step.request.ttlSeconds).toBe(300);
+    // The one reason it is happening, the fact that it is the exception, and
+    // what happens to the password — the argument the ADR records, in the
+    // words the student reads.
+    expect(step.say).toContain("signed out");
+    expect(step.say).toContain("used once");
+    expect(step.say).toContain("only reason I would ever ask for it a second time");
+    expect(step.request.explanation).toBe(step.say);
+    // And not the creation's script, which says the account is being set up.
+    expect(step.say).not.toContain("set up your account");
+  });
+
+  it("waits while the second box is open, rather than opening a third", async () => {
+    const state = withSecret(await runWithSession(false), {
+      requestId: SIGN_IN_REQUEST,
+      lifecycle: "secret_requested",
+      requestedAt: AFTER_THE_ACCOUNT,
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("request_secret");
+    if (step.kind !== "request_secret") expect.unreachable("checked above");
+    expect(step.request.purpose).toBe("portal_sign_in");
+  });
+
+  it("signs in once the student has typed it — a browser step carrying the account's facts", async () => {
+    const state = withSecret(await runWithSession(false), {
+      requestId: SIGN_IN_REQUEST,
+      lifecycle: "secret_received",
+      handle: SIGN_IN_HANDLE,
+      requestedAt: AFTER_THE_ACCOUNT,
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("sign_in");
+    expect(browserWorkFor(step)).toBe("sign_in");
+    const email = resolveField(COMPLETE, "contact.email");
+    if (isFieldUnavailable(email)) expect.unreachable("the profile has an email");
+    expect(signInWorkOf(step)).toEqual({
+      portalHost: "apply.example.test",
+      email: unwrapConfirmed(email),
+      approach: "student_chosen",
+    });
+    if (step.kind !== "sign_in") expect.unreachable("checked above");
+    expect(step.say).toContain("Signing back in");
+  });
+
+  it("does NOT mistake the creation's password for the sign-in's", async () => {
+    // A request opened BEFORE the account existed can only have been the
+    // creation's — its handle was spent making the account. Even reported as
+    // received, it is not handed to a sign-in: the run asks afresh.
+    const state = withSecret(await runWithSession(false), {
+      requestId: SIGN_IN_REQUEST,
+      lifecycle: "secret_received",
+      handle: SIGN_IN_HANDLE,
+      requestedAt: BEFORE_THE_ACCOUNT,
+    });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("request_secret");
+    if (step.kind !== "request_secret") expect.unreachable("checked above");
+    expect(step.request.purpose).toBe("portal_sign_in");
+  });
+
+  it("asks again after a sign-in that did not hold — spent, expired or cancelled", async () => {
+    for (const lifecycle of ["secret_consumed", "secret_expired", "secret_cancelled"] as const) {
+      const state = withSecret(await runWithSession(false), {
+        requestId: SIGN_IN_REQUEST,
+        lifecycle,
+        requestedAt: AFTER_THE_ACCOUNT,
+      });
+      const step = await nextStep(state, model);
+      expect(step.kind, lifecycle).toBe("request_secret");
+    }
+  });
+
+  it("REFUSES to ask where there is no password the student can give us", async () => {
+    // ADR-0101 §3, "Where B does not apply": the student typed their password
+    // into the portal themselves, and was promised we never see it. A lost
+    // session is then a specialist's, not a reason to open a box.
+    const state = await runWithSession(false, { passwordDelivery: "student_types_into_portal" });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("specialist");
+    if (step.kind !== "specialist") expect.unreachable("checked above");
+    expect(step.reason).toBe("no_resume_path");
+    expect(step.detail).toContain("Where B does not apply");
+  });
+
+  it("REFUSES to ask when the blueprint records no login form to type into", async () => {
+    // Before the box is opened: a password asked for with nowhere to type it
+    // would be the ask the ADR's argument is against, for nothing.
+    const state = await runWithSession(false, { blueprint: NEEDS_LOGIN });
+    const step = await nextStep(state, model);
+    expect(step.kind).toBe("specialist");
+    if (step.kind !== "specialist") expect.unreachable("checked above");
+    expect(step.reason).toBe("login_form_unrecorded");
+  });
+
+  it("never asks once the application is filled — a lost session then is nobody's problem", async () => {
+    const state = markFilled(
+      withAccount(
+        withSession(await runWithSession(false), { signedIn: false }),
+        { ...accountTheStudentSignsInTo(), stage: "handover_due" },
+      ),
+    );
+    expect((await nextStep(state, model)).kind).toBe("hand_over_account");
   });
 });

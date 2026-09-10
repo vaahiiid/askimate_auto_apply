@@ -146,6 +146,7 @@ describe("consequential actions", () => {
       "attach_document",
       "advance_portal_page",
       "consume_secret",
+      "sign_in_to_portal",
       "submit_application",
     ]);
   });

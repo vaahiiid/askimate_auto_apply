@@ -154,6 +154,7 @@ import {
   withAuthorisation,
   withCheckpoint,
   withSecret,
+  withSession,
 } from "@askimate/aas-orchestrator";
 import type {
   DurableStores,
@@ -183,8 +184,8 @@ import type {
   WorkReport,
 } from "@askimate/aas-contracts";
 import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
-import { WORK_APPROACHES } from "@askimate/aas-contracts";
-import type { PriorOutcome } from "@askimate/aas-contracts";
+import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
+import type { LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
@@ -192,7 +193,8 @@ import type { ProposedValue } from "@askimate/aas-domain";
 
 import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
-import type { WorkLeaseStore } from "./work-store.js";
+import type { WorkLease, WorkLeaseStore } from "./work-store.js";
+import type { RunSessionStore } from "./session-store.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -298,18 +300,14 @@ export type RunRefusal =
   | { readonly kind: "secure_plane_unavailable" }
   /**
    * The orchestrator asked for a purpose the Secure Plane's contract does not
-   * accept.
+   * name.
    *
-   * A latent drift, found by wiring the two together: `SecretPurpose` in
-   * `@askimate/aas-secrets` is `portal_account_creation | portal_sign_in`, and
-   * `OpenSecretRequest.purpose` in `secure.v1.yaml` is `portal_account_creation
-   * | portal_password_reset`. They share one member and differ on the other.
-   *
-   * Nothing reachable is broken — `secretRequestFor` only ever asks for
-   * `portal_account_creation`, which both accept. This refusal is what keeps it
-   * that way: a purpose the published contract does not name is refused here
-   * rather than cast into it, so a future change to either closed set fails
-   * loudly instead of opening a request the secure service will reject.
+   * `SecretPurpose` in `@askimate/aas-secrets` and `OpenSecretRequest.purpose`
+   * in `secure.v1.yaml` are two closed sets that AGREE since P72 (ADR-0101
+   * §3): `portal_account_creation | portal_sign_in`. They differed on one
+   * member from P27 to P71, and this refusal is what kept the difference
+   * honest — a purpose the published contract does not name is refused here
+   * rather than cast into the wire. It stays for the next member.
    */
   | { readonly kind: "purpose_not_supported" }
   /**
@@ -613,7 +611,10 @@ function challengeEncountered(
         (action === "create_portal_account"
           ? ` The registration form was accepted before the code was asked for, so the account ` +
             `MAY ALREADY EXIST: verify on the portal before creating another.`
-          : ` The page was not filled.`);
+          : action === "sign_in_to_portal"
+            ? ` The sign-in on the resume path (ADR-0101 §3) was not completed; the password the ` +
+              `student typed for it is single-use and is gone either way.`
+            : ` The page was not filled.`);
   return `${met} Discovery: ${recorded}. Vahid, ADR-0101 §6: this refusal is the signal that moves the second-factor plan (§5) from deferred to needed.`;
 }
 
@@ -1023,6 +1024,13 @@ export interface RunDriverOptions {
    * what every test of the conversation surface runs as.
    */
   readonly leases?: WorkLeaseStore;
+  /**
+   * Who last reported a run's signed-in session live, and until when it can
+   * still be (ADR-0101 §2, §3). Written from runner reports, read to decide
+   * whether a run fills or resumes. Optional for the reason `leases` is; absent,
+   * the session is not tracked and the run fills as it always did.
+   */
+  readonly sessions?: RunSessionStore;
   /**
    * Where a stopped run's adjudication lives. ADR-0048.
    *
@@ -1898,7 +1906,10 @@ export class RunDriver {
     // Plane could not have made — a spent handle coming back to life, a second
     // request replacing a live one. A log that said either of those would be a
     // log this driver declines to act on rather than one it believes.
-    const withTheSecret: RunState = secret === null ? base : withSecret(base, secret);
+    const withTheSecret: RunState =
+      secret === null
+        ? base
+        : withSecret(base, { ...secret, ...requestedAtOf(events, secret.requestId) });
 
     // ── The account, from the durable record that it was created ──────────
     //
@@ -1954,10 +1965,21 @@ export class RunDriver {
     // form was filled a second ago is offered to a runner again — which would
     // re-type a student's answers into a page they are already on, and press
     // save a second time.
-    const state: RunState = await this.#markFilledIfDone(
+    const filledOrNot: RunState = await this.#markFilledIfDone(
       authorised,
       input.record.runId,
       input.entry,
+    );
+
+    // ── And whether a runner still holds its session (ADR-0101 §2, §3) ───
+    //
+    // The fourth of the same shape. From the runners' reports and the one
+    // ceiling, not from any runner's memory; absent a session store the run
+    // is not tracked and fills as before.
+    const state: RunState = await this.#withSessionIfTracked(
+      filledOrNot,
+      input.record.runId,
+      now,
     );
 
     // THE decision. Made by the orchestrator, on a pure function, from state
@@ -1965,6 +1987,13 @@ export class RunDriver {
     const step: RunStep = await nextStep(state, this.#options.model);
 
     return { ok: true, step, now, secret, account: state.account, state };
+  }
+
+  /** What the session store says, applied through the orchestrator's one writer. */
+  async #withSessionIfTracked(state: RunState, runId: RunId, now: Date): Promise<RunState> {
+    const sessions = this.#options.sessions;
+    if (sessions === undefined) return state;
+    return withSession(state, { signedIn: await sessions.signedIn(runId, now) });
   }
 
   /**
@@ -1996,6 +2025,9 @@ export class RunDriver {
     const created = accountCreated(state, {
       accountId: `acct_${runId}`,
       now,
+      // When it came to be, from the ledger's own completion — what tells a
+      // sign-in's request from the creation's (ADR-0101 §3).
+      ...(found?.completed === undefined ? {} : { createdAt: found.completed.completedAt }),
       handover: input.handover,
     });
     return created ?? state;
@@ -4649,15 +4681,12 @@ export class RunDriver {
       return { ok: false, refusal: { kind: "email_not_verified" } };
     }
 
-    // Narrowed, not cast. See `purpose_not_supported` above for the drift this
-    // guards, and `scripts/contract-drift.test.ts` for the assertion that keeps
-    // both closed sets honest about it.
-    // Compared as a string, deliberately. TypeScript knows the two unions do
-    // not overlap on `portal_sign_in` and would call the check unintentional —
-    // which is exactly the drift being guarded, and a compile error here would
-    // mean deleting the guard rather than fixing the drift.
+    // Narrowed, not cast. The domain's purposes and the contract's agreed
+    // from P72 (ADR-0101 §3), and `scripts/contract-drift.test.ts` asserts
+    // that they do; this guard stays so a member added to one side without
+    // the other is refused here rather than cast into the wire.
     const purpose: string = step.request.purpose;
-    if (purpose !== "portal_account_creation" && purpose !== "portal_password_reset") {
+    if (purpose !== "portal_account_creation" && purpose !== "portal_sign_in") {
       return { ok: false, refusal: { kind: "purpose_not_supported" } };
     }
 
@@ -4674,9 +4703,15 @@ export class RunDriver {
       // Read inside the FRAME, on the secure origin, and stored there. The
       // contract does not return either of them, so no text about a password
       // reaches this plane's log.
-      title: `Choose a password for ${input.entry.blueprint.institutionName}`,
+      title:
+        purpose === "portal_sign_in"
+          ? `Enter your password for ${input.entry.blueprint.institutionName}`
+          : `Choose a password for ${input.entry.blueprint.institutionName}`,
       explanation: step.request.explanation,
       ttlSeconds: step.request.ttlSeconds,
+      // Typed once on a sign-in: the portal is the check. Twice on a
+      // creation, where a typo becomes an account nobody can get into.
+      ...(purpose === "portal_sign_in" ? { requiresConfirmation: false } : {}),
     });
     if (opened === null) {
       return { ok: false, refusal: { kind: "secure_plane_unavailable" } };
@@ -4819,7 +4854,9 @@ export class RunDriver {
       // stays `creating_account` and no runner is offered it, which is what
       // "a specialist looks at the portal and says which it was" means while
       // there is no verification capability to automate it.
-      const unfinished = await this.#unfinishedAction(record.runId, kind, entry);
+      const unfinished = LEDGERED_WORK.has(kind)
+        ? await this.#unfinishedAction(record.runId, kind, entry)
+        : null;
       if (unfinished !== null) {
         // P10: the run stops, and now it SAYS SO. Before this it simply fell
         // out of the work pool with its status still `running` — safe, and
@@ -4896,12 +4933,15 @@ export class RunDriver {
       // does not exist: this returns after the write. The other order of
       // failure — a lease taken and the intent write lost — hands out nothing,
       // lapses on its own, and is retried.
-      const began = await this.#beginIntent({
-        runId: makeRunId(candidate.runId),
-        action: ACTION_FOR_WORK[kind],
-        target: intentTargetOf(candidate.runId, payload),
-        now,
-      });
+      // A sign-in writes no row: see `LEDGERED_WORK`.
+      const began =
+        !LEDGERED_WORK.has(kind) ||
+        (await this.#beginIntent({
+          runId: makeRunId(candidate.runId),
+          action: ACTION_FOR_WORK[kind],
+          target: intentTargetOf(candidate.runId, payload),
+          now,
+        }));
       if (!began) {
         // The ledger will not have it. Something finished this action between
         // `#unfinishedAction` above and here — a race the lease normally
@@ -4994,7 +5034,7 @@ export class RunDriver {
     // So a runner that cannot tell whether the portal accepted must report
     // `uncertain`, not `failed`. `failed_cleanly` is a claim — that nothing
     // happened out there — and only the runner is in a position to make it.
-    if (input.report.outcome !== "uncertain") {
+    if (input.report.outcome !== "uncertain" && LEDGERED_WORK.has(held.kind)) {
       await this.#options.stores.runs.completeIntent(
         runId,
         key,
@@ -5002,6 +5042,9 @@ export class RunDriver {
         now,
       );
     }
+
+    // ── The session, as this report evidences it (ADR-0101 §2, §3) ──────
+    await this.#recordSession(held, input.report, now);
 
     // ADR-0101 §6. A CAPTCHA or a second factor is not a fill error: the run
     // stops, says which, and is never offered again until a person has looked.
@@ -5011,6 +5054,30 @@ export class RunDriver {
     }
 
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+
+  /**
+   * Records what a report says about the run's signed-in session.
+   *
+   * A success of any kind came from a signed-in browser — an account created
+   * signs the runner in, a sign-in does by definition, a page saved needed one
+   * — so the holder is on record until the ceiling. A failure ends the
+   * session exactly when the runner lets its context go: on the contract's
+   * `SESSION_ENDING_FAILURES` for a fill, and on any failure of the two kinds
+   * whose whole point was the session. Every other failure of a fill keeps
+   * it, so a refused page is offered to the same signed-in runner again.
+   */
+  async #recordSession(held: WorkLease, report: WorkReport, now: Date): Promise<void> {
+    const sessions = this.#options.sessions;
+    if (sessions === undefined) return;
+    if (report.outcome === "succeeded") {
+      await sessions.record({ runId: held.runId, holder: held.holder, now });
+      return;
+    }
+    const ends =
+      held.kind !== "execute" ||
+      (report.failure !== undefined && SESSION_ENDING_FAILURES.includes(report.failure));
+    if (ends) await sessions.lost(held.runId);
   }
 
   /**
@@ -5151,11 +5218,40 @@ function intentTargetOf(
  */
 const ACTION_FOR_WORK: Readonly<Record<WorkKind, ConsequentialAction>> = {
   create_account: "create_portal_account",
+  // The resume path (ADR-0101 §3). In the map so a stop during a sign-in names
+  // what was happening; NOT in `LEDGERED_WORK` below.
+  sign_in: "sign_in_to_portal",
   // Filling advances the portal, which may create a draft application visible
   // to admissions — which is why it is consequential at all, and why it gets an
   // intent rather than being treated as a read.
   execute: "advance_portal_page",
 };
+
+/**
+ * The kinds of work that open an intent at claim and complete it at report
+ * (ADR-0054). A sign-in does not: the one thing it spends is the handle, and
+ * the Secure Plane's own lifecycle already records that consumption where it
+ * happens — a second row for the same fact would be two models of one thing
+ * (ADR-0041) — and a sign-in that may or may not have happened is simply done
+ * again with a fresh password, creating nothing on the portal either way. Its
+ * durable trace is `run_sessions`, written from the report.
+ */
+const LEDGERED_WORK: ReadonlySet<WorkKind> = new Set<WorkKind>(["create_account", "execute"]);
+
+/**
+ * When a request was opened, from the log's own timestamp, for `withSecret`.
+ * The one reading by which a sign-in's request is told from a creation's
+ * (ADR-0101 §3); nothing if the log has no such request.
+ */
+function requestedAtOf(
+  events: readonly ConversationEvent[],
+  requestId: string,
+): { readonly requestedAt?: Date } {
+  const opened = events.find(
+    (event) => event.kind === "secret_requested" && event.requestId === requestId,
+  );
+  return opened === undefined ? {} : { requestedAt: new Date(opened.createdAt) };
+}
 
 /**
  * Where the registration form is and which boxes to type into, from the
@@ -5174,6 +5270,27 @@ const ACTION_FOR_WORK: Readonly<Record<WorkKind, ConsequentialAction>> = {
  * an account is required and does not say how to create one — a specialist's
  * problem, and not something to guess at with a form open.
  */
+/**
+ * Where the login form is and which boxes to type into, from the reviewed
+ * blueprint — the resume path (ADR-0101 §3). The origin is swapped for the
+ * deployment's and the path kept, exactly as `registrationFrom` does and for
+ * the same reason. `null` when the blueprint records no login form; the
+ * orchestrator refuses that case by name before it gets here.
+ */
+function loginFrom(entry: CatalogueEntry): LoginTargets | null {
+  const form = entry.blueprint.authentication.login;
+  const loginUrl = entry.blueprint.authentication.loginUrl;
+  if (form === undefined || loginUrl === undefined) return null;
+  const url = atOrigin(loginUrl, entry.portalOrigin);
+  if (url === null) return null;
+  return {
+    url,
+    emailLocator: { strategy: form.emailLocator.strategy, value: form.emailLocator.value },
+    passwordLocator: { strategy: form.passwordLocator.strategy, value: form.passwordLocator.value },
+    submitLocator: { strategy: form.submitLocator.strategy, value: form.submitLocator.value },
+  };
+}
+
 function registrationFrom(entry: CatalogueEntry): RegistrationTargets | null {
   const page = entry.blueprint.pages.find((candidate) =>
     candidate.sections.some((section) =>
@@ -5474,7 +5591,7 @@ function workPayloadFor(
       readonly pageRef?: string;
       readonly pageVersion?: string;
       readonly carries: Partial<
-        Pick<ClaimedWork, "registration" | "plan" | "formUrl" | "advanceLocator">
+        Pick<ClaimedWork, "registration" | "login" | "plan" | "formUrl" | "advanceLocator">
       >;
     }
   | null {
@@ -5492,6 +5609,16 @@ function workPayloadFor(
     if (registration === null) return null;
     if (hostOf(registration.url) !== portalHost) return null;
     return { portalHost, carries: { registration } };
+  }
+
+  if (input.kind === "sign_in") {
+    // The resume path (ADR-0101 §3): the login form, on the bound host, and
+    // nothing of the plan — the runner signs in and reports; the page comes
+    // as the next item, to the runner now holding the session (§2).
+    const login = loginFrom(entry);
+    if (login === null) return null;
+    if (hostOf(login.url) !== portalHost) return null;
+    return { portalHost, carries: { login } };
   }
 
   const plan = input.plan;

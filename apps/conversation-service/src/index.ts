@@ -128,6 +128,7 @@ export { httpSecureRequestOpener } from "./secure-requests.js";
 // ── ADR-0045: who is holding which run's browser work ──────────────────────
 export type { WorkCandidate, WorkLease } from "./work-store.js";
 export { WorkLeaseStore } from "./work-store.js";
+export { RunSessionStore } from "./session-store.js";
 
 // ── P18 / ADR-0055: starting this service, and the worker's shared wiring ──
 export type { ConversationConfig } from "./config.js";

@@ -18,7 +18,7 @@ export const SCHEMA_LIFECYCLES = [
   "secret_cancelled",
 ] as const;
 
-export const SCHEMA_PURPOSES = ["portal_account_creation", "portal_password_reset"] as const;
+export const SCHEMA_PURPOSES = ["portal_account_creation", "portal_sign_in"] as const;
 
 /** Why a handle could not be spent. Closed, so an audit row cannot free-text. */
 export const USE_REFUSAL_CODES = [

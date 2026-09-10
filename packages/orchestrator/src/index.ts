@@ -25,11 +25,13 @@ export {
   pageValuesOf,
   requiredFieldsFor,
   requiresSecureRequest,
+  signInWorkOf,
   specialistHandoverOf,
   withAccount,
   withAuthorisation,
   withProfile,
   withSecret,
+  withSession,
 } from "./run.js";
 
 // Re-exported, not owned. `executePlan` moved to `@askimate/aas-execution`

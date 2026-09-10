@@ -11,6 +11,8 @@
  *   create_account   in a context the `SessionHold` keeps for the run, so the
  *                    session the portal set at registration survives to the
  *                    next item
+ *   sign_in          the resume path (§3, P72): into a fresh held context,
+ *                    with the password the student typed a second time
  *   execute          in that same context, page by page, with the plane's
  *                    document source (ADR-0099) and the challenge probe
  *                    (ADR-0101 §6) — the whole fill, then the handover
@@ -28,8 +30,11 @@ import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { createPortalAccount } from "./create-account.js";
 import { documentSourceFor } from "./document-source.js";
 import { fillApplication } from "./fill-application.js";
+import { signInToPortal } from "./sign-in.js";
 import { PlaywrightPreparationSession } from "./playwright-fill-session.js";
 import type { SessionHold } from "./session-hold.js";
+import { SESSION_ENDING_FAILURES } from "@askimate/aas-contracts";
+
 import type { PerformOutcome, WorkIntake, WorkPerformer } from "./work-intake.js";
 
 export interface RunnerPerformerDeps {
@@ -47,17 +52,12 @@ export interface RunnerPerformerDeps {
 }
 
 /**
- * The failures after which the run's session is let go: the run has stopped
- * (a challenge, ADR-0101 §6), or the runner has nothing it can do with the
- * session it holds. Every other failure keeps it — a refused page may be
+ * The failures after which the run's session is let go — the contract's list,
+ * so the plane records the session lost on exactly the reports this releases
+ * it (ADR-0101 §3). Every other failure keeps it: a refused page may be
  * offered to this runner again, signed in.
  */
-const RELEASES_THE_SESSION = new Set<string>([
-  "captcha_met",
-  "second_factor_met",
-  "needs_the_student",
-  "secret_unavailable",
-]);
+const RELEASES_THE_SESSION = new Set<string>(SESSION_ENDING_FAILURES);
 
 export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
   return async (work): Promise<PerformOutcome> => {
@@ -75,6 +75,24 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       });
       // A creation that did not succeed holds no session worth keeping — and
       // a creation met by a second factor holds one the plane has stopped on.
+      if (outcome.kind !== "succeeded") await deps.hold.release(work.runId);
+      return outcome;
+    }
+
+    if (work.kind === "sign_in") {
+      // The resume path (ADR-0101 §3). Into a context held for the run from
+      // this moment — `open` closes nothing, and a stale context for the same
+      // run cannot be here, because the plane offers a sign-in only once no
+      // session can exist. Kept open on success: it IS the session now.
+      const context = await deps.hold.open(work.runId);
+      const outcome = await signInToPortal(work, {
+        browser: deps.browser,
+        browserEndpoint: deps.browserEndpoint,
+        agentBaseUrl: deps.agentBaseUrl,
+        ...(deps.agentServiceToken === undefined ? {} : { serviceToken: deps.agentServiceToken }),
+        ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
+        context,
+      });
       if (outcome.kind !== "succeeded") await deps.hold.release(work.runId);
       return outcome;
     }

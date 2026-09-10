@@ -186,6 +186,12 @@ export function phaseFor(step: RunStep): WorkflowPhase {
       return "awaiting_authorisation";
     case "execute":
       return "filling";
+    case "sign_in":
+      // The resume path (ADR-0101 §3): the run is filling, and signing back in
+      // is how it gets on with that. Not `awaiting_secret` — the password is
+      // already in the vault — and not a phase of its own, which would be a
+      // second word for the same position.
+      return "filling";
     case "ready_to_submit":
       return "ready_to_submit";
     case "hand_over_account":

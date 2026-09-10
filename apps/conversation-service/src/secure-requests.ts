@@ -38,11 +38,20 @@ export interface SecureRequestInput {
   readonly studentRef: string;
   readonly conversationId: string;
   readonly caseRef: string;
-  readonly purpose: "portal_account_creation" | "portal_password_reset";
+  readonly purpose: "portal_account_creation" | "portal_sign_in";
   readonly targetHost: string;
   readonly title: string;
   readonly explanation: string;
   readonly ttlSeconds: number;
+  /**
+   * Whether the student types it twice.
+   *
+   * Left to the service's default (true) for a creation, where a typo becomes
+   * an account nobody can get into. Stated as `false` for a sign-in (ADR-0101
+   * §3), where the portal itself says at once whether the password was right,
+   * and a second box would be a second thing to get wrong.
+   */
+  readonly requiresConfirmation?: boolean;
 }
 
 /** What comes back. There is no field here that could carry a value. */
@@ -94,9 +103,10 @@ export function httpSecureRequestOpener(
           method: "POST",
           headers,
           // Exactly the fields `OpenSecretRequest` declares. `requiresConfirmation`
-          // is left to the service's own default of true: asking a student to
-          // type a password twice is the secure plane's decision about its own
-          // form, not this plane's.
+          // is sent only when the caller has a reason to say (a sign-in, where
+          // the portal is the check); otherwise the service's own default of
+          // true stands — asking a student to type a password twice is the
+          // secure plane's decision about its own form.
           body: JSON.stringify({
             studentRef: input.studentRef,
             conversationId: input.conversationId,
@@ -106,6 +116,9 @@ export function httpSecureRequestOpener(
             title: input.title,
             explanation: input.explanation,
             ttlSeconds: input.ttlSeconds,
+            ...(input.requiresConfirmation === undefined
+              ? {}
+              : { requiresConfirmation: input.requiresConfirmation }),
           }),
         });
       } catch {

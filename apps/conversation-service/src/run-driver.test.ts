@@ -91,6 +91,7 @@ import {
   parseConversationRun,
   parseProblem,
   parseRunPreview,
+  SECURE_HOLD_CEILING_SECONDS,
 } from "@askimate/aas-contracts";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
@@ -101,6 +102,7 @@ import { buildPreview } from "@askimate/aas-preparation";
 import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
+import { RunSessionStore } from "./session-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -291,6 +293,16 @@ function cookieFor(subject: string): string {
  * Written as a factory precisely so the restart test can call it twice. An
  * instance that reused an object from the first would not be a restart.
  */
+/**
+ * What `reportWork` records when a runner reports the account created: that
+ * the reporting runner holds the run's signed-in session (ADR-0101 §2). A
+ * test that seeds the creation through the ledger seeds this beside it, or
+ * the run would — correctly — take the resume path (§3) instead of filling.
+ */
+async function signedInAtCreation(pool: pg.Pool, runId: string): Promise<void> {
+  await new RunSessionStore(pool).record({ runId, holder: "runner-seed", now: NOW });
+}
+
 function buildInstance(
   connectionString: string,
   secureRequests: SecureRequestOpener | null = null,
@@ -361,6 +373,9 @@ function buildInstance(
               : identityStore,
         }),
     leases: new WorkLeaseStore(instancePool),
+    // ADR-0101 §2, §3. Present in every instance for the same reason: a run
+    // whose session is tracked and one that is not must not look alike.
+    sessions: new RunSessionStore(instancePool),
     // ADR-0048. Present in every instance for the same reason `leases` is: a
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
@@ -3219,6 +3234,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
 
       await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
 
@@ -3516,6 +3532,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, key, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
       await captureAuthorisation(instance.pool, noFillablePage, trimmed);
 
       const advanced = await instance.driver.advance({
@@ -3659,6 +3676,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
       await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
 
       const filling = await instance.driver.advance({
@@ -5288,6 +5306,7 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
     } finally {
       await instance.pool.end();
     }
@@ -6633,6 +6652,7 @@ describeIfDatabase("the student stops", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
 
       // One more advance: the checkpoint phase reaches `filling` on the next
       // decide, and `claimWork` selects candidates by phase. Without this the
@@ -7228,6 +7248,7 @@ describeIfDatabase("a correction the student makes late", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
 
       const filling = await instance.driver.advance({
         runId,
@@ -9615,5 +9636,278 @@ describeIfDatabase("the second application, on the student's instruction", () =>
       call.slice(0, call.indexOf("})")),
       "the actor is written here, never passed in",
     ).toContain('actor: "student"');
+  });
+});
+
+describe("the resume path — the session is gone (ADR-0101 §3)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid: *"Yes, portal_sign_in through the secure box, single use, as the
+  // resume path only."* The plane learns a session is live from the runners'
+  // reports and the one ceiling (`run_sessions`, migration 0019); past it,
+  // the run asks the student for the password they chose — once more, and
+  // saying why — and hands the sign-in to any runner, which then holds the
+  // session the fill needs (§2).
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00721";
+  const LATER = new Date(NOW.getTime() + (SECURE_HOLD_CEILING_SECONDS + 1) * 1000);
+  const secure = opener();
+  let runId = "";
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
+  const CREATION_HANDLE = `sh_${"7".repeat(32)}`;
+  const SIGN_IN_HANDLE = `sh_${"8".repeat(32)}`;
+
+  /**
+   * The candidate query hands out the OLDEST claimable run. Every group
+   * before this one left runs in the pool, so a claim through the driver
+   * would answer with somebody else's; this makes the run under test the
+   * oldest by the column the query orders on — a test's cheat, with no effect
+   * on any other run.
+   */
+  async function oldest(): Promise<void> {
+    await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [
+      runId,
+    ]);
+  }
+
+  async function events(): Promise<readonly { kind: string; request_id: string | null }[]> {
+    const rows = await pool.query<{ kind: string; request_id: string | null }>(
+      "SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  it("records the session from the creation report, and fills in it while it lasts", async () => {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
+      );
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(secure.opens.at(-1)?.purpose, "the first ask is the creation's").toBe(
+        "portal_account_creation",
+      );
+
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: CREATION_HANDLE },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+
+      // The creation, leased and reported the way a runner reports it.
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      const lease = await new WorkLeaseStore(instance.pool).claim({
+        runId,
+        leaseId: "wl_resume_creation",
+        kind: "create_account",
+        holder: "runner-a",
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      if (lease === null) expect.unreachable("the lease should be free to take");
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: "wl_resume_creation", outcome: "succeeded" },
+        }),
+      ).toBe(true);
+      // The Secure Plane settles the creation's handle — spent making the
+      // account — through its outbox; here, the event it would deliver.
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_consumed", requestId: CREATION_REQUEST },
+      });
+
+      // ── The plane now knows who is signed in, and until when ───────────
+      const sessions = new RunSessionStore(instance.pool);
+      expect(await sessions.holderOf(runId, NOW)).toBe("runner-a");
+      expect(await sessions.signedIn(runId, new Date(LATER.getTime() - 2000))).toBe(true);
+      expect(await sessions.signedIn(runId, LATER), "past the ceiling").toBe(false);
+
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "signed in: the fill, and no second ask").toBe("execute");
+      expect(secure.opens, "one ask so far").toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("asks for the password a SECOND time once the session is gone, saying why, through a box typed once", async () => {
+    const later = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => LATER);
+    try {
+      const resumed = await later.driver.advance({ runId, conversationId: conversation });
+      if (!resumed.ok) expect.unreachable(`advance refused: ${resumed.refusal.kind}`);
+      expect(resumed.position.step).toBe("request_secret");
+      expect(resumed.position.phase).toBe("awaiting_secret");
+
+      // What the Secure Plane was asked for: the sign-in purpose, on the
+      // deployed host, typed ONCE — the portal is the check.
+      const opened = secure.opens.at(-1);
+      expect(secure.opens).toHaveLength(2);
+      expect(opened?.purpose).toBe("portal_sign_in");
+      expect(opened?.targetHost).toBe("gated.portal.test");
+      expect(opened?.requiresConfirmation).toBe(false);
+      expect(opened?.title).toBe("Enter your password for Gated University");
+      expect(opened?.explanation).toContain("only reason I would ever ask for it a second time");
+
+      // The log: the new request. The reason is read INSIDE the frame, on the
+      // secure origin, from the explanation the plane sent — the log holds no
+      // text about a password, by design.
+      expect((await events()).at(-1)?.kind).toBe("secret_requested");
+
+      // A second advance while the box is open opens nothing more.
+      const again = await later.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("request_secret");
+      expect(secure.opens).toHaveLength(2);
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("hands the sign-in to ANY runner, with the login form and the handle, and writes no ledger row for it", async () => {
+    const later = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => LATER);
+    try {
+      const signInRequest = (await events()).at(-1)?.request_id;
+      if (signInRequest === null || signInRequest === undefined) expect.unreachable("a request");
+      await new ConversationEventStore(later.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: signInRequest, handle: SIGN_IN_HANDLE },
+      });
+      const typed = await later.driver.advance({ runId, conversationId: conversation });
+      if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
+      expect(typed.position.step).toBe("sign_in");
+      expect(typed.position.phase).toBe("filling");
+
+      await oldest();
+      const work = await later.driver.claimWork({
+        holder: "runner-b",
+        leaseSeconds: 60,
+        // A runner that holds NO session: the sign-in is how it gets one.
+        sessions: [],
+      });
+      if (work === null) expect.unreachable("the sign-in is work");
+      expect(work.runId).toBe(runId);
+      expect(work.kind).toBe("sign_in");
+      expect(work.secretHandle, "the SECOND password's handle").toBe(SIGN_IN_HANDLE);
+      expect(work.login).toEqual({
+        url: "https://gated.portal.test/login",
+        emailLocator: { strategy: "label", value: "Email address" },
+        passwordLocator: { strategy: "label", value: "Password" },
+        submitLocator: { strategy: "role", value: "button:Sign in" },
+      });
+      expect(work.plan, "no plan: the page is the next item").toBeUndefined();
+      expect(work.registration).toBeUndefined();
+
+      const lease = await pool.query<{ kind: string }>(
+        "SELECT kind FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
+      expect(lease.rows[0]?.kind).toBe("sign_in");
+      // No intent: the consumption is the Secure Plane's record, and a
+      // sign-in repeated creates nothing (`LEDGERED_WORK`).
+      const intents = await pool.query<{ action: string }>(
+        "SELECT action FROM workflow_action_intents WHERE run_id = $1 AND action = 'sign_in_to_portal'",
+        [runId],
+      );
+      expect(intents.rows).toEqual([]);
+
+      // ── Reported: the session is that runner's now ────────────────────
+      expect(
+        await later.driver.reportWork({
+          runId,
+          report: { leaseId: work.leaseId, outcome: "succeeded" },
+        }),
+      ).toBe(true);
+      expect(await new RunSessionStore(later.pool).holderOf(runId, LATER)).toBe("runner-b");
+      // ...and, as the Secure Plane would settle it, the handle is spent.
+      await new ConversationEventStore(later.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_consumed", requestId: signInRequest },
+      });
+
+      const filling = await later.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step, "signed in again: the fill").toBe("execute");
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("offers the fill to the runner that signed in, and asks again when it reports the session gone", async () => {
+    const later = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => LATER);
+    try {
+      await oldest();
+      const elsewhere = await later.driver.claimWork({
+        holder: "runner-a",
+        leaseSeconds: 60,
+        sessions: [],
+      });
+      expect(elsewhere?.runId, "not to a runner without the session (§2)").not.toBe(runId);
+      if (elsewhere !== null) await pool.query("DELETE FROM work_leases WHERE run_id = $1", [elsewhere.runId]);
+
+      await oldest();
+      const page = await later.driver.claimWork({
+        holder: "runner-b",
+        leaseSeconds: 60,
+        sessions: [runId],
+      });
+      if (page === null) expect.unreachable("the holder is offered the page");
+      expect(page.runId).toBe(runId);
+      expect(page.kind).toBe("execute");
+      expect(page.formUrl).toBe("https://gated.portal.test/apply");
+
+      // The portal bounced the fill to its login page: the runner lets the
+      // context go, and the plane records the session gone on the same word.
+      expect(
+        await later.driver.reportWork({
+          runId,
+          report: { leaseId: page.leaseId, outcome: "failed", failure: "needs_the_student" },
+        }),
+      ).toBe(true);
+      expect(await new RunSessionStore(later.pool).holderOf(runId, LATER)).toBeNull();
+
+      const asked = await later.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "the resume path, again").toBe("request_secret");
+      expect(secure.opens).toHaveLength(3);
+      expect(secure.opens.at(-1)?.purpose).toBe("portal_sign_in");
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("keeps the session on a failure that is not the session's — a refused page is offered again, signed in", async () => {
+    const store = new RunSessionStore(pool);
+    await store.record({ runId: "run_session_unit", holder: "runner-u", now: NOW });
+    expect(await store.signedIn("run_session_unit", NOW)).toBe(true);
+    expect(
+      await store.signedIn("run_session_unit", new Date(NOW.getTime() + SECURE_HOLD_CEILING_SECONDS * 1000 - 1)),
+    ).toBe(true);
+    expect(
+      await store.signedIn("run_session_unit", new Date(NOW.getTime() + SECURE_HOLD_CEILING_SECONDS * 1000)),
+      "the ceiling is the vault's, and exact",
+    ).toBe(false);
+    // Replaced by a later report, from another holder.
+    await store.record({ runId: "run_session_unit", holder: "runner-v", now: LATER });
+    expect(await store.holderOf("run_session_unit", LATER)).toBe("runner-v");
+    await store.lost("run_session_unit");
+    expect(await store.signedIn("run_session_unit", LATER)).toBe(false);
   });
 });

@@ -42,8 +42,17 @@ export interface FillLocator {
   readonly value: string;
 }
 
-/** The purposes a secret request can be opened for. Mirrors the spec's enum. */
-export const FILL_PURPOSES = ["portal_account_creation", "portal_password_reset"] as const;
+/**
+ * The purposes a secret request can be opened for. Mirrors the spec's enum.
+ *
+ * `portal_sign_in` since P72 (ADR-0101 §3): the resume path, when a run needs
+ * a session and no runner holds one. `portal_password_reset` left at the same
+ * time — nothing had ever asked for it, and a reset is the student's own act
+ * on their own device (ADR-0020 §3), not a password typed through us. The
+ * domain's `SECRET_PURPOSES` and this set are compared in both directions by
+ * `scripts/contract-drift.test.ts`, and they now agree.
+ */
+export const FILL_PURPOSES = ["portal_account_creation", "portal_sign_in"] as const;
 export type FillPurpose = (typeof FILL_PURPOSES)[number];
 
 /**

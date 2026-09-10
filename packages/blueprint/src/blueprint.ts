@@ -236,8 +236,26 @@ export interface HandoffPoint {
 export interface AuthenticationModel {
   readonly required: boolean;
   readonly loginUrl?: string;
+  /**
+   * The login form's three controls, when a reviewer has recorded them.
+   *
+   * ADR-0101 §3 (P72): the resume path signs in with a password the student
+   * types once more, and the Secure Plane's fill agent needs to be told which
+   * box is the password. Still no credential field — locators are where a
+   * credential GOES, recorded by a person from the page `loginUrl` names.
+   * Absent, a run that loses its session cannot resume by this path and says
+   * so rather than guessing at a login form with a password in hand.
+   */
+  readonly login?: LoginForm;
   readonly accountCreationRequired: boolean;
   readonly notes: string;
+}
+
+/** The three controls a sign-in needs. One password box: a login asks once. */
+export interface LoginForm {
+  readonly emailLocator: FieldLocator;
+  readonly passwordLocator: FieldLocator;
+  readonly submitLocator: FieldLocator;
 }
 
 /** The submission step. Recorded, never executed by discovery. */

@@ -121,8 +121,8 @@ names the runs the runner holds a session for — `sessions`, required on the wi
 Driver offers such a run to its holder first, and offers `execute` to nobody else: the run waits
 for its holder, or for §3. The hold is released when the run's last page is saved, on a challenge
 (§6), when the student is needed, and when the process stops. `fillApplication` leaves the
-register: the runner reaches it. Not built: the resume path, so the journey's restart test still
-signs in by a cheat it marks as such, and `SessionHold.adopt` is the seam §3 fills.
+register: the runner reaches it. The resume path followed in P72 (§3); until then the journey's
+restart test signed in by a cheat it marked as such.
 
 ## 3 · `portal_sign_in` is the resume path, and the reason is recorded — P72
 
@@ -151,6 +151,31 @@ would do has to show why the extra ask is unavoidable, not that B was less work.
 
 **Where B does not apply.** Under `generated_ephemeral` there is no password the student knows.
 Under a portal with a second factor or a CAPTCHA at login, B cannot pass; that is §5.
+
+**Built in P72 (2026-09-10).** The plane knows a session is gone from the runners' own reports
+and the one ceiling: each report that could only have come from a signed-in browser — an
+account created, a sign-in done, a page saved — records who and until when in `run_sessions`
+(migration 0019), and the runner's `SESSION_ENDING_FAILURES` (the contract's list, read by both
+ends) erase it. Past the ceiling, or erased, `nextStep` takes the resume path instead of
+`execute`, and only where there is an account to sign back in to: `request_secret` with purpose
+`portal_sign_in`, typed once (the portal is the check), with `describeSignInResume` as the
+explanation the student reads inside the frame — the one reason it is happening, that it is the
+exception, and what happens to the password. Then the `sign_in` step and work kind: the login
+form the reviewed blueprint records (`authentication.login`, new and optional, so no reviewed
+hash moved), the handle, no plan; `signInToPortal` in the runner types the email, has the fill
+agent type the password, submits, and asks the page — a refusal is `portal_refused`, a code
+after acceptance is `second_factor_met`; the context it signed in is the run's held session
+(§2), and the fill follows to that runner. Which request is the sign-in's is read from the log's
+own times against the ledger's: a request opened after the account existed can only be the
+resume path's. A sign-in writes no intent — the Secure Plane's lifecycle records the one thing it
+spends, and repeating one creates nothing. Where the path cannot apply — the student typed their
+password into the portal themselves, no password ever reached us, or the blueprint records no
+login form — the run says so to a specialist before any box is opened. `portal_sign_in` entered
+the published contract and `portal_password_reset` left it, so the domain's purposes and the
+contract's agree and `scripts/contract-drift.test.ts` now asserts the agreement it had recorded
+as a divergence since P27. The journey's restart is driven through this path in full: an empty
+hold, the plane looked at from past the ceiling, the second ask in the real frame, a real sign-in
+by the production performer, page two and not page one.
 
 ## 4 · Open portals are refused, explicitly
 
@@ -234,4 +259,4 @@ accepted — and both are met by the real runner in a real browser.
 
 ## What follows
 
-P70 (§6) and P71 (§2, slice d) are built. P72 — §3, then slice e. Nothing in §5 is built.
+P70 (§6), P71 (§2, slice d) and P72 (§3) are built. Slice e follows. Nothing in §5 is built.

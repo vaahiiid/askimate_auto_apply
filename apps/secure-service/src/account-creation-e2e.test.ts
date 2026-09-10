@@ -44,6 +44,8 @@ import { SecureLogger } from "@askimate/aas-secure-logging";
 import { createFillAgentApp, httpUseAuthoriser } from "@askimate/aas-secure-filler";
 import {
   createPortalAccount,
+  openSensitiveContext,
+  signInToPortal,
   startFixturePortal,
   type FixturePortal,
 } from "@askimate/aas-browser-runner";
@@ -187,7 +189,10 @@ afterAll(async () => {
 });
 
 /** The conversation plane's half: open the request. No secret exists yet. */
-async function open(targetHost: string): Promise<{ requestId: string; frameToken: string }> {
+async function open(
+  targetHost: string,
+  purpose: "portal_account_creation" | "portal_sign_in" = "portal_account_creation",
+): Promise<{ requestId: string; frameToken: string }> {
   const response = await recordingFetch(`${SECURE}/internal/v1/secret-requests`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-service-cert": CONVERSATION_CERT },
@@ -195,7 +200,7 @@ async function open(targetHost: string): Promise<{ requestId: string; frameToken
       studentRef: STUDENT,
       conversationId: CONVERSATION,
       caseRef: CASE,
-      purpose: "portal_account_creation",
+      purpose,
       targetHost,
       title: "Choose a password for the university portal",
       explanation: "AskiMate types it once and cannot read it back.",
@@ -208,7 +213,11 @@ async function open(targetHost: string): Promise<{ requestId: string; frameToken
 }
 
 /** The student's half: bootstrap the frame session, then submit the password. */
-async function submitSecret(requestId: string, frameToken: string): Promise<string> {
+async function submitSecret(
+  requestId: string,
+  frameToken: string,
+  secret: string = PASSWORD,
+): Promise<string> {
   const bootstrapped = await recordingFetch(`${SECURE}/v1/frame-sessions`, {
     method: "POST",
     headers: {
@@ -233,8 +242,8 @@ async function submitSecret(requestId: string, frameToken: string): Promise<stri
       Cookie: `${SECURE_SESSION_COOKIE}=${cookieValue}`,
     },
     body: JSON.stringify({
-      secret: PASSWORD,
-      confirmation: PASSWORD,
+      secret,
+      confirmation: secret,
       conversationId: CONVERSATION,
     }),
   });
@@ -260,6 +269,16 @@ function targets(): NonNullable<ClaimedWork["registration"]> {
       { strategy: "name", value: "password_confirm" },
     ],
     submitLocator: { strategy: "role", value: "button:Create account" },
+  };
+}
+
+/** The login form's targets, as `RunDriver.claimWork` derives them from the gated blueprint. */
+function loginTargets(baseUrl: string = portal.baseUrl): NonNullable<ClaimedWork["login"]> {
+  return {
+    url: `${baseUrl}/login`,
+    emailLocator: { strategy: "label", value: "Email address" },
+    passwordLocator: { strategy: "label", value: "Password" },
+    submitLocator: { strategy: "role", value: "button:Sign in" },
   };
 }
 
@@ -498,8 +517,92 @@ describeIfDatabase("the student gets an account, and only they know the password
       expect(outcome).toEqual({ kind: "failed", failure: "second_factor_met" });
       expect(gated.accounts(), "the account exists — which is why the code says so").toEqual([EMAIL]);
       expect(cache.rawEntries(), "and the handle was spent, once").toHaveLength(heldBefore);
+
+      // ── And at SIGN-IN, on the resume path (ADR-0101 §3) ─────────────
+      //
+      // The account exists; a second password typed for a sign-in is
+      // accepted by the portal, which then asks for the code. The same stop,
+      // said the same way, and the handle spent once more.
+      const again = await open(gated.host, "portal_sign_in");
+      const second = await submitSecret(again.requestId, again.frameToken);
+      const signedIn = await signInToPortal(
+        work(second, { kind: "sign_in", portalHost: gated.host, login: loginTargets(gated.baseUrl) }),
+        deps(),
+      );
+      expect(signedIn).toEqual({ kind: "failed", failure: "second_factor_met" });
+      expect(cache.rawEntries()).toHaveLength(heldBefore);
     } finally {
       await gated.stop();
     }
+  }, 180_000);
+
+  it("SIGNS BACK IN on the resume path with a password typed a second time, into a context that then holds the session", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0101 §3 (P72). The account the first test created; the student
+    // types the password they chose once more, into the same secure box; the
+    // fill agent types it into the login form over CDP; the context the sign-in
+    // ran in now carries the portal's session — which is what the next page
+    // item fills in (§2). Single use: the handle is gone.
+    // ═══════════════════════════════════════════════════════════════════
+    wire = [];
+    const { requestId, frameToken } = await open(portal.host, "portal_sign_in");
+    const heldBefore = cache.rawEntries().length;
+    const handle = await submitSecret(requestId, frameToken);
+    expect(cache.rawEntries()).toHaveLength(heldBefore + 1);
+
+    const context = await openSensitiveContext(runnerBrowser, { userAgent: "AskiMate-Runner/1.0" });
+    try {
+      const outcome = await signInToPortal(
+        work(handle, { kind: "sign_in", login: loginTargets() }),
+        { ...deps(), context },
+      );
+      expect(outcome).toEqual({ kind: "succeeded" });
+      expect(cache.rawEntries(), "the handle is gone").toHaveLength(heldBefore);
+
+      // The session is the CONTEXT's, and the portal honours it: the gated
+      // form opens without a redirect to the registration page.
+      const cookies = await context.cookies();
+      expect(cookies.map((cookie) => cookie.name)).toContain("portal_session");
+      const page = await context.newPage();
+      await page.goto(`${portal.baseUrl}/apply`);
+      expect(new URL(page.url()).pathname, "signed in").toBe("/apply");
+
+      // The second password crossed exactly one wire — the student's own
+      // submission — and no other, exactly as the first did.
+      const carrying = wire.filter((entry) => entry.body.includes(PASSWORD));
+      expect(carrying).toHaveLength(1);
+      expect(carrying[0]?.where).toMatch(
+        new RegExp(`^→ ${SECURE}/v1/secret-requests/sr_[0-9a-f]{32}/secret$`),
+      );
+      expect(portal.submissions(), "and nothing was submitted").toEqual([]);
+    } finally {
+      await context.close();
+    }
+  }, 180_000);
+
+  it("reports a WRONG password as the portal's refusal, without carrying what it said", async () => {
+    const { requestId, frameToken } = await open(portal.host, "portal_sign_in");
+    const handle = await submitSecret(requestId, frameToken, "not-the-password-they-chose-1!");
+    const outcome = await signInToPortal(work(handle, { kind: "sign_in", login: loginTargets() }), deps());
+    expect(outcome).toEqual({ kind: "failed", failure: "portal_refused" });
+    // The portal said "Those details do not match an account." The outcome
+    // has nowhere to put that, and that is the design.
+    expect(JSON.stringify(outcome)).not.toContain("details");
+  }, 180_000);
+
+  it("does NOT sign in when the password cannot be typed, and refuses a login URL off the bound host", async () => {
+    expect(
+      await signInToPortal(work("", { kind: "sign_in", login: loginTargets() }), deps()).then((o) =>
+        o.kind === "failed" ? o.failure : o.kind,
+      ),
+      "no handle: nothing to type",
+    ).toBe("secret_unavailable");
+    const { requestId, frameToken } = await open(portal.host, "portal_sign_in");
+    const handle = await submitSecret(requestId, frameToken);
+    const elsewhere = await signInToPortal(
+      work(handle, { kind: "sign_in", login: loginTargets("http://portal.elsewhere.test:9") }),
+      deps(),
+    );
+    expect(elsewhere).toEqual({ kind: "failed", failure: "portal_drift" });
   }, 180_000);
 });

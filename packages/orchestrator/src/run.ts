@@ -49,6 +49,7 @@ import {
   checkHandoverComplete,
   chooseApproach,
   describeSecureChannel,
+  describeSignInResume,
   outstandingHandoverItems,
   renderAccountCreationRequest,
   renderHandover,
@@ -62,6 +63,7 @@ import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
 import type {
   SecretHandle,
   SecretLifecycle,
+  SecretPurpose,
   SecretRequest,
   SecretRequestId,
 } from "@askimate/aas-secrets";
@@ -156,6 +158,28 @@ export interface RunState {
     readonly lifecycle: SecretLifecycle;
     /** Opaque. Resolves to nothing outside the secret store. */
     readonly handle?: SecretHandle;
+    /**
+     * When the box was opened, from the conversation log's own timestamp.
+     *
+     * What tells a sign-in's request from a creation's (ADR-0101 §3): a run
+     * asks for a creation password only before its account exists, so a
+     * request opened after `account.createdAt` can only be the resume path's.
+     * Not a stored purpose — the log records when, the ledger records when the
+     * account came to be, and the purpose follows from the two (ADR-0041).
+     */
+    readonly requestedAt?: Date;
+  };
+  /**
+   * Whether a runner holds a signed-in browser session for this run, as the
+   * Run Driver knows it from the runners' reports (ADR-0101 §2).
+   *
+   * Absent means "not tracked" — a replay, a test — and the run fills as it
+   * always did. `false` means the session is gone: a crash, the five-minute
+   * ceiling, a portal that signed the runner out. That is the one condition
+   * under which a student is asked for their password a second time (§3).
+   */
+  readonly session?: {
+    readonly signedIn: boolean;
   };
   /**
    * Where this run got to, when it is a durable one.
@@ -239,6 +263,21 @@ export type RunStep =
       readonly kind: "request_secret";
       readonly say: string;
       readonly request: SecretRequest;
+    }
+  /**
+   * A runner signs back in — the resume path (ADR-0101 §3).
+   *
+   * Returned only when the run's session is gone and the student has typed
+   * their password a second time into the secure control. The runner opens the
+   * blueprint's login form, the fill agent types the password from the handle,
+   * and the session is the runner's again for one sitting (§2).
+   */
+  | {
+      readonly kind: "sign_in";
+      readonly say: string;
+      readonly portalHost: string;
+      readonly email: string;
+      readonly approach: AuthenticationApproach;
     }
   /**
    * Only the student can do this: an emailed verification link, an MFA code,
@@ -465,6 +504,21 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
   // (ADR-0050): `ready_to_submit` is reached only once the account is theirs.
   if (accountStep !== null) return accountStep;
 
+  // ── Signed in? The resume path, and the one second ask (ADR-0101 §3) ────
+  //
+  // The runner that created the account fills in the session it was given
+  // (§2). When that session is gone — a crash, the five-minute ceiling, a
+  // portal that signed the runner out — the run asks the student for the
+  // password they chose, once more and saying why, and a runner signs in with
+  // it. Vahid: *"as the resume path only"*; the argument for why it is not the
+  // routine path is recorded in the ADR and in `describeSignInResume`.
+  //
+  // Only where there is an account to be signed in to: a portal with no
+  // login has no session to lose, and its fill is not gated on one.
+  if (state.filled !== true && state.account !== undefined && state.session?.signedIn === false) {
+    return resumeStepFor(state, state.account);
+  }
+
   // ── Authorised, signed in. Fill it. ─────────────────────────────────────
   if (state.filled !== true) {
     return { kind: "execute", plan };
@@ -642,17 +696,113 @@ function secretStepFor(
   };
 }
 
-function secretRequestFor(state: RunState, portalHost: string): SecretRequest {
+function secretRequestFor(
+  state: RunState,
+  portalHost: string,
+  purpose: SecretPurpose = "portal_account_creation",
+): SecretRequest {
   return {
     studentRef: state.inputs.studentRef,
-    purpose: "portal_account_creation",
+    purpose,
     target: { host: portalHost, caseRef: state.inputs.caseId },
-    explanation: describeSecureChannel(portalHost),
+    explanation:
+      purpose === "portal_sign_in"
+        ? describeSignInResume(portalHost)
+        : describeSecureChannel(portalHost),
     singleUse: true,
     // Five minutes. Long enough to think of a password and type it twice,
     // short enough that a student who walks away does not leave one live.
     ttlSeconds: 5 * 60,
   };
+}
+
+/**
+ * What a run whose session is gone does next — the resume path (ADR-0101 §3).
+ *
+ * ── Where the path does not apply, it says so ─────────────────────────────
+ *
+ * The ADR's own words: under `generated_ephemeral` there is no password the
+ * student knows; under `passwordless` and `portal_issued` no password reached
+ * us through the secure channel and none can; and a student who typed their
+ * password into the portal themselves was promised we never see it. In each of
+ * those a lost session is a specialist's to look at, not a reason to open a
+ * box the student was told they would never see.
+ *
+ * ── Which request is the sign-in's ────────────────────────────────────────
+ *
+ * The run carries one secret slot. The creation's request is settled by the
+ * time an account exists — its handle was spent making it — so the request
+ * for the sign-in is whichever one was opened AFTER the account's creation.
+ * `signInSecretOf` reads exactly that, and answers nothing for a request that
+ * predates the account, so a stale creation secret is never handed to a
+ * sign-in. (Were it ever, the Secure Plane refuses a handle spent for a
+ * purpose it was not opened for — `wrong_purpose` — and the run asks again.)
+ */
+function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
+  const approach = account.authentication.approach;
+  if (approach !== "student_chosen" || state.inputs.passwordDelivery !== "askimate_secure_channel") {
+    return {
+      kind: "specialist",
+      reason: "no_resume_path",
+      detail:
+        `The runner's signed-in session for ${account.portalHost} is gone and the run cannot ` +
+        `sign back in: the account's approach is "${approach}"` +
+        (approach === "student_chosen" ? ` with the password typed into the portal directly` : "") +
+        `, so there is no password the student can give us through the secure channel (ADR-0101 ` +
+        `§3, "Where B does not apply"). Asking for one anyway would be asking for a credential ` +
+        `the student was told we would never see. A person decides how this run resumes.`,
+    };
+  }
+
+  const authentication = state.inputs.blueprint.authentication;
+  if (authentication.login === undefined || authentication.loginUrl === undefined) {
+    // Refused BEFORE the box is opened: a password asked for with nowhere to
+    // type it would be the ask the ADR's argument is against, for nothing.
+    return {
+      kind: "specialist",
+      reason: "login_form_unrecorded",
+      detail:
+        `The runner's signed-in session for ${account.portalHost} is gone, and the reviewed ` +
+        `blueprint records no login form (authentication.login and loginUrl) for the resume ` +
+        `path to type into. Record the form's email box, password box and sign-in control from ` +
+        `the page loginUrl names, have it reviewed, and the run resumes by ADR-0101 §3.`,
+    };
+  }
+
+  const portalHost = account.portalHost;
+  const secret = signInSecretOf(state);
+  if (secret?.lifecycle === "secret_requested") {
+    // The box is open. Asking again would replace it under their fingers.
+    return {
+      kind: "request_secret",
+      say: describeSignInResume(portalHost),
+      request: secretRequestFor(state, portalHost, "portal_sign_in"),
+    };
+  }
+  if (secret?.lifecycle === "secret_received") {
+    return {
+      kind: "sign_in",
+      portalHost,
+      email: unwrapConfirmed(account.email),
+      approach,
+      say: `Signing back in to ${portalHost} now, then carrying on where I left off.`,
+    };
+  }
+  // None yet, or the last one is settled — spent on a sign-in that did not
+  // hold, expired, or cancelled. Each of those is this one condition again.
+  return {
+    kind: "request_secret",
+    say: describeSignInResume(portalHost),
+    request: secretRequestFor(state, portalHost, "portal_sign_in"),
+  };
+}
+
+/** The run's secret, if it was asked for after the account existed; else nothing. */
+function signInSecretOf(state: RunState): RunState["secret"] | undefined {
+  const secret = state.secret;
+  const created = state.account?.createdAt;
+  if (secret?.requestedAt === undefined || created === undefined) return undefined;
+  return secret.requestedAt.getTime() > created.getTime() ? secret : undefined;
 }
 
 /**
@@ -938,6 +1088,15 @@ export function accountCreated(
   input: {
     readonly accountId: string;
     readonly now: Date;
+    /**
+     * When the account came to be, from the ledger's own completion time.
+     *
+     * Defaults to `now` for a caller that has no better record. The Run Driver
+     * has one, and passes it: `signInSecretOf` compares a secret request's
+     * time with this, and "now" on every request would put every request
+     * before the account.
+     */
+    readonly createdAt?: Date;
     /** What has actually happened about handing it back. */
     readonly handover?: HandoverEvidence;
   },
@@ -992,7 +1151,7 @@ export function accountCreated(
     // ADR-0020. AskiMate created it, and it is the student's — which is why
     // `handover_due` exists and why a case cannot finish before `handed_over`.
     createdBy: "askimate_on_behalf",
-    createdAt: input.now,
+    createdAt: input.createdAt ?? input.now,
   });
 }
 
@@ -1100,9 +1259,32 @@ export class IllegalSecretTransitionError extends Error {
  * mint. Whether a PARTICULAR plan can be transported is a separate question
  * with its own refusals (`toStoredPlan`); this one is about the step vocabulary.
  */
-export function browserWorkFor(step: RunStep): "create_account" | "execute" | null {
+export function browserWorkFor(step: RunStep): "create_account" | "sign_in" | "execute" | null {
   if (step.kind === "create_account") return "create_account";
+  if (step.kind === "sign_in") return "sign_in";
   return step.kind === "execute" ? "execute" : null;
+}
+
+/**
+ * The account facts a `sign_in` step carries, or `null`. The sibling of
+ * `accountWorkOf`, for the same reason it exists.
+ */
+export function signInWorkOf(step: RunStep): {
+  readonly portalHost: string;
+  readonly email: string;
+  readonly approach: AuthenticationApproach;
+} | null {
+  if (step.kind !== "sign_in") return null;
+  return { portalHost: step.portalHost, email: step.email, approach: step.approach };
+}
+
+/**
+ * Records what the Run Driver knows about the run's signed-in session
+ * (ADR-0101 §2, §3). The one writer, so a caller cannot put anything but the
+ * two words here.
+ */
+export function withSession(state: RunState, session: { readonly signedIn: boolean }): RunState {
+  return { ...state, session: { signedIn: session.signedIn } };
 }
 
 /**
@@ -1318,6 +1500,8 @@ export function withSecret(
     readonly lifecycle: SecretLifecycle;
     /** Opaque. `sh_` plus 32 hex. Resolves to nothing outside the vault. */
     readonly handle?: string;
+    /** When the request was opened, from the log. See `RunState.secret`. */
+    readonly requestedAt?: Date;
   },
 ): RunState {
   if (!isSecretRequestId(secret.requestId)) {
@@ -1379,6 +1563,7 @@ export function withSecret(
       requestId: secret.requestId,
       lifecycle: secret.lifecycle,
       ...(secret.handle === undefined ? {} : { handle: secret.handle }),
+      ...(secret.requestedAt === undefined ? {} : { requestedAt: secret.requestedAt }),
     },
   };
 }

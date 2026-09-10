@@ -160,6 +160,7 @@ describe("the run's wire words and the domain's do not drift", () => {
       "student_handoff",
       "ready_to_submit",
       "hand_over_account",
+      "sign_in",
     ];
     expect([...RUN_STEP_KINDS].sort()).toEqual([...kinds].sort());
   });
@@ -219,20 +220,21 @@ describe("the credential purposes, and a drift between three closed sets", () =>
     );
   });
 
-  it("RECORDS the drift between the domain and the contract, rather than hiding it", () => {
-    // ── A real finding, found by wiring the two together ─────────────────
+  it("the domain and the contract AGREE on the purposes, since P72 (ADR-0101 §3)", () => {
+    // ── A real finding, recorded here from P27 to P71, and closed ────────
     //
     //   domain   (`SecretPurpose`)          portal_account_creation | portal_sign_in
     //   contract (`OpenSecretRequest`)      portal_account_creation | portal_password_reset
     //
-    // They share ONE member and differ on the other. Nothing reachable is
-    // broken: `secretRequestFor` only ever asks for `portal_account_creation`,
-    // which both accept, and the Run Driver refuses anything the contract does
-    // not name (`purpose_not_supported`) rather than casting into it.
+    // They shared one member and differed on the other, and this test held
+    // the divergence as a recorded fact with an owner rather than a surprise.
+    // Vahid decided it: *"portal_sign_in through the secure box, single use,
+    // as the resume path only."* The contract took the domain's word;
+    // `portal_password_reset` left, because nothing had ever asked for it
+    // and a reset is the student's own act on their own device (ADR-0020 §3).
     //
-    // This test exists so the divergence is a recorded fact with an owner
-    // rather than a surprise. Adding a member to either side without deciding
-    // about the other fails HERE, which is where the decision belongs.
+    // Both sides are still pinned by value, so a member added to either
+    // without deciding about the other fails HERE, where the decision belongs.
     const domain = [...SECRET_PURPOSES].sort();
     const contract = [...contractPurposes()].sort();
 
@@ -243,11 +245,8 @@ describe("the credential purposes, and a drift between three closed sets", () =>
     expect(
       contract,
       "the contract's purposes changed — decide about the domain",
-    ).toEqual(["portal_account_creation", "portal_password_reset"]);
-
-    // The one they agree on is the only one a run can currently reach.
-    const shared = domain.filter((purpose) => contract.includes(purpose));
-    expect(shared).toEqual(["portal_account_creation"]);
+    ).toEqual(["portal_account_creation", "portal_sign_in"]);
+    expect(domain).toEqual(contract);
   });
 });
 
@@ -286,7 +285,7 @@ describe("the work vocabulary and the domain do not drift", () => {
     // step added without a work kind fails here rather than silently never
     // being done.
     // ═══════════════════════════════════════════════════════════════════
-    expect([...WORK_KINDS].sort()).toEqual(["create_account", "execute"]);
+    expect([...WORK_KINDS].sort()).toEqual(["create_account", "execute", "sign_in"]);
     for (const kind of WORK_KINDS) {
       expect(
         RUN_STEP_KINDS,

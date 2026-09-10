@@ -638,7 +638,7 @@ function parseOpen(
   // Closed set. `purpose` comes from the case and the blueprint, never from
   // model output — a prompt-injected model can ask for *a* password; it cannot
   // choose whose, or for which portal.
-  if (purpose !== "portal_account_creation" && purpose !== "portal_password_reset") return null;
+  if (purpose !== "portal_account_creation" && purpose !== "portal_sign_in") return null;
   // The contract's bounds, enforced. ADR-0034's ceiling is five minutes.
   if (typeof ttlSeconds !== "number" || !Number.isInteger(ttlSeconds)) return null;
   if (ttlSeconds < 60 || ttlSeconds > 300) return null;

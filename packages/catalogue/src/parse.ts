@@ -30,6 +30,7 @@ import type {
   ApplicationBlueprint,
   ApplicationRoute,
   AuthenticationModel,
+  LoginForm,
   BlueprintField,
   BlueprintId,
   BlueprintPage,
@@ -369,12 +370,23 @@ function readHandoff(value: unknown, path: string): HandoffPoint {
   };
 }
 
+function readLoginForm(value: unknown, path: string): LoginForm {
+  const source = record(value, path);
+  return {
+    emailLocator: readLocator(source["emailLocator"], `${path}.emailLocator`),
+    passwordLocator: readLocator(source["passwordLocator"], `${path}.passwordLocator`),
+    submitLocator: readLocator(source["submitLocator"], `${path}.submitLocator`),
+  };
+}
+
 function readAuthentication(value: unknown, path: string): AuthenticationModel {
   const source = record(value, path);
   const loginUrl = optionalText(source, "loginUrl", path);
+  const login = optionalWith(source, "login", path, readLoginForm);
   return {
     required: flag(source, "required", path),
     ...(loginUrl === undefined ? {} : { loginUrl }),
+    ...(login === undefined ? {} : { login }),
     accountCreationRequired: flag(source, "accountCreationRequired", path),
     // Notes are free text and an empty note is a real state.
     notes: optionalTextAllowingEmpty(source, "notes", path) ?? fail(`${path}.notes`, "expected a string"),

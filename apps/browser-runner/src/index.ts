@@ -57,6 +57,8 @@ export {
 export type { FlowSignal, RawObservation } from "./observe-script.js";
 export { OBSERVE_SCRIPT } from "./observe-script.js";
 export { CHALLENGE_SCRIPT, challengeFailure, detectChallenge } from "./challenge.js";
+export type { SignInDeps } from "./sign-in.js";
+export { signInToPortal } from "./sign-in.js";
 export { SECOND_FACTOR_CODE } from "./fixture-portal.js";
 export type { FixtureChallenge, FixturePortalOptions } from "./fixture-portal.js";
 export type { Challenge, ChallengeProbe } from "./challenge.js";

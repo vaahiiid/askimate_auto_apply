@@ -298,6 +298,17 @@ export type ConsequentialAction =
   | "advance_portal_page"
   /** Single-use by construction; a spent handle is simply gone. */
   | "consume_secret"
+  /**
+   * Signs in to the student's own portal account with a password they typed
+   * once more, on the resume path (ADR-0101 §3).
+   *
+   * In the vocabulary so a stop during a sign-in names what was happening.
+   * Deliberately NOT ledgered as an intent by the Run Driver: the one thing a
+   * sign-in spends is the handle, and the Secure Plane's own lifecycle already
+   * records that where it happens; a second record of one consumption would be
+   * two models of one fact (ADR-0041). Repeating a sign-in creates nothing.
+   */
+  | "sign_in_to_portal"
   /** Present for completeness. Submission is out of scope and stays so. */
   | "submit_application";
 
@@ -306,6 +317,7 @@ export const CONSEQUENTIAL_ACTIONS: readonly ConsequentialAction[] = [
   "attach_document",
   "advance_portal_page",
   "consume_secret",
+  "sign_in_to_portal",
   "submit_application",
 ];
 
@@ -332,6 +344,9 @@ const VERIFIABLE: Readonly<Record<ConsequentialAction, boolean>> = {
   advance_portal_page: true,
   // Nothing to look at. The handle is destroyed and the portal will not say.
   consume_secret: false,
+  // The same handle, spent the same way. The session it may have started is
+  // in memory on a runner that may be gone, and nobody can look at that.
+  sign_in_to_portal: false,
   // Out of scope, and it would be the most consequential of all.
   submit_application: false,
 };

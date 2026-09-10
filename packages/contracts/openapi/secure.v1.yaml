@@ -622,7 +622,7 @@ components:
         caseRef: { type: string, maxLength: 128 }
         purpose:
           type: string
-          enum: [portal_account_creation, portal_password_reset]
+          enum: [portal_account_creation, portal_sign_in]
           description: >-
             A closed set, and it comes from the case and the blueprint — never
             from model output. A prompt-injected model can ask for *a* password;
@@ -666,7 +666,7 @@ components:
         handle: { $ref: "#/components/schemas/SecretHandle" }
         studentRef: { type: string }
         caseRef: { type: string }
-        purpose: { type: string, enum: [portal_account_creation, portal_password_reset] }
+        purpose: { type: string, enum: [portal_account_creation, portal_sign_in] }
         targetHost: { type: string }
         consumer:
           type: string
@@ -707,7 +707,7 @@ components:
         handle: { $ref: "#/components/schemas/SecretHandle" }
         studentRef: { type: string }
         caseRef: { type: string }
-        purpose: { type: string, enum: [portal_account_creation, portal_password_reset] }
+        purpose: { type: string, enum: [portal_account_creation, portal_sign_in] }
         targetHost:
           type: string
           description: >-

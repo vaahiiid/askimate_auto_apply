@@ -60,7 +60,7 @@ import { FILL_LOCATOR_STRATEGIES, MAX_FILL_LOCATORS } from "./fill.js";
  * casts, and a provenance is carried rather than invented, because a provenance
  * nobody produced is a lie about a student.
  */
-export const WORK_KINDS = ["create_account", "execute"] as const;
+export const WORK_KINDS = ["create_account", "sign_in", "execute"] as const;
 export type WorkKind = (typeof WORK_KINDS)[number];
 
 /**
@@ -131,6 +131,24 @@ export interface RegistrationTargets {
   readonly submitLocator: FillLocator;
 }
 
+/**
+ * Where the login form is and which boxes to type into — the resume path
+ * (ADR-0101 §3, P72).
+ *
+ * The same shape and the same rules as `RegistrationTargets`: blueprint facts
+ * only, on the bound host, with ONE password box. A login form asks for the
+ * password once, and a second locator here would be a second guess about where
+ * a credential goes.
+ */
+export interface LoginTargets {
+  /** The page to open. Must be on `ClaimedWork.portalHost`; the runner re-checks. */
+  readonly url: string;
+  readonly emailLocator: FillLocator;
+  readonly passwordLocator: FillLocator;
+  /** The control that submits the form. */
+  readonly submitLocator: FillLocator;
+}
+
 export interface ClaimedWork {
   readonly leaseId: string;
   /** When the lease lapses and this run becomes claimable again. RFC 3339. */
@@ -160,6 +178,13 @@ export interface ClaimedWork {
    * created by the time a run gets there.
    */
   readonly registration?: RegistrationTargets;
+  /**
+   * Where the login form is. Present for `sign_in`, absent otherwise.
+   *
+   * A `sign_in` item also carries `secretHandle`: the password the student
+   * typed once more, for this one sign-in, spent by the fill agent and gone.
+   */
+  readonly login?: LoginTargets;
   /**
    * The fill plan, taken apart for transport. ADR-0046.
    *
@@ -286,7 +311,7 @@ type OpenStrings<T> = {
       // implied. `registration` carries a URL and selectors from a REVIEWED
       // blueprint; `plan` carries confirmed answers, and its own assertion
       // below closes the door this one opens.
-      NonNullable<T[K]> extends RegistrationTargets | TransportedPlan | FillLocator
+      NonNullable<T[K]> extends RegistrationTargets | LoginTargets | TransportedPlan | FillLocator
       ? never
       : NonNullable<T[K]> extends string
         ? K extends
@@ -323,6 +348,8 @@ type NonTargetFields<T> = {
       : K;
 }[keyof T];
 export type REGISTRATION_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<RegistrationTargets>>;
+/** The same door, closed for the login form: a URL and three locators, nothing else. */
+export type LOGIN_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<LoginTargets>>;
 
 /**
  * COMPILE-TIME: a confirmed value cannot travel without its provenance.
@@ -404,6 +431,24 @@ export const WORK_FAILURES = [
 ] as const;
 export type WorkFailure = (typeof WORK_FAILURES)[number];
 
+/**
+ * The failures after which the runner's signed-in session for the run is gone
+ * (ADR-0101 §2, §3).
+ *
+ * ONE list, read by both ends: the runner releases its held context on these,
+ * and the plane records the session as lost on the same report — so the two
+ * cannot disagree about whether a run needs the resume path. The run has
+ * stopped (a challenge), or the runner has nothing it can do with the session
+ * it holds (the student is needed, the password was not there). Every other
+ * failure keeps the session: a refused page may be offered again, signed in.
+ */
+export const SESSION_ENDING_FAILURES: readonly WorkFailure[] = [
+  "captcha_met",
+  "second_factor_met",
+  "needs_the_student",
+  "secret_unavailable",
+];
+
 export interface WorkReport {
   readonly leaseId: string;
   readonly outcome: WorkOutcome;
@@ -463,6 +508,9 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     kind === "create_account" ? parseRegistration(record["registration"]) : null;
   if (kind === "create_account" && registration === null) return null;
 
+  const login = kind === "sign_in" ? parseLogin(record["login"]) : null;
+  if (kind === "sign_in" && login === null) return null;
+
   const plan = kind === "execute" ? parseTransportedPlan(record["plan"]) : null;
   const formUrl = record["formUrl"];
   const advanceLocator = kind === "execute" ? parseLocator(record["advanceLocator"]) : null;
@@ -483,6 +531,7 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     approach: record["approach"],
     ...(handle === undefined ? {} : { secretHandle: handle }),
     ...(registration === null ? {} : { registration }),
+    ...(login === null ? {} : { login }),
     ...(plan === null ? {} : { plan }),
     ...(typeof formUrl === "string" && formUrl.length > 0 ? { formUrl } : {}),
     ...(advanceLocator === null ? {} : { advanceLocator }),
@@ -621,6 +670,17 @@ function parseLocator(value: unknown): FillLocator | null {
   if (!(FILL_LOCATOR_STRATEGIES as readonly string[]).includes(strategy as string)) return null;
   if (typeof held !== "string" || held.length === 0) return null;
   return { strategy: strategy as FillLocator["strategy"], value: held };
+}
+
+function parseLogin(value: unknown): LoginTargets | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (!nonEmpty(record["url"])) return null;
+  const emailLocator = parseLocator(record["emailLocator"]);
+  const passwordLocator = parseLocator(record["passwordLocator"]);
+  const submitLocator = parseLocator(record["submitLocator"]);
+  if (emailLocator === null || passwordLocator === null || submitLocator === null) return null;
+  return { url: record["url"], emailLocator, passwordLocator, submitLocator };
 }
 
 function parseRegistration(value: unknown): RegistrationTargets | null {

@@ -118,6 +118,7 @@ beforeAll(async () => {
     "0016_a_second_attempt_is_a_second_case",
     "0017_documents",
     "0018_sweep_document_intakes_job",
+    "0019_sign_in_and_run_sessions",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

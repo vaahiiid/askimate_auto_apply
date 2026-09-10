@@ -2,6 +2,7 @@ export type {
   ApplicationBlueprint,
   ApplicationRoute,
   AuthenticationModel,
+  LoginForm,
   BlueprintField,
   BlueprintId,
   BlueprintPage,

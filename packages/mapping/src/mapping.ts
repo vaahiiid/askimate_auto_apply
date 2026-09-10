@@ -124,7 +124,7 @@ export type ValueSource =
  * only plaintext in the system. `scripts/contract-drift.test.ts` compares the
  * two lists in both directions, exactly as it does for the lifecycle words.
  */
-export const CREDENTIAL_PURPOSES = ["portal_account_creation", "portal_password_reset"] as const;
+export const CREDENTIAL_PURPOSES = ["portal_account_creation", "portal_sign_in"] as const;
 export type CredentialPurpose = (typeof CREDENTIAL_PURPOSES)[number];
 
 /**

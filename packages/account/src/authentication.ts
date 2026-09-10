@@ -578,6 +578,28 @@ export function holdsASecret(
  * says what actually happens, including the part a student would want to know
  * — that the password is theirs afterwards and we do not keep it.
  */
+/**
+ * What the student is told when they are asked a SECOND time — the resume path
+ * (ADR-0101 §3).
+ *
+ * Says why, because that is the whole difference between this ask and a
+ * routine one. Vahid's argument, recorded in the ADR: every avoidable ask
+ * teaches a student that being asked for a university password is normal,
+ * which is the lesson a phishing attempt relies on. So this ask names the one
+ * reason it is happening, says it is the exception, and repeats what happens
+ * to the password — used once, then gone.
+ */
+export function describeSignInResume(portalHost: string): string {
+  return (
+    `I have been signed out of your account on ${portalHost} — that happens when I have to stop ` +
+    `part-way through and pick the application up again — and I need to sign back in to carry ` +
+    `on. I will show you the same password box as before, and what you type there goes straight ` +
+    `to the part of me that fills in forms. It is used once, to sign in, and then it is gone: not ` +
+    `saved, not written to any log, and the part of me you are talking to right now never gets ` +
+    `to see it. This is the only reason I would ever ask for it a second time.`
+  );
+}
+
 export function describeSecureChannel(portalHost: string): string {
   return (
     `This portal asks you to choose your own password. I will show you a password box in this ` +

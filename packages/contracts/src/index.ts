@@ -180,6 +180,7 @@ export type {
   NO_WORK_FIELD_IS_FREE_TEXT,
   REGISTRATION_CARRIES_ONLY_TARGETS,
   RegistrationTargets,
+  LoginTargets,
   TransportedInstruction,
   TransportedPlan,
   TransportedProvenance,
@@ -199,6 +200,7 @@ export type {
 export {
   WORK_APPROACHES,
   WORK_FAILURES,
+  SESSION_ENDING_FAILURES,
   WORK_KINDS,
   WORK_PROVENANCE_SOURCES,
   WORK_OUTCOMES,

@@ -1715,6 +1715,7 @@ components:
         - student_handoff
         - ready_to_submit
         - hand_over_account
+        - sign_in
 
     ConversationEvent:
       oneOf:
@@ -2015,12 +2016,14 @@ components:
         studentRef: { type: string, format: uuid }
         kind:
           type: string
-          enum: [create_account, execute]
+          enum: [create_account, sign_in, execute]
           description: >-
-            `create_account` carries `registration`; `execute` carries `plan`
-            and `formUrl`. Each kind carries what it needs and refuses the other
-            shape, so an `execute` item with registration targets and no plan is
-            rejected at the boundary rather than half-executed.
+            `create_account` carries `registration`; `sign_in` carries `login`
+            and a `secretHandle` (ADR-0101 §3, the resume path); `execute`
+            carries `plan` and `formUrl`. Each kind carries what it needs and
+            refuses the other shape, so an `execute` item with registration
+            targets and no plan is rejected at the boundary rather than
+            half-executed.
         portalHost:
           type: string
           description: The host the account is being created on. Bound, not a suggestion.
@@ -2043,6 +2046,8 @@ components:
             certificate that could reach one (ADR-0042).
         registration:
           $ref: "#/components/schemas/RegistrationTargets"
+        login:
+          $ref: "#/components/schemas/LoginTargets"
         plan:
           $ref: "#/components/schemas/TransportedPlan"
         formUrl:
@@ -2273,6 +2278,25 @@ components:
           description: >-
             Every password box on the form, in order. One secret fills all of
             them in a single use of one handle — the student is asked once.
+        submitLocator: { $ref: "#/components/schemas/WorkLocator" }
+
+    LoginTargets:
+      type: object
+      additionalProperties: false
+      required: [url, emailLocator, passwordLocator, submitLocator]
+      description: >-
+        Where the login form is and which boxes to type into — the resume path
+        (ADR-0101 §3). The same rules as `RegistrationTargets`: blueprint facts
+        only, on the bound host. ONE password box, because a login asks once
+        and a second locator would be a second guess about where a credential
+        goes.
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Must be on `ClaimedWork.portalHost`. The runner re-checks.
+        emailLocator: { $ref: "#/components/schemas/WorkLocator" }
+        passwordLocator: { $ref: "#/components/schemas/WorkLocator" }
         submitLocator: { $ref: "#/components/schemas/WorkLocator" }
 
     WorkLocator:
