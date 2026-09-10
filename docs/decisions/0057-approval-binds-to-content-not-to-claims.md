@@ -75,6 +75,14 @@ precisely so a reviewed blueprint can be run against a university's UAT environm
 rewriting the blueprint, which would mean running something nobody reviewed. It is supplied at
 load time by configuration and remains a deployment fact.
 
+> **Clarified in P74 (2026-09-10).** Not hashed *here* — the review hash is over what a specialist
+> approved, and moving an entry between environments must not change it. The student's
+> authorisation hash is a different hash over a different thing (ADR-0098), and since P74 it
+> **does** cover the deployment: the preview names the host the application and its documents
+> actually go to, which is `portalOrigin`'s when one is configured. The two hashes answer two
+> questions — "is this what was reviewed?" and "is this what the student agreed to send, and
+> where?" — and the destination belongs to the second.
+
 Everything a specialist reviews *is* covered: both artefacts, the institution/course/intake
 identity, the required documents, the observed portal authentication and the password-delivery
 decision.

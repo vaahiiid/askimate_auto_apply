@@ -126,7 +126,7 @@ import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
 import { buildPreview, renderPreview } from "@askimate/aas-preparation";
-import type { PreviewAttachment } from "@askimate/aas-preparation";
+import type { PreviewAttachment, PreviewDeployment } from "@askimate/aas-preparation";
 import type { WorkDocument } from "@askimate/aas-contracts";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
@@ -1868,6 +1868,7 @@ export class RunDriver {
     // step the student is already looking at.
     const events = await this.#options.conversations.since(input.conversationId, 0);
     const secret = latestSecretRequest(events);
+    const deployment = deploymentOf(input.entry);
 
     const base: RunState = withCheckpoint(
       beginRun({
@@ -1876,6 +1877,10 @@ export class RunDriver {
           studentRef: input.studentRef,
           blueprint: input.entry.blueprint,
           mappingSet: input.entry.mappingSet,
+          // Where the run is actually made to, when the entry names a
+          // deployment (P74). The preview's destination, and so part of the
+          // hash the student's authorisation covers.
+          ...(deployment === undefined ? {} : { portalHost: deployment.portalHost }),
           // What the student holds, named in the preview they authorise
           // (ADR-0097). Read now, from the metadata store, and never kept.
           documents: previewDocumentsOf(
@@ -2711,7 +2716,12 @@ export class RunDriver {
     }
     if (captured === null) return { ok: false, refusal: "not_authorised" };
     const held_documents = await this.#options.heldDocuments?.listForStudent(record.studentRef);
-    const preview = buildPreview(entry.blueprint, plan, previewDocumentsOf(held_documents ?? []));
+    const preview = buildPreview(
+      entry.blueprint,
+      plan,
+      previewDocumentsOf(held_documents ?? []),
+      deploymentOf(entry),
+    );
     if (!preview.built) return { ok: false, refusal: "content_changed" };
     if (preview.preview.contentHash !== captured.contentHash) return { ok: false, refusal: "content_changed" };
     const attachment = preview.preview.attachments.find((a) => a.documentRef === input.documentRef);
@@ -4232,7 +4242,7 @@ export class RunDriver {
     studentRef: string,
   ): Promise<readonly PreviewAttachment[]> {
     const held = await this.#options.heldDocuments?.listForStudent(studentRef);
-    const preview = buildPreview(entry.blueprint, plan, previewDocumentsOf(held ?? []));
+    const preview = buildPreview(entry.blueprint, plan, previewDocumentsOf(held ?? []), deploymentOf(entry));
     return preview.built ? preview.preview.attachments : [];
   }
 
@@ -5727,6 +5737,23 @@ function portalOf(entry: CatalogueEntry): string {
 
 function deployedHost(entry: CatalogueEntry, fromBlueprint: string): string | null {
   return entry.portalOrigin === undefined ? fromBlueprint : hostOf(entry.portalOrigin);
+}
+
+/**
+ * The deployment the preview names as the destination, or `undefined` for the
+ * one the blueprint observed (P74).
+ *
+ * The same resolution `deployedHost` gives every step's host, handed to the
+ * preview so the destination the student authorises is the one the runner's
+ * transmission gate is asked about (`mayTransmit`, ADR-0069). Three call
+ * sites build a preview — the run's inputs, the hash check at authorisation
+ * and the hand-over — and this is the one reading, so they cannot name
+ * different hosts and refuse each other.
+ */
+function deploymentOf(entry: CatalogueEntry): PreviewDeployment | undefined {
+  if (entry.portalOrigin === undefined) return undefined;
+  const host = hostOf(entry.portalOrigin);
+  return host === null ? undefined : { portalHost: host };
 }
 
 function hostOf(url: string): string | null {

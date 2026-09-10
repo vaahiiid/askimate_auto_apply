@@ -629,7 +629,10 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
     if (!nonEmpty(record[field])) return null;
   }
   const raw = record["instructions"];
-  if (!Array.isArray(raw) || raw.length === 0) return null;
+  // A page may carry nothing to type and one thing to attach — the documents
+  // page of a real portal (P74) — so an empty list is refused only when the
+  // uploads are empty too, below.
+  if (!Array.isArray(raw)) return null;
 
   const instructions: TransportedInstruction[] = [];
   for (const entry of raw as readonly unknown[]) {
@@ -687,6 +690,7 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
     }
   }
 
+  if (instructions.length === 0 && uploads.length === 0) return null;
   return {
     blueprintId: record["blueprintId"] as string,
     blueprintVersion: record["blueprintVersion"] as string,

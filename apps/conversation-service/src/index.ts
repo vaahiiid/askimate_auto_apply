@@ -129,6 +129,7 @@ export { httpSecureRequestOpener } from "./secure-requests.js";
 export type { WorkCandidate, WorkLease } from "./work-store.js";
 export { WorkLeaseStore } from "./work-store.js";
 export { RunSessionStore } from "./session-store.js";
+export { PostgresDocumentRecordStore } from "./document-record-store.js";
 export type { RecordedTransmission } from "./transmission-store.js";
 export { TransmissionStore } from "./transmission-store.js";
 

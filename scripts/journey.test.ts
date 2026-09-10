@@ -42,7 +42,8 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
@@ -68,9 +69,10 @@ import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { buildPreview } from "@askimate/aas-preparation";
 import { caseId as makeCaseId } from "@askimate/aas-domain";
 import {
-  GATED_PORTAL_BLUEPRINT,
-  GATED_PORTAL_MAPPING_SET,
+  GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
+  GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET,
 } from "@askimate/aas-mapping/fixtures/gated";
+import type { DocumentVault } from "@askimate/aas-documents";
 import { parseConversationRun, parseRunPreview, SECURE_HOLD_CEILING_SECONDS } from "@askimate/aas-contracts";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
@@ -100,6 +102,8 @@ import {
   StudentIdentityStore,
   WorkLeaseStore,
   RunSessionStore,
+  PostgresDocumentRecordStore,
+  TransmissionStore,
   buildStudentClient,
   createConversationApp,
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
@@ -119,6 +123,17 @@ import {
 import { refusalText } from "@askimate/aas-conversation";
 
 const CONVERSATION_PORT = 4901;
+/** The vault stand-in: the passport's bytes, served to the runner on the URL the plane mints. */
+const VAULT_PORT = 4907;
+/**
+ * The vault stand-in's address as the plane mints it and the runner sees it.
+ * An `https` name, because the runner refuses a retrieval URL that is not one
+ * (`parseWorkDocument`) and this journey does not loosen that: `recordingFetch`
+ * carries a request for this host to the plain listener on `VAULT_PORT`, the
+ * way a resolver would carry it to a bucket. The wire records the name.
+ */
+const VAULT_URL = "https://vault.journey.test";
+const VAULT_LISTENER = `http://127.0.0.1:${String(VAULT_PORT)}`;
 const SECURE_PORT = 4902;
 const AGENT_PORT = 4905;
 const CDP_PORT = 4906;
@@ -138,10 +153,14 @@ const SECURE_CERT = "secure-service";
  * journey that begins somewhere a student cannot stand.
  */
 let CONVERSATION = "";
-const BLUEPRINT = "bp-gated-portal";
+const BLUEPRINT = "bp-gated-portal-documents";
 const EMAIL = "niloofar@example.test";
 /** What the student types into the secure box. Nothing else in this file has it. */
 const PASSWORD = "Journey-Tr0ub4dor-3-horses!";
+/** A synthetic passport. Its bytes exist here and on the vault stand-in, and its hash in the record. */
+const PASSPORT_BYTES = Buffer.from("%PDF-1.7\n a synthetic passport for the journey, not a real one\n");
+const PASSPORT_HASH = createHash("sha256").update(PASSPORT_BYTES).digest("hex");
+const PASSPORT_ID = "01JQP74PASSPORT00000000001";
 const STATEMENT = "Please apply to the MSc for me.";
 const SESSION_SECRET = "a-journey-session-secret-long-enough";
 
@@ -177,6 +196,14 @@ let journeyIntake: ReturnType<typeof httpWorkIntake>;
 let journeyPerformer: ReturnType<typeof runnerPerformer>;
 /** The profile as the interview confirmed it. The preview hashes this one. */
 let journeyProfile: ConfirmedProfile;
+let vaultServer: Server;
+/**
+ * The document vault, as the journey stands one in: the records the plane
+ * reads are the real Postgres rows; the bytes the runner fetches come from a
+ * local HTTP server on the URL `prepareRetrieval` mints. Nothing else of the
+ * port is exercised here, and nothing else answers.
+ */
+let journeyVault: DocumentVault;
 /** Held so a restarted instance can be rebuilt from the same reviewed inputs. */
 /** The catalogue, and the directory Gate 1 (ADR-0058) offers targets from. */
 let journeyCatalogue: ApplicationCatalogue & { targets(): readonly ReviewedTarget[] };
@@ -210,7 +237,10 @@ let secureAssetDir: string;
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
   const url = String(input);
   if (typeof init?.body === "string") wire.push({ where: `→ ${url}`, body: init.body });
-  const response = await globalThis.fetch(input, init);
+  const response = await globalThis.fetch(
+    url.startsWith(`${VAULT_URL}/`) ? `${VAULT_LISTENER}${url.slice(VAULT_URL.length)}` : input,
+    init,
+  );
   wire.push({ where: `← ${url} ${String(response.status)}`, body: await response.clone().text() });
   return response;
 };
@@ -294,9 +324,11 @@ beforeAll(async () => {
 
   // ── The catalogue: the reviewed blueprint, at the deployment's origin ────
   const entry: CatalogueEntry = {
-    blueprint: GATED_PORTAL_BLUEPRINT,
-    mappingSet: GATED_PORTAL_MAPPING_SET,
-    requiredDocuments: [],
+    // The three-page portal (P74): the account, the form, the course, and a
+    // document — the passport the student holds, attached on page three.
+    blueprint: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
+    mappingSet: GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET,
+    requiredDocuments: ["passport"],
     institutionRef: "inst-gated",
     courseRef: "course-msc-controlled",
     intakeRef: "2026-09",
@@ -352,6 +384,11 @@ beforeAll(async () => {
     // ADR-0101 §2, §3: who last reported the run's session live, and until
     // when — what makes the restart below a resume rather than a stall.
     sessions: new RunSessionStore(conversationPool),
+    // ADR-0097, ADR-0099, ADR-0069 (P74): what the student holds, and the
+    // vault the plane hands a document over from, after the gates.
+    heldDocuments: new PostgresDocumentRecordStore(conversationPool),
+    disclosure: { register: b2Register(new Date()), vault: journeyVault },
+    transmissions: new TransmissionStore(conversationPool),
     now: () => new Date(),
   });
   const conversationApp = createConversationApp({
@@ -391,6 +428,58 @@ beforeAll(async () => {
     "INSERT INTO students (subject, email_verified) VALUES ('oidc-journey', true) RETURNING id",
   );
   studentUuid = student.rows[0]!.id;
+
+  // ── The passport the student holds (P74) ──────────────────────────────
+  //
+  // Its METADATA is the real row the plane reads (ADR-0094); its BYTES are on
+  // the vault stand-in below, on the URL the plane mints for the runner. The
+  // intake that would have put them there (P57–P62) is proved in its own
+  // suites; this journey starts with the document held.
+  await new PostgresDocumentRecordStore(conversationPool).insert(
+    {
+      documentId: PASSPORT_ID,
+      studentId: studentUuid,
+      documentType: "passport",
+      purpose: "identity_verification",
+      state: "uploaded",
+      contentHash: PASSPORT_HASH,
+      contentType: "application/pdf",
+      sizeBytes: PASSPORT_BYTES.length,
+      uploadedAt: new Date(),
+      dates: {},
+      retentionPolicyReference: "AAS-RET-B1-01",
+      retentionTriggeredAt: null,
+    },
+    `documents/${studentUuid}/passport`,
+  );
+  vaultServer = await new Promise<Server>((resolve) => {
+    const listening = createServer((request, response) => {
+      if ((request.url ?? "").startsWith(`/objects/${PASSPORT_ID}`)) {
+        response.writeHead(200, { "content-type": "application/pdf" }).end(PASSPORT_BYTES);
+        return;
+      }
+      response.writeHead(404).end();
+    }).listen(VAULT_PORT, "127.0.0.1", () => resolve(listening));
+  });
+  const records = new PostgresDocumentRecordStore(conversationPool);
+  const notHere = (what: string) => (): Promise<never> =>
+    Promise.reject(new Error(`${what} is not part of this journey`));
+  journeyVault = {
+    prepareUpload: notHere("prepareUpload"),
+    confirmUpload: notHere("confirmUpload"),
+    describe: (documentId) => records.get(documentId).then((held) => held?.record ?? null),
+    prepareRetrieval: (documentId, now) =>
+      Promise.resolve({
+        url: `${VAULT_URL}/objects/${documentId}?until=${String(now.getTime() + 60_000)}`,
+        method: "GET" as const,
+        expiresAt: new Date(now.getTime() + 60_000),
+      }),
+    listForStudent: (studentId) => records.listForStudent(studentId),
+    transition: notHere("transition"),
+    startRetentionClock: notHere("startRetentionClock"),
+    purgeContents: notHere("purgeContents"),
+  };
+
   // The student's own session, minted by the service's own issuer rather than
   // by a cookie string assembled here — the format is `session.ts`'s to own.
   devCookie = (issueSession(studentUuid, SESSION_SECRET).split(";")[0] ?? "").trim();
@@ -470,6 +559,7 @@ afterAll(async () => {
   await runnerBrowser.close();
   await portal.stop();
   await new Promise<void>((resolve) => conversationServer.close(() => resolve()));
+  await new Promise<void>((resolve) => vaultServer.close(() => resolve()));
   await new Promise<void>((resolve) => agentServer.close(() => resolve()));
   await new Promise<void>((resolve) => secureServer.close(() => resolve()));
   await conversationPool.end();
@@ -591,6 +681,9 @@ async function restartedInstance(clock: () => Date = () => new Date()): Promise<
     identities: new StudentIdentityStore(pool),
     leases: new WorkLeaseStore(pool),
     sessions: new RunSessionStore(pool),
+    heldDocuments: new PostgresDocumentRecordStore(pool),
+    disclosure: { register: b2Register(new Date()), vault: journeyVault },
+    transmissions: new TransmissionStore(pool),
     now: clock,
   });
   const app = createConversationApp({
@@ -656,10 +749,17 @@ async function restartedInstance(clock: () => Date = () => new Date()): Promise<
  * the two before anything is typed.
  */
 function previewForThisRun(): { contentHash: string } {
-  const usable = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+  const usable = checkUsable(GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT);
   if (!usable.usable) expect.unreachable("the gated mapping set is reviewed");
-  const plan = planFill(GATED_PORTAL_BLUEPRINT, usable.mappingSet, journeyProfile);
-  const preview = buildPreview(GATED_PORTAL_BLUEPRINT, plan, new Map());
+  const plan = planFill(GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, usable.mappingSet, journeyProfile);
+  const preview = buildPreview(
+    GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
+    plan,
+    new Map([["passport", { documentId: PASSPORT_ID, describedAs: "passport", contentHash: PASSPORT_HASH }]]),
+    // The fixture portal, not `gated.portal.test`: the entry names it as the
+    // deployment, and the preview names where the passport actually goes.
+    { portalHost: portal.host },
+  );
   if (!preview.built) expect.unreachable(`preview refused: ${preview.refusal.kind}`);
   return { contentHash: preview.preview.contentHash };
 }
@@ -1197,7 +1297,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       const frame = page.frameLocator("#secure iframe");
       await frame.locator("#secure-form").waitFor({ state: "visible", timeout: 20_000 });
       expect(await frame.locator("#secure-title").textContent()).toBe(
-        `Enter your password for ${GATED_PORTAL_BLUEPRINT.institutionName}`,
+        `Enter your password for ${GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT.institutionName}`,
       );
       const why = await frame.locator("#secure-explanation").textContent();
       expect(why).toContain("signed out of your account");
@@ -1306,6 +1406,75 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       expect(intents.rows.map((row) => row.outcome)).toEqual(["succeeded", "succeeded"]);
       expect(intents.rows[0]?.target).toMatch(/^page-application@sha256:[0-9a-f]{64}$/);
       expect(intents.rows[1]?.target).toMatch(/^page-study@sha256:[0-9a-f]{64}$/);
+
+      // ═══════════════════════════════════════════════════════════════════
+      // Page three: the passport (P74 — ADR-0069, ADR-0099). In the session
+      // the sign-in gave this runner, still. The plane hands the document
+      // over under the lease after the gates, as a reference; the runner
+      // fetches the bytes from the vault, hashes them against what the
+      // student authorised, attaches them into the labelled box, saves; and
+      // reports what left. The plane settles the attachment's own intent and
+      // writes the audit row.
+      // ═══════════════════════════════════════════════════════════════════
+      const documents = await restarted.intake.claim();
+      if (documents === null) expect.unreachable("page three is still to do");
+      expect(documents.kind).toBe("execute");
+      expect(documents.formUrl, "the THIRD page").toBe(`${portal.baseUrl}/documents`);
+      expect(documents.plan?.instructions, "nothing to type on it").toEqual([]);
+      expect(documents.plan?.uploads.map((upload) => upload.documentRef)).toEqual(["passport"]);
+      const attachIntent = await conversationPool.query<{ target: string; outcome: string | null }>(
+        "SELECT target, outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'attach_document'",
+        [runId],
+      );
+      expect(attachIntent.rows, "opened at the claim, naming the document").toEqual([
+        { target: `page-documents/passport_upload=${PASSPORT_ID}@${PASSPORT_HASH}`, outcome: null },
+      ]);
+
+      const attached = await restarted.performer(documents);
+      expect(attached.kind).toBe("succeeded");
+      if (attached.kind !== "succeeded") expect.unreachable("checked above");
+      expect(attached.transmissions?.map((t) => [t.fieldRef, t.documentId, t.contentHash, t.toHost])).toEqual([
+        ["passport_upload", PASSPORT_ID, PASSPORT_HASH, portal.host],
+      ]);
+      expect(
+        await restarted.intake.report(documents.runId, {
+          leaseId: documents.leaseId,
+          outcome: "succeeded",
+          ...(attached.transmissions === undefined ? {} : { transmissions: attached.transmissions }),
+        }),
+      ).toBe(true);
+
+      // ── The portal has the file, byte for byte ─────────────────────────
+      const received = portal.application(EMAIL)?.passport;
+      expect(received?.sha256, "what the portal received is what the student authorised").toBe(PASSPORT_HASH);
+      expect(received?.sizeBytes).toBe(PASSPORT_BYTES.length);
+      // The bytes crossed one wire the runner's side recorded — from the
+      // vault stand-in — and never a service-to-service body.
+      expect(
+        wire.filter((entry) => entry.where.startsWith(`← ${VAULT_URL}/objects/`)).length,
+        "fetched from the vault, once",
+      ).toBe(1);
+
+      // ── The plane: the intent settled, the audit row written ──────────
+      const attachSettled = await conversationPool.query<{ outcome: string | null }>(
+        "SELECT outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'attach_document'",
+        [runId],
+      );
+      expect(attachSettled.rows).toEqual([{ outcome: "succeeded" }]);
+      const caseRow = await conversationPool.query<{ case_id: string }>(
+        "SELECT case_id FROM workflow_runs WHERE run_id = $1",
+        [runId],
+      );
+      const left = await new TransmissionStore(conversationPool).forCase(caseRow.rows[0]!.case_id);
+      expect(left).toHaveLength(1);
+      expect(left[0]).toMatchObject({
+        runId,
+        documentId: PASSPORT_ID,
+        contentHash: PASSPORT_HASH,
+        toHost: portal.host,
+        institutionName: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT.institutionName,
+      });
+      expect(portal.submissions(), "and still nothing was submitted").toEqual([]);
     } finally {
       await restarted.close();
     }
@@ -1349,7 +1518,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       const last = told.rows[0]?.content ?? "";
       expect(last, "the student was told something").not.toBe("");
       expect(last, "the handover message reached them").toContain(
-        GATED_PORTAL_BLUEPRINT.institutionName,
+        GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT.institutionName,
       );
     } finally {
       await restarted.close();

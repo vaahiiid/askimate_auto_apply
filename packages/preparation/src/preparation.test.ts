@@ -256,6 +256,31 @@ describe("the content hash", () => {
     expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
   });
 
+  it("names the DEPLOYMENT's host when the run is made to one, and the hash follows it (P74)", () => {
+    // The same reviewed blueprint against a university's UAT environment
+    // (ADR-0057): the passport goes to THAT host, and the transmission gate
+    // refuses any other (ADR-0069). So the preview names it, and the hash the
+    // student's authorisation covers is the hash of THAT destination.
+    const result = buildPreview(FIXTURE_BLUEPRINT, planFor(), DOCUMENTS, { portalHost: "uat.example.test:8443" });
+    if (!result.built) expect.unreachable("expected a preview");
+    expect(result.preview.portalHost).toBe("uat.example.test:8443");
+    expect(renderPreview(result.preview)).toContain("uat.example.test:8443");
+    expect(result.preview.contentHash).not.toBe(previewFor().contentHash);
+    // Everything else is the same application: only the destination line moved.
+    expect(result.preview.entries).toEqual(previewFor().entries);
+    expect(result.preview.attachments).toEqual(previewFor().attachments);
+  });
+
+  it("REFUSES a blueprint that observed no URL even when a deployment is named", () => {
+    // A deployment says WHERE a reviewed blueprint runs; it does not make an
+    // unreviewable one executable.
+    const blind = { ...FIXTURE_BLUEPRINT, provenance: { ...FIXTURE_BLUEPRINT.provenance, observedUrls: [] } };
+    const result = buildPreview(blind, planFor(), DOCUMENTS, { portalHost: "uat.example.test" });
+    expect(result.built).toBe(false);
+    if (result.built) expect.unreachable("checked above");
+    expect(result.refusal.kind).toBe("destination_unknown");
+  });
+
   it("REFUSES to preview a blueprint that observed no URL", () => {
     const blind = { ...FIXTURE_BLUEPRINT, provenance: { ...FIXTURE_BLUEPRINT.provenance, observedUrls: [] } };
     const result = buildPreview(blind, planFor(), DOCUMENTS);

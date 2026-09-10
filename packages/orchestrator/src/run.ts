@@ -98,6 +98,16 @@ export interface RunInputs {
   readonly mappingSet: MappingSet;
   readonly documents: ReadonlyMap<string, PreviewDocument>;
   /**
+   * The host this run is actually made to, when it is not the one the
+   * blueprint observed (`CatalogueEntry.portalOrigin`, ADR-0057).
+   *
+   * The preview names it as the destination, so what the student authorises
+   * is where the bytes go (P74). Absent means the observed host, which is
+   * production. The orchestrator does not resolve it: deployment is the
+   * driver's fact, as it is for every other host on a step.
+   */
+  readonly portalHost?: string;
+  /**
    * What discovery observed about the portal's authentication.
    *
    * Optional here and required in practice: a portal whose blueprint says
@@ -375,7 +385,12 @@ export function assess(state: RunState): RunAssessment {
   }
 
   const validation = validatePlan(state.inputs.blueprint, plan);
-  const previewResult = buildPreview(state.inputs.blueprint, plan, state.inputs.documents);
+  const previewResult = buildPreview(
+    state.inputs.blueprint,
+    plan,
+    state.inputs.documents,
+    state.inputs.portalHost === undefined ? undefined : { portalHost: state.inputs.portalHost },
+  );
 
   return {
     usable,

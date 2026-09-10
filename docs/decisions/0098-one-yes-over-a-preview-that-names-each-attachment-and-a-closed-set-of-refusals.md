@@ -60,6 +60,21 @@ student says yes to: the same fields and the same passport, re-pointed at anothe
 different thing to authorise and voids the earlier yes. A blueprint that observed no URL cannot be
 previewed (`destination_unknown`); it could not be executed either (`isExecutable`).
 
+> **Amended in P74 (2026-09-10).** The observed host, *unless the entry names a deployment*. A
+> reviewed blueprint is run against a university's UAT environment before production through
+> `CatalogueEntry.portalOrigin` (ADR-0057), and the bytes go to **that** host — the Run Driver
+> resolves every step's host through it, and the runner's transmission gate is asked about it
+> (`mayTransmit({ toHost: work.portalHost })`, ADR-0069). A preview naming the observed host over
+> a run made to another was an authorisation the runner could never spend: the plane's gate
+> passed it (same host on both sides of the plane's own check) and the runner's refused it,
+> `wrong_destination`, correctly. Found when the journey's fixture portal first took a file.
+> So `buildPreview` takes the deployment (`PreviewDeployment`), `RunInputs.portalHost` carries
+> it, and the three places the driver builds a preview — the run's inputs, the hash check at the
+> yes, the hand-over — resolve it through one reading (`deploymentOf`). The consequence is the
+> one this section already states: a run re-pointed at a deployment after the yes is a different
+> thing to authorise, and stops at the authorisation again. The observed URL is still required;
+> a deployment says *where* a reviewed blueprint runs, not that an unreviewable one may.
+
 ### What this makes true
 
 The `AuthorisationCaptured` event, over this preview's hash, is the specific student authorisation

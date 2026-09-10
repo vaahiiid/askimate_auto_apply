@@ -4119,3 +4119,42 @@ proved against a recorded session, not a served page. That, and blocker 17, are 
 ## Declared-but-unreachable surface
 
 **Four** — `attach_document` left.
+
+# P74 — the attachment path meets a portal that takes a file
+
+The last line of P73 said what it had not met. The fixture portal now has a documents page — a
+multipart upload between the study page and review, hashed as it lands and shown on the review
+page by name — and the journey's student holds a passport: a metadata row in the plane's own
+document store, and bytes behind a vault stand-in that answers the plane's sixty-second URL. The
+restart test goes on to page three through the production performer, in the context the hold
+kept: the plane opens the `attach_document` intent at the claim, the runner fetches the bytes,
+hashes them against the hand-over, runs the disclosure and transmission gates, attaches the file
+and saves the page; the portal holds the same SHA-256; the intent settles and
+`document_transmissions` has the one row, naming this case, this document and this host. Exactly
+one fetch from the vault, and the runner sees the name it was given — an `https` name, because the
+runner refuses any other and the journey does not loosen that for its stand-in.
+
+Two things were found by making it real. The preview named the blueprint's *observed* host as the
+destination, while a run made to a deployment — `CatalogueEntry.portalOrigin`, the mechanism
+ADR-0057 keeps so a reviewed blueprint can run against a university's UAT environment — sends the
+bytes to another host. The plane's own transmission gate passed it, because both sides of that
+check came from the same preview; the runner's refused it, `wrong_destination`, because its side is
+the host the browser is pointed at. Correct, and an authorisation nothing could spend. The preview
+now names the deployment's host when one is configured, so what the student authorises is where
+the document goes, and the three places the driver builds a preview resolve it through one reading.
+A run re-pointed at a deployment after the yes is a different thing to authorise and stops at the
+yes again — the consequence ADR-0098 already stated for a change of host. ADR-0057's review hash is
+untouched: it is over what a specialist approved, and moving an entry between environments must
+not change it; the student's hash is over what leaves and where, and now does.
+
+The second was smaller: a page whose plan has uploads and nothing to type was refused at the
+runner's intake as an empty plan. It is a plan.
+
+## What follows
+
+Blocker 17 — the vault's role, CORS rule and lifecycle — is Vahid's, and nothing here provisions
+anything. The attachment path is otherwise proved end to end, against a served page.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

@@ -10,6 +10,7 @@ export { isValid, validatePlan } from "./validate.js";
 
 export type {
   PreviewAttachment,
+  PreviewDeployment,
   PreviewDocument,
   PreviewEntry,
   PreviewHandoff,

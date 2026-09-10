@@ -19,6 +19,40 @@ not shipped artefacts.
 
 ---
 
+## [0.91.0] — 2026-09-10
+
+**P74 — the attachment path meets a portal that takes a file.** The fixture portal's documents
+page, a held passport in the journey, the runner attaching it, the plane recording what left.
+
+### Added
+
+- The fixture portal's `/documents` page: a multipart upload between the study page and review,
+  hashed (SHA-256) as it lands and shown on the review page by name; a POST without a file is 400.
+- `GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT` and `_MAPPING_SET`: the gated portal with a third page
+  carrying a `passport_upload` file field mapped from the student's `passport`.
+- The journey's student holds a passport (a `PostgresDocumentRecordStore` row, exported from the
+  service) behind a vault stand-in; the restart test goes on to page three through the production
+  performer and asserts the intent, the fetch, the portal's hash, the settlement and the
+  `document_transmissions` row.
+- `PreviewDeployment` and `buildPreview`'s fourth argument; `RunInputs.portalHost`; the Run
+  Driver's `deploymentOf` — one reading for the three previews it builds.
+
+### Changed
+
+- The preview names the deployment's host as the destination when `CatalogueEntry.portalOrigin`
+  is configured (ADR-0098 amended, ADR-0057 clarified): the student authorises where the bytes
+  actually go, and the runner's transmission gate agrees. A run re-pointed after the yes stops at
+  the yes again.
+- `parseTransportedPlan` accepts a plan with uploads and no instructions; the transported
+  contract's `instructions` no longer carries `minItems: 1`.
+
+### Fixed
+
+- A page whose plan carried uploads and no fields to type was refused at the runner's intake as
+  an empty plan and reported `portal_refused`.
+
+---
+
 ## [0.90.0] — 2026-09-10
 
 **P73 — one intent per document attached, and the record of what left (ADR-0069's third

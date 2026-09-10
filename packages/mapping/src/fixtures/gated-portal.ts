@@ -316,3 +316,70 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
     },
   ],
 };
+
+// ───────────────────────────────────────────────────────────────────────────
+// The same portal, with a third page that takes a document (P74)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * The gated portal with a documents page after the course page — the shape a
+ * real application has, and the one the attachment path (ADR-0069, ADR-0099)
+ * is proved against in the journey.
+ *
+ * A separate blueprint rather than a page added to `GATED_PORTAL_BLUEPRINT`:
+ * every suite that stands on the two-page portal would otherwise need a held
+ * document to reach the end of it, which is not what those suites are about.
+ * The fixture portal serves `/documents` whether or not a blueprint names it.
+ */
+export const GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT: ApplicationBlueprint = {
+  ...GATED_PORTAL_BLUEPRINT,
+  blueprintId: "bp-gated-portal-documents" as BlueprintId,
+  pages: [
+    ...GATED_PORTAL_BLUEPRINT.pages.map((page) =>
+      page.pageRef === "page-study" ? { ...page, nextPageRef: "page-documents" } : page,
+    ),
+    {
+      pageRef: "page-documents",
+      title: "Your documents",
+      url: `${GATED_PORTAL_ORIGIN}/documents`,
+      sections: [
+        {
+          sectionRef: "sec-documents",
+          title: "Your documents",
+          fields: [
+            {
+              fieldRef: "passport_upload",
+              label: "Upload your passport",
+              inputType: "file",
+              locators: [{ strategy: "label", value: "Upload your passport" }],
+              validations: [
+                { kind: "required", source: "dom_attribute" },
+                { kind: "accept", value: ".pdf,.jpg,.png", source: "dom_attribute" },
+              ],
+            },
+          ],
+        },
+      ],
+      requiredDocuments: [],
+      advanceControl: { strategy: "role", value: "button:Save and continue" },
+    },
+  ],
+  // The submit control stays on the review page the portal reaches after the
+  // documents page; the blueprint's submission model is unchanged, and never
+  // executed (ADR-0014).
+};
+
+/** The reviewed mapping set for it: the gated set, plus the passport onto its box. */
+export const GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET: MappingSet = {
+  ...GATED_PORTAL_MAPPING_SET,
+  mappingSetId: "map-gated-portal-documents",
+  blueprintId: "bp-gated-portal-documents",
+  mappings: [
+    ...GATED_PORTAL_MAPPING_SET.mappings,
+    {
+      fieldRef: "passport_upload",
+      source: { kind: "document", documentRef: "passport" },
+      note: "The passport the student holds in the vault, under the disclosure the preview names.",
+    },
+  ],
+};

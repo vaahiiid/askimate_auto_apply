@@ -38,7 +38,7 @@
  */
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
  * What the portal stored for one applicant. Never rendered back.
@@ -52,6 +52,15 @@ interface Account {
   readonly password: string;
 }
 
+/** A file the portal received on its documents page. Its hash, never its bytes, is what a test reads. */
+export interface PortalUpload {
+  readonly filename: string;
+  readonly contentType: string;
+  readonly sizeBytes: number;
+  /** SHA-256 of the bytes received, lowercase hex. */
+  readonly sha256: string;
+}
+
 /** What an applicant filled in. Rendered back on the review page. */
 export interface PortalApplication {
   readonly givenName: string;
@@ -59,6 +68,8 @@ export interface PortalApplication {
   readonly dateOfBirth: string;
   readonly nationality: string;
   readonly personalStatement: string;
+  /** The passport, once page three is saved (P74). */
+  readonly passport: PortalUpload | null;
 }
 
 export interface FixturePortal {
@@ -238,6 +249,25 @@ const STUDY_PAGE = (error: string | null): string =>
 </form>`,
   );
 
+/**
+ * The THIRD application page: a document (P74).
+ *
+ * One file input, labelled, inside a multipart form — the shape a real
+ * documents page has, and the shape `setInputFiles` posts. Reachable only once
+ * page two is saved, as page two is only once page one is.
+ */
+const DOCUMENTS_PAGE = (error: string | null): string =>
+  page(
+    "Your documents",
+    `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
+<form method="post" action="/documents" id="documentsForm" enctype="multipart/form-data">
+  <label for="passport">Upload your passport</label>
+  <input type="file" id="passport" name="passport" required accept=".pdf,.jpg,.png">
+
+  <button type="submit" id="documentsContinueBtn">Save and continue</button>
+</form>`,
+  );
+
 const REVIEW_PAGE = (application: PortalApplication): string =>
   page(
     "Review your application",
@@ -248,6 +278,8 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <dt>Nationality</dt><dd id="reviewNationality">${escapeHtml(application.nationality)}</dd>
   <dt>Personal statement</dt>
   <dd id="reviewStatement">${escapeHtml(application.personalStatement)}</dd>
+  <dt>Passport</dt>
+  <dd id="reviewPassport">${application.passport === null ? "not yet provided" : escapeHtml(application.passport.filename)}</dd>
 </dl>
 <form method="post" action="/submit" id="submitForm">
   <button type="submit" id="submitBtn">Submit application</button>
@@ -263,6 +295,47 @@ async function readBody(request: IncomingMessage): Promise<URLSearchParams> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(chunk as Buffer);
   return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
+}
+
+/**
+ * The one multipart form this portal has, read the way a browser posts it.
+ *
+ * Enough of RFC 7578 for a file input and nothing more: the boundary from the
+ * content type, one part per field, a filename and a content type where the
+ * part carries a file. Binary-safe — split on the boundary as bytes, never
+ * as a string — because a PDF is not text.
+ */
+async function readMultipart(
+  request: IncomingMessage,
+): Promise<Map<string, { filename: string | null; contentType: string; bytes: Buffer }>> {
+  const type = request.headers["content-type"] ?? "";
+  const boundary = /boundary=("?)([^";]+)\1/.exec(type)?.[2];
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(chunk as Buffer);
+  const body = Buffer.concat(chunks);
+  const parts = new Map<string, { filename: string | null; contentType: string; bytes: Buffer }>();
+  if (boundary === undefined) return parts;
+
+  const marker = Buffer.from(`--${boundary}`);
+  let at = body.indexOf(marker);
+  while (at !== -1) {
+    const next = body.indexOf(marker, at + marker.length);
+    if (next === -1) break;
+    // Between this marker's line and the next marker: headers, a blank line,
+    // then the value, then the CRLF that precedes the next marker.
+    const part = body.subarray(at + marker.length, next);
+    const headerEnd = part.indexOf("\r\n\r\n");
+    if (headerEnd !== -1) {
+      const headers = part.subarray(0, headerEnd).toString("utf8");
+      const value = part.subarray(headerEnd + 4, part.length - 2);
+      const name = /name="([^"]*)"/.exec(headers)?.[1];
+      const filename = /filename="([^"]*)"/.exec(headers)?.[1] ?? null;
+      const contentType = /content-type:\s*([^\r\n]+)/i.exec(headers)?.[1] ?? "application/octet-stream";
+      if (name !== undefined) parts.set(name, { filename, contentType, bytes: Buffer.from(value) });
+    }
+    at = next;
+  }
+  return parts;
 }
 
 function sessionOf(request: IncomingMessage): string | null {
@@ -473,6 +546,7 @@ export async function startFixturePortal(
           dateOfBirth,
           nationality: body.get("nationality") ?? "",
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
+          passport: applications.get(signedInAs)?.passport ?? null,
         });
         send(response, 302, "", { location: "/study" });
         return;
@@ -500,6 +574,45 @@ export async function startFixturePortal(
           return;
         }
         applications.set(signedInAs, { ...held, personalStatement: statement });
+        send(response, 302, "", { location: "/documents" });
+        return;
+      }
+
+      if (method === "GET" && path === "/documents") {
+        // Page three is unreachable until page two is saved.
+        const held = applications.get(signedInAs);
+        if (held === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        if (held.personalStatement.length === 0) {
+          send(response, 302, "", { location: "/study" });
+          return;
+        }
+        send(response, 200, DOCUMENTS_PAGE(null));
+        return;
+      }
+
+      if (method === "POST" && path === "/documents") {
+        const held = applications.get(signedInAs);
+        if (held === undefined || held.personalStatement.length === 0) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        const passport = (await readMultipart(request)).get("passport");
+        if (passport === undefined || passport.bytes.length === 0) {
+          send(response, 400, DOCUMENTS_PAGE("Choose the file to upload."));
+          return;
+        }
+        applications.set(signedInAs, {
+          ...held,
+          passport: {
+            filename: passport.filename ?? "",
+            contentType: passport.contentType,
+            sizeBytes: passport.bytes.length,
+            sha256: createHash("sha256").update(passport.bytes).digest("hex"),
+          },
+        });
         send(response, 302, "", { location: "/review" });
         return;
       }

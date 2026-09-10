@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,401 tests, 127 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,404 tests, 127 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -120,6 +120,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P71** | One sitting, in memory, five minutes (ADR-0101 §2) | Slice d — A2 built. `SessionHold` keeps the browser context a run's account was created in, keyed by run, in memory, and closes it after `SECURE_HOLD_CEILING_SECONDS` idle — one constant in `packages/contracts`, from which the vault's ceiling (ADR-0034) is now defined, so the two lifetimes cannot drift apart. The runner's entry point performs `execute`: the held page, confined to the portal's host, `fillApplication`, the disclosure source of ADR-0099. A claim names the runs the runner holds (`sessions`, required on the wire); the driver offers a run to its holder first and a fill to nobody else. Released when the last page is saved, on a challenge, when the student is needed, and at shutdown. `fillApplication` leaves the register — **five** remain. **Not built:** the resume path (§3): the journey's restart still signs in by a cheat marked as such, through the `adopt` seam P72 fills |
 | **P72** | `portal_sign_in` is the resume path, and the run says why (ADR-0101 §3) | B built, as the resume path only. The plane records who last reported a run's session live and until when (`run_sessions`, migration 0019) from the runners' reports and the one ceiling; the contract's `SESSION_ENDING_FAILURES` erase it at both ends. Past it, and only where an account exists, the run asks for the password a second time — purpose `portal_sign_in`, typed once, the reason rendered in the frame — then the `sign_in` step and work kind: the blueprint's login form (`authentication.login`, new and optional), the handle, no plan. `signInToPortal` types, submits and asks the page; the context is the held session and the fill follows. No intent for a sign-in: the Secure Plane's lifecycle is the record. Where the path cannot apply the run says so before a box opens. `portal_password_reset` left the contract; the purposes agree and the drift test asserts it. The journey's restart is driven through the real path; the cheat is gone. **Not built:** slice e |
 | **P73** | One intent per document attached, and the record of what left (ADR-0069's third layer) | Slice e, the last of the attachment path. The page's intent key sees its attachments by `documentId@contentHash`, so a replaced document re-offers the page and a page without uploads keeps its key. The Run Driver opens one `attach_document` intent per upload at the claim — `page/field=documentId@hash` — and settles exactly the ones the runner's report names, for this run's case only; `document_transmissions` (migration 0020) is the audit row of what left, written from the same report. A page is not done until every document it carries is recorded as attached; one it saved without naming stops the next claim as the uncertain case, named as the attachment. **Found:** a page whose only content was an upload was never offered — `#nextPage` counted fields to fill and not files to attach. `attach_document` leaves the register — **four** remain |
+| **P74** | The attachment path meets a portal that takes a file | The fixture portal grew a documents page — a multipart upload it hashes and shows on review — and the journey's student holds a passport: a metadata row in the plane's own store, bytes behind a vault stand-in the runner fetches by the plane's sixty-second URL. The restart test now goes on to page three through the production performer: the plane opens the `attach_document` intent, the runner fetches, hashes, gates and attaches, the portal holds the same SHA-256, the intent settles and `document_transmissions` has the row. **Found:** the preview named the blueprint's observed host while a run made to a deployment (`portalOrigin`, ADR-0057) sent the bytes to another, so the runner's transmission gate refused — `wrong_destination`, correctly — an authorisation the plane's own gate had passed. The preview now names the deployment's host, so what the student authorises is where the document goes (ADR-0098 amended); a run re-pointed after the yes stops at the yes again. Also: a plan with uploads and no fields to type is a plan (`parseTransportedPlan`) |
 
 ---
 
@@ -471,7 +472,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,401 tests · 127 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,404 tests · 127 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -484,7 +485,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,401 tests**, by the workspace they live in. Generated — run
+**2,404 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -494,8 +495,8 @@ being able to see it (ADR-0084).
 | `apps/conversation-service` | 410 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 293 | `packages/profile` | 46 |
-| `apps/browser-runner` | 261 | `packages/catalogue` | 39 |
-| `packages/case-store` | 145 | `packages/preparation` | 35 |
+| `apps/browser-runner` | 262 | `packages/catalogue` | 39 |
+| `packages/case-store` | 145 | `packages/preparation` | 37 |
 | `packages/orchestrator` | 113 | `packages/extraction` | 27 |
 | `packages/documents` | 99 | `packages/mapping` | 26 |
 | `packages/contracts` | 87 | `packages/interview` | 22 |

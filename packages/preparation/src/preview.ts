@@ -195,6 +195,15 @@ export type PreviewResult =
   | { readonly built: false; readonly refusal: PreviewRefusal };
 
 /**
+ * Which deployment of the portal the run is made to, when it is not the one
+ * discovery observed (`CatalogueEntry.portalOrigin`, ADR-0057).
+ */
+export interface PreviewDeployment {
+  /** The host the application — and every document — actually goes to. */
+  readonly portalHost: string;
+}
+
+/**
  * Builds the preview.
  *
  * Refuses an incomplete plan rather than previewing a partial application.
@@ -205,6 +214,7 @@ export function buildPreview(
   blueprint: ApplicationBlueprint,
   plan: FillPlan,
   documents: ReadonlyMap<string, PreviewDocument>,
+  deployment?: PreviewDeployment,
 ): PreviewResult {
   if (plan.blockers.length > 0) {
     return {
@@ -225,6 +235,16 @@ export function buildPreview(
   // portal with no login; not a field somebody typed. A blueprint that
   // observed nothing is not executable (`isExecutable`), and a preview with
   // no destination to name is not a preview a student can authorise.
+  //
+  // Unless the deployment says otherwise (P74). The same reviewed blueprint
+  // runs against a university's UAT environment before production
+  // (`CatalogueEntry.portalOrigin`, ADR-0057), and the bytes go to THAT host.
+  // The preview names where the document actually leaves to, because the
+  // transmission gate refuses any other destination (ADR-0069) — a preview
+  // naming the observed host over a run made to another would be an
+  // authorisation the runner could never spend. The observed URL is still
+  // required: a blueprint that saw nothing is no more executable for having a
+  // deployment configured.
   const observed = blueprint.provenance.observedUrls[0];
   if (observed === undefined) {
     return {
@@ -235,7 +255,7 @@ export function buildPreview(
       },
     };
   }
-  const portalHost = new URL(observed).host;
+  const portalHost = deployment?.portalHost ?? new URL(observed).host;
 
   const optionLabels = optionLabelsOf(blueprint);
 

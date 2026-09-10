@@ -595,7 +595,9 @@ async function confirmInto<K extends ProfileFieldKey>(
  * The hash is computed from the SAME blueprint, mapping set and profile the run
  * uses, because an authorisation whose hash does not match the plan is an
  * authorisation for something else — and `assess` compares the two before
- * anything is typed.
+ * anything is typed. And from the same DEPLOYMENT (P74): an entry that names a
+ * `portalOrigin` previews that host as the destination, so a yes captured for
+ * the observed host does not cover a run made to the sandbox.
  */
 async function captureAuthorisation(
   instancePool: pg.Pool,
@@ -621,6 +623,7 @@ async function captureAuthorisation(
     entry.blueprint,
     planFill(entry.blueprint, usable.mappingSet, profile),
     new Map(),
+    entry.portalOrigin === undefined ? undefined : { portalHost: new URL(entry.portalOrigin).host },
   );
   if (!preview.built)
     expect.unreachable(`preview refused: ${preview.refusal.kind}`);
@@ -2927,17 +2930,26 @@ describeIfDatabase("leasing browser work to a runner", () => {
     );
     // Overrides `find` only; see `elsewhere` below for why the directory is
     // empty rather than inherited.
+    const sandboxed: CatalogueEntry = { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" };
     const sandbox: TestCatalogue = {
       targets: () => [],
-      find: (id) =>
-        Promise.resolve(
-          id === GATED_BLUEPRINT
-            ? { ...GATED_ENTRY, portalOrigin: "http://127.0.0.1:45999" }
-            : null,
-        ),
+      find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? sandboxed : null),
     };
     const instance = buildInstance(connectionString(), null, sandbox);
     try {
+      // The yes the group captured names `gated.portal.test` as the
+      // destination. A run made to the sandbox goes THERE, and the preview
+      // says so (P74) — so that yes no longer covers it, and the run stops at
+      // the authorisation again rather than carrying an old one to a new host.
+      expect(
+        await instance.driver.claimWork({ holder: "runner-sandbox", leaseSeconds: 120 }),
+        "an authorisation for the observed host does not cover the sandbox",
+      ).toBeNull();
+      await captureAuthorisation(instance.pool, conversation, sandboxed);
+      await pool.query(
+        "UPDATE workflow_runs SET checkpoint = jsonb_set(checkpoint, '{phase}', '\"creating_account\"') WHERE run_id = $1",
+        [runId],
+      );
       const work = await instance.driver.claimWork({
         holder: "runner-sandbox",
         leaseSeconds: 120,
@@ -2953,6 +2965,11 @@ describeIfDatabase("leasing browser work to a runner", () => {
         { strategy: "name", value: "password" },
         { strategy: "name", value: "password_confirm" },
       ]);
+      // Back to the observed host for the groups that follow, which run this
+      // same case through the unsandboxed catalogue: their yes is the one
+      // naming `gated.portal.test`, captured again because the latest capture
+      // is the one `assess` reads.
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
     } finally {
       await instance.pool.end();
     }

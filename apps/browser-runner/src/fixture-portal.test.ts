@@ -215,7 +215,9 @@ describe("the application form remembers, and the review page shows it", () => {
       signedIn,
     );
     expect(secondPage.status).toBe(302);
-    expect(secondPage.headers.get("location")).toBe("/review");
+    // Page two goes to page three — the documents page (P74) — and the
+    // review is readable from there, with the passport "not yet provided".
+    expect(secondPage.headers.get("location")).toBe("/documents");
 
     const review = await fetch(`${portal.baseUrl}/review`, { headers: { cookie: signedIn } });
     const body = await review.text();
@@ -229,6 +231,50 @@ describe("the application form remembers, and the review page shows it", () => {
     expect(portal.application(EMAIL)?.personalStatement).toBe(
       "Because the course is the one I want.",
     );
+  });
+
+  it("takes a document on page three, as a browser posts one, and keeps its hash — never its bytes in any record a test reads", async () => {
+    // P74. The page carries one labelled file input inside a multipart form,
+    // reachable only once page two is saved; the portal keeps the file's
+    // hash, size and name. Posted here the way a browser posts a file.
+    const cookie = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
+    await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR" }, cookie);
+    await form("/study", { personal_statement: "Because the course is the one I want." }, cookie);
+    const page3 = await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } });
+    const html = await page3.text();
+    expect(html).toContain('<label for="passport">Upload your passport</label>');
+    expect(html).toContain('type="file"');
+    expect(html).toContain('enctype="multipart/form-data"');
+
+    const bytes = Buffer.from("%PDF-1.7\n a synthetic passport, not a real one\n");
+    const body = new FormData();
+    body.set("passport", new Blob([bytes], { type: "application/pdf" }), "passport.pdf");
+    const posted = await fetch(`${portal.baseUrl}/documents`, {
+      method: "POST",
+      headers: { cookie },
+      body,
+      redirect: "manual",
+    });
+    expect(posted.status).toBe(302);
+    expect(posted.headers.get("location")).toBe("/review");
+    const { createHash } = await import("node:crypto");
+    expect(portal.application(EMAIL)?.passport).toEqual({
+      filename: "passport.pdf",
+      contentType: "application/pdf",
+      sizeBytes: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+    const review = await (await fetch(`${portal.baseUrl}/review`, { headers: { cookie } })).text();
+    expect(review).toContain("passport.pdf");
+    expect(review).not.toContain("%PDF");
+
+    const empty = await fetch(`${portal.baseUrl}/documents`, {
+      method: "POST",
+      headers: { cookie },
+      body: new FormData(),
+      redirect: "manual",
+    });
+    expect(empty.status, "no file: refused, and the page says so").toBe(400);
   });
 
   it("will not show page two until page one is saved", async () => {

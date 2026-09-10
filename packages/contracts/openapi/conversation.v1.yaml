@@ -2088,8 +2088,11 @@ components:
         mappingSetId: { type: string }
         instructions:
           type: array
-          minItems: 1
           items: { $ref: "#/components/schemas/TransportedInstruction" }
+          description: >-
+            May be empty where the page carries only uploads — a documents page
+            (P74). A plan with neither instructions nor uploads is refused by
+            the parser on both sides.
         uploads:
           type: array
           items: { $ref: "#/components/schemas/TransportedUpload" }
