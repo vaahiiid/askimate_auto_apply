@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.93.0] — 2026-09-10
+
+**P76 — the live-run record catches up with what was built.** Documentation only.
+
+### Changed
+
+- `docs/what-a-controlled-live-run-needs.md` revised against the code and the ADRs as they stand:
+  the twelve retention determinations (ADR-0078) and the disclosure lawful basis (ADR-0087) leave
+  the blocker list; retention, disclosure and the interview areas restated; persistence, the
+  specialist notice and the AWS rows corrected; the sequence updated. Vahid's items are unchanged
+  and nothing he has not typed is restated.
+- State document: blocker 9 (`attach_document` intent identity) struck — done in P73.
+
+---
+
 ## [0.92.0] — 2026-09-10
 
 **P75 — the destination inside the yes, made a named property at every level.** Vahid: *"keep

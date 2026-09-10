@@ -4194,3 +4194,31 @@ checklist still names as open.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P76 — the live-run record catches up with what was built
+
+Vahid: *"Keep going on what does not need either."* What needed neither a bucket nor a live site,
+and was wrong, was the record. `what-a-controlled-live-run-needs.md` is the document the README
+points at for *the remaining blockers*, and it was dated 2026-08-26: it said retention was a hard
+stop (ADR-0078 set the periods on 2026-09-07), the lawful basis for disclosure was unregistered
+(ADR-0087, 2026-09-08, and the register is wired in both planes), persistence was in-memory (it has
+been PostgreSQL and Redis since P11 and P14), attachments needed a `WorkKind` (P73 needed none), and
+the interview was a terminal harness (the student's page has carried it since P25). A reader
+following the README got a picture five weeks old, and the record-integrity phases (ADR-0082 to
+ADR-0084) were about exactly this: a record asserting something other than what happened, in
+either direction.
+
+Each of the eighteen areas re-read against the code and the ADRs. Two blockers leave the short list.
+Three areas move — retention, disclosure, the interview — and the rest are restated as *built and
+proved against the fixture portal, real stores and a real browser, unproven on a real portal*,
+which is the sentence that is true. The 2026-08-26 text stays in the git history at that revision,
+where ADR-0067 quotes it. Blocker 9 in the state document is struck: done in P73.
+
+What was not changed: anything that is Vahid's. The target line says what he selected and for
+which phase, in his words from the target file, and does not restate the controlled run's target;
+the bucket, discovery, the models and the account remain his rows. Nothing here provisions or runs
+against anything.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
