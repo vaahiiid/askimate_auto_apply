@@ -15,10 +15,11 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,344 tests, 125 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
-the seventeen files that launch a browser run serially, everything else in parallel.
-Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
-nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
+the sixth, a research build, was removed in P53 (ADR-0086). **2,346 tests, 125 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the thirteen files that launch a browser run serially, everything else in parallel.
+One hundred architecture decision records, all one hundred accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
+customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
+checksum binding (ADR-0092 §4); the amount is the billing console's to state. Nothing is deployed. The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
 mapping review, Bedrock credentials and an account, and all four are with you.
 
@@ -112,6 +113,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P64** | The preview names what the student holds (ADR-0097) | Slice a of the attachment path (§2). `RunDriver` hands the orchestrator the student's held documents from the vault's METADATA store, keyed by document type — one per type, the current one, never a superseded or purged record — so a run whose student holds the passport the mapping attaches reaches `authorise` with it named in the preview, and the authorisation binds to a hash that covers `(fieldRef, documentRef, contentHash)` (ADR-0069). `PreviewDocument.filename` → `describedAs`. The driver names no vault method that yields bytes, asserted. **Not built:** slices b–e; nothing is sent |
 | **P65** | One yes over a preview that names each attachment, and the gates refuse in a closed set (ADR-0098) | Vahid's two decisions of 2026-09-10, verbatim in the ADR. Slice b: `renderPreview` writes, per attachment, which document, going where (institution and portal host) and for what (the form's label, this application); `SubmissionPreview.portalHost` is derived from the blueprint's first observed URL and is INSIDE the content hash, so a re-pointed application voids the yes. Blocker 18 closed: the storage gates' five refusals are three published codes (`document_not_retainable`, `document_basis_undetermined`, `document_type_refused`) with words on the page; every `detail` left the wire in the Conversation Service, two of them older than the transport; `no-free-text-on-the-wire.test.ts` refuses the next one. **Not built:** slices c–e; nothing is sent |
 | **P66** | Uploads cross as references, and the plane hands a document over only after the gates (ADR-0099) | Slice c. An upload crosses to the runner as four things — which box, which document the mapping named, where the box is — and no bytes, id or hash. `POST /internal/v1/work/{runId}/documents/{documentRef}` under the lease: the run is at execute and names the upload; the captured authorisation still hashes to the preview rendered NOW; a `DisclosureRequestRecord` from what the student saw runs `authoriseDisclosure` (determination 3), then `mayTransmit` WITH THE CASE, then a sixty-second retrieval URL. The runner's `documentSourceFor` fetches, hashes, and mints the brand through `authoriseDisclosure` again — never a cast — before `executePlan` runs `mayTransmit` at the moment of attaching. `authoriseDisclosure` leaves the register. **Found:** the runner's entry point performs `create_account` only; `fillApplication` enters the register (blocker 19). **Not built:** slices d and e |
+| **P67** | The page decides whether it can show the secure step before it asks for the capability (ADR-0100) | Closes the two properties ADR-0086 left open. `decideRendering` runs BEFORE `bootstrapSecureStep` over three observed capabilities — this build, `window.isSecureContext`, and a `no-cors` probe of the secure origin the page reads from the new non-minting `GET /v1/secure-origin`; a refusal is a code and a fixed sentence on screen, mounts no frame, and cancels nothing. The journey now builds and serves the real page and the real secure control, and the password is typed into the REAL cross-origin frame; the outbox delivers the receipt through `internalAppend`. **Found:** since P25 the page framed `/v1/secret-requests/{id}/control` while the Secure Plane serves `/control/{id}` — a 404 on the production path for forty-two phases, unseen because the page is not a router and the journey typed by `fetch`. The path is now `secureControlPath` from the contract, held to `secure.v1.yaml` by the drift guard |
 
 ---
 
@@ -293,6 +295,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0097 | The preview names what the student holds | Accepted · continues 0095 and 0096 |
 | 0098 | One yes over a preview that names each attachment, and the gates refuse in a closed set | Accepted · Vahid's decisions · continues 0097 |
 | 0099 | Uploads cross as references, and the plane hands a document over only after the gates | Accepted · continues 0098, amends 0046 |
+| 0100 | The page decides whether it can show the secure step before it asks for the capability | Accepted · continues 0086, amends 0086 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -319,8 +322,9 @@ now holds all three records — the ADR files, the index, and §3 above — to e
   submission**.
 - Real account creation on a fixture portal, proved by asking the portal whether the student's
   password logs them in.
-- The two-origin secure credential path in a real browser, with every HTTP body on every wire
-  scanned for the password.
+- The two-origin secure credential path in a real browser — the real student page mounting the
+  real frame from the secure origin, the password typed into it — with every HTTP body on every
+  wire, the browser's included, scanned for the password (P67).
 - Durable runs across a genuine process restart; competing runner supervisors; lapsing leases.
 - Read-only portal discovery, structurally incapable of submitting — **103 real runs executed**.
 - OIDC login against a real local provider.
@@ -460,12 +464,12 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,344 tests · 125 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,346 tests · 125 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
 
-**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the seventeen browser files one at a
+**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the thirteen browser files one at a
 time and everything else in parallel, because three or four browsers landing together on a four-CPU
 container starved pages past a twenty-second poll and failed two full runs in five — each on a
 different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7, peak load 5.13 →
@@ -473,7 +477,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,344 tests**, by the workspace they live in. Generated — run
+**2,346 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -482,7 +486,7 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 398 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 290 | `packages/profile` | 46 |
+| `scripts` | 292 | `packages/profile` | 46 |
 | `apps/browser-runner` | 244 | `packages/catalogue` | 39 |
 | `packages/case-store` | 143 | `packages/preparation` | 35 |
 | `packages/documents` | 99 | `packages/extraction` | 27 |

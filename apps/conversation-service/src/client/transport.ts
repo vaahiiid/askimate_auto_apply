@@ -16,11 +16,13 @@
  * why this file configures no base URL, no CORS mode and no credentials mode:
  * there is one origin and the cookie goes with it.
  *
- * ONE exception, and it is the point of ADR-0092: `putDocument` sends a
- * document's bytes to the bucket, on the URL the declaration answered with,
- * and the bucket is another origin. It is the only absolute URL this file
- * ever fetches, it is cross-origin on purpose, and it carries no cookie —
- * the bucket has no session to offer one to.
+ * TWO exceptions, each cross-origin on purpose and each carrying no cookie.
+ * `putDocument` (ADR-0092) sends a document's bytes to the bucket, on the URL
+ * the declaration answered with, and the bucket is another origin.
+ * `probeSecureOrigin` (ADR-0100) asks whether the secure plane answers at
+ * all, before this page asks for a capability it could not use; it sends
+ * nothing and reads nothing back. Those are the only absolute URLs this file
+ * ever fetches.
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
@@ -357,6 +359,42 @@ export interface Bootstrap {
   readonly requestId: string;
   readonly frameToken: string;
   readonly secureOrigin: string;
+}
+
+/**
+ * Where the secure plane is. A location and never a capability (ADR-0100):
+ * the page reads this so it can decide whether it can show the step BEFORE
+ * it asks for the bootstrap, which is the mint.
+ */
+export function readSecureOrigin(): Promise<Outcome<string>> {
+  return get("/v1/secure-origin", (value) => {
+    const origin = asRecord(value)?.["secureOrigin"];
+    return typeof origin === "string" && origin !== "" ? origin : null;
+  });
+}
+
+/**
+ * Does the secure origin answer? The `endpointReachable` capability
+ * (`decideRendering`), observed rather than assumed.
+ *
+ * `mode: "no-cors"`, so the answer is opaque: this page learns that the
+ * request completed and nothing else — not the status, not a header, not a
+ * byte of body. That is exactly the question. `credentials: "omit"` because
+ * the secure plane's cookie is the frame's, never this page's, and a probe
+ * that carried it would be a probe that could be made to spend it. A network
+ * failure rejects, and a rejection is the only "no".
+ */
+export async function probeSecureOrigin(origin: string): Promise<boolean> {
+  try {
+    await fetch(`${origin}/healthz`, {
+      mode: "no-cors",
+      credentials: "omit",
+      cache: "no-store",
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function bootstrapSecureStep(

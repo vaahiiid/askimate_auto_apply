@@ -39,6 +39,7 @@ import {
   WORK_APPROACHES,
   WORK_KINDS,
   parseWireResolutionOutcome,
+  secureControlPath,
 } from "@askimate/aas-contracts";
 import { AUTHENTICATION_APPROACHES } from "@askimate/aas-account";
 import {
@@ -647,6 +648,26 @@ describe("the published contract names the routes that exist", () => {
       [...published].sort(),
       "published, but nothing in the plane serves it",
     ).toEqual([...served].sort());
+  });
+
+  it("frames the secure control at the path the Secure Plane publishes", () => {
+    // ADR-0100. The student page is not a router, so the comparison above
+    // cannot see it; it framed a path of its own invention for forty-two
+    // phases while the secure service served another. The page now takes the
+    // path from `secureControlPath`, and this holds that function to the
+    // document: rendered for a request id, it must match exactly one
+    // published GET, with the id in the `{requestId}` slot.
+    const published = publishedIn(specNamed("secure.v1.yaml"));
+    const rendered = `GET ${secureControlPath("sr_0123456789abcdef0123456789abcdef")}`;
+    const matching = published.filter((route) => {
+      const template = route.replace(/\{requestId\}/g, "sr_0123456789abcdef0123456789abcdef");
+      return template === rendered && template !== route;
+    });
+    expect(matching, "the page frames a path the Secure Plane does not publish").toHaveLength(1);
+    expect(matching[0]).toContain("/control/{requestId}");
+    // A path segment, never a query or a fragment: the id is an identifier
+    // in the URL by design (the token is not), and it must stay one segment.
+    expect(secureControlPath("a/b?c#d")).toBe("/control/a%2Fb%3Fc%23d");
   });
 
   it("REFUSES to pass when it is looking at no routes", () => {

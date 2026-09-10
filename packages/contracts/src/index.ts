@@ -114,7 +114,7 @@ export type {
   FrameSecretRejectedMessage,
   FrameSecretStatusMessage,
 } from "./frame.js";
-export { parseFrameInbound, parseFrameOutbound } from "./frame.js";
+export { parseFrameInbound, parseFrameOutbound, secureControlPath } from "./frame.js";
 
 export type { SseResumeFrame } from "./sse.js";
 export {

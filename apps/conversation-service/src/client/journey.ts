@@ -46,10 +46,13 @@
 import {
   SSE_EVENT_NAME,
   parseConversationEvent,
+  secureControlPath,
 } from "@askimate/aas-contracts";
 import type { ConversationEvent, RunPreview } from "@askimate/aas-contracts";
 import {
   composerPolicy,
+  decideRendering,
+  durableSecretRequest,
   openSecretRequest,
   projectTranscript,
 } from "@askimate/aas-conversation";
@@ -101,6 +104,18 @@ const view: View = {
 };
 
 let stream: EventSource | null = null;
+
+/**
+ * The one clock this page reads, handed to `start` by the entry point at the
+ * bottom of this file — the bundle's composition root, as `main.ts` is the
+ * service's. Read for exactly one decision: whether a secure step's expiry
+ * has passed before this page asks for the capability to show it (ADR-0100).
+ * Nothing else on this page is a function of the time; everything else is a
+ * function of what the server said.
+ */
+let clock: () => Date = () => {
+  throw new Error("journey.ts: start() has not been given a clock");
+};
 
 function el(id: string): HTMLElement | null {
   return document.getElementById(id);
@@ -406,18 +421,70 @@ function drawSecureStep(): void {
   void mountSecureFrame(panel, open);
 }
 
+/**
+ * Mounts the frame — or says why this page will not.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0100. `decideRendering` is consulted BEFORE `bootstrapSecureStep`, and
+ * the order is the whole point: the bootstrap is the mint. A page that asked
+ * for the capability and then found it could not show the step would leave a
+ * one-time token minted for a frame that never mounted. So the three things
+ * the decision turns on are established first, and every one of them is
+ * observed rather than claimed:
+ *
+ *   supportsSecureControl   this build. It is the one that contains this
+ *                           function and speaks the frame protocol below.
+ *   secureContext           `window.isSecureContext`, the browser's own word.
+ *   endpointReachable       a probe of the secure origin, which this page is
+ *                           told by a read that mints nothing.
+ *
+ * The step's channel and expiry come from the DURABLE log — the server's own
+ * `secret_requested` — never from anything this page drew for itself.
+ *
+ * A refusal is a fixed sentence keyed by a code, on screen, with the code on
+ * the element. It cancels nothing: this page holds no capability that could,
+ * and it should not — a client that cannot show a password box is not the
+ * one to decide nobody will be asked for the password. The request stays
+ * open, the composer stays shut, and the TTL settles it.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
 async function mountSecureFrame(
   panel: HTMLElement,
   requestId: string,
 ): Promise<void> {
   const id = view.conversationId;
   if (id === null) return;
+
+  const step = durableSecretRequest({ durable: view.events, provisional: [] }, requestId);
+  if (step === null) return;
+  const origin = await api.readSecureOrigin();
+  const decision = decideRendering({
+    step: { channel: step.channel, expiresAt: new Date(step.expiresAt) },
+    capabilities: {
+      supportsSecureControl: true,
+      secureContext: window.isSecureContext,
+      endpointReachable: origin.ok ? await api.probeSecureOrigin(origin.value) : false,
+    },
+    now: clock(),
+  });
+  if (decision.render === "refuse") {
+    const refusal = document.createElement("p");
+    refusal.id = "secure-refusal";
+    refusal.dataset["reason"] = decision.reason;
+    text(refusal, decision.say);
+    panel.replaceChildren(refusal);
+    return;
+  }
+
   const bootstrap = await api.bootstrapSecureStep(id, requestId);
   if (!bootstrap.ok) return;
 
   const frame = document.createElement("iframe");
   frame.title = "Secure step";
-  frame.src = `${bootstrap.value.secureOrigin}/v1/secret-requests/${requestId}/control`;
+  // The path is the contract's, not this file's (ADR-0100): the one this
+  // file wrote for itself was wrong for forty-two phases, and only a real
+  // frame in a real browser could have said so.
+  frame.src = `${bootstrap.value.secureOrigin}${secureControlPath(requestId)}`;
   frame.className = "secure-frame";
   panel.append(frame);
 
@@ -1020,7 +1087,8 @@ async function onSend(event: Event): Promise<void> {
 // Start
 // ───────────────────────────────────────────────────────────────────────────
 
-async function start(): Promise<void> {
+async function start(now: () => Date): Promise<void> {
+  clock = now;
   const form = el("composer");
   form?.addEventListener("submit", (event) => {
     void onSend(event);
@@ -1059,10 +1127,12 @@ async function start(): Promise<void> {
 }
 
 if (typeof document !== "undefined") {
+  // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+  const now = (): Date => new Date();
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => void start());
+    document.addEventListener("DOMContentLoaded", () => void start(now));
   } else {
-    void start();
+    void start(now);
   }
 }
 

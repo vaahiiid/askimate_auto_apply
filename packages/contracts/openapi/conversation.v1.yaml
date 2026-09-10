@@ -131,6 +131,44 @@ paths:
         # another student.
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /v1/secure-origin:
+    get:
+      operationId: readSecureOrigin
+      tags: [secure]
+      summary: Where the secure plane is. A location, never a capability.
+      description: >-
+        ADR-0100. The page decides whether it can show a secure step BEFORE it
+        asks for the bootstrap capability, and one of the three things that
+        decision turns on is whether the secure origin answers. It cannot probe
+        an origin it has not been told, and the bootstrap — the only other
+        route that names it — is the mint. Before this read existed, a page
+        that could not show the step minted a token for a frame that never
+        mounted.
+
+        Nothing is minted and nothing is stored. The origin is the same one the
+        bootstrap answers with and the frame is loaded from; it is not a
+        secret, and this route is authenticated only because everything on a
+        student's journey is.
+      responses:
+        "200":
+          description: The secure plane's origin.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [secureOrigin]
+                properties:
+                  secureOrigin:
+                    type: string
+                    format: uri
+                    description: The origin the secure frame is served from.
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "503":
+          description: This deployment has no secure plane wired to it.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
   /v1/conversations/{conversationId}/secure-requests/{requestId}/bootstrap:
     parameters:
       - $ref: "#/components/parameters/ConversationId"

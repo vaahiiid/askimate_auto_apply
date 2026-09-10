@@ -19,6 +19,46 @@ not shipped artefacts.
 
 ---
 
+## [0.84.0] — 2026-09-10
+
+**P67 — the page decides whether it can show the secure step before it asks for the capability
+(ADR-0100).** The two browser-level properties ADR-0086 left open, rebuilt against the production
+page inside the journey's real secure step.
+
+### Added
+
+- `journey.ts` consults `decideRendering` BEFORE `bootstrapSecureStep`, over three observed
+  capabilities: this build, `window.isSecureContext`, and a `no-cors` probe of the secure origin.
+  A refusal is `<p id="secure-refusal" data-reason>` with the fixed sentence for its code; no frame
+  is mounted and nothing is cancelled. The page's one clock is handed to `start` by its entry point.
+- `GET /v1/secure-origin` — where the secure plane is, on a student's session, minting nothing;
+  published in `conversation.v1.yaml`. `readSecureOrigin` and `probeSecureOrigin` in the transport.
+- `secureControlPath` in `packages/contracts` — the frame's path, held to `secure.v1.yaml` by the
+  contract-drift guard.
+- `scripts/journey.test.ts` builds and serves the real student page and the real secure control,
+  opens the student's own browser on the page, types the password into the REAL cross-origin frame,
+  and delivers the receipt through the real outbox. Two properties inside that step: *REFUSES to
+  open the password box on an insecure page, and mints NOTHING* (no bootstrap request, `frame_tokens`
+  unchanged) and *takes the student's password through the REAL frame, and no postMessage carries
+  it* (the captured messages carry `ready`, `secret_received` and the request id, and not the
+  password). The browser's requests are recorded on the same `wire` as the services'.
+- `student-client.test.ts` asserts the `endpoint_unreachable` refusal on the real path.
+
+### Fixed
+
+- **The page framed a path the Secure Plane does not serve.** Since P25 the frame's `src` was
+  `/v1/secret-requests/{id}/control`; the service serves `/control/{id}`. A 404 on the production
+  path for forty-two phases, unseen because the page is not a router and the journey typed by
+  `fetch`.
+- The state document's header: thirteen browser files, one hundred decision records, and the AWS
+  line the README already carried.
+
+### Removed
+
+- `typeThePassword` — the journey's `fetch`-shaped stand-in for the student.
+
+---
+
 ## [0.83.0] — 2026-09-10
 
 **P66 — uploads cross as references, and the plane hands a document over only after the gates

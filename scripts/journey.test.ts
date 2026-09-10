@@ -18,6 +18,9 @@
  *   the real gated portal   — real cookies, real redirects, `timingSafeEqual`
  *   the real intake loop    — `runOneTurn`, over real HTTP, with the real
  *                             `createPortalAccount` performer
+ *   the real student page   — built from the tree, served by the Conversation
+ *                             Service, in a real Chromium; the password is
+ *                             typed into the REAL cross-origin frame (ADR-0100)
  *
  * It lives in `scripts/` beside `end-to-end.test.ts` for a boundary reason
  * rather than a stylistic one: this needs the Conversation Plane's model client
@@ -39,6 +42,8 @@
  */
 
 import type { Server } from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
@@ -86,7 +91,7 @@ import {
   startFixturePortal,
   type FixturePortal,
 } from "@askimate/aas-browser-runner";
-import type { BrowserContext, Page } from "playwright";
+import type { BrowserContext, Page, Request as BrowserRequest } from "playwright";
 import {
   ApplicationBindingStore,
   ConversationEventStore,
@@ -94,6 +99,7 @@ import {
   RunDriver,
   StudentIdentityStore,
   WorkLeaseStore,
+  buildStudentClient,
   createConversationApp,
   MIGRATIONS_DIR as CONVERSATION_MIGRATIONS,
   httpSecureRequestOpener,
@@ -104,10 +110,12 @@ import {
 import {
   LifecycleOutbox,
   SecureRequestStore,
+  buildSecureControl,
   createSecureApp,
-  SECURE_SESSION_COOKIE,
+  internalAppend,
   MIGRATIONS_DIR as SECURE_MIGRATIONS,
 } from "@askimate/aas-secure-service";
+import { refusalText } from "@askimate/aas-conversation";
 
 const CONVERSATION_PORT = 4901;
 const SECURE_PORT = 4902;
@@ -187,6 +195,12 @@ let journeyOffer = "";
  */
 const JOURNEY_CONTENT_HASH = `sha256:${"b".repeat(64)}`;
 let journeySecureRequests: ReturnType<typeof httpSecureRequestOpener>;
+/** The Secure Plane's outbox, drained in this file the way `background.ts` drains it. */
+let secureOutbox: LifecycleOutbox;
+/** The student page, built from the tree and served by the Conversation Service. */
+let publicDir: string;
+/** The secure control — `control.js` and `control.css` — built from the tree too. */
+let secureAssetDir: string;
 
 const recordingFetch = async (input: string, init?: RequestInit): Promise<Response> => {
   const url = String(input);
@@ -222,6 +236,9 @@ beforeAll(async () => {
   portal = await startFixturePortal();
 
   cache = new InMemoryEnvelopeCache();
+  secureOutbox = new LifecycleOutbox(securePool);
+  secureAssetDir = await mkdtemp(`${tmpdir()}/aas-journey-secure-`);
+  await buildSecureControl(secureAssetDir);
   const keys = new LocalDataKeyProvider();
   const submissionVault = new EnvelopeVault(keys, cache);
   const agentVault = new EnvelopeVault(keys, cache);
@@ -229,7 +246,7 @@ beforeAll(async () => {
   const secureApp = createSecureApp({
     store: new SecureRequestStore(securePool),
     vault: submissionVault,
-    outbox: new LifecycleOutbox(securePool),
+    outbox: secureOutbox,
     now: () => new Date(),
     selfOrigin: SECURE,
     parentOrigin: CONVERSATION_URL,
@@ -237,6 +254,11 @@ beforeAll(async () => {
     authoriseService: (req) =>
       req.header("x-service-cert") === CONVERSATION_CERT ||
       req.header("x-service-cert") === AGENT_CERT,
+    // The control the frame runs, served from the secure origin under its
+    // own `script-src 'self'`. Without it the document loads and the script
+    // does not, and a frame that never says `ready` is what the student
+    // would get — which is exactly what the first run of this test found.
+    assetDir: secureAssetDir,
   });
   secureServer = await new Promise<Server>((resolve) => {
     const listening = secureApp.listen(SECURE_PORT, "127.0.0.1", () => resolve(listening));
@@ -300,6 +322,9 @@ beforeAll(async () => {
     ],
   };
 
+  publicDir = await mkdtemp(`${tmpdir()}/aas-journey-`);
+  await buildStudentClient(publicDir);
+
   const store = new ConversationEventStore(conversationPool);
   journeySecureRequests = httpSecureRequestOpener({
     baseUrl: SECURE,
@@ -338,6 +363,15 @@ beforeAll(async () => {
     targets: journeyCatalogue,
     secureRequests: journeySecureRequests,
     secureOrigin: SECURE,
+    // The student's page, from the sources in the tree (ADR-0060), and the dev
+    // session route that mints the `__Host-` cookie a browser will only hold
+    // from a real `Set-Cookie`. Refused in production; `main.ts` mounts it
+    // only outside it.
+    publicDir,
+    issueSessionFor: (req: { body?: unknown }): string | null => {
+      const subject = (req.body as { subject?: unknown } | undefined)?.subject;
+      return typeof subject === "string" ? subject : null;
+    },
   });
   conversationServer = await new Promise<Server>((resolve) => {
     const listening = conversationApp.listen(CONVERSATION_PORT, "127.0.0.1", () =>
@@ -415,6 +449,8 @@ afterAll(async () => {
   await new Promise<void>((resolve) => secureServer.close(() => resolve()));
   await conversationPool.end();
   await securePool.end();
+  await rm(publicDir, { recursive: true, force: true });
+  await rm(secureAssetDir, { recursive: true, force: true });
 });
 
 async function confirmInto<K extends ProfileFieldKey>(
@@ -441,63 +477,50 @@ async function confirmInto<K extends ProfileFieldKey>(
   await store.save(studentUuid, toStoredEntry(key, entry));
 }
 
-/** The student's half of the secure step, in their browser, on the secure origin. */
-async function typeThePassword(requestId: string): Promise<void> {
-  // The frame token comes from the CONVERSATION plane's bootstrap endpoint —
-  // the page asks its own origin, and its own origin asks the secure service.
-  const bootstrap = await recordingFetch(
-    `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/secure-requests/${requestId}/bootstrap`,
-    { headers: { cookie: devCookie } },
-  );
-  expect(bootstrap.status, await bootstrap.clone().text()).toBe(200);
-  const { frameToken } = (await bootstrap.json()) as { frameToken: string };
-
-  const established = await recordingFetch(`${SECURE}/v1/frame-sessions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Origin: SECURE,
-      "Sec-Fetch-Site": "same-origin",
-    },
-    body: JSON.stringify({ requestId, frameToken }),
+/**
+ * The student's browser, on the student's page.
+ *
+ * A context of its own on the one browser this file launches — the runner's
+ * context is a different jar, and the two must never share a cookie. Every
+ * request the context makes, from the page or from the frame inside it, is
+ * recorded into `wire` exactly as the service-to-service calls are, so the
+ * password scan at the end of this file sees the browser's wires too. The
+ * secure plane's POST is the one line that may carry it.
+ *
+ * `init` runs before any script of the page's, which is how a test states a
+ * capability the page would otherwise observe for itself.
+ */
+async function studentPage(init?: () => void): Promise<{ page: Page; context: BrowserContext }> {
+  const context = await runnerBrowser.newContext();
+  context.on("request", (request: BrowserRequest) => {
+    const body = request.postData();
+    if (body !== null) wire.push({ where: `→ ${request.url()}`, body });
   });
-  expect(established.status).toBe(204);
-  const cookieValue = /__Host-secure_session=([^;]+)/.exec(
-    established.headers.get("set-cookie") ?? "",
-  )?.[1];
-  if (cookieValue === undefined) expect.unreachable("a secure session should have been set");
-
-  const submitted = await recordingFetch(`${SECURE}/v1/secret-requests/${requestId}/secret`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Origin: SECURE,
-      "Sec-Fetch-Site": "same-origin",
-      Cookie: `${SECURE_SESSION_COOKIE}=${cookieValue}`,
-    },
-    body: JSON.stringify({
-      secret: PASSWORD,
-      confirmation: PASSWORD,
-      conversationId: CONVERSATION,
-    }),
+  context.on("response", (response) => {
+    void response
+      .text()
+      .then((body) => wire.push({ where: `← ${response.url()} ${String(response.status())}`, body }))
+      .catch(() => undefined);
   });
-  expect(submitted.status, await submitted.clone().text()).toBe(200);
-  const { handle } = (await submitted.json()) as { handle: string };
+  if (init !== undefined) await context.addInitScript(init);
+  const minted = await context.request.post(`${CONVERSATION_URL}/dev/session`, {
+    data: { subject: studentUuid },
+    headers: { "Content-Type": "application/json" },
+  });
+  expect(minted.status(), "the session route must mint a cookie").toBe(204);
+  const page = await context.newPage();
+  page.on("pageerror", (error) => console.log(`[page threw] ${String(error)}`));
+  await page.goto(CONVERSATION_URL, { waitUntil: "domcontentloaded" });
+  return { page, context };
+}
 
-  // The secure service pushes the transition to the conversation plane's own
-  // log. In production the outbox does this; here the same internal endpoint is
-  // called directly, which is the same message over the same wire.
-  const pushed = await recordingFetch(
-    `${CONVERSATION_URL}/internal/v1/conversations/${CONVERSATION}/events`,
-    {
-      method: "POST",
-      // The SECURE service's certificate. It is the plane that knows a secret
-      // was received, and the runner has no business asserting it.
-      headers: { "Content-Type": "application/json", "x-service-cert": SECURE_CERT },
-      body: JSON.stringify({ kind: "secret_received", requestId, handle }),
-    },
+/** The frame tokens the Secure Plane has minted for one request. */
+async function frameTokensMinted(requestId: string): Promise<number> {
+  const counted = await securePool.query<{ n: string }>(
+    "SELECT count(*) AS n FROM frame_tokens WHERE request_id = $1",
+    [requestId],
   );
-  expect(pushed.status, await pushed.clone().text()).toBe(201);
+  return Number(counted.rows[0]?.n ?? 0);
 }
 
 /** The student's session cookie, minted by the service's own issuer. */
@@ -666,13 +689,127 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(events.rows[3]?.request_id).toMatch(/^sr_[0-9a-f]{32}$/);
   }, 300_000);
 
-  it("takes the student's password without the conversation plane seeing it", async () => {
+  it("REFUSES to open the password box on an insecure page, and mints NOTHING", async () => {
+    // ══════════════════════════════════════════════════════════════════
+    // ADR-0100. The page decides whether it can show the step BEFORE it asks
+    // for the bootstrap, because the bootstrap is the mint. A page that is
+    // not a secure context is told so in a fixed sentence, mounts no frame,
+    // and — the property — leaves the Secure Plane's `frame_tokens` exactly
+    // as it found them. The request stays open: this page holds nothing that
+    // could cancel it, and should not.
+    //
+    // `isSecureContext` is the browser's own word; loopback is one, so the
+    // page is told otherwise before any of its script runs.
+    // ══════════════════════════════════════════════════════════════════
     const open = await conversationPool.query<{ request_id: string }>(
       "SELECT request_id FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested'",
       [CONVERSATION],
     );
     const requestId = open.rows[0]!.request_id;
-    await typeThePassword(requestId);
+    const before = await frameTokensMinted(requestId);
+    const bootstraps = (): number =>
+      wire.filter((entry) => entry.where.includes(`/secure-requests/${requestId}/bootstrap`)).length;
+    const seenBefore = bootstraps();
+
+    // `scripts/` compiles without the DOM library; in the browser `globalThis`
+    // is `window`, and the shapes are stated where they are used.
+    const { page, context } = await studentPage(() => {
+      Object.defineProperty(globalThis, "isSecureContext", { value: false, configurable: true });
+    });
+    await page.locator("#secure-refusal").waitFor({ timeout: 20_000 });
+    expect(await page.locator("#secure-refusal").getAttribute("data-reason")).toBe(
+      "insecure_context",
+    );
+    // The sentence is the fixed one for that code — chosen from a table, never
+    // assembled — and it tells the student not to type it into the chat.
+    expect(await page.locator("#secure-refusal").textContent()).toBe(
+      refusalText("insecure_context"),
+    );
+    expect(await page.locator("#secure iframe").count(), "no frame was mounted").toBe(0);
+    expect(await page.content()).not.toContain('type="password"');
+    // The composer is shut, because the log still shows the step open.
+    expect(await page.locator("#composer button").isDisabled()).toBe(true);
+
+    // Nothing was asked for, so nothing was minted. Measured on BOTH sides of
+    // the boundary: no bootstrap request left the browser, and the Secure
+    // Plane's table did not grow.
+    await page.waitForTimeout(500);
+    expect(bootstraps(), "the page fetched a capability it could not use").toBe(seenBefore);
+    expect(
+      await frameTokensMinted(requestId),
+      "a token was minted for a frame that never mounted",
+    ).toBe(before);
+    await context.close();
+  }, 120_000);
+
+  it("takes the student's password through the REAL frame, and no postMessage carries it", async () => {
+    const open = await conversationPool.query<{ request_id: string }>(
+      "SELECT request_id FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested'",
+      [CONVERSATION],
+    );
+    const requestId = open.rows[0]!.request_id;
+
+    // ══════════════════════════════════════════════════════════════════
+    // The student's page, in a real browser, mounting the real frame from the
+    // real secure origin — and every message the page receives across that
+    // boundary, captured BEFORE any listener of the page's could see it. What
+    // appears in this list is what the Secure Plane chose to send.
+    // ══════════════════════════════════════════════════════════════════
+    const { page, context } = await studentPage(() => {
+      const seen: unknown[] = [];
+      const w = globalThis as unknown as {
+        __frameMessages: unknown[];
+        addEventListener(
+          type: string,
+          listener: (event: { readonly data: unknown }) => void,
+          capture: boolean,
+        ): void;
+      };
+      w.__frameMessages = seen;
+      w.addEventListener("message", (event) => seen.push(event.data), true);
+    });
+    const frame = page.frameLocator("#secure iframe");
+    await frame.locator("#secure-form").waitFor({ state: "visible", timeout: 20_000 });
+    await frame.locator("#secure-password").fill(PASSWORD);
+    await frame.locator("#secure-confirmation").fill(PASSWORD);
+    await frame.locator("#secure-submit").click();
+    // The frame's own word — `#state` is the element the control writes to
+    // (`data-testid="secure-state"` is its name for a test, not its id).
+    await expect
+      .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
+      .toContain("received");
+
+    // The Secure Plane tells the Conversation Plane through its OUTBOX — the
+    // same `internalAppend` `background.ts` drains with, called once here
+    // rather than on a timer. It is the only way the transition reaches the
+    // log: the page cannot write it, and does not try.
+    const drained = await secureOutbox.publish(
+      internalAppend({
+        baseUrl: CONVERSATION_URL,
+        serviceCertificate: SECURE_CERT,
+        fetch: recordingFetch as unknown as typeof globalThis.fetch,
+      }),
+      { now: new Date() },
+    );
+    expect(drained.delivered, "the receipt reached the conversation plane").toBeGreaterThan(0);
+    expect(drained.failed).toBe(0);
+
+    // The page re-reads on the event, finds the step settled, and the frame
+    // is gone — a fact it learned from the log, not from the frame.
+    await expect
+      .poll(async () => await page.locator("#secure iframe").count(), { timeout: 20_000 })
+      .toBe(0);
+
+    const messages = await page.evaluate(() =>
+      JSON.stringify((globalThis as unknown as { __frameMessages: unknown[] }).__frameMessages),
+    );
+    expect(messages, "a postMessage carried the credential").not.toContain(PASSWORD);
+    // And it DID carry the lifecycle, so the scan is not passing on an empty
+    // list — the classic way a leak scan quietly stops looking.
+    expect(messages).toContain('"ready"');
+    expect(messages).toContain("secret_received");
+    expect(messages).toContain(requestId);
+    await context.close();
 
     // The conversation plane learned a HANDLE. Every row of its log, scanned.
     const rows = await conversationPool.query<{ row: string }>(

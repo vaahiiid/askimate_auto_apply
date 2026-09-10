@@ -1297,6 +1297,32 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
     },
   );
 
+  // ── GET /v1/secure-origin ───────────────────────────────────────────────
+  //
+  // Where the secure plane is, and NOTHING else. ADR-0100.
+  //
+  // The bootstrap below is the mint: asking it is asking the secure service
+  // to write a one-time capability. But the page has a decision to make
+  // BEFORE it asks — can this page show the step at all — and one of the
+  // three things that decision turns on is whether the secure origin answers.
+  // The page cannot probe an origin it has not been told, and until this
+  // route the only thing that told it was the mint itself. So a page that
+  // could not show the step still minted a token for a frame that never
+  // mounted. This read carries no capability, stores nothing and is safe to
+  // answer as often as it is asked.
+  router.get("/v1/secure-origin", (req: Request, res: Response, next: NextFunction): void => {
+    void (async (): Promise<void> => {
+      const who = await session(req, res);
+      if (who === null) return;
+      const origin = options.secureOrigin;
+      if (origin === undefined || origin === "") {
+        problem(res, "service_unavailable");
+        return;
+      }
+      res.status(200).json({ secureOrigin: origin });
+    })().catch(next);
+  });
+
   // ── GET /v1/conversations/:id/secure-requests/:requestId/bootstrap ──────
   //
   // The capability that lets a page start the secure frame. Delivered in a

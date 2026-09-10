@@ -46,6 +46,27 @@ import {
   parseSecretLifecycle,
 } from "./vocabulary.js";
 
+/**
+ * Where the secure control is, on the secure origin: step 2 above, as a
+ * function rather than a string two planes each write for themselves.
+ *
+ * ADR-0100. From P25 to P67 the student page framed
+ * `/v1/secret-requests/{requestId}/control` while the Secure Interaction
+ * Service served `/control/{requestId}` — the path this file's own header
+ * describes and `secure.v1.yaml` publishes. Nothing compared the two: the
+ * contract-drift guard reads the secure service's router, and the page is
+ * not a router. The frame answered 404 on the production path for forty-two
+ * phases, and the journey that would have noticed typed the password by
+ * `fetch`. So the page now asks this function, and
+ * `scripts/contract-drift.test.ts` holds it to the published path.
+ *
+ * `encodeURIComponent` because the id is a path segment, and a request id is
+ * the one thing here that came from another service.
+ */
+export function secureControlPath(requestId: string): string {
+  return `/control/${encodeURIComponent(requestId)}`;
+}
+
 interface FrameMessageBase {
   /** Bumped only for a breaking change. A mismatch is refused, not adapted. */
   readonly v: typeof FRAME_PROTOCOL_VERSION;

@@ -771,6 +771,18 @@ describeIfDatabase("the student's page", () => {
       "and the button says so",
     ).toBe(true);
 
+    // ADR-0100. This deployment names a secure origin nothing listens on, and
+    // the page finds that out BEFORE asking for a capability: the probe fails,
+    // `decideRendering` refuses with the code, the fixed sentence is shown,
+    // and no frame is mounted. The step stays open — this page cannot cancel
+    // it, and the composer above stays shut for exactly that reason.
+    await page.locator("#secure-refusal").waitFor({ timeout: 20_000 });
+    expect(await page.locator("#secure-refusal").getAttribute("data-reason")).toBe(
+      "endpoint_unreachable",
+    );
+    expect(await textOf("#secure-refusal")).toContain("cannot reach the secure service");
+    expect(await page.locator("#secure iframe").count()).toBe(0);
+
     // The draft survives the guard. Nothing ever writes to the input.
     expect(await page.locator("#say").inputValue()).toBe("half a sentence");
 

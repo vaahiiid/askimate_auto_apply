@@ -3898,3 +3898,30 @@ and it is yours. Blocker 19. The gates and the hand-over do not wait on it; slic
 **Six** — `authoriseDisclosure` out, `fillApplication` in.
 
 ---
+
+# P67 — the page decides whether it can show the secure step before it asks for the capability (ADR-0100)
+
+The two properties ADR-0086 left open are rebuilt, inside the journey's real secure step. The page
+now consults `decideRendering` before it asks for the bootstrap — over this build, the browser's own
+`isSecureContext`, and a probe of the secure origin it reads from a route that mints nothing — and a
+page that cannot show the step says so in a fixed sentence, mounts no frame, and leaves the Secure
+Plane's `frame_tokens` exactly as it found them. The journey builds the student page and the secure
+control from the tree, opens the student's own browser on the page, and the password is typed into
+the real cross-origin frame; the receipt reaches the conversation log through the real outbox.
+
+## What I found
+
+Since P25 the page framed `/v1/secret-requests/{id}/control`. The Secure Plane serves
+`/control/{id}`, and always has. The frame was a 404 on the production path for forty-two phases.
+Nothing caught it because the contract-drift guard reads routers and the page is not one, and the
+journey typed the password by `fetch` — the stand-in ADR-0086 itself said was not the client. The
+path now comes from `secureControlPath` in the contracts package, and the drift guard holds that
+function to `secure.v1.yaml`.
+
+Two counts in the state document's header were stale and are corrected: thirteen browser files, not
+seventeen; one hundred decision records, not eighty-seven; and the AWS line now says what the README
+already said since P59.
+
+## Declared-but-unreachable surface
+
+**Six** — unchanged.

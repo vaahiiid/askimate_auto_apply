@@ -82,6 +82,12 @@ not transfer by moving a file. Rebuilding them against `journey.ts` needs a two-
 harness that does not exist — `student-client.test.ts` configures a `secureOrigin` with nothing
 listening on it. **That is a phase, and it is recorded as an open one rather than pretended away.**
 
+> **Amended by [ADR-0100](./0100-the-page-decides-whether-it-can-show-the-secure-step-before-it-asks-for-the-capability.md)
+> (P67, 2026-09-10).** Both properties are rebuilt in `scripts/journey.test.ts`, inside the real
+> secure step, against the real page and the real frame. Building them found that the page had
+> framed a path the Secure Plane does not serve since P25, and that `decideRendering` had no caller
+> on the production path.
+
 ## Consequences
 
 - Four of the seventeen files in the serialised browser lane are gone — **a quarter of it** (ADR-0081).
