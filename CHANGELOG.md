@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.97.0] — 2026-09-10
+
+**P81 — the first real form, read.** Sheffield's PGT application, eleven pages, through attached
+inspection on Vahid's machine.
+
+### Added
+
+- `docs/captures/sheffield-pgt-2026-09-10/`: `run.json` and `blueprint.draft.json` as the tool
+  wrote them, and a README with the plain-terms account — the nine Part 1 pages, the mandatory
+  fields the labels show, the seventeen document slots, the dependency chain behind the refused
+  grading-systems lookup and every static dependency beside it, the sixteen refusals by rule, and
+  the two open questions answered as far as the captures allow.
+
+### Changed
+
+- The target document records the read against its sourced facts: S1 consistent, S3 confirmed by
+  structure, S2/S4/S5 still stated only.
+
+---
+
 ## [0.96.2] — 2026-09-10
 
 ### Added

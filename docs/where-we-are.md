@@ -4345,3 +4345,38 @@ the read. The same shape as the bug it was written for, one layer up.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P81 — the first real form, read
+
+Eleven pages of the University of Sheffield's Postgraduate Online Application Form, read by
+Vahid's attached inspection in his own signed-in session, zero failed. The first real reading this
+repository has ever had of a form behind a login. The record, with the tool's own draft unedited,
+is `docs/captures/sheffield-pgt-2026-09-10/`, and the plain-terms account is its README.
+
+What the form is: nine Part 1 pages — personal, contact, nationality, English language, education,
+employment, equal opportunities, marketing, documents — two of them entries an applicant repeats,
+and Part 2 behind them, unread. Mandatory fields are asterisks in labels, enforced on save; not one
+`required` attribute in 309 controls, which is what the public page said in other words. Seventeen
+document slots inside the sections, each with a now/later/not-providing choice, which is S3
+confirmed by structure.
+
+The finding Vahid named from the refusals — the education page posting to load grading systems —
+is one link of a chain the structure shows whole: country, then an institution typeahead, then the
+grading system by a server lookup, then the grade. Everything else that depends on another field
+is static show/hide, and it is tabulated so the reviewer does not rediscover it. Three things the
+blueprint schema cannot say today came out of that: options that arrive after another field is
+set, a typeahead as something the fill agent types into, and a repeatable entry as a page shape.
+They are raised for step 4, not solved in it.
+
+The two open questions are answered as far as the captures allow and no further. A *Change
+Password* link supports a password's existence and not who set it; the registration page, read in
+a fresh profile, or Vahid's own statement of what he typed when he registered, settles it. Three
+course choices submitted separately fit the key without change and strain the case — Part 1 is one
+record shared by up to three submissions — and the model is not adapted until Part 2 is read.
+
+Found on our side: the observation script's one-time-code heuristic matched six postcode boxes and
+wrote an `mfa` handoff on a page that has none (P82).
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

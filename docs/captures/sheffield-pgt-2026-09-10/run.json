@@ -1,0 +1,142 @@
+{
+  "runId": "attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z",
+  "mode": "attached_read_only",
+  "target": {
+    "targetId": "sheffield-pgt-september-direct",
+    "institutionName": "University of Sheffield",
+    "allowedHosts": [
+      "sheffield.ac.uk"
+    ]
+  },
+  "cdpEndpoint": "127.0.0.1:9222",
+  "urls": [
+    "https://www.sheffield.ac.uk/postgradapplication/overview.do",
+    "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+    "https://www.sheffield.ac.uk/postgradapplication/personal.do",
+    "https://www.sheffield.ac.uk/postgradapplication/contact.do",
+    "https://www.sheffield.ac.uk/postgradapplication/nationality.do",
+    "https://www.sheffield.ac.uk/postgradapplication/language.app",
+    "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true",
+    "https://www.sheffield.ac.uk/postgradapplication/employment.do",
+    "https://www.sheffield.ac.uk/postgradapplication/equalOpportunities.do",
+    "https://www.sheffield.ac.uk/postgradapplication/marketing.do",
+    "https://www.sheffield.ac.uk/postgradapplication/documents.do"
+  ],
+  "visited": [
+    "https://www.sheffield.ac.uk/postgradapplication/overview.do",
+    "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+    "https://www.sheffield.ac.uk/postgradapplication/personal.do",
+    "https://www.sheffield.ac.uk/postgradapplication/contact.do",
+    "https://www.sheffield.ac.uk/postgradapplication/nationality.do",
+    "https://www.sheffield.ac.uk/postgradapplication/language.app",
+    "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true",
+    "https://www.sheffield.ac.uk/postgradapplication/employment.do",
+    "https://www.sheffield.ac.uk/postgradapplication/equalOpportunities.do",
+    "https://www.sheffield.ac.uk/postgradapplication/marketing.do",
+    "https://www.sheffield.ac.uk/postgradapplication/documents.do"
+  ],
+  "failed": [],
+  "blockedRequests": [
+    {
+      "method": "POST",
+      "url": "https://tr6.snapchat.com/p",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://tr6.snapchat.com/p. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://tr.snapchat.com/p",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://tr.snapchat.com/p. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://tags.srv.stackadapt.com/js_tracking?url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2Fsummary.docontact&uid=3AqID60RBpES5kKToIN3xA&v=1&host=https%3A%2F%2Fwww.sheffield.ac.uk&l_src=&l_src_d=&u_src=&u_src_d=&shop=false",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://tags.srv.stackadapt.com/js_tracking?url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2Fsummary.docontact&uid=3AqID60RBpES5kKToIN3xA&v=1&host=https%3A%2F%2Fwww.sheffield.ac.uk&l_src=&l_src_d=&u_src=&u_src_d=&shop=false: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "POST",
+      "url": "https://mc.yandex.com/watch/105476076?page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2Fsummary.do%23contact&charset=utf-8&hidv2=5292583283438649423&hittoken=1789056802_f911e7379813db715ea4e631593cdb684c29b829d57a51a316b45356e3f2098d&browser-info=nb%3A1%3Acl%3A98%3Aar%3A1%3Avf%3A1hkuu7q9oojr202mtyg5uinyhckcg63%3Afu%3A1%3Aen%3Autf-8%3Ala%3Aen-GB%3Av%3A2650%3Acn%3A1%3Adp%3A1%3Als%3A19151055363%3Ahid%3A564874231%3Az%3A60%3Ai%3A20260910171338%3Aet%3A1789056818%3Ac%3A1%3Arn%3A55281763%3Arqn%3A22%3Au%3A1789052947737154069%3Aw%3A1200x943%3As%3A2240x1260x30%3Ask%3A2%3Awv%3A2%3Aco%3A0%3Acpf%3A1%3Aeu%3A1%3Ans%3A1789056795516%3Agi%3AR0ExLjEuMTY2NzQ4Mjc5OC4xNzg5MDUyOTQ2%3Aadb%3A2%3Arqnl%3A1%3Ast%3A1789056818&t=clc(0-0-0)rqnt(2)re(1)aw(1)rcm(0)ecs(0)csu(0)cdl(na)eco(21135617)prs(2)cac(0)cae(0)wss(2)w2s(16)evt(98)wdv(1)wds(0)wdo(0)wdd(0)wdi(0)ti(0)&force-urlencoded=1",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://mc.yandex.com/watch/105476076?page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2Fsummary.do%23contact&charset=utf-8&hidv2=5292583283438649423&hittoken=1789056802_f911e7379813db715ea4e631593cdb684c29b829d57a51a316b45356e3f2098d&browser-info=nb%3A1%3Acl%3A98%3Aar%3A1%3Avf%3A1hkuu7q9oojr202mtyg5uinyhckcg63%3Afu%3A1%3Aen%3Autf-8%3Ala%3Aen-GB%3Av%3A2650%3Acn%3A1%3Adp%3A1%3Als%3A19151055363%3Ahid%3A564874231%3Az%3A60%3Ai%3A20260910171338%3Aet%3A1789056818%3Ac%3A1%3Arn%3A55281763%3Arqn%3A22%3Au%3A1789052947737154069%3Aw%3A1200x943%3As%3A2240x1260x30%3Ask%3A2%3Awv%3A2%3Aco%3A0%3Acpf%3A1%3Aeu%3A1%3Ans%3A1789056795516%3Agi%3AR0ExLjEuMTY2NzQ4Mjc5OC4xNzg5MDUyOTQ2%3Aadb%3A2%3Arqnl%3A1%3Ast%3A1789056818&t=clc(0-0-0)rqnt(2)re(1)aw(1)rcm(0)ecs(0)csu(0)cdl(na)eco(21135617)prs(2)cac(0)cae(0)wss(2)w2s(16)evt(98)wdv(1)wds(0)wdo(0)wdd(0)wdi(0)ti(0)&force-urlencoded=1. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/getGradingSystemsForCountry.do?institutionCode=&noCache=7638554777",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.sheffield.ac.uk/postgradapplication/getGradingSystemsForCountry.do?institutionCode=&noCache=7638554777. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    }
+  ],
+  "refusedNavigations": [],
+  "crawlDelayMs": 2000,
+  "robots": "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",
+  "capturesScrubbed": "input values and textarea bodies removed from pages/*.html; the page itself was not touched",
+  "startedAt": "2026-09-10T16:13:23.186Z"
+}

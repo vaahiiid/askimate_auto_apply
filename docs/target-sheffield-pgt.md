@@ -64,6 +64,18 @@ canonical hash from `pnpm run catalogue hash`, the date, and a note of what was 
 approver's identity is asserted in that file, not authenticated — the same scope ADR-0048 §3
 records for the one-operator model.
 
+## The first read — 2026-09-10, eleven pages, zero failed
+
+Made by Vahid on his machine through attached inspection (P79, fixed in P80). The record is
+[`captures/sheffield-pgt-2026-09-10/`](./captures/sheffield-pgt-2026-09-10/README.md): `run.json`,
+the tool's `blueprint.draft.json` unedited, and the account of what the form is. Against the
+sourced facts above: **S1** is consistent with what was read — nine Part 1 pages of exactly the
+kinds stated, the `*` convention for mandatory fields, and Part 2 behind them, unread; **S3** is
+confirmed by structure — seventeen document slots inside the sections; **S2**, **S4** and **S5**
+remain stated, not observed. The `portal_issued` question and the three-choices question are
+answered as far as the captures allow in that README, and no further: the registration page and
+Part 2 were not read, and they are what settles each.
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 Vahid, 2026-09-10: *"Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new
