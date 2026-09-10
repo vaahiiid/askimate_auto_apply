@@ -501,3 +501,80 @@ describeIfDatabase("the worker holds a job while it works", () => {
     }
   }, 60_000);
 });
+
+describeIfDatabase("the intake sweep runs as the worker's fourth job (ADR-0096)", () => {
+  /**
+   * An abandoned intake, written by hand.
+   *
+   * Raw SQL rather than the document port, on purpose: this app is forbidden
+   * the documents package (`check-boundaries.ts` — the worker names no vault),
+   * and a test that imported it would be the undeclared dependency wearing a
+   * passing test's clothes. The row has every column migration 0017 requires
+   * and holds no byte, because there is no column that could.
+   */
+  async function abandonedIntake(id: string, openedAt: Date, ttlMs: number): Promise<void> {
+    await pool.query(
+      `INSERT INTO document_intakes
+         (intake_id, conversation_id, student_id, document_type, purpose, content_type,
+          content_hash, declared_size_bytes, policy_reference, lawful_basis, opened_at, expires_at)
+       VALUES ($1, 'conv_sweep', 'stu_sweep', 'passport', 'identity_verification', 'application/pdf',
+               $2, 1234, 'AAS-RET-B1-01', '{}'::jsonb, $3, $4)`,
+      [id, "a".repeat(64), openedAt, new Date(openedAt.getTime() + ttlMs)],
+    );
+  }
+
+  it("sweeps expired intakes under a lease, and reports how many", async () => {
+    const opened = new Date(NOW.getTime() - 60 * 60 * 1000);
+    await abandonedIntake("01JQSWEEP00000000000000001", opened, 15 * 60 * 1000);
+    await abandonedIntake("01JQSWEEP00000000000000002", opened, 15 * 60 * 1000);
+    // Still live at NOW: opened a minute ago.
+    await abandonedIntake("01JQSWEEP00000000000000003", new Date(NOW.getTime() - 60 * 1000), 15 * 60 * 1000);
+
+    const worker = startWorker({ pool, driver: fakeDriver(), holder: "worker-sweep", now: () => NOW });
+    try {
+      const pass = await worker.runOnce();
+      expect(pass.swept).toBe(2);
+      const lease = await pool.query<{ holder: string }>(
+        "SELECT holder FROM worker_leases WHERE job_kind = 'sweep_document_intakes'",
+      );
+      expect(lease.rows[0]?.holder, "held while it worked").toBe("worker-sweep");
+      const left = await pool.query<{ intake_id: string }>(
+        "SELECT intake_id FROM document_intakes WHERE student_id = 'stu_sweep' ORDER BY intake_id",
+      );
+      expect(left.rows.map((r) => r.intake_id)).toEqual(["01JQSWEEP00000000000000003"]);
+      // The next pass finds nothing to do, and says so.
+      expect((await worker.runOnce()).swept).toBe(0);
+    } finally {
+      await worker.stop();
+    }
+  }, 60_000);
+
+  it("a SECOND worker does not sweep while the first holds the lease", async () => {
+    await abandonedIntake("01JQSWEEP00000000000000004", new Date(NOW.getTime() - 60 * 60 * 1000), 60 * 1000);
+    const first = startWorker({ pool, driver: fakeDriver(), holder: "worker-sweep-a", now: () => NOW });
+    const second = startWorker({ pool, driver: fakeDriver(), holder: "worker-sweep-b", now: () => NOW });
+    try {
+      // The first holds every lease after its pass — including the sweep's —
+      // so the second's pass sweeps nothing even though a row was there.
+      await abandonedIntake("01JQSWEEP00000000000000005", new Date(NOW.getTime() - 60 * 60 * 1000), 60 * 1000);
+      const a = await first.runOnce();
+      await abandonedIntake("01JQSWEEP00000000000000006", new Date(NOW.getTime() - 60 * 60 * 1000), 60 * 1000);
+      const b = await second.runOnce();
+      expect(a.swept).toBeGreaterThanOrEqual(2);
+      expect(b.swept, "the other did none of it").toBe(0);
+    } finally {
+      await first.stop();
+      await second.stop();
+    }
+  }, 60_000);
+
+  it("gives the sweep's lease back on an orderly stop", async () => {
+    const worker = startWorker({ pool, driver: fakeDriver(), holder: "worker-sweep-c", now: () => NOW });
+    await worker.runOnce();
+    await worker.stop();
+    const lease = await pool.query(
+      "SELECT 1 FROM worker_leases WHERE job_kind = 'sweep_document_intakes'",
+    );
+    expect(lease.rowCount).toBe(0);
+  }, 60_000);
+});

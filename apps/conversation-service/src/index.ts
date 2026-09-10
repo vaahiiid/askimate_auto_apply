@@ -105,6 +105,9 @@ export {
   WORKER_JOBS,
   WorkerLeaseStore,
 } from "./worker-leases.js";
+// ADR-0096: the one document-transport thing the worker does. A DELETE over
+// rows that hold no byte; the worker still names no vault.
+export { sweepExpiredIntakes } from "./document-intake-store.js";
 
 // ── ADR-0044: the confirmed profile has its own store ───────────────────────
 export { PostgresConfirmedProfileStore } from "./profile-store.js";

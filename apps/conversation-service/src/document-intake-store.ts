@@ -217,6 +217,44 @@ export class PostgresDocumentIntakePort implements DocumentIntakePort {
 }
 
 /**
+ * Removes the intakes nobody came back to confirm. ADR-0096.
+ *
+ * ── What this is, and what it is not ──────────────────────────────────────
+ *
+ * `take` already refuses an expired row and spends the one it finds, so an
+ * expired intake is unusable whether or not this runs. What this removes is
+ * the row of a declaration that was made and abandoned — a permission that
+ * lapsed with nobody there to spend it. It holds no byte (migration 0017 has
+ * no column that could) and no fact the conversation log does not already
+ * hold, so removing it loses nothing and keeping it protects nothing.
+ *
+ * Bounded, like every batch in the worker: a DELETE over an unbounded set is
+ * the one shape that turns a quiet job into a long lock the day the table is
+ * large. `ORDER BY expires_at` so the oldest go first, and the statement is
+ * idempotent — a second pass over the same clock finds nothing.
+ *
+ * The worker calls this; the service does not. The service's own path is
+ * `take`, which is per intake and never a sweep.
+ */
+export async function sweepExpiredIntakes(
+  pool: Pool,
+  now: Date,
+  batch: number,
+): Promise<{ readonly swept: number }> {
+  const result = await pool.query(
+    `DELETE FROM document_intakes
+      WHERE intake_id IN (
+        SELECT intake_id FROM document_intakes
+         WHERE expires_at <= $1
+         ORDER BY expires_at
+         LIMIT $2
+      )`,
+    [now, batch],
+  );
+  return { swept: result.rowCount ?? 0 };
+}
+
+/**
  * Refuses an in-memory document store in production.
  *
  * ── Where the control lives, and why it is here rather than in config ─────

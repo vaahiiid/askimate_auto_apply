@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.80.0] — 2026-09-10
+
+**P63 — expired document intakes are swept by the worker (ADR-0096).**
+
+The last of the three things ADR-0094 left unbuilt. An intake nobody came back to confirm is a row
+that holds no byte and no fact the conversation log lacks; the worker now removes it.
+
+### Added
+
+- `apps/conversation-service/migrations/0018_sweep_document_intakes_job.sql` — the closed
+  `job_kind` vocabulary widened by one, the way migration 0015 did it.
+- `sweepExpiredIntakes(pool, now, batch)` — one bounded DELETE, oldest first, idempotent on the
+  same clock. Exported from the service package for the worker; the service's own path is still
+  `take`, per intake.
+- `apps/worker`: the `sweep_document_intakes` job, `DEFAULT_SWEEP_MS = 60 000`,
+  `AAS_WORKER_SWEEP_MS`, `swept` in `runOnce`, a startup line naming the interval. Held under the
+  same lease discipline as the other three jobs.
+- ADR-0052 §13.1's interval table gains the row, dated.
+- Tests: three in `document-store.test.ts` (only the expired go, bounded oldest-first, racing
+  `take` is not a race); three in `worker.test.ts` (under a lease with the count, a second worker
+  sweeps nothing, the lease is released on stop). The worker's test writes its abandoned rows by
+  hand: the app is forbidden the documents package, and a test that imported it would be the
+  undeclared dependency wearing a passing test's clothes.
+
+### Not built
+
+The retention sweep — `purgeContents` still has no caller, and its first row's clock (`last_used`)
+needs a use to exist before it can start. The runner's fetch. Declared-but-unreachable: six,
+unchanged.
+
+---
+
 ## [0.79.0] — 2026-09-10
 
 **P62 — the student's page makes the PUT, and the CORS rule is exercised by the PUT it makes

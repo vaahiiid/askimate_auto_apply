@@ -43,7 +43,7 @@
 
 import type { Pool } from "pg";
 
-import { WorkerLeaseStore } from "@askimate/aas-conversation-service";
+import { WorkerLeaseStore, sweepExpiredIntakes } from "@askimate/aas-conversation-service";
 import type { WorkerJob } from "@askimate/aas-conversation-service";
 
 /**
@@ -81,10 +81,18 @@ export interface WorkerDriver {
  * seconds is far inside any human definition of "promptly" for a case that
  * needs a specialist, and it keeps this worker from being the reason an
  * operator's webhook starts refusing.
+ *
+ * `sweep` at sixty seconds (ADR-0096): nobody is waiting on it. An expired
+ * intake is already unusable — `take` refuses it — so this only decides how
+ * long an abandoned row sits in the table, and a minute against a
+ * fifteen-minute TTL is nothing. The same reasoning as the Secure Service's
+ * `sweep_expiries` (ADR-0052 §13.1), twice as slow because the row it removes
+ * has no student waiting to be told anything.
  */
 export const DEFAULT_ADVANCE_MS = 5_000;
 export const DEFAULT_ANNOUNCE_MS = 10_000;
 export const DEFAULT_NOTIFY_MS = 15_000;
+export const DEFAULT_SWEEP_MS = 60_000;
 
 /** How many runs one advance pass looks at. Bounded, like every batch here. */
 export const DEFAULT_BATCH = 25;
@@ -105,6 +113,7 @@ export interface WorkerOptions {
   readonly advanceIntervalMs?: number;
   readonly announceIntervalMs?: number;
   readonly notifyIntervalMs?: number;
+  readonly sweepIntervalMs?: number;
   /**
    * Whether to run the notify job at all.
    *
@@ -139,6 +148,7 @@ export interface RunningWorker {
     readonly looked: number;
     readonly announced: number;
     readonly notified: number;
+    readonly swept: number;
   }>;
 }
 
@@ -201,6 +211,7 @@ export function startWorker(options: WorkerOptions): RunningWorker {
   let advancing = false;
   let announcing = false;
   let notifying = false;
+  let sweeping = false;
   let stopped = false;
 
   /**
@@ -245,6 +256,17 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       async () => await options.driver.notifyPending(batch),
     );
     return outcome?.notified ?? 0;
+  };
+
+  // The one job that is not the driver's (ADR-0096). A DELETE over rows that
+  // hold no byte and no fact the conversation log lacks; the worker still
+  // names no vault, and `pnpm run boundaries` still checks that it does not.
+  const sweepOnce = async (): Promise<number> => {
+    const outcome = await underLease(
+      "sweep_document_intakes",
+      async () => await sweepExpiredIntakes(options.pool, options.now(), batch),
+    );
+    return outcome?.swept ?? 0;
   };
 
   /**
@@ -325,9 +347,24 @@ export function startWorker(options: WorkerOptions): RunningWorker {
         }, options.notifyIntervalMs ?? DEFAULT_NOTIFY_MS)
       : null;
 
+  const sweepTimer = setInterval(() => {
+    if (sweeping || stopped) return;
+    sweeping = true;
+    track(
+      sweepOnce()
+        .catch(() => {
+          options.onFailure?.("sweep_document_intakes");
+        })
+        .finally(() => {
+          sweeping = false;
+        }),
+    );
+  }, options.sweepIntervalMs ?? DEFAULT_SWEEP_MS);
+
   advanceTimer.unref();
   announceTimer.unref();
   notifyTimer?.unref();
+  sweepTimer.unref();
 
   return {
     stop: async (): Promise<void> => {
@@ -335,6 +372,7 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       clearInterval(advanceTimer);
       clearInterval(announceTimer);
       if (notifyTimer !== null) clearInterval(notifyTimer);
+      clearInterval(sweepTimer);
 
       // ── Wait for what is already running, THEN give the leases back ─────
       //
@@ -359,15 +397,18 @@ export function startWorker(options: WorkerOptions): RunningWorker {
       looked: number;
       announced: number;
       notified: number;
+      swept: number;
     }> => {
       // Announce and notify FIRST, then advance: an advance can raise a new
       // intervention, and telling people before it means one `runOnce` does not
       // half-report a thing it created in the same pass. The next pass tells
-      // that student and pages that specialist.
+      // that student and pages that specialist. The sweep last, because it is
+      // about nothing the other three touch.
       const announced = await announceOnce();
       const notified = await notifyOnce();
       const { looked, moved } = await advanceOnce();
-      return { moved, looked, announced, notified };
+      const swept = await sweepOnce();
+      return { moved, looked, announced, notified, swept };
     },
   };
 }

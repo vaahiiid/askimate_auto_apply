@@ -130,7 +130,9 @@ variables — *"Do not run anything against AWS again without telling me first."
   (Corrected 2026-09-10: this bullet first named B5, a decided blocker, as the thing the fetch was
   waiting for. Vahid caught it; it was stale, not a lost dependency. `decided-blockers-are-not-pending.test.ts`
   now refuses that shape in every record that describes the present.)
-- **An intake sweep.** Expired intakes are never returned and are deleted when found by `take`; rows
-  nobody confirms stay until then. A periodic delete is a worker job for when the worker has one.
+- **An intake sweep.** ~~Expired intakes are never returned and are deleted when found by `take`; rows
+  nobody confirms stay until then. A periodic delete is a worker job for when the worker has one.~~
+  **Built in P63 — [ADR-0096](./0096-expired-document-intakes-are-swept-by-the-worker.md):** the
+  worker's fourth job, `sweep_document_intakes`, every sixty seconds under a lease.
 
 **Declared-but-unreachable surface: six, unchanged.**

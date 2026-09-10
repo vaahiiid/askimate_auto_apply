@@ -34,6 +34,7 @@ import {
   InMemoryDocumentIntakePort,
   PostgresDocumentIntakePort,
   assertDocumentStoreIsDurable,
+  sweepExpiredIntakes,
 } from "./document-intake-store.js";
 import { InMemoryDocumentRecordStore, PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
@@ -360,5 +361,71 @@ describe("the one durability check", () => {
     expect(() =>
       assertDocumentStoreIsDurable(new InMemoryDocumentIntakePort(SCHEDULE, registerNow), "development"),
     ).not.toThrow();
+  });
+});
+
+describeIfDatabase("the intake sweep (ADR-0096)", () => {
+  // The worker's fourth job. `take` already refuses an expired row and spends
+  // the one it finds; this removes the rows nobody came back to. Bounded,
+  // idempotent, and blind to anything still live.
+
+  const SWEEP_AT = new Date(NOW.getTime() + 60 * 60 * 1000);
+
+  it("removes ONLY the intakes that have expired by the clock it is given", async () => {
+    const port = portAt(SCHEDULE, NOW);
+    const stale = intake(NOW, "stu_sweep");
+    const live = intake(new Date(SWEEP_AT.getTime() - 60 * 1000), "stu_sweep");
+    await port.open(stale);
+    await port.open(live);
+
+    const first = await sweepExpiredIntakes(pool, SWEEP_AT, 100);
+    expect(first.swept).toBeGreaterThanOrEqual(1);
+
+    const rows = await pool.query<{ intake_id: string }>(
+      "SELECT intake_id FROM document_intakes WHERE student_id = 'stu_sweep' ORDER BY intake_id",
+    );
+    expect(rows.rows.map((r) => r.intake_id), "the live one is untouched").toEqual([live.intakeId]);
+
+    // Idempotent: the same clock again finds nothing of this student's.
+    const before = await pool.query("SELECT count(*)::int AS n FROM document_intakes WHERE expires_at <= $1", [SWEEP_AT]);
+    expect((before.rows[0] as { n: number }).n).toBe(0);
+    expect((await sweepExpiredIntakes(pool, SWEEP_AT, 100)).swept).toBe(0);
+  });
+
+  it("is BOUNDED by the batch, oldest first", async () => {
+    const port = portAt(SCHEDULE, NOW);
+    const opened = [
+      intake(new Date(NOW.getTime() + 1000), "stu_batch"),
+      intake(new Date(NOW.getTime() + 2000), "stu_batch"),
+      intake(new Date(NOW.getTime() + 3000), "stu_batch"),
+    ];
+    for (const each of opened) await port.open(each);
+
+    const swept = await sweepExpiredIntakes(pool, SWEEP_AT, 2);
+    expect(swept.swept).toBe(2);
+    const left = await pool.query<{ intake_id: string }>(
+      "SELECT intake_id FROM document_intakes WHERE student_id = 'stu_batch'",
+    );
+    // The two that expired first went; the latest of the three remains for
+    // the next pass.
+    expect(left.rows.map((r) => r.intake_id)).toEqual([opened[2]!.intakeId]);
+    expect((await sweepExpiredIntakes(pool, SWEEP_AT, 2)).swept).toBe(1);
+  });
+
+  it("does not disturb a take racing it: whichever runs second finds nothing, and neither errors", async () => {
+    // An expired intake is unusable either way. If the sweep wins, `take`
+    // finds no row; if `take` wins, it spends the row itself and refuses it
+    // as expired. Neither path can hand an expired permission out.
+    const port = portAt(SCHEDULE, SWEEP_AT);
+    const stale = intake(NOW, "stu_race");
+    await portAt(SCHEDULE, NOW).open(stale);
+    const [taken, swept] = await Promise.all([
+      port.take("conv_durable", stale.intakeId),
+      sweepExpiredIntakes(pool, SWEEP_AT, 10),
+    ]);
+    expect(taken).toBeNull();
+    expect(swept.swept).toBeGreaterThanOrEqual(0);
+    const left = await pool.query("SELECT 1 FROM document_intakes WHERE intake_id = $1", [stale.intakeId]);
+    expect(left.rowCount, "gone, by one hand or the other").toBe(0);
   });
 });

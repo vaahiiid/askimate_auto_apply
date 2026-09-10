@@ -26,6 +26,7 @@ export interface WorkerConfig extends CatalogueConfig {
   readonly advanceIntervalMs: number | undefined;
   readonly announceIntervalMs: number | undefined;
   readonly notifyIntervalMs: number | undefined;
+  readonly sweepIntervalMs: number | undefined;
   /**
    * Where a stopped run is announced to a person who can unstick it (ADR-0071).
    *
@@ -60,6 +61,7 @@ export function workerConfigFrom(
       advanceIntervalMs: r.optionalInt("AAS_WORKER_ADVANCE_MS", 0, { min: 100 }) || undefined,
       announceIntervalMs: r.optionalInt("AAS_WORKER_ANNOUNCE_MS", 0, { min: 100 }) || undefined,
       notifyIntervalMs: r.optionalInt("AAS_WORKER_NOTIFY_MS", 0, { min: 100 }) || undefined,
+      sweepIntervalMs: r.optionalInt("AAS_WORKER_SWEEP_MS", 0, { min: 100 }) || undefined,
       specialistWebhookUrl: r.optionalUrl("AAS_SPECIALIST_WEBHOOK_URL"),
       batch: r.optionalInt("AAS_WORKER_BATCH", 0, { min: 1, max: 500 }) || undefined,
       production: r.production,

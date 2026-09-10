@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,314 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,320 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -108,6 +108,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P60** | An upload URL cannot be minted unbound (ADR-0093) | Condition 1 met on 2026-09-09 (both halves VERIFIED, ADR-0092 §4) and Vahid: *"Reshape the port … make that structural in the minting code, not a note in the ADR."* `BoundUploadUrl` is a branded type with one producer, and the producer reads the URL it minted back and refuses one whose signature does not cover the checksum header — the SDK's default, which hoists it into the query string where S3 never reads it, is refused rather than recorded. Proven against the real SDK offline. `DocumentVault` has no method that takes or returns bytes; `PUT …/content` and `acceptBytes` are gone, `POST …/confirm` asks the bucket what it holds; the S3 vault exists in the Conversation Service. **Not built:** durable metadata and production wiring (production start still refused), CORS, the retrieval's caller |
 | **P61** | Document metadata is durable, and the transport starts in production (ADR-0094) | Migration 0017: `document_intakes` and `documents`, with **no column that could hold a byte** (asserted on the SQL and on `information_schema` at startup). `PostgresDocumentIntakePort.take` is one `DELETE … RETURNING` (three racing takes, one wins) and **re-runs the gates** against the schedule in force. The S3 vault's metadata sits behind a record store; the one durability check tells three in-memory cases apart. The entry point builds the transport from `AAS_DOCUMENTS_BUCKET`, `AAS_DOCUMENTS_KMS_KEY_ARN` (an ARN, checked) and `AAS_RETENTION_SCHEDULE_DIR` — all or none — loading the governing schedule through the parser moved into the domain package. Startup test: the real process starts with `documents=s3`. Nothing sent to AWS. **Not built:** the client's upload control, the retention sweep, the runner's fetch |
 | **P62** | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes (ADR-0095) | The page has a document panel: type from the server's list, file, and the page hashes the file (the ONE hash it computes, stated in its header as the exception ADR-0092 forces), declares, PUTs the bytes to the bucket on the URL the declaration answered with, confirms, and re-reads `GET …/documents`. The purpose is derived by the server from the governing schedule — the page never sends one. The browser test stands a real HTTPS bucket on a second origin that admits **exactly the CORS rule parsed out of `docs/provisioning-request-document-vault.md`**, so the page's PUT is proved against the rule as written, with a real preflight. The three transport codes moved to `REFUSALS`. **Found, not resolved:** the gates' `detail` is on the wire and the contract says no `detail` exists (blocker 18). **Not built:** the retention sweep, the runner's fetch, a document the interview asks for |
+| **P63** | Expired document intakes are swept by the worker (ADR-0096) | The worker's fourth job, `sweep_document_intakes`: migration 0018 widens the closed `job_kind` vocabulary; `sweepExpiredIntakes` is one bounded DELETE, oldest first, idempotent; sixty seconds under the same lease discipline as the other three, `AAS_WORKER_SWEEP_MS` to change it. The worker still names no vault — the table it deletes from cannot hold a byte, and the worker's test writes its abandoned rows by hand because the app is forbidden the documents package. The race with `take` is shown not to be one. **Not built:** the retention sweep (`purgeContents` still has no caller), the runner's fetch |
 
 ---
 
@@ -285,6 +286,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0093 | An upload URL cannot be minted unbound | Accepted · continues 0092, completes 0090 |
 | 0094 | Document metadata is durable, and the transport starts in production | Accepted · continues 0093 |
 | 0095 | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes | Accepted · continues 0094 and 0092 |
+| 0096 | Expired document intakes are swept by the worker | Accepted · continues 0094, extends 0052 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -447,7 +449,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,314 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,320 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -460,14 +462,14 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,314 tests**, by the workspace they live in. Generated — run
+**2,320 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 388 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 391 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 287 | `packages/profile` | 46 |
 | `apps/browser-runner` | 237 | `packages/catalogue` | 39 |
@@ -476,8 +478,8 @@ being able to see it (ADR-0084).
 | `packages/orchestrator` | 98 | `packages/mapping` | 26 |
 | `packages/contracts` | 78 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
-| `packages/account` | 65 | everything else | 98 |
-| `apps/secure-service` | 64 |  |  |
+| `packages/account` | 65 | `apps/worker` | 21 |
+| `apps/secure-service` | 64 | everything else | 80 |
 
 <!-- census:end -->
 

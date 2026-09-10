@@ -446,6 +446,7 @@ site, so a test drives the loop by advancing a clock.
 | `sweep_expiries` | Secure Service | **30 000 ms** | Nobody is waiting on a sweep. Read-time expiry (`expires_at > $now`) already makes the request unusable the instant it lapses, so this interval only decides how quickly the student is *told*, and thirty seconds against a five-minute TTL ceiling (ADR-0034) is well inside it. |
 | `advance_runs` | Worker | **5 000 ms** | The perceptible case is a student who has just acted, and their own request already advances the run synchronously (§8). This interval is what an *absent* student's run waits, where seconds do not matter. Slower than the outbox because an advance is a much heavier operation. |
 | `announce_interventions` | Worker | **10 000 ms** | A paused run's student should hear promptly, but the intervention is already durable and discoverable the moment it is raised; this only decides when they are told. |
+| `sweep_document_intakes` | Worker | **60 000 ms** | Added by ADR-0096 (2026-09-10). Nobody is waiting on it: `take` already refuses an expired intake, so this only decides how long an abandoned row sits in a table that holds no byte. Half the pace of `sweep_expiries`, because the row it removes has no student to be told anything. |
 
 #### §13.2 · Lease duration, and why there is no renewal
 

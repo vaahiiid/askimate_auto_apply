@@ -203,8 +203,9 @@ retry (P16) — then close the browser and exit 0.
 ## 5 · Background Worker — `aas-worker`
 
 **Responsibility.** ADR-0052: makes the system act when nobody is watching.
-Advances every eligible run on its own clock and announces interventions.
-Conversation-plane credentials only.
+Advances every eligible run on its own clock, announces interventions, and (ADR-0096)
+sweeps the document intakes nobody came back to confirm — a DELETE over a table
+that holds no byte. Conversation-plane credentials only; it names no vault.
 
 | Variable | Required | Notes |
 |---|---|---|
@@ -212,7 +213,7 @@ Conversation-plane credentials only.
 | `AAS_WORKER_HOLDER` | yes | which worker holds a job lease. |
 | `AAS_SECURE_INTERNAL_URL` + `AAS_SECURE_SERVICE_TOKEN` | yes | the driver opens secure requests. |
 | `AAS_CATALOGUE` | yes | as the Conversation Service. |
-| `AAS_WORKER_ADVANCE_MS` / `_ANNOUNCE_MS` / `_BATCH` | no | |
+| `AAS_WORKER_ADVANCE_MS` / `_ANNOUNCE_MS` / `_NOTIFY_MS` / `_SWEEP_MS` / `_BATCH` | no | intervals and the batch; defaults in `worker.ts` (ADR-0052 §13.1). |
 
 **It must never be given secure-plane database credentials.** ADR-0052 §13.0 is
 the binding rule and the entry point is where it would be broken.

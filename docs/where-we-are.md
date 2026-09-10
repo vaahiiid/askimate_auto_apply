@@ -3808,3 +3808,23 @@ it as blocker 18 and not chosen between them.
 **Six, unchanged.**
 
 ---
+
+# P63 — expired document intakes are swept by the worker (ADR-0096)
+
+The last thing P61 left. With the page's upload control live there will be declarations nobody
+confirms — a file the bucket refused, a tab closed — and each leaves a row that `take` will never
+return and nothing else reads. The worker now has a fourth job that removes them: one bounded
+DELETE, oldest first, every sixty seconds under the same lease as the other three.
+
+## What it deliberately is not
+
+It names no vault. The worker is still forbidden the documents package, and the function it calls is
+a DELETE over a table that cannot hold a byte. Its test writes the abandoned rows by hand rather than
+through the port for exactly that reason. And it is not the retention sweep: that destroys a document
+you were given, on a clock a policy started, and `purgeContents` still has no caller.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**
+
+---

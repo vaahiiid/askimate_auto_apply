@@ -34,6 +34,9 @@ export const WORKER_JOBS = [
   "advance_runs",
   "announce_interventions",
   "notify_specialists",
+  // ADR-0096, migration 0018: removes the document intakes nobody came back
+  // to confirm. The only job that is not about a run or an intervention.
+  "sweep_document_intakes",
 ] as const;
 export type WorkerJob = (typeof WORKER_JOBS)[number];
 

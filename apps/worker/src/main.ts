@@ -23,7 +23,7 @@ import { pendingMigrations } from "@askimate/aas-migrate";
 import { WebhookNotifier } from "@askimate/aas-notify";
 
 import { workerConfigFrom, type WorkerConfig } from "./config.js";
-import { startWorker } from "./worker.js";
+import { DEFAULT_SWEEP_MS, startWorker } from "./worker.js";
 
 export interface StartOptions {
   readonly env: Readonly<Record<string, string | undefined>>;
@@ -93,6 +93,7 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
       ...(config.advanceIntervalMs === undefined ? {} : { advanceIntervalMs: config.advanceIntervalMs }),
       ...(config.announceIntervalMs === undefined ? {} : { announceIntervalMs: config.announceIntervalMs }),
       ...(config.notifyIntervalMs === undefined ? {} : { notifyIntervalMs: config.notifyIntervalMs }),
+      ...(config.sweepIntervalMs === undefined ? {} : { sweepIntervalMs: config.sweepIntervalMs }),
       notifies: notifier !== undefined,
       ...(config.batch === undefined ? {} : { batch: config.batch }),
       onFailure: (job) => {
@@ -101,6 +102,11 @@ export async function start(options: StartOptions): Promise<RunningProcess> {
     });
 
     options.log(`worker running as ${config.holder} (catalogue=${config.catalogue})`);
+    // Said, like the notices: an operator reading `worker_leases` should
+    // expect four job kinds from this process, not three (ADR-0096).
+    options.log(
+      `document intake sweep: every ${String(config.sweepIntervalMs ?? DEFAULT_SWEEP_MS)} ms`,
+    );
     // Said out loud, because "nobody is being told about stopped runs" is
     // exactly the kind of thing that is invisible until it matters.
     options.log(
