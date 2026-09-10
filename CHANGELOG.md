@@ -19,6 +19,16 @@ not shipped artefacts.
 
 ---
 
+## [0.94.1] — 2026-09-10
+
+### Fixed
+
+- `WorkLeaseStore.claim` answers the lease it took with its `pageVersion`, as `held` does. It
+  dropped the version on the way back; nothing read it there, which is why nothing noticed. One
+  assertion states that the two answers are the same lease.
+
+---
+
 ## [0.94.0] — 2026-09-10
 
 **P77 — deliberate regressions over the attachment path and the destination inside the yes.**

@@ -215,6 +215,10 @@ export class WorkLeaseStore {
       kind: input.kind,
       holder: input.holder,
       ...(input.pageRef === undefined ? {} : { pageRef: input.pageRef }),
+      // The version beside the page, as `held` answers it: a lease read back
+      // and a lease just taken are the same lease, and a caller must not have
+      // to know which one it is holding to read the pair off it.
+      ...(input.pageVersion === undefined ? {} : { pageVersion: input.pageVersion }),
       claimedAt: row.claimed_at,
       expiresAt: row.expires_at,
     };

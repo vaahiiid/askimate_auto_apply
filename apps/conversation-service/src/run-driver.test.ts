@@ -2846,6 +2846,24 @@ describeIfDatabase("leasing browser work to a runner", () => {
       );
       expect(rows.rows[0]?.holder).toBe("runner-a");
       await pool.query("DELETE FROM work_leases");
+
+      // The lease `claim` answers is the lease `held` answers — page AND
+      // version (ADR-0051 §6). `claim` used to drop the version on the way
+      // back, so a caller reading the pair off a lease it had just taken got
+      // half of it; nothing read it there, which is why nothing noticed.
+      const taken = await store.claim({
+        runId,
+        leaseId: "wl_versioned",
+        kind: "execute",
+        holder: "runner-a",
+        pageRef: "page-application",
+        pageVersion: `sha256:${"a".repeat(64)}`,
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      expect(taken).toEqual(await store.held(runId, NOW));
+      expect(taken?.pageVersion).toBe(`sha256:${"a".repeat(64)}`);
+      await pool.query("DELETE FROM work_leases");
     } finally {
       await instance.pool.end();
     }
