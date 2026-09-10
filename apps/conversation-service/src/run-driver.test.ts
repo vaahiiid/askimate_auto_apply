@@ -9639,7 +9639,7 @@ describeIfDatabase("the second application, on the student's instruction", () =>
   });
 });
 
-describe("the resume path — the session is gone (ADR-0101 §3)", () => {
+describeIfDatabase("the resume path — the session is gone (ADR-0101 §3)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid: *"Yes, portal_sign_in through the secure box, single use, as the
   // resume path only."* The plane learns a session is live from the runners'
