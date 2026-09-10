@@ -104,7 +104,8 @@ store the claim path uses, and this is recorded under blocker 19 rather than wid
 
 - Slice d — the runner's entry point performing execute work with this source (blocker 19).
 - Slice e — the `attach_document` intent per upload (ADR-0069's third layer) and the
-  `TransmissionRecord` written from the runner's report.
+  `TransmissionRecord` written from the runner's report. **Built in P73 (2026-09-10)**; the note
+  on ADR-0069 records how.
 - A `WithdrawalRecord` producer: a student's change of mind voids the fill authorisation, which
   step 3 refuses on; `mayTransmit`'s own withdrawal check is passed an empty list, and says so.
 

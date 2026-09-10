@@ -196,10 +196,12 @@ export type {
   WorkKind,
   WorkOutcome,
   WorkReport,
+  WireTransmission,
 } from "./work.js";
 export {
   WORK_APPROACHES,
   WORK_FAILURES,
+  MAX_TRANSMISSIONS_PER_REPORT,
   SESSION_ENDING_FAILURES,
   WORK_KINDS,
   WORK_PROVENANCE_SOURCES,

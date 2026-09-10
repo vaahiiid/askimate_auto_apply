@@ -80,6 +80,7 @@ import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import type {
   AuthorisablePreview,
   AuthorisationRecord,
+  PreviewAttachment,
   PreviewDocument,
   SubmissionPreview,
   ValidationResult,
@@ -1052,14 +1053,72 @@ export function pageFillTarget(input: {
    * construction.
    */
   readonly values: readonly { readonly fieldRef: string; readonly text: string }[];
+  /**
+   * What this page will attach, by document identity (ADR-0069, P73).
+   *
+   * In the key, so a replaced document changes it and the page is offered
+   * again — the gap ADR-0069 recorded: *"a document replacement does not
+   * change the page's intent key"*. Absent or empty leaves the key exactly as
+   * it was, so no page without uploads moves.
+   */
+  readonly attachments?: readonly PageAttachment[];
 }): string {
-  const parts = input.values
-    .map((value) => `${value.fieldRef}=${value.text}`)
+  const parts = [
+    ...input.values.map((value) => `${value.fieldRef}=${value.text}`),
+    ...(input.attachments ?? []).map(
+      (attachment) => `${attachment.fieldRef}=${attachmentIdentity(attachment)}`,
+    ),
+  ]
     // Sorted, because instruction order is an artefact of how `planFill` walks
     // fields and must not change the identity of the content.
     .sort();
   const digest = createHash("sha256").update(parts.join("\u0000")).digest("hex");
   return `${input.pageRef}@sha256:${digest}`;
+}
+
+/** One upload on a page, resolved to the document that will fill it. */
+export interface PageAttachment {
+  readonly fieldRef: string;
+  readonly documentId: string;
+  readonly contentHash: string;
+}
+
+/** `documentId@contentHash` — the identity of one document, as the ledger names it. */
+export function attachmentIdentity(attachment: {
+  readonly documentId: string;
+  readonly contentHash: string;
+}): string {
+  return `${attachment.documentId}@${attachment.contentHash}`;
+}
+
+/**
+ * The attachments on one page, from the preview's — the same resolution the
+ * student authorised (ADR-0098) — filtered to the page's fields.
+ */
+export function pageAttachmentsOf(
+  attachments: readonly PreviewAttachment[],
+  fieldRefs: ReadonlySet<string>,
+): readonly PageAttachment[] {
+  return attachments
+    .filter((attachment) => fieldRefs.has(attachment.fieldRef))
+    .map((attachment) => ({
+      fieldRef: attachment.fieldRef,
+      documentId: attachment.document.documentId,
+      contentHash: attachment.document.contentHash,
+    }));
+}
+
+/**
+ * The ledger target of one `attach_document` intent (ADR-0069's third layer):
+ * the page, the box, and the document — `page/field=documentId@hash`. One
+ * function for both ends, as `pageFillTarget` is: the claim opens it and the
+ * report settles it, and a target built two ways would settle the wrong row.
+ */
+export function attachmentIntentTarget(input: {
+  readonly pageRef: string;
+  readonly attachment: PageAttachment;
+}): string {
+  return `${input.pageRef}/${input.attachment.fieldRef}=${attachmentIdentity(input.attachment)}`;
 }
 
 /** The page's values out of a live plan, for `pageFillTarget`. */

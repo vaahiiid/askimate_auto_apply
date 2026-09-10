@@ -20,7 +20,7 @@ import {
 } from "./events.js";
 import { PROBLEM_STATUS, PROBLEM_TITLES, parseProblem, problemTypeFor } from "./problems.js";
 import { parseFrameInbound, parseFrameOutbound } from "./frame.js";
-import { parseClaimedWork, parseWorkDocument } from "./work.js";
+import { parseClaimedWork, parseWorkDocument, parseWorkReport } from "./work.js";
 import { parseLastEventId, renderSseFrame, SSE_EVENT_NAME } from "./sse.js";
 import {
   EVENT_KINDS,
@@ -725,5 +725,68 @@ describe("a work document, on the wire", () => {
     // runner asks for those under its lease, and only then.
     const smuggled = { ...work, plan: { ...plan, uploads: [{ ...plan.uploads[0], documentId: "01JQ…" }] } };
     expect(parseClaimedWork(smuggled)?.plan?.uploads[0]).toEqual(plan.uploads[0]);
+  });
+});
+
+describe("a work report that names what left (ADR-0069, P73)", () => {
+  const transmission = {
+    fieldRef: "passport_upload",
+    disclosureId: "disc_run_1_passport_upload",
+    documentId: "01JQP73DOC00000000000000A",
+    contentHash: "a".repeat(64),
+    toHost: "gated.portal.test",
+    institutionName: "Gated University",
+    caseId: "case_01",
+    transmittedAt: "2026-09-10T12:00:00.000Z",
+  };
+
+  it("carries every transmission of a saved page, field by field", () => {
+    const report = parseWorkReport({
+      leaseId: "wl_1",
+      outcome: "succeeded",
+      transmissions: [transmission],
+    });
+    expect(report).toEqual({ leaseId: "wl_1", outcome: "succeeded", transmissions: [transmission] });
+  });
+
+  it("is the same report as before when nothing left", () => {
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "succeeded" })).toEqual({
+      leaseId: "wl_1",
+      outcome: "succeeded",
+    });
+  });
+
+  it("REFUSES a transmission on a page that was not saved", () => {
+    // A file attached to a form the portal discarded is a disclosure that
+    // did not happen; the half-written record is refused rather than stored.
+    expect(
+      parseWorkReport({
+        leaseId: "wl_1",
+        outcome: "failed",
+        failure: "portal_refused",
+        transmissions: [transmission],
+      }),
+    ).toBeNull();
+  });
+
+  it("REFUSES a transmission with a hash that is not one, a field missing, or a time that is not one", () => {
+    expect(
+      parseWorkReport({
+        leaseId: "wl_1",
+        outcome: "succeeded",
+        transmissions: [{ ...transmission, contentHash: "not-a-hash" }],
+      }),
+    ).toBeNull();
+    const { caseId: _dropped, ...withoutCase } = transmission;
+    expect(
+      parseWorkReport({ leaseId: "wl_1", outcome: "succeeded", transmissions: [withoutCase] }),
+    ).toBeNull();
+    expect(
+      parseWorkReport({
+        leaseId: "wl_1",
+        outcome: "succeeded",
+        transmissions: [{ ...transmission, transmittedAt: "yesterday" }],
+      }),
+    ).toBeNull();
   });
 });

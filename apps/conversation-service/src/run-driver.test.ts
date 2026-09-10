@@ -96,13 +96,14 @@ import {
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
 import { nextAction, newInterview } from "@askimate/aas-interview";
-import { pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
+import { attachmentIntentTarget, pageAttachmentsOf, pageFillTarget, pageValuesOf } from "@askimate/aas-orchestrator";
 import { buildPreview } from "@askimate/aas-preparation";
 
 import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { RunSessionStore } from "./session-store.js";
+import { TransmissionStore } from "./transmission-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -376,6 +377,8 @@ function buildInstance(
     // ADR-0101 §2, §3. Present in every instance for the same reason: a run
     // whose session is tracked and one that is not must not look alike.
     sessions: new RunSessionStore(instancePool),
+    // ADR-0069, P73: what left, for the same reason.
+    transmissions: new TransmissionStore(instancePool),
     // ADR-0048. Present in every instance for the same reason `leases` is: a
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
@@ -2492,6 +2495,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
           runs.completeIntent(id, key, outcome, at),
         reopenIntent: () => Promise.resolve(false),
         findIntent: (id, key) => runs.findIntent(id, key),
+        listIntents: (id, action) => runs.listIntents(id, action),
         findByCase: (id) => runs.findByCase(id),
         discardCheckpoints: (id) => runs.discardCheckpoints(id),
       };
@@ -6485,7 +6489,13 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
         WHERE table_schema = 'public' AND table_name ILIKE '%document%'
         ORDER BY table_name`,
     );
-    expect(tables.rows.map((r) => r.table_name)).toEqual(["document_intakes", "documents"]);
+    // `document_transmissions` (P73) is the audit record of what LEFT —
+    // identifiers and a hash — and is held to the same rule below.
+    expect(tables.rows.map((r) => r.table_name)).toEqual([
+      "document_intakes",
+      "document_transmissions",
+      "documents",
+    ]);
 
     const binary = await pool.query<{ table_name: string; column_name: string }>(
       `SELECT table_name, column_name FROM information_schema.columns
@@ -6496,7 +6506,7 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     const contents = await pool.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.columns
         WHERE table_schema = 'public'
-          AND table_name IN ('documents', 'document_intakes')
+          AND table_name IN ('documents', 'document_intakes', 'document_transmissions')
           AND column_name NOT IN ('content_hash', 'content_type')
           AND (column_name ILIKE '%content%' OR column_name ILIKE '%body%' OR column_name ILIKE '%bytes')`,
     );
@@ -9910,4 +9920,344 @@ describeIfDatabase("the resume path — the session is gone (ADR-0101 §3)", () 
     await store.lost("run_session_unit");
     expect(await store.signedIn("run_session_unit", LATER)).toBe(false);
   });
+});
+
+describeIfDatabase("one intent per attachment, and the record of what left (ADR-0069, P73)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0069's third layer, recorded as open since P34: `attach_document`
+  // was declared, marked verifiable, and produced by nothing — uploads rode
+  // the page's intent, whose target could not see which document went in.
+  // Now the claim opens one intent per attachment, `page/field=doc@hash`; a
+  // report settles exactly the attachments it names; the audit row of what
+  // left is written from the same report; and a page is not done until every
+  // document it carries is recorded as attached.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00731";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  const PASSPORT_ID = "01JQP73DOC000000000000000A";
+  const PASSPORT_HASH = "d".repeat(64);
+  const origin = new URL(GATED_ENTRY.blueprint.pages[1]!.url!).origin;
+  const secure = opener();
+  let runId = "";
+
+  /** The gated portal with a third page that takes the passport. */
+  const UPLOAD_ENTRY: CatalogueEntry = {
+    ...GATED_ENTRY,
+    requiredDocuments: ["passport"],
+    blueprint: {
+      ...GATED_ENTRY.blueprint,
+      pages: [
+        GATED_ENTRY.blueprint.pages[0]!,
+        GATED_ENTRY.blueprint.pages[1]!,
+        { ...GATED_ENTRY.blueprint.pages[2]!, nextPageRef: "page-documents" },
+        {
+          pageRef: "page-documents",
+          title: "Your documents",
+          url: `${origin}/documents`,
+          sections: [
+            {
+              sectionRef: "sec-documents",
+              title: "Your documents",
+              fields: [
+                {
+                  fieldRef: "passport_upload",
+                  label: "Upload your passport",
+                  inputType: "file",
+                  locators: [{ strategy: "label", value: "Upload your passport" }],
+                  validations: [{ kind: "required", source: "dom_attribute" }],
+                },
+              ],
+            },
+          ],
+          requiredDocuments: [],
+          advanceControl: { strategy: "role", value: "button:Save and continue" },
+        },
+      ],
+    },
+    mappingSet: {
+      ...GATED_ENTRY.mappingSet,
+      mappings: [
+        ...GATED_ENTRY.mappingSet.mappings,
+        { fieldRef: "passport_upload", source: { kind: "document", documentRef: "passport" } },
+      ],
+    },
+  };
+  const UPLOAD_CATALOGUE: TestCatalogue = {
+    targets: () => [targetOf({ entry: UPLOAD_ENTRY, contentHash: TEST_CONTENT_HASH })],
+    find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? UPLOAD_ENTRY : null),
+  };
+
+  const ATTACH_TARGET = attachmentIntentTarget({
+    pageRef: "page-documents",
+    attachment: { fieldRef: "passport_upload", documentId: PASSPORT_ID, contentHash: PASSPORT_HASH },
+  });
+  expect(ATTACH_TARGET).toBe(`page-documents/passport_upload=${PASSPORT_ID}@${PASSPORT_HASH}`);
+
+  async function oldest(): Promise<void> {
+    await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+  }
+
+  async function attachIntent(): Promise<{ target: string; outcome: string | null } | undefined> {
+    const rows = await pool.query<{ target: string; outcome: string | null }>(
+      "SELECT target, outcome FROM workflow_action_intents WHERE run_id = $1 AND action = 'attach_document'",
+      [runId],
+    );
+    return rows.rows[0];
+  }
+
+  /** A page's ledger target under THIS entry, with the held passport in the key where it belongs. */
+  async function targetOf_(pageRef: string, student: string): Promise<string> {
+    const usable = checkUsable(UPLOAD_ENTRY.mappingSet, UPLOAD_ENTRY.blueprint);
+    if (!usable.usable) expect.unreachable("the upload mapping set is usable");
+    const profile = await new PostgresConfirmedProfileStore(pool).load(student, NOW);
+    const plan = planFill(UPLOAD_ENTRY.blueprint, usable.mappingSet, profile);
+    const page = UPLOAD_ENTRY.blueprint.pages.find((p) => p.pageRef === pageRef);
+    if (page === undefined) expect.unreachable(`no page ${pageRef}`);
+    const fields = new Set(page.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)));
+    const held = await new PostgresDocumentRecordStore(pool).listForStudent(studentId(student));
+    const preview = buildPreview(UPLOAD_ENTRY.blueprint, plan, previewDocumentsOf(held));
+    if (!preview.built) expect.unreachable("the preview builds");
+    return pageFillTarget({
+      pageRef,
+      values: pageValuesOf(plan, fields),
+      attachments: pageAttachmentsOf(preview.preview.attachments, fields),
+    });
+  }
+
+  it("reaches the page that takes the document, and the claim opens an intent naming it", async () => {
+    const student = await ownConversation(conversation);
+    await new PostgresDocumentRecordStore(pool).insert(
+      {
+        documentId: PASSPORT_ID,
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: PASSPORT_HASH,
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${student}/p73`,
+    );
+    const instance = buildInstance(connectionString(), secure, UPLOAD_CATALOGUE);
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step).toBe("authorise");
+      const preview = await instance.driver.previewFor(runId, conversation);
+      if (preview === null) expect.unreachable("a preview");
+      expect(preview.presentedText).toContain("Upload your passport: your passport");
+      const yes = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: preview.contentHash },
+      });
+      expect(yes.ok).toBe(true);
+
+      // The password, the account — seeded as `reportWork` would leave them.
+      const asked = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("request_secret");
+      const log = new ConversationEventStore(instance.pool);
+      const requestId = secure.opens.length > 0 ? `sr_${String(secure.opens.length).padStart(32, "0")}` : "";
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId, handle: `sh_${"9".repeat(32)}` },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const accountKey = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await runs.recordIntent(runRef, { idempotencyKey: accountKey, action: "create_portal_account", target: runId, startedAt: NOW });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId } });
+
+      // Pages one and two saved, as their reports would record them.
+      for (const pageRef of ["page-application", "page-study"]) {
+        const target = await targetOf_(pageRef, student);
+        const key = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target });
+        await runs.recordIntent(runRef, { idempotencyKey: key, action: "advance_portal_page", target, startedAt: NOW });
+        await runs.completeIntent(runRef, key, "succeeded", NOW);
+      }
+
+      const filling = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!filling.ok) expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
+
+      await oldest();
+      const work = await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] });
+      if (work === null) expect.unreachable("the documents page is work");
+      expect(work.runId).toBe(runId);
+      expect(work.formUrl).toBe(`${origin}/documents`);
+      expect(work.plan?.uploads.map((u) => u.documentRef)).toEqual(["passport"]);
+
+      // ── The intent, named by page, box and document ────────────────────
+      const intent = await attachIntent();
+      expect(intent).toEqual({ target: ATTACH_TARGET, outcome: null });
+      // The page's own key sees the document too (ADR-0069: a replacement
+      // now changes it).
+      const lease = await pool.query<{ page_ref: string; page_version: string }>(
+        "SELECT page_ref, page_version FROM work_leases WHERE run_id = $1",
+        [runId],
+      );
+      expect(lease.rows[0]?.page_ref).toBe("page-documents");
+      expect(`page-documents@${lease.rows[0]?.page_version ?? ""}`).toBe(
+        await targetOf_("page-documents", student),
+      );
+
+      // ── Failed cleanly: nothing left, and both intents say so ──────────
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: work.leaseId, outcome: "failed", failure: "portal_refused" },
+        }),
+      ).toBe(true);
+      expect((await attachIntent())?.outcome).toBe("failed_cleanly");
+      expect(await new TransmissionStore(pool).forCase(caseRef)).toEqual([]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a page saved WITHOUT naming its attachment is not done: the intent stays open and the claim stops on it", async () => {
+    const instance = buildInstance(connectionString(), secure, UPLOAD_CATALOGUE);
+    try {
+      await oldest();
+      const again = await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] });
+      if (again === null) expect.unreachable("offered again after a clean failure");
+      expect((await attachIntent())?.outcome, "re-opened with the page").toBeNull();
+
+      // The runner says the page was saved and says nothing about the file.
+      expect(
+        await instance.driver.reportWork({ runId, report: { leaseId: again.leaseId, outcome: "succeeded" } }),
+      ).toBe(true);
+      expect((await attachIntent())?.outcome, "an attachment nobody accounted for stays open").toBeNull();
+
+      // Not filled: the page is not done until its document is recorded as
+      // attached — and the next claim stops on the open intent rather than
+      // handing the page out again.
+      const advanced = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!advanced.ok) expect.unreachable(`advance refused: ${advanced.refusal.kind}`);
+      expect(advanced.position.step, "not handed over: a document is unaccounted for").toBe("execute");
+      await oldest();
+      expect(await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] })).toBeNull();
+      const status = await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId]);
+      expect(status.rows[0]?.status, "the uncertain case, for a person").toBe("uncertain");
+      const intervention = await pool.query<{ reason: string; target: string; action: string }>(
+        "SELECT reason, checkpoint ->> 'target' AS target, checkpoint ->> 'action' AS action FROM interventions WHERE run_id = $1",
+        [runId],
+      );
+      expect(intervention.rows[0]?.reason).toBe("unverified_consequential_action");
+      expect(intervention.rows[0]?.action, "named as the attachment, not the page").toBe("attach_document");
+      expect(intervention.rows[0]?.target).toBe(ATTACH_TARGET);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a report that names the document settles its intent and writes what left — for this case only", async () => {
+    const instance = buildInstance(connectionString(), secure, UPLOAD_CATALOGUE);
+    try {
+      // The specialist resolves the stop as the attachment having failed
+      // cleanly; the run is offered the page again. Done here directly, the
+      // way `resolveIntervention` completes the fact.
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const key = idempotencyKeyFor({ runId: runRef, action: "attach_document", target: ATTACH_TARGET });
+      await runs.completeIntent(runRef, key, "failed_cleanly", NOW);
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await pool.query("DELETE FROM interventions WHERE run_id = $1", [runId]);
+      const pageTarget = await targetOf_("page-documents", (await ownConversation(conversation)));
+      const pageKey = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target: pageTarget });
+      // The page was saved once; saved again with the attachment is the
+      // same page — the ledger row for it is re-opened by the claim.
+      await pool.query(
+        "UPDATE workflow_action_intents SET outcome = 'failed_cleanly' WHERE run_id = $1 AND idempotency_key = $2",
+        [runId, pageKey],
+      );
+
+      await oldest();
+      const work = await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] });
+      if (work === null) expect.unreachable("offered again");
+      const transmission = {
+        fieldRef: "passport_upload",
+        disclosureId: `disc_${runId}_passport_upload`,
+        documentId: PASSPORT_ID,
+        contentHash: PASSPORT_HASH,
+        toHost: "gated.portal.test",
+        institutionName: "Gated University",
+        caseId: caseRef,
+        transmittedAt: NOW.toISOString(),
+      };
+      // A transmission for ANOTHER case is not this run's to record.
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: {
+            leaseId: work.leaseId,
+            outcome: "succeeded",
+            transmissions: [{ ...transmission, caseId: "case_somebody_else" }],
+          },
+        }),
+      ).toBe(true);
+      expect((await attachIntent())?.outcome, "not settled by a foreign case's transmission").toBeNull();
+      expect(await new TransmissionStore(pool).forCase(caseRef)).toEqual([]);
+      // ...and the page is therefore not done: the next claim stops on it,
+      // exactly as the test above proved. A person resolves it once more.
+      await oldest();
+      expect(await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] })).toBeNull();
+      await runs.completeIntent(runRef, key, "failed_cleanly", NOW);
+      await pool.query("UPDATE workflow_runs SET status = 'running' WHERE run_id = $1", [runId]);
+      await pool.query("DELETE FROM interventions WHERE run_id = $1", [runId]);
+
+      // Once more, honestly.
+      await pool.query(
+        "UPDATE workflow_action_intents SET outcome = 'failed_cleanly' WHERE run_id = $1 AND idempotency_key = $2",
+        [runId, pageKey],
+      );
+      await oldest();
+      const retry = await instance.driver.claimWork({ holder: "runner-docs", leaseSeconds: 60, sessions: [runId] });
+      if (retry === null) expect.unreachable("offered once more");
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: retry.leaseId, outcome: "succeeded", transmissions: [transmission] },
+        }),
+      ).toBe(true);
+      expect((await attachIntent())?.outcome).toBe("succeeded");
+      const left = await new TransmissionStore(pool).forCase(caseRef);
+      expect(left).toHaveLength(1);
+      expect(left[0]).toMatchObject({
+        runId,
+        caseId: caseRef,
+        disclosureId: transmission.disclosureId,
+        documentId: PASSPORT_ID,
+        contentHash: PASSPORT_HASH,
+        toHost: "gated.portal.test",
+        institutionName: "Gated University",
+        transmittedAt: NOW,
+      });
+      expect(left[0]?.intentKey).toBe(String(key));
+
+      // Every page saved, every document accounted for: the account is due back.
+      const done = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!done.ok) expect.unreachable(`advance refused: ${done.refusal.kind}`);
+      expect(done.position.step).toBe("hand_over_account");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
 });

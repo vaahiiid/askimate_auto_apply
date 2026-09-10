@@ -40,6 +40,7 @@ import type {
   WorkflowCheckpoint,
   WorkflowRunRecord,
   WorkflowStatus,
+  ConsequentialAction,
 } from "@askimate/aas-domain";
 
 /** Raised when a run id is already taken. Runs are created once. */
@@ -182,6 +183,17 @@ export interface WorkflowRunStore {
     runId: RunId,
     idempotencyKey: ActionIntent["idempotencyKey"],
   ): Promise<IntentRecord | null>;
+
+  /**
+   * Every intent of one action for a run, in the order they were started.
+   *
+   * For the attachments (ADR-0069, P73): a page's `attach_document` intents
+   * are keyed by the document each names, and a report settles them by
+   * listing what is open for the page rather than re-deriving which document
+   * was current — a document replaced between the claim and the report would
+   * otherwise complete an intent for a file nobody attached.
+   */
+  listIntents(runId: RunId, action: ConsequentialAction): Promise<readonly IntentRecord[]>;
 
   /** Every run for a case, newest first. A case may be attempted more than once. */
   findByCase(caseId: CaseId): Promise<readonly WorkflowRunRecord[]>;

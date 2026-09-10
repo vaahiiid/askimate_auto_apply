@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,386 tests, 127 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,401 tests, 127 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -119,6 +119,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P70** | A runner that meets a CAPTCHA or a second factor stops and says which (ADR-0101 §6) | Vahid's requirement before slices d and e, built. `captcha_met` and `second_factor_met` on the wire; the runner reads the page at four points — the registration form before anything is typed or the handle spent, the page the portal answers with, the application form, and the page a fill was bounced to — with a detector narrower than discovery's signals on purpose (a postcode box is not a second factor). The plane stops the run through the one stop mechanism, naming the challenge, the action, the page, the reviewed observation it contradicts, and for a creation met by a code that the account may already exist; one fixed message per code; `escalated`. **Found:** since P5 `reportWork` recorded every failure as `failed_cleanly` and discarded the code — `needs_the_student` did nothing. The fixture portal presents both challenges; both are met by the real runner |
 | **P71** | One sitting, in memory, five minutes (ADR-0101 §2) | Slice d — A2 built. `SessionHold` keeps the browser context a run's account was created in, keyed by run, in memory, and closes it after `SECURE_HOLD_CEILING_SECONDS` idle — one constant in `packages/contracts`, from which the vault's ceiling (ADR-0034) is now defined, so the two lifetimes cannot drift apart. The runner's entry point performs `execute`: the held page, confined to the portal's host, `fillApplication`, the disclosure source of ADR-0099. A claim names the runs the runner holds (`sessions`, required on the wire); the driver offers a run to its holder first and a fill to nobody else. Released when the last page is saved, on a challenge, when the student is needed, and at shutdown. `fillApplication` leaves the register — **five** remain. **Not built:** the resume path (§3): the journey's restart still signs in by a cheat marked as such, through the `adopt` seam P72 fills |
 | **P72** | `portal_sign_in` is the resume path, and the run says why (ADR-0101 §3) | B built, as the resume path only. The plane records who last reported a run's session live and until when (`run_sessions`, migration 0019) from the runners' reports and the one ceiling; the contract's `SESSION_ENDING_FAILURES` erase it at both ends. Past it, and only where an account exists, the run asks for the password a second time — purpose `portal_sign_in`, typed once, the reason rendered in the frame — then the `sign_in` step and work kind: the blueprint's login form (`authentication.login`, new and optional), the handle, no plan. `signInToPortal` types, submits and asks the page; the context is the held session and the fill follows. No intent for a sign-in: the Secure Plane's lifecycle is the record. Where the path cannot apply the run says so before a box opens. `portal_password_reset` left the contract; the purposes agree and the drift test asserts it. The journey's restart is driven through the real path; the cheat is gone. **Not built:** slice e |
+| **P73** | One intent per document attached, and the record of what left (ADR-0069's third layer) | Slice e, the last of the attachment path. The page's intent key sees its attachments by `documentId@contentHash`, so a replaced document re-offers the page and a page without uploads keeps its key. The Run Driver opens one `attach_document` intent per upload at the claim — `page/field=documentId@hash` — and settles exactly the ones the runner's report names, for this run's case only; `document_transmissions` (migration 0020) is the audit row of what left, written from the same report. A page is not done until every document it carries is recorded as attached; one it saved without naming stops the next claim as the uncertain case, named as the attachment. **Found:** a page whose only content was an upload was never offered — `#nextPage` counted fields to fill and not files to attach. `attach_document` leaves the register — **four** remain |
 
 ---
 
@@ -359,14 +360,15 @@ in *no* row of the table, while `packages/notify` sat under this heading with a 
 
 #### A · The enforced register — `pnpm run reachability` fails if any of these acquires a caller
 
-**Five** capabilities, each named by a decision, each with no caller inside any deployable's
+**Four** capabilities, each named by a decision, each with no caller inside any deployable's
 dependency closure. It was seven until P57: `assertStorable` left this table when the document
 transport gave it a production caller (ADR-0090), the first entry to move out. `authoriseDisclosure`
 left it in P66 (ADR-0099), when the plane's document hand-over gave it one — and `fillApplication`
 entered, because building that hand-over measured that the runner's entry point performed
 `create_account` only (blocker 19). It left again in P71 (ADR-0101 §2), when the entry point began
-performing `execute` in the session the account was created in. The reason and what would close
-each remaining entry are the register's own words.
+performing `execute` in the session the account was created in. `attach_document` left in P73
+(ADR-0069's third layer), when the Run Driver began opening one intent per document attached. The
+reason and what would close each remaining entry are the register's own words.
 
 | Capability | Record | Why it cannot be reached | What closes it |
 |---|---|---|---|
@@ -374,7 +376,6 @@ each remaining entry are the register's own words.
 | `checkMinorGate` | ADR-0011 | Its one BLOCKING condition is at the submission stage, and submission is out of scope (ADR-0014). The trigger that stops a case for review is a different thing and *is* reachable: `suggestsMinority` | The phase that brings submission into scope |
 | `purgeContents` | ADR-0010, ADR-0023 | B1 is decided; what is missing is a vault holding something to purge | The transport phase, and the job that calls this when a period elapses |
 | `assessUsability` | ADR-0009 | Nothing feeds it; requirements come from the reviewed catalogue | The Requirements Service phase, if the KB workflow is ever wired |
-| `attach_document` | ADR-0069 | Produced by nothing — `WorkKind` is `create_account \| execute` | The attachment intent identity ADR-0069 names, and a `WorkKind` that can carry it |
 
 #### B · Unreachable in ways the register does not track
 
@@ -470,7 +471,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,386 tests · 127 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,401 tests · 127 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -483,21 +484,21 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,386 tests**, by the workspace they live in. Generated — run
+**2,401 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 407 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 410 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 293 | `packages/profile` | 46 |
-| `apps/browser-runner` | 259 | `packages/catalogue` | 39 |
-| `packages/case-store` | 143 | `packages/preparation` | 35 |
-| `packages/orchestrator` | 109 | `packages/extraction` | 27 |
+| `apps/browser-runner` | 261 | `packages/catalogue` | 39 |
+| `packages/case-store` | 145 | `packages/preparation` | 35 |
+| `packages/orchestrator` | 113 | `packages/extraction` | 27 |
 | `packages/documents` | 99 | `packages/mapping` | 26 |
-| `packages/contracts` | 83 | `packages/interview` | 22 |
+| `packages/contracts` | 87 | `packages/interview` | 22 |
 | `apps/secure-service` | 68 | `packages/requirements` | 22 |
 | `packages/secrets` | 67 | `apps/worker` | 21 |
 | `packages/account` | 65 | everything else | 80 |

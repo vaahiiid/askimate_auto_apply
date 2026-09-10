@@ -30,7 +30,7 @@
  * what it was asked; the real performer opens Chromium.
  */
 
-import type { ClaimedWork, WorkDocument, WorkFailure, WorkReport } from "@askimate/aas-contracts";
+import type { ClaimedWork, WorkDocument, WireTransmission, WorkFailure, WorkReport } from "@askimate/aas-contracts";
 import { parseClaimedWork, parseWorkDocument } from "@askimate/aas-contracts";
 
 /** What the runner does with a unit of work once it has one. */
@@ -46,7 +46,11 @@ export type WorkPerformer = (work: ClaimedWork) => Promise<PerformOutcome>;
  * and leaves the Application Plane's uncertainty window open (ADR-0008).
  */
 export type PerformOutcome =
-  | { readonly kind: "succeeded" }
+  | {
+      readonly kind: "succeeded";
+      /** Every document attached to the page that was saved (ADR-0069, P73). */
+      readonly transmissions?: readonly WireTransmission[];
+    }
   | { readonly kind: "failed"; readonly failure: WorkFailure }
   | { readonly kind: "uncertain"; readonly failure: WorkFailure };
 
@@ -194,7 +198,13 @@ export async function runOneTurn(
 
   const report: WorkReport =
     outcome.kind === "succeeded"
-      ? { leaseId: work.leaseId, outcome: "succeeded" }
+      ? {
+          leaseId: work.leaseId,
+          outcome: "succeeded",
+          ...(outcome.transmissions === undefined || outcome.transmissions.length === 0
+            ? {}
+            : { transmissions: outcome.transmissions }),
+        }
       : { leaseId: work.leaseId, outcome: outcome.kind, failure: outcome.failure };
 
   const accepted = await intake.report(work.runId, report);

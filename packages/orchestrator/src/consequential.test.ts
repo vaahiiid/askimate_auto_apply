@@ -93,6 +93,7 @@ describe("performing a consequential action", () => {
         store.completeIntent(runId, key, outcome, at),
       reopenIntent: (runId, key, at) => store.reopenIntent(runId, key, at),
       findIntent: (runId, key) => store.findIntent(runId, key),
+      listIntents: (runId, action) => store.listIntents(runId, action),
       findByCase: (caseId) => store.findByCase(caseId),
       discardCheckpoints: (runId) => store.discardCheckpoints(runId),
     };

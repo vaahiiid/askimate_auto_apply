@@ -30,7 +30,7 @@
  * it in the tests.
  */
 
-import type { ClaimedWork } from "@askimate/aas-contracts";
+import type { ClaimedWork, WireTransmission } from "@askimate/aas-contracts";
 import { executePlan, failures } from "@askimate/aas-execution";
 import type { ApplicationSession, DocumentSource } from "@askimate/aas-execution";
 import { rehydratePlan } from "@askimate/aas-mapping";
@@ -173,7 +173,28 @@ export async function fillApplication(
     return { kind: "uncertain", failure: "runner_fault" };
   }
 
-  return { kind: "succeeded" };
+  // ── What left, with the page that carried it (ADR-0069, P73) ──────────
+  //
+  // The executor recorded each transmission at the moment of attaching, in
+  // the order the plan's uploads were attached — the same order as the
+  // `attached` outcomes, which name the box. Joined here, and only now that
+  // the page is saved: a transmission on an unsaved page is a file the portal
+  // discarded, and the report has no field for one because it must not.
+  const attached = report.outcomes.filter(
+    (outcome): outcome is Extract<typeof outcome, { kind: "attached" }> =>
+      outcome.kind === "attached",
+  );
+  const transmissions: WireTransmission[] = report.transmissions.map((transmission, index) => ({
+    fieldRef: attached[index]?.fieldRef ?? "",
+    disclosureId: transmission.disclosureId,
+    documentId: transmission.documentId,
+    contentHash: transmission.contentHash,
+    toHost: transmission.toHost,
+    institutionName: transmission.institutionName,
+    caseId: transmission.caseId,
+    transmittedAt: transmission.transmittedAt.toISOString(),
+  }));
+  return transmissions.length === 0 ? { kind: "succeeded" } : { kind: "succeeded", transmissions };
 }
 
 /**

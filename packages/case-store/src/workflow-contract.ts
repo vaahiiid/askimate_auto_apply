@@ -327,6 +327,35 @@ export function runWorkflowStoreContract(
         expect(found?.completed?.outcome).toBe("succeeded");
       });
 
+      it("lists a run's intents of one action, oldest first, and no other action's", async () => {
+        // P73: a page's attachments are settled from what is OPEN for it,
+        // listed by action, rather than re-derived from documents that may
+        // have changed since the claim.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.recordIntent(id, {
+          ...intent(id),
+          idempotencyKey: `${id}:attach_document:page-1/passport_upload=doc-1@${"a".repeat(64)}` as ActionIntent["idempotencyKey"],
+          action: "attach_document",
+          target: `page-1/passport_upload=doc-1@${"a".repeat(64)}`,
+          startedAt: new Date(NOW.getTime() + 2000),
+        });
+        await store.recordIntent(id, {
+          ...intent(id),
+          idempotencyKey: `${id}:attach_document:page-1/photo_upload=doc-2@${"b".repeat(64)}` as ActionIntent["idempotencyKey"],
+          action: "attach_document",
+          target: `page-1/photo_upload=doc-2@${"b".repeat(64)}`,
+          startedAt: new Date(NOW.getTime() + 1000),
+        });
+        const attachments = await store.listIntents(id, "attach_document");
+        expect(attachments.map((record) => record.intent.target)).toEqual([
+          `page-1/photo_upload=doc-2@${"b".repeat(64)}`,
+          `page-1/passport_upload=doc-1@${"a".repeat(64)}`,
+        ]);
+        expect(attachments.every((record) => record.completed === undefined)).toBe(true);
+        expect(await store.listIntents(id, "submit_application")).toEqual([]);
+      });
+
       it("is idempotent for the same completion", async () => {
         // A retry of the RECORDING is fine — it is a retry of the ACTION that
         // must never happen. The two are easy to conflate.

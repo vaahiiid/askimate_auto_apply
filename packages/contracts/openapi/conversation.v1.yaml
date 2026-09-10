@@ -2347,6 +2347,35 @@ components:
             plane STOPS a run on, naming which was met: a portal asked for
             something the plan assumed absent and only a person can pass. They
             are never re-offered as work.
+        transmissions:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/WireTransmission" }
+          description: >-
+            Every document the runner attached to the page it saved (ADR-0069,
+            P73). Accepted only with `succeeded`: an attachment on a page that
+            was not saved is a disclosure that did not happen. Each names the
+            box, the document and its hash — the identity of the
+            `attach_document` intent the plane opened at the claim — so a report
+            can settle exactly the attachments it made and no other.
+
+    WireTransmission:
+      type: object
+      additionalProperties: false
+      required: [fieldRef, disclosureId, documentId, contentHash, toHost, institutionName, caseId, transmittedAt]
+      description: >-
+        One document that left, as the audit trail records it: identifiers and
+        a hash, never contents. Produced by the executor at the moment of
+        attaching, not reconstructed afterwards.
+      properties:
+        fieldRef: { type: string }
+        disclosureId: { type: string }
+        documentId: { type: string }
+        contentHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        toHost: { type: string }
+        institutionName: { type: string }
+        caseId: { type: string }
+        transmittedAt: { type: string, format: date-time }
 
     AppendSecureEventRequest:
       type: object

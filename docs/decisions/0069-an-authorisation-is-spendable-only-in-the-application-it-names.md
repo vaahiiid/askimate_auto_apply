@@ -83,6 +83,20 @@ document replacement therefore does not change the page's intent key. That is re
 `docs/document-transport-options.md` §5 and remains open; it is transport-level and blocked on
 nothing, but building it now would be an intent for an action nothing can currently raise.
 
+> **Built in P73 (2026-09-10).** Both halves of the paragraph above are closed. The page's intent
+> key now sees its attachments — `pageFillTarget` takes the documents the page will carry, by
+> `documentId@contentHash`, so a replaced document is a page not yet saved and is offered again;
+> a page without uploads keeps exactly the key it had. And the Run Driver opens one
+> `attach_document` intent per upload at the claim, after the lease and before the hand-out as
+> the page's is, with the target `page/field=documentId@hash` (`attachmentIntentTarget`, one
+> function for both ends). The runner's report carries every transmission `recordTransmission`
+> produced, with the box it went into; the plane settles exactly the intents those name — and only
+> for this run's case — and writes the audit record of what left to `document_transmissions`
+> (migration 0020). A page is not done until every document it carries is recorded as attached:
+> a page saved with an attachment the report did not name leaves the intent open, and the next
+> claim stops on it as the uncertain case, named as the attachment. No new `WorkKind` was needed;
+> an attachment is part of the page item that carries it, and its identity is its own.
+
 ## What `documentRef` means — recorded, not renamed
 
 Two fields carry the name and they are in different layers:

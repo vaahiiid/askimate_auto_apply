@@ -449,11 +449,45 @@ export const SESSION_ENDING_FAILURES: readonly WorkFailure[] = [
   "secret_unavailable",
 ];
 
+/**
+ * One document that LEFT — attached to the portal by the runner — as the
+ * record the audit trail keeps (ADR-0069's third layer, P73).
+ *
+ * Identifiers and a hash, never contents (brief §8). `fieldRef` names the
+ * box it went into, which with the page the lease names is the identity of
+ * the `attach_document` intent the plane opened at the claim; `documentId`
+ * and `contentHash` say which document, so a report cannot close an intent
+ * for a file the runner did not attach. Produced by the executor at the
+ * moment of attaching (`recordTransmission`), not reconstructed afterwards.
+ */
+export interface WireTransmission {
+  readonly fieldRef: string;
+  readonly disclosureId: string;
+  readonly documentId: string;
+  /** SHA-256, lowercase hex. */
+  readonly contentHash: string;
+  readonly toHost: string;
+  readonly institutionName: string;
+  readonly caseId: string;
+  /** RFC 3339. */
+  readonly transmittedAt: string;
+}
+
+/** A page carries at most this many uploads. A bound, not a policy. */
+export const MAX_TRANSMISSIONS_PER_REPORT = 20;
+
 export interface WorkReport {
   readonly leaseId: string;
   readonly outcome: WorkOutcome;
   /** Present exactly when the outcome is not `succeeded`. */
   readonly failure?: WorkFailure;
+  /**
+   * Every document the runner attached to the page it saved. Present only
+   * with `succeeded`: an attachment on a page that was not saved is a file in
+   * a form the portal discarded, and a report that listed it would record a
+   * disclosure that did not happen.
+   */
+  readonly transmissions?: readonly WireTransmission[];
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -720,12 +754,53 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   // Symmetric, so a half-written report is refused rather than stored. A
   // `failed` with no reason and a `succeeded` with one are both records that
   // read as more or less certainty than the runner actually reported.
+  const transmissions = record["transmissions"];
   if (outcome === "succeeded") {
     if (failure !== undefined) return null;
-    return { leaseId: record["leaseId"], outcome };
+    if (transmissions === undefined) return { leaseId: record["leaseId"], outcome };
+    const parsed = parseTransmissions(transmissions);
+    if (parsed === null) return null;
+    return { leaseId: record["leaseId"], outcome, transmissions: parsed };
   }
   if (!isMember(WORK_FAILURES, failure)) return null;
+  // A transmission on a page that was not saved is a disclosure that did
+  // not happen; the half-written record is refused rather than stored.
+  if (transmissions !== undefined) return null;
   return { leaseId: record["leaseId"], outcome, failure };
+}
+
+function parseTransmissions(value: unknown): readonly WireTransmission[] | null {
+  if (!Array.isArray(value) || value.length > MAX_TRANSMISSIONS_PER_REPORT) return null;
+  const out: WireTransmission[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return null;
+    const record = item as Record<string, unknown>;
+    for (const field of [
+      "fieldRef",
+      "disclosureId",
+      "documentId",
+      "contentHash",
+      "toHost",
+      "institutionName",
+      "caseId",
+      "transmittedAt",
+    ]) {
+      if (!nonEmpty(record[field])) return null;
+    }
+    if (!/^[0-9a-f]{64}$/.test(record["contentHash"] as string)) return null;
+    if (Number.isNaN(Date.parse(record["transmittedAt"] as string))) return null;
+    out.push({
+      fieldRef: record["fieldRef"] as string,
+      disclosureId: record["disclosureId"] as string,
+      documentId: record["documentId"] as string,
+      contentHash: record["contentHash"] as string,
+      toHost: record["toHost"] as string,
+      institutionName: record["institutionName"] as string,
+      caseId: record["caseId"] as string,
+      transmittedAt: record["transmittedAt"] as string,
+    });
+  }
+  return out;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

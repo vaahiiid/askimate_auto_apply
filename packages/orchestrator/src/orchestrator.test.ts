@@ -38,8 +38,12 @@ import type { ApplicationSession, DocumentSource, ExecutionContext } from "@aski
 import { executePlan, failures } from "@askimate/aas-execution";
 import {
   assess,
+  attachmentIdentity,
+  attachmentIntentTarget,
   beginRun,
   browserWorkFor,
+  pageAttachmentsOf,
+  pageFillTarget,
   markFilled,
   nextStep,
   requiredFieldsFor,
@@ -1239,5 +1243,61 @@ describe("the resume path — the session is gone (ADR-0101 §3)", () => {
       ),
     );
     expect((await nextStep(state, model)).kind).toBe("hand_over_account");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// A page's identity sees its attachments (ADR-0069's third layer, P73)
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the ledger identity of a page that carries a document", () => {
+  const values = [{ fieldRef: "given_name", text: "Niloofar" }];
+  const passport = { fieldRef: "passport_upload", documentId: "doc-1", contentHash: "a".repeat(64) };
+  const replaced = { ...passport, contentHash: "b".repeat(64) };
+
+  it("leaves every page without uploads exactly where it was", () => {
+    // No reviewed run's ledger moves for this change: an absent or empty
+    // attachment list is the same key as before the field existed.
+    const before = pageFillTarget({ pageRef: "page-1", values });
+    expect(pageFillTarget({ pageRef: "page-1", values, attachments: [] })).toBe(before);
+    expect(before).toMatch(/^page-1@sha256:[0-9a-f]{64}$/);
+  });
+
+  it("CHANGES when the document is replaced — the gap ADR-0069 recorded", () => {
+    // *"A document replacement therefore does not change the page's intent
+    // key."* Now it does: a page saved with the old passport is a page not
+    // yet saved with the new one, and it is offered again.
+    const withOld = pageFillTarget({ pageRef: "page-1", values, attachments: [passport] });
+    const withNew = pageFillTarget({ pageRef: "page-1", values, attachments: [replaced] });
+    expect(withOld).not.toBe(pageFillTarget({ pageRef: "page-1", values }));
+    expect(withNew).not.toBe(withOld);
+  });
+
+  it("names the intent by page, box and document, one function for both ends", () => {
+    expect(attachmentIdentity(passport)).toBe(`doc-1@${"a".repeat(64)}`);
+    expect(attachmentIntentTarget({ pageRef: "page-1", attachment: passport })).toBe(
+      `page-1/passport_upload=doc-1@${"a".repeat(64)}`,
+    );
+  });
+
+  it("takes a page's attachments from the preview the student authorised, and only that page's", () => {
+    const attachments = pageAttachmentsOf(
+      [
+        {
+          fieldRef: "passport_upload",
+          label: "Upload your passport",
+          documentRef: "passport",
+          document: { documentId: "doc-1", contentHash: "a".repeat(64), describedAs: "passport" },
+        },
+        {
+          fieldRef: "photo_upload",
+          label: "A photo",
+          documentRef: "photo",
+          document: { documentId: "doc-2", contentHash: "c".repeat(64), describedAs: "photo" },
+        },
+      ],
+      new Set(["given_name", "passport_upload"]),
+    );
+    expect(attachments).toEqual([passport]);
   });
 });

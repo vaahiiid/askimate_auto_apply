@@ -302,6 +302,39 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
         };
   }
 
+  public async listIntents(
+    runId: RunId,
+    action: ConsequentialAction,
+  ): Promise<readonly IntentRecord[]> {
+    const rows = await this.pool.query<{
+      idempotency_key: string;
+      action: string;
+      target: string;
+      started_at: Date;
+      outcome: string | null;
+      completed_at: Date | null;
+    }>(
+      `SELECT idempotency_key, action, target, started_at, outcome, completed_at
+         FROM workflow_action_intents WHERE run_id = $1 AND action = $2
+        ORDER BY started_at ASC, idempotency_key ASC`,
+      [runId, action],
+    );
+    return rows.rows.map((row) => {
+      const intent: ActionIntent = {
+        idempotencyKey: row.idempotency_key as ActionIdempotencyKey,
+        action: row.action as ConsequentialAction,
+        target: row.target,
+        startedAt: row.started_at,
+      };
+      return row.outcome === null || row.completed_at === null
+        ? { intent }
+        : {
+            intent,
+            completed: { outcome: row.outcome as IntentOutcome, completedAt: row.completed_at },
+          };
+    });
+  }
+
   public async findByCase(caseId: CaseId): Promise<readonly WorkflowRunRecord[]> {
     const rows = await this.pool.query<RunRow>(
       `SELECT run_id, case_id, student_ref, status, revision, checkpoint, started_at, updated_at

@@ -5,11 +5,20 @@
  * nothing, decides nothing on the student's behalf, and cannot submit.
  */
 
-export type { HandoverEvidence, RunAssessment, RunInputs, RunState, RunStep } from "./run.js";
+export type {
+  HandoverEvidence,
+  PageAttachment,
+  RunAssessment,
+  RunInputs,
+  RunState,
+  RunStep,
+} from "./run.js";
 export {
   IllegalSecretTransitionError,
   accountCreated,
   accountWorkOf,
+  attachmentIdentity,
+  attachmentIntentTarget,
   assess,
   awaitsStudentAuthorisation,
   beginRun,
@@ -21,6 +30,7 @@ export {
   executePlanOf,
   markFilled,
   nextStep,
+  pageAttachmentsOf,
   pageFillTarget,
   pageValuesOf,
   requiredFieldsFor,

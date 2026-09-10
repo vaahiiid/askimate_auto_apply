@@ -19,6 +19,34 @@ not shipped artefacts.
 
 ---
 
+## [0.90.0] — 2026-09-10
+
+**P73 — one intent per document attached, and the record of what left (ADR-0069's third
+layer).** Slice e, the last of the attachment path.
+
+### Added
+
+- `attach_document` intents: one per upload, opened by the Run Driver at the claim with the target
+  `page/field=documentId@hash` (`attachmentIntentTarget`, `attachmentIdentity`,
+  `pageAttachmentsOf` in the orchestrator), settled from the runner's report, checked by the
+  unfinished-action stop. `attach_document` leaves the declared-but-unreachable register.
+- `WireTransmission` and `WorkReport.transmissions` (with `succeeded` only; `MAX_TRANSMISSIONS_PER_REPORT`);
+  `PerformOutcome.succeeded.transmissions`; the runner's `fillApplication` reports what
+  `executePlan` recorded, with the box it went into.
+- `document_transmissions` (conversation-service migration 0020) and `TransmissionStore`: the
+  audit record of what left, written for exactly the intents a report settled, for this run's case.
+- `WorkflowRunStore.listIntents(runId, action)` in both stores and the contract suite.
+
+### Changed
+
+- `pageFillTarget` takes the page's attachments; a replaced document changes the page's key and
+  the page is offered again. A page without uploads keeps exactly the key it had.
+- A page is not done until every document it carries is recorded as attached.
+- A page whose only content is an upload is now offered (it was skipped as having no fields).
+- The unfinished-action stop names the unfinished action and its whole target, not the page's.
+
+---
+
 ## [0.89.0] — 2026-09-10
 
 **P72 — `portal_sign_in` is the resume path, and the run says why (ADR-0101 §3).** Vahid's

@@ -4087,3 +4087,35 @@ recorded, not built.
 ## Declared-but-unreachable surface
 
 **Five** — unchanged.
+
+# P73 — one intent per document attached, and the record of what left (ADR-0069's third layer)
+
+Slice e, the last of the attachment path, and the thing ADR-0069 and the B5 sheet both left open:
+`attach_document` was declared, marked verifiable, and produced by nothing, because uploads rode the
+page's intent and that intent's key could not see which document went in.
+
+Two things now. The page's key sees its attachments, by document id and hash, so a document the
+student replaces makes the page one not yet saved and it is offered again; a page with no uploads
+keeps exactly the key it had, so no ledger row of any run moved. And the claim opens one intent per
+upload — `page/field=documentId@hash`, one function for both ends — after the lease and before the
+hand-out, as the page's is. The runner's report carries what the executor recorded at the moment
+of attaching, with the box it went into; the plane settles exactly the intents those name, for
+this run's case only, and writes the audit row of what left. A page is not done until every
+document it carries is recorded as attached: a page the runner saved without naming its file
+leaves the intent open, the next claim stops on it as the uncertain case, and the stop names the
+attachment rather than the page.
+
+Found on the way: a page whose only content was an upload was never offered at all — the walk
+counted fields to fill and not files to attach, and the documents page of a real portal is
+exactly that page. No new work kind was needed; an attachment is part of the page item that
+carries it, and its identity is its own.
+
+## What follows
+
+The attachment path is built end to end at the plane and the runner. What it has not yet met is a
+portal that takes a file — the fixture portal has no upload field — so the runner's attachment is
+proved against a recorded session, not a served page. That, and blocker 17, are the next two.
+
+## Declared-but-unreachable surface
+
+**Four** — `attach_document` left.

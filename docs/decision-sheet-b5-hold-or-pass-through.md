@@ -137,4 +137,4 @@ answered the same day (see B1), so that blocker did not survive to become the ne
 - **The deletion cascade**, recorded in the schedule and not yet implemented.
 - **The expiry thresholds**, to be proposed and confirmed before implementation.
 - **`attach_document`'s own intent identity**, which ADR-0069 names and this sheet flagged as needed
-  under either answer.
+  under either answer. *Built in P73 (2026-09-10) — see the note on ADR-0069.*

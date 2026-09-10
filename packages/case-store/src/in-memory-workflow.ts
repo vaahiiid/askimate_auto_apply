@@ -20,6 +20,7 @@ import type {
   WorkflowCheckpoint,
   WorkflowRunRecord,
   WorkflowStatus,
+  ConsequentialAction,
 } from "@askimate/aas-domain";
 
 import type { IntentRecord, WorkflowRunStore } from "./workflow-store.js";
@@ -192,6 +193,16 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
   ): Promise<IntentRecord | null> {
     await Promise.resolve();
     return this.#runs.get(runId)?.intents.get(idempotencyKey) ?? null;
+  }
+
+  public async listIntents(
+    runId: RunId,
+    action: ConsequentialAction,
+  ): Promise<readonly IntentRecord[]> {
+    await Promise.resolve();
+    return [...(this.#runs.get(runId)?.intents.values() ?? [])]
+      .filter((record) => record.intent.action === action)
+      .sort((left, right) => left.intent.startedAt.getTime() - right.intent.startedAt.getTime());
   }
 
   public async findByCase(caseId: CaseId): Promise<readonly WorkflowRunRecord[]> {

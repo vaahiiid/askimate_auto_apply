@@ -129,6 +129,8 @@ export { httpSecureRequestOpener } from "./secure-requests.js";
 export type { WorkCandidate, WorkLease } from "./work-store.js";
 export { WorkLeaseStore } from "./work-store.js";
 export { RunSessionStore } from "./session-store.js";
+export type { RecordedTransmission } from "./transmission-store.js";
+export { TransmissionStore } from "./transmission-store.js";
 
 // ── P18 / ADR-0055: starting this service, and the worker's shared wiring ──
 export type { ConversationConfig } from "./config.js";

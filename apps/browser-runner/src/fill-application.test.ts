@@ -13,10 +13,15 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
-import type { ClaimedWork } from "@askimate/aas-contracts";
+import type { ClaimedWork, WorkDocument } from "@askimate/aas-contracts";
+import { DISCLOSE_DOCUMENT, b2Register } from "@askimate/aas-disclosure";
 import type { ApplicationSession } from "@askimate/aas-execution";
+
+import { documentSourceFor } from "./document-source.js";
 
 import type { ChallengeProbe } from "./challenge.js";
 import { fillApplication } from "./fill-application.js";
@@ -211,5 +216,112 @@ describe("a page asking for something only a person can pass (ADR-0101 §6)", ()
         challenge: unchallenged,
       }),
     ).toEqual({ kind: "failed", failure: "needs_the_student" });
+  });
+});
+
+describe("a page that carries a document (ADR-0069, P73)", () => {
+  const BYTES = Buffer.from("%PDF-1.7\n a synthetic passport, not a real one\n");
+  const HASH = createHash("sha256").update(BYTES).digest("hex");
+  const DOCUMENT_ID = "01JQDOC0000000000000000001";
+
+  /** The plane's hand-over, as `documentForWork` answers it, for THIS work. */
+  const handed: WorkDocument = {
+    documentId: DOCUMENT_ID,
+    documentType: "passport",
+    contentHash: HASH,
+    contentType: "application/pdf",
+    retrieval: { url: "https://vault.test/documents/stu/x?sig=1", method: "GET", expiresAt: NOW.toISOString() },
+    disclosure: {
+      disclosureId: "disc_run_1_passport_upload",
+      subject: {
+        documentId: DOCUMENT_ID,
+        documentType: "passport",
+        contentHash: HASH,
+        caseId: WORK.caseId,
+        requestedFor: "Upload your passport",
+      },
+      destination: { institutionName: "Example University", portalHost: WORK.portalHost },
+      determinationId: DISCLOSE_DOCUMENT.determinationId,
+      studentAuthorisation: {
+        studentRef: WORK.studentRef,
+        // Names the document, where it goes and for what, as the gate requires
+        // the text the student saw to (ADR-0022, ADR-0098).
+        presentedText:
+          "Documents that will be sent:\n  Upload your passport: your passport\n    going to: Example University (portal.test)",
+        authorisedAt: NOW.toISOString(),
+        method: "chat_affirmation",
+      },
+    },
+  };
+
+  const WITH_UPLOAD: ClaimedWork = {
+    ...WORK,
+    plan: {
+      ...WORK.plan!,
+      uploads: [
+        {
+          fieldRef: "passport_upload",
+          label: "Upload your passport",
+          documentRef: "passport",
+          locators: [{ strategy: "label", value: "Upload your passport" }],
+        },
+      ],
+    },
+  };
+
+  function documents() {
+    return documentSourceFor({
+      intake: { document: () => Promise.resolve(handed) },
+      work: WITH_UPLOAD,
+      register: b2Register(NOW),
+      fetch: () => Promise.resolve(new Response(new Uint8Array(BYTES), { status: 200 })),
+    });
+  }
+
+  it("reports the transmission WITH the box it went into, once the page is saved", async () => {
+    const attached: { documentId: string; bytes: number }[] = [];
+    const live = session({
+      attach: (_locator, documentId, contents) => {
+        attached.push({ documentId, bytes: contents.length });
+        return Promise.resolve();
+      },
+    });
+    const outcome = await fillApplication(WITH_UPLOAD, {
+      session: live,
+      now: () => NOW,
+      documents: documents(),
+      challenge: unchallenged,
+    });
+    expect(attached).toEqual([{ documentId: DOCUMENT_ID, bytes: BYTES.length }]);
+    expect(live.clicked, "and the page was saved").toEqual(["button:Save and continue"]);
+    expect(outcome).toEqual({
+      kind: "succeeded",
+      transmissions: [
+        {
+          fieldRef: "passport_upload",
+          disclosureId: "disc_run_1_passport_upload",
+          documentId: DOCUMENT_ID,
+          contentHash: HASH,
+          toHost: WORK.portalHost,
+          institutionName: "Example University",
+          caseId: WORK.caseId,
+          transmittedAt: NOW.toISOString(),
+        },
+      ],
+    });
+  });
+
+  it("reports NO transmission when the save did not land — the portal kept nothing", async () => {
+    const dying = session({
+      attach: () => Promise.resolve(),
+      click: () => Promise.reject(new Error("the tab died")),
+    });
+    const outcome = await fillApplication(WITH_UPLOAD, {
+      session: dying,
+      now: () => NOW,
+      documents: documents(),
+      challenge: unchallenged,
+    });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
   });
 });

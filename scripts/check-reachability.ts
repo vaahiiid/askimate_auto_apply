@@ -396,20 +396,21 @@ export const CAPABILITIES: readonly Capability[] = [
     },
   },
   {
+    // ── REACHABLE from P73 (ADR-0069's third layer) ──────────────────────
+    //
+    // Declared-but-unreachable from P39 to P72: uploads rode the page's
+    // `advance_portal_page` intent, whose target could not see which document
+    // was attached. The Run Driver now opens one `attach_document` intent per
+    // upload at the claim — `page/field=documentId@hash` — settles it from the
+    // runner's report, and writes the transmission record from the same
+    // report. No new `WorkKind` was needed: an attachment is part of the page
+    // item that carries it, and its identity is its own.
     symbol: "attach_document",
     kind: "literal",
     declaredIn: ["packages/domain/src/workflow.ts"],
     record: "ADR-0045, ADR-0069",
-    promise: "a declared `ConsequentialAction`, marked verifiable",
-    status: {
-      kind: "unreachable",
-      reason:
-        "produced by nothing. `WorkKind` is `create_account | execute`, so no work item can carry " +
-        "it, and `toStoredPlan` refuses a plan with uploads.",
-      closedBy:
-        "B5 is DECIDED (A — hold, 2026-09-07). What is left is the attachment intent " +
-        "identity ADR-0069 names, and a `WorkKind` that can carry it",
-    },
+    promise: "a declared `ConsequentialAction`, marked verifiable: one intent per document attached",
+    status: { kind: "reachable" },
   },
 ];
 

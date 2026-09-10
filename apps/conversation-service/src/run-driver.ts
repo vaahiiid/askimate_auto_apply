@@ -126,16 +126,19 @@ import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
 import { buildPreview, renderPreview } from "@askimate/aas-preparation";
+import type { PreviewAttachment } from "@askimate/aas-preparation";
 import type { WorkDocument } from "@askimate/aas-contracts";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
   accountWorkOf,
+  attachmentIntentTarget,
   awaitsStudentAuthorisation,
   beginRun,
   handoffFor,
   handoffMessageOf,
   interviewActionOf,
+  pageAttachmentsOf,
   pageFillTarget,
   pageValuesOf,
   handoffTokenFor,
@@ -162,6 +165,7 @@ import type {
   ResumeConcern,
   RunState,
   RunStep,
+  PageAttachment,
 } from "@askimate/aas-orchestrator";
 import { FIELD_LABELS, isFinancialField, resolveField } from "@askimate/aas-profile";
 import type {
@@ -195,6 +199,7 @@ import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import type { WorkLease, WorkLeaseStore } from "./work-store.js";
 import type { RunSessionStore } from "./session-store.js";
+import type { TransmissionStore } from "./transmission-store.js";
 
 /**
  * A reviewed blueprint and its reviewed mapping set, by id.
@@ -1031,6 +1036,13 @@ export interface RunDriverOptions {
    * the session is not tracked and the run fills as it always did.
    */
   readonly sessions?: RunSessionStore;
+  /**
+   * What left: the audit record of every document a runner attached
+   * (ADR-0022, ADR-0069 — P73), written from the report that settles the
+   * attachment's intent. Optional for the reason `leases` is; absent, the
+   * intent is still settled and only the audit row is not written.
+   */
+  readonly transmissions?: TransmissionStore;
   /**
    * Where a stopped run's adjudication lives. ADR-0048.
    *
@@ -2091,7 +2103,11 @@ export class RunDriver {
     runId: RunId,
     kind: WorkKind,
     entry: CatalogueEntry,
-  ): Promise<{ target: string; verdict: "verify_first" | "escalate" } | null> {
+  ): Promise<{
+    action: ConsequentialAction;
+    target: string;
+    verdict: "verify_first" | "escalate";
+  } | null> {
     // A fill has one intent PER PAGE (ADR-0047), and an unfinished one anywhere
     // stops the whole run — not just that page. Pages are ordered and a later
     // one is often unreachable until an earlier one is saved, so skipping past
@@ -2102,7 +2118,18 @@ export class RunDriver {
     for (const target of targets) {
       const verdict = await this.#verdictFor(runId, ACTION_FOR_WORK[kind], target);
       if (verdict.kind === "verify_first" || verdict.kind === "escalate") {
-        return { target, verdict: verdict.kind };
+        return { action: ACTION_FOR_WORK[kind], target, verdict: verdict.kind };
+      }
+    }
+    // And one intent PER ATTACHMENT (ADR-0069's third layer, P73). A file
+    // whose attaching may or may not have landed is a disclosure nobody can
+    // account for, and the same stop applies.
+    if (kind === "execute") {
+      for (const target of await this.#attachmentTargets(runId, entry)) {
+        const verdict = await this.#verdictFor(runId, "attach_document", target);
+        if (verdict.kind === "verify_first" || verdict.kind === "escalate") {
+          return { action: "attach_document", target, verdict: verdict.kind };
+        }
       }
     }
     return null;
@@ -2399,11 +2426,18 @@ export class RunDriver {
         // `page-application@sha256:c544…` is not somewhere anybody can look
         // (ADR-0048 §5 — a checkpoint records a position the system can
         // truthfully state, for a specialist to read).
-        target: pageOf(input.target),
+        // The page for a page; the WHOLE target for an attachment, because
+        // `page/field=documentId@hash` is the identity a specialist verifies
+        // against the portal (ADR-0069), and the hash is the half that says
+        // which version of the file.
+        target: input.action === "advance_portal_page" ? pageOf(input.target) : input.target,
         phase: input.record.checkpoint.phase,
         pagesCompleted: [],
         capturedAt: now,
         ...(input.action === "advance_portal_page" ? { page: input.target } : {}),
+        ...(input.action === "attach_document"
+          ? { page: input.target.slice(0, Math.max(0, input.target.indexOf("/"))) }
+          : {}),
       },
       raisedAt: now,
     };
@@ -4186,6 +4220,39 @@ export class RunDriver {
    * a stale page becomes visible at all, and why an unfinished-action check
    * that used bare page refs could not see one.
    */
+  /**
+   * The attachments the run's preview resolves — the documents the student
+   * authorised, by identity (ADR-0098). The same resolution `documentForWork`
+   * hands a document over by, so the identity in a page's key and in an
+   * attachment's intent is the identity the gates ran over.
+   */
+  async #heldAttachments(
+    entry: CatalogueEntry,
+    plan: FillPlan,
+    studentRef: string,
+  ): Promise<readonly PreviewAttachment[]> {
+    const held = await this.#options.heldDocuments?.listForStudent(studentRef);
+    const preview = buildPreview(entry.blueprint, plan, previewDocumentsOf(held ?? []));
+    return preview.built ? preview.preview.attachments : [];
+  }
+
+  /** The `attach_document` targets of every page, for the unfinished-action check. */
+  async #attachmentTargets(runId: RunId, entry: CatalogueEntry): Promise<readonly string[]> {
+    const usable = checkUsable(entry.mappingSet, entry.blueprint);
+    if (!usable.usable) return [];
+    const record = await this.#options.stores.runs.load(runId);
+    const studentRef = record?.studentRef ?? "";
+    const profile = await this.#options.profiles.load(studentRef, this.#options.now());
+    const plan = planFill(entry.blueprint, usable.mappingSet, profile);
+    const attachments = await this.#heldAttachments(entry, plan, studentRef);
+    return entry.blueprint.pages.flatMap((page) =>
+      pageAttachmentsOf(
+        attachments,
+        new Set(page.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))),
+      ).map((attachment) => attachmentIntentTarget({ pageRef: page.pageRef, attachment })),
+    );
+  }
+
   async #pageTargets(runId: RunId, entry: CatalogueEntry): Promise<readonly string[]> {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
     if (!usable.usable) return [];
@@ -4196,15 +4263,19 @@ export class RunDriver {
       this.#options.now(),
     );
     const plan = planFill(entry.blueprint, usable.mappingSet, profile);
-    return entry.blueprint.pages.map((page) =>
-      pageFillTarget({
-        pageRef: page.pageRef,
-        values: pageValuesOf(
-          plan,
-          new Set(page.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))),
-        ),
-      }),
+    const attachments = await this.#heldAttachments(
+      entry,
+      plan,
+      (await this.#options.stores.runs.load(runId))?.studentRef ?? "",
     );
+    return entry.blueprint.pages.map((page) => {
+      const fields = new Set(page.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)));
+      return pageFillTarget({
+        pageRef: page.pageRef,
+        values: pageValuesOf(plan, fields),
+        attachments: pageAttachmentsOf(attachments, fields),
+      });
+    });
   }
 
   /**
@@ -4221,8 +4292,15 @@ export class RunDriver {
     runId: RunId,
     entry: CatalogueEntry,
     plan: FillPlan,
+    attachments: readonly PreviewAttachment[],
   ): Promise<ApplicationBlueprint["pages"][number] | null> {
-    const wanted = new Set(plan.instructions.map((instruction) => instruction.fieldRef));
+    // A page with something to fill OR something to attach. Until P73 an
+    // upload-only page was skipped as having no fields — the documents page
+    // of a real portal is exactly that page, and it was never offered.
+    const wanted = new Set([
+      ...plan.instructions.map((instruction) => instruction.fieldRef),
+      ...plan.uploads.map((upload) => upload.fieldRef),
+    ]);
     const credentialFields = new Set(plan.credentials.map((credential) => credential.fieldRef));
 
     for (const page of entry.blueprint.pages) {
@@ -4233,14 +4311,38 @@ export class RunDriver {
       if (fields.some((field) => credentialFields.has(field.fieldRef))) continue;
       if (!fields.some((field) => wanted.has(field.fieldRef))) continue;
 
+      const onThisPage = new Set(fields.map((f) => f.fieldRef));
+      const attached = pageAttachmentsOf(attachments, onThisPage);
       const verdict = await this.#verdictFor(
         runId,
         "advance_portal_page",
         pageFillTarget({
           pageRef: page.pageRef,
-          values: pageValuesOf(plan, new Set(fields.map((f) => f.fieldRef))),
+          values: pageValuesOf(plan, onThisPage),
+          // In the key (ADR-0069, P73): a replaced document makes this a
+          // page not yet saved, and it is offered again.
+          attachments: attached,
         }),
       );
+      // A page is done only when every document it carries is recorded as
+      // attached. A page saved with an attachment the report did not name
+      // is offered again — and the claim stops on the open intent, which is
+      // the uncertain case a person adjudicates, not a page to skip past.
+      if (verdict.kind === "already_done" && verdict.outcome === "succeeded") {
+        let attachmentsDone = true;
+        for (const attachment of attached) {
+          const attachVerdict = await this.#verdictFor(
+            runId,
+            "attach_document",
+            attachmentIntentTarget({ pageRef: page.pageRef, attachment }),
+          );
+          if (attachVerdict.kind !== "already_done" || attachVerdict.outcome !== "succeeded") {
+            attachmentsDone = false;
+            break;
+          }
+        }
+        if (!attachmentsDone) return page;
+      }
       // `failed_cleanly` is a claim that nothing happened out there, so the page
       // is offered again. `already_done` + `succeeded` is skipped. The unfinished
       // verdicts never reach here — `#unfinishedAction` stopped the run.
@@ -4330,25 +4432,27 @@ export class RunDriver {
     const usable = checkUsable(entry.mappingSet, entry.blueprint);
     if (!usable.usable) return false;
     const plan = planFill(entry.blueprint, usable.mappingSet, state.profile);
-    if ((await this.#nextPage(runId, entry, plan)) !== null) return false;
+    const attachments = await this.#heldAttachments(entry, plan, state.inputs.studentRef);
+    if ((await this.#nextPage(runId, entry, plan, attachments)) !== null) return false;
 
     // Nothing left to fill — but "nothing left" is also true of a run that
     // never had a fillable page. `markFilled` only means something once at
     // least one page has actually been saved.
     const saved = await Promise.all(
-      entry.blueprint.pages.map(async (page) =>
-        this.#verdictFor(
+      entry.blueprint.pages.map(async (page) => {
+        const fields = new Set(
+          page.sections.flatMap((section) => section.fields.map((f) => f.fieldRef)),
+        );
+        return this.#verdictFor(
           runId,
           "advance_portal_page",
           pageFillTarget({
             pageRef: page.pageRef,
-            values: pageValuesOf(
-              plan,
-              new Set(page.sections.flatMap((section) => section.fields.map((f) => f.fieldRef))),
-            ),
+            values: pageValuesOf(plan, fields),
+            attachments: pageAttachmentsOf(attachments, fields),
           }),
-        ),
-      ),
+        );
+      }),
     );
     return saved.some(
       (verdict) => verdict.kind === "already_done" && verdict.outcome === "succeeded",
@@ -4867,7 +4971,7 @@ export class RunDriver {
           record,
           entry,
           conversationId,
-          action: ACTION_FOR_WORK[kind],
+          action: unfinished.action,
           target: unfinished.target,
           verdict: unfinished.verdict,
         });
@@ -4880,13 +4984,17 @@ export class RunDriver {
       if (detail === null) continue;
 
       const plan = executePlanOf(situation.step);
+      const attachments =
+        plan === null ? [] : await this.#heldAttachments(entry, plan, record.studentRef);
       const payload = workPayloadFor(
         entry,
         {
           kind,
           account,
           plan,
-          page: plan === null ? null : await this.#nextPage(record.runId, entry, plan),
+          page:
+            plan === null ? null : await this.#nextPage(record.runId, entry, plan, attachments),
+          attachments,
         },
         detail.portalHost,
       );
@@ -4948,6 +5056,33 @@ export class RunDriver {
         // prevents — so give the lease back rather than hand out work whose
         // attempt is unrecorded. Refusing costs a poll; proceeding costs an
         // action nobody could later account for.
+        await leases.release({ runId: candidate.runId, leaseId: lease.leaseId, now });
+        continue;
+      }
+
+      // ── One intent PER ATTACHMENT, before the page is handed out ─────────
+      //
+      // ADR-0069's third layer (P73). The page's intent says the page was
+      // saved with this content; these say which DOCUMENT went into which box
+      // — `page/field=documentId@hash` — so an attachment that may or may not
+      // have landed is a row a specialist can read, and the audit record the
+      // report writes names the file that left. Opened after the lease and
+      // before the hand-out, as the page's is, and for the same reason.
+      let attachmentsOpened = true;
+      for (const attachment of payload.attachments ?? []) {
+        if (payload.pageRef === undefined) break;
+        const opened = await this.#beginIntent({
+          runId: makeRunId(candidate.runId),
+          action: "attach_document",
+          target: attachmentIntentTarget({ pageRef: payload.pageRef, attachment }),
+          now,
+        });
+        if (!opened) {
+          attachmentsOpened = false;
+          break;
+        }
+      }
+      if (!attachmentsOpened) {
         await leases.release({ runId: candidate.runId, leaseId: lease.leaseId, now });
         continue;
       }
@@ -5043,6 +5178,9 @@ export class RunDriver {
       );
     }
 
+    // ── The attachments this page carried (ADR-0069, P73) ────────────────
+    await this.#settleAttachments({ runId, held, report: input.report, now });
+
     // ── The session, as this report evidences it (ADR-0101 §2, §3) ──────
     await this.#recordSession(held, input.report, now);
 
@@ -5054,6 +5192,80 @@ export class RunDriver {
     }
 
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+
+  /**
+   * Settles the page's `attach_document` intents from the report, and writes
+   * the audit record of what left (ADR-0022, ADR-0069 — P73).
+   *
+   * Listed from the ledger — what is OPEN for this page — rather than
+   * re-derived from the documents held now, which may not be the documents
+   * that were current at the claim. Then, per intent:
+   *
+   *   the page was saved, and the report names this document in this box
+   *       → succeeded, and the transmission is recorded
+   *   the page was saved, and the report does not name it
+   *       → left OPEN. The runner saved a page it did not say it attached this
+   *         file to; that is the uncertain case, and the next claim stops on it
+   *   the page was not saved (`failed`)
+   *       → failed cleanly, as the page: the portal kept nothing
+   *   uncertain
+   *       → untouched, as the page
+   *
+   * A transmission is recorded only for an intent this plane opened, so a
+   * report cannot write a disclosure the plane never gated; and only for this
+   * run's case, so it cannot record one for another application.
+   */
+  async #settleAttachments(input: {
+    readonly runId: RunId;
+    readonly held: WorkLease;
+    readonly report: WorkReport;
+    readonly now: Date;
+  }): Promise<void> {
+    const pageRef = input.held.pageRef;
+    if (input.held.kind !== "execute" || pageRef === undefined) return;
+    if (input.report.outcome === "uncertain") return;
+    const runs = this.#options.stores.runs;
+    const open = (await runs.listIntents(input.runId, "attach_document")).filter(
+      (record) => record.completed === undefined && record.intent.target.startsWith(`${pageRef}/`),
+    );
+    if (open.length === 0) return;
+    const record = await runs.load(input.runId);
+    if (record === null) return;
+
+    for (const intent of open) {
+      const key = intent.intent.idempotencyKey;
+      if (input.report.outcome !== "succeeded") {
+        await runs.completeIntent(input.runId, key, "failed_cleanly", input.now);
+        continue;
+      }
+      const match = (input.report.transmissions ?? []).find(
+        (transmission) =>
+          intent.intent.target ===
+            attachmentIntentTarget({
+              pageRef,
+              attachment: {
+                fieldRef: transmission.fieldRef,
+                documentId: transmission.documentId,
+                contentHash: transmission.contentHash,
+              },
+            }) && transmission.caseId === String(record.caseId),
+      );
+      if (match === undefined) continue;
+      await runs.completeIntent(input.runId, key, "succeeded", input.now);
+      await this.#options.transmissions?.record({
+        runId: String(input.runId),
+        intentKey: String(key),
+        caseId: String(record.caseId),
+        disclosureId: match.disclosureId,
+        documentId: match.documentId,
+        contentHash: match.contentHash,
+        toHost: match.toHost,
+        institutionName: match.institutionName,
+        transmittedAt: new Date(match.transmittedAt),
+        now: input.now,
+      });
+    }
   }
 
   /**
@@ -5583,6 +5795,8 @@ function workPayloadFor(
     readonly plan: FillPlan | null;
     /** Which page to hand out, decided from the ledger by `#nextPage`. */
     readonly page: ApplicationBlueprint["pages"][number] | null;
+    /** The run's attachments as the preview resolves them (ADR-0069, P73). */
+    readonly attachments: readonly PreviewAttachment[];
   },
   fromBlueprint: string,
 ):
@@ -5590,6 +5804,8 @@ function workPayloadFor(
       readonly portalHost: string;
       readonly pageRef?: string;
       readonly pageVersion?: string;
+      /** The attachments on THIS page, one `attach_document` intent each. */
+      readonly attachments?: readonly PageAttachment[];
       readonly carries: Partial<
         Pick<ClaimedWork, "registration" | "login" | "plan" | "formUrl" | "advanceLocator">
       >;
@@ -5677,7 +5893,9 @@ function workPayloadFor(
         fieldRef: instruction.fieldRef,
         text: instruction.value.text,
       })),
+      attachments: pageAttachmentsOf(input.attachments, onThisPage),
     }).slice(page.pageRef.length + 1),
+    attachments: pageAttachmentsOf(input.attachments, onThisPage),
     carries: {
       plan: toWirePlan({ ...transported.plan, instructions, uploads }),
       formUrl: at,
