@@ -4279,3 +4279,40 @@ target's list before a request leaves the machine. The full answer is in the tar
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P79 — attached inspection: the tool reads a browser a person signed in to
+
+Vahid: *"Start step 2 now. I am not creating the account until your tool is ready to read."*
+
+The tool is ready to read. `PlaywrightAttachedInspection` attaches over CDP to a Chromium the
+person launched with a remote-debugging port and signed in to by hand, opens one tab in the context
+that holds their session, and reads with the same in-page script discovery uses. It has no `fill`,
+`click` or `submit`; the guard is discovery's — reads only, to the target's hosts — installed on
+the whole context for as long as the tool holds it, so the person's own tabs are read-only too and
+handed back on close. Navigation is a list of prefixes; a page that bounces to its login is
+recorded as the finding it is. Captures have input values and textarea bodies removed before they
+are written. `pnpm run inspect:attached <target> --cdp <endpoint> <url …>` writes what discovery
+writes, and `inspect-discovery` reads it unchanged.
+
+Six tests against the fixture portal's login, with the person and the tool kept apart in the code
+as they are on the day: only the person registers and signs in; only the tool reads. The gated page
+comes back through their session with nothing but GETs on the wire. A save the person attempts in
+their own tab while the tool is attached never leaves the machine and is recorded; the same save
+lands once the tool has closed. A second browser signed in to nothing is bounced to the register
+page, and the tool says so instead of drafting a blueprint of the wrong page. A Chromium redirect is
+followed below the route handler, so the landing URL is checked after the fact.
+
+Two records, as he asked. The loop A1 made is in ADR-0101 as a known consequence, in his words,
+and as the reason this mode exists. The interview's model being the deterministic stand-in in
+every path of the service — no code builds a Bedrock client anywhere the service runs — is in the
+checklist at areas 7 and 8 and on blocker 3, which is now *"you, then me"*.
+
+One choice made here and stated rather than buried: robots.txt is not applied in this mode. It is
+a person's own signed-in session and a named handful of pages, not a crawl; the pages behind a
+login are disallowed to every crawler on most portals, which is right for crawlers and would make
+this mode refuse the only pages it exists to read. The pacing floor is kept, and `run.json` says
+what was not applied and why.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

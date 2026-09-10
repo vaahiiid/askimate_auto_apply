@@ -180,6 +180,15 @@ What does not exist is the integration with AskiMate Chat itself
 ([ADR-0015](./decisions/0015-interview-is-a-capability-of-askimate-chat.md); state document blocker
 10). ADRs 0001–0002 describe it and are Accepted; it needs access to the production system, then me.
 
+**And the interview's model is the deterministic stand-in in every code path of the service.**
+Found 2026-09-10 (P79): `apps/conversation-service/src/wiring.ts` constructs
+`DeterministicModelClient` unconditionally. There is no code path in the service that builds a
+Bedrock client, with or without credentials; only the demonstration scripts and `verify-bedrock`
+do. So blocker 3 (credentials, then four model IDs) is necessary and not sufficient: the service
+also needs the adapter wired behind the port, which is mine. Vahid: *"It does not change this path,
+but it is a gap between what the system is and what I would have said it was."* Recorded here so
+the checklist says what the system is.
+
 ### 8 · Confirmed profile and document extraction — ✅ / 🟡
 
 Profile: proved. A model proposes, the student confirms, and only a confirmation produces a
@@ -188,9 +197,10 @@ Profile: proved. A model proposes, the student confirms, and only a confirmation
 Extraction: built and proved against fixtures. Any reading whose quoted span is not present in the
 document is **discarded**, at any confidence ([ADR-0016](./decisions/0016-extraction-must-quote-the-document.md)).
 
-🟡 Unproven against a real model, because of area 17. **Test extraction first** when Bedrock lands: a
-model that paraphrases its own quotations will fail every extraction, and it is the cheapest thing to
-check and the most likely to surprise.
+🟡 Unproven against a real model, because of area 17 — and because the service has no path to one:
+see area 7. **Test extraction first** when Bedrock lands: a model that paraphrases its own
+quotations will fail every extraction, and it is the cheapest thing to check and the most likely to
+surprise.
 
 ### 9 · Exact field mapping — ⛔
 
@@ -317,8 +327,8 @@ system**, which rules out the third option entirely.
 | 4 | Document requirements and secure disclosure | 🟡 built and proved on the fixture · ⛔ the vault's bucket |
 | 5 | Retention policy | 🟡 determined; no longer a stop |
 | 6 | Real Application Blueprint | ⛔ discovery |
-| 7 | Conversational interview | 🟡 in the service's own page · ❌ in AskiMate |
-| 8 | Confirmed profile and document extraction | ✅ / 🟡 needs a real model |
+| 7 | Conversational interview | 🟡 in the service's own page, on the deterministic stand-in · ❌ in AskiMate · ❌ no Bedrock path in the service |
+| 8 | Confirmed profile and document extraction | ✅ / 🟡 needs a real model, and the service wired to one |
 | 9 | Exact field mapping | ⛔ needs the blueprint |
 | 10 | Validation | ✅ |
 | 11 | Human recovery at the failure point | 🟡 notice and resolution built; identity asserted |

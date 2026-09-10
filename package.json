@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.95.0",
+  "version": "0.96.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -29,6 +29,7 @@
     "clean": "tsc --build --clean",
     "analyse-journey": "tsx scripts/analyse-journey.ts",
     "inspect": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-cli.ts",
+    "inspect:attached": "pnpm --filter @askimate/aas-browser-runner exec tsx src/inspect-attached-cli.ts",
     "verify:integration": "bash scripts/with-postgres.sh",
     "start:conversation": "tsx apps/conversation-service/src/bin.ts",
     "start:secure": "tsx apps/secure-service/src/bin.ts",

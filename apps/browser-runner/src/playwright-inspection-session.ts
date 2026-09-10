@@ -133,6 +133,7 @@ export class PlaywrightInspectionSession implements ReadOnlySession {
           reason:
             `Inspection refused to navigate to ${url}: it is not on this run's navigation ` +
             `allow-list. A page navigating itself somewhere is still a navigation.`,
+          rule: "navigation",
         });
         await route.abort("blockedbyclient");
         return;

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,409 tests, 127 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,417 tests, 128 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -125,6 +125,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P76** | The live-run record catches up with what was built | `docs/what-a-controlled-live-run-needs.md` — the document the README calls *"the remaining blockers"* — was dated 2026-08-26 and still said retention was a hard stop, the lawful basis unregistered, persistence in-memory, a `WorkKind` needed for attachments, the interview a terminal harness. Every one of the eighteen areas re-read against the code and the ADRs: two blockers off the list (ADR-0078, ADR-0087), three areas moved, the rest restated as *built and proved against the fixture, unproven on a real portal*, which is the truth. Blocker 9 here struck (done in P73). Vahid's items stay his — the target, the bucket, discovery, the models — with nothing restated that he has not typed |
 | **P77** | Deliberate regressions over the attachment path and the destination inside the yes | Eleven mutations, applied to disk and restored byte-for-byte: the transmission gate's case and host checks, the destination in the preview's hash and its deployment reading, the driver's one reading of the deployment, the runner's refusals before a byte is fetched, the wire's HTTPS rule, the settlement's case filter, the hand-over's hash comparison, the executor's gate call. **Ten caught**; making the preview ignore the deployment fails the whole journey, which is P74's defect on demand. **One not caught:** the hand-over's own hash comparison is a second reading of a fact the orchestrator's assessment already refused on, one step earlier; it can differ only in a race, and it is kept and labelled as exactly that. `docs/p77-regression-audit.md` |
 | **P78** | The Sheffield target file, the sourced facts, and the network answer | Vahid confirmed the target and gave six things its public pages state; each is recorded with its source URL and retrieval date, as stated by the institution and observed by nobody here. `targets/sheffield-pgt-2026-09.json` exists, parses, and has not been run; the course and the intake year are marked as his to supply rather than invented. The sibling form's *"an email will be sent containing your login details"* is recorded as `portal_issued` to be confirmed by observation, with what the code does with that answer today: creation without a secure step, and no routine sign-in built for a relayed credential (ADR-0101 built B as the resume path for `student_chosen`). The network question answered from the docs and the proxy: the environment's **Network access** level governs; Trusted's list carries `*.amazonaws.com` and not Sheffield; the narrowest widening is Custom with `sheffield.ac.uk`; Full buys nothing the runner's own host confinement does not already refuse |
+| **P79** | Attached inspection: the tool reads a browser a person signed in to | The loop A1 made — a reviewed blueprint of the form is a precondition of the account, and a blueprint of a form behind a login needs an account to see it — recorded in ADR-0101 as a known consequence in Vahid's words, and closed by a mode rather than a change to A1. `PlaywrightAttachedInspection` attaches over CDP to a Chromium a person launched and signed in to, opens one tab in their context, and reads: discovery's guard (GET, HEAD, OPTIONS to the target's hosts) on the whole context for as long as it holds it, so the person's own tabs are read-only too and given back on close; navigation allow-listed by prefix; a redirect to the login page recorded as a finding; captures scrubbed of input values. `pnpm run inspect:attached` writes what discovery writes, and `inspect-discovery` reads it. Proved against the fixture portal's login in six tests: the gated page read through the person's session with nothing but GETs; a POST from the person's own tab refused while attached and landing after; a browser signed in to nothing bounced and recorded. **Found:** the service constructs the deterministic model client in every path (blocker 3 amended, checklist areas 7 and 8). robots.txt not applied in this mode, stated in the run record |
 
 ---
 
@@ -450,7 +451,7 @@ open rather than quietly answered.
 |---|---|---|---|
 | **1** | **Real portal discovery** — a scoped, read-only run against the University of Sheffield's public PGT application pages (*"Sheffield target confirmed"*, Vahid, 2026-09-10; `targets/sheffield-pgt-2026-09.json`, not run) | You — the environment's network access is Trusted and refuses `sheffield.ac.uk`; the run needs Custom with that domain, or another machine | *Everything portal-facing.* Nothing downstream is real until this exists. The earlier target (Ulster Birmingham / QA HE): 103 discovery runs saw zero file inputs because the application is behind a login |
 | **2** | **Specialist review** of the blueprint, then a mapping set reviewed by a second person | You | Any real fill. `checkExecutable` refuses a draft; `checkUsable` refuses an unreviewed mapping set |
-| **3** | **Bedrock credentials**, then four model IDs | You | The interview, interpretation, extraction and navigation workloads. The adapter is built and idle |
+| **3** | **Bedrock credentials**, then four model IDs | You, then me | The interview, interpretation, extraction and navigation workloads. The adapter is built and idle — and **not wired**: `wiring.ts` constructs `DeterministicModelClient` in every path, so the service has no code that builds a Bedrock client with or without credentials (found P79). Credentials are necessary and not sufficient |
 | **4** | **An account** — QA HE sandbox, or a consenting applicant | You | The controlled live run |
 | **5** | ~~**B5 — hold or pass through**~~ | — | **Decided A — hold and reuse, 2026-09-07 (ADR-0078).** Documents are stored and reused; a student is never asked for the same document twice |
 | **6** | ~~**B1 — twelve retention determinations**~~ | — | **All twelve answered, 2026-09-07 (ADR-0078).** Eleven periods set in schedule `1.2026-09-07`; row 12 (`bank_statement`) stays unresolved and blocking by ADR-0021 |
@@ -476,12 +477,12 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,409 tests · 127 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,417 tests · 128 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
 
-**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the fifteen browser files one at a
+**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the sixteen browser files one at a
 time and everything else in parallel, because three or four browsers landing together on a four-CPU
 container starved pages past a twenty-second poll and failed two full runs in five — each on a
 different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7, peak load 5.13 →
@@ -489,7 +490,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,409 tests**, by the workspace they live in. Generated — run
+**2,417 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -498,8 +499,8 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 293 | `packages/profile` | 46 |
-| `apps/browser-runner` | 262 | `packages/catalogue` | 39 |
+| `scripts` | 295 | `packages/profile` | 46 |
+| `apps/browser-runner` | 268 | `packages/catalogue` | 39 |
 | `packages/case-store` | 145 | `packages/preparation` | 38 |
 | `packages/orchestrator` | 114 | `packages/extraction` | 27 |
 | `packages/documents` | 99 | `packages/mapping` | 26 |

@@ -60,9 +60,12 @@ interface Run {
 
 /** Runs a published script the way `pnpm run <name>` does. */
 function run(script: string, args: readonly string[] = [], env: NodeJS.ProcessEnv = {}): Run {
+  // A bare name is a script under `scripts/`; a path with a slash is taken
+  // from the root, for the one published command that lives in an app.
+  const entry = script.includes("/") ? join(ROOT, script) : join(ROOT, "scripts", script);
   const result = spawnSync(
     process.execPath,
-    ["--import", "tsx", join(ROOT, "scripts", script), ...args],
+    ["--import", "tsx", entry, ...args],
     {
       cwd: ROOT,
       encoding: "utf8",
@@ -172,6 +175,23 @@ describe("the published demonstrations", () => {
     });
   });
 
+  describe("inspect:attached", () => {
+    // P79. It attaches to a browser a person signed in to; with nothing to
+    // attach to it must say how to call it and stop, opening no browser.
+    const bare = run("apps/browser-runner/src/inspect-attached-cli.ts");
+    it("REFUSES without a target, an endpoint and pages, and says what it wants", () => {
+      expect(bare.code).not.toBe(0);
+      expect(bare.out).toContain("Usage:");
+      expect(bare.out).toContain("--cdp");
+      expect(bare.out).toContain("Start the browser first");
+    });
+    it("REFUSES a target with no endpoint, rather than guessing a port", () => {
+      const noEndpoint = run("apps/browser-runner/src/inspect-attached-cli.ts", ["sheffield", "https://example.test/x"]);
+      expect(noEndpoint.code).not.toBe(0);
+      expect(noEndpoint.out).toContain("Usage:");
+    });
+  });
+
   describe("inspect-discovery", () => {
     const bare = run("inspect-discovery.ts");
 
@@ -214,6 +234,7 @@ describe("the published demonstrations", () => {
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",
+      "inspect:attached",
     ];
 
     const unguarded = published.filter(

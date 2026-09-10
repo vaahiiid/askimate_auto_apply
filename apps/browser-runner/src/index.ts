@@ -27,6 +27,8 @@ export {
 } from "./safety.js";
 
 export { PlaywrightDiscoverySession } from "./playwright-session.js";
+export { PlaywrightAttachedInspection, scrubValues } from "./attached-inspection.js";
+export type { AttachedInspectionMode } from "./attached-inspection.js";
 
 export type { ClickDecision, PreparationNetworkPolicy } from "./preparation-safety.js";
 export {

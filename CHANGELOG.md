@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.96.0] — 2026-09-10
+
+**P79 — attached inspection: the tool reads a browser a person signed in to.**
+
+### Added
+
+- `apps/browser-runner/src/attached-inspection.ts` — `PlaywrightAttachedInspection`: a read-only
+  session that attaches over CDP to a browser a person launched and signed in to, installs
+  discovery's request guard on their context while attached, allow-lists navigation by prefix,
+  records a redirect to the login page as a refused navigation, scrubs input values and textarea
+  bodies from captures, and gives the browser back on close.
+- `pnpm run inspect:attached <target> --cdp <endpoint> <url …>` — writes captures, observations,
+  a draft blueprint and a `run.json` that `inspect-discovery` reads.
+- Six tests against the fixture portal's login (`attached-inspection.test.ts`, browser lane).
+- A `navigation` rule on `GuardDecision`, so a refused navigation is not counted as a write.
+- Runbook: how to start the browser, where the account may be created, and what to look at
+  before sending a run.
+
+### Changed
+
+- ADR-0101 carries the A1 loop as a known consequence, in Vahid's words.
+- The live-run checklist and the state document record that the service constructs the
+  deterministic model client in every code path; blocker 3 is "you, then me".
+
+---
+
 ## [0.95.0] — 2026-09-10
 
 **P78 — the Sheffield target file, the sourced facts, and the network answer.** Nothing run.

@@ -49,7 +49,7 @@ export interface GuardDecision {
    * about the portal, the third is a fact about our own compliance, and
    * merging them loses both.
    */
-  readonly rule?: "method" | "host" | "robots";
+  readonly rule?: "method" | "host" | "robots" | "navigation";
 }
 
 /**
@@ -117,7 +117,7 @@ export class BlockedRequestLog {
   }
 
   /** Refusals by which rule caused them. Three different findings. */
-  public byRule(rule: "method" | "host" | "robots"): readonly GuardDecision[] {
+  public byRule(rule: "method" | "host" | "robots" | "navigation"): readonly GuardDecision[] {
     return this.#blocked.filter((entry) => entry.rule === rule);
   }
 

@@ -248,6 +248,20 @@ accepted — and both are met by the real runner in a real browser.
 - ADR-0050's narrative *"an authorised run has typed nothing yet"* is still true, and now also:
   an authorised run has no account yet.
 
+> **Known consequence, recorded 2026-09-10 (P79).** A1 puts the yes before the account, and the
+> yes is over a preview rendered from a reviewed blueprint of the form. So a reviewed blueprint of
+> the form is a precondition of the system creating the account — and a blueprint of a form
+> behind a login needs an account to see it. Neither of us saw the loop when A1 was decided.
+> Vahid: *"The loop is a consequence of A1 and neither of us saw it. Moving the yes before account
+> creation was right and I would decide it the same way again, but it means a blueprint is a
+> precondition of the account that a blueprint needs an account to see. Record that as what it is:
+> a known consequence of a decision, not a defect, and the reason attached inspection exists."*
+> The way through is not the runner: a person creates the account and signs in by hand, and
+> **attached inspection** (`pnpm run inspect:attached`, `apps/browser-runner/src/attached-inspection.ts`)
+> reads the signed-in form read-only over CDP and writes the draft. The first blueprint of a form
+> behind a login is made that way; the account the runner creates comes after the review, as A1
+> requires.
+
 ## What was built in P69
 
 - `packages/orchestrator/src/run.ts` — the account asks after the authorisation; the refusals

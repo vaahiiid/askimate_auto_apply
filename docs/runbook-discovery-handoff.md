@@ -143,6 +143,73 @@ should make it impossible, but "should" is why the trace is recorded.
 
 ---
 
+## Attached inspection — reading a form behind a login
+
+Since P79. Discovery reads what an unauthenticated visitor sees. When the form is behind an
+account, **you** create the account and sign in, by hand, in a browser you start for the purpose,
+and the tool attaches to that browser and reads. It never signs in, types, clicks or submits, and
+it has no method that could. While it is attached, that browser cannot save or submit anything on
+the target's hosts either — every request that is not a plain read is refused and recorded — and
+it is yours again the moment the tool exits.
+
+### Start the browser like this, and not otherwise
+
+macOS, Google Chrome (Chromium is the same with its own path):
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-port=9222 \
+  --remote-debugging-address=127.0.0.1 \
+  --user-data-dir="$HOME/aas-inspection-profile" \
+  --no-first-run
+```
+
+Each flag is load-bearing:
+
+- `--remote-debugging-port=9222` is the door the tool attaches through. Any free port works; pass
+  the same one to the tool.
+- `--remote-debugging-address=127.0.0.1` keeps that door on this machine only. Anyone who can reach
+  that port can read that browser, so it must not be on a network interface.
+- `--user-data-dir=…` a **fresh, separate profile**. Chrome refuses remote debugging on your normal
+  profile, and the tool refuses a browser with more than one context, so this profile must be new
+  and used for nothing else. It will hold the portal's session cookie afterwards: delete the
+  directory when you are done.
+- `--no-first-run` skips the welcome flow so the first window is a usable one.
+
+Do not open other sites in that window while the tool runs. Do not close it until the tool has
+printed its output.
+
+### Where the account is created, and where the sign-in must be
+
+The account can be created anywhere — another browser, another device, whenever you choose. What
+must be in the browser above is the **signed-in session**: sign in there, in that window, and leave
+the form's first page open. The tool reads through that session's cookies and nothing else.
+
+### Run the tool
+
+In a checkout of this repository on the same machine, with `pnpm install` done:
+
+```bash
+pnpm run inspect:attached sheffield --cdp http://127.0.0.1:9222 \
+  "<url of Part 1>" "<url of Part 2>" "<url of the documents section>"
+```
+
+Pass the pages in the order you would read them, as URLs copied from the address bar once signed
+in. No crawl: it reads exactly those, at least two seconds apart, and it refuses any page not on
+that list. If a page bounces to the login page, the tool records that as a finding and says the
+session had ended; sign in again and re-run.
+
+### What it writes, and what to look at before sending it
+
+`inspection-runs/<run>/` — `pages/*.html` (input values and textarea bodies removed, the page
+itself untouched), screenshots, `blueprint.draft.json`, and a `run.json` that
+`pnpm run inspect-discovery` reads. **Look at `pages/*.html` first.** Values are scrubbed, but a
+signed-in page can still carry your name or email in its text, and the screenshots show whatever
+the page showed. Thirty seconds, then send the directory.
+
+`robots.txt` is not applied in this mode: it is your own session and a named handful of pages, not
+a crawl, and `run.json` records that choice. The pacing floor is kept.
+
 ## Running it against something else
 
 The target file is reviewable data, not code:

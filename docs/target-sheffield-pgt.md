@@ -43,6 +43,15 @@ parts, which the page walk (`#nextPage`) already models as pages with a `nextPag
 attachment path P73–P74 built, exercised for real; S4 is the submission boundary ADR-0014 stops
 before; S5 removes the payment handoff.
 
+## How the form will be read — attached inspection (P79)
+
+The form is behind an account, and a blueprint of it is a precondition of the runner creating one
+(ADR-0101 as amended in P79). So the first reading is made by a person: create the account, sign
+in in a browser started for the purpose, and run `pnpm run inspect:attached sheffield --cdp …`
+over the signed-in pages. Read-only, through their session, paced, values scrubbed from the
+captures. The exact browser flags and the order of things are in
+[the runbook](./runbook-discovery-handoff.md#attached-inspection--reading-a-form-behind-a-login).
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 Vahid, 2026-09-10: *"Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new
