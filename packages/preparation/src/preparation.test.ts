@@ -24,7 +24,7 @@ const STUDENT = studentId("student-1");
 
 const PASSPORT: PreviewDocument = {
   documentId: "doc-passport-1",
-  filename: "passport.pdf",
+  describedAs: "passport",
   contentHash: "sha256:aaaa",
 };
 
@@ -192,7 +192,7 @@ describe("the preview", () => {
   });
 
   it("names the documents that will be attached", () => {
-    expect(renderPreview(previewFor())).toContain("passport.pdf");
+    expect(renderPreview(previewFor())).toContain("Upload your passport: passport");
   });
 
   it("says what the student will do themselves", () => {
@@ -238,8 +238,8 @@ describe("the content hash", () => {
     expect(previewFor(planFor(corrected)).contentHash).not.toBe(original);
   });
 
-  it("changes when the SAME filename holds a different document", () => {
-    // "passport.pdf" replaced with a different passport is a change to what is
+  it("changes when the SAME name holds a different document", () => {
+    // "passport" replaced with a different passport is a change to what is
     // being submitted. A name-based hash would not notice.
     const replaced = new Map<string, PreviewDocument>([
       ["passport", { ...PASSPORT, contentHash: "sha256:bbbb" }],

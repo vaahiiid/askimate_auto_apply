@@ -53,7 +53,7 @@ const model = new DeterministicModelClient();
 
 const PASSPORT: PreviewDocument = {
   documentId: "doc-passport-1",
-  filename: "passport.pdf",
+  describedAs: "passport",
   contentHash: "sha256:aaaa",
 };
 

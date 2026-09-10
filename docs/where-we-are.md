@@ -3828,3 +3828,24 @@ you were given, on a clock a policy started, and `purgeContents` still has no ca
 **Six, unchanged.**
 
 ---
+
+# P64 — the preview names what the student holds (ADR-0097)
+
+The first slice of the attachment path, after measuring where it is cut. The driver used to hand the
+preview an empty document map, so a mapping that attaches a passport stopped every run before you
+were asked — whether or not the student held one. It now reads the vault's metadata, picks the
+current document per type, and the preview names it: "Upload your passport: passport". The
+authorisation then binds to a hash that covers the attachment, which is what your determination 3
+says the authorisation instrument is.
+
+Nothing is sent. The plan still cannot cross to the runner with uploads in it, and the transmission
+gate is untouched. Slice b — the four ADR-0022 things in the presented text, per attachment — is
+where I want your word first: whether one yes over a preview naming every attachment is the
+"specific" authorisation you meant. I have read your determination as pointing at the preview and
+written that reading down without acting on it.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**
+
+---

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,320 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,322 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -109,6 +109,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P61** | Document metadata is durable, and the transport starts in production (ADR-0094) | Migration 0017: `document_intakes` and `documents`, with **no column that could hold a byte** (asserted on the SQL and on `information_schema` at startup). `PostgresDocumentIntakePort.take` is one `DELETE … RETURNING` (three racing takes, one wins) and **re-runs the gates** against the schedule in force. The S3 vault's metadata sits behind a record store; the one durability check tells three in-memory cases apart. The entry point builds the transport from `AAS_DOCUMENTS_BUCKET`, `AAS_DOCUMENTS_KMS_KEY_ARN` (an ARN, checked) and `AAS_RETENTION_SCHEDULE_DIR` — all or none — loading the governing schedule through the parser moved into the domain package. Startup test: the real process starts with `documents=s3`. Nothing sent to AWS. **Not built:** the client's upload control, the retention sweep, the runner's fetch |
 | **P62** | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes (ADR-0095) | The page has a document panel: type from the server's list, file, and the page hashes the file (the ONE hash it computes, stated in its header as the exception ADR-0092 forces), declares, PUTs the bytes to the bucket on the URL the declaration answered with, confirms, and re-reads `GET …/documents`. The purpose is derived by the server from the governing schedule — the page never sends one. The browser test stands a real HTTPS bucket on a second origin that admits **exactly the CORS rule parsed out of `docs/provisioning-request-document-vault.md`**, so the page's PUT is proved against the rule as written, with a real preflight. The three transport codes moved to `REFUSALS`. **Found, not resolved:** the gates' `detail` is on the wire and the contract says no `detail` exists (blocker 18). **Not built:** the retention sweep, the runner's fetch, a document the interview asks for |
 | **P63** | Expired document intakes are swept by the worker (ADR-0096) | The worker's fourth job, `sweep_document_intakes`: migration 0018 widens the closed `job_kind` vocabulary; `sweepExpiredIntakes` is one bounded DELETE, oldest first, idempotent; sixty seconds under the same lease discipline as the other three, `AAS_WORKER_SWEEP_MS` to change it. The worker still names no vault — the table it deletes from cannot hold a byte, and the worker's test writes its abandoned rows by hand because the app is forbidden the documents package. The race with `take` is shown not to be one. **Not built:** the retention sweep (`purgeContents` still has no caller), the runner's fetch |
+| **P64** | The preview names what the student holds (ADR-0097) | Slice a of the attachment path (§2). `RunDriver` hands the orchestrator the student's held documents from the vault's METADATA store, keyed by document type — one per type, the current one, never a superseded or purged record — so a run whose student holds the passport the mapping attaches reaches `authorise` with it named in the preview, and the authorisation binds to a hash that covers `(fieldRef, documentRef, contentHash)` (ADR-0069). `PreviewDocument.filename` → `describedAs`. The driver names no vault method that yields bytes, asserted. **Not built:** slices b–e; nothing is sent |
 
 ---
 
@@ -287,6 +288,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0094 | Document metadata is durable, and the transport starts in production | Accepted · continues 0093 |
 | 0095 | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes | Accepted · continues 0094 and 0092 |
 | 0096 | Expired document intakes are swept by the worker | Accepted · continues 0094, extends 0052 |
+| 0097 | The preview names what the student holds | Accepted · continues 0095 and 0096 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -449,7 +451,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,320 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,322 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -462,14 +464,14 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,320 tests**, by the workspace they live in. Generated — run
+**2,322 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 391 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 393 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 287 | `packages/profile` | 46 |
 | `apps/browser-runner` | 237 | `packages/catalogue` | 39 |
@@ -587,7 +589,7 @@ The order is forced by the dependencies, and it goes through the transmission ga
 
 | Slice | What | Gate it keeps |
 |---|---|---|
-| **a** | The driver supplies the student's held documents to the preview, keyed by the reviewed mapping's `documentRef` (the domain document type). The preview then names each attachment, and the `authorise` decision covers `(fieldRef, documentRef, contentHash)` as ADR-0069 froze it | ADR-0057/0059 — the authorisation binds to content |
+| **a** ✅ | **Built in P64 (ADR-0097).** The driver supplies the student's held documents to the preview, keyed by the reviewed mapping's `documentRef` (the domain document type). The preview then names each attachment, and the `authorise` decision covers `(fieldRef, documentRef, contentHash)` as ADR-0069 froze it | ADR-0057/0059 — the authorisation binds to content |
 | **b** | The preview's presented text carries, per attachment, the four things ADR-0022 requires (what, where, why, which application — `renderDisclosureRequest`'s lines), so the recorded `AuthorisationCaptured` IS the specific student authorisation determination 3 requires. `StudentDisclosureAuthorisation` is built from that event: `presentedText` = the preview, `method` = `chat_affirmation` | ADR-0022 — no `consented: boolean`; the text names all four |
 | **c** | Plan transport carries uploads as **references** (`fieldRef`, `documentRef`, locators; no bytes, no ids). The runner asks the service, under its lease, for each `documentRef`; the service builds the `DisclosureRequestRecord` from the case's authorisation, runs `authoriseDisclosure` and `mayTransmit` **with the case**, and answers a sixty-second retrieval URL plus the authorisation record | ADR-0069 — the case binding, checked server-side before any URL exists |
 | **d** | The runner's `DocumentSource` fetches the bytes from the URL and hands `executePlan` the `AuthorisedDocument`; `executePlan` runs `mayTransmit` again in-process — the gate twice, on two machines, same inputs | ADR-0022 — the gate at the moment of sending |

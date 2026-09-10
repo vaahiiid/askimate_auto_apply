@@ -214,6 +214,10 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     ...(wiring.identities === undefined ? {} : { identities: wiring.identities }),
     leases: new WorkLeaseStore(wiring.pool),
     interventions: new PostgresInterventionStore(wiring.pool),
+    // ADR-0097: the preview names what the student holds. The METADATA
+    // store, in every deployment that has the table — the service and the
+    // worker build the same driver, so both name the same documents.
+    heldDocuments: new PostgresDocumentRecordStore(wiring.pool),
     now: wiring.now,
   });
 }

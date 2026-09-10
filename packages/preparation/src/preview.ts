@@ -39,7 +39,15 @@ import type { ProfileFieldKey } from "@askimate/aas-profile";
 /** A document as it will be attached. */
 export interface PreviewDocument {
   readonly documentId: string;
-  readonly filename: string;
+  /**
+   * How the student will see it named in the preview.
+   *
+   * Was `filename` until P64. The vault records no filename — the page never
+   * sends one, and a name the student typed is free text this system has no
+   * use for — so what is shown is the document TYPE the reviewed mapping
+   * named ("passport"), which is also what they were told they were sending.
+   */
+  readonly describedAs: string;
   /** SHA-256 of the bytes. What makes "the same passport" checkable. */
   readonly contentHash: string;
 }
@@ -400,7 +408,7 @@ export function renderPreview(preview: SubmissionPreview): string {
   if (preview.attachments.length > 0) {
     lines.push("", "Documents attached:");
     for (const attachment of preview.attachments) {
-      lines.push(`  ${attachment.label}: ${attachment.document.filename}`);
+      lines.push(`  ${attachment.label}: ${attachment.document.describedAs}`);
     }
   }
 

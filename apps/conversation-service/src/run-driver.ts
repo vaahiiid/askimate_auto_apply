@@ -120,6 +120,7 @@ import { createHash } from "node:crypto";
 
 import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, toStoredPlan } from "@askimate/aas-mapping";
+import type { DocumentRecord } from "@askimate/aas-documents";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
@@ -849,6 +850,40 @@ export type DecisionRefusalReason =
    */
   | "held_for_specialist";
 
+/** The one question the driver asks the vault's metadata: what does this student hold? */
+export interface HeldDocuments {
+  listForStudent(studentId: string): Promise<readonly DocumentRecord[]>;
+}
+
+/**
+ * The preview's document map, from what the student holds.
+ *
+ * Keyed by document TYPE, because that is what a reviewed mapping's
+ * `documentRef` names (ADR-0069: "what a reviewer decided AskiMate calls the
+ * document"). One document per type: the latest usable one, where usable is a
+ * record that is neither purged nor superseded. A superseded passport is one
+ * the student replaced, and attaching it would be sending the document they
+ * withdrew.
+ */
+export function previewDocumentsOf(
+  held: readonly DocumentRecord[],
+): Map<string, { readonly documentId: string; readonly describedAs: string; readonly contentHash: string }> {
+  const usable = held.filter((r) => r.state !== "purged" && r.state !== "superseded" && r.supersededBy === undefined);
+  const byType = new Map<string, DocumentRecord>();
+  for (const record of usable) {
+    const current = byType.get(record.documentType);
+    if (current === undefined || record.uploadedAt.getTime() > current.uploadedAt.getTime()) {
+      byType.set(record.documentType, record);
+    }
+  }
+  return new Map(
+    [...byType].map(([type, record]) => [
+      type,
+      { documentId: record.documentId, describedAs: type, contentHash: record.contentHash },
+    ]),
+  );
+}
+
 export interface RunDriverOptions {
   readonly stores: DurableStores;
   readonly bindings: ApplicationBindingStore;
@@ -909,6 +944,17 @@ export interface RunDriverOptions {
    * did before P10.
    */
   readonly interventions?: InterventionStore;
+  /**
+   * What the student holds in the vault, by type. ADR-0097 (P64).
+   *
+   * The preview names every attachment and the authorisation binds to it
+   * (ADR-0057, ADR-0069), so the documents it names must be the ones the
+   * student actually holds: this is read at every plan, never remembered.
+   * OPTIONAL, and absent means the student holds nothing — a plan that
+   * attaches a document then stops at `document_missing`, exactly as every
+   * run did before P64. The metadata store only; no byte is read here.
+   */
+  readonly heldDocuments?: HeldDocuments;
   /**
    * Where a stopped run is announced to a PERSON who can unstick it (ADR-0071).
    *
@@ -1709,7 +1755,13 @@ export class RunDriver {
           studentRef: input.studentRef,
           blueprint: input.entry.blueprint,
           mappingSet: input.entry.mappingSet,
-          documents: new Map(),
+          // What the student holds, named in the preview they authorise
+          // (ADR-0097). Read now, from the metadata store, and never kept.
+          documents: previewDocumentsOf(
+            this.#options.heldDocuments === undefined
+              ? []
+              : await this.#options.heldDocuments.listForStudent(input.studentRef),
+          ),
           ...(input.entry.portalAuthentication === undefined
             ? {}
             : { portalAuthentication: input.entry.portalAuthentication }),

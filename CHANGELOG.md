@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.81.0] — 2026-09-10
+
+**P64 — the preview names what the student holds (ADR-0097).** Slice a of the attachment path.
+
+### Added
+
+- `RunDriverOptions.heldDocuments` and `previewDocumentsOf` — the driver builds the preview's
+  document map from the vault's metadata store, keyed by document type: one per type, the current
+  one, never a superseded or purged record. Wired in `buildRunDriver`, so the service and the worker
+  name the same documents.
+- The state document's §2 replaced with the measured attachment path: five cuts in the code, the
+  five slices that close them in dependency order, and the gate each keeps.
+- Tests: a run whose student holds a passport reaches `authorise` with it named in the preview
+  (Postgres); the current-not-superseded choice (pure); the measurement test that asserted the
+  empty map now asserts the driver names no vault method that yields bytes.
+
+### Changed
+
+- `PreviewDocument.filename` → `describedAs`. The vault records no filename; the preview names the
+  document type the reviewed mapping named.
+
+### Not built
+
+Slices b–e. Nothing is sent: `toStoredPlan` still refuses uploads and `mayTransmit` is untouched.
+Slice b waits for Vahid's word on whether one `authorise` over a preview naming every attachment is
+the specific authorisation determination 3 means.
+
+---
+
 ## [0.80.0] — 2026-09-10
 
 **P63 — expired document intakes are swept by the worker (ADR-0096).**

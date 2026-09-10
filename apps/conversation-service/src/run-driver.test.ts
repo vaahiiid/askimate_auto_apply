@@ -101,6 +101,8 @@ import { buildPreview } from "@askimate/aas-preparation";
 import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
+import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import { previewDocumentsOf } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -360,6 +362,10 @@ function buildInstance(
     // run that stops silently and a run that stops and says so must not be
     // indistinguishable in the tests either.
     interventions: new PostgresInterventionStore(instancePool),
+    // ADR-0097: the preview names what the student holds, from the metadata
+    // store. Present in every instance so "holds nothing" is a table with no
+    // rows, not a driver built without the question.
+    heldDocuments: new PostgresDocumentRecordStore(instancePool),
     ...(notifier === null ? {} : { notifier }),
     newInterventionId: (runId, key) =>
       `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
@@ -7394,6 +7400,154 @@ const UNOBSERVED_CATALOGUE: TestCatalogue = {
     Promise.resolve(id === GATED_BLUEPRINT ? UNOBSERVED_ENTRY : null),
 };
 
+describeIfDatabase("the preview names what the student holds (ADR-0097, P64)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Slice a of the attachment path. The group below proves a run STOPS when
+  // the application attaches a document the student has not supplied. This
+  // one proves the other half: when they hold one, the run reaches the
+  // authorisation with the document NAMED in the preview — the preview whose
+  // content hash the authorisation binds to (ADR-0057, ADR-0069), and which
+  // determination 3 registers as the authorisation instrument (ADR-0087).
+  //
+  // The document is a METADATA row. No byte exists anywhere in this test,
+  // which is the point: naming what will be sent needs the record, not the
+  // scan, and the driver reads only the record.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPSPC064";
+  const PASSPORT_HASH = "c".repeat(64);
+  let student = "";
+  let runId = "";
+
+  beforeAll(async () => {
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p64-holds', true) RETURNING id",
+    );
+    student = created.rows[0]!.id;
+    await pool.query("INSERT INTO conversations (id, student_id) VALUES ($1, $2)", [conversation, student]);
+    const records = new PostgresDocumentRecordStore(pool);
+    // The current passport, and the older one it replaced: the preview must
+    // name the CURRENT one, and never the superseded. (The replacement is
+    // written first because `superseded_by` is a foreign key to it.)
+    await records.insert(
+      {
+        documentId: "01JQP64NEW000000000000000A",
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: PASSPORT_HASH,
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      `documents/${student}/new`,
+    );
+    await records.insert(
+      {
+        documentId: "01JQP64OLD000000000000000A",
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "superseded",
+        contentHash: "b".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-01T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+        supersededBy: "01JQP64NEW000000000000000A",
+      },
+      `documents/${student}/old`,
+    );
+  });
+
+  it("reaches the authorisation, with the held passport named in the preview", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), student);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      // Not `specialist`: the document the plan attaches is held, so the
+      // preview builds and the run stops where a person must say yes.
+      expect(started.position.step).toBe("authorise");
+
+      const preview = await instance.driver.previewFor(runId, conversation);
+      if (preview === null) expect.unreachable("a preview exists at authorise");
+      expect(preview.presentedText).toContain("Documents attached:");
+      expect(preview.presentedText).toContain("Upload your passport: passport");
+      // The record, not a filename nobody has: no ".pdf" and no path.
+      expect(preview.presentedText).not.toMatch(/\.pdf|documents\//);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("binds the authorisation to the CURRENT document, not the superseded one", () => {
+    // The pure half, so the choice is checked without a database: latest
+    // usable per type; superseded and purged never chosen.
+    const chosen = previewDocumentsOf([
+      {
+        documentId: "01JQP64OLD000000000000000A",
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "superseded",
+        contentHash: "b".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-01T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+        supersededBy: "01JQP64NEW000000000000000A",
+      },
+      {
+        documentId: "01JQP64NEW000000000000000A",
+        studentId: student,
+        documentType: "passport",
+        purpose: "identity_verification",
+        state: "uploaded",
+        contentHash: PASSPORT_HASH,
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-02T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-01",
+        retentionTriggeredAt: null,
+      },
+      {
+        documentId: "01JQP64PURGED0000000000000A",
+        studentId: student,
+        documentType: "academic_transcript",
+        purpose: "application_submission",
+        state: "purged",
+        contentHash: "d".repeat(64),
+        contentType: "application/pdf",
+        sizeBytes: 10,
+        uploadedAt: new Date("2026-09-03T00:00:00Z"),
+        dates: {},
+        retentionPolicyReference: "AAS-RET-B1-06",
+        retentionTriggeredAt: null,
+      },
+    ]);
+    expect([...chosen.keys()]).toEqual(["passport"]);
+    expect(chosen.get("passport")).toEqual({
+      documentId: "01JQP64NEW000000000000000A",
+      describedAs: "passport",
+      contentHash: PASSPORT_HASH,
+    });
+  });
+});
+
 describeIfDatabase("a run only a person can carry on", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // What this group is here to stop happening again.
@@ -7963,10 +8117,13 @@ describeIfDatabase("a run only a person can carry on", () => {
       stop.slice(0, 2400),
       "and the orchestrator's reason is carried, not interpreted",
     ).toContain("target: `specialist:${handover.reason}`");
-    // Nothing in the driver reads or writes document CONTENT. `documents` is
-    // the empty map the run is built with, and this is the assertion that
-    // fails if a later change quietly fills it.
-    expect(source).toContain("documents: new Map()");
+    // Nothing in the driver reads or writes document CONTENT. Since P64
+    // (ADR-0097) `documents` is built from the vault's METADATA — the records
+    // the student holds, so the preview can name them — and this is the
+    // assertion that fails if a later change reaches for bytes: the driver
+    // names no vault method that yields or takes contents.
+    expect(source).toContain("documents: previewDocumentsOf(");
+    expect(source).not.toMatch(/prepareRetrieval|prepareUpload|confirmUpload|receiveUpload|\.attach\(/);
   }, 60_000);
 });
 
