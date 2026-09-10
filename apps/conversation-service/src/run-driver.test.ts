@@ -589,10 +589,16 @@ async function captureAuthorisation(
   const existing = await cases.read(caseRef);
   const usable = checkUsable(entry.mappingSet, entry.blueprint);
   if (!usable.usable) expect.unreachable("the mapping set should be reviewed");
-  const profile = await new PostgresConfirmedProfileStore(instancePool).load(
-    ownerOf(conversation),
-    NOW,
+  // The owner from the table, not from `ownerOf`: since P69 this runs for
+  // every gated start (`pastTheYes`), including conversations a group seeded
+  // by its own INSERT rather than through `ownConversation`.
+  const owned = await instancePool.query<{ student_id: string }>(
+    "SELECT student_id FROM conversations WHERE id = $1",
+    [conversation],
   );
+  const owner = owned.rows[0]?.student_id;
+  if (owner === undefined) expect.unreachable(`no conversation ${conversation}`);
+  const profile = await new PostgresConfirmedProfileStore(instancePool).load(owner, NOW);
   const preview = buildPreview(
     entry.blueprint,
     planFill(entry.blueprint, usable.mappingSet, profile),
@@ -608,7 +614,7 @@ async function captureAuthorisation(
       occurredAt: NOW,
       actor: {
         kind: "student",
-        externalRef: externalRef(`student:${ownerOf(conversation)}`),
+        externalRef: externalRef(`student:${owner}`),
       },
       type: "AuthorisationCaptured",
       contentHash: preview.preview.contentHash,
@@ -616,6 +622,31 @@ async function captureAuthorisation(
       authorisedAt: NOW,
     },
   ]);
+}
+
+/**
+ * Starts a gated run and takes it past the student's yes (ADR-0101).
+ *
+ * Since P69 a gated run's first stop is the authorisation, not the password
+ * box: *"today we ask a student for their university password for an account
+ * they have not yet agreed to have created."* The groups below are about
+ * what follows the yes — the password box, the account, the work — so the
+ * yes is captured the way `captureAuthorisation` captures it and the run is
+ * advanced once. A start that stops anywhere else, or refuses, is returned
+ * as it is, so the tests about those stops still see them.
+ */
+async function pastTheYes(
+  instance: { readonly driver: RunDriver; readonly pool: pg.Pool },
+  conversationId: string,
+): Promise<Awaited<ReturnType<RunDriver["advance"]>>> {
+  const started = await instance.driver.start({
+    conversationId,
+    blueprintId: GATED_BLUEPRINT,
+    studentStatement: STATEMENT,
+  });
+  if (!started.ok || started.position.step !== "authorise") return started;
+  await captureAuthorisation(instance.pool, conversationId, GATED_ENTRY);
+  return await instance.driver.advance({ runId: started.position.runId, conversationId });
 }
 
 /**
@@ -1471,11 +1502,7 @@ describeIfDatabase(
       const first = buildInstance(connectionString(), opener());
       let before: string;
       try {
-        const started = await first.driver.start({
-          conversationId: conversation,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const started = await pastTheYes(first, conversation);
         if (!started.ok)
           expect.unreachable(`start refused: ${started.refusal.kind}`);
         // Nothing is confirmed yet, so the orchestrator wants the interview.
@@ -1510,9 +1537,17 @@ describeIfDatabase(
         ).not.toBe("interviewing");
         expect(resumed.position.runId).toBe(before);
 
-        // The gated portal needs an account, so this is where it goes next.
-        expect(resumed.position.phase).toBe("awaiting_secret");
-        expect(resumed.position.step).toBe("request_secret");
+        // The yes first (ADR-0101); then the gated portal needs an account.
+        expect(resumed.position.phase).toBe("awaiting_authorisation");
+        expect(resumed.position.step).toBe("authorise");
+        await captureAuthorisation(second.pool, conversation, GATED_ENTRY);
+        const asked = await second.driver.advance({
+          runId: before,
+          conversationId: conversation,
+        });
+        if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+        expect(asked.position.phase).toBe("awaiting_secret");
+        expect(asked.position.step).toBe("request_secret");
       } finally {
         await second.pool.end();
       }
@@ -1619,11 +1654,7 @@ describeIfDatabase(
     ): Promise<{ runId: string }> {
       const instance = buildInstance(connectionString(), secure);
       try {
-        const started = await instance.driver.start({
-          conversationId: conversation,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const started = await pastTheYes(instance, conversation);
         if (!started.ok)
           expect.unreachable(`start refused: ${started.refusal.kind}`);
         return { runId: started.position.runId };
@@ -1659,11 +1690,13 @@ describeIfDatabase(
         `SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal`,
         [conversation],
       );
-      expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+      // The announcement of the authorisation (P22) comes first since the yes
+      // does (ADR-0101); the secure request follows it.
+      expect(events.rows.map((row) => row.kind)).toEqual(["message", "secret_requested"]);
       // The id in the log is the one the Secure Plane minted, not one this plane
       // invented: a request the secure service has never heard of would settle
       // nothing, and the composer would stay locked forever.
-      expect(events.rows[0]?.request_id).toBe(`sr_${"0".repeat(31)}1`);
+      expect(events.rows[1]?.request_id).toBe(`sr_${"0".repeat(31)}1`);
     }, 120_000);
 
     it("mints the frame capability through the SAME port that opened the request", async () => {
@@ -1735,11 +1768,14 @@ describeIfDatabase(
       // The contract stores the title and explanation on the secure origin and
       // does not return them, so this plane has nothing to hold. Asserted against
       // the database rather than against the shape of a type.
+      // The one body that IS in this log is the authorise announcement
+      // (ADR-0101 put the yes first), and it says nothing about a password.
       const bodies = await pool.query<{ n: string }>(
         `SELECT count(*) AS n
          FROM conversation_events e
          LEFT JOIN message_bodies mb ON mb.id = e.body_id
-        WHERE e.conversation_id = $1 AND mb.content IS NOT NULL`,
+        WHERE e.conversation_id = $1 AND mb.content IS NOT NULL
+          AND mb.content ILIKE '%password%'`,
         [conversation],
       );
       expect(Number(bodies.rows[0]!.n)).toBe(0);
@@ -1767,11 +1803,7 @@ describeIfDatabase(
       const secure = opener();
       const instance = buildInstance(connectionString(), secure);
       try {
-        const again = await instance.driver.start({
-          conversationId: conversation,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const again = await pastTheYes(instance, conversation);
         if (!again.ok)
           expect.unreachable(`resume refused: ${again.refusal.kind}`);
         expect(again.position.step).toBe("request_secret");
@@ -1787,7 +1819,7 @@ describeIfDatabase(
         `SELECT kind FROM conversation_events WHERE conversation_id = $1`,
         [conversation],
       );
-      expect(events.rows.map((row) => row.kind)).toEqual(["secret_requested"]);
+      expect(events.rows.map((row) => row.kind)).toEqual(["message", "secret_requested"]);
     }, 120_000);
 
     it("opens ONE request when two starts race for the same conversation", async () => {
@@ -1801,19 +1833,21 @@ describeIfDatabase(
       const a = buildInstance(connectionString(), shared);
       const b = buildInstance(connectionString(), shared);
       try {
+        // The yes first (ADR-0101): one start, one authorisation — and then
+        // two ADVANCES race for the secure step, which is where the request
+        // is opened now.
+        const started = await a.driver.start({
+          conversationId: racing,
+          blueprintId: GATED_BLUEPRINT,
+          studentStatement: STATEMENT,
+        });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        await captureAuthorisation(a.pool, racing, GATED_ENTRY);
         const [first, second] = await Promise.all([
-          a.driver.start({
-            conversationId: racing,
-            blueprintId: GATED_BLUEPRINT,
-            studentStatement: STATEMENT,
-          }),
-          b.driver.start({
-            conversationId: racing,
-            blueprintId: GATED_BLUEPRINT,
-            studentStatement: STATEMENT,
-          }),
+          a.driver.advance({ runId: started.position.runId, conversationId: racing }),
+          b.driver.advance({ runId: started.position.runId, conversationId: racing }),
         ]);
-        expect(first.ok && second.ok, "both starts should succeed").toBe(true);
+        expect(first.ok && second.ok, "both advances should succeed").toBe(true);
         expect(
           shared.opens,
           "a student must be asked for a password once",
@@ -1824,6 +1858,7 @@ describeIfDatabase(
           [racing],
         );
         expect(events.rows.map((row) => row.kind)).toEqual([
+          "message",
           "secret_requested",
         ]);
       } finally {
@@ -1845,10 +1880,24 @@ describeIfDatabase(
       await readyConversation(other);
       const instance = buildInstance(connectionString(), null);
       try {
-        const outcome = await instance.driver.start({
+        // The yes first (ADR-0101), by hand, so the count below is taken
+        // AFTER the walk to the authorisation and BEFORE the refused step.
+        const started = await instance.driver.start({
           conversationId: other,
           blueprintId: GATED_BLUEPRINT,
           studentStatement: STATEMENT,
+        });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        expect(started.position.step).toBe("authorise");
+        await captureAuthorisation(instance.pool, other, GATED_ENTRY);
+        const movedBefore = await pool.query<{ n: string }>(
+          `SELECT count(*) AS n FROM case_events
+          WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
+          [`case_${other.toLowerCase()}`],
+        );
+        const outcome = await instance.driver.advance({
+          runId: started.position.runId,
+          conversationId: other,
         });
         expect(outcome).toEqual({
           ok: false,
@@ -1865,7 +1914,7 @@ describeIfDatabase(
           [`case_${other.toLowerCase()}`],
         );
         expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe(
-          "0",
+          movedBefore.rows[0]?.n,
         );
       } finally {
         await instance.pool.end();
@@ -1902,10 +1951,24 @@ describeIfDatabase(
       const instance = buildInstance(connectionString(), secure);
       try {
         await setVerified(owner, false);
-        const outcome = await instance.driver.start({
+        // The yes first (ADR-0101), by hand, so the count below is taken
+        // AFTER the walk to the authorisation and BEFORE the refused step.
+        const started = await instance.driver.start({
           conversationId: unverified,
           blueprintId: GATED_BLUEPRINT,
           studentStatement: STATEMENT,
+        });
+        if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+        expect(started.position.step).toBe("authorise");
+        await captureAuthorisation(instance.pool, unverified, GATED_ENTRY);
+        const movedBefore = await pool.query<{ n: string }>(
+          `SELECT count(*) AS n FROM case_events
+          WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'`,
+          [`case_${unverified.toLowerCase()}`],
+        );
+        const outcome = await instance.driver.advance({
+          runId: started.position.runId,
+          conversationId: unverified,
         });
         expect(outcome).toEqual({
           ok: false,
@@ -1920,7 +1983,7 @@ describeIfDatabase(
         // a log about a password nobody was asked for.
         expect(secure.opens, "the Secure Plane is never asked").toHaveLength(0);
         const events = await pool.query(
-          "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+          "SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested'",
           [unverified],
         );
         expect(
@@ -1933,7 +1996,7 @@ describeIfDatabase(
           [`case_${unverified.toLowerCase()}`],
         );
         expect(moved.rows[0]?.n, "a refused run has not moved its case").toBe(
-          "0",
+          movedBefore.rows[0]?.n,
         );
       } finally {
         await setVerified(owner, true);
@@ -1951,11 +2014,7 @@ describeIfDatabase(
       const instance = buildInstance(connectionString(), secure);
       try {
         await setVerified(owner, true);
-        const outcome = await instance.driver.start({
-          conversationId: verified,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const outcome = await pastTheYes(instance, verified);
         if (!outcome.ok) expect.unreachable(`refused: ${outcome.refusal.kind}`);
         expect(outcome.position.step).toBe("request_secret");
         expect(secure.opens, "a verified student, asked").toHaveLength(1);
@@ -1982,11 +2041,7 @@ describeIfDatabase(
       });
       try {
         await setVerified(owner, true);
-        const outcome = await instance.driver.start({
-          conversationId: unknown,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const outcome = await pastTheYes(instance, unknown);
         expect(outcome).toEqual({
           ok: false,
           refusal: { kind: "email_not_verified" },
@@ -2016,11 +2071,7 @@ describeIfDatabase(
       );
       try {
         await setVerified(owner, true);
-        const outcome = await instance.driver.start({
-          conversationId: unwired,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const outcome = await pastTheYes(instance, unwired);
         // Verified in the database, and still refused: the store the guard reads
         // is not there, and the guard does not fall open.
         expect(outcome).toEqual({
@@ -2042,18 +2093,14 @@ describeIfDatabase(
       await readyConversation(another);
       const instance = buildInstance(connectionString(), refusing);
       try {
-        const outcome = await instance.driver.start({
-          conversationId: another,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const outcome = await pastTheYes(instance, another);
         expect(outcome).toEqual({
           ok: false,
           refusal: { kind: "secure_plane_unavailable" },
         });
         // And nothing was written to the log for a request that does not exist.
         const events = await pool.query(
-          "SELECT 1 FROM conversation_events WHERE conversation_id = $1",
+          "SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested'",
           [another],
         );
         expect(events.rowCount).toBe(0);
@@ -2135,11 +2182,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(conversation),
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step).toBe("request_secret");
@@ -2573,15 +2616,16 @@ describeIfDatabase("leasing browser work to a runner", () => {
       ).not.toBe("create_account");
       expect(advanced.position.phase).not.toBe("creating_account");
 
-      // And there is no work to claim, because there is nothing left to do in a
-      // browser — which is the same fact, read through the other door.
+      // And no CREATION is offered as work — the same fact, read through the
+      // other door. Since ADR-0101 the yes precedes the account, so what a
+      // runner finds here is the fill, never a second account.
       await pool.query("DELETE FROM work_leases");
-      expect(
-        await instance.driver.claimWork({
-          holder: "runner-again",
-          leaseSeconds: 120,
-        }),
-      ).toBeNull();
+      const again = await instance.driver.claimWork({
+        holder: "runner-again",
+        leaseSeconds: 120,
+      });
+      expect(again?.kind, "no second creation").not.toBe("create_account");
+      await pool.query("DELETE FROM work_leases");
     } finally {
       await instance.pool.end();
     }
@@ -2816,11 +2860,7 @@ describeIfDatabase("leasing browser work to a runner", () => {
     const instance = buildInstance(connectionString(), secure);
     try {
       // This student has confirmed nothing, so `nextStep` says `interview`.
-      const started = await instance.driver.start({
-        conversationId: stale,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, stale);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step).toBe("interview");
@@ -3135,11 +3175,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(conversation),
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -3403,11 +3439,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(noFillablePage),
       );
-      const started = await instance.driver.start({
-        conversationId: noFillablePage,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, noFillablePage);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
 
@@ -3547,11 +3579,7 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(conversation),
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -3928,11 +3956,7 @@ describeIfDatabase("the internal specialist routes", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(conversation),
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -4279,9 +4303,13 @@ describeIfDatabase("the case walks with the run", () => {
     const moves = events
       .filter((event) => event.type === "CaseStateChanged")
       .map((e) => e.to);
+    // Three hops now, not two: the yes comes first (ADR-0101), so a complete
+    // run on a gated portal walks to the student's authorisation before any
+    // account is asked for.
     expect(moves, "in spine order, one hop at a time").toEqual([
       "READY_TO_PREPARE",
       "PREPARING",
+      "AWAITING_STUDENT_AUTHORISATION",
     ]);
   }, 300_000);
 
@@ -4375,6 +4403,8 @@ describeIfDatabase("the decision only the student can make", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         ownerOf(conversation),
       );
+      // The yes first (ADR-0101): a complete run on a gated portal stands at
+      // the authorisation straight from the start, with no account yet.
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
@@ -4383,39 +4413,7 @@ describeIfDatabase("the decision only the student can make", () => {
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
-
-      await new ConversationEventStore(instance.pool).append({
-        conversationId: conversation,
-        event: {
-          kind: "secret_received",
-          requestId: `sr_${"0".repeat(31)}1`,
-          handle: `sh_${"c".repeat(32)}`,
-        },
-      });
-      await instance.driver.advance({ runId, conversationId: conversation });
-
-      const runRef = makeRunId(runId);
-      const accountKey = idempotencyKeyFor({
-        runId: runRef,
-        action: "create_portal_account",
-        target: runId,
-      });
-      const runs = new PostgresWorkflowRunStore(instance.pool);
-      await runs.recordIntent(runRef, {
-        idempotencyKey: accountKey,
-        action: "create_portal_account",
-        target: runId,
-        startedAt: NOW,
-      });
-      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
-
-      const asked = await instance.driver.advance({
-        runId,
-        conversationId: conversation,
-      });
-      if (!asked.ok)
-        expect.unreachable(`advance refused: ${asked.refusal.kind}`);
-      expect(asked.position.step).toBe("authorise");
+      expect(started.position.step).toBe("authorise");
 
       // Exactly what the student is shown, and its hash, from the orchestrator.
       const situation = await instance.driver.previewFor(runId, conversation);
@@ -4699,11 +4697,7 @@ describeIfDatabase("the decision only the student can make", () => {
     const instance = buildInstance(connectionString(), opener());
     let earlyRun = "";
     try {
-      const started = await instance.driver.start({
-        conversationId: early,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, early);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       earlyRun = started.position.runId;
@@ -4901,6 +4895,7 @@ describeIfDatabase(
           "the trigger has a source the run will actually read",
         ).toContain("finance.funding_source");
 
+        // The yes first (ADR-0101): the guard is met at the ask itself.
         const started = await instance.driver.start({
           conversationId: into,
           blueprintId: GATED_BLUEPRINT,
@@ -4909,39 +4904,7 @@ describeIfDatabase(
         if (!started.ok)
           expect.unreachable(`start refused: ${started.refusal.kind}`);
         runId = started.position.runId;
-
-        await new ConversationEventStore(instance.pool).append({
-          conversationId: into,
-          event: {
-            kind: "secret_received",
-            requestId: `sr_${"0".repeat(31)}1`,
-            handle: `sh_${"b".repeat(32)}`,
-          },
-        });
-        await instance.driver.advance({ runId, conversationId: into });
-
-        const runRef = makeRunId(runId);
-        const accountKey = idempotencyKeyFor({
-          runId: runRef,
-          action: "create_portal_account",
-          target: runId,
-        });
-        const runs = new PostgresWorkflowRunStore(instance.pool);
-        await runs.recordIntent(runRef, {
-          idempotencyKey: accountKey,
-          action: "create_portal_account",
-          target: runId,
-          startedAt: NOW,
-        });
-        await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
-
-        const asked = await instance.driver.advance({
-          runId,
-          conversationId: into,
-        });
-        if (!asked.ok)
-          expect.unreachable(`advance refused: ${asked.refusal.kind}`);
-        expect(asked.position.step, "standing at the authorisation").toBe(
+        expect(started.position.step, "standing at the authorisation").toBe(
           "authorise",
         );
 
@@ -5249,6 +5212,10 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
+      // The yes first (ADR-0101); the account asks follow it.
+      expect(started.position.step).toBe("authorise");
+      await captureAuthorisation(instance.pool, conversation, VERIFYING_ENTRY);
+      await instance.driver.advance({ runId, conversationId: conversation });
 
       await new ConversationEventStore(instance.pool).append({
         conversationId: conversation,
@@ -5488,11 +5455,7 @@ describeIfDatabase("the interview loop, closed", () => {
       // NOTHING is seeded. That is the point: every other group in this file
       // writes the profile from the test process because no production path
       // could, and this one proves there is one now.
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       expect(started.position.step, "nothing is known yet").toBe("interview");
@@ -6027,11 +5990,7 @@ describeIfDatabase("the interview stops rather than stranding", () => {
         "I want to study data science.",
         student,
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -6218,11 +6177,7 @@ describeIfDatabase("the interview stops rather than stranding", () => {
         "I want to study data science.",
         who,
       );
-      const started = await setup.driver.start({
-        conversationId: crashed,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(setup, crashed);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       stranded = started.position.runId;
@@ -6365,11 +6320,7 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         student,
       );
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -6398,11 +6349,11 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
         "a declared document does not put the run into the interview",
       ).not.toBe("interview");
       // MEASURED, in P29, and kept: it does not merely skip the interview —
-      // it carries on. The run walks past a declared passport to asking the
-      // student for a portal password, still `running`. ADR-0065's stop cannot
-      // catch this one, because the MAPPING plans no upload and so the preview
-      // builds cleanly — the entry's list is not an input to either. See
-      // ADR-0066 §2.
+      // it carries on. The run walks past a declared passport — through the
+      // yes `pastTheYes` gave it (ADR-0101) — to asking the student for a
+      // portal password, still `running`. ADR-0065's stop cannot catch this
+      // one, because the MAPPING plans no upload and so the preview builds
+      // cleanly — the entry's list is not an input to either. See ADR-0066 §2.
       expect(seen.position.step, "it carries on, it does not stop").toBe(
         "request_secret",
       );
@@ -6585,6 +6536,9 @@ describeIfDatabase("the student stops", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         mine,
       );
+      // The yes first (ADR-0101): they read the preview and approve it, so the
+      // cancellation below has an authorisation to void. A student who changes
+      // their mind AFTER approving is the case `student_revoked` exists for.
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
@@ -6593,7 +6547,21 @@ describeIfDatabase("the student stops", () => {
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
+      expect(started.position.step).toBe("authorise");
+      const hash =
+        (await instance.driver.previewFor(runId, conversation))?.contentHash ??
+        null;
+      const approved = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: hash ?? "" },
+      });
+      expect(approved, "approved before they changed their mind").toEqual({
+        ok: true,
+      });
 
+      // …then the password, the account, and the fill.
+      await instance.driver.advance({ runId, conversationId: conversation });
       await new ConversationEventStore(instance.pool).append({
         conversationId: conversation,
         event: {
@@ -6618,25 +6586,8 @@ describeIfDatabase("the student stops", () => {
         startedAt: NOW,
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
-      await instance.driver.advance({ runId, conversationId: conversation });
 
-      // …and they approve it, so the cancellation has an authorisation to
-      // void. A student who changes their mind AFTER approving is the case
-      // `student_revoked` exists for.
-      const hash =
-        (await instance.driver.previewFor(runId, conversation))?.contentHash ??
-        null;
-      const approved = await instance.driver.recordDecision({
-        conversationId: conversation,
-        runId,
-        decision: { kind: "authorise", contentHash: hash ?? "" },
-      });
-      expect(approved, "approved before they changed their mind").toEqual({
-        ok: true,
-      });
-
-      // …and one more advance, because recording the authorisation does not
-      // move the RUN: its checkpoint phase reaches `filling` on the next
+      // One more advance: the checkpoint phase reaches `filling` on the next
       // decide, and `claimWork` selects candidates by phase. Without this the
       // run is not in the work pool at all, and the control test below would
       // pass for a reason that has nothing to do with stopping.
@@ -6946,11 +6897,7 @@ describeIfDatabase(
           new PostgresConfirmedProfileStore(instance.pool),
           student,
         );
-        const started = await instance.driver.start({
-          conversationId: conversation,
-          blueprintId: GATED_BLUEPRINT,
-          studentStatement: STATEMENT,
-        });
+        const started = await pastTheYes(instance, conversation);
         if (!started.ok)
           expect.unreachable(`start refused: ${started.refusal.kind}`);
         runId = started.position.runId;
@@ -7069,11 +7016,7 @@ describeIfDatabase("the student stops before anything was created", () => {
     const instance = buildInstance(connectionString(), opener());
     try {
       // Nothing seeded: this student is still being interviewed.
-      const started = await instance.driver.start({
-        conversationId: conversation,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, conversation);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
@@ -7194,6 +7137,7 @@ describeIfDatabase("a correction the student makes late", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         mine,
       );
+      // The yes first (ADR-0101): no account yet.
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: GATED_BLUEPRINT,
@@ -7202,7 +7146,17 @@ describeIfDatabase("a correction the student makes late", () => {
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
+      expect(started.position.step).toBe("authorise");
+    } finally {
+      await instance.pool.end();
+    }
+  }
 
+  /** After the yes: the password, the account, and the run at the fill. */
+  async function withTheAccount(): Promise<void> {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await instance.driver.advance({ runId, conversationId: conversation });
       await new ConversationEventStore(instance.pool).append({
         conversationId: conversation,
         event: {
@@ -7228,13 +7182,13 @@ describeIfDatabase("a correction the student makes late", () => {
       });
       await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
 
-      const asked = await instance.driver.advance({
+      const filling = await instance.driver.advance({
         runId,
         conversationId: conversation,
       });
-      if (!asked.ok)
-        expect.unreachable(`advance refused: ${asked.refusal.kind}`);
-      expect(asked.position.step).toBe("authorise");
+      if (!filling.ok)
+        expect.unreachable(`advance refused: ${filling.refusal.kind}`);
+      expect(filling.position.step).toBe("execute");
     } finally {
       await instance.pool.end();
     }
@@ -7335,6 +7289,7 @@ describeIfDatabase("a correction the student makes late", () => {
     // answer `ready_to_submit` anyway. The student would be told their
     // application was ready with the correction missing from it.
     // ═══════════════════════════════════════════════════════════════════
+    await withTheAccount();
     const filled = await targetForPage("page-application", mine);
     const instance = buildInstance(connectionString(), opener());
     try {
@@ -7941,11 +7896,7 @@ describeIfDatabase("a run only a person can carry on", () => {
         new PostgresConfirmedProfileStore(instance.pool),
         who,
       );
-      const started = await instance.driver.start({
-        conversationId: other,
-        blueprintId: GATED_BLUEPRINT,
-        studentStatement: STATEMENT,
-      });
+      const started = await pastTheYes(instance, other);
       if (!started.ok)
         expect.unreachable(`start refused: ${started.refusal.kind}`);
       stopped = started.position.runId;

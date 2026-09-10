@@ -3,6 +3,9 @@
 **Status:** **Accepted** — decided by Vahid, 2026-09-01 ·
 **Date:** 2026-09-01 · **Supersedes:** nothing ·
 **Related:** ADR-0004, ADR-0008, ADR-0011, ADR-0013, ADR-0014, ADR-0017, ADR-0031, ADR-0041, ADR-0048
+**Amended by:** [ADR-0101](./0101-the-yes-comes-first-and-a-runner-is-signed-in-for-one-sitting.md) (P69, 2026-09-10) — the
+step order this ADR narrates now places the authorisation before the password box and the account
+creation; the driver captures the authorisation exactly as described here, and what follows it changed.
 
 ## Context
 

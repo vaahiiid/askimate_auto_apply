@@ -100,6 +100,7 @@ function inWords(n: number): string | undefined {
   // The index reached one hundred in P67 (ADR-0100). Spelled the way the
   // sentence there spells it; the next round number is a decision for then.
   if (n === 100) return "One hundred";
+  if (n > 100 && n < 120) return `One hundred and ${(units[n - 100] ?? "").toLowerCase()}`;
   if (!Number.isInteger(n) || n < 1 || n > 99) return undefined;
   if (n < 20) return units[n];
   const ten = tens[Math.floor(n / 10)] ?? "";

@@ -131,7 +131,12 @@ const ENTRY: CatalogueEntry = {
     applicantChoosesPassword: true,
     portalIssuesCredential: false,
     passwordlessAvailable: false,
-    emailVerificationRequired: false,
+    // TRUE, since ADR-0101 put the yes before the account: on a portal that
+    // does not verify, a created account is followed by the fill, and every
+    // loop test here would be handed pages it was never about. On one that
+    // does, the account is followed by a handoff the student performs, so
+    // the ONE unit of browser work in each of these runs is the creation.
+    emailVerificationRequired: true,
     mfaOrOtpRequired: false,
     captchaPresent: false,
     passwordResetAvailable: true,
@@ -268,7 +273,19 @@ async function seedRun(): Promise<{ runId: string; conversationId: string }> {
     studentStatement: STATEMENT,
   });
   if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
-  expect(started.position.step).toBe("request_secret");
+  // The yes first (ADR-0101), over the driver's own decision path; only an
+  // authorised run is asked for a password.
+  expect(started.position.step).toBe("authorise");
+  const hash = (await driver.previewFor(started.position.runId, conversationId))?.contentHash;
+  const approved = await driver.recordDecision({
+    conversationId,
+    runId: started.position.runId,
+    decision: { kind: "authorise", contentHash: hash ?? "" },
+  });
+  expect(approved).toEqual({ ok: true });
+  const asked = await driver.advance({ runId: started.position.runId, conversationId });
+  if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+  expect(asked.position.step).toBe("request_secret");
 
   await events.append({
     conversationId,

@@ -3946,3 +3946,29 @@ Four questions in §7, each a sentence in your words. Nothing is built and nothi
 ## Declared-but-unreachable surface
 
 **Six** — unchanged.
+
+# P69 — blocker 19 decided: the yes comes first (ADR-0101)
+
+Your six answers are in ADR-0101 in your words, and the one that costs nothing to keep is built:
+`authorise` now comes before `request_secret` and `create_account`. A complete run on a gated
+portal stops at the preview first; only an authorised run is asked to choose a password, and only
+then is an account created in the student's name. The account step's refusals — a portal nobody
+observed, no confirmed email — still go to a specialist before the student is asked for anything,
+so a yes is never wasted on an application we cannot get into. The handover stays ahead of the
+authorisation, because a student who stops mid-fill has had their approval voided and is still
+owed their account.
+
+The journey walks the new order: start → the yes → the password box in the real frame → the
+account → the fill. Every driver, supervisor and orchestrator test that assumed the old order now
+starts from an authorised run, and the supervisor's seeded runs stand on a verifying portal so
+that an account is followed by a handoff and not by pages its loop tests were never about.
+
+## What follows
+
+P70 — a runner that meets a CAPTCHA or a second factor stops and says which. P71 — A2, one
+sitting, five minutes. P72 — B as the resume path, then slice e. C is recorded in ADR-0101 §5 and
+not built.
+
+## Declared-but-unreachable surface
+
+**Six** — unchanged.

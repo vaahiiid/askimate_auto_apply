@@ -37,6 +37,7 @@ import { resolveField } from "@askimate/aas-profile";
 import type { ApplicationSession, DocumentSource, ExecutionContext } from "@askimate/aas-execution";
 import { executePlan, failures } from "@askimate/aas-execution";
 import {
+  assess,
   beginRun,
   markFilled,
   nextStep,
@@ -103,6 +104,31 @@ function inputs(overrides: Partial<RunInputs> = {}): RunInputs {
     documents: new Map([["passport", PASSPORT]]),
     ...overrides,
   };
+}
+
+/**
+ * The state after the student has said yes to exactly this content.
+ *
+ * ADR-0101 moved the account asks — the password box, the creation, the
+ * handoffs — after the authorisation, so a test about any of them starts from
+ * an authorised run. The record is minted over the run's OWN preview, the way
+ * the driver mints it, so it still covers the content when `nextStep` checks.
+ */
+async function authorised(state: RunState): Promise<RunState> {
+  const assessment = assess(state);
+  if (assessment.preview === null || assessment.validation === null) {
+    expect.unreachable("expected a preview to authorise");
+  }
+  const check = checkAuthorisable(assessment.preview, assessment.validation);
+  if (!check.authorisable) expect.unreachable("expected authorisable");
+  const record = await new InMemoryAuthorisationLedger().record({
+    authorisationId: "auth-order",
+    caseId: state.inputs.caseId,
+    studentRef: STUDENT,
+    preview: check.preview,
+    authorisedAt: NOW,
+  });
+  return withAuthorisation(state, record);
 }
 
 function usable(mappingSet: MappingSet = FIXTURE_MAPPING_SET): UsableMappingSet {
@@ -700,8 +726,34 @@ function accountAt(stage: PortalAccount["stage"], email: ConfirmedProfile): Port
 }
 
 describe("a portal that needs an account", () => {
-  it("asks the student to authorise creating one, before filling anything", async () => {
-    const state = runWith(COMPLETE, { ...WITH_LOGIN });
+  it("asks for the AUTHORISATION before the password and before the account (ADR-0101)", async () => {
+    // Vahid, 2026-09-10: *"today we ask a student for their university
+    // password for an account they have not yet agreed to have created, to
+    // submit an application they have not yet seen. That order is wrong even
+    // if it cost us nothing to keep."* So the first thing a complete run on a
+    // gated portal asks for is the yes — and only an authorised run is asked
+    // for a password or told an account will be created.
+    const state = runWith(COMPLETE, {
+      ...WITH_LOGIN,
+      studentPresentAtCreation: true,
+      passwordDelivery: "askimate_secure_channel",
+    });
+    expect((await nextStep(state, model)).kind).toBe("authorise");
+    expect((await nextStep(await authorised(state), model)).kind).toBe("request_secret");
+  });
+
+  it("still sends an unobserved or unownable portal to a specialist BEFORE asking for the yes", async () => {
+    // The refusals are not the asks. A yes given to an application we cannot
+    // get into is a yes wasted, so a portal nobody observed is refused first.
+    const { portalAuthentication: _unobserved, ...neverLookedAt } = WITH_LOGIN;
+    const step = await nextStep(runWith(COMPLETE, neverLookedAt), model);
+    expect(step.kind).toBe("specialist");
+    if (step.kind !== "specialist") expect.unreachable("checked above");
+    expect(step.reason).toBe("portal_authentication_unobserved");
+  });
+
+  it("asks the student to authorise creating one, after the yes and before filling anything", async () => {
+    const state = await authorised(runWith(COMPLETE, { ...WITH_LOGIN }));
     const step = await nextStep(state, model);
 
     expect(step.kind).toBe("create_account");
@@ -750,7 +802,7 @@ describe("a portal that needs an account", () => {
   });
 
   it("PAUSES for email verification rather than going to look", async () => {
-    const state = withAccount(runWith(COMPLETE, { ...WITH_LOGIN }), {
+    const state = withAccount(await authorised(runWith(COMPLETE, { ...WITH_LOGIN })), {
       ...accountAt("awaiting_email_verification", COMPLETE),
     });
 
@@ -773,7 +825,7 @@ describe("a portal that needs an account", () => {
 
   it("asks for the account back when handover is due", async () => {
     const state = withAccount(
-      runWith(COMPLETE, { ...WITH_LOGIN }),
+      await authorised(runWith(COMPLETE, { ...WITH_LOGIN })),
       accountAt("handover_due", COMPLETE),
     );
 
@@ -836,7 +888,7 @@ describe("asking a student for a password", () => {
     // The default is `student_types_into_portal` — they open the portal and
     // type it there, and AskiMate never holds it at all. A run that has not
     // said otherwise must not produce a password box.
-    const step = await nextStep(runWith(COMPLETE, { ...WITH_LOGIN_PRESENT }), model);
+    const step = await nextStep(await authorised(runWith(COMPLETE, { ...WITH_LOGIN_PRESENT })), model);
     expect(step.kind).toBe("create_account");
   });
 
@@ -849,11 +901,13 @@ describe("asking a student for a password", () => {
       passwordlessAvailable: true,
     };
     const step = await nextStep(
-      runWith(COMPLETE, {
-        ...WITH_LOGIN_PRESENT,
-        portalAuthentication: passwordless,
-        passwordDelivery: "askimate_secure_channel",
-      }),
+      await authorised(
+        runWith(COMPLETE, {
+          ...WITH_LOGIN_PRESENT,
+          portalAuthentication: passwordless,
+          passwordDelivery: "askimate_secure_channel",
+        }),
+      ),
       model,
     );
     expect(step.kind).toBe("create_account");
@@ -861,19 +915,21 @@ describe("asking a student for a password", () => {
 
   it("asks through a dedicated control, before creating the account", async () => {
     const step = await nextStep(
-      runWith(COMPLETE, {
-        ...WITH_LOGIN_PRESENT,
-        passwordDelivery: "askimate_secure_channel",
-      }),
+      await authorised(
+        runWith(COMPLETE, {
+          ...WITH_LOGIN_PRESENT,
+          passwordDelivery: "askimate_secure_channel",
+        }),
+      ),
       model,
     );
 
     expect(step.kind).toBe("request_secret");
     if (step.kind !== "request_secret") expect.unreachable("checked above");
 
-    // Before the account, not after: the automation cannot fill the
-    // registration form without it, and asking afterwards would leave a
-    // half-created account waiting on a password box.
+    // After the yes and before the account (ADR-0101): the automation cannot
+    // fill the registration form without it, and asking afterwards would
+    // leave a half-created account waiting on a password box.
     expect(step.request.purpose).toBe("portal_account_creation");
     expect(step.request.target.host).toBe("apply.example.test");
     expect(step.request.target.caseRef).toBe("case-1");
@@ -883,10 +939,12 @@ describe("asking a student for a password", () => {
 
   it("tells the student the truth about what happens to it", async () => {
     const step = await nextStep(
-      runWith(COMPLETE, {
-        ...WITH_LOGIN_PRESENT,
-        passwordDelivery: "askimate_secure_channel",
-      }),
+      await authorised(
+        runWith(COMPLETE, {
+          ...WITH_LOGIN_PRESENT,
+          passwordDelivery: "askimate_secure_channel",
+        }),
+      ),
       model,
     );
     if (step.kind !== "request_secret") expect.unreachable("should ask");
@@ -902,10 +960,12 @@ describe("asking a student for a password", () => {
 
   it("carries no field a password could travel in", async () => {
     const step = await nextStep(
-      runWith(COMPLETE, {
-        ...WITH_LOGIN_PRESENT,
-        passwordDelivery: "askimate_secure_channel",
-      }),
+      await authorised(
+        runWith(COMPLETE, {
+          ...WITH_LOGIN_PRESENT,
+          passwordDelivery: "askimate_secure_channel",
+        }),
+      ),
       model,
     );
     if (step.kind !== "request_secret") expect.unreachable("should ask");
@@ -927,10 +987,12 @@ describe("asking a student for a password", () => {
   it("does not ask a second time while the student is still typing", async () => {
     // `secret_requested` means a box is open and they may be mid-password.
     // Asking again would replace it under their fingers.
-    const base = runWith(COMPLETE, {
-      ...WITH_LOGIN_PRESENT,
-      passwordDelivery: "askimate_secure_channel",
-    });
+    const base = await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+    );
     const asked: RunState = {
       ...base,
       secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_requested" },
@@ -939,10 +1001,12 @@ describe("asking a student for a password", () => {
   });
 
   it("moves on once the secret has been received", async () => {
-    const base = runWith(COMPLETE, {
-      ...WITH_LOGIN_PRESENT,
-      passwordDelivery: "askimate_secure_channel",
-    });
+    const base = await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+    );
     const received: RunState = {
       ...base,
       secret: {
@@ -956,10 +1020,12 @@ describe("asking a student for a password", () => {
   });
 
   it("asks again after an expiry, because there is nothing to spend", async () => {
-    const base = runWith(COMPLETE, {
-      ...WITH_LOGIN_PRESENT,
-      passwordDelivery: "askimate_secure_channel",
-    });
+    const base = await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+    );
     const expired: RunState = {
       ...base,
       secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_expired" },

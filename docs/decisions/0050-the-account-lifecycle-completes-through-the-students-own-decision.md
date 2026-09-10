@@ -112,6 +112,11 @@ been authorised. An authorised run has typed nothing yet, and handing the
 account back before the form is filled would mean asking the student to change
 the password we are about to sign in with.
 
+> **Amended by [ADR-0101](./0101-the-yes-comes-first-and-a-runner-is-signed-in-for-one-sitting.md)
+> (P69, 2026-09-10).** An authorised run now also has **no account yet**: the yes precedes the
+> password box and the creation. The handover is still consulted ahead of the authorisation, so a
+> run stopped mid-fill — its approval voided — is asked for nothing but the account back.
+
 A consequence worth stating plainly, because it changes what a finished run
 looks like: **`ready_to_submit` is now reached only once the account is the
 student's again.** A run that reported itself ready while still holding their

@@ -1,8 +1,23 @@
 # Decision sheet — blocker 19: how a runner is signed in when execute work arrives
 
-**For:** Vahid · **Prepared:** 2026-09-10 · **Answerable in one sitting**
+**For:** Vahid · **Prepared:** 2026-09-10 · ~~**Answerable in one sitting**~~
+**✅ DECIDED — A as the design, B as the resume path, C recorded, D no, open portals refused. Vahid Mohammadi, 2026-09-10. See [ADR-0101](./decisions/0101-the-yes-comes-first-and-a-runner-is-signed-in-for-one-sitting.md).**
 Companion to [B5](./decision-sheet-b5-hold-or-pass-through.md) and [B1](./decision-sheet-b1-retention-periods.md).
 Recorded as blocker 19 in [`state-of-the-system.md`](./state-of-the-system.md) since P66 (ADR-0099).
+
+> **The decisions, in his words** (the full text is in ADR-0101):
+>
+> - A1: *"Yes. Authorise moves before request_secret and create_account. The consent argument
+>   decides it on its own, before any of the session reasoning."*
+> - A2: *"Yes, in memory only, and the bound is five minutes, not ten. Match the vault's ceiling
+>   from ADR-0034."*
+> - B: *"Yes, portal_sign_in through the secure box, single use, as the resume path only."*
+> - Open portals: *"Refuse explicitly. Do not build for them."*
+> - C: *"Record it as the plan for a portal with a second factor … Do not build it."*
+> - D: *"No, as the constraint already gives."*
+>
+> And one requirement the sheet did not list: the system must **detect** a CAPTCHA or a second
+> factor where the plan expects neither, and stop saying which it met — before slices d and e.
 
 > **Already decided, and not on the table** — Vahid, 2026-09-10:
 >

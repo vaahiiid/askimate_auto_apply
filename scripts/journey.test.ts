@@ -2,7 +2,8 @@
  * P7 — the first real end-to-end execution journey.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * A student asks. AskiMate interviews them, decides an account is needed, asks
+ * A student asks. AskiMate interviews them, shows them exactly what will be
+ * sent and takes their yes (ADR-0101), decides an account is needed, asks
  * the Secure Plane to open a password box, learns a handle exists, and hands a
  * unit of work to an Automation Runner — which opens a browser, has the Secure
  * Plane's agent type the password into both boxes, creates the account on a
@@ -624,7 +625,7 @@ function previewForThisRun(): { contentHash: string } {
 describeIfDatabase("a student asks, and ends up with an account they own", () => {
   let runId = "";
 
-  it("starts a run, and the run asks for a password", async () => {
+  it("starts a run, and the run asks the student to AUTHORISE before anything else", async () => {
     wire = [];
     logLines = [];
 
@@ -668,9 +669,17 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     const run = (await started.json()) as { runId: string; step: string; phase: string };
     runId = run.runId;
 
-    // The gated portal needs an account, and the account needs a password.
-    expect(run.step).toBe("request_secret");
-    expect(run.phase).toBe("awaiting_secret");
+    // ══════════════════════════════════════════════════════════════════
+    // ADR-0101 — the yes first. The gated portal needs an account and the
+    // account needs a password, and neither is asked for until the student
+    // has read exactly what will be sent and said yes to it. Vahid: *"today
+    // we ask a student for their university password for an account they
+    // have not yet agreed to have created, to submit an application they
+    // have not yet seen. That order is wrong even if it cost us nothing to
+    // keep."*
+    // ══════════════════════════════════════════════════════════════════
+    expect(run.step).toBe("authorise");
+    expect(run.phase).toBe("awaiting_authorisation");
 
     // And the conversation's own log says so, authoritatively.
     const events = await conversationPool.query<{ kind: string; request_id: string | null }>(
@@ -678,15 +687,128 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       [CONVERSATION],
     );
     // The whole progression, in order, in one log: the server offered, the
-    // student read it, the student asked for THAT offer, and only then did a
-    // secure step open. ADR-0058's journey, as evidence rather than as prose.
+    // student read it, the student asked for THAT offer, and the run told
+    // them there is something to approve (P22). No secure step has opened.
+    // ADR-0058's journey, as evidence rather than as prose.
     expect(events.rows.map((row) => row.kind)).toEqual([
       "target_offered",
       "message",
       "target_requested",
-      "secret_requested",
+      "message",
     ]);
-    expect(events.rows[3]?.request_id).toMatch(/^sr_[0-9a-f]{32}$/);
+
+    // And no work is offered while it waits, and nothing has been typed. A
+    // runner cannot get ahead of the student's approval — nor, now, can an
+    // account be created ahead of it.
+    const intake = httpWorkIntake({
+      baseUrl: CONVERSATION_URL,
+      holder: "runner-journey",
+      serviceToken: RUNNER_CERT,
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
+    });
+    expect(await intake.claim(), "nothing to do until the student approves").toBeNull();
+    expect(portal.accounts(), "and no account exists").toEqual([]);
+    expect(portal.application(EMAIL), "and nothing typed").toBeNull();
+  }, 300_000);
+
+  it("the student approves, over the real decision route, and only then is asked for a password", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0049. Until P11 this test APPENDED `AuthorisationCaptured` itself —
+    // the test giving the student's approval on their behalf, because no
+    // production path could. That is now a real request on the student's own
+    // session, and it is the difference between a journey that proves the
+    // system works and one that proves it works if somebody forges the one
+    // event the whole safety design rests on.
+    // ═══════════════════════════════════════════════════════════════════
+    const cases = new PostgresCaseStore(conversationPool);
+    const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
+
+    // ══════════════════════════════════════════════════════════════════
+    // ADR-0059. Until P22 this test obtained the hash by REBUILDING the
+    // preview in-process — `checkUsable` + `planFill` + `buildPreview` over the
+    // blueprint, the mapping set and the plan. A browser holds none of those
+    // and must not, so the authorisation gate was passable by this suite and by
+    // nothing else. It now asks the way a client has to.
+    // ══════════════════════════════════════════════════════════════════
+    // ── Where a returning client starts: a READ, not an action ────────
+    //
+    // ADR-0060. This is the request a page makes on load. It carries no offer
+    // hash and no run id — the client kept neither — and it is what tells the
+    // student their application is waiting for them.
+    const standing = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      { headers: { cookie: devCookie } },
+    );
+    expect(standing.status).toBe(200);
+    const position = parseConversationRun(((await standing.json()) as { run: unknown }).run);
+    if (position === null) expect.unreachable("the run read did not match the published contract");
+    expect(position.runId, "the client did not have to remember this").toBe(runId);
+    expect(position.step).toBe("authorise");
+
+    const shown = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${position.runId}/preview`,
+      { headers: { cookie: devCookie } },
+    );
+    expect(shown.status, await shown.clone().text()).toBe(200);
+    expect(shown.headers.get("cache-control"), "not cached, not stored").toBe("no-store");
+    const preview = parseRunPreview(await shown.json());
+    if (preview === null) expect.unreachable("the preview did not match the published contract");
+
+    // What the student actually reads: this university, this course, and the
+    // values that will be typed — ending in the reference their approval names.
+    expect(preview.presentedText).toContain("Gated University");
+    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
+    expect(preview.presentedText).toContain(`Reference: ${preview.contentHash}`);
+
+    // And it is the SAME content the orchestrator would fill from. Re-derived
+    // independently here — the old path — purely to prove the route did not
+    // hand the student a different application from the one that gets typed.
+    expect(preview.contentHash, "read and filled are one rendering").toBe(
+      previewForThisRun().contentHash,
+    );
+
+    const decided = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ kind: "authorise", contentHash: preview.contentHash }),
+      },
+    );
+    expect(decided.status, "the student's own session, not a service credential").toBe(204);
+
+    // It landed where business facts land, through the domain's own intent —
+    // not written here.
+    const logged = await cases.read(caseRef);
+    expect(
+      logged.some((event) => event.type === "AuthorisationCaptured"),
+      "captured in the case log by the service",
+    ).toBe(true);
+    expect(
+      logged.some((event) => event.type === "CaseStateChanged" && event.to === "AUTHORISED"),
+      "and the case machine moved with it (ADR-0049)",
+    ).toBe(true);
+
+    // Only NOW is the password asked for (ADR-0101).
+    const advanced = await recordingFetch(
+      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", cookie: devCookie },
+        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
+      },
+    );
+    expect(advanced.status).toBe(200);
+    const run = (await advanced.json()) as { step: string; phase: string };
+    expect(run.step, "approved; now the account, and first its password").toBe("request_secret");
+    expect(run.phase).toBe("awaiting_secret");
+
+    const events = await conversationPool.query<{ kind: string; request_id: string | null }>(
+      "SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
+      [CONVERSATION],
+    );
+    expect(events.rows.map((row) => row.kind).at(-1)).toBe("secret_requested");
+    expect(events.rows.at(-1)?.request_id).toMatch(/^sr_[0-9a-f]{32}$/);
   }, 300_000);
 
   it("REFUSES to open the password box on an insecure page, and mints NOTHING", async () => {
@@ -821,9 +943,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       expect(row.toLowerCase()).not.toContain("password");
     }
     // target_offered · message (the rendered offer) · target_requested ·
-    // secret_requested · secret_received.
+    // message (something to approve) · secret_requested · secret_received.
     const kinds = rows.rows.length;
-    expect(kinds).toBe(5);
+    expect(kinds).toBe(6);
   }, 300_000);
 
   it("advances to account creation, and offers it to a runner as work", async () => {
@@ -890,12 +1012,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     expect(intents.rows).toEqual([{ action: "create_portal_account", outcome: "succeeded" }]);
   }, 300_000);
 
-  it("asks the student to authorise before ANYTHING is typed", async () => {
-    // ═══════════════════════════════════════════════════════════════════
-    // Product rule 1, at the point it costs something. The account exists and
-    // the plan is ready, and the run STOPS: nothing is typed into a university's
-    // form until the student has seen exactly what will be sent and said yes.
-    // ═══════════════════════════════════════════════════════════════════
+  it("advances to the FILL, and offers it to a runner as work", async () => {
+    // The account exists and the yes was given before it (ADR-0101), so the
+    // next thing is the form itself.
     const advanced = await recordingFetch(
       `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
       {
@@ -906,109 +1025,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     );
     expect(advanced.status).toBe(200);
     const run = (await advanced.json()) as { step: string; phase: string };
-    expect(run.step).toBe("authorise");
-    expect(run.phase).toBe("awaiting_authorisation");
-
-    // And no work is offered while it waits. A runner cannot get ahead of the
-    // student's approval, which is the whole point of the step.
-    const intake = httpWorkIntake({
-      baseUrl: CONVERSATION_URL,
-      holder: "runner-journey",
-      serviceToken: RUNNER_CERT,
-      fetch: recordingFetch as unknown as typeof globalThis.fetch,
-    });
-    expect(await intake.claim(), "nothing to do until the student approves").toBeNull();
-    expect(portal.application(EMAIL), "and nothing typed").toBeNull();
-  }, 300_000);
-
-  it("the student approves, over the real decision route, and the run becomes work", async () => {
-    // ═══════════════════════════════════════════════════════════════════
-    // ADR-0049. Until P11 this test APPENDED `AuthorisationCaptured` itself —
-    // the test giving the student's approval on their behalf, because no
-    // production path could. That is now a real request on the student's own
-    // session, and it is the difference between a journey that proves the
-    // system works and one that proves it works if somebody forges the one
-    // event the whole safety design rests on.
-    // ═══════════════════════════════════════════════════════════════════
-    const cases = new PostgresCaseStore(conversationPool);
-    const caseRef = makeCaseId(`case_${CONVERSATION.toLowerCase()}`);
-
-    // ══════════════════════════════════════════════════════════════════
-    // ADR-0059. Until P22 this test obtained the hash by REBUILDING the
-    // preview in-process — `checkUsable` + `planFill` + `buildPreview` over the
-    // blueprint, the mapping set and the plan. A browser holds none of those
-    // and must not, so the authorisation gate was passable by this suite and by
-    // nothing else. It now asks the way a client has to.
-    // ══════════════════════════════════════════════════════════════════
-    // ── Where a returning client starts: a READ, not an action ────────
-    //
-    // ADR-0060. This is the request a page makes on load. It carries no offer
-    // hash and no run id — the client kept neither — and it is what tells the
-    // student their application is waiting for them.
-    const standing = await recordingFetch(
-      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
-      { headers: { cookie: devCookie } },
-    );
-    expect(standing.status).toBe(200);
-    const position = parseConversationRun(((await standing.json()) as { run: unknown }).run);
-    if (position === null) expect.unreachable("the run read did not match the published contract");
-    expect(position.runId, "the client did not have to remember this").toBe(runId);
-    expect(position.step).toBe("authorise");
-
-    const shown = await recordingFetch(
-      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${position.runId}/preview`,
-      { headers: { cookie: devCookie } },
-    );
-    expect(shown.status, await shown.clone().text()).toBe(200);
-    expect(shown.headers.get("cache-control"), "not cached, not stored").toBe("no-store");
-    const preview = parseRunPreview(await shown.json());
-    if (preview === null) expect.unreachable("the preview did not match the published contract");
-
-    // What the student actually reads: this university, this course, and the
-    // values that will be typed — ending in the reference their approval names.
-    expect(preview.presentedText).toContain("Gated University");
-    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
-    expect(preview.presentedText).toContain(`Reference: ${preview.contentHash}`);
-
-    // And it is the SAME content the orchestrator would fill from. Re-derived
-    // independently here — the old path — purely to prove the route did not
-    // hand the student a different application from the one that gets typed.
-    expect(preview.contentHash, "read and filled are one rendering").toBe(
-      previewForThisRun().contentHash,
-    );
-
-    const decided = await recordingFetch(
-      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", cookie: devCookie },
-        body: JSON.stringify({ kind: "authorise", contentHash: preview.contentHash }),
-      },
-    );
-    expect(decided.status, "the student's own session, not a service credential").toBe(204);
-
-    // It landed where business facts land, through the domain's own intent —
-    // not written here.
-    const logged = await cases.read(caseRef);
-    expect(
-      logged.some((event) => event.type === "AuthorisationCaptured"),
-      "captured in the case log by the service",
-    ).toBe(true);
-    expect(
-      logged.some((event) => event.type === "CaseStateChanged" && event.to === "AUTHORISED"),
-      "and the case machine moved with it (ADR-0049)",
-    ).toBe(true);
-
-    const advanced = await recordingFetch(
-      `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", cookie: devCookie },
-        body: JSON.stringify({ offerHash: journeyOffer, studentStatement: STATEMENT }),
-      },
-    );
-    const run = (await advanced.json()) as { step: string; phase: string };
-    expect(run.step, "approved; now it is work").toBe("execute");
+    expect(run.step, "authorised and signed in; now it is work").toBe("execute");
     expect(run.phase).toBe("filling");
   }, 300_000);
 

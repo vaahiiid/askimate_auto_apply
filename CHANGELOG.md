@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.86.0] — 2026-09-10
+
+**P69 — blocker 19 decided: the yes comes first (ADR-0101).** Vahid's six answers to the
+decision sheet, recorded verbatim, and A1 built.
+
+### Changed
+
+- `nextStep` (orchestrator): the account step's refusals are returned before the authorisation
+  and its asks after it. Order now: interview → validate → authorise → request_secret →
+  create_account → execute → hand_over_account. The handover is consulted before the
+  authorisation, because a stopped run still owes the account back.
+- The journey starts at the yes: the student approves over the real decision route and only then
+  is asked for a password, in the real frame; the account and the fill follow.
+- Tests that assumed the old order — orchestrator, run driver, runner supervisor — now start from
+  an authorised run (`pastTheYes`, `authorised`); the supervisor's seeded runs stand on a
+  verifying portal.
+
+### Recorded
+
+- ADR-0101: A1 yes; A2 yes, in memory, five minutes matching ADR-0034 ("do not quietly widen
+  it"); B yes, `portal_sign_in` single use as the resume path only, with the
+  phishing-normalisation argument a future phase must meet; open portals refused explicitly; C
+  recorded as the plan for a second-factor portal; D no. And the requirement not on the sheet:
+  detect a CAPTCHA or second factor and stop saying which, before slices d and e.
+- The decision sheet marked decided; blocker 19 closed; ADR-0049, ADR-0050 amended.
+
+### Not built
+
+A2 (P71), B (P72), the detection (P70), C.
+
+---
+
 ## [0.85.0] — 2026-09-10
 
 **P68 — blocker 19 framed as a decision sheet.**

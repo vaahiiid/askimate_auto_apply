@@ -393,13 +393,26 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
     return { kind: "interview", action: await nextAction(state.interview, model) };
   }
 
-  // ── The portal needs an account before anything can be typed into it ────
+  // ── The portal's account: the REFUSALS first, the asks after the yes ────
   //
-  // Placed here, after the interview has the student's confirmed email and
-  // before anything is filled: an account cannot be created without their
-  // email, and a form cannot be filled without an account.
+  // ADR-0101 (Vahid, 2026-09-10): *"Authorise moves before request_secret and
+  // create_account. The consent argument decides it on its own … today we ask
+  // a student for their university password for an account they have not yet
+  // agreed to have created, to submit an application they have not yet seen."*
+  //
+  // So the account step is consulted twice. Here, only its refusals are
+  // returned — a portal nobody has observed, an email nobody confirmed, an
+  // account that could not be handed back — because those need a specialist,
+  // not the student, and a yes given to an application we cannot get into is
+  // a yes wasted. The asks (the password box, the creation, the handoffs)
+  // come after the authorisation below.
   const accountStep = accountStepFor(state);
-  if (accountStep !== null) return accountStep;
+  if (accountStep !== null && accountStep.kind === "specialist") return accountStep;
+  // The handover is owed whatever the authorisation says (ADR-0050): a run
+  // that was stopped mid-fill has had its approval voided and still holds an
+  // account that is the student's. Consulted before the authorisation so a
+  // stopped run is not asked for a yes it will never use.
+  if (accountStep !== null && accountStep.kind === "hand_over_account") return accountStep;
 
   // ── The content is complete. Would the portal take it? ──────────────────
   const validation = assessment.validation;
@@ -444,7 +457,15 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
     };
   }
 
-  // ── Authorised. Fill it. ────────────────────────────────────────────────
+  // ── Authorised. Now the account — and, once filled, its handover ────────
+  //
+  // The student has read the preview and said yes to it. Only now are they
+  // asked to choose a password, and only now is an account created in their
+  // name (ADR-0101). After the fill the same call returns the handover
+  // (ADR-0050): `ready_to_submit` is reached only once the account is theirs.
+  if (accountStep !== null) return accountStep;
+
+  // ── Authorised, signed in. Fill it. ─────────────────────────────────────
   if (state.filled !== true) {
     return { kind: "execute", plan };
   }
