@@ -160,6 +160,28 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
     session.#guard = guard;
     await context.route("**/*", guard);
 
+    // ── The esbuild helper shim, on a context we did not create ──────────
+    //
+    // The in-page observation script is serialised and re-evaluated in the
+    // browser. Under tsx — which is what `pnpm run inspect:attached` runs
+    // under — esbuild rewrites it to call a `__name` helper that exists in
+    // this process and not in the page. The three launching sessions learned
+    // that by running their CLIs and shim it on the contexts they create.
+    // This session attaches to a context it did not create and needed the
+    // same shim, and the first real run against Sheffield said so:
+    // `page.evaluate: ReferenceError: __name is not defined`, with the attach,
+    // the session, the guard and the pacing all having worked (P80).
+    //
+    // Added BEFORE our tab is opened, so it applies to that tab's documents.
+    // It is a definition of a no-op helper and nothing else; the person's
+    // other tabs pick it up only on their next navigation, harmlessly.
+    // `attached-inspection.test.ts` proves it through the real command under
+    // tsx, because vitest's transform does not inject the helper and every
+    // in-process test was blind to it.
+    await context.addInitScript({
+      content: "globalThis.__name = globalThis.__name || function (f) { return f; };",
+    });
+
     // Our own tab, in THEIR context — which is what carries the session.
     session.#page = await context.newPage();
     return session;

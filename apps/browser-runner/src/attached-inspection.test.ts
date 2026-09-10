@@ -9,9 +9,11 @@
  * person registers and signs in; only the tool reads.
  */
 
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import type { BrowserContext } from "playwright";
 import { chromium } from "playwright";
@@ -193,6 +195,93 @@ describe("attached inspection reads a form behind a login (P79)", () => {
       }),
     ).rejects.toThrow(/explicit list/);
   });
+});
+
+describe("through the REAL command, under tsx — not vitest's transform", () => {
+  // ── Why this test exists ──────────────────────────────────────────────
+  //
+  // The six tests above passed, and the first real run failed on its first
+  // page: `page.evaluate: ReferenceError: __name is not defined`. tsx (esbuild)
+  // rewrites the serialised in-page script to call a `__name` helper the page
+  // has no definition for; vitest's transform does not, so every test that
+  // calls `observe()` in-process is blind to it. The three launching sessions
+  // learned this the same way and shim the helper with `addInitScript`; the
+  // attached session did not, because it attaches to a context it did not
+  // create. Vahid: *"Whatever you change, make the test fail first without
+  // the fix — I do not want a fix I cannot prove."* This spawns the command
+  // the person runs, under the transform the person runs it under.
+  it("reads the gated page when run as `node --import tsx …inspect-attached-cli.ts`", async () => {
+    const root = resolve(import.meta.dirname, "..", "..", "..");
+    const outRoot = await mkdtemp(join(tmpdir(), "aas-attached-cli-"));
+    const targetFile = join(outRoot, "fixture.json");
+    await writeFile(
+      targetFile,
+      JSON.stringify({
+        targetId: "fixture-attached",
+        institutionName: "Gated University",
+        courseName: "MSc Controlled Studies",
+        intake: "2026-09",
+        route: "direct_portal",
+        routeNotes: [],
+        allowedHosts: ["127.0.0.1"],
+        seedUrls: [`${portal.baseUrl}/apply`],
+        linkPatterns: ["apply"],
+        maxPages: 1,
+        claimsToVerify: [],
+      }),
+    );
+    try {
+      // Spawned ASYNCHRONOUSLY. The fixture portal is served by this very
+      // process, and `spawnSync` would block the event loop that answers the
+      // browser's requests — the command would then time out on its first
+      // navigation and never reach the read, which is exactly what the first
+      // version of this test did. Found the same way as the bug it exists for:
+      // by the real command not doing what the in-process tests did.
+      const result = await new Promise<{ status: number | null; out: string }>((done) => {
+        const child = spawn(
+          process.execPath,
+          [
+            "--import",
+            "tsx",
+            resolve(root, "apps", "browser-runner", "src", "inspect-attached-cli.ts"),
+            targetFile,
+            "--cdp",
+            CDP,
+            "--out",
+            outRoot,
+            `${portal.baseUrl}/apply`,
+          ],
+          { cwd: root, env: { ...process.env } },
+        );
+        let out = "";
+        child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+        child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+        const timer = setTimeout(() => child.kill(), 120_000);
+        child.on("close", (status) => {
+          clearTimeout(timer);
+          done({ status, out });
+        });
+      });
+      const out = result.out;
+      expect(out, out).not.toContain("__name is not defined");
+      expect(out).toContain("Pages read         1 of 1");
+      expect(result.status, out).toBe(0);
+
+      const runDir = (await readdir(outRoot)).map((name) => join(outRoot, name)).find((dir) => existsSync(join(dir, "run.json")));
+      if (runDir === undefined) expect.unreachable(`no run directory written under ${outRoot}`);
+      const draft = JSON.parse(await readFile(join(runDir, "blueprint.draft.json"), "utf8")) as {
+        status: string;
+        pages: { sections: { fields: { fieldRef: string }[] }[] }[];
+      };
+      expect(draft.status).toBe("draft");
+      const refs = draft.pages.flatMap((page) => page.sections.flatMap((section) => section.fields.map((f) => f.fieldRef)));
+      expect(refs).toEqual(expect.arrayContaining(["given_name", "family_name", "date_of_birth", "nationality"]));
+      const html = await readFile(join(runDir, "pages", "001.html"), "utf8");
+      expect(html).toContain('name="given_name"');
+    } finally {
+      await rm(outRoot, { recursive: true, force: true });
+    }
+  }, 180_000);
 });
 
 describe("the capture is scrubbed of the person's values", () => {

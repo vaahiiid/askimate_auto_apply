@@ -4316,3 +4316,32 @@ what was not applied and why.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P80 — the first real attached read, and what it found
+
+Vahid ran the tool against Sheffield's PGT application, signed in, one page. Everything up to the
+read worked — the attach, his session carried, the guard, the pacing, the clean exit — and the read
+itself threw `page.evaluate: ReferenceError: __name is not defined`. His diagnosis was right: tsx,
+which `pnpm run inspect:attached` runs under, rewrites the serialised in-page script to call an
+esbuild helper the page has no definition for. The three launching sessions learned this the same
+way in their day and shim the helper with an init script on the contexts they create. The attached
+session attaches to a context it did not create, and did not.
+
+He set two conditions. *Fix the transform, not the script* — discovery uses the same script and
+runs fine, so the difference had to be found in how this mode gets it into the page, and it was:
+the missing init script, and nothing in `observe-script.ts` changed. *Make the test fail first
+without the fix* — the six fixture tests had passed, so they exercised a path the real command did
+not. A seventh spawns the real command under `node --import tsx` against the fixture portal's login.
+It failed on exactly his error, then passed with the shim, and the hand-run command read the gated
+page: one form, four fields.
+
+Found on the way: the first version of that test spawned synchronously, and the fixture portal is
+served by the test's own process, so the command starved on its first navigation and never reached
+the read. The same shape as the bug it was written for, one layer up.
+
+`run.json` now records, for each refused request, the rule that refused it and why, so a
+"Requests refused 1" on the terminal is answerable from the record.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

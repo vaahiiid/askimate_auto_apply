@@ -1,7 +1,7 @@
 /**
  * Attached inspection of a form a person has signed in to (P79).
  *
- *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 <url> [url ...]
+ *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 [--out <dir>] <url> [url ...]
  *
  * The person launches Chromium with a remote-debugging port and signs in to
  * the portal by hand. This attaches to that browser, opens one tab in their
@@ -66,7 +66,8 @@ function usage(root: string): void {
   process.stderr.write(
     `Usage: pnpm run inspect:attached <target> --cdp <endpoint> <url> [url ...]\n\n` +
       `  <endpoint>   the browser's remote-debugging address, e.g. http://127.0.0.1:9222\n` +
-      `  <url>        the signed-in pages to read, in order. No crawl: only these.\n\n` +
+      `  <url>        the signed-in pages to read, in order. No crawl: only these.\n` +
+      `  --out <dir>  where to write the run (default: inspection-runs/ in this checkout)\n\n` +
       `Targets:\n` +
       listTargets(root)
         .map((name) => `  ${name}\n`)
@@ -82,7 +83,10 @@ async function main(): Promise<void> {
   const typed = args[0];
   const cdpIndex = args.indexOf("--cdp");
   const cdp = cdpIndex === -1 ? undefined : args[cdpIndex + 1];
-  const urls = args.filter((arg, index) => index > 0 && index !== cdpIndex && index !== cdpIndex + 1);
+  const outIndex = args.indexOf("--out");
+  const outRoot = outIndex === -1 ? resolve(root, "inspection-runs") : resolve(args[outIndex + 1] ?? "");
+  const taken = new Set([0, cdpIndex, cdpIndex + 1, outIndex, outIndex + 1]);
+  const urls = args.filter((_, index) => !taken.has(index));
 
   if (typed === undefined || cdp === undefined || urls.length === 0) {
     usage(root);
@@ -99,7 +103,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-restricted-syntax -- run boundary
   const startedAt = new Date();
   const runId = `attached-${target.targetId}-${startedAt.toISOString().replace(/[:.]/g, "-")}`;
-  const outDir = resolve(root, "inspection-runs", runId);
+  const outDir = resolve(outRoot, runId);
   await mkdir(resolve(outDir, "pages"), { recursive: true });
 
   // Paced at the target's delay, never below the floor (ADR-0091).
@@ -200,7 +204,14 @@ async function main(): Promise<void> {
         urls,
         visited,
         failed,
-        blockedRequests: session.blockedRequests(),
+        // Method, URL, which rule refused it and why: "Requests refused 1" on
+        // the terminal is answerable from the record, without a second run.
+        blockedRequests: session.blockedLog.entries.map((entry) => ({
+          method: entry.method,
+          url: entry.url,
+          rule: entry.rule ?? "method",
+          reason: entry.reason ?? "",
+        })),
         refusedNavigations: session.refusedNavigations,
         crawlDelayMs: delayMs,
         robots: "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",

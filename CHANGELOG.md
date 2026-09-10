@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.96.1] — 2026-09-10
+
+**P80 — the first real attached read failed on `__name`; fixed through the real command.**
+
+### Fixed
+
+- `PlaywrightAttachedInspection` installs the esbuild `__name` shim on the attached context
+  before opening its tab, as the three launching sessions do on the contexts they create. The
+  first real run against Sheffield attached, carried the session, guarded, paced and exited
+  cleanly, and failed at the read with `page.evaluate: ReferenceError: __name is not defined`,
+  because `pnpm run inspect:attached` runs under tsx and vitest's transform does not inject the
+  helper. The transform difference was fixed; the in-page script is unchanged.
+
+### Added
+
+- A test that spawns the real command under `node --import tsx` against the fixture portal's
+  login. It failed on exactly that error before the fix and passes after. It spawns
+  asynchronously: the fixture portal is served by the test's own process, and a synchronous
+  spawn blocked the event loop that answered the browser, which is how the first version of the
+  test timed out on navigation and never reached the read.
+- `--out <dir>` on `inspect:attached`; `run.json` records each refused request with the rule and
+  the reason.
+
+---
+
 ## [0.96.0] — 2026-09-10
 
 **P79 — attached inspection: the tool reads a browser a person signed in to.**

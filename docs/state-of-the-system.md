@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,417 tests, 128 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,418 tests, 128 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -126,6 +126,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P77** | Deliberate regressions over the attachment path and the destination inside the yes | Eleven mutations, applied to disk and restored byte-for-byte: the transmission gate's case and host checks, the destination in the preview's hash and its deployment reading, the driver's one reading of the deployment, the runner's refusals before a byte is fetched, the wire's HTTPS rule, the settlement's case filter, the hand-over's hash comparison, the executor's gate call. **Ten caught**; making the preview ignore the deployment fails the whole journey, which is P74's defect on demand. **One not caught:** the hand-over's own hash comparison is a second reading of a fact the orchestrator's assessment already refused on, one step earlier; it can differ only in a race, and it is kept and labelled as exactly that. `docs/p77-regression-audit.md` |
 | **P78** | The Sheffield target file, the sourced facts, and the network answer | Vahid confirmed the target and gave six things its public pages state; each is recorded with its source URL and retrieval date, as stated by the institution and observed by nobody here. `targets/sheffield-pgt-2026-09.json` exists, parses, and has not been run; the course and the intake year are marked as his to supply rather than invented. The sibling form's *"an email will be sent containing your login details"* is recorded as `portal_issued` to be confirmed by observation, with what the code does with that answer today: creation without a secure step, and no routine sign-in built for a relayed credential (ADR-0101 built B as the resume path for `student_chosen`). The network question answered from the docs and the proxy: the environment's **Network access** level governs; Trusted's list carries `*.amazonaws.com` and not Sheffield; the narrowest widening is Custom with `sheffield.ac.uk`; Full buys nothing the runner's own host confinement does not already refuse |
 | **P79** | Attached inspection: the tool reads a browser a person signed in to | The loop A1 made — a reviewed blueprint of the form is a precondition of the account, and a blueprint of a form behind a login needs an account to see it — recorded in ADR-0101 as a known consequence in Vahid's words, and closed by a mode rather than a change to A1. `PlaywrightAttachedInspection` attaches over CDP to a Chromium a person launched and signed in to, opens one tab in their context, and reads: discovery's guard (GET, HEAD, OPTIONS to the target's hosts) on the whole context for as long as it holds it, so the person's own tabs are read-only too and given back on close; navigation allow-listed by prefix; a redirect to the login page recorded as a finding; captures scrubbed of input values. `pnpm run inspect:attached` writes what discovery writes, and `inspect-discovery` reads it. Proved against the fixture portal's login in six tests: the gated page read through the person's session with nothing but GETs; a POST from the person's own tab refused while attached and landing after; a browser signed in to nothing bounced and recorded. **Found:** the service constructs the deterministic model client in every path (blocker 3 amended, checklist areas 7 and 8). robots.txt not applied in this mode, stated in the run record |
+| **P80** | The first real attached read, and what it found | Vahid's first run against Sheffield's PGT form: the attach, his session, the guard, the pacing and the exit all worked; the read failed with `page.evaluate: ReferenceError: __name is not defined`. tsx injects esbuild's helper into the serialised in-page script; the three launching sessions shim it on the contexts they create and the attached session did not, and vitest's transform hid it from every in-process test. Vahid: *"Fix the transform, not the script … make the test fail first without the fix."* A test that spawns the real command under tsx against the fixture login failed on that error first, then passed with the shim. Found on the way: the test's first version spawned synchronously and starved the fixture portal it was serving. `run.json` now says which rule refused each request and why |
 
 ---
 
@@ -477,7 +478,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,417 tests · 128 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,418 tests · 128 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -490,7 +491,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,417 tests**, by the workspace they live in. Generated — run
+**2,418 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -500,7 +501,7 @@ being able to see it (ADR-0084).
 | `apps/conversation-service` | 413 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 295 | `packages/profile` | 46 |
-| `apps/browser-runner` | 268 | `packages/catalogue` | 39 |
+| `apps/browser-runner` | 269 | `packages/catalogue` | 39 |
 | `packages/case-store` | 145 | `packages/preparation` | 38 |
 | `packages/orchestrator` | 114 | `packages/extraction` | 27 |
 | `packages/documents` | 99 | `packages/mapping` | 26 |

@@ -194,6 +194,7 @@ pnpm run inspect:attached sheffield --cdp http://127.0.0.1:9222 \
   "<url of Part 1>" "<url of Part 2>" "<url of the documents section>"
 ```
 
+Run `git pull` first: the tool is in this repository, and a fix lands here, not in your browser.
 Pass the pages in the order you would read them, as URLs copied from the address bar once signed
 in. No crawl: it reads exactly those, at least two seconds apart, and it refuses any page not on
 that list. If a page bounces to the login page, the tool records that as a finding and says the
@@ -201,9 +202,12 @@ session had ended; sign in again and re-run.
 
 ### What it writes, and what to look at before sending it
 
-`inspection-runs/<run>/` — `pages/*.html` (input values and textarea bodies removed, the page
-itself untouched), screenshots, `blueprint.draft.json`, and a `run.json` that
-`pnpm run inspect-discovery` reads. **Look at `pages/*.html` first.** Values are scrubbed, but a
+`inspection-runs/<run>/` (or `--out <dir>`) — `pages/*.html` (input values and textarea bodies
+removed, the page itself untouched), screenshots, `blueprint.draft.json`, and a `run.json` that
+`pnpm run inspect-discovery` reads. A "Requests refused N" line on the terminal is explained in
+`run.json` under `blockedRequests`: each entry names the method, the URL, the rule that refused it
+(`host` for a page reaching off the target's hosts, `method` for a write the page attempted,
+`navigation` for a bounce off the list) and the reason. **Look at `pages/*.html` first.** Values are scrubbed, but a
 signed-in page can still carry your name or email in its text, and the screenshots show whatever
 the page showed. Thirty seconds, then send the directory.
 
