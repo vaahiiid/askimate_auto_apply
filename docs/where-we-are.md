@@ -3872,3 +3872,29 @@ answers a retrieval URL only after `authoriseDisclosure` and `mayTransmit` with 
 **Six, unchanged.**
 
 ---
+
+# P66 — uploads cross as references, and the plane hands a document over only after the gates (ADR-0099)
+
+Slice c. A plan with uploads now crosses to the runner, but an upload on the wire is four things —
+which box, which document the mapping named, where the box is — and never a byte, an id or a hash.
+The runner asks the plane for each one under its lease, and the plane answers only after six checks
+in order: the lease, the run at execute naming the upload, the yes still hashing to the preview
+rendered now, `authoriseDisclosure` over a record built from what the student saw, `mayTransmit`
+with the case, and only then a sixty-second URL. The runner runs the disclosure gate again on its
+own machine and mints the brand through it, never by a cast; the executor runs the transmission
+gate at the moment of attaching, as it always has. `authoriseDisclosure` has left the unreachable
+register.
+
+## What I found, and did not resolve
+
+The runner's entry point performs `create_account` and nothing else. `fillApplication` is called by
+the journey test and by no deployable. Execute work has had no production performer since P8, and
+for a portal with no login it is not even handed out, because a work item carries an account's
+email and approach. Both are one question — how a runner is signed in when execute work arrives —
+and it is yours. Blocker 19. The gates and the hand-over do not wait on it; slices d and e do.
+
+## Declared-but-unreachable surface
+
+**Six** — `authoriseDisclosure` out, `fillApplication` in.
+
+---

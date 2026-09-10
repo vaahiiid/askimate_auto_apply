@@ -238,11 +238,25 @@ export interface TransportedInstruction {
  * plan with its uploads silently removed would report itself complete having
  * attached nothing, and the student would be told their application was filled.
  */
+/**
+ * An upload, as a REFERENCE (ADR-0099): which box, which document the reviewed
+ * mapping named for it, where the box is. No bytes, no document id, no hash —
+ * the runner asks the plane for each one under its lease, and the plane
+ * answers only after the disclosure gates have run with the case.
+ */
+export interface TransportedUpload {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly documentRef: string;
+  readonly locators: readonly FillLocator[];
+}
+
 export interface TransportedPlan {
   readonly blueprintId: string;
   readonly blueprintVersion: string;
   readonly mappingSetId: string;
   readonly instructions: readonly TransportedInstruction[];
+  readonly uploads: readonly TransportedUpload[];
 }
 
 /**
@@ -546,11 +560,41 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
     });
   }
 
+  const uploads: TransportedUpload[] = [];
+  const rawUploads = record["uploads"];
+  if (rawUploads !== undefined) {
+    if (!Array.isArray(rawUploads)) return null;
+    for (const entry of rawUploads as readonly unknown[]) {
+      if (typeof entry !== "object" || entry === null) return null;
+      const held = entry as Record<string, unknown>;
+      if (!nonEmpty(held["fieldRef"]) || typeof held["label"] !== "string") return null;
+      if (!nonEmpty(held["documentRef"])) return null;
+      const locatorList = held["locators"];
+      if (!Array.isArray(locatorList) || locatorList.length === 0) return null;
+      const locators: FillLocator[] = [];
+      for (const candidate of locatorList as readonly unknown[]) {
+        const locator = parseLocator(candidate);
+        if (locator === null) return null;
+        locators.push(locator);
+      }
+      // Exactly these four fields. A plane that sent a `documentId`, a
+      // `contentHash` or bytes beside them is answering a question the runner
+      // did not ask, and the runner has nowhere to put the answer.
+      uploads.push({
+        fieldRef: held["fieldRef"],
+        label: held["label"],
+        documentRef: held["documentRef"],
+        locators,
+      });
+    }
+  }
+
   return {
     blueprintId: record["blueprintId"] as string,
     blueprintVersion: record["blueprintVersion"] as string,
     mappingSetId: record["mappingSetId"] as string,
     instructions,
+    uploads,
   };
 }
 
@@ -607,4 +651,152 @@ export function parseWorkReport(value: unknown): WorkReport | null {
   }
   if (!isMember(WORK_FAILURES, failure)) return null;
   return { leaseId: record["leaseId"], outcome, failure };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0099: a document, handed to the runner under its lease — after the gates
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * What the runner sends to be handed a document: the lease it holds. The
+ * `documentRef` is in the path; the capability is in the body, for the reason
+ * `reportWork` gives.
+ */
+export interface WorkDocumentRequest {
+  readonly leaseId: string;
+  readonly holder: string;
+}
+
+/**
+ * The disclosure record the plane's gate ran, on the wire.
+ *
+ * The runner re-runs `authoriseDisclosure` over this and `mayTransmit` at the
+ * moment of attaching — the gate twice, on two machines, same inputs. The
+ * determination travels as its ID: the runner holds the same register in code
+ * and refuses a record naming one it does not hold.
+ */
+export interface WireDisclosure {
+  readonly disclosureId: string;
+  readonly subject: {
+    readonly documentId: string;
+    readonly documentType: string;
+    readonly contentHash: string;
+    readonly caseId: string;
+    readonly requestedFor: string;
+  };
+  readonly destination: {
+    readonly institutionName: string;
+    readonly portalHost: string;
+    readonly processorName?: string;
+  };
+  readonly determinationId: string;
+  readonly studentAuthorisation: {
+    readonly studentRef: string;
+    /** The preview the student authorised, verbatim (ADR-0098). */
+    readonly presentedText: string;
+    /** RFC 3339. */
+    readonly authorisedAt: string;
+    readonly method: "chat_affirmation" | "signed_form" | "specialist_recorded";
+  };
+}
+
+export interface WorkDocument {
+  readonly documentId: string;
+  readonly documentType: string;
+  /** SHA-256, lowercase hex. The runner hashes what it fetched and refuses a mismatch. */
+  readonly contentHash: string;
+  readonly contentType: string;
+  /** A short-lived GET the plane minted. The runner fetches it once. */
+  readonly retrieval: {
+    readonly url: string;
+    readonly method: "GET";
+    /** RFC 3339. */
+    readonly expiresAt: string;
+  };
+  readonly disclosure: WireDisclosure;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+/** Bytes from the network to a document hand-over, or `null`. The runner's side. */
+export function parseWorkDocument(value: unknown): WorkDocument | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  for (const field of ["documentId", "documentType", "contentHash", "contentType"]) {
+    if (!nonEmpty(record[field])) return null;
+  }
+  if (!/^[0-9a-f]{64}$/.test(record["contentHash"] as string)) return null;
+
+  const retrieval = record["retrieval"];
+  if (typeof retrieval !== "object" || retrieval === null) return null;
+  const r = retrieval as Record<string, unknown>;
+  if (!nonEmpty(r["url"]) || r["method"] !== "GET" || !nonEmpty(r["expiresAt"])) return null;
+  if (!(r["url"]).startsWith("https://")) return null;
+
+  const disclosure = record["disclosure"];
+  if (typeof disclosure !== "object" || disclosure === null) return null;
+  const d = disclosure as Record<string, unknown>;
+  if (!nonEmpty(d["disclosureId"]) || !nonEmpty(d["determinationId"])) return null;
+  const rawSubject = d["subject"];
+  const rawDestination = d["destination"];
+  const rawAuthorisation = d["studentAuthorisation"];
+  if (
+    typeof rawSubject !== "object" || rawSubject === null ||
+    typeof rawDestination !== "object" || rawDestination === null ||
+    typeof rawAuthorisation !== "object" || rawAuthorisation === null
+  ) {
+    return null;
+  }
+  const subject = rawSubject as Record<string, unknown>;
+  const destination = rawDestination as Record<string, unknown>;
+  const authorisation = rawAuthorisation as Record<string, unknown>;
+  for (const field of ["documentId", "documentType", "contentHash", "caseId", "requestedFor"]) {
+    if (!isString(subject[field])) return null;
+  }
+  if (!nonEmpty(destination["institutionName"]) || !nonEmpty(destination["portalHost"])) return null;
+  if (destination["processorName"] !== undefined && !isString(destination["processorName"])) return null;
+  for (const field of ["studentRef", "presentedText", "authorisedAt"]) {
+    if (!nonEmpty(authorisation[field])) return null;
+  }
+  const method = authorisation["method"];
+  if (method !== "chat_affirmation" && method !== "signed_form" && method !== "specialist_recorded") {
+    return null;
+  }
+  // The document the plane says it is handing over must be the one the
+  // disclosure was checked for. A mismatch is the plane contradicting itself.
+  if (subject["documentId"] !== record["documentId"] || subject["contentHash"] !== record["contentHash"]) {
+    return null;
+  }
+
+  return {
+    documentId: record["documentId"] as string,
+    documentType: record["documentType"] as string,
+    contentHash: record["contentHash"] as string,
+    contentType: record["contentType"] as string,
+    retrieval: { url: r["url"], method: "GET", expiresAt: r["expiresAt"] },
+    disclosure: {
+      disclosureId: d["disclosureId"],
+      subject: {
+        documentId: subject["documentId"] as string,
+        documentType: subject["documentType"] as string,
+        contentHash: subject["contentHash"] as string,
+        caseId: subject["caseId"] as string,
+        requestedFor: subject["requestedFor"] as string,
+      },
+      destination: {
+        institutionName: destination["institutionName"],
+        portalHost: destination["portalHost"],
+        ...(destination["processorName"] === undefined ? {} : { processorName: destination["processorName"] }),
+      },
+      determinationId: d["determinationId"],
+      studentAuthorisation: {
+        studentRef: authorisation["studentRef"] as string,
+        presentedText: authorisation["presentedText"] as string,
+        authorisedAt: authorisation["authorisedAt"] as string,
+        method,
+      },
+    },
+  };
 }

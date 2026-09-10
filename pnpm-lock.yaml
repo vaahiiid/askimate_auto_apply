@@ -173,6 +173,9 @@ importers:
       '@askimate/aas-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@askimate/aas-disclosure':
+        specifier: workspace:*
+        version: link:../../packages/disclosure
       '@askimate/aas-domain':
         specifier: workspace:*
         version: link:../../packages/domain

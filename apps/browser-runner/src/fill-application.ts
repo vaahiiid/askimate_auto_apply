@@ -32,7 +32,7 @@
 
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { executePlan, failures } from "@askimate/aas-execution";
-import type { ApplicationSession } from "@askimate/aas-execution";
+import type { ApplicationSession, DocumentSource } from "@askimate/aas-execution";
 import { rehydratePlan } from "@askimate/aas-mapping";
 import type { StoredFillPlan } from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
@@ -49,6 +49,14 @@ export interface FillApplicationDeps {
    * with no adapter — which is why the port is shaped the way it is.
    */
   readonly session: ApplicationSession;
+  /**
+   * Where a document comes from, for each upload the plan references
+   * (ADR-0099). `documentSourceFor` in production; a test supplies its own.
+   * Required, not defaulted: a fill that silently had no source would report
+   * every upload as "no document supplied", which is the outcome the plane
+   * used to refuse transport to avoid.
+   */
+  readonly documents: DocumentSource;
 }
 
 export async function fillApplication(
@@ -96,11 +104,11 @@ export async function fillApplication(
   const report = await executePlan(
     deps.session,
     rehydratePlan(toStoredPlan(wire)),
-    // No documents, and none can be asked for: `toStoredPlan` on the plane
-    // refuses any plan with uploads, so `plan.uploads` is empty here and this
-    // is never called. It answers `null` rather than throwing so that a change
-    // which DID transport uploads fails as a named outcome rather than a crash.
-    () => Promise.resolve(null),
+    // Each upload the plan references is asked for here, one at a time, at
+    // the moment `executePlan` reaches it (ADR-0099). A refusal from the
+    // plane, a hash that does not match, or a record the gate refuses is a
+    // `null` — a named failure on that field, never a throw.
+    deps.documents,
     {
       // The case the plane leased this work for, carried rather than derived:
       // the runner has no case store and could not look one up. Every
@@ -194,6 +202,15 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
               mappingSetId: instruction.value.mappingSetId,
               reviewedBy: instruction.value.reviewedBy,
             },
+    })),
+    uploads: wire.uploads.map((upload) => ({
+      fieldRef: upload.fieldRef,
+      label: upload.label,
+      documentRef: upload.documentRef,
+      locators: upload.locators.map((locator) => ({
+        strategy: locator.strategy,
+        value: locator.value,
+      })),
     })),
     credentials: [],
   };

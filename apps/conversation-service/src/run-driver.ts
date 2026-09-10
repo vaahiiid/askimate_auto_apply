@@ -120,7 +120,12 @@ import { createHash } from "node:crypto";
 
 import type { ModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill, toStoredPlan } from "@askimate/aas-mapping";
-import type { DocumentRecord } from "@askimate/aas-documents";
+import type { DocumentRecord, DocumentVault } from "@askimate/aas-documents";
+import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
+import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit } from "@askimate/aas-disclosure";
+import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
+import { buildPreview, renderPreview } from "@askimate/aas-preparation";
+import type { WorkDocument } from "@askimate/aas-contracts";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
@@ -850,6 +855,18 @@ export type DecisionRefusalReason =
    */
   | "held_for_specialist";
 
+/** Why a runner was not handed a document. A closed set; the route maps each to a code. */
+export type WorkDocumentRefusal =
+  | "no_disclosure_port"
+  | "not_holder"
+  | "no_such_run"
+  | "not_executing"
+  | "no_such_upload"
+  | "not_authorised"
+  | "content_changed"
+  | "disclosure_refused"
+  | "transmission_refused";
+
 /** The one question the driver asks the vault's metadata: what does this student hold? */
 export interface HeldDocuments {
   listForStudent(studentId: string): Promise<readonly DocumentRecord[]>;
@@ -955,6 +972,18 @@ export interface RunDriverOptions {
    * run did before P64. The metadata store only; no byte is read here.
    */
   readonly heldDocuments?: HeldDocuments;
+  /**
+   * What a runner is handed a document THROUGH (ADR-0099): the lawful-basis
+   * register the disclosure determination is read from, and the vault that
+   * mints a retrieval URL. Absent in a deployment without the document
+   * transport — and in the Worker, which builds this driver and hands out no
+   * documents — so `documentForWork` answers `no_disclosure_port` there
+   * rather than pretending. Never a byte: the vault is asked for a URL.
+   */
+  readonly disclosure?: {
+    readonly register: LawfulBasisRegister;
+    readonly vault: DocumentVault;
+  };
   /**
    * Where a stopped run is announced to a PERSON who can unstick it (ADR-0071).
    *
@@ -2465,6 +2494,165 @@ export class RunDriver {
    * rather than an empty preview, because "there is nothing to approve" and
    * "here is an empty application" are different facts.
    */
+  /**
+   * Hands a runner ONE document for ONE upload of the work it holds — after
+   * the gates. ADR-0099, slice c of the attachment path.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * The order is the argument, and every step is a refusal rather than a
+   * fallback:
+   *
+   *   1. the caller holds the lease on this run (ADR-0045);
+   *   2. the run is at `execute`, and the plan names this `documentRef`;
+   *   3. the case carries a captured, un-voided authorisation, and the
+   *      preview the orchestrator would render NOW hashes to it — so what was
+   *      said yes to is what is about to leave (ADR-0057, ADR-0059);
+   *   4. a `DisclosureRequestRecord` is built from what the student actually
+   *      saw — the preview text, the document it named, the destination it
+   *      named, the case — and `authoriseDisclosure` runs (ADR-0022,
+   *      ADR-0087 determination 3, ADR-0098);
+   *   5. `mayTransmit` runs WITH THE CASE (ADR-0069);
+   *   6. only then is a sixty-second retrieval URL minted.
+   *
+   * The runner re-runs 4 and 5 on its own machine before attaching. Nothing
+   * here reads a byte: the vault is asked for a URL, and the bytes go from the
+   * bucket to the runner's browser.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  public async documentForWork(input: {
+    readonly runId: string;
+    readonly leaseId: string;
+    readonly holder: string;
+    readonly documentRef: string;
+  }): Promise<{ readonly ok: true; readonly document: WorkDocument } | { readonly ok: false; readonly refusal: WorkDocumentRefusal }> {
+    const leases = this.#options.leases;
+    const disclosure = this.#options.disclosure;
+    if (leases === undefined || disclosure === undefined) return { ok: false, refusal: "no_disclosure_port" };
+    const now = this.#options.now();
+
+    // 1 · The lease. The capability, not the run id.
+    const held = await leases.held(input.runId, now);
+    if (held === null || held.leaseId !== input.leaseId || held.holder !== input.holder) {
+      return { ok: false, refusal: "not_holder" };
+    }
+
+    const record = await this.#options.stores.runs.load(makeRunId(input.runId));
+    if (record === null) return { ok: false, refusal: "no_such_run" };
+    const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
+    if (conversationId === null) return { ok: false, refusal: "no_such_run" };
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return { ok: false, refusal: "no_such_run" };
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return { ok: false, refusal: "no_such_run" };
+
+    // 2 · The work, as the orchestrator sees it now.
+    const situation = await this.#situation({
+      entry,
+      record,
+      conversationId,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+    });
+    if (!situation.ok) return { ok: false, refusal: "not_executing" };
+    // The orchestrator's narrowing, not a comparison on a step's kind here
+    // (`check-boundaries`): execute work is what `executePlanOf` says it is.
+    const plan = executePlanOf(situation.step);
+    if (plan === null) return { ok: false, refusal: "not_executing" };
+    const upload = plan.uploads.find((u) => u.documentRef === input.documentRef);
+    if (upload === undefined) return { ok: false, refusal: "no_such_upload" };
+
+    // 3 · The yes, and that it still covers what would leave.
+    const events = await this.#options.stores.cases.read(record.caseId);
+    let captured: { contentHash: string; authorisedAt: Date } | null = null;
+    for (const event of events) {
+      if (event.type === "AuthorisationCaptured") {
+        captured = { contentHash: event.contentHash, authorisedAt: event.authorisedAt };
+      } else if (event.type === "AuthorisationVoided" && captured?.contentHash === event.previousContentHash) {
+        captured = null;
+      }
+    }
+    if (captured === null) return { ok: false, refusal: "not_authorised" };
+    const held_documents = await this.#options.heldDocuments?.listForStudent(record.studentRef);
+    const preview = buildPreview(entry.blueprint, plan, previewDocumentsOf(held_documents ?? []));
+    if (!preview.built) return { ok: false, refusal: "content_changed" };
+    if (preview.preview.contentHash !== captured.contentHash) return { ok: false, refusal: "content_changed" };
+    const attachment = preview.preview.attachments.find((a) => a.documentRef === input.documentRef);
+    if (attachment === undefined) return { ok: false, refusal: "no_such_upload" };
+    const stored = (held_documents ?? []).find((r) => r.documentId === attachment.document.documentId);
+    if (stored === undefined) return { ok: false, refusal: "content_changed" };
+
+    // 4 · The disclosure, from what the student saw.
+    const determination = disclosure.register.forActivity(DISCLOSURE_ACTIVITY);
+    if (determination === undefined) return { ok: false, refusal: "disclosure_refused" };
+    const caseState = events.length === 0 ? null : fold(events);
+    const request: DisclosureRequestRecord = {
+      disclosureId: `disc_${input.runId}_${upload.fieldRef}`,
+      subject: {
+        documentId: attachment.document.documentId,
+        documentType: attachment.document.describedAs,
+        contentHash: attachment.document.contentHash,
+        caseId: record.caseId,
+        requestedFor: upload.label,
+      },
+      destination: {
+        institutionName: preview.preview.institutionName,
+        portalHost: preview.preview.portalHost,
+      },
+      determination,
+      studentAuthorisation: {
+        studentRef: record.studentRef,
+        presentedText: renderPreview(preview.preview),
+        authorisedAt: captured.authorisedAt,
+        method: "chat_affirmation",
+      },
+      // A case a minor-safeguarding trigger is holding has conditions nobody
+      // has determined yet: an EMPTY set, which `authoriseDisclosure` refuses
+      // as undetermined rather than reading as "none apply" (ADR-0011).
+      ...(caseState?.activeTriggers.includes("involves_minor") === true ? { minorConditions: [] } : {}),
+    };
+    const authorised = authoriseDisclosure(request);
+    if (!authorised.authorised) return { ok: false, refusal: "disclosure_refused" };
+
+    // 5 · The transmission gate, with the case.
+    const permission = mayTransmit({
+      authorisation: authorised.authorisation,
+      forCase: record.caseId,
+      documentId: attachment.document.documentId,
+      contentHash: attachment.document.contentHash,
+      toHost: preview.preview.portalHost,
+      // Nothing produces a WithdrawalRecord yet: a student's "I have changed
+      // my mind" voids the fill authorisation (AuthorisationVoided), which
+      // step 3 already refuses on. Recorded here so the gap is visible.
+      withdrawals: [],
+    });
+    if (!permission.permitted) return { ok: false, refusal: "transmission_refused" };
+
+    // 6 · The URL. Sixty seconds, one GET, minted only now.
+    const retrieval = await disclosure.vault.prepareRetrieval(attachment.document.documentId, now);
+    return {
+      ok: true,
+      document: {
+        documentId: attachment.document.documentId,
+        documentType: stored.documentType,
+        contentHash: attachment.document.contentHash,
+        contentType: stored.contentType,
+        retrieval: { url: retrieval.url, method: "GET", expiresAt: retrieval.expiresAt.toISOString() },
+        disclosure: {
+          disclosureId: request.disclosureId,
+          subject: request.subject,
+          destination: request.destination,
+          determinationId: determinationOf(determination).determinationId,
+          studentAuthorisation: {
+            studentRef: String(record.studentRef),
+            presentedText: request.studentAuthorisation?.presentedText ?? "",
+            authorisedAt: captured.authorisedAt.toISOString(),
+            method: "chat_affirmation",
+          },
+        },
+      },
+    };
+  }
+
   public async previewFor(
     runId: string,
     conversationId: string,
@@ -5099,11 +5287,12 @@ function workPayloadFor(
 
   // ── Taken apart for transport, or refused ─────────────────────────────
   //
-  // `toStoredPlan` refuses a plan with uploads, handoffs or blockers rather
-  // than trimming them: a plan with its uploads removed would report itself
-  // complete having attached nothing, and the student would be told their
-  // application was filled. A refused plan means this run is not work — it is
-  // waiting on something else, and `nextStep` says what on the next advance.
+  // `toStoredPlan` refuses a plan with handoffs or blockers rather than
+  // trimming them: a plan with a part silently removed would report itself
+  // complete having done less than the student was told. A refused plan means
+  // this run is not work — it is waiting on something else, and `nextStep`
+  // says what on the next advance. Uploads cross as references (ADR-0099):
+  // the runner asks the plane for each under its lease, after the gates.
   const transported = toStoredPlan(plan);
   if (!transported.ok) return null;
 
@@ -5132,7 +5321,10 @@ function workPayloadFor(
   const instructions = transported.plan.instructions.filter((instruction) =>
     onThisPage.has(instruction.fieldRef),
   );
-  if (instructions.length === 0) return null;
+  // The uploads on THIS page, by the same rule as the fields. A page whose
+  // only box is a file input is still a page to fill (ADR-0099).
+  const uploads = transported.plan.uploads.filter((upload) => onThisPage.has(upload.fieldRef));
+  if (instructions.length === 0 && uploads.length === 0) return null;
 
   return {
     portalHost,
@@ -5148,7 +5340,7 @@ function workPayloadFor(
       })),
     }).slice(page.pageRef.length + 1),
     carries: {
-      plan: toWirePlan({ ...transported.plan, instructions }),
+      plan: toWirePlan({ ...transported.plan, instructions, uploads }),
       formUrl: at,
       advanceLocator: { strategy: advance.strategy, value: advance.value },
     },
@@ -5202,6 +5394,13 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
               mappingSetId: instruction.value.mappingSetId,
               reviewedBy: instruction.value.reviewedBy,
             },
+    })),
+    // References only (ADR-0099): the runner asks for each under its lease.
+    uploads: stored.uploads.map((upload) => ({
+      fieldRef: upload.fieldRef,
+      label: upload.label,
+      documentRef: upload.documentRef,
+      locators: upload.locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
     })),
   };
 }

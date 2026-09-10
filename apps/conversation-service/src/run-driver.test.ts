@@ -102,6 +102,9 @@ import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import { S3DocumentVault } from "./s3-document-vault.js";
+import { S3Client } from "@aws-sdk/client-s3";
+import { b2Register } from "@askimate/aas-disclosure";
 import { previewDocumentsOf } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
@@ -366,6 +369,21 @@ function buildInstance(
     // store. Present in every instance so "holds nothing" is a table with no
     // rows, not a driver built without the question.
     heldDocuments: new PostgresDocumentRecordStore(instancePool),
+    // ADR-0099: the register the disclosure determination is read from, and
+    // a vault that mints a retrieval URL OFFLINE — the SDK signs, the client
+    // never sends — over the same metadata store.
+    disclosure: {
+      register: b2Register(NOW),
+      vault: new S3DocumentVault({
+        client: new S3Client({
+          region: "eu-west-2",
+          credentials: { accessKeyId: "AKIAIOSFODNN7EXAMPLE", secretAccessKey: "not-a-secret" },
+        }),
+        bucket: "never-contacted",
+        kmsKeyId: "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000",
+        records: new PostgresDocumentRecordStore(instancePool),
+      }),
+    },
     ...(notifier === null ? {} : { notifier }),
     newInterventionId: (runId, key) =>
       `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
@@ -7415,6 +7433,7 @@ describeIfDatabase("the preview names what the student holds (ADR-0097, P64)", (
   // ═══════════════════════════════════════════════════════════════════════
   const conversation = "01JBXQ8Z9WKTQ6M4H2NPSPC064";
   const PASSPORT_HASH = "c".repeat(64);
+  const caseRefOf = (id: string): string => `case_${id.toLowerCase()}`;
   let student = "";
   let runId = "";
 
@@ -7489,6 +7508,92 @@ describeIfDatabase("the preview names what the student holds (ADR-0097, P64)", (
       expect(preview.presentedText).toMatch(/for: this application — /);
       // The record, not a filename nobody has: no ".pdf" and no path.
       expect(preview.presentedText).not.toMatch(/\.pdf|documents\//);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("hands the RUNNER the document, under its lease, after the gates — and refuses everyone else", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Slice c (ADR-0099), end to end inside the plane: the student's yes,
+    // the runner's claim, and the hand-over that runs `authoriseDisclosure`
+    // over what the student saw and `mayTransmit` with the case before a
+    // retrieval URL exists. The vault is the S3 vault over the real metadata
+    // store with a client that can sign and cannot send: the URL is minted
+    // offline, and no byte is read.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const preview = await instance.driver.previewFor(runId, conversation);
+      if (preview === null) expect.unreachable("the preview from the test above");
+      const recorded = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: preview.contentHash },
+      });
+      expect(recorded.ok, "the yes").toBe(true);
+      // The decision is recorded; the run moves on the next advance, as
+      // every decision does (ADR-0049), and only then is it browser work.
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("execute");
+
+      // ── The lease, taken directly ─────────────────────────────────────
+      //
+      // `claimWork` hands out no execute work for a portal with no login:
+      // `accountDetail` answers null when no account exists and no account
+      // step names one, because `ClaimedWork` carries an account's email and
+      // approach (ADR-0045). The open fixture has neither. That is a gap in
+      // the plane's own hand-out — recorded under blocker 19 — and not what
+      // this test is about, so the runner's lease is taken through the store
+      // the claim path uses, and the hand-over is tested from there.
+      const lease = await new WorkLeaseStore(instance.pool).claim({
+        runId,
+        leaseId: "wl_p66_runner",
+        kind: "execute",
+        holder: "runner-p66",
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      if (lease === null) expect.unreachable("the lease on the run the student authorised");
+      const work = { leaseId: lease.leaseId };
+
+      // Somebody who is not the holder: refused before anything is looked at.
+      const stranger = await instance.driver.documentForWork({
+        runId,
+        leaseId: work.leaseId,
+        holder: "runner-other",
+        documentRef: "passport",
+      });
+      expect(stranger).toEqual({ ok: false, refusal: "not_holder" });
+      // The holder, for an upload the plan does not name.
+      const wrongRef = await instance.driver.documentForWork({
+        runId,
+        leaseId: work.leaseId,
+        holder: "runner-p66",
+        documentRef: "bank_statement",
+      });
+      expect(wrongRef).toEqual({ ok: false, refusal: "no_such_upload" });
+
+      const handed = await instance.driver.documentForWork({
+        runId,
+        leaseId: work.leaseId,
+        holder: "runner-p66",
+        documentRef: "passport",
+      });
+      if (!handed.ok) expect.unreachable(`refused: ${handed.refusal}`);
+      const document = handed.document;
+      expect(document.documentId).toBe("01JQP64NEW000000000000000A");
+      expect(document.contentHash).toBe(PASSPORT_HASH);
+      expect(document.retrieval.method).toBe("GET");
+      expect(new URL(document.retrieval.url).protocol).toBe("https:");
+      // What the gates ran over: the case, the destination, the text the
+      // student saw — and the determination Vahid made, by id.
+      expect(document.disclosure.subject.caseId).toBe(String(caseRefOf(conversation)));
+      expect(document.disclosure.destination).toEqual({ institutionName: "Example University", portalHost: "apply.example.test" });
+      expect(document.disclosure.studentAuthorisation.presentedText).toBe(preview.presentedText);
+      expect(document.disclosure.studentAuthorisation.method).toBe("chat_affirmation");
+      expect(document.disclosure.determinationId).toBe("b2-3-disclose");
     } finally {
       await instance.pool.end();
     }
@@ -8122,11 +8227,14 @@ describeIfDatabase("a run only a person can carry on", () => {
     ).toContain("target: `specialist:${handover.reason}`");
     // Nothing in the driver reads or writes document CONTENT. Since P64
     // (ADR-0097) `documents` is built from the vault's METADATA — the records
-    // the student holds, so the preview can name them — and this is the
-    // assertion that fails if a later change reaches for bytes: the driver
-    // names no vault method that yields or takes contents.
+    // the student holds, so the preview can name them — and since P66
+    // (ADR-0099) `documentForWork` mints a retrieval URL for the runner. A
+    // URL is not a byte: this is the assertion that fails if a later change
+    // reaches for the bytes themselves — the driver names no vault method
+    // that yields or takes contents, and never fetches what it minted.
     expect(source).toContain("documents: previewDocumentsOf(");
-    expect(source).not.toMatch(/prepareRetrieval|prepareUpload|confirmUpload|receiveUpload|\.attach\(/);
+    expect(source).toContain("disclosure.vault.prepareRetrieval(");
+    expect(source).not.toMatch(/prepareUpload|confirmUpload|receiveUpload|\.attach\(|arrayBuffer\(|fetch\(retrieval/);
   }, 60_000);
 });
 

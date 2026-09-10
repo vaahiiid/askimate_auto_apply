@@ -26,14 +26,18 @@
  * obtained without the history; sending the history is what makes rebuilding it
  * honest rather than a formality.
  *
- * ── What is deliberately NOT transportable ────────────────────────────────
+ * ── Uploads cross as REFERENCES, never as documents ───────────────────────
  *
- * Uploads. A document is bytes the student authorised us to send to one host,
- * and the gate that checks that (`mayTransmit`) runs against the document's own
- * content hash at the moment of sending. Transporting a plan with uploads in it
- * would need the documents too, and the runner is forbidden
- * `@askimate/aas-documents` for the reason that rule states. A plan with uploads
- * is not transportable, and `toStoredPlan` says so by refusing.
+ * Until P66 (ADR-0099) a plan with uploads was refused transport: a document is
+ * bytes the student authorised us to send to one host, the gate that checks
+ * that (`mayTransmit`) runs against the document's own content hash at the
+ * moment of sending, and the runner is forbidden `@askimate/aas-documents`.
+ * All three are still true. What crosses now is what a plan already held about
+ * an upload — which box, which document the reviewed mapping named for it,
+ * where the box is — and NOT the document: no bytes, no document id, no hash.
+ * The runner asks the plane for each `documentRef` under its lease, and the
+ * plane answers only after `authoriseDisclosure` and `mayTransmit` with the
+ * case; the bytes come from a sixty-second retrieval URL the plane minted.
  */
 
 import type { ConfirmationProvenance } from "@askimate/aas-domain";
@@ -74,19 +78,27 @@ export interface StoredFillInstruction {
   readonly value: StoredFillValue;
 }
 
+/** An upload, as a reference: which box, which document, where. No bytes, no id, no hash. */
+export interface StoredUpload {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly documentRef: string;
+  readonly locators: readonly FieldLocator[];
+}
+
 export interface StoredFillPlan {
   readonly blueprintId: string;
   readonly blueprintVersion: string;
   readonly mappingSetId: string;
   readonly instructions: readonly StoredFillInstruction[];
+  /** Uploads as references (ADR-0099). The runner resolves each under its lease. */
+  readonly uploads: readonly StoredUpload[];
   /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
   readonly credentials: readonly CredentialRequirement[];
 }
 
 /** Why a plan cannot be sent to a runner. Every one is a refusal, not a bug. */
 export type PlanTransportRefusal =
-  /** The plan needs documents, and the runner may hold none. */
-  | "has_uploads"
   /** The plan is not executable: a required field has no mapping, or worse. */
   | "has_blockers"
   /** A field the student must do themselves. Not automatable by definition. */
@@ -102,7 +114,6 @@ export type PlanTransportRefusal =
 export function toStoredPlan(
   plan: FillPlan,
 ): { readonly ok: true; readonly plan: StoredFillPlan } | { readonly ok: false; readonly refusal: PlanTransportRefusal } {
-  if (plan.uploads.length > 0) return { ok: false, refusal: "has_uploads" };
   if (plan.blockers.length > 0) return { ok: false, refusal: "has_blockers" };
   if (plan.handoffs.length > 0) return { ok: false, refusal: "has_handoffs" };
 
@@ -122,6 +133,17 @@ export function toStoredPlan(
             value: locator.value,
           })),
           value: storedValue(instruction.value),
+        }),
+      ),
+      uploads: plan.uploads.map(
+        (upload): StoredUpload => ({
+          fieldRef: upload.fieldRef,
+          label: upload.label,
+          documentRef: upload.documentRef,
+          locators: upload.locators.map((locator) => ({
+            strategy: locator.strategy,
+            value: locator.value,
+          })),
         }),
       ),
       credentials: plan.credentials.map((credential) => ({ ...credential })),
@@ -163,9 +185,9 @@ function storedValue(value: FillValue): StoredFillValue {
  * `executePlan` calls `fill` for one and `fillConstant` for the other and no
  * fabricated provenance is invented for either.
  *
- * `uploads`, `handoffs` and `blockers` come back EMPTY, and they are empty
- * because `toStoredPlan` refuses any plan that had them — not because they were
- * dropped here.
+ * `handoffs` and `blockers` come back EMPTY, and they are empty because
+ * `toStoredPlan` refuses any plan that had them — not because they were
+ * dropped here. `uploads` come back as the references that crossed.
  */
 export function rehydratePlan(stored: StoredFillPlan): FillPlan {
   return {
@@ -184,7 +206,15 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
         value: rebuiltValue(instruction.value),
       }),
     ),
-    uploads: [],
+    uploads: stored.uploads.map((upload) => ({
+      fieldRef: upload.fieldRef,
+      label: upload.label,
+      documentRef: upload.documentRef,
+      locators: upload.locators.map((locator) => ({
+        strategy: locator.strategy,
+        value: locator.value,
+      })),
+    })),
     handoffs: [],
     credentials: stored.credentials.map((credential) => ({ ...credential })),
     blockers: [],

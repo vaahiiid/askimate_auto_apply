@@ -896,6 +896,10 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       if (advance === undefined) expect.unreachable("execute work carries its save control");
       return fillApplication(work, {
         now: () => new Date(),
+        // The gated fixture's plan references no upload, so no plane is asked
+        // (ADR-0099). A plan that did would be answered `null` here and fail
+        // on that field by name, never silently.
+        documents: () => Promise.resolve(null),
         // The REAL session, attached to the page the account was created in.
         // Not a hand-rolled adapter: the first version of this test wrote one
         // and lost the option check, the checkbox handling and the read-back
@@ -985,6 +989,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
 
       const outcome = await fillApplication(claimed, {
         now: () => new Date(),
+        documents: () => Promise.resolve(null),
         session: PlaywrightPreparationSession.attach(restarted.page, {
           capability: "fillable",
           runId: "run-journey-2",

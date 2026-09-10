@@ -105,12 +105,35 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       ...(config.catalogueDir === undefined ? {} : { directory: config.catalogueDir }),
       portalOrigins: config.portalOrigins,
     });
+    // ── The document transport, if configured (ADR-0092, ADR-0094) ─────
+    //
+    // Built here, at the composition root, and REFUSED here if any part of
+    // it is in memory: intakes and records in this database, bytes in the
+    // bucket. Absent, the document routes answer service_unavailable — a
+    // refusal, not a bypass.
+    const documents =
+      config.documents === undefined
+        ? undefined
+        : await buildDocumentPort({
+            pool,
+            bucket: config.documents.bucket,
+            kmsKeyArn: config.documents.kmsKeyArn,
+            region: config.documents.region,
+            retentionScheduleDir: config.documents.retentionScheduleDir,
+            environment: options.env["NODE_ENV"],
+            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
+            now: () => new Date(),
+          });
+
     const driver = buildRunDriver(
       {
         pool,
         catalogue,
         secureRequests,
         identities,
+        // ADR-0099: the driver hands a runner a document only through the
+        // transport's own register and vault. Absent, it refuses.
+        ...(documents === undefined ? {} : { disclosure: { register: documents.register, vault: documents.vault } }),
         // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
         now: () => new Date(),
       },
@@ -145,26 +168,6 @@ export async function start(options: StartOptions): Promise<RunningService | nul
               options.log(`sign-in failed: ${reason}`);
             },
           };
-
-    // ── The document transport, if configured (ADR-0092, ADR-0094) ─────
-    //
-    // Built here, at the composition root, and REFUSED here if any part of
-    // it is in memory: intakes and records in this database, bytes in the
-    // bucket. Absent, the document routes answer service_unavailable — a
-    // refusal, not a bypass.
-    const documents =
-      config.documents === undefined
-        ? undefined
-        : await buildDocumentPort({
-            pool,
-            bucket: config.documents.bucket,
-            kmsKeyArn: config.documents.kmsKeyArn,
-            region: config.documents.region,
-            retentionScheduleDir: config.documents.retentionScheduleDir,
-            environment: options.env["NODE_ENV"],
-            // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made
-            now: () => new Date(),
-          });
 
     const app = createConversationApp({
       store,

@@ -182,7 +182,11 @@ export type {
   TransportedInstruction,
   TransportedPlan,
   TransportedProvenance,
+  TransportedUpload,
   TransportedValue,
+  WireDisclosure,
+  WorkDocument,
+  WorkDocumentRequest,
   WorkProvenanceSource,
   A_CONFIRMED_VALUE_CARRIES_ITS_PROVENANCE,
   WorkApproach,
@@ -198,6 +202,7 @@ export {
   WORK_PROVENANCE_SOURCES,
   WORK_OUTCOMES,
   parseClaimedWork,
+  parseWorkDocument,
   parseWorkReport,
 } from "./work.js";
 

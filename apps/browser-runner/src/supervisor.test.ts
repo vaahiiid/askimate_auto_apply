@@ -70,6 +70,8 @@ function intakeOf(
       reports.push(report);
       return Promise.resolve(input.accept ?? true);
     },
+    // No plane hands this fake a document; the loop under test never asks.
+    document: () => Promise.resolve(null),
   };
 }
 

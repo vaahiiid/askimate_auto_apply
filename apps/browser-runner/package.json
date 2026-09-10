@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-browser-runner",
-  "version": "0.82.0",
+  "version": "0.83.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,6 +14,7 @@
     "@askimate/aas-browser-fill": "workspace:*",
     "@askimate/aas-config": "workspace:*",
     "@askimate/aas-contracts": "workspace:*",
+    "@askimate/aas-disclosure": "workspace:*",
     "@askimate/aas-domain": "workspace:*",
     "@askimate/aas-execution": "workspace:*",
     "@askimate/aas-mapping": "workspace:*",

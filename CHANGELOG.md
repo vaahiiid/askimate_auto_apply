@@ -19,6 +19,55 @@ not shipped artefacts.
 
 ---
 
+## [0.83.0] — 2026-09-10
+
+**P66 — uploads cross as references, and the plane hands a document over only after the gates
+(ADR-0099).** Slice c of the attachment path.
+
+### Added
+
+- `StoredUpload` / `TransportedUpload`: an upload crosses to the runner as which box, which document
+  the reviewed mapping named, and where the box is — no bytes, no document id, no hash; the parser
+  refuses a fifth field. `toStoredPlan` no longer refuses `has_uploads`; a page whose only box is a
+  file input is a page to fill.
+- `POST /internal/v1/work/{runId}/documents/{documentRef}` and `RunDriver.documentForWork`: six
+  ordered checks — the lease, the run at execute naming this upload, the captured authorisation
+  still hashing to the preview rendered NOW, `authoriseDisclosure` over a record built from what
+  the student saw (determination 3; a minor-held case passes an empty condition set and is
+  refused as undetermined), `mayTransmit` WITH THE CASE, then a sixty-second retrieval URL. Nine
+  refusals in the driver, four codes on the wire, no sentence.
+- `WorkDocument`, `WireDisclosure`, `WorkDocumentRequest`, `parseWorkDocument`; both published in
+  `conversation.v1.yaml`.
+- `documentSourceFor` in the runner: asks the plane under the lease, refuses a record about
+  another case before fetching, fetches once, hashes, refuses a determination its own register
+  does not hold, and mints the `DisclosureAuthorisation` brand through `authoriseDisclosure` —
+  never a cast. `fillApplication` requires a `DocumentSource`. The runner depends on
+  `@askimate/aas-disclosure`.
+- `RunDriverOptions.disclosure` and `DriverWiring.disclosure`; the service builds the document
+  transport before the driver and threads its register and vault.
+- Tests: the runner's source (seven), the contract parser, the route (every refusal mapped, no
+  `detail`), the plane-side hand-over against Postgres, the transport round trip with uploads.
+
+### Changed
+
+- `authoriseDisclosure` leaves the declared-but-unreachable register: `documentForWork` is its
+  production caller. `fillApplication` enters it — see below. The count stays six.
+
+### Found, not resolved
+
+- **The runner's entry point performs `create_account` only.** Execute work has no production
+  performer and never had; `fillApplication` is called by the journey test and by no deployable.
+  Behind it: for a portal with no login, execute work is never handed out at all. Blocker 19,
+  Vahid's.
+
+### Not built
+
+Slice d (the entry point performing execute work with this source) and slice e (the
+`attach_document` intent; the `TransmissionRecord` from the runner's report). No
+`WithdrawalRecord` producer. Nothing ran against AWS. Declared-but-unreachable: six.
+
+---
+
 ## [0.82.0] — 2026-09-10
 
 **P65 — one yes over a preview that names each attachment, and the gates refuse in a closed set

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,327 tests, 123 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,344 tests, 125 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -111,6 +111,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P63** | Expired document intakes are swept by the worker (ADR-0096) | The worker's fourth job, `sweep_document_intakes`: migration 0018 widens the closed `job_kind` vocabulary; `sweepExpiredIntakes` is one bounded DELETE, oldest first, idempotent; sixty seconds under the same lease discipline as the other three, `AAS_WORKER_SWEEP_MS` to change it. The worker still names no vault — the table it deletes from cannot hold a byte, and the worker's test writes its abandoned rows by hand because the app is forbidden the documents package. The race with `take` is shown not to be one. **Not built:** the retention sweep (`purgeContents` still has no caller), the runner's fetch |
 | **P64** | The preview names what the student holds (ADR-0097) | Slice a of the attachment path (§2). `RunDriver` hands the orchestrator the student's held documents from the vault's METADATA store, keyed by document type — one per type, the current one, never a superseded or purged record — so a run whose student holds the passport the mapping attaches reaches `authorise` with it named in the preview, and the authorisation binds to a hash that covers `(fieldRef, documentRef, contentHash)` (ADR-0069). `PreviewDocument.filename` → `describedAs`. The driver names no vault method that yields bytes, asserted. **Not built:** slices b–e; nothing is sent |
 | **P65** | One yes over a preview that names each attachment, and the gates refuse in a closed set (ADR-0098) | Vahid's two decisions of 2026-09-10, verbatim in the ADR. Slice b: `renderPreview` writes, per attachment, which document, going where (institution and portal host) and for what (the form's label, this application); `SubmissionPreview.portalHost` is derived from the blueprint's first observed URL and is INSIDE the content hash, so a re-pointed application voids the yes. Blocker 18 closed: the storage gates' five refusals are three published codes (`document_not_retainable`, `document_basis_undetermined`, `document_type_refused`) with words on the page; every `detail` left the wire in the Conversation Service, two of them older than the transport; `no-free-text-on-the-wire.test.ts` refuses the next one. **Not built:** slices c–e; nothing is sent |
+| **P66** | Uploads cross as references, and the plane hands a document over only after the gates (ADR-0099) | Slice c. An upload crosses to the runner as four things — which box, which document the mapping named, where the box is — and no bytes, id or hash. `POST /internal/v1/work/{runId}/documents/{documentRef}` under the lease: the run is at execute and names the upload; the captured authorisation still hashes to the preview rendered NOW; a `DisclosureRequestRecord` from what the student saw runs `authoriseDisclosure` (determination 3), then `mayTransmit` WITH THE CASE, then a sixty-second retrieval URL. The runner's `documentSourceFor` fetches, hashes, and mints the brand through `authoriseDisclosure` again — never a cast — before `executePlan` runs `mayTransmit` at the moment of attaching. `authoriseDisclosure` leaves the register. **Found:** the runner's entry point performs `create_account` only; `fillApplication` enters the register (blocker 19). **Not built:** slices d and e |
 
 ---
 
@@ -291,6 +292,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0096 | Expired document intakes are swept by the worker | Accepted · continues 0094, extends 0052 |
 | 0097 | The preview names what the student holds | Accepted · continues 0095 and 0096 |
 | 0098 | One yes over a preview that names each attachment, and the gates refuse in a closed set | Accepted · Vahid's decisions · continues 0097 |
+| 0099 | Uploads cross as references, and the plane hands a document over only after the gates | Accepted · continues 0098, amends 0046 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -349,13 +351,17 @@ in *no* row of the table, while `packages/notify` sat under this heading with a 
 
 **Six** capabilities, each named by a decision, each with no caller inside any deployable's
 dependency closure. It was seven until P57: `assertStorable` left this table when the document
-transport gave it a production caller (ADR-0090), which is the first time an entry has moved out. The reason and what would close it are the register's own words.
+transport gave it a production caller (ADR-0090), the first entry to move out. `authoriseDisclosure`
+left it in P66 (ADR-0099), when the plane's document hand-over gave it one — and `fillApplication`
+entered, because building that hand-over measured that the runner's entry point performs
+`create_account` only: execute work has no production performer, and never had (blocker 19). The
+reason and what would close it are the register's own words.
 
 | Capability | Record | Why it cannot be reached | What closes it |
 |---|---|---|---|
 | `blocksApplication` | ADR-0021, ADR-0080 | Nothing in production carries a `Requirement`, so there is no scope for it to read — the visa journey is absent rather than excluded | The Requirements Service phase, or anything else putting a scoped `Requirement` on a production path |
 | `checkMinorGate` | ADR-0011 | Its one BLOCKING condition is at the submission stage, and submission is out of scope (ADR-0014). The trigger that stops a case for review is a different thing and *is* reachable: `suggestsMinority` | The phase that brings submission into scope |
-| `authoriseDisclosure` | ADR-0022 | Same lawful basis, on the way out rather than in — and it is no longer the obstacle: determination 3 registers Article 6(1)(b) **and** required student authorisation (ADR-0087) | The transport phase — nothing yet holds a document to send |
+| `fillApplication` | ADR-0046 | The runner's entry point performs `create_account` only. `execute` work is claimed and handed out with its plan, and `fillApplication` is called by the journey test and by nothing a deployable runs: the browser session an account was created in does not survive to the next work item, and the password that would sign in again was single-use and is gone | A design for the signed-in session across work items — blocker 19, Vahid's |
 | `purgeContents` | ADR-0010, ADR-0023 | B1 is decided; what is missing is a vault holding something to purge | The transport phase, and the job that calls this when a period elapses |
 | `assessUsability` | ADR-0009 | Nothing feeds it; requirements come from the reviewed catalogue | The Requirements Service phase, if the KB workflow is ever wired |
 | `attach_document` | ADR-0069 | Produced by nothing — `WorkKind` is `create_account \| execute` | The attachment intent identity ADR-0069 names, and a `WorkKind` that can carry it |
@@ -437,6 +443,7 @@ open rather than quietly answered.
 | **16** | ~~**Billing alerts, one S3 bucket, the vault's CMK and a prefix-scoped credential, to verify the checksum binding AND SSE-KMS through a pre-signed PUT**~~ | — | **Created by you and run on 2026-09-09; VERIFIED on both halves (ADR-0092 §4, *Run 2026-09-09*).** The first run said REFUTED because the SDK hoisted the checksum into the query string, where S3 never reads it — your reading: *"the run refuted the property under the SDK's default presign, not the property itself."* The second run, with the checksum a signed header, established all three things you asked for: a mismatched body is refused (400 `BadDigest`), an uploader who omits or alters the header is refused (403 `SignatureDoesNotMatch`), and SSE-KMS holds with the binding in place. **The port is still untouched** — the reshaping starts on your word, and carries the constraint that the checksum is a signed header, never a query parameter |
 | **17** | **The vault's service role, the bucket's CORS rule and its lifecycle** | You — AWS spend is your act | **The transport in production (ADR-0094).** The service starts with the transport once four variables are set; what its role must be allowed, what CORS the page's origin needs, and what lifecycle the bucket should and should not have: `docs/provisioning-request-document-vault.md`. Nothing has been created by the agent. The first request this service makes to AWS is on your deployment |
 | **18** | ~~**The gate's reason on the wire — two of your rules disagree**~~ | — | **Closed by Vahid, 2026-09-10 (ADR-0098):** *"The contract's Problem stays without detail. Close the gap the way P41 closed its own: a closed set of refusal codes, each with wording written for the student and covered by the wording-coverage guard."* Done in P65: three codes, words on the page, every `detail` off the wire, and a guard. He asked to be told if a gate's refusal could not be expressed as a code; all five could |
+| **19** | **The runner performs `create_account` only — execute work has no production performer** | You | **Found in P66 (ADR-0099).** `apps/browser-runner/src/main.ts` answers `needs_the_student` to every work kind but `create_account`. `fillApplication` — the thing that fills and saves a page — is called by `scripts/journey.test.ts` and by no deployable, and it is now in the register as declared-but-unreachable. The reason is a design nobody has made: the browser session an account was created in does not survive to the next work item, and the password that would sign in again was single-use and is gone (ADR-0042). A second gap sits behind it: for a portal with no login, execute work is never handed out at all, because `ClaimedWork` carries an account's email and approach (ADR-0045) and `accountDetail` answers null with neither. The attachment path's slices d and e wait on this; the transport, the gates and the hand-over do not. Two things need your word: whether a runner may hold a signed-in session across work items (and where its credential comes from), and whether a portal with no login is a route this product serves |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
@@ -453,7 +460,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,327 tests · 123 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,344 tests · 125 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -466,21 +473,21 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,327 tests**, by the workspace they live in. Generated — run
+**2,344 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 393 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 398 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 290 | `packages/profile` | 46 |
-| `apps/browser-runner` | 237 | `packages/catalogue` | 39 |
+| `apps/browser-runner` | 244 | `packages/catalogue` | 39 |
 | `packages/case-store` | 143 | `packages/preparation` | 35 |
 | `packages/documents` | 99 | `packages/extraction` | 27 |
 | `packages/orchestrator` | 98 | `packages/mapping` | 26 |
-| `packages/contracts` | 78 | `packages/interview` | 22 |
+| `packages/contracts` | 83 | `packages/interview` | 22 |
 | `packages/secrets` | 67 | `packages/requirements` | 22 |
 | `packages/account` | 65 | `apps/worker` | 21 |
 | `apps/secure-service` | 64 | everything else | 80 |
@@ -593,8 +600,8 @@ The order is forced by the dependencies, and it goes through the transmission ga
 |---|---|---|
 | **a** ✅ | **Built in P64 (ADR-0097).** The driver supplies the student's held documents to the preview, keyed by the reviewed mapping's `documentRef` (the domain document type). The preview then names each attachment, and the `authorise` decision covers `(fieldRef, documentRef, contentHash)` as ADR-0069 froze it | ADR-0057/0059 — the authorisation binds to content |
 | **b** ✅ | **Built in P65 (ADR-0098), on Vahid's decision.** The preview's presented text carries, per attachment, which document, going where and for what, and the destination host is inside the content hash, so the recorded `AuthorisationCaptured` IS the specific student authorisation determination 3 requires. `StudentDisclosureAuthorisation` is built from that event in slice c: `presentedText` = the preview, `method` = `chat_affirmation` | ADR-0022 — no `consented: boolean`; the text names what, where and for what |
-| **c** | Plan transport carries uploads as **references** (`fieldRef`, `documentRef`, locators; no bytes, no ids). The runner asks the service, under its lease, for each `documentRef`; the service builds the `DisclosureRequestRecord` from the case's authorisation, runs `authoriseDisclosure` and `mayTransmit` **with the case**, and answers a sixty-second retrieval URL plus the authorisation record | ADR-0069 — the case binding, checked server-side before any URL exists |
-| **d** | The runner's `DocumentSource` fetches the bytes from the URL and hands `executePlan` the `AuthorisedDocument`; `executePlan` runs `mayTransmit` again in-process — the gate twice, on two machines, same inputs | ADR-0022 — the gate at the moment of sending |
+| **c** ✅ | **Built in P66 (ADR-0099).** Plan transport carries uploads as **references** (`fieldRef`, `documentRef`, locators; no bytes, no ids). The runner asks the service, under its lease, for each `documentRef`; the service builds the `DisclosureRequestRecord` from the case's authorisation, runs `authoriseDisclosure` and `mayTransmit` **with the case**, and answers a sixty-second retrieval URL plus the authorisation record. The runner's `documentSourceFor` re-runs the gate before `executePlan` runs `mayTransmit` again | ADR-0069 — the case binding, checked server-side before any URL exists |
+| **d** | ~~The runner's `DocumentSource` fetches the bytes and hands `executePlan` the `AuthorisedDocument`~~ — built in P66 as `documentSourceFor`. What remains of d is the runner's ENTRY POINT performing execute work at all: it performs `create_account` only (blocker 19), so the source has no production caller yet | ADR-0022 — the gate at the moment of sending |
 | **e** | `attach_document` intent per upload, target `(fieldRef, documentRef, contentHash)`, written at claim beside the page intents; `assessIntent` consults it; `TransmissionRecord` written from the runner's report | ADR-0054 — verify first, never repeat |
 
 Slices a and b are the Conversation Service alone. c is the first to change what crosses to the

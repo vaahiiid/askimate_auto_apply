@@ -90,7 +90,8 @@ import { makeOffer, verifyRequest } from "./target-offers.js";
 import { encodeCursor, type ConversationRecord } from "./event-store.js";
 
 import type { AppendableEvent, ConversationEventStore } from "./event-store.js";
-import type { RunOutcome, RunReading, RunRefusal } from "./run-driver.js";
+import type { RunOutcome, RunReading, RunRefusal, WorkDocumentRefusal } from "./run-driver.js";
+import type { WorkDocument } from "@askimate/aas-contracts";
 import { IdempotencyConflictError, UnknownConversationError } from "./event-store.js";
 
 /** Who is calling. Resolved by the host, so identity stays ADR-0038's problem. */
@@ -211,6 +212,13 @@ export interface RunCoordinator {
     readonly runId: string;
     readonly decision: StudentDecision;
   }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
+  /** Hands a runner one document for one upload of the work it holds, after the gates. ADR-0099. */
+  documentForWork(input: {
+    readonly runId: string;
+    readonly leaseId: string;
+    readonly holder: string;
+    readonly documentRef: string;
+  }): Promise<{ readonly ok: true; readonly document: WorkDocument } | { readonly ok: false; readonly refusal: WorkDocumentRefusal }>;
   /** Records a specialist's review of a case. ADR-0049 §4. */
   completeReview(input: {
     readonly caseId: CaseId;
@@ -1865,6 +1873,68 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
             return;
           }
           throw error;
+        }
+      })().catch(next);
+    },
+  );
+
+  // ── POST /internal/v1/work/:runId/documents/:documentRef ─────────────────
+  //
+  // ADR-0099. The runner holds work whose plan names an upload as a REFERENCE
+  // and asks for the document. The answer is a sixty-second retrieval URL and
+  // the disclosure record the gates ran over — or a refusal, in a closed set.
+  // Nothing here reads a byte: the bucket hands the bytes to the runner.
+  //
+  // The lease travels in the body, not the URL, for the reason `report` gives.
+  router.post(
+    "/internal/v1/work/:runId/documents/:documentRef",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        if (options.authoriseService?.(req) !== true) {
+          problem(res, "forbidden");
+          return;
+        }
+        if (options.runs === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+        const leaseId = readString(req.body, "leaseId");
+        const holder = readString(req.body, "holder");
+        if (leaseId === null || holder === null) {
+          problem(res, "validation_failed", { pointers: ["/leaseId", "/holder"] });
+          return;
+        }
+        const handed = await options.runs.documentForWork({
+          runId: String(req.params["runId"]),
+          leaseId,
+          holder,
+          documentRef: String(req.params["documentRef"]),
+        });
+        if (handed.ok) {
+          res.status(200).json(handed.document);
+          return;
+        }
+        // A closed set to a closed set. The runner reads the code and reports
+        // the work as needing a person; WHY is the plane's to know, and the
+        // route tests read it off the driver.
+        switch (handed.refusal) {
+          case "no_disclosure_port":
+            problem(res, "service_unavailable");
+            return;
+          case "no_such_run":
+          case "no_such_upload":
+            problem(res, "not_found");
+            return;
+          case "content_changed":
+            problem(res, "content_changed");
+            return;
+          case "not_holder":
+          case "not_executing":
+          case "not_authorised":
+          case "disclosure_refused":
+          case "transmission_refused":
+            problem(res, "forbidden");
+            return;
         }
       })().catch(next);
     },

@@ -1229,6 +1229,69 @@ paths:
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
 
+  /internal/v1/work/{runId}/documents/{documentRef}:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema: { type: string, maxLength: 200 }
+      - name: documentRef
+        in: path
+        required: true
+        schema: { type: string, maxLength: 100 }
+        description: The document type the reviewed mapping named for the upload.
+    post:
+      operationId: handDocumentToRunner
+      tags: [work]
+      security: [{ serviceMutualTls: [] }]
+      summary: Hand the runner one document for one upload of the work it holds — after the gates.
+      description: >-
+        ADR-0099. The plane checks, in order: the caller holds the lease; the
+        run is at `execute` and its plan names this upload; the case carries a
+        captured, un-voided authorisation and the preview the orchestrator
+        would render NOW hashes to it; `authoriseDisclosure` over a record
+        built from what the student saw (ADR-0022, ADR-0087, ADR-0098); and
+        `mayTransmit` WITH THE CASE (ADR-0069). Only then is a sixty-second
+        retrieval URL minted. Nothing on this route reads a byte.
+
+        The lease is in the body, as on `reportWork`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkDocumentRequest" }
+      responses:
+        "200":
+          description: The document, its retrieval URL and the disclosure record the gates ran over.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkDocument" }
+        "400": { $ref: "#/components/responses/ValidationFailed" }
+        "403":
+          description: >-
+            Certificate missing or not permitted; the caller does not hold the
+            lease; the run is not executing; no authorisation is captured; or a
+            disclosure or transmission gate refused. A runner reading this
+            reports the work as needing a person.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "404":
+          description: No such run, or the plan names no such upload.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "409":
+          description: >-
+            `content_changed` — the preview no longer hashes to what the
+            student authorised, or the document it named is no longer held.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "503":
+          description: This deployment hands out no work, or has no document transport.
+          content:
+            application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+
 components:
   securitySchemes:
     conversationSession:
@@ -1958,10 +2021,12 @@ components:
         provenance the student's confirmation produced, and is reassembled
         through the one mint that may produce one.
 
-        No `uploads`, no `handoffs`, no `blockers` — and they are absent because
-        a plan that had any of them is REFUSED for transport rather than
-        trimmed. A plan with its uploads silently removed would report itself
-        complete having attached nothing.
+        No `handoffs`, no `blockers` — a plan that has either is REFUSED for
+        transport rather than trimmed. `uploads` cross as REFERENCES (ADR-0099):
+        which box, which document the reviewed mapping named, where the box is
+        — and no bytes, no document id, no hash. The runner asks for each one
+        with `handDocumentToRunner`, and is answered only after the disclosure
+        gates have run with the case.
       properties:
         blueprintId: { type: string }
         blueprintVersion: { type: string }
@@ -1970,6 +2035,95 @@ components:
           type: array
           minItems: 1
           items: { $ref: "#/components/schemas/TransportedInstruction" }
+        uploads:
+          type: array
+          items: { $ref: "#/components/schemas/TransportedUpload" }
+
+    TransportedUpload:
+      type: object
+      additionalProperties: false
+      required: [fieldRef, label, documentRef, locators]
+      description: An upload as a reference. Exactly these four; a plane that sent more is refused.
+      properties:
+        fieldRef: { type: string }
+        label: { type: string }
+        documentRef: { type: string, description: The document type the reviewed mapping named. }
+        locators:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/WorkLocator" }
+
+    WorkDocumentRequest:
+      type: object
+      additionalProperties: false
+      required: [leaseId, holder]
+      properties:
+        leaseId: { type: string }
+        holder: { type: string }
+
+    WorkDocument:
+      type: object
+      additionalProperties: false
+      required: [documentId, documentType, contentHash, contentType, retrieval, disclosure]
+      description: >-
+        One document, for one upload of the work the runner holds — handed over
+        only after `authoriseDisclosure` and `mayTransmit` ran on the plane with
+        the case (ADR-0099). The runner hashes what it fetches, re-runs both
+        gates over `disclosure`, and refuses any mismatch before attaching.
+      properties:
+        documentId: { type: string }
+        documentType: { type: string }
+        contentHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        contentType: { type: string }
+        retrieval:
+          type: object
+          additionalProperties: false
+          required: [url, method, expiresAt]
+          properties:
+            url: { type: string, format: uri, description: A short-lived GET the plane minted. HTTPS only. }
+            method: { type: string, enum: [GET] }
+            expiresAt: { type: string, format: date-time }
+        disclosure: { $ref: "#/components/schemas/WireDisclosure" }
+
+    WireDisclosure:
+      type: object
+      additionalProperties: false
+      required: [disclosureId, subject, destination, determinationId, studentAuthorisation]
+      description: >-
+        The disclosure record the plane's gate ran. The determination travels
+        as its ID — the runner holds the same register in code and refuses one
+        it does not hold. `presentedText` is the preview the student
+        authorised, verbatim (ADR-0098).
+      properties:
+        disclosureId: { type: string }
+        subject:
+          type: object
+          additionalProperties: false
+          required: [documentId, documentType, contentHash, caseId, requestedFor]
+          properties:
+            documentId: { type: string }
+            documentType: { type: string }
+            contentHash: { type: string }
+            caseId: { type: string }
+            requestedFor: { type: string }
+        destination:
+          type: object
+          additionalProperties: false
+          required: [institutionName, portalHost]
+          properties:
+            institutionName: { type: string }
+            portalHost: { type: string }
+            processorName: { type: string }
+        determinationId: { type: string }
+        studentAuthorisation:
+          type: object
+          additionalProperties: false
+          required: [studentRef, presentedText, authorisedAt, method]
+          properties:
+            studentRef: { type: string }
+            presentedText: { type: string }
+            authorisedAt: { type: string, format: date-time }
+            method: { type: string, enum: [chat_affirmation, signed_form, specialist_recorded] }
 
     TransportedInstruction:
       type: object

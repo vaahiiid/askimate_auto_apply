@@ -21,6 +21,8 @@ import type { ApplicationSession } from "@askimate/aas-execution";
 import { fillApplication } from "./fill-application.js";
 
 const NOW = new Date("2026-08-31T10:00:00Z");
+/** No plane to ask, and no plan here references an upload (ADR-0099). */
+const noDocuments = (): Promise<null> => Promise.resolve(null);
 const FORM = "https://portal.test/apply";
 
 const WORK: ClaimedWork = {
@@ -53,6 +55,7 @@ const WORK: ClaimedWork = {
         },
       },
     ],
+    uploads: [],
   },
 };
 
@@ -93,7 +96,7 @@ function session(over: Partial<ApplicationSession> = {}): ApplicationSession & {
 describe("filling a page that does not cooperate", () => {
   it("types, then SAVES — because a portal keeps nothing until the page is saved", async () => {
     const live = session();
-    expect(await fillApplication(WORK, { session: live, now: () => NOW })).toEqual({
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments })).toEqual({
       kind: "succeeded",
     });
     expect(live.typed).toEqual(["Niloofar"]);
@@ -104,7 +107,7 @@ describe("filling a page that does not cooperate", () => {
     const dying = session({
       click: () => Promise.reject(new Error("net::ERR_CONNECTION_RESET at /apply")),
     });
-    const outcome = await fillApplication(WORK, { session: dying, now: () => NOW });
+    const outcome = await fillApplication(WORK, { session: dying, now: () => NOW, documents: noDocuments });
     expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
     // And the page's error text is nowhere in the answer. There is no field on
     // the outcome that could hold what a site we do not control wrote.
@@ -118,7 +121,7 @@ describe("filling a page that does not cooperate", () => {
     const loggedOut = session({
       currentUrl: () => Promise.resolve("https://portal.test/register"),
     });
-    expect(await fillApplication(WORK, { session: loggedOut, now: () => NOW })).toEqual({
+    expect(await fillApplication(WORK, { session: loggedOut, now: () => NOW, documents: noDocuments })).toEqual({
       kind: "failed",
       failure: "needs_the_student",
     });
@@ -129,7 +132,7 @@ describe("filling a page that does not cooperate", () => {
     const elsewhere = session();
     const outcome = await fillApplication(
       { ...WORK, formUrl: "https://somewhere-else.test/apply" },
-      { session: elsewhere, now: () => NOW },
+      { session: elsewhere, now: () => NOW, documents: noDocuments },
     );
     expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
     expect(elsewhere.typed).toEqual([]);
@@ -142,7 +145,7 @@ describe("filling a page that does not cooperate", () => {
     // form of "absent" is the one a plane would actually send.
     const { plan: _plan, ...withoutAPlan } = WORK;
     void _plan;
-    const outcome = await fillApplication(withoutAPlan, { session: idle, now: () => NOW });
+    const outcome = await fillApplication(withoutAPlan, { session: idle, now: () => NOW, documents: noDocuments });
     expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
     expect(idle.typed).toEqual([]);
   });
@@ -155,7 +158,7 @@ describe("filling a page that does not cooperate", () => {
     const refusing = session({
       fill: () => Promise.reject(new Error("the portal would not take it")),
     });
-    expect(await fillApplication(WORK, { session: refusing, now: () => NOW })).toEqual({
+    expect(await fillApplication(WORK, { session: refusing, now: () => NOW, documents: noDocuments })).toEqual({
       kind: "failed",
       failure: "portal_refused",
     });

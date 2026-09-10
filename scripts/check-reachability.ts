@@ -318,19 +318,45 @@ export const CAPABILITIES: readonly Capability[] = [
     symbol: "authoriseDisclosure",
     kind: "call",
     declaredIn: ["packages/disclosure/src/disclosure.ts"],
-    record: "ADR-0022",
+    record: "ADR-0022, ADR-0087, ADR-0099",
     promise: "no document leaves without a recorded lawful basis",
+    // ── REACHABLE from P66 (ADR-0099) ────────────────────────────────────
+    //
+    // Declared-but-unreachable from P39 to P65: nothing acquired a document,
+    // so there was nothing to disclose. The caller is
+    // `RunDriver.documentForWork`, behind `POST /internal/v1/work/:runId/
+    // documents/:documentRef` — the plane runs this gate over a record built
+    // from what the student actually saw, then `mayTransmit` with the case,
+    // and only then mints a retrieval URL. The runner runs it again before
+    // attaching. This entry moving is the visible act.
+    status: { kind: "reachable" },
+  },
+  {
+    // ── Found while building ADR-0099, and it had never been listed ──────
+    //
+    // The runner's entry point (`apps/browser-runner/src/main.ts`) performs
+    // `create_account` and answers `needs_the_student` to everything else.
+    // `execute` work is claimed and handed out with its plan, and the thing
+    // that would fill it is called by `scripts/journey.test.ts` and by no
+    // deployable. It was never on this list because nobody asked; the
+    // register only checks what it is told about, which is why being told is
+    // the control (ADR-0073).
+    symbol: "fillApplication",
+    kind: "call",
+    declaredIn: ["apps/browser-runner/src/fill-application.ts"],
+    record: "ADR-0046, ADR-0099",
+    promise: "execute work is performed by the Automation Runner: the plan is typed and the page saved",
     status: {
       kind: "unreachable",
       reason:
-        "nothing acquires a document, so there is nothing to disclose. The lawful basis is no " +
-        "longer the obstacle: B2's determination 3 registers Article 6(1)(b) AND specific " +
-        "student authorisation as REQUIRED (2026-09-08, ADR-0087)",
+        "the runner's entry point performs `create_account` only. The browser session an account " +
+        "was created in does not survive to the next work item, and the password that would sign " +
+        "in again was single-use and is gone (ADR-0042); nothing yet decides how the runner is " +
+        "signed in when execute work arrives",
       closedBy:
-        "a document to SEND: the transport now exists (ADR-0090, ADR-0092, ADR-0094), and what is " +
-        "left is `attach_document` becoming reachable — B5 is DECIDED (A — hold, 2026-09-07) and " +
-        "does not condition it; the intent identity ADR-0069 names and a `WorkKind` that can carry " +
-        "it do — and the runner fetching the retrieval URL",
+        "a design for the signed-in session across work items — state-of-the-system blocker 19, " +
+        "Vahid's — and `main.ts` performing execute work through this function with " +
+        "`documentSourceFor` as its document source",
     },
   },
   {

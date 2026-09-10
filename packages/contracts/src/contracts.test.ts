@@ -20,6 +20,7 @@ import {
 } from "./events.js";
 import { PROBLEM_STATUS, PROBLEM_TITLES, parseProblem, problemTypeFor } from "./problems.js";
 import { parseFrameInbound, parseFrameOutbound } from "./frame.js";
+import { parseClaimedWork, parseWorkDocument } from "./work.js";
 import { parseLastEventId, renderSseFrame, SSE_EVENT_NAME } from "./sse.js";
 import {
   EVENT_KINDS,
@@ -645,5 +646,84 @@ describe("bytes from the network to a target event", () => {
       expect(sample, `no sample for ${kind}`).toBeDefined();
       expect(parseConversationEvent({ ...BASE, kind, ...sample }), kind).not.toBeNull();
     }
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0099 — the document a runner is handed, on the wire
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a work document, on the wire", () => {
+  const HASH = "a".repeat(64);
+  const document = {
+    documentId: "01JQDOC0000000000000000001",
+    documentType: "passport",
+    contentHash: HASH,
+    contentType: "application/pdf",
+    retrieval: { url: "https://vault.test/x", method: "GET", expiresAt: "2026-09-10T09:01:00Z" },
+    disclosure: {
+      disclosureId: "disc_1",
+      subject: { documentId: "01JQDOC0000000000000000001", documentType: "passport", contentHash: HASH, caseId: "case_1", requestedFor: "Upload your passport" },
+      destination: { institutionName: "Example University", portalHost: "apply.example.test" },
+      determinationId: "b2-3-disclose",
+      studentAuthorisation: { studentRef: "stu", presentedText: "…", authorisedAt: "2026-09-10T09:00:00Z", method: "chat_affirmation" },
+    },
+  };
+
+  it("parses the published shape, field by field", () => {
+    expect(parseWorkDocument(document)).toEqual(document);
+  });
+
+  it("REFUSES a plane that contradicts itself about which document it is handing over", () => {
+    expect(parseWorkDocument({ ...document, contentHash: "b".repeat(64) })).toBeNull();
+    expect(
+      parseWorkDocument({ ...document, disclosure: { ...document.disclosure, subject: { ...document.disclosure.subject, documentId: "other" } } }),
+    ).toBeNull();
+  });
+
+  it("REFUSES a retrieval that is not an HTTPS GET", () => {
+    expect(parseWorkDocument({ ...document, retrieval: { ...document.retrieval, url: "http://vault.test/x" } })).toBeNull();
+    expect(parseWorkDocument({ ...document, retrieval: { ...document.retrieval, method: "PUT" } })).toBeNull();
+  });
+
+  it("REFUSES a hash that is not lowercase hex SHA-256", () => {
+    expect(parseWorkDocument({ ...document, contentHash: "sha256:" + HASH, disclosure: { ...document.disclosure, subject: { ...document.disclosure.subject, contentHash: "sha256:" + HASH } } })).toBeNull();
+  });
+
+  it("parses a transported plan's uploads as references and nothing more", () => {
+    const plan = {
+      blueprintId: "bp",
+      blueprintVersion: "1.0.0",
+      mappingSetId: "ms",
+      instructions: [
+        {
+          fieldRef: "given_name",
+          label: "First name",
+          inputType: "text",
+          locators: [{ strategy: "label", value: "First name" }],
+          value: { kind: "confirmed", fieldKey: "identity.given_name", text: "N", provenance: { source: "student_stated", confirmedAt: "2026-09-10T09:00:00Z" } },
+        },
+      ],
+      uploads: [{ fieldRef: "passport_upload", label: "Upload your passport", documentRef: "passport", locators: [{ strategy: "label", value: "Upload your passport" }] }],
+    };
+    const work = {
+      leaseId: "wl_1",
+      expiresAt: "2026-09-10T09:02:00Z",
+      runId: "run_1",
+      caseId: "case_1",
+      studentRef: "stu",
+      kind: "execute",
+      portalHost: "apply.example.test",
+      email: "n@example.test",
+      approach: "student_chosen",
+      formUrl: "https://apply.example.test/personal",
+      advanceLocator: { strategy: "role", value: "button:Save" },
+      plan,
+    };
+    expect(parseClaimedWork(work)?.plan?.uploads).toEqual(plan.uploads);
+    // A document id, a hash or bytes beside the reference are refused: the
+    // runner asks for those under its lease, and only then.
+    const smuggled = { ...work, plan: { ...plan, uploads: [{ ...plan.uploads[0], documentId: "01JQ…" }] } };
+    expect(parseClaimedWork(smuggled)?.plan?.uploads[0]).toEqual(plan.uploads[0]);
   });
 });

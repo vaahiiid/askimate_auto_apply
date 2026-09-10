@@ -93,7 +93,7 @@ it was written. The orchestrator re-exports it, so no existing caller changes.
 
 ### 5 · An untransportable plan is refused, not trimmed
 
-`toStoredPlan` refuses a plan with uploads, handoffs or blockers. A plan with
+`toStoredPlan` refuses a plan with ~~uploads,~~ handoffs or blockers. (Amended by ADR-0099, 2026-09-10: uploads cross as references — which box, which document, where — and the runner asks the plane for each under its lease, after the disclosure gates. The reason below still holds for the document itself, which never crosses.) A plan with
 its uploads silently removed would report itself complete having attached
 nothing, and the student would be told their application was filled. Documents
 are a separate capability the runner does not have — `@askimate/aas-documents`

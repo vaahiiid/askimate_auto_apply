@@ -380,7 +380,19 @@ describe("a plan survives the round trip to the runner and back", () => {
       credentials: [],
       blockers: [],
     };
-    expect(toStoredPlan(empty)).toEqual({ ok: false, refusal: "has_uploads" });
+    // Since P66 (ADR-0099) an upload CROSSES, as a reference — which box, which
+    // document the mapping named, where the box is — and nothing more. No
+    // bytes, no document id, no hash: the runner asks the plane for each one
+    // under its lease, and the plane answers only after the disclosure gates.
+    const carried = toStoredPlan(empty);
+    if (!carried.ok) expect.unreachable("uploads are transportable as references");
+    expect(carried.plan.uploads).toEqual([
+      { fieldRef: "passport", label: "Passport", documentRef: "doc-1", locators: [] },
+    ]);
+    expect(Object.keys(carried.plan.uploads[0] ?? {}).sort()).toEqual(
+      ["documentRef", "fieldRef", "label", "locators"],
+    );
+    expect(rehydratePlan(carried.plan).uploads).toEqual(empty.uploads);
     expect(
       toStoredPlan({
         ...empty,

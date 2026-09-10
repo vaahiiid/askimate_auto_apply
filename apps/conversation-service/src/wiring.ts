@@ -27,6 +27,8 @@ import { effectiveFor, parseRetentionSchedule, validateHistory, validateSchedule
 import type { DocumentIntakePort } from "./document-intake-store.js";
 import { PostgresDocumentIntakePort, assertDocumentStoreIsDurable } from "./document-intake-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
+import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
+import type { DocumentVault } from "@askimate/aas-documents";
 import { S3DocumentVault } from "./s3-document-vault.js";
 
 import {
@@ -187,6 +189,12 @@ export interface DriverWiring {
    * would have refused would be the second opinion ADR-0041 forbids.
    */
   readonly identities?: { verificationOf(studentId: string): Promise<boolean | null> };
+  /**
+   * The document transport's register and vault (ADR-0099), when this
+   * deployment has one. The Conversation Service passes its port; the Worker
+   * passes nothing and hands out no documents.
+   */
+  readonly disclosure?: { readonly register: LawfulBasisRegister; readonly vault: DocumentVault };
   readonly now: () => Date;
 }
 
@@ -218,6 +226,7 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     // store, in every deployment that has the table — the service and the
     // worker build the same driver, so both name the same documents.
     heldDocuments: new PostgresDocumentRecordStore(wiring.pool),
+    ...(wiring.disclosure === undefined ? {} : { disclosure: wiring.disclosure }),
     now: wiring.now,
   });
 }

@@ -30,8 +30,8 @@
  * what it was asked; the real performer opens Chromium.
  */
 
-import type { ClaimedWork, WorkFailure, WorkReport } from "@askimate/aas-contracts";
-import { parseClaimedWork } from "@askimate/aas-contracts";
+import type { ClaimedWork, WorkDocument, WorkFailure, WorkReport } from "@askimate/aas-contracts";
+import { parseClaimedWork, parseWorkDocument } from "@askimate/aas-contracts";
 
 /** What the runner does with a unit of work once it has one. */
 export type WorkPerformer = (work: ClaimedWork) => Promise<PerformOutcome>;
@@ -66,6 +66,12 @@ export interface WorkIntake {
   claim(): Promise<ClaimedWork | null>;
   /** `true` when the plane accepted the report; `false` when this lease is no longer held. */
   report(runId: string, report: WorkReport): Promise<boolean>;
+  /**
+   * Asks the plane for one document of the work this runner holds (ADR-0099).
+   * `null` for every refusal: the plane's reason is the plane's, and the
+   * runner's answer to all of them is the same — this work needs a person.
+   */
+  document(runId: string, leaseId: string, documentRef: string): Promise<WorkDocument | null>;
 }
 
 export function httpWorkIntake(options: WorkIntakeOptions): WorkIntake {
@@ -101,6 +107,22 @@ export function httpWorkIntake(options: WorkIntakeOptions): WorkIntake {
       // so a plane answering with a field this app should never receive has
       // nowhere to put it.
       return parseClaimedWork(body);
+    },
+
+    document: async (runId: string, leaseId: string, documentRef: string): Promise<WorkDocument | null> => {
+      let response: Response;
+      try {
+        response = await doFetch(
+          `${options.baseUrl}/internal/v1/work/${encodeURIComponent(runId)}/documents/${encodeURIComponent(documentRef)}`,
+          { method: "POST", headers, body: JSON.stringify({ leaseId, holder: options.holder }) },
+        );
+      } catch {
+        return null;
+      }
+      if (response.status !== 200) return null;
+      const body: unknown = await response.json();
+      // Field by field through the contract's parser, as `claim` does.
+      return parseWorkDocument(body);
     },
 
     report: async (runId: string, report: WorkReport): Promise<boolean> => {
