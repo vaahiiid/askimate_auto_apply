@@ -559,18 +559,50 @@ the request is not signed; and there is no backoff or dead-letter, deliberately.
 see item 3, promoted in practice by five consecutive phases finding an older ADR asserting a
 guarantee the code did not provide.
 
-### 2 · Give `attach_document` its intent identity
+### 2 · The attachment path — measured on 2026-09-10, and the order it has to be built in
 
-An upload currently rides the page's `advance_portal_page` intent, whose target is computed from
-`plan.instructions` only — so **replacing a passport does not change the intent key**, while the
-domain's own comment on `attach_document` says *"Duplicates are visible to admissions."* ADR-0051 §6
-built the content-aware target precisely so that a late correction produces a different intent; a
-document replacement is the same class of event and is invisible to it.
+The transport now ends at a held document (ADR-0095, ADR-0096). What is missing is the document
+reaching a portal, and P62's scoping measured exactly where the path is cut. Five cuts, each a fact
+about the code today:
 
-It is transport-level rather than policy, needed under **either** B5 answer, and it is the one thing
-on this list that could produce a visible mistake in a real admissions system. I have not built it
-because the action is produced by nothing today, so it would be a control over unreachable code —
-but it should be the first thing built now that B5 is answered.
+1. **The preview never sees a document.** `RunDriver` hands the orchestrator `documents: new Map()`
+   (`run-driver.ts:1712`), so a mapping with a `document` source stops the run at
+   `document_missing` before the student is ever asked. Nothing looks a held document up by the
+   reviewed mapping's `documentRef`.
+2. **A plan with uploads does not cross to the runner.** `toStoredPlan` refuses `has_uploads`
+   (`plan-transport.ts`), because the runner is forbidden the documents package and may hold none.
+3. **No `DisclosureRequestRecord` is ever constructed.** `authoriseDisclosure` has no production
+   caller (the register). Determination 3 (ADR-0087) says what the authorisation instrument IS —
+   *"the preview a student reads, the authorisation text, and the content hash … registers them as
+   required"* — and nothing yet builds the record from those three.
+4. **The runner has no `DocumentSource`.** `executePlan` takes one; `fill-application.ts` supplies
+   none, and the runner holds no vault credential (ADR-0042) — it must be handed a retrieval URL
+   and the authorisation, by the service, under its lease.
+5. **`attach_document` has no intent.** Uploads ride `advance_portal_page`, whose target is computed
+   from `plan.instructions` only; replacing a passport does not change the key, while the action's
+   own comment says *"Duplicates are visible to admissions."* Identity frozen in ADR-0069:
+   `(fieldRef, documentRef, contentHash)`.
+
+The order is forced by the dependencies, and it goes through the transmission gate, never round it:
+
+| Slice | What | Gate it keeps |
+|---|---|---|
+| **a** | The driver supplies the student's held documents to the preview, keyed by the reviewed mapping's `documentRef` (the domain document type). The preview then names each attachment, and the `authorise` decision covers `(fieldRef, documentRef, contentHash)` as ADR-0069 froze it | ADR-0057/0059 — the authorisation binds to content |
+| **b** | The preview's presented text carries, per attachment, the four things ADR-0022 requires (what, where, why, which application — `renderDisclosureRequest`'s lines), so the recorded `AuthorisationCaptured` IS the specific student authorisation determination 3 requires. `StudentDisclosureAuthorisation` is built from that event: `presentedText` = the preview, `method` = `chat_affirmation` | ADR-0022 — no `consented: boolean`; the text names all four |
+| **c** | Plan transport carries uploads as **references** (`fieldRef`, `documentRef`, locators; no bytes, no ids). The runner asks the service, under its lease, for each `documentRef`; the service builds the `DisclosureRequestRecord` from the case's authorisation, runs `authoriseDisclosure` and `mayTransmit` **with the case**, and answers a sixty-second retrieval URL plus the authorisation record | ADR-0069 — the case binding, checked server-side before any URL exists |
+| **d** | The runner's `DocumentSource` fetches the bytes from the URL and hands `executePlan` the `AuthorisedDocument`; `executePlan` runs `mayTransmit` again in-process — the gate twice, on two machines, same inputs | ADR-0022 — the gate at the moment of sending |
+| **e** | `attach_document` intent per upload, target `(fieldRef, documentRef, contentHash)`, written at claim beside the page intents; `assessIntent` consults it; `TransmissionRecord` written from the runner's report | ADR-0054 — verify first, never repeat |
+
+Slices a and b are the Conversation Service alone. c is the first to change what crosses to the
+runner, and the first that must not be built without b: a retrieval URL minted for a document no
+specific authorisation names is the two-line failure ADR-0022 was written against. Each slice is a
+phase with its own ADR; none weakens `mayTransmit`'s case check, the content hash, or the
+mandatory-review categories, which are Vahid's hard limits on this work.
+
+**What is Vahid's here, and not yet decided:** whether one `authorise` over a preview that names
+every attachment is the *"specific"* authorisation determination 3 means, or whether each document
+needs its own yes. Determination 3's own words point at the preview; this section records that
+reading and does not act on it until slice b, so he can say otherwise first.
 
 ### 3 · ~~Re-audit the oldest Accepted ADRs~~ — **done in P37 (ADR-0072)** · ~~close the four Proposed ones~~ — **there were none (P49)**
 
