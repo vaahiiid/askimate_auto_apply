@@ -223,10 +223,20 @@ is a known unknown rather than a silent one ([ADR-0054](./decisions/0054-the-int
 The **notice** is built: the Background Worker sends a `SpecialistNotice` to a configured webhook,
 once per open intervention, carrying identifiers and nothing about the student
 ([ADR-0071](./decisions/0071-a-stopped-run-reaches-a-person.md),
-P14). Not configuring it is a valid deployment. The **console** a specialist acts in is modelled, not
-built — there is no route by which a specialist resolves an intervention. For one controlled run
-that is acceptable: a human is in the room. It is not acceptable for a second run
-([ADR-0008](./decisions/0008-recovery-first-escalation-and-the-learning-loop.md)).
+P14). Not configuring it is a valid deployment. The **resolution** is built as
+[ADR-0048](./decisions/0048-a-specialist-resolution-completes-an-intent.md) chose it: an internal
+route on the Conversation Service (`GET /internal/v1/interventions`, `POST …/:id/resolution`) and
+`pnpm run interventions` as its first interface — the CLI is a client of the route and never opens
+the database, so the service stays the one writer. A resolution completes the intent that could not
+be completed and the run resumes from the failure point, not from the start.
+
+What is *not* built is authenticated specialist identity: whoever holds the service credential can
+run the CLI, and `--specialist` is **asserted, not authenticated**. Vahid approved that on 2026-09-01
+*"for the current controlled single-operator model"* and named what ends it: *"The moment we
+introduce multiple specialists, authenticated individual identity becomes a required architectural
+capability, not a deferred cosmetic improvement."* For one controlled run with one operator that is
+the approved state (state document, blocker 11). A specialist-facing console beyond the CLI is not
+built and not needed for it.
 
 ### 12 · Learning loop, with human validation and publication gates — 🟡
 
@@ -311,7 +321,7 @@ system**, which rules out the third option entirely.
 | 8 | Confirmed profile and document extraction | ✅ / 🟡 needs a real model |
 | 9 | Exact field mapping | ⛔ needs the blueprint |
 | 10 | Validation | ✅ |
-| 11 | Human recovery at the failure point | 🟡 notice built, console not |
+| 11 | Human recovery at the failure point | 🟡 notice and resolution built; identity asserted |
 | 12 | Learning loop with gates | 🟡 not wired |
 | 13 | Exact submission preview | ✅ |
 | 14 | Explicit student authorisation | ✅ |
@@ -327,7 +337,7 @@ system**, which rules out the third option entirely.
 | | Status | Why it does not block one controlled run |
 |---|---|---|
 | **Persistence** | Real: PostgreSQL for cases, conversations, runs, intents and document metadata; Redis for the Secure Plane's envelope cache | A run survives a restart, and the journey proves it resuming on the second page after one (ADR-0049, P11; ADR-0052, P14). The 2026-08-26 row said "in-memory"; it no longer is. |
-| **Specialist console** | Notice built (ADR-0071); console modelled | A human is watching, and the worker tells them. Resolving still happens by hand. |
+| **Specialist console** | Notice built (ADR-0071); resolution built as an internal route and an operator CLI (ADR-0048); identity asserted, not authenticated | A human is watching, the worker tells them, and they resolve through the service with `pnpm run interventions`. One operator holds the credential, which is the scope Vahid approved. |
 | **AWS infrastructure** | One bucket exists, created and verified by Vahid on 2026-09-09 for the checksum binding (state document, blocker 16); the production vault is blocker 17 | The run's own documents need blocker 17. Everything else happens on a laptop. Nothing is provisioned by this repository. |
 
 ---
