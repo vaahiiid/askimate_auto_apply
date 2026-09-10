@@ -7346,6 +7346,243 @@ describeIfDatabase("a correction the student makes late", () => {
 
 
 // ───────────────────────────────────────────────────────────────────────────
+// P70 — a runner that meets a CAPTCHA or a second factor stops, and says which
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("a runner that meets a CAPTCHA or a second factor (ADR-0101 §6)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-10: *"If a runner meets a CAPTCHA or a second factor where
+  // A expects neither, it must stop and say which it met, not fail as a fill
+  // error. That refusal is the signal that moves C from deferred to needed."*
+  //
+  // Before this, `reportWork` recorded every failure as `failed_cleanly` and
+  // DISCARDED the code — the runner could say `needs_the_student` and the plane
+  // offered the work again on the next poll. These prove the code now has a
+  // home: an intervention that names the challenge, one message, `escalated`.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** A gated run at account creation, its lease taken for the reporting runner. */
+  async function aLeasedCreation(
+    conversation: string,
+    holder: string,
+  ): Promise<{ runId: string; leaseId: string }> {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
+      );
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}1`,
+          handle: `sh_${"7".repeat(32)}`,
+        },
+      });
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("create_account");
+
+      // The lease and the intent, taken the way `claimWork` takes them, for
+      // THIS run — a claim through the driver hands out the oldest claimable
+      // run in the database, which is somebody else's.
+      const leaseId = `wl_${holder}`;
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      const lease = await new WorkLeaseStore(instance.pool).claim({
+        runId,
+        leaseId,
+        kind: "create_account",
+        holder,
+        now: NOW,
+        leaseSeconds: 120,
+      });
+      if (lease === null) expect.unreachable("the lease should be free to take");
+      return { runId, leaseId };
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  async function interventionFor(runId: string): Promise<{
+    reason: string;
+    encountered: string;
+    expected: string;
+    announced: boolean;
+  } | null> {
+    const rows = await pool.query<{
+      reason: string;
+      encountered: string;
+      expected: string;
+      announced_at: Date | null;
+    }>(
+      "SELECT reason, encountered, expected, announced_at FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined
+      ? null
+      : {
+          reason: row.reason,
+          encountered: row.encountered,
+          expected: row.expected,
+          announced: row.announced_at !== null,
+        };
+  }
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    const rows = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    return rows.rows[0]?.status;
+  }
+
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("stops the run on a CAPTCHA, names it to the specialist, and tells the student once", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00701";
+    const { runId, leaseId } = await aLeasedCreation(conversation, "runner-captcha");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const accepted = await instance.driver.reportWork({
+        runId,
+        report: { leaseId, outcome: "failed", failure: "captcha_met" },
+      });
+      expect(accepted).toBe(true);
+
+      // ── The specialist's record: WHICH, during what, against what ─────
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("the challenge must raise an intervention");
+      expect(raised.reason, "a CAPTCHA is behaviour the observation did not record").toBe(
+        "new_portal_behaviour",
+      );
+      expect(raised.encountered).toContain("CAPTCHA");
+      expect(raised.encountered).toContain("create_portal_account");
+      expect(raised.encountered, "what discovery had said, on the record").toContain(
+        "captchaPresent as false",
+      );
+      expect(raised.expected).toContain("ADR-0101 §5");
+      expect(raised.announced).toBe(true);
+
+      // ── The run: stopped, and never work again ────────────────────────
+      expect(await statusOf(runId), "stopped the way every stop stops").toBe("escalated");
+      await pool.query("DELETE FROM work_leases WHERE run_id = $1", [runId]);
+      const offered = await instance.driver.claimWork({
+        holder: "runner-after-captcha",
+        leaseSeconds: 60,
+      });
+      expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
+      await pool.query("DELETE FROM work_leases WHERE holder = 'runner-after-captcha'");
+
+      // ── The student: told which, once, in fixed words ─────────────────
+      const told = (await saidTo(conversation)).filter((content) =>
+        content.includes("prove I am not a robot"),
+      );
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain("passed your application to a member of the team");
+      expect(told[0]).toContain("nothing has been submitted");
+
+      // A second report of the same challenge raises nothing new and says
+      // nothing more: the intervention is keyed by the action.
+      const again = await instance.driver.reportWork({
+        runId,
+        report: { leaseId, outcome: "failed", failure: "captcha_met" },
+      });
+      expect(again, "the lease is gone").toBe(false);
+      expect(
+        (await saidTo(conversation)).filter((content) => content.includes("not a robot")),
+      ).toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("stops the run on a SECOND FACTOR, and records that the account may already exist", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00702";
+    const { runId, leaseId } = await aLeasedCreation(conversation, "runner-otp");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "failed", failure: "second_factor_met" },
+        }),
+      ).toBe(true);
+
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("the challenge must raise an intervention");
+      expect(raised.reason, "a sign-in we cannot complete").toBe("authentication_failure");
+      expect(raised.encountered).toContain("second factor");
+      expect(
+        raised.encountered,
+        "the one fact that stops a second account being made",
+      ).toContain("MAY ALREADY EXIST");
+      expect(raised.encountered).toContain("mfaOrOtpRequired as false");
+      expect(await statusOf(runId)).toBe("escalated");
+
+      const told = (await saidTo(conversation)).filter((content) =>
+        content.includes("a code sent to you"),
+      );
+      expect(told).toHaveLength(1);
+      expect(told[0]).not.toContain("robot");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("leaves every OTHER failure exactly as it was — recorded, re-offerable, no stop", async () => {
+    // The control. A portal that refused is still a clean failure the ledger
+    // records and the pool offers again (ADR-0047, ADR-0054); nothing here
+    // widened the stop to failures that are not a challenge.
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00703";
+    const { runId, leaseId } = await aLeasedCreation(conversation, "runner-refused");
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "failed", failure: "portal_refused" },
+        }),
+      ).toBe(true);
+      expect(await interventionFor(runId), "no intervention for an ordinary refusal").toBeNull();
+      expect(await statusOf(runId), "still a live run").toBe("running");
+      expect(
+        (await saidTo(conversation)).filter(
+          (content) => content.includes("robot") || content.includes("code sent to you"),
+        ),
+      ).toEqual([]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
 // R. P29 — the step that says a PERSON must look (ADR-0065)
 // ───────────────────────────────────────────────────────────────────────────
 

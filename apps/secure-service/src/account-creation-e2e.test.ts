@@ -474,4 +474,32 @@ describeIfDatabase("the student gets an account, and only they know the password
     expect(Object.keys(outcome).sort()).toEqual(["failure", "kind"]);
     expect(portal.accounts()).toEqual([EMAIL]);
   }, 120_000);
+  it("STOPS and says SECOND FACTOR when the portal accepts the registration and then asks for a code", async () => {
+    // ADR-0101 §6. The password IS typed — both boxes, from one handle — and
+    // the portal accepts the form; what it does next is ask for a code it
+    // emailed. The account exists by then, so the honest report is the
+    // challenge, not a fill error, and the plane's intervention says the
+    // account may already exist.
+    const gated = await startFixturePortal({ challenge: "second_factor" });
+    try {
+      const { requestId, frameToken } = await open(gated.host);
+      // Earlier cases leave unspent handles in the cache on purpose; this
+      // one is counted relative to them.
+      const heldBefore = cache.rawEntries().length;
+      const handle = await submitSecret(requestId, frameToken);
+      expect(cache.rawEntries()).toHaveLength(heldBefore + 1);
+      const outcome = await createPortalAccount(
+        work(handle, {
+          portalHost: gated.host,
+          registration: { ...targets(), url: `${gated.baseUrl}/register` },
+        }),
+        deps(),
+      );
+      expect(outcome).toEqual({ kind: "failed", failure: "second_factor_met" });
+      expect(gated.accounts(), "the account exists — which is why the code says so").toEqual([EMAIL]);
+      expect(cache.rawEntries(), "and the handle was spent, once").toHaveLength(heldBefore);
+    } finally {
+      await gated.stop();
+    }
+  }, 180_000);
 });

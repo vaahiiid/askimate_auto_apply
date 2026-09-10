@@ -18,11 +18,14 @@ import { describe, expect, it } from "vitest";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import type { ApplicationSession } from "@askimate/aas-execution";
 
+import type { ChallengeProbe } from "./challenge.js";
 import { fillApplication } from "./fill-application.js";
 
 const NOW = new Date("2026-08-31T10:00:00Z");
 /** No plane to ask, and no plan here references an upload (ADR-0099). */
 const noDocuments = (): Promise<null> => Promise.resolve(null);
+/** A page with nothing in the way. Every test below but the two about challenges. */
+const unchallenged: ChallengeProbe = () => Promise.resolve(null);
 const FORM = "https://portal.test/apply";
 
 const WORK: ClaimedWork = {
@@ -96,7 +99,7 @@ function session(over: Partial<ApplicationSession> = {}): ApplicationSession & {
 describe("filling a page that does not cooperate", () => {
   it("types, then SAVES — because a portal keeps nothing until the page is saved", async () => {
     const live = session();
-    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments })).toEqual({
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "succeeded",
     });
     expect(live.typed).toEqual(["Niloofar"]);
@@ -107,7 +110,7 @@ describe("filling a page that does not cooperate", () => {
     const dying = session({
       click: () => Promise.reject(new Error("net::ERR_CONNECTION_RESET at /apply")),
     });
-    const outcome = await fillApplication(WORK, { session: dying, now: () => NOW, documents: noDocuments });
+    const outcome = await fillApplication(WORK, { session: dying, now: () => NOW, documents: noDocuments, challenge: unchallenged });
     expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
     // And the page's error text is nowhere in the answer. There is no field on
     // the outcome that could hold what a site we do not control wrote.
@@ -121,7 +124,7 @@ describe("filling a page that does not cooperate", () => {
     const loggedOut = session({
       currentUrl: () => Promise.resolve("https://portal.test/register"),
     });
-    expect(await fillApplication(WORK, { session: loggedOut, now: () => NOW, documents: noDocuments })).toEqual({
+    expect(await fillApplication(WORK, { session: loggedOut, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "failed",
       failure: "needs_the_student",
     });
@@ -132,7 +135,7 @@ describe("filling a page that does not cooperate", () => {
     const elsewhere = session();
     const outcome = await fillApplication(
       { ...WORK, formUrl: "https://somewhere-else.test/apply" },
-      { session: elsewhere, now: () => NOW, documents: noDocuments },
+      { session: elsewhere, now: () => NOW, documents: noDocuments, challenge: unchallenged },
     );
     expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
     expect(elsewhere.typed).toEqual([]);
@@ -145,7 +148,7 @@ describe("filling a page that does not cooperate", () => {
     // form of "absent" is the one a plane would actually send.
     const { plan: _plan, ...withoutAPlan } = WORK;
     void _plan;
-    const outcome = await fillApplication(withoutAPlan, { session: idle, now: () => NOW, documents: noDocuments });
+    const outcome = await fillApplication(withoutAPlan, { session: idle, now: () => NOW, documents: noDocuments, challenge: unchallenged });
     expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
     expect(idle.typed).toEqual([]);
   });
@@ -158,9 +161,55 @@ describe("filling a page that does not cooperate", () => {
     const refusing = session({
       fill: () => Promise.reject(new Error("the portal would not take it")),
     });
-    expect(await fillApplication(WORK, { session: refusing, now: () => NOW, documents: noDocuments })).toEqual({
+    expect(await fillApplication(WORK, { session: refusing, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
       kind: "failed",
       failure: "portal_refused",
     });
+  });
+});
+
+describe("a page asking for something only a person can pass (ADR-0101 §6)", () => {
+  // Vahid, 2026-09-10: *"If a runner meets a CAPTCHA or a second factor where
+  // A expects neither, it must stop and say which it met, not fail as a fill
+  // error."* The probe reads the page; these prove what the fill does with
+  // its answer — and that nothing is typed into a challenged page.
+  it("stops BEFORE typing when the form carries a CAPTCHA, and says which", async () => {
+    const live = session();
+    const outcome = await fillApplication(WORK, {
+      session: live,
+      now: () => NOW,
+      documents: noDocuments,
+      challenge: () => Promise.resolve("captcha" as const),
+    });
+    expect(outcome).toEqual({ kind: "failed", failure: "captcha_met" });
+    expect(live.typed, "nothing was typed into a challenged page").toEqual([]);
+    expect(live.clicked, "and nothing was saved").toEqual([]);
+  });
+
+  it("says SECOND FACTOR, not 'needs the student', when the sign-in it was bounced to asks for a code", async () => {
+    // Bounced off the form to a page that asks for a one-time code. Before
+    // this phase that was `needs_the_student` — true, and not the fact that
+    // decides what happens next (ADR-0101 §3 and §5).
+    const bounced = session({ currentUrl: () => Promise.resolve("https://portal.test/verify") });
+    const outcome = await fillApplication(WORK, {
+      session: bounced,
+      now: () => NOW,
+      documents: noDocuments,
+      challenge: () => Promise.resolve("second_factor" as const),
+    });
+    expect(outcome).toEqual({ kind: "failed", failure: "second_factor_met" });
+    expect(bounced.typed).toEqual([]);
+  });
+
+  it("still reports a plain bounce as needing the student when no challenge is on the page", async () => {
+    const bounced = session({ currentUrl: () => Promise.resolve("https://portal.test/login") });
+    expect(
+      await fillApplication(WORK, {
+        session: bounced,
+        now: () => NOW,
+        documents: noDocuments,
+        challenge: unchallenged,
+      }),
+    ).toEqual({ kind: "failed", failure: "needs_the_student" });
   });
 });

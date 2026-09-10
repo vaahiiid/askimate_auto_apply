@@ -83,6 +83,8 @@ export interface FixturePortal {
 }
 
 const MINIMUM_PASSWORD_LENGTH = 8;
+/** The code the fixture "emailed". A test that passes the second factor types this. */
+export const SECOND_FACTOR_CODE = "246810";
 
 function escapeHtml(value: string): string {
   return value
@@ -115,7 +117,29 @@ ${body}
 </html>`;
 }
 
-const REGISTER_PAGE = (error: string | null): string =>
+/**
+ * What a portal may put in the way that only a person can pass (ADR-0101 §6).
+ *
+ *   captcha        a reCAPTCHA-shaped widget on the registration and sign-in
+ *                  forms, and a POST without its response is refused — the
+ *                  shape of the real thing, with no third party behind it.
+ *   second_factor  registration and sign-in are ACCEPTED, and the portal then
+ *                  asks for a code it "emailed" before it will sign in. The
+ *                  account exists by then, which is the case a runner has to
+ *                  report honestly.
+ */
+export type FixtureChallenge = "captcha" | "second_factor";
+
+export interface FixturePortalOptions {
+  readonly challenge?: FixtureChallenge;
+}
+
+/** The widget as the real one renders: a marked div and the response field it writes to. */
+const CAPTCHA_WIDGET = `
+  <div class="g-recaptcha" id="captcha" data-sitekey="fixture-site-key">I am not a robot</div>
+  <textarea name="g-recaptcha-response" id="captchaResponse" hidden></textarea>`;
+
+const REGISTER_PAGE = (error: string | null, challenge?: FixtureChallenge): string =>
   page(
     "Create your account",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
@@ -132,13 +156,14 @@ const REGISTER_PAGE = (error: string | null): string =>
          autocomplete="new-password">
 
   <p>Your password must be at least ${String(MINIMUM_PASSWORD_LENGTH)} characters.</p>
+${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="createAccount">Create account</button>
 </form>
 <p>Already registered? <a href="/login">Sign in</a></p>
 <p><a href="/private/staff-only">Staff area</a></p>`,
   );
 
-const LOGIN_PAGE = (error: string | null): string =>
+const LOGIN_PAGE = (error: string | null, challenge?: FixtureChallenge): string =>
   page(
     "Sign in",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
@@ -147,7 +172,22 @@ const LOGIN_PAGE = (error: string | null): string =>
   <input type="email" id="email" name="email" required autocomplete="username">
   <label for="password">Password</label>
   <input type="password" id="password" name="password" required autocomplete="current-password">
+${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="signIn">Sign in</button>
+</form>`,
+  );
+
+/** The second factor, as portals put it: a code the applicant was emailed. */
+const VERIFY_PAGE = (error: string | null): string =>
+  page(
+    "Check your email",
+    `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
+<p>We have emailed you a 6-digit verification code.</p>
+<form method="post" action="/verify" id="verifyForm">
+  <label for="code">Enter the verification code</label>
+  <input type="text" id="code" name="verification_code" inputmode="numeric" autocomplete="one-time-code"
+         required maxlength="6">
+  <button type="submit" id="verify">Continue</button>
 </form>`,
   );
 
@@ -237,9 +277,14 @@ function send(response: ServerResponse, status: number, html: string, headers: R
 }
 
 /** Starts the portal on an ephemeral port. */
-export async function startFixturePortal(): Promise<FixturePortal> {
+export async function startFixturePortal(
+  options: FixturePortalOptions = {},
+): Promise<FixturePortal> {
+  const challenge = options.challenge;
   const accounts = new Map<string, Account>();
   const sessions = new Map<string, string>();
+  /** Accounts that have signed in but not yet passed the second factor. */
+  const awaitingCode = new Map<string, string>();
   const applications = new Map<string, PortalApplication>();
   const submissions: string[] = [];
   const requests: { method: string; path: string }[] = [];
@@ -276,7 +321,34 @@ export async function startFixturePortal(): Promise<FixturePortal> {
       }
 
       if (method === "GET" && (path === "/" || path === "/register")) {
-        send(response, 200, REGISTER_PAGE(null));
+        send(response, 200, REGISTER_PAGE(null, challenge));
+        return;
+      }
+
+      // ── The second factor, before the gate: it is how one gets past it ──
+      if (challenge === "second_factor" && method === "GET" && path === "/verify") {
+        send(response, 200, VERIFY_PAGE(null));
+        return;
+      }
+      if (challenge === "second_factor" && method === "POST" && path === "/verify") {
+        const body = await readBody(request);
+        const pending = sessionOf(request);
+        const email = pending === null ? undefined : awaitingCode.get(pending);
+        if (email === undefined) {
+          send(response, 302, "", { location: "/login" });
+          return;
+        }
+        if ((body.get("verification_code") ?? "") !== SECOND_FACTOR_CODE) {
+          send(response, 400, VERIFY_PAGE("That code is not right."));
+          return;
+        }
+        awaitingCode.delete(pending ?? "");
+        const id = randomBytes(16).toString("hex");
+        sessions.set(id, email);
+        send(response, 302, "", {
+          location: "/apply",
+          "set-cookie": `portal_session=${id}; Path=/; HttpOnly`,
+        });
         return;
       }
 
@@ -307,12 +379,27 @@ export async function startFixturePortal(): Promise<FixturePortal> {
         if (!samePassword(password, confirmation)) {
           // The message names neither value, because a fixture that echoed one
           // would be a fixture that taught the wrong habit.
-          send(response, 400, REGISTER_PAGE("The two passwords do not match."));
+          send(response, 400, REGISTER_PAGE("The two passwords do not match.", challenge));
+          return;
+        }
+        if (challenge === "captcha" && (body.get("g-recaptcha-response") ?? "").length === 0) {
+          send(response, 400, REGISTER_PAGE("Confirm you are not a robot.", challenge));
           return;
         }
 
         accounts.set(email.toLowerCase(), { email, password });
         const id = randomBytes(16).toString("hex");
+        if (challenge === "second_factor") {
+          // The account EXISTS from here. What it does not have is a session:
+          // the portal wants the code first, and the cookie it sets names a
+          // pending verification rather than a signed-in account.
+          awaitingCode.set(id, email.toLowerCase());
+          send(response, 302, "", {
+            location: "/verify",
+            "set-cookie": `portal_session=${id}; Path=/; HttpOnly`,
+          });
+          return;
+        }
         sessions.set(id, email.toLowerCase());
         send(response, 302, "", {
           location: "/apply",
@@ -322,7 +409,7 @@ export async function startFixturePortal(): Promise<FixturePortal> {
       }
 
       if (method === "GET" && path === "/login") {
-        send(response, 200, LOGIN_PAGE(null));
+        send(response, 200, LOGIN_PAGE(null, challenge));
         return;
       }
 
@@ -332,10 +419,22 @@ export async function startFixturePortal(): Promise<FixturePortal> {
         const password = body.get("password") ?? "";
         const account = accounts.get(email);
         if (account === undefined || !samePassword(account.password, password)) {
-          send(response, 401, LOGIN_PAGE("Those details do not match an account."));
+          send(response, 401, LOGIN_PAGE("Those details do not match an account.", challenge));
+          return;
+        }
+        if (challenge === "captcha" && (body.get("g-recaptcha-response") ?? "").length === 0) {
+          send(response, 400, LOGIN_PAGE("Confirm you are not a robot.", challenge));
           return;
         }
         const id = randomBytes(16).toString("hex");
+        if (challenge === "second_factor") {
+          awaitingCode.set(id, email);
+          send(response, 302, "", {
+            location: "/verify",
+            "set-cookie": `portal_session=${id}; Path=/; HttpOnly`,
+          });
+          return;
+        }
         sessions.set(id, email);
         send(response, 302, "", {
           location: "/apply",

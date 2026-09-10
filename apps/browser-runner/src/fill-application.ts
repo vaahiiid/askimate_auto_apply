@@ -37,6 +37,7 @@ import { rehydratePlan } from "@askimate/aas-mapping";
 import type { StoredFillPlan } from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
+import { challengeFailure, type ChallengeProbe } from "./challenge.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 export interface FillApplicationDeps {
@@ -57,6 +58,15 @@ export interface FillApplicationDeps {
    * used to refuse transport to avoid.
    */
   readonly documents: DocumentSource;
+  /**
+   * Reads the page the runner is about to type into for a CAPTCHA or a second
+   * factor (ADR-0101 §6). `PlaywrightPreparationSession.challenge` in
+   * production; a test supplies its own. Required, not defaulted: a fill that
+   * silently had no probe would type into a challenged page and report the
+   * refusal that followed as a fill error, which is the confusing failure the
+   * requirement exists to prevent.
+   */
+  readonly challenge: ChallengeProbe;
 }
 
 export async function fillApplication(
@@ -98,8 +108,17 @@ export async function fillApplication(
   // single-use and is gone.
   const landed = await deps.session.currentUrl();
   if (new URL(landed).pathname !== target.pathname) {
+    // Somewhere other than the form — most often a login page the session
+    // was bounced to. If THAT page asks for a code, say so rather than "the
+    // student is needed": the two are different stops with different plans
+    // behind them (ADR-0101 §3 and §5).
+    const gate = await deps.challenge();
+    if (gate !== null) return { kind: "failed", failure: challengeFailure(gate) };
     return { kind: "failed", failure: "needs_the_student" };
   }
+  // On the form. A CAPTCHA on it is met before anything is typed into it.
+  const challenged = await deps.challenge();
+  if (challenged !== null) return { kind: "failed", failure: challengeFailure(challenged) };
 
   const report = await executePlan(
     deps.session,

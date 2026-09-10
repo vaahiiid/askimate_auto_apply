@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.87.0] — 2026-09-10
+
+**P70 — a runner that meets a CAPTCHA or a second factor stops and says which (ADR-0101 §6).**
+Vahid's requirement before slices d and e.
+
+### Added
+
+- `captcha_met` and `second_factor_met` in the closed `WorkFailure` set and the published
+  contract; the drift guard compares the enum with the code in both directions.
+- `apps/browser-runner/src/challenge.ts` — `detectChallenge(page)`, `challengeFailure`,
+  `ChallengeProbe`; `PlaywrightPreparationSession.challenge()`. Narrower than discovery's signals
+  on purpose: a widget or its response field, a one-time-code field by autocomplete, name, id or
+  label; not a bare script tag and not `name*=code`.
+- `createPortalAccount` reads the registration form before typing and the page the portal answers
+  with; `fillApplication` takes a required `challenge` probe and reads the form and the page it was
+  bounced to.
+- `RunDriver.reportWork` stops a run on either code: an intervention naming the challenge, the
+  action, the page and the reviewed observation (`new_portal_behaviour` / `authentication_failure`),
+  one fixed message per code, `escalated`.
+- The fixture portal's `challenge` option: `captcha` (a widget the POST refuses without) and
+  `second_factor` (a code asked for after registration and sign-in are accepted).
+- Tests: the detector in a real browser (seven, both directions), the fill's three cases, the
+  account creation met by a CAPTCHA before typing and by a code after acceptance, the plane's two
+  stops and its control.
+
+### Found
+
+- Since P5 `reportWork` recorded every failure as `failed_cleanly` and discarded the code.
+  `needs_the_student` did nothing; a challenged action would have been re-offered on the next poll.
+
+---
+
 ## [0.86.0] — 2026-09-10
 
 **P69 — blocker 19 decided: the yes comes first (ADR-0101).** Vahid's six answers to the

@@ -37,6 +37,7 @@ import {
   SECRET_LIFECYCLES,
   WIRE_RESOLUTION_OUTCOMES,
   WORK_APPROACHES,
+  WORK_FAILURES,
   WORK_KINDS,
   parseWireResolutionOutcome,
   secureControlPath,
@@ -259,6 +260,18 @@ describe("the work vocabulary and the domain do not drift", () => {
     expect([...WORK_APPROACHES].sort()).toEqual(
       [...AUTHENTICATION_APPROACHES].sort(),
     );
+  });
+
+  it("publishes exactly the failure codes a runner can report", () => {
+    // ADR-0101 §6 added two. The document's enum and the code's closed set are
+    // compared in both directions so neither can gain a member alone.
+    const spec = specNamed("conversation.v1.yaml");
+    const schemas = spec["components"] as Doc;
+    const report = (schemas["schemas"] as Doc)["WorkReport"] as Doc;
+    const failure = (report["properties"] as Doc)["failure"] as Doc;
+    expect([...(failure["enum"] as string[])].sort()).toEqual([...WORK_FAILURES].sort());
+    expect(WORK_FAILURES).toContain("captcha_met");
+    expect(WORK_FAILURES).toContain("second_factor_met");
   });
 
   it("hands out every browser step the orchestrator can produce", () => {

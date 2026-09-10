@@ -174,6 +174,30 @@ generic fill failure. The refusal is a closed code on the wire, the run stops th
 machinery and the student is told a person must act, and the record names the portal and the
 condition. That record is the signal that moves §5 from recorded to needed.
 
+**Built in P70 (2026-09-10).** Two codes on the wire, `captcha_met` and `second_factor_met`, in
+the closed `WorkFailure` set and the published contract. The runner reads the page for a challenge
+at four points: the registration form before a character is typed and before the Secure Plane is
+asked to spend the handle; the page the portal answers a registration with, where a second factor
+means the account may now exist; the application form before the fill; and the page a fill was
+bounced to, so a sign-in gated by a code is named as such rather than as "needs the student". The
+detector (`apps/browser-runner/src/challenge.ts`) keeps discovery's vocabulary and drops its loosest
+rules on purpose — discovery's `input[name*=code]` fires on a postcode box, and a signal that stops a
+live run must not — so it looks for a widget or its response field, a one-time-code field by
+autocomplete, name, id or label, and not a bare script tag. The asymmetry is deliberate: a challenge
+it misses fails the way it always did; one it sees stops with the reason named.
+
+On the plane, `reportWork` gives the code a home. Found while building it: **since P5 every failure
+a runner reported was recorded as `failed_cleanly` and the code discarded** — `needs_the_student`
+did nothing, and a challenged registration would have been offered again on the next poll and met
+the same challenge, the confusing failure the requirement names. Now a challenge raises an
+intervention through the one stop mechanism (ADR-0048, ADR-0065): reason `new_portal_behaviour` for
+a CAPTCHA, `authentication_failure` for a second factor; `encountered` names the challenge, the
+action, the page and what the reviewed observation had recorded, and for a creation met by a second
+factor that the account MAY ALREADY EXIST; one fixed message to the student per code; status
+`escalated`, which `claimWork` never offers. Every other failure is exactly as it was. The fixture
+portal presents both — a widget the POST refuses without, and a code asked for after the form is
+accepted — and both are met by the real runner in a real browser.
+
 ## Consequences
 
 - Consent order is right: the yes precedes the password and the account.

@@ -56,6 +56,10 @@ export {
 } from "./discovery.js";
 export type { FlowSignal, RawObservation } from "./observe-script.js";
 export { OBSERVE_SCRIPT } from "./observe-script.js";
+export { CHALLENGE_SCRIPT, challengeFailure, detectChallenge } from "./challenge.js";
+export { SECOND_FACTOR_CODE } from "./fixture-portal.js";
+export type { FixtureChallenge, FixturePortalOptions } from "./fixture-portal.js";
+export type { Challenge, ChallengeProbe } from "./challenge.js";
 
 export type { CaptureIndex, CapturedPage, ReplayServer } from "./replay.js";
 export { startReplayServer } from "./replay.js";

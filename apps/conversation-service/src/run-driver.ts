@@ -106,6 +106,7 @@ import type {
   WorkflowPhase,
   WorkflowRunRecord,
   WorkflowStatus,
+  RecoveryReason,
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
@@ -543,6 +544,77 @@ function cancellationMessage(entry: CatalogueEntry, hasAccount: boolean): string
     `on it. ${account}Nothing was submitted. If you want your data deleted rather than just ` +
     `stopped, tell me — that is a separate request and I will pass it to a person.`
   );
+}
+
+/**
+ * Which challenge a report names, or `null` for every other outcome.
+ *
+ * Total over the two codes and nothing else: a failure that is not one of
+ * them is what it always was, and the intent ledger already recorded it.
+ */
+function challengeOf(report: WorkReport): "captcha" | "second_factor" | null {
+  if (report.outcome === "succeeded") return null;
+  if (report.failure === "captcha_met") return "captcha";
+  if (report.failure === "second_factor_met") return "second_factor";
+  return null;
+}
+
+/**
+ * What the student reads when the portal asked for something only a person
+ * can pass (ADR-0101 §6). Two fixed sentences, one per challenge, chosen by
+ * code — never composed from anything the page said.
+ */
+function challengeMessage(entry: CatalogueEntry, challenge: "captcha" | "second_factor"): string {
+  const institution = entry.blueprint.institutionName;
+  if (challenge === "captcha") {
+    return (
+      `${institution}'s application portal asked me to prove I am not a robot before it would ` +
+      `go on. That is something only a person can do, so I have stopped there and passed your ` +
+      `application to a member of the team. Nothing you have given me is lost, and nothing has ` +
+      `been submitted.`
+    );
+  }
+  return (
+    `${institution}'s application portal asked for a code sent to you — a second sign-in step ` +
+    `that only you can complete. I have stopped there and passed your application to a member ` +
+    `of the team, who will arrange it with you. Nothing you have given me is lost, and nothing ` +
+    `has been submitted.`
+  );
+}
+
+/**
+ * What the specialist is told: which challenge, during which action, against
+ * which page, and what discovery had recorded — so the contradiction is on
+ * the record rather than in somebody's memory. For a creation met by a second
+ * factor, that the account may already exist: the one fact that stops a
+ * second one being made.
+ */
+function challengeEncountered(
+  entry: CatalogueEntry,
+  challenge: "captcha" | "second_factor",
+  action: ConsequentialAction,
+  target: string,
+): string {
+  const observed = entry.portalAuthentication;
+  const recorded =
+    observed === undefined
+      ? "no observation of this portal's authentication is on the entry"
+      : challenge === "captcha"
+        ? `the reviewed observation (${observed.discoveryRunId}) records captchaPresent as ` +
+          `${String(observed.captchaPresent)}`
+        : `the reviewed observation (${observed.discoveryRunId}) records mfaOrOtpRequired as ` +
+          `${String(observed.mfaOrOtpRequired)}`;
+  const met =
+    challenge === "captcha"
+      ? `The portal presented a CAPTCHA during "${action}" at ${target}. The runner did not ` +
+        `attempt it and typed nothing into that page.`
+      : `The portal asked for a one-time code or another second factor during "${action}" at ` +
+        `${target}.` +
+        (action === "create_portal_account"
+          ? ` The registration form was accepted before the code was asked for, so the account ` +
+            `MAY ALREADY EXIST: verify on the portal before creating another.`
+          : ` The page was not filled.`);
+  return `${met} Discovery: ${recorded}. Vahid, ADR-0101 §6: this refusal is the signal that moves the second-factor plan (§5) from deferred to needed.`;
 }
 
 /**
@@ -4905,7 +4977,121 @@ export class RunDriver {
       );
     }
 
+    // ADR-0101 §6. A CAPTCHA or a second factor is not a fill error: the run
+    // stops, says which, and is never offered again until a person has looked.
+    const challenge = challengeOf(input.report);
+    if (challenge !== null) {
+      await this.#stopForChallenge({ runId, challenge, action, target, now });
+    }
+
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+
+  /**
+   * Stops a run that met a CAPTCHA or a second factor, and says which.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * ADR-0101 §6 — Vahid: *"If a runner meets a CAPTCHA or a second factor
+   * where A expects neither, it must stop and say which it met, not fail as a
+   * fill error. That refusal is the signal that moves C from deferred to
+   * needed."*
+   *
+   * Before this, `reportWork` recorded every failure as `failed_cleanly` and
+   * discarded the code. A challenged registration would have been offered
+   * again on the next poll, met the same challenge, and gone round — the
+   * confusing failure he asked not to have. Now the code has a home: an
+   * intervention naming the challenge, the action and the page, with the
+   * reviewed observation it contradicts; one honest message to the student;
+   * and the status `escalated`, which `claimWork` never offers.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The same mechanism as every other stop (ADR-0048, ADR-0065): one
+   * intervention store, one announcement, one status. Idempotent by the
+   * action's own key, so a second report of the same challenge raises nothing
+   * new. The reason is the domain's: a CAPTCHA is `new_portal_behaviour` (the
+   * observation said none), a second factor is `authentication_failure` (we
+   * could not sign in, and it is not a handoff the student completes on their
+   * own device — ADR-0101 §5 is the plan for it).
+   */
+  async #stopForChallenge(input: {
+    readonly runId: RunId;
+    readonly challenge: "captcha" | "second_factor";
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return;
+    const record = await this.#options.stores.runs.load(input.runId);
+    if (record === null) return;
+    const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
+    if (conversationId === null) return;
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return;
+
+    const runId = record.runId;
+    const idempotencyKey = idempotencyKeyFor({ runId, action: input.action, target: input.target });
+    const reason: RecoveryReason =
+      input.challenge === "captcha" ? "new_portal_behaviour" : "authentication_failure";
+    const raised = await interventions.raise({
+      interventionId: makeInterventionId(
+        this.#options.newInterventionId?.(runId, idempotencyKey, input.now) ??
+          `iv_${randomUUID().replace(/-/g, "")}`,
+      ),
+      runId,
+      idempotencyKey,
+      caseId: record.caseId,
+      studentRef: record.studentRef,
+      escalation: {
+        reason,
+        priority: priorityFor(reason),
+        encountered: challengeEncountered(entry, input.challenge, input.action, input.target),
+        expected:
+          `No CAPTCHA and no second factor at registration, sign-in or the form: the ` +
+          `assumption the one-sitting design rests on (ADR-0101 §1–§2), and what the reviewed ` +
+          `observation for this portal records. A person decides whether this portal is served ` +
+          `through the plan in ADR-0101 §5, or as a handoff route.`,
+        checkpoint: {
+          blueprintVersion: blueprintVersion(entry.blueprint.version),
+          action: input.action,
+          target: input.target,
+          phase: record.checkpoint.phase,
+          pagesCompleted: [],
+          capturedAt: input.now,
+        },
+        raisedAt: input.now,
+      },
+      context: {
+        institutionId: makeInstitutionId(entry.institutionRef),
+        portal: portalOf(entry),
+        courseId: makeCourseId(entry.courseRef),
+        blueprintVersion: blueprintVersion(entry.blueprint.version),
+        ...(input.action === "advance_portal_page" ? { page: pageOf(input.target) } : {}),
+      },
+    });
+
+    const held = await interventions.find(raised.interventionId);
+    if (held !== null && held.announcedAt === undefined) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: challengeMessage(entry, input.challenge),
+        },
+      });
+      await interventions.markAnnounced(raised.interventionId, input.now);
+    }
+
+    if (record.status !== "running") return;
+    await this.#options.stores.runs.saveCheckpoint({
+      runId,
+      checkpoint: record.checkpoint,
+      expectedRevision: record.revision,
+      status: "escalated",
+    });
   }
 }
 

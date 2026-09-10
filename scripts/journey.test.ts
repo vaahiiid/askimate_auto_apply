@@ -1048,26 +1048,31 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       received = work.plan;
       const advance = work.advanceLocator;
       if (advance === undefined) expect.unreachable("execute work carries its save control");
+      // The REAL session, attached to the page the account was created in.
+      // Not a hand-rolled adapter: the first version of this test wrote one
+      // and lost the option check, the checkbox handling and the read-back
+      // that catches a portal silently truncating a personal statement — and
+      // typed "IR" into a `<select>`.
+      const attached = PlaywrightPreparationSession.attach(casePage, {
+        capability: "fillable",
+        runId: "run-journey",
+        allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
+        // EXACTLY the control the plane sent, and nothing else. The guard
+        // is a whitelist, so the submit button is unreachable however the
+        // blueprint changes — structural rather than a promise (ADR-0014).
+        clickableControls: [advance],
+      });
       return fillApplication(work, {
         now: () => new Date(),
         // The gated fixture's plan references no upload, so no plane is asked
         // (ADR-0099). A plan that did would be answered `null` here and fail
         // on that field by name, never silently.
         documents: () => Promise.resolve(null),
-        // The REAL session, attached to the page the account was created in.
-        // Not a hand-rolled adapter: the first version of this test wrote one
-        // and lost the option check, the checkbox handling and the read-back
-        // that catches a portal silently truncating a personal statement — and
-        // typed "IR" into a `<select>`.
-        session: PlaywrightPreparationSession.attach(casePage, {
-          capability: "fillable",
-          runId: "run-journey",
-          allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
-          // EXACTLY the control the plane sent, and nothing else. The guard
-          // is a whitelist, so the submit button is unreachable however the
-          // blueprint changes — structural rather than a promise (ADR-0014).
-          clickableControls: [advance],
-        }),
+        session: attached,
+        // The page is read for a CAPTCHA or a second factor before anything
+        // is typed (ADR-0101 §6). The gated fixture has neither; the probe
+        // runs on the real page all the same.
+        challenge: () => attached.challenge(),
       });
     });
     expect(turn.kind, JSON.stringify(turn)).toBe("worked");
@@ -1141,15 +1146,17 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         "and only the fields on it",
       ).toEqual(["personal_statement"]);
 
+      const attachedAgain = PlaywrightPreparationSession.attach(restarted.page, {
+        capability: "fillable",
+        runId: "run-journey-2",
+        allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
+        clickableControls: [claimed.advanceLocator!],
+      });
       const outcome = await fillApplication(claimed, {
         now: () => new Date(),
         documents: () => Promise.resolve(null),
-        session: PlaywrightPreparationSession.attach(restarted.page, {
-          capability: "fillable",
-          runId: "run-journey-2",
-          allowedHosts: [portal.host.split(":")[0] ?? "127.0.0.1"],
-          clickableControls: [claimed.advanceLocator!],
-        }),
+        session: attachedAgain,
+        challenge: () => attachedAgain.challenge(),
       });
       expect(outcome).toEqual({ kind: "succeeded" });
       expect(

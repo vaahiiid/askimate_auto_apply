@@ -3972,3 +3972,29 @@ not built.
 ## Declared-but-unreachable surface
 
 **Six** — unchanged.
+
+# P70 — a runner that meets a CAPTCHA or a second factor stops and says which (ADR-0101 §6)
+
+The requirement you put before slices d and e. Two codes cross the wire, `captcha_met` and
+`second_factor_met`, and the runner reads the page for a challenge at four points: the
+registration form before a character is typed — and before the Secure Plane is asked to spend the
+handle — the page the portal answers with, the application form, and the page a fill was bounced
+to. The detector keeps discovery's vocabulary and drops its loosest rules, because discovery's
+`input[name*=code]` fires on a postcode box and a signal that stops a live run must not. What it
+misses fails as it always did; what it sees stops with the reason named.
+
+On the plane the code now has a home. I found, building it, that since P5 `reportWork` recorded
+every failure as `failed_cleanly` and threw the code away — `needs_the_student` did nothing, and a
+challenged registration would have been offered again on the next poll, which is the confusing
+failure you described months early. A challenge now raises an intervention through the one stop
+mechanism: a CAPTCHA is `new_portal_behaviour`, a second factor is `authentication_failure`; the
+specialist reads which, during what, against what, and what discovery had recorded; for a
+registration accepted before the code was asked for, that the account may already exist. The
+student reads one fixed sentence per code. The run is `escalated`, which is never work.
+
+The fixture portal presents both — a widget the POST refuses without, and a code asked for after
+the form is accepted — and the real runner meets both in a real browser.
+
+## Declared-but-unreachable surface
+
+**Six** — unchanged.

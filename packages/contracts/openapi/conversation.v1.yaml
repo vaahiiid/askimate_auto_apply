@@ -2299,11 +2299,18 @@ components:
               secret_unavailable,
               needs_the_student,
               runner_fault,
+              captcha_met,
+              second_factor_met,
             ]
           description: >-
             Required exactly when the outcome is not `succeeded`, and refused
             when it is. A half-written report reads as more or less certainty
             than the runner actually had.
+
+            `captcha_met` and `second_factor_met` (ADR-0101 §6) are the two the
+            plane STOPS a run on, naming which was met: a portal asked for
+            something the plan assumed absent and only a person can pass. They
+            are never re-offered as work.
 
     AppendSecureEventRequest:
       type: object

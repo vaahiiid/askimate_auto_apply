@@ -44,6 +44,7 @@ import type { ClaimedWork } from "@askimate/aas-contracts";
 import type { Browser, BrowserContext, Page } from "playwright";
 
 import { fillSecret } from "./secret-fill.js";
+import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
 import type { PerformOutcome } from "./work-intake.js";
 
@@ -136,6 +137,13 @@ export async function createPortalAccount(
     }
 
     // ── 3. The email. Ordinary text, and this process types it ────────────
+    // ADR-0101 §6. Before a single character is typed — and before the Secure
+    // Plane is asked to spend the handle — the page is read for a challenge
+    // only a person can pass. A CAPTCHA met here costs nothing: no password
+    // was spent, no account was attempted, and the run stops saying which.
+    const challenged = await detectChallenge(page);
+    if (challenged !== null) return { kind: "failed", failure: challengeFailure(challenged) };
+
     const email = await resolve(page, targets.emailLocator);
     if (email === null) return { kind: "failed", failure: "portal_drift" };
     try {
@@ -208,6 +216,13 @@ export async function createPortalAccount(
       // happens next.
       return { kind: "failed", failure: "portal_refused" };
     }
+    // The form was accepted and the portal answered with a page. If THAT page
+    // asks for a code, the account may now exist and the sign-in is gated by
+    // something only the student holds: stop, and say which. The plane's
+    // intervention records that the account may exist, so nobody creates a
+    // second one (ADR-0054's whole reason for the ledger).
+    const afterwards = await detectChallenge(page);
+    if (afterwards !== null) return { kind: "failed", failure: challengeFailure(afterwards) };
     return { kind: "succeeded" };
   } finally {
     // The context, not the browser — the browser belongs to the runner and may

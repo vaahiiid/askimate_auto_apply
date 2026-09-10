@@ -45,6 +45,7 @@ import {
 import { BlockedRequestLog } from "./safety.js";
 import type { RedactedValue } from "./sensitive.js";
 import { openSensitiveContext, redact, sameRedacted } from "./sensitive.js";
+import { detectChallenge, type Challenge } from "./challenge.js";
 import type { FillableSession, PageObservation, SessionMode } from "./session.js";
 
 /** How a preparation session is configured. */
@@ -258,6 +259,15 @@ export class PlaywrightPreparationSession implements FillableSession {
       );
     }
     await this.#requirePage().goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  }
+
+  /**
+   * Whether the current page asks for something only a person can pass
+   * (ADR-0101 §6). The fill path's `ChallengeProbe`; reads the page and
+   * changes nothing.
+   */
+  public async challenge(): Promise<Challenge | null> {
+    return await detectChallenge(this.#requirePage());
   }
 
   public async observe(): Promise<PageObservation> {

@@ -386,6 +386,21 @@ export const WORK_FAILURES = [
   "needs_the_student",
   /** The browser or the network gave out. */
   "runner_fault",
+  /**
+   * The portal presented a CAPTCHA where the plan expected none. ADR-0101 §6.
+   *
+   * Its own code rather than `needs_the_student`, on Vahid's word: *"it must
+   * stop and say which it met, not fail as a fill error. That refusal is the
+   * signal that moves C from deferred to needed."* The plane stops the run on
+   * this and says so; a specialist reads which.
+   */
+  "captcha_met",
+  /**
+   * The portal asked for a one-time code or another second factor where the
+   * plan expected none. ADR-0101 §6. When the action was account creation the
+   * account may already exist — the intervention says so.
+   */
+  "second_factor_met",
 ] as const;
 export type WorkFailure = (typeof WORK_FAILURES)[number];
 
