@@ -74,9 +74,20 @@ export class InMemoryObjectStore {
   readonly #grants = new Map<string, Grant>();
   readonly #objects = new Map<string, StoredObject>();
   readonly #host: string;
+  readonly #origin: string;
 
-  public constructor(bucket = "in-memory-vault") {
-    this.#host = `${bucket}.in-memory.invalid`;
+  /**
+   * `origin`, when given, is where the minted URLs point. The default is an
+   * unresolvable `.invalid` host, which is right for every test that hands
+   * the URL back to `put` in-process. A browser test that needs a real PUT
+   * to cross a real origin boundary — the CORS rule's exercise — stands an
+   * HTTPS listener in front of this store and names it here. HTTPS, because
+   * `assertBoundUploadUrl` refuses anything else and a test that loosened
+   * that for its own convenience would be proving a URL nothing may mint.
+   */
+  public constructor(bucket = "in-memory-vault", origin?: string) {
+    this.#origin = origin ?? `https://${bucket}.in-memory.invalid`;
+    this.#host = new URL(this.#origin).host;
   }
 
   /** The presigner an `InMemoryDocumentVault` hands to `mintBoundUpload`. */
@@ -93,7 +104,7 @@ export class InMemoryObjectStore {
       };
       const signature = this.#sign(grant);
       this.#grants.set(signature, grant);
-      const url = new URL(`https://${this.#host}/${request.key}`);
+      const url = new URL(`${this.#origin}/${request.key}`);
       url.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
       url.searchParams.set("X-Amz-Date", amzDate(now));
       url.searchParams.set("X-Amz-Expires", String(request.expiresInSeconds));
@@ -121,7 +132,7 @@ export class InMemoryObjectStore {
       };
       const signature = this.#sign(grant);
       this.#grants.set(signature, grant);
-      const url = new URL(`https://${this.#host}/${request.key}`);
+      const url = new URL(`${this.#origin}/${request.key}`);
       url.searchParams.set("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
       url.searchParams.set("X-Amz-Date", amzDate(now));
       url.searchParams.set("X-Amz-Expires", String(request.expiresInSeconds));
@@ -200,7 +211,7 @@ export class InMemoryObjectStore {
 
   /** A retrieval URL and the GET that resolves it. */
   public presignGet(key: string, now: Date, expiresInSeconds: number): string {
-    const url = new URL(`https://${this.#host}/${key}`);
+    const url = new URL(`${this.#origin}/${key}`);
     url.searchParams.set("X-Amz-Date", amzDate(now));
     url.searchParams.set("X-Amz-Expires", String(expiresInSeconds));
     url.searchParams.set("X-Amz-SignedHeaders", "host");

@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,307 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,314 tests, 122 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the seventeen files that launch a browser run serially, everything else in parallel.
 Eighty-seven architecture decision records, all eighty-seven accepted (ADR-0006 §3 amended in P38). **£0 / $0 of the ~$1,000 AWS credit is spent —
 nothing is provisioned and nothing is deployed.** The journey works end to end against a *replayed*
@@ -107,6 +107,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P59** | The document never enters a process we run (ADR-0092) | Vahid's decision, in his words, for the durable store: the gates run, then a pre-signed upload is minted, and the bytes go browser → S3. Reached through the boundary check REFUSING the in-process design — a control working, recorded as such. `packages/keys` and a sixth deployable considered and not taken, with his reasons. Rests on one unverified fact about S3, so this phase builds the verification (`pnpm run verify-s3-checksum`, a judgement that cannot say VERIFIED without its control experiment) and the provisioning request. **Nothing provisioned, port untouched.** Run 2026-09-09 against Vahid's bucket: REFUTED under the SDK's hoisted checksum, then VERIFIED on both halves with the checksum a signed header (ADR-0092 §4). Port still untouched |
 | **P60** | An upload URL cannot be minted unbound (ADR-0093) | Condition 1 met on 2026-09-09 (both halves VERIFIED, ADR-0092 §4) and Vahid: *"Reshape the port … make that structural in the minting code, not a note in the ADR."* `BoundUploadUrl` is a branded type with one producer, and the producer reads the URL it minted back and refuses one whose signature does not cover the checksum header — the SDK's default, which hoists it into the query string where S3 never reads it, is refused rather than recorded. Proven against the real SDK offline. `DocumentVault` has no method that takes or returns bytes; `PUT …/content` and `acceptBytes` are gone, `POST …/confirm` asks the bucket what it holds; the S3 vault exists in the Conversation Service. **Not built:** durable metadata and production wiring (production start still refused), CORS, the retrieval's caller |
 | **P61** | Document metadata is durable, and the transport starts in production (ADR-0094) | Migration 0017: `document_intakes` and `documents`, with **no column that could hold a byte** (asserted on the SQL and on `information_schema` at startup). `PostgresDocumentIntakePort.take` is one `DELETE … RETURNING` (three racing takes, one wins) and **re-runs the gates** against the schedule in force. The S3 vault's metadata sits behind a record store; the one durability check tells three in-memory cases apart. The entry point builds the transport from `AAS_DOCUMENTS_BUCKET`, `AAS_DOCUMENTS_KMS_KEY_ARN` (an ARN, checked) and `AAS_RETENTION_SCHEDULE_DIR` — all or none — loading the governing schedule through the parser moved into the domain package. Startup test: the real process starts with `documents=s3`. Nothing sent to AWS. **Not built:** the client's upload control, the retention sweep, the runner's fetch |
+| **P62** | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes (ADR-0095) | The page has a document panel: type from the server's list, file, and the page hashes the file (the ONE hash it computes, stated in its header as the exception ADR-0092 forces), declares, PUTs the bytes to the bucket on the URL the declaration answered with, confirms, and re-reads `GET …/documents`. The purpose is derived by the server from the governing schedule — the page never sends one. The browser test stands a real HTTPS bucket on a second origin that admits **exactly the CORS rule parsed out of `docs/provisioning-request-document-vault.md`**, so the page's PUT is proved against the rule as written, with a real preflight. The three transport codes moved to `REFUSALS`. **Found, not resolved:** the gates' `detail` is on the wire and the contract says no `detail` exists (blocker 18). **Not built:** the retention sweep, the runner's fetch, a document the interview asks for |
 
 ---
 
@@ -283,6 +284,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0092 | The document never enters a process we run | Accepted · continues 0090, on two conditions |
 | 0093 | An upload URL cannot be minted unbound | Accepted · continues 0092, completes 0090 |
 | 0094 | Document metadata is durable, and the transport starts in production | Accepted · continues 0093 |
+| 0095 | The student's page makes the PUT, and the CORS rule is exercised by the PUT it makes | Accepted · continues 0094 and 0092 |
 
 **On ADRs 0001–0004, which this document called Proposed until P49:** they were **accepted on
 2026-08-26**, with Phase 0, and every word written here about their being unaccepted was wrong.
@@ -376,12 +378,14 @@ against anything real* where that is true.
 
 - **Submission.** Out of scope by ADR-0014, and structural — the runner's click guard admits exactly
   the locators it is given, and it is never given a submit control.
-- **The document transport's client half.** The server half exists (ADR-0090, ADR-0092, ADR-0093,
-  ADR-0094): the declaration, the bound upload URL, the confirm, the `document_intakes` and
-  `documents` tables, the S3 vault, and the production wiring. What does not exist is the page's
-  upload control — nothing in the client makes the PUT — and the retention sweep and the runner's
-  fetch that follow. (This bullet said "Blocked on B5" until 2026-09-10; B5 was decided on
-  2026-09-07 and had stopped being the reason long before the transport was built.)
+- **The document transport's tail.** The transport exists end to end (ADR-0090, ADR-0092, ADR-0093,
+  ADR-0094, ADR-0095): the page hashes, declares, PUTs to the bucket and confirms; intakes and
+  records are in the database; the S3 vault and the production wiring exist. What does not exist is
+  what follows a held document: the retention sweep that calls `purgeContents`, the runner's fetch
+  of a retrieval URL (which needs `attach_document` reachable — blocker 9), and a run that notices
+  what the student has sent (`request_document` is unreachable through the driver, ADR-0064 §4).
+  (This bullet said "Blocked on B5" until 2026-09-10; B5 was decided on 2026-09-07 and had stopped
+  being the reason long before the transport was built.)
 - **AWS infrastructure beyond the vault.** No RDS, no ElastiCache, no compute; nothing is deployed.
   What exists, created by Vahid on 2026-09-09: the bucket `askimate-aas-vault-4471` in `eu-west-2`,
   the customer-managed key, and the (revoked) verification role — ADR-0092 §4.
@@ -426,6 +430,7 @@ open rather than quietly answered.
 | **8** | **DPA 2018 Sch. 1 appropriate policy document** | The DPIA owner | **Nothing today — and it is a live constraint, not a closed one.** `national_id` was the only special-category document type in scope and it was removed in ADR-0089, so no processing currently needs this. It binds again the moment one is added: **the document must exist BEFORE that processing**, which is why ADR-0089 puts the requirement at the `DocumentType` union itself and not only in an ADR |
 | **16** | ~~**Billing alerts, one S3 bucket, the vault's CMK and a prefix-scoped credential, to verify the checksum binding AND SSE-KMS through a pre-signed PUT**~~ | — | **Created by you and run on 2026-09-09; VERIFIED on both halves (ADR-0092 §4, *Run 2026-09-09*).** The first run said REFUTED because the SDK hoisted the checksum into the query string, where S3 never reads it — your reading: *"the run refuted the property under the SDK's default presign, not the property itself."* The second run, with the checksum a signed header, established all three things you asked for: a mismatched body is refused (400 `BadDigest`), an uploader who omits or alters the header is refused (403 `SignatureDoesNotMatch`), and SSE-KMS holds with the binding in place. **The port is still untouched** — the reshaping starts on your word, and carries the constraint that the checksum is a signed header, never a query parameter |
 | **17** | **The vault's service role, the bucket's CORS rule and its lifecycle** | You — AWS spend is your act | **The transport in production (ADR-0094).** The service starts with the transport once four variables are set; what its role must be allowed, what CORS the page's origin needs, and what lifecycle the bucket should and should not have: `docs/provisioning-request-document-vault.md`. Nothing has been created by the agent. The first request this service makes to AWS is on your deployment |
+| **18** | **The gate's reason on the wire — two of your rules disagree** | You | **Found in P62 (ADR-0095).** The storage gates write a `detail` for a person and `POST …/documents` puts it on the wire, under ADR-0075 (*a refusal a person cannot act on is a defect*). The contract's `Problem` has no `detail` member under your rule of 2026-08-28 — *"Define all error responses as closed, explicit contracts"* — and `problems.ts` says *"there is nowhere on the wire for a sentence to be assembled"*; `parseProblem` drops it. So the route sends a sentence the contract says cannot exist, the route tests read it off the raw body, and the page can only say *"That is not something you can do here"* for a refused document. The honest options are a structured member (which gate refused, as a closed enum on a new problem shape) or removing `detail` from the route. Both rules are yours; nothing here chooses. Until you do, the page words a refused document per code and the route keeps sending `detail` |
 | **9** | **`attach_document` intent identity** | Me — unblocked, and B5's answer no longer conditions it | Safe retry of an upload. Needs the transport phase and a `WorkKind` that can carry it |
 | **10** | **The AskiMate production integration** | Access, then me | The real conversational entry point. ADRs 0001–0002 are **Accepted** and describe an integration that has not been built — P49 corrected the claim that they were Proposed |
 | **11** | **Authenticated specialist identity** | You, then me | Nothing today — one operator. ADR-0048 §3's condition for making it a release blocker is a *second* specialist existing at all |
@@ -442,7 +447,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,307 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,314 tests · 122 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -455,14 +460,14 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,307 tests**, by the workspace they live in. Generated — run
+**2,314 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 381 | `packages/conversation` | 52 |
+| `apps/conversation-service` | 388 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
 | `scripts` | 287 | `packages/profile` | 46 |
 | `apps/browser-runner` | 237 | `packages/catalogue` | 39 |

@@ -142,6 +142,8 @@ point `AAS_DOCUMENTS_BUCKET` at it. Everything above applies to it unchanged.
 2. The first real declaration mints a URL. **That is the first request this service makes to AWS**,
    and it happens on your deployment, not from this environment — nothing here runs against AWS
    without your word (ADR-0092 §4).
-3. What is still not built: a client surface that makes the PUT (the page has no upload control
-   yet); the retention sweep that calls `purgeContents`; the runner's fetch of a retrieval URL, which
+3. The page's upload control exists (P62, [ADR-0095](./decisions/0095-the-page-makes-the-put-and-the-cors-rule-is-exercised.md)),
+   and the CORS rule in §1 is the one its browser test enforces: the test parses the JSON block
+   above and admits nothing else, so the page's PUT is proved against the rule as written here. What
+   is still not built: the retention sweep that calls `purgeContents`; the runner's fetch of a retrieval URL, which
    waits until `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9).

@@ -67,11 +67,18 @@ export class InMemoryDocumentIntakePort implements DocumentIntakePort {
   readonly #intakes = new Map<string, DocumentIntake>();
   public readonly vault: DocumentVault;
 
+  /**
+   * The vault may be handed in, so a test can put its in-memory bucket behind
+   * a listener the browser can actually reach. It is still an in-memory
+   * vault, and `assertDocumentStoreIsDurable` still refuses this port in
+   * production whatever it was handed.
+   */
   public constructor(
     public readonly schedule: RetentionSchedule,
     public readonly register: LawfulBasisRegister,
+    vault: InMemoryDocumentVault = new InMemoryDocumentVault(),
   ) {
-    this.vault = new InMemoryDocumentVault();
+    this.vault = vault;
   }
 
   public open(intake: DocumentIntake): Promise<void> {

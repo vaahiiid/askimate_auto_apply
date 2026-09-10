@@ -17,10 +17,10 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 | | |
 |---|---|
-| **Phase** | P61 — document metadata is durable, and the transport starts in production (ADR-0094) |
+| **Phase** | P62 — the student's page makes the PUT, and the CORS rule is exercised by the PUT it makes (ADR-0095) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,307 passing · 122 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 94 ADRs · all 94 Accepted |
+| **Tests** | **2,314 passing · 122 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 95 ADRs · all 95 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
@@ -40,7 +40,9 @@ the critical path. That requirement has not gone away: re-adding the type needs 
 **A student can now supply a document, and the bytes never enter a process we run** —
 `POST .../documents` runs the storage gates on the declaration and answers with a pre-signed upload
 the browser PUTs straight to the bucket; `POST .../confirm` asks the bucket what it holds
-(ADR-0090, ADR-0092). The upload URL cannot be minted unbound: its signature must cover the checksum
+(ADR-0090, ADR-0092). The student's page makes that PUT (ADR-0095): it hashes the file, declares,
+PUTs, confirms and re-reads `GET .../documents`, and its browser test proves the PUT against the
+CORS rule parsed out of the provisioning request, on a real second origin with a real preflight. The upload URL cannot be minted unbound: its signature must cover the checksum
 header, and the mint reads its own URL back and refuses one that does not (ADR-0093) — the SDK's
 default, which hoists the checksum where S3 never reads it, was found by a run against a real bucket
 and is refused structurally. Document metadata is durable (ADR-0094): intakes and records in the

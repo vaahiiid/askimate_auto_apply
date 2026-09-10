@@ -24,8 +24,14 @@
  */
 
 import type { Server } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import type { Server as HttpsServer } from "node:https";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type Page } from "playwright";
@@ -80,9 +86,20 @@ import { StudentIdentityStore } from "./identity-store.js";
 import { WorkLeaseStore } from "./work-store.js";
 import { buildStudentClient } from "./build-client.js";
 import { createConversationApp } from "./app.js";
+import { b2Register } from "@askimate/aas-disclosure";
+import { InMemoryDocumentVault, InMemoryObjectStore } from "@askimate/aas-documents";
+import { InMemoryDocumentIntakePort } from "./document-intake-store.js";
+import { loadGoverningSchedule } from "./wiring.js";
 
 const PORT = 4930;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
+/**
+ * The bucket, on an origin of its own (ADR-0092). HTTPS because
+ * `assertBoundUploadUrl` refuses any other scheme, and a test that loosened
+ * that for its own convenience would be proving a URL nothing may mint.
+ */
+const BUCKET_PORT = 4932;
+const BUCKET_ORIGIN = `https://127.0.0.1:${String(BUCKET_PORT)}`;
 const SECRET = "a-p25-session-secret-that-is-long-enough";
 const DATABASE = "aas_p25_client";
 
@@ -200,6 +217,124 @@ async function closeCurrentPage(): Promise<void> {
 }
 let publicDir: string;
 let driver: RunDriver;
+let bucketServer: HttpsServer;
+/** The in-memory bucket the browser's PUT lands in, behind the HTTPS listener. */
+let objects: InMemoryObjectStore;
+/** What the bucket saw: every preflight and every PUT, for the assertions. */
+const bucketLog: { readonly kind: "preflight" | "put"; readonly path: string; readonly headers: Readonly<Record<string, string>>; readonly status: number; readonly bytes: number }[] = [];
+
+/**
+ * The CORS rule, READ FROM THE PROVISIONING REQUEST rather than written here.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * `docs/provisioning-request-document-vault.md` tells Vahid what to put on the
+ * bucket, in a JSON block. This test stands a bucket in front of the page
+ * that admits EXACTLY that rule and nothing else — origin, method, headers —
+ * so the document's claim that the page's PUT is admitted is proved by the
+ * PUT the page actually makes, against the rule as written. A header the page
+ * starts sending that the document does not list fails here, not on Vahid's
+ * bucket.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+interface CorsRule {
+  readonly AllowedOrigins: readonly string[];
+  readonly AllowedMethods: readonly string[];
+  readonly AllowedHeaders: readonly string[];
+  readonly ExposeHeaders: readonly string[];
+  readonly MaxAgeSeconds: number;
+}
+
+function documentedCorsRule(): CorsRule {
+  const request = readFileSync(
+    join(import.meta.dirname, "..", "..", "..", "docs", "provisioning-request-document-vault.md"),
+    "utf8",
+  );
+  const section = request.slice(request.indexOf("### Bucket CORS"));
+  const match = /```json\n([\s\S]*?)```/.exec(section);
+  if (match?.[1] === undefined) throw new Error("the provisioning request has no CORS JSON block");
+  const rules = JSON.parse(match[1]) as CorsRule[];
+  const rule = rules[0];
+  if (rule === undefined || rules.length !== 1) throw new Error("expected exactly one CORS rule");
+  // The one substitution: the placeholder origin becomes this test's page.
+  return { ...rule, AllowedOrigins: rule.AllowedOrigins.map((o) => (o.startsWith("https://<") ? BASE : o)) };
+}
+
+/** A self-signed certificate for the bucket's loopback listener, minted for this run only. */
+function selfSigned(dir: string): { key: Buffer; cert: Buffer } {
+  execFileSync("openssl", [
+    "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+    "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1",
+    "-keyout", join(dir, "bucket-key.pem"), "-out", join(dir, "bucket-cert.pem"),
+  ], { stdio: "ignore" });
+  return { key: readFileSync(join(dir, "bucket-key.pem")), cert: readFileSync(join(dir, "bucket-cert.pem")) };
+}
+
+/**
+ * The bucket's HTTP face: the documented CORS rule, then `InMemoryObjectStore.put`.
+ *
+ * A preflight outside the rule is answered WITHOUT CORS headers, which is
+ * what S3 does and what makes the browser refuse the PUT. A PUT is handed to
+ * the same store the route tests use, so what it refuses is what the run of
+ * 2026-09-09 saw S3 refuse.
+ */
+function startBucket(dir: string): Promise<HttpsServer> {
+  const rule = documentedCorsRule();
+  const allowedHeaders = new Set(rule.AllowedHeaders.map((h) => h.toLowerCase()));
+  const server = createHttpsServer(selfSigned(dir), (req, res) => {
+    const origin = req.headers["origin"] ?? "";
+    const path = req.url ?? "/";
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (typeof value === "string") headers[name.toLowerCase()] = value;
+    }
+    const permitted = rule.AllowedOrigins.includes(origin);
+
+    if (req.method === "OPTIONS") {
+      const requested = (headers["access-control-request-headers"] ?? "")
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => h.length > 0);
+      const method = headers["access-control-request-method"] ?? "";
+      const admitted =
+        permitted && rule.AllowedMethods.includes(method) && requested.every((h) => allowedHeaders.has(h));
+      bucketLog.push({ kind: "preflight", path, headers, status: admitted ? 204 : 403, bytes: 0 });
+      if (!admitted) {
+        res.writeHead(403).end();
+        return;
+      }
+      res.writeHead(204, {
+        "access-control-allow-origin": origin,
+        "access-control-allow-methods": rule.AllowedMethods.join(", "),
+        "access-control-allow-headers": rule.AllowedHeaders.join(", "),
+        "access-control-max-age": String(rule.MaxAgeSeconds),
+      }).end();
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      const body = Buffer.concat(chunks);
+      const result =
+        req.method === "PUT"
+          ? objects.put(`${BUCKET_ORIGIN}${path}`, headers, new Uint8Array(body), new Date())
+          : { status: 405, code: "MethodNotAllowed" };
+      bucketLog.push({ kind: "put", path, headers, status: result.status, bytes: body.byteLength });
+      const cors = permitted
+        ? { "access-control-allow-origin": origin, "access-control-expose-headers": rule.ExposeHeaders.join(", ") }
+        : {};
+      if (result.code === null) {
+        res.writeHead(result.status, { ...cors, etag: `"${createHash("md5").update(body).digest("hex")}"` }).end();
+      } else {
+        res.writeHead(result.status, { ...cors, "content-type": "application/xml" })
+          .end(`<Error><Code>${result.code}</Code></Error>`);
+      }
+    });
+  });
+  return new Promise((resolve) => {
+    server.listen(BUCKET_PORT, "127.0.0.1", () => resolve(server));
+  });
+}
 let student: string;
 let otherStudent: string;
 
@@ -222,7 +357,9 @@ function connectionString(): string {
  */
 async function visitAs(subject: string): Promise<void> {
   await closeCurrentPage();
-  const context = await browser.newContext();
+  // `ignoreHTTPSErrors` is for the BUCKET's self-signed certificate only; the
+  // page itself is plain loopback HTTP, where `__Host-` is accepted.
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
   page = await context.newPage();
   watch(page);
 
@@ -332,6 +469,25 @@ beforeAll(async () => {
   publicDir = await mkdtemp(`${tmpdir()}/aas-p25-`);
   await buildStudentClient(publicDir);
 
+  // ── The document transport, over a bucket the browser can reach ─────────
+  //
+  // The REAL governing schedule (`config/retention`) and the real register,
+  // so what the page is offered and what the gates refuse is what production
+  // would offer and refuse. The vault is in memory — this port is refused in
+  // production — but its bucket is behind a real HTTPS origin, so the PUT the
+  // page makes is a real cross-origin request with a real preflight.
+  objects = new InMemoryObjectStore("in-memory-vault", BUCKET_ORIGIN);
+  bucketServer = await startBucket(publicDir);
+  const schedule = await loadGoverningSchedule(
+    join(import.meta.dirname, "..", "..", "..", "config", "retention"),
+    new Date(),
+  );
+  const documents = new InMemoryDocumentIntakePort(
+    schedule,
+    b2Register(new Date()),
+    new InMemoryDocumentVault(objects),
+  );
+
   const store = new ConversationEventStore(pool);
   driver = new RunDriver({
     stores: {
@@ -374,6 +530,7 @@ beforeAll(async () => {
       return typeof subject === "string" ? subject : null;
     },
     secureOrigin: "http://127.0.0.1:4931",
+    documents,
   });
   server = await new Promise<Server>((resolve) => {
     const listening = app.listen(PORT, "127.0.0.1", () => resolve(listening));
@@ -398,6 +555,10 @@ afterAll(async () => {
   await (page as Page | undefined)?.close().catch(() => undefined);
   await (browser as Browser | undefined)?.close().catch(() => undefined);
   await new Promise<void>((resolve) => server.close(() => resolve()));
+  await new Promise<void>((resolve) => {
+    if ((bucketServer as HttpsServer | undefined) === undefined) resolve();
+    else bucketServer.close(() => resolve());
+  });
   await pool.end();
   await rm(publicDir, { recursive: true, force: true });
 });
@@ -1288,4 +1449,148 @@ describeIfDatabase("the second attempt, from the student's own page", () => {
       "a live application may not be re-applied to",
     ).toBe("");
   }, 300_000);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P62 — the page makes the PUT, and the documented CORS rule admits it
+// ───────────────────────────────────────────────────────────────────────────
+
+describeIfDatabase("the student's page sends a document (ADR-0095)", () => {
+  const PASSPORT = Buffer.from("%PDF-1.7\n% a synthetic passport scan for the browser test, not a real one\n");
+  const PASSPORT_HASH = createHash("sha256").update(PASSPORT).digest("hex");
+
+  it("sends a document to the BUCKET, never to this origin, and shows it from a re-read", async () => {
+    // ─────────────────────────────────────────────────────────────────────
+    // ADR-0092 in a browser: the bytes go from the page to the bucket on the
+    // URL the declaration answered with; this service sees a declaration and
+    // a confirm and not one byte of the file. ADR-0095: the page hashes the
+    // file itself — the one hash it computes — and the bucket, not the page,
+    // is what checks it.
+    // ─────────────────────────────────────────────────────────────────────
+    const fresh = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('oidc-p62-a', true) RETURNING id",
+    );
+    const owner = fresh.rows[0]!.id;
+    await visitAs(owner);
+    await page.waitForSelector("#document-file", { timeout: 15_000 });
+
+    // Every request the page makes, so "never to this origin" is asserted
+    // rather than assumed.
+    const requests: { method: string; url: string }[] = [];
+    page.on("request", (request) => requests.push({ method: request.method(), url: request.url() }));
+    bucketLog.length = 0;
+
+    // The choice is the SERVER's list — the governing schedule's rows.
+    const offered = await page.locator("#document-type option").allTextContents();
+    expect(offered).toContain("passport");
+    expect(offered, "removed in ADR-0089; not offered").not.toContain("national id");
+    await page.selectOption("#document-type", "passport");
+    await page.setInputFiles("#document-file", {
+      name: "passport.pdf",
+      mimeType: "application/pdf",
+      buffer: PASSPORT,
+    });
+    await page.locator("#document-form button").click();
+
+    await page.waitForFunction(
+      () => (document.querySelector("#held-documents")?.textContent ?? "").includes("passport"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    expect(await textOf("#held-documents")).toContain("passport — uploaded");
+
+    // ── Where the bytes went ────────────────────────────────────────────
+    const puts = bucketLog.filter((entry) => entry.kind === "put");
+    expect(puts, "exactly one PUT reached the bucket").toHaveLength(1);
+    expect(puts[0]!.status).toBe(200);
+    expect(puts[0]!.bytes).toBe(PASSPORT.byteLength);
+    expect(puts[0]!.path, "under the student's own prefix").toMatch(new RegExp(`^/documents/${owner}/[0-9A-Z]{26}\\?`));
+    // The signed headers, sent exactly as stated (E6, E7).
+    expect(puts[0]!.headers["x-amz-checksum-sha256"]).toBe(Buffer.from(PASSPORT_HASH, "hex").toString("base64"));
+    expect(puts[0]!.headers["x-amz-server-side-encryption"]).toBe("aws:kms");
+    // And a real preflight, admitted by the DOCUMENTED rule.
+    const preflights = bucketLog.filter((entry) => entry.kind === "preflight");
+    expect(preflights.length, "the PUT was cross-origin, so the browser asked first").toBeGreaterThanOrEqual(1);
+    expect(preflights.every((entry) => entry.status === 204), "and every ask was within the rule").toBe(true);
+    expect(preflights[0]!.headers["origin"]).toBe(BASE);
+
+    // ── Where they did not go ───────────────────────────────────────────
+    const toThisOrigin = requests.filter((r) => r.url.startsWith(BASE));
+    expect(toThisOrigin.some((r) => r.method === "PUT"), "no PUT to this service").toBe(false);
+    expect(
+      toThisOrigin.filter((r) => r.method === "POST" && r.url.includes("/documents")).length,
+      "a declaration and a confirm, and that is all",
+    ).toBe(2);
+    expect(requests.filter((r) => r.url.startsWith(BUCKET_ORIGIN) && r.method === "PUT")).toHaveLength(1);
+
+    // The record is the server's, and it is what the bucket holds.
+    const held = await page.evaluate(async () => {
+      const conversations = (await (await fetch("/v1/conversations")).json()) as { conversations: { id: string }[] };
+      const id = conversations.conversations[0]!.id;
+      return (await (await fetch(`/v1/conversations/${id}/documents`)).json()) as {
+        documents: { documentType: string; state: string; contentHash: string; sizeBytes: number }[];
+      };
+    });
+    expect(held.documents).toHaveLength(1);
+    expect(held.documents[0]).toMatchObject({
+      documentType: "passport",
+      state: "uploaded",
+      contentHash: PASSPORT_HASH,
+      sizeBytes: PASSPORT.byteLength,
+    });
+
+    // And a reload shows the same list, from the server, the page having kept nothing.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(
+      () => (document.querySelector("#held-documents")?.textContent ?? "").includes("passport"),
+      undefined,
+      { timeout: 15_000 },
+    );
+    const stored = await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage));
+    expect(stored).toBe("{}{}");
+  }, 180_000);
+
+  it("is REFUSED by the gate before a byte crosses the wire, and told so in words", async () => {
+    // `other` is offered — the schedule has a row for it — and refused at the
+    // declaration, because its determination was decided against (ADR-0088).
+    // The page has no opinion about that; it shows the refusal and makes no
+    // PUT. The wording is per code (`forbidden`): the gate's own sentence is a
+    // `detail`, and the contract carries no free text to a client.
+    bucketLog.length = 0;
+    await page.selectOption("#document-type", "other");
+    await page.setInputFiles("#document-file", {
+      name: "something.pdf",
+      mimeType: "application/pdf",
+      buffer: PASSPORT,
+    });
+    await page.locator("#document-form button").click();
+    const notice = await textOf("#notice", 20_000);
+    expect(notice).toContain("not something you can do here");
+    expect(bucketLog, "nothing reached the bucket — no preflight, no PUT").toEqual([]);
+    // Still one document held: the refusal recorded nothing.
+    expect(await textOf("#held-documents")).toContain("passport — uploaded");
+    expect((await page.locator("#held-documents li").count())).toBe(1);
+  }, 120_000);
+
+  it("keeps the chosen file across a redraw the server triggers", async () => {
+    // The form is built once. Every other panel is replaced whole on every
+    // read, and an SSE frame from the student's own message would have
+    // emptied a file input that was rebuilt with the rest.
+    await page.setInputFiles("#document-file", {
+      name: "kept.pdf",
+      mimeType: "application/pdf",
+      buffer: PASSPORT,
+    });
+    await page.locator("#say").fill("hello");
+    await page.locator("#composer button").click();
+    await page.waitForFunction(
+      () => (document.querySelector("#transcript")?.textContent ?? "").includes("hello"),
+      undefined,
+      { timeout: 15_000 },
+    );
+    const kept = await page.evaluate(
+      () => (document.querySelector("#document-file") as HTMLInputElement).files?.[0]?.name ?? null,
+    );
+    expect(kept).toBe("kept.pdf");
+  }, 120_000);
 });

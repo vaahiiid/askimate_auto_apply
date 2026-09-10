@@ -3774,3 +3774,37 @@ not removing it, while the migration's comment said "removed by the same stateme
 The statement now takes the row by id and the code refuses it when expired; ADR-0094's sentence about
 the statement is corrected in place. The one browser test that timed out under the full run passed
 alone — load, not a defect.
+
+# P62 — the student's page makes the PUT, and the CORS rule is exercised (ADR-0095)
+
+The first thing P61 left. The page now has a document panel: choose a type from the list the server
+sends, choose a file, and the page hashes it, declares the hash, PUTs the bytes to the bucket on the
+URL the declaration answered with, confirms, and re-reads what is held. The bytes never touch this
+service, and the browser test asserts that from the page's own request log.
+
+## The four boundaries it crossed, each stated
+
+The page computes one hash now — the upload's — and says in its header why that is the exception
+and not a crack: the server never sees the bytes, and what the page computes is trusted by nothing,
+because the bucket and the confirm both check it. The page never states a purpose: the route derives
+it from the governing schedule's one row for the type, because a purpose keys a determination you
+made and is not the student's to pick. A held document is drawn from a new `GET …/documents` read,
+never from the confirm's answer, so a reload is right. And the CORS rule is not written in the test:
+the test parses the JSON block out of `docs/provisioning-request-document-vault.md` and stands a real
+HTTPS bucket on a second origin that admits exactly that and nothing else. The page's PUT is a real
+cross-origin request with a real preflight, against the rule as you will create it.
+
+## What I found and did not resolve
+
+The storage gates write a `detail` for a person and the declaration route puts it on the wire. The
+contract's `Problem` has no `detail` by your decision of 2026-08-28 ("closed, explicit contracts";
+`problems.ts` says "there is nowhere on the wire for a sentence to be assembled"), and its parser
+drops it. So the page can only say "That is not something you can do here" for a refused document,
+and the route sends a sentence the contract says cannot exist. Both rules are yours; I have recorded
+it as blocker 18 and not chosen between them.
+
+## Declared-but-unreachable surface
+
+**Six, unchanged.**
+
+---

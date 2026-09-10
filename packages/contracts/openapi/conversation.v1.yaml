@@ -363,6 +363,29 @@ paths:
   # arrives after a passport has crossed the wire has already failed.
   /v1/conversations/{conversationId}/documents:
     parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+    get:
+      operationId: listHeldDocuments
+      tags: [documents]
+      summary: What this student holds, and the types they can be given.
+      description: >-
+        Per STUDENT, reached through a conversation they own: documents are
+        held for reuse across applications (B5, ADR-0078), so the list is the
+        same from every conversation of theirs. The page draws its document
+        panel from this read and nothing else — a reload shows the same list
+        because the list was never the page's to keep (ADR-0060).
+      responses:
+        "200":
+          description: The documents held, newest last, and the types the schedule names.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HeldDocuments" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503":
+          description: No document store is configured.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
     post:
       operationId: declareDocumentUpload
       tags: [documents]
@@ -2288,7 +2311,7 @@ components:
     DocumentUploadDeclaration:
       type: object
       additionalProperties: false
-      required: [documentType, purpose, contentType, contentHash, sizeBytes]
+      required: [documentType, contentType, contentHash, sizeBytes]
       properties:
         documentType:
           type: string
@@ -2298,7 +2321,14 @@ components:
             appropriate policy document to exist first.
         purpose:
           type: string
-          description: Why it is held. Keys the storing activity's determination.
+          description: >-
+            Why it is held. Keys the storing activity's determination
+            (ADR-0087). OPTIONAL, and the student's page never sends it: the
+            purpose is the controller's decision, made per schedule row, not
+            the student's. When omitted the governing schedule supplies the
+            one purpose it holds for the type; a type with none or several
+            answers 400 on `/purpose` and the caller must state one. A stated
+            purpose is judged by the gates exactly as before.
         contentType: { type: string }
         contentHash:
           type: string
@@ -2354,13 +2384,40 @@ components:
     StoredDocument:
       type: object
       additionalProperties: false
-      required: [documentId, documentType, state, contentHash, retentionPolicyReference]
+      required:
+        [documentId, documentType, state, contentHash, contentType, sizeBytes, uploadedAt, retentionPolicyReference]
       properties:
         documentId: { type: string }
         documentType: { type: string }
         state: { type: string }
         contentHash: { type: string }
+        contentType:
+          type: string
+          description: The DECLARED content type. The upload URL does not sign it (ADR-0093).
+        sizeBytes: { type: integer, minimum: 1 }
+        uploadedAt: { type: string, format: date-time }
         retentionPolicyReference: { type: string }
+
+    HeldDocuments:
+      type: object
+      additionalProperties: false
+      required: [documents, documentTypes]
+      description: >-
+        What this student holds, and what they can be given. Read on every
+        draw of the page and after every confirm, so the page never remembers
+        a document it was told about (ADR-0060).
+      properties:
+        documents:
+          type: array
+          items: { $ref: "#/components/schemas/StoredDocument" }
+        documentTypes:
+          type: array
+          items: { type: string }
+          description: >-
+            The document types the governing retention schedule has a row for.
+            What the page offers as a choice — not a promise the gates pass it:
+            a type whose determination was decided against (ADR-0088) is
+            listed and refused at declaration, in the gate's words.
 
     SecureStepBootstrap:
       type: object

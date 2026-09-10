@@ -120,8 +120,11 @@ variables — *"Do not run anything against AWS again without telling me first."
 
 ## What was not built
 
-- **A client surface.** The page has no upload control; `journey.ts` still lists the three transport
-  codes as stated absences. That is the phase in which the CORS rule is exercised.
+- **A client surface.** ~~The page has no upload control; `journey.ts` still lists the three transport
+  codes as stated absences. That is the phase in which the CORS rule is exercised.~~ **Built in P62 —
+  [ADR-0095](./0095-the-page-makes-the-put-and-the-cors-rule-is-exercised.md):** the page hashes,
+  declares, PUTs and confirms, the three codes are in `REFUSALS`, and the CORS rule is exercised by a
+  real preflight against the rule parsed out of the provisioning request.
 - **The retention sweep** that calls `purgeContents` when a period elapses; and the runner's fetch of
   a retrieval URL, which waits until `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9). Both are in the reachability register with their reasons.
   (Corrected 2026-09-10: this bullet first named B5, a decided blocker, as the thing the fetch was

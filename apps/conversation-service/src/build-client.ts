@@ -53,6 +53,14 @@ const DOCUMENT = `<!doctype html>
   -->
   <section id="reapplication"></section>
   <section id="pending"></section>
+  <!--
+    Documents (ADR-0092). The file input is the ONE control on this page whose
+    value is a file, and the bytes it holds never go to this origin: the page
+    hashes them, declares the hash, and PUTs them to the bucket on the URL the
+    declaration answered with. Drawn from GET .../documents on every read,
+    like everything else — the page does not remember what it sent.
+  -->
+  <section id="documents"></section>
   <ul id="transcript"></ul>
   <section id="secure"></section>
   <form id="composer" autocomplete="off">
@@ -91,6 +99,8 @@ button.quiet { opacity: .75; }
 textarea, #say { width: 100%; padding: .4rem; box-sizing: border-box; }
 .secure-frame { width: 100%; height: 18rem; border: 1px solid currentColor; }
 #notice:empty { display: none; }
+.held { font-size: .85rem; margin: .2rem 0; }
+#document-type, #document-file { margin: .25rem .5rem .25rem 0; }
 `;
 
 /** Writes `journey.js`, `journey.css` and `index.html` into `outDir`. */

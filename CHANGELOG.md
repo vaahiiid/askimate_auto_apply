@@ -17,6 +17,56 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+---
+
+## [0.79.0] — 2026-09-10
+
+**P62 — the student's page makes the PUT, and the CORS rule is exercised by the PUT it makes
+(ADR-0095).**
+
+The first thing ADR-0094 left unbuilt. The page has a document panel: the student chooses a type
+from the server's list and a file, and the page hashes the file, declares the hash, PUTs the bytes to
+the bucket on the URL the declaration answered with, confirms, and re-reads what is held. The bytes
+never touch this service, and the browser test asserts that from the page's own request log.
+
+### Added
+
+- `journey.ts` — the document panel, built once and kept across draws so a server-triggered redraw
+  does not empty the file input; `sendDocument` (hash, declare, PUT, confirm, re-read); the header's
+  stated exception: the upload's SHA-256 is the ONE hash this page computes, because under
+  ADR-0092 the server never sees the bytes, and what the page computes is checked by the bucket and
+  the confirm rather than trusted.
+- `transport.ts` — `readDocuments`, `declareDocument`, `putDocument` (the one absolute, cross-origin
+  call in the file, carrying no cookie), `confirmDocument`.
+- `GET /v1/conversations/{conversationId}/documents` — what this STUDENT holds (documents are held
+  for reuse across applications, B5) and the document types the governing schedule has a row for.
+  Published as `HeldDocuments`; the page draws its panel from this read and nothing else.
+- The purpose is derived by the server: `purpose` is optional in `DocumentUploadDeclaration`, and
+  when omitted the route takes the one policy row the governing schedule holds for the type, or
+  answers 400 on `/purpose`. The page never sends one — why the system holds a document is the
+  controller's decision per row (ADR-0087), not the student's to pick from a menu.
+- `InMemoryObjectStore(bucket, origin?)`; `InMemoryDocumentIntakePort` takes a vault.
+- Tests: four route cases (`document-routes.test.ts`); three browser cases in
+  `student-client.test.ts` against a real HTTPS bucket on a second loopback origin whose preflight
+  admits **exactly the CORS rule parsed out of `docs/provisioning-request-document-vault.md`** —
+  the page's PUT is proved against the rule as written, with a real preflight, and a refused
+  declaration is proved to reach the bucket with nothing.
+
+- `scripts/decided-blockers-are-not-pending.test.ts` — refuses a decided blocker (B1, B2, B5, as
+  data with the record that decided each) in dependency framing, across every record that describes
+  the present: ADRs from 0078, the provisioning requests, the state document, the README, the
+  reachability register. The journal and the changelog are not scanned; they record what was true
+  at the time. It found the sixth instance by itself: the correction note that quoted the stale
+  phrase.
+
+### Changed
+
+- `content_hash_mismatch`, `intake_not_open` and `upload_not_received` moved from
+  `CANNOT_REACH_THIS_PAGE` to `REFUSALS`, each worded as something the student can do — the visible
+  act ADR-0090 said would mark the upload surface landing.
+- `StoredDocument` carries the declared content type, the size and `uploadedAt`; the confirm and
+  the listing answer the same shape.
+
 ### Fixed
 
 - **A decided blocker written up as a dependency — the twelfth finding of that shape.** Vahid,
@@ -44,14 +94,18 @@ not shipped artefacts.
   `s3-document-vault.test.ts` opens its intake on the wall clock deliberately, because the SDK stamps
   `X-Amz-Date` with the real time and the mint refuses a URL that outlives its intake.
 
-### Added
+### Found, not resolved
 
-- `scripts/decided-blockers-are-not-pending.test.ts` — refuses a decided blocker (B1, B2, B5, as
-  data with the record that decided each) in dependency framing, across every record that describes
-  the present: ADRs from 0078, the provisioning requests, the state document, the README, the
-  reachability register. The journal and the changelog are not scanned; they record what was true
-  at the time. It found the sixth instance by itself: the correction note that quoted the stale
-  phrase.
+- **The gate's reason on the wire.** The storage gates write a `detail` for a person (ADR-0075) and
+  the declaration route sends it; the contract's `Problem` has no `detail` by Vahid's rule of
+  2026-08-28 (*"closed, explicit contracts"*) and its parser drops it. The page words a refused
+  document per code. Blocker 18 in the state document; both rules are his.
+
+### Not built
+
+The retention sweep; the runner's fetch; a document the interview asks for (`request_document` is
+unreachable through the driver, ADR-0064 §4). Nothing ran against AWS. Declared-but-unreachable:
+six, unchanged.
 
 ---
 

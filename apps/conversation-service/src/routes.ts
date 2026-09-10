@@ -56,6 +56,7 @@ import type {
   InterventionId,
   RecoveryResolution,
   ReusabilityAssessment,
+  RetentionSchedule,
   WaitRecommendation,
 } from "@askimate/aas-domain";
 import { caseId as makeCaseId, isReviewTrigger } from "@askimate/aas-domain";
@@ -69,7 +70,7 @@ import {
 
 import type { ReviewedTarget } from "@askimate/aas-catalogue";
 import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
-import type { DocumentUpload, StorableUpload } from "@askimate/aas-documents";
+import type { DocumentRecord, DocumentUpload, StorableUpload } from "@askimate/aas-documents";
 import {
   DOCUMENT_LIMITS,
   IntakeRefusedError,
@@ -408,6 +409,33 @@ function reapplicationProblem(res: Response, refusal: RunRefusal): void {
       problem(res, "service_unavailable");
       return;
   }
+}
+
+/**
+ * The one purpose the governing schedule holds for a document type, or null.
+ *
+ * Null for none and for several alike: either way the declaration cannot say
+ * why the document would be held without a caller stating it.
+ */
+function purposeFor(schedule: RetentionSchedule, documentType: string): string | null {
+  const purposes = [
+    ...new Set(schedule.policies.filter((p) => p.documentType === documentType).map((p) => p.purpose)),
+  ];
+  return purposes.length === 1 ? (purposes[0] ?? null) : null;
+}
+
+/** A stored document in the published shape (`StoredDocument`), and no wider. */
+function renderDocument(record: DocumentRecord): Record<string, unknown> {
+  return {
+    documentId: record.documentId,
+    documentType: record.documentType,
+    state: record.state,
+    contentHash: record.contentHash,
+    contentType: record.contentType,
+    sizeBytes: record.sizeBytes,
+    uploadedAt: record.uploadedAt.toISOString(),
+    retentionPolicyReference: record.retentionPolicyReference,
+  };
 }
 
 function readString(body: unknown, key: string): string | null {
@@ -1902,7 +1930,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
         }
 
         const documentType = readString(req.body, "documentType");
-        const purpose = readString(req.body, "purpose");
+        const statedPurpose = readString(req.body, "purpose");
         const contentType = readString(req.body, "contentType");
         const contentHash = readString(req.body, "contentHash");
         const sizeBytes = (req.body as Record<string, unknown> | undefined)?.["sizeBytes"];
@@ -1911,8 +1939,24 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           problem(res, "validation_failed", { pointers: ["/documentType"] });
           return;
         }
+        // ── The purpose is the controller's, not the student's ──────────
+        //
+        // A retention purpose keys a lawful-basis determination (ADR-0087):
+        // it is why THIS SYSTEM holds the document, which is a decision Vahid
+        // made per row, not something a person choosing a file should be
+        // asked. So when the declaration does not state one, the governing
+        // schedule supplies it — the one policy row for the type. A type with
+        // no row, or more than one, cannot be derived and the caller is told
+        // so rather than guessed for. A caller that DOES state a purpose is
+        // taken at its word and the gates judge it, exactly as before.
+        const purpose = statedPurpose ?? purposeFor(documents.schedule, documentType);
         if (purpose === null) {
-          problem(res, "validation_failed", { pointers: ["/purpose"] });
+          problem(res, "validation_failed", {
+            pointers: ["/purpose"],
+            detail:
+              `The governing retention schedule holds no single purpose for ${documentType}, so ` +
+              "the purpose cannot be derived. State one.",
+          });
           return;
         }
         if (contentType === null) {
@@ -2050,13 +2094,7 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
 
         try {
           const record = await documents.vault.confirmUpload(intake, options.now());
-          res.status(201).json({
-            documentId: record.documentId,
-            documentType: record.documentType,
-            state: record.state,
-            contentHash: record.contentHash,
-            retentionPolicyReference: record.retentionPolicyReference,
-          });
+          res.status(201).json(renderDocument(record));
         } catch (error) {
           if (error instanceof IntakeRefusedError) {
             problem(res, error.code, { detail: error.message });
@@ -2071,6 +2109,41 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           }
           next(error);
         }
+      })().catch(next);
+    },
+  );
+
+  // ── What is held, so the page can be reloaded and still be right ─────────
+  //
+  // ADR-0060's rule for every screen: nothing the page shows is remembered by
+  // the page. A document the student sent a minute ago is shown from THIS
+  // read, not from the confirm's answer, and a reload shows the same list
+  // because the list was never the page's. Per student, not per conversation:
+  // documents are held for reuse across applications (B5, ADR-0078), so what
+  // a student holds is the same list from every conversation they own.
+  //
+  // `documentTypes` is what the governing schedule has a row for — the types
+  // this system can be GIVEN. It is not a promise the gates will pass: a type
+  // whose determination was decided against (ADR-0088) is listed here and
+  // refused at declaration, in the gate's words. The page has no vocabulary
+  // of its own to draw the choice from, and must not grow one.
+  router.get(
+    "/v1/conversations/:conversationId/documents",
+    (req: Request, res: Response, next: NextFunction): void => {
+      void (async (): Promise<void> => {
+        const conversationId = String(req.params["conversationId"]);
+        const who = await caller(req, res, conversationId);
+        if (who === null) return;
+
+        const documents = options.documents;
+        if (documents === undefined) {
+          problem(res, "service_unavailable");
+          return;
+        }
+
+        const held = await documents.vault.listForStudent(who.studentId);
+        const documentTypes = [...new Set(documents.schedule.policies.map((p) => p.documentType))];
+        res.status(200).json({ documents: held.map(renderDocument), documentTypes });
       })().catch(next);
     },
   );

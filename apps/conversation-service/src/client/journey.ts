@@ -15,6 +15,14 @@
  *   it does not remember the run, the step or an offer a reload re-reads them
  *   it does not infer a transition from an event       an event triggers a
  *                                                      RE-READ, never a guess
+ *
+ * One hash is the exception, and it is stated rather than smuggled: the
+ * SHA-256 of a document the student is sending. The server cannot compute it,
+ * because the bytes never reach the server (ADR-0092) — they go from this
+ * page to the bucket. What this page computes is not trusted by anything: the
+ * bucket refuses a body that does not hash to it (the signed checksum header,
+ * ADR-0093), and the confirm reads the bucket's own checksum back. A wrong
+ * hash here is a refused upload, never a recorded one.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * ── Why no framework ──────────────────────────────────────────────────────
@@ -70,6 +78,14 @@ interface View {
     readonly existingCaseId: string;
     readonly advice: api.WaitAdviceReading | null;
   } | null;
+  /**
+   * What the student holds, and what they may be given (ADR-0092). `null`
+   * when the read failed — most ordinarily because this deployment has no
+   * document transport and the route answers 503 — and the panel is then not
+   * drawn at all. Not a notice: a service that was deployed without a vault
+   * is a configuration, not something that "did not work".
+   */
+  documents: api.HeldDocuments | null;
 }
 
 const view: View = {
@@ -81,6 +97,7 @@ const view: View = {
   preview: null,
   notice: "",
   reapplication: null,
+  documents: null,
 };
 
 let stream: EventSource | null = null;
@@ -123,10 +140,12 @@ async function refresh(): Promise<void> {
   const id = view.conversationId;
   if (id === null) return;
 
-  const [events, run] = await Promise.all([
+  const [events, run, documents] = await Promise.all([
     api.readEvents(id),
     api.readRun(id),
+    api.readDocuments(id),
   ]);
+  view.documents = documents.ok ? documents.value : null;
 
   // A read that FAILED is not a read, and the previous answer is not a
   // substitute for it. Keeping it would make this page the place the run's
@@ -418,6 +437,90 @@ async function mountSecureFrame(
   });
 }
 
+/**
+ * The document panel: what is held, and the one control that sends more.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ADR-0092. The bytes go from this page to the bucket and never to this
+ * origin, so the whole exchange is three calls and one PUT — declare, PUT,
+ * confirm, re-read — and every one of them is the server's or the bucket's
+ * refusal to make, not this page's.
+ *
+ * The form is built ONCE and kept across draws. Everything else on this page
+ * is replaced whole on every read, which is right for text the server owns;
+ * a file input is different, because what it holds is the student's file
+ * and a redraw on an unrelated SSE frame would silently drop it. The held
+ * list and the type choice are redrawn from the read; the input is not.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+function drawDocuments(): void {
+  const panel = el("documents");
+  if (panel === null) return;
+  const held = view.documents;
+  if (held === null) {
+    panel.replaceChildren();
+    return;
+  }
+
+  let list = el("held-documents") as HTMLUListElement | null;
+  let form = el("document-form") as HTMLFormElement | null;
+  if (list === null || form === null) {
+    panel.replaceChildren();
+    const heading = document.createElement("h2");
+    text(heading, "Your documents");
+    list = document.createElement("ul");
+    list.id = "held-documents";
+
+    form = document.createElement("form");
+    form.id = "document-form";
+    form.autocomplete = "off";
+    const type = document.createElement("select");
+    type.id = "document-type";
+    type.name = "documentType";
+    const file = document.createElement("input");
+    file.id = "document-file";
+    file.name = "file";
+    file.type = "file";
+    form.append(
+      type,
+      file,
+      button("Send this document", () => {
+        void sendDocument();
+      }),
+    );
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void sendDocument();
+    });
+    panel.append(heading, list, form);
+  }
+
+  list.replaceChildren();
+  for (const item of held.documents) {
+    const line = document.createElement("li");
+    line.className = "held";
+    // What the SERVER says it holds: the type and the state it recorded. The
+    // hash and the policy reference are on the wire too; a person reading
+    // this list needs neither, and an audit reads the record, not the page.
+    text(line, `${item.documentType.replace(/_/g, " ")} — ${item.state.replace(/_/g, " ")}`);
+    list.append(line);
+  }
+
+  // The choice of type is the server's list, redrawn only when it changes so
+  // a selection survives a refresh the same way the file does.
+  const type = el("document-type") as HTMLSelectElement | null;
+  if (type !== null && type.dataset["types"] !== held.documentTypes.join(",")) {
+    type.dataset["types"] = held.documentTypes.join(",");
+    type.replaceChildren();
+    for (const name of held.documentTypes) {
+      const option = document.createElement("option");
+      option.value = name;
+      text(option, name.replace(/_/g, " "));
+      type.append(option);
+    }
+  }
+}
+
 function drawComposer(): void {
   const form = el("composer");
   const input = el("say") as HTMLInputElement | null;
@@ -542,6 +645,7 @@ function draw(): void {
   drawOffer();
   drawReapplication();
   drawPending();
+  drawDocuments();
   drawSecureStep();
   drawComposer();
 }
@@ -624,6 +728,21 @@ const REFUSALS: Readonly<Record<string, string>> = {
   unauthenticated:
     "You have been signed out. Reload this page to sign back in — anything " +
     "you have typed will still be here until then.",
+
+  // ── P62. The document transport's three, moved here from the list below ──
+  //
+  // ADR-0090 said that moving them "is the visible act that says the upload
+  // surface has landed". This is that act. Each is a state the student can do
+  // something about: send the file again.
+  content_hash_mismatch:
+    "What reached the vault is not the file you chose. Nothing was kept. " +
+    "Choose the file and send it again.",
+  intake_not_open:
+    "That upload took too long, or was already dealt with. Nothing was kept. " +
+    "Choose the file and send it again.",
+  upload_not_received:
+    "The file did not reach the vault. Nothing was kept. Choose it and send " +
+    "it again.",
 };
 
 /**
@@ -653,25 +772,14 @@ const CANNOT_REACH_THIS_PAGE: Readonly<Record<string, string>> = {
   unsupported_media_type:
     "one helper sets application/json, with no charset and no content-encoding",
 
-  // ── P57, and stated as an absence rather than left out ────────────────
+  // ── P57 to P62: three entries that USED to be here ─────────────────────
   //
-  // Both are refusals from the document transport (ADR-0090), and this page
-  // has no upload surface: it never opens an intake, so it can never be told
-  // that one is closed or that the bytes did not match. The routes exist and
-  // are exercised by `routes.test.ts`; the CLIENT half is a phase of its own.
-  //
-  // Listed here rather than given wording nobody would see, because the point
-  // of this list is that a code with no reader is a DECISION somebody made,
-  // not an omission — and when the upload surface lands, moving these two into
-  // REFUSALS is the visible act that says so.
-  content_hash_mismatch:
-    "this page never opens a document intake, so it cannot send bytes that fail to match one",
-  intake_not_open:
-    "this page never opens a document intake, so it cannot spend an expired one",
-  // P60 (ADR-0093): the third code of the same transport. The page never
-  // confirms an upload, so it can never be told the bucket holds nothing.
-  upload_not_received:
-    "this page never confirms a document upload, so it cannot be told the bucket holds nothing",
+  // `content_hash_mismatch`, `intake_not_open` and `upload_not_received` sat
+  // in this list from P57 (the first two) and P60 (the third) with the reason
+  // "this page never opens a document intake". P62 gave the page its upload
+  // control, and the three moved to `REFUSALS` — which is exactly what the
+  // entry said would be the visible act. Nothing else from the document
+  // transport is unreachable from here now.
 };
 
 function report(code: string): void {
@@ -799,6 +907,81 @@ async function answer(kind: string, contentHash?: string): Promise<void> {
   // Re-read either way. A refusal usually means the page was looking at
   // something that has since moved, and the answer to that is to show what is
   // there now rather than to explain.
+  await refresh();
+}
+
+/*
+ * ── Why the gate's words do NOT reach the page ────────────────────────────
+ *
+ * The storage gates write a `detail` for a person: which document type, which
+ * activity, what is missing. It is on the wire for an API caller and in the
+ * route tests. It is not shown here, because the contract's `Problem` carries
+ * no free-text member at all (`problems.ts`: a `detail` is a channel through
+ * which a server could put a hash, a path or a secret in front of a client,
+ * and the parser drops it). So a refused document is worded per CODE, like
+ * every other refusal on this page. Saying more would need a structured
+ * field — which gate refused — not a string.
+ */
+
+/** SHA-256 of the file, lowercase hex — the one hash this page computes (see the header). */
+async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Declare, PUT, confirm, re-read. ADR-0092.
+ *
+ * Each step's failure stops the sequence and says so; none of them leaves a
+ * record behind, because the server records only from the confirm and the
+ * confirm records only what the bucket holds. The file input is cleared
+ * only after the confirm succeeded — a send that fails keeps the choice, for
+ * the reason the composer keeps a draft.
+ */
+async function sendDocument(): Promise<void> {
+  const id = view.conversationId;
+  const input = el("document-file") as HTMLInputElement | null;
+  const type = el("document-type") as HTMLSelectElement | null;
+  if (id === null || input === null || type === null) return;
+  const file = input.files?.[0];
+  if (file === undefined) {
+    view.notice = "Choose a file first.";
+    draw();
+    return;
+  }
+  view.notice = "";
+
+  const bytes = await file.arrayBuffer();
+  const declared = await api.declareDocument(id, {
+    documentType: type.value,
+    contentType: file.type,
+    contentHash: await sha256Hex(bytes),
+    sizeBytes: file.size,
+  });
+  if (!declared.ok) {
+    report(declared.code);
+    draw();
+    return;
+  }
+
+  // The bytes, to the bucket, with the headers exactly as stated.
+  const put = await api.putDocument(declared.value.upload, file);
+  if (!put.ok) {
+    // The bucket answers no problem document, so this is worded here rather
+    // than in REFUSALS. Nothing was recorded: the confirm was never made.
+    view.notice =
+      put.status === 0
+        ? "The vault could not be reached. Nothing was kept. Try again in a moment."
+        : "The vault did not accept the file. Nothing was kept. Choose it and send it again.";
+    draw();
+    return;
+  }
+
+  const confirmed = await api.confirmDocument(id, declared.value.intakeId);
+  if (!confirmed.ok) report(confirmed.code);
+  else input.value = "";
+  // Re-read either way: what is held is the server's list, never this page's
+  // memory of what it just sent.
   await refresh();
 }
 

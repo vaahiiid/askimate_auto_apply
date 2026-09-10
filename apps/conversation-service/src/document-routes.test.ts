@@ -417,6 +417,102 @@ describe("confirming the upload", () => {
   });
 });
 
+describe("what is held, and the purpose the caller need not state (P62)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // ADR-0095. The student's page never states a purpose: why the system holds
+  // a document is the controller's decision per schedule row (ADR-0087), and
+  // a page that offered "financial evidence" as a menu item would be handing
+  // a lawful-basis determination to the person choosing a file. So the route
+  // derives it — from the governing schedule, and only where that is
+  // unambiguous.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("derives the purpose from the governing schedule when none is stated", async () => {
+    const { purpose: _omitted, ...withoutPurpose } = passportDeclaration();
+    const response = await declare(withoutPurpose);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as Declared;
+    // The same policy the stated form resolves — the derivation changed
+    // nothing about what the gates judged.
+    expect(body.retentionPolicyReference).toBe("AAS-RET-B1-01");
+  });
+
+  it("REFUSES to derive one for a type the schedule has no row for, on /purpose", async () => {
+    // `sponsorship_letter` has no policy in this fixture, so there is nothing
+    // to derive from. Not a guess, not a default: the caller is told which
+    // field is missing and why.
+    const { purpose: _omitted, ...withoutPurpose } = passportDeclaration({ documentType: "sponsorship_letter" });
+    const response = await declare(withoutPurpose);
+    expect(response.status).toBe(400);
+    const problem = (await response.json()) as { code: string; pointers?: string[] };
+    expect(problem.code).toBe("validation_failed");
+    expect(problem.pointers).toEqual(["/purpose"]);
+    expect(bucket.grantCount(), "and no upload URL was minted").toBe(bucket.grantCount());
+  });
+
+  it("lists what THIS student holds, from the server, and the types the schedule names", async () => {
+    // A document the whole exchange has recorded, for a student of its own so
+    // the list is exactly one long.
+    const response = await declare(passportDeclaration(), "stu_holder");
+    const d = (await response.json()) as Declared;
+    expect(upload(d, PDF)).toEqual({ status: 200, code: null });
+    const confirmed = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents/${d.intakeId}/confirm`, {
+      method: "POST",
+      headers: { "x-student": "stu_holder" },
+    });
+    expect(confirmed.status).toBe(201);
+    const stored = (await confirmed.json()) as Record<string, unknown>;
+    // The confirm answers the same published shape the listing does — the
+    // declared content type, the size and when — so a client reads one shape.
+    expect(stored["contentType"]).toBe("application/pdf");
+    expect(stored["sizeBytes"]).toBe(PDF.byteLength);
+    expect(stored["uploadedAt"]).toBe(NOW.toISOString());
+
+    const listed = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents`, {
+      headers: { "x-student": "stu_holder" },
+    });
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as {
+      documents: Record<string, unknown>[];
+      documentTypes: string[];
+    };
+    expect(body.documents).toHaveLength(1);
+    expect(body.documents[0]).toEqual(stored);
+    // What the page offers as a choice: the schedule's rows, in its order.
+    // `other` is listed although its determination was decided against
+    // (ADR-0088) — the list is what can be GIVEN, the gate says what is kept.
+    expect(body.documentTypes).toEqual(["passport", "other"]);
+
+    // Per student: another student's list does not carry it.
+    const theirs = await fetch(`${BASE}/v1/conversations/${CONVERSATION}/documents`, {
+      headers: { "x-student": "stu_someone_else" },
+    });
+    expect(((await theirs.json()) as { documents: unknown[] }).documents).toEqual([]);
+  });
+
+  it("answers `service_unavailable` for the listing too, with no vault configured", async () => {
+    const app = express();
+    app.use(
+      createConversationRoutes({
+        store: {} as unknown as ConversationEventStore,
+        authenticate: () => ({ studentId: STUDENT }),
+        authorise: () => Promise.resolve(true),
+        now: () => NOW,
+      }),
+    );
+    const bare = app.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => bare.once("listening", () => resolve()));
+    try {
+      const response = await fetch(`http://127.0.0.1:${String(portOf(bare))}/v1/conversations/c/documents`);
+      // The page reads this on every draw and hides the panel on it — a
+      // deployment without a vault is a configuration, not a failure.
+      expect(response.status).toBe(503);
+    } finally {
+      await new Promise<void>((resolve) => bare.close(() => resolve()));
+    }
+  });
+});
+
 describe("the transport refuses to exist when it cannot be honest", () => {
   it("answers `service_unavailable` when no bucket is configured", async () => {
     const app = express();

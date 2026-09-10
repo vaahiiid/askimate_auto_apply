@@ -15,6 +15,12 @@
  * client served from anywhere else would have no session at all. That is also
  * why this file configures no base URL, no CORS mode and no credentials mode:
  * there is one origin and the cookie goes with it.
+ *
+ * ONE exception, and it is the point of ADR-0092: `putDocument` sends a
+ * document's bytes to the bucket, on the URL the declaration answered with,
+ * and the bucket is another origin. It is the only absolute URL this file
+ * ever fetches, it is cross-origin on purpose, and it carries no cookie —
+ * the bucket has no session to offer one to.
  */
 
 import type { ConversationEvent } from "@askimate/aas-contracts";
@@ -365,5 +371,136 @@ export function bootstrapSecureStep(
         ? null
         : (body as unknown as Bootstrap);
     },
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Documents (ADR-0090, ADR-0092, ADR-0093). Declare, PUT, confirm, re-read.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** What the declaration answered: the upload to make, and the constraints, stated. */
+export interface DeclaredUpload {
+  readonly intakeId: string;
+  readonly expiresAt: string;
+  readonly upload: {
+    readonly url: string;
+    readonly method: "PUT";
+    readonly headers: Readonly<Record<string, string>>;
+    readonly expiresAt: string;
+  };
+  readonly maxBytes: number;
+  readonly acceptedContentTypes: readonly string[];
+  readonly contentHash: string;
+  readonly retentionPolicyReference: string;
+}
+
+export interface HeldDocument {
+  readonly documentId: string;
+  readonly documentType: string;
+  readonly state: string;
+  readonly contentHash: string;
+  readonly contentType: string;
+  readonly sizeBytes: number;
+  readonly uploadedAt: string;
+  readonly retentionPolicyReference: string;
+}
+
+export interface HeldDocuments {
+  readonly documents: readonly HeldDocument[];
+  readonly documentTypes: readonly string[];
+}
+
+function readHeldDocument(value: unknown): HeldDocument | null {
+  const row = asRecord(value);
+  if (row === null || typeof row["documentId"] !== "string" || typeof row["documentType"] !== "string") {
+    return null;
+  }
+  return row as unknown as HeldDocument;
+}
+
+export function readDocuments(conversationId: string): Promise<Outcome<HeldDocuments>> {
+  return get(`/v1/conversations/${conversationId}/documents`, (value) => {
+    const body = asRecord(value);
+    const rows = body?.["documents"];
+    const types = body?.["documentTypes"];
+    if (!Array.isArray(rows) || !Array.isArray(types)) return null;
+    const parsed = rows.map(readHeldDocument);
+    if (parsed.some((row) => row === null)) return null;
+    return {
+      documents: parsed as HeldDocument[],
+      documentTypes: types.filter((t): t is string => typeof t === "string"),
+    };
+  });
+}
+
+/**
+ * Step one of three. No purpose is sent: why the system holds a document is
+ * the controller's decision per schedule row (ADR-0087), and the server
+ * derives it. The hash IS sent, and it is the one hash this page computes —
+ * see `journey.ts` for why that is the exception and not a crack in the rule.
+ */
+export function declareDocument(
+  conversationId: string,
+  declaration: {
+    readonly documentType: string;
+    readonly contentType: string;
+    readonly contentHash: string;
+    readonly sizeBytes: number;
+  },
+): Promise<Outcome<DeclaredUpload>> {
+  return send(`/v1/conversations/${conversationId}/documents`, declaration, (value) => {
+    const body = asRecord(value);
+    const upload = asRecord(body?.["upload"]);
+    return body === null ||
+      typeof body["intakeId"] !== "string" ||
+      upload === null ||
+      typeof upload["url"] !== "string" ||
+      upload["method"] !== "PUT" ||
+      asRecord(upload["headers"]) === null
+      ? null
+      : (body as unknown as DeclaredUpload);
+  });
+}
+
+/**
+ * Step two: the bytes, STRAIGHT TO THE BUCKET. This service is not on the path
+ * (ADR-0092) — which is why this is the one call in this file that is not to a
+ * relative URL, and the one whose target is cross-origin. The headers are sent
+ * exactly as given: the URL's signature covers them, and the bucket refuses
+ * the PUT if any is missing or altered (ADR-0092 §4, E6 and E7). No cookie
+ * goes with it: the bucket has no session, and `credentials` is left at its
+ * default of same-origin so none is offered.
+ *
+ * Not an `Outcome`: the bucket answers no problem document, so there is no
+ * code to word. The status is enough for the page to say what happened.
+ */
+export async function putDocument(
+  upload: DeclaredUpload["upload"],
+  bytes: Blob,
+): Promise<{ readonly ok: true } | { readonly ok: false; readonly status: number }> {
+  try {
+    const response = await fetch(upload.url, {
+      method: upload.method,
+      headers: upload.headers,
+      body: bytes,
+      mode: "cors",
+    });
+    return response.ok ? { ok: true } : { ok: false, status: response.status };
+  } catch {
+    // A preflight the bucket refused, or no network. The browser reports
+    // both as a TypeError with no status; 0 is the conventional "no answer".
+    return { ok: false, status: 0 };
+  }
+}
+
+/** Step three: ask the server to ask the bucket. The page's word is not taken. */
+export function confirmDocument(
+  conversationId: string,
+  intakeId: string,
+): Promise<Outcome<HeldDocument>> {
+  return send(
+    `/v1/conversations/${conversationId}/documents/${intakeId}/confirm`,
+    null,
+    readHeldDocument,
   );
 }

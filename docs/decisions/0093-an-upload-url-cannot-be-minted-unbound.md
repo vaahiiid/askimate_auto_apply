@@ -131,8 +131,10 @@ test that passes against it and would fail against S3 has to be one the run did 
   [ADR-0094](./0094-document-metadata-is-durable-and-the-transport-starts.md):** the `document_intakes`
   and `documents` tables, the S3 vault over a record store, and the entry point building the
   transport from the environment.
-- **CORS on the bucket**, for the page's origin — a provisioning request when the client surface
-  exists.
+- **CORS on the bucket**, for the page's origin — ~~a provisioning request when the client surface
+  exists.~~ Requested in P61 (`docs/provisioning-request-document-vault.md`) and **exercised in P62 —
+  [ADR-0095](./0095-the-page-makes-the-put-and-the-cors-rule-is-exercised.md)**: the browser test's
+  bucket admits exactly the documented rule, and the page's real PUT passes it.
 - **The retrieval's caller.** `prepareRetrieval` exists on the port; nothing calls it until
   `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9) — and the runner fetches. It was described in ADR-0092 as
   part of the port and is built as such, and it is not counted as a declared-but-unreachable
