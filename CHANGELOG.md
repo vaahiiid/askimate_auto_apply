@@ -17,6 +17,42 @@ not shipped artefacts.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A decided blocker written up as a dependency — the twelfth finding of that shape.** Vahid,
+  reading P61's report: *"you wrote 'The runner's fetch, which waits on B5.' B5 was answered on
+  2026-09-07 … Either that is a stale reference of the shape this repository has found eleven times
+  running, or there is a dependency I have lost track of. Check which, and say plainly."* Stale. Five
+  places said something "waits on" or "is blocked on" B5 — ADR-0093, ADR-0094, the vault
+  provisioning request, the reachability register's `authoriseDisclosure` entry, and a "not built"
+  bullet in the state document that also still said there was no `documents` table. All corrected to
+  what actually gates the runner's fetch: `attach_document` becoming reachable, which needs the
+  attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (blocker 9). No
+  dependency was lost.
+- Two present-tense statements that a bucket and a key made stale: the README's "Infrastructure
+  provisioned: None, $0 spent" and the state document's §8 "Provisioned: Nothing". Both now say what
+  Vahid created on 2026-09-09 and that the spend is the billing console's to state.
+- **`PostgresDocumentIntakePort` read the wall clock, and its `take` did not spend an expired
+  row.** Found by the date rolling over: tests whose fixtures were fixed at 2026-09-09 passed all
+  afternoon and failed on 2026-09-10, because the class called `new Date()` itself and an intake
+  "opened" at a fixed instant was by then sixteen hours expired. The clock is now injected, as
+  everywhere else in the service. The same failure showed that `… AND expires_at > $now` in the
+  DELETE's WHERE clause hid an expired row rather than removing it — a take at an earlier clock
+  could still find it — while the migration's comment said "removed by the same statement". The
+  DELETE now takes the row by id and the code refuses it when expired, so an expired row is spent,
+  as the comment always said. ADR-0094's description of the statement is corrected in place, dated.
+  `s3-document-vault.test.ts` opens its intake on the wall clock deliberately, because the SDK stamps
+  `X-Amz-Date` with the real time and the mint refuses a URL that outlives its intake.
+
+### Added
+
+- `scripts/decided-blockers-are-not-pending.test.ts` — refuses a decided blocker (B1, B2, B5, as
+  data with the record that decided each) in dependency framing, across every record that describes
+  the present: ADRs from 0078, the provisioning requests, the state document, the README, the
+  reachability register. The journal and the changelog are not scanned; they record what was true
+  at the time. It found the sixth instance by itself: the correction note that quoted the stale
+  phrase.
+
 ---
 
 ## [0.78.0] — 2026-09-09

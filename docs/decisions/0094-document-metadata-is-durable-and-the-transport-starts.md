@@ -38,9 +38,16 @@ bytes are in the bucket (ADR-0092).
 
 ### The intake is taken in one statement, and the gates re-run on take
 
-`PostgresDocumentIntakePort.take` is `DELETE … WHERE conversation_id = $1 AND intake_id = $2 AND
-expires_at > now() RETURNING …`. Two concurrent confirms cannot both see it open — tested with three
-racing takes, exactly one of which wins — and an expired row is never returned.
+`PostgresDocumentIntakePort.take` is `DELETE … WHERE conversation_id = $1 AND intake_id = $2
+RETURNING … expires_at`, and the code refuses the row that comes back when it has expired by the
+injected clock. Two concurrent confirms cannot both see it open — tested with three racing takes,
+exactly one of which wins — an expired row is never returned, and the same statement has spent it.
+
+(Corrected 2026-09-10. As accepted, this section said the statement was `… AND expires_at > now()
+RETURNING …`. That form hid an expired row from a take at the right clock and left it in the table,
+where a take at an earlier clock could still find it — and the class read `new Date()` itself, so
+its tests' fixtures, fixed at 2026-09-09, failed the morning after. The clock is now injected, as
+everywhere else in the service, and expiry is judged on the row rather than in the WHERE clause.)
 
 The row records what the gates relied on (the policy reference, the determination), for the audit.
 But the `DocumentIntake` handed back is **not** rebuilt from the row by a cast: `assertStorable` runs
@@ -116,8 +123,10 @@ variables — *"Do not run anything against AWS again without telling me first."
 - **A client surface.** The page has no upload control; `journey.ts` still lists the three transport
   codes as stated absences. That is the phase in which the CORS rule is exercised.
 - **The retention sweep** that calls `purgeContents` when a period elapses; and the runner's fetch of
-  a retrieval URL, which waits on `attach_document` (B5). Both are in the reachability register with
-  their reasons.
+  a retrieval URL, which waits until `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9). Both are in the reachability register with their reasons.
+  (Corrected 2026-09-10: this bullet first named B5, a decided blocker, as the thing the fetch was
+  waiting for. Vahid caught it; it was stale, not a lost dependency. `decided-blockers-are-not-pending.test.ts`
+  now refuses that shape in every record that describes the present.)
 - **An intake sweep.** Expired intakes are never returned and are deleted when found by `take`; rows
   nobody confirms stay until then. A periodic delete is a worker job for when the worker has one.
 

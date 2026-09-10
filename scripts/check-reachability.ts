@@ -327,8 +327,10 @@ export const CAPABILITIES: readonly Capability[] = [
         "longer the obstacle: B2's determination 3 registers Article 6(1)(b) AND specific " +
         "student authorisation as REQUIRED (2026-09-08, ADR-0087)",
       closedBy:
-        "a document to SEND: the transport now exists (ADR-0090, ADR-0092), and what is left " +
-        "is `attach_document` leaving its hold (B5) and the runner fetching the retrieval URL",
+        "a document to SEND: the transport now exists (ADR-0090, ADR-0092, ADR-0094), and what is " +
+        "left is `attach_document` becoming reachable — B5 is DECIDED (A — hold, 2026-09-07) and " +
+        "does not condition it; the intent identity ADR-0069 names and a `WorkKind` that can carry " +
+        "it do — and the runner fetching the retrieval URL",
     },
   },
   {

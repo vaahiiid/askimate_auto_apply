@@ -144,4 +144,4 @@ point `AAS_DOCUMENTS_BUCKET` at it. Everything above applies to it unchanged.
    without your word (ADR-0092 §4).
 3. What is still not built: a client surface that makes the PUT (the page has no upload control
    yet); the retention sweep that calls `purgeContents`; the runner's fetch of a retrieval URL, which
-   waits on `attach_document` (B5).
+   waits until `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9).

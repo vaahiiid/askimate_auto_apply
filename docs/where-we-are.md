@@ -3746,3 +3746,31 @@ has no upload control yet, the retention sweep has no caller, and the runner's f
 ## Declared-but-unreachable surface
 
 **Six, unchanged.**
+
+---
+
+# 2026-09-10 — a decided blocker written up as a dependency, and the guard for it
+
+You asked whether "the runner's fetch, which waits on B5" was stale or a dependency you had lost
+track of. Stale, and I had written it five times in three phases — in two ADRs, a provisioning
+request, the reachability register and a "not built" bullet in the state document — while the same
+register's `attach_document` entry, two lines down, said B5 was decided. What gates the fetch is
+engineering: `attach_document` needs the intent identity ADR-0069 names and a `WorkKind` that can
+carry it (blocker 9, which already said "B5's answer no longer conditions it").
+
+The guard, `decided-blockers-are-not-pending.test.ts`, refuses the combination that is the shape: a
+DECIDED blocker in dependency framing, in any record that describes the present. It found a sixth
+instance on its first run — my own correction note, quoting the phrase. The journal and the
+changelog are not scanned: an entry from before 2026-09-07 is supposed to say "blocked on B5".
+
+Two more present-tense statements went stale the day you created the bucket: "Infrastructure
+provisioned: None, $0 spent". Corrected to what exists, without inventing an amount.
+
+The date rolling over found a second thing. `PostgresDocumentIntakePort` called `new Date()` itself,
+and its tests fixed their fixtures at 2026-09-09 — green all afternoon, red the next morning, because
+an intake opened at a fixed instant was by then sixteen hours expired by the wall clock. The clock is
+now injected. Fixing that showed the DELETE's `expires_at > $now` clause was hiding an expired row,
+not removing it, while the migration's comment said "removed by the same statement when it is found".
+The statement now takes the row by id and the code refuses it when expired; ADR-0094's sentence about
+the statement is corrected in place. The one browser test that timed out under the full run passed
+alone — load, not a defect.

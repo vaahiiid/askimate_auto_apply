@@ -168,9 +168,14 @@ describe("migration 0017", () => {
   });
 });
 
+/** The port under a fixed clock. Every test here is about what happens, not when. */
+function portAt(schedule: RetentionSchedule, now: Date): PostgresDocumentIntakePort {
+  return new PostgresDocumentIntakePort(pool, schedule, b2Register(NOW), s3(), () => now);
+}
+
 describeIfDatabase("the intake store", () => {
   it("opens and takes an intake, and the gates re-run on take", async () => {
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
+    const port = portAt(SCHEDULE, NOW);
     const opened = intake();
     await port.open(opened);
 
@@ -183,7 +188,7 @@ describeIfDatabase("the intake store", () => {
   });
 
   it("takes ONCE — a second take finds nothing", async () => {
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
+    const port = portAt(SCHEDULE, NOW);
     const opened = intake();
     await port.open(opened);
     expect(await port.take("conv_durable", opened.intakeId)).not.toBeNull();
@@ -194,7 +199,7 @@ describeIfDatabase("the intake store", () => {
     // The whole reason take is one DELETE … RETURNING rather than a read and
     // a delete. Two confirms racing for the same intake must not both record
     // a document.
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
+    const port = portAt(SCHEDULE, NOW);
     const opened = intake();
     await port.open(opened);
     const results = await Promise.all([
@@ -206,7 +211,7 @@ describeIfDatabase("the intake store", () => {
   });
 
   it("does NOT return an intake for another conversation, and does not spend it", async () => {
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
+    const port = portAt(SCHEDULE, NOW);
     const opened = intake();
     await port.open(opened);
     expect(await port.take("conv_someone_else", opened.intakeId)).toBeNull();
@@ -214,14 +219,14 @@ describeIfDatabase("the intake store", () => {
   });
 
   it("never returns an expired intake", async () => {
-    // Opened sixteen minutes ago by the row's clock; the DELETE's `expires_at
-    // > now()` sees it as gone.
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
-    // The store compares against the real clock, so the fixture is relative to it.
-    const sixteenMinutesAgo = new Date(Date.now() - 16 * 60 * 1000);
-    const opened = intake(sixteenMinutesAgo);
-    await port.open(opened);
-    expect(await port.take("conv_durable", opened.intakeId)).toBeNull();
+    // Opened at NOW; taken sixteen minutes later by the port's clock. The
+    // DELETE takes the row regardless and the code refuses it as expired.
+    const opened = intake(NOW);
+    await portAt(SCHEDULE, NOW).open(opened);
+    const later = portAt(SCHEDULE, new Date(NOW.getTime() + 16 * 60 * 1000));
+    expect(await later.take("conv_durable", opened.intakeId)).toBeNull();
+    // Gone, not merely hidden: a take at the original clock finds nothing either.
+    expect(await portAt(SCHEDULE, NOW).take("conv_durable", opened.intakeId)).toBeNull();
   });
 
   it("REFUSES the take when the schedule in force no longer permits the document", async () => {
@@ -229,8 +234,8 @@ describeIfDatabase("the intake store", () => {
     // that permits nothing. The gates re-run and refuse, in the gate's own
     // words — and the intake is spent, because the permission it recorded is
     // no longer one anybody would grant.
-    const declaring = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
-    const confirming = new PostgresDocumentIntakePort(pool, NOTHING, b2Register(NOW), s3());
+    const declaring = portAt(SCHEDULE, NOW);
+    const confirming = portAt(NOTHING, NOW);
     const opened = intake();
     await declaring.open(opened);
     await expect(confirming.take("conv_durable", opened.intakeId)).rejects.toThrow(/retention policy/i);
@@ -238,7 +243,7 @@ describeIfDatabase("the intake store", () => {
   });
 
   it("stores no bytes, and the row says what the gates relied on", async () => {
-    const port = new PostgresDocumentIntakePort(pool, SCHEDULE, b2Register(NOW), s3());
+    const port = portAt(SCHEDULE, NOW);
     const opened = intake();
     await port.open(opened);
     const rows = await pool.query<{ policy_reference: string; lawful_basis: unknown; content_hash: string }>(

@@ -134,7 +134,7 @@ test that passes against it and would fail against S3 has to be one the run did 
 - **CORS on the bucket**, for the page's origin — a provisioning request when the client surface
   exists.
 - **The retrieval's caller.** `prepareRetrieval` exists on the port; nothing calls it until
-  `attach_document` leaves its hold (B5) and the runner fetches. It was described in ADR-0092 as
+  `attach_document` is reachable — B5 is decided (A, hold and reuse, ADR-0078, 2026-09-07) and does not condition it; what is left is engineering: the attachment intent identity ADR-0069 names and a `WorkKind` that can carry it (state-of-the-system blocker 9) — and the runner fetches. It was described in ADR-0092 as
   part of the port and is built as such, and it is not counted as a declared-but-unreachable
   capability because it is a port method with no promise of its own — the promises, `purgeContents`
   and `authoriseDisclosure`, are in the register with their reasons updated to what is now true.

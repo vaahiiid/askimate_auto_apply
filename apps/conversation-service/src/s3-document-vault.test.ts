@@ -44,7 +44,12 @@ import {
 
 import { S3DocumentVault, s3Presigner } from "./s3-document-vault.js";
 
-const NOW = new Date("2026-09-09T15:00:00Z");
+// The WALL clock, deliberately. The SDK stamps `X-Amz-Date` with the real time
+// and the mint refuses a URL that would outlive its intake — so a fixture
+// fixed at a date makes every URL "past the intake" the day after it was
+// written. That is exactly what happened on 2026-09-10, to a test that had
+// passed all the previous afternoon.
+const NOW = new Date();
 const BUCKET = "not-a-real-bucket-and-never-contacted";
 const KMS = "arn:aws:kms:eu-west-2:000000000000:key/00000000-0000-0000-0000-000000000000";
 const BYTES = Buffer.from("%PDF-1.7\nnot a real passport.\n");

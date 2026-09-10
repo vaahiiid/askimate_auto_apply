@@ -19,9 +19,9 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | P61 — document metadata is durable, and the transport starts in production (ADR-0094) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,304 passing · 121 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,307 passing · 122 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 94 ADRs · all 94 Accepted |
-| **Infrastructure provisioned** | **None.** $0 spent against the AWS credit. |
+| **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
 is live, what is stubbed, what is declared but unreachable, what is not built, every ADR and its

@@ -281,7 +281,7 @@ export async function buildDocumentPort(input: {
     kmsKeyId: input.kmsKeyArn,
     records: new PostgresDocumentRecordStore(input.pool),
   });
-  const port = new PostgresDocumentIntakePort(input.pool, schedule, b2Register(input.now()), vault);
+  const port = new PostgresDocumentIntakePort(input.pool, schedule, b2Register(input.now()), vault, input.now);
   assertDocumentStoreIsDurable(port, input.environment);
   return port;
 }

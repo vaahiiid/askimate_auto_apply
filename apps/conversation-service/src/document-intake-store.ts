@@ -104,21 +104,38 @@ export class InMemoryDocumentIntakePort implements DocumentIntakePort {
  *
  * ── One statement ─────────────────────────────────────────────────────────
  *
- * `DELETE … WHERE … AND expires_at > $now RETURNING`: taken and removed in
- * one operation, so two concurrent confirms cannot both see it open, and an
- * expired row is never returned. The in-memory port promises the same and
- * keeps it with a Map; here the database keeps it.
+ * `DELETE … WHERE conversation_id AND intake_id RETURNING … expires_at`:
+ * taken and removed in one operation, so two concurrent confirms cannot both
+ * see it open. Expiry is judged on the row that came back, in code: an
+ * expired row is never returned, and the same statement has already spent
+ * it. The first version put `expires_at > $now` in the WHERE clause, which
+ * left an expired row in the table — hidden from a take at the right clock,
+ * findable by one at the wrong clock — and its own comment said otherwise.
+ * The in-memory port promises the same and keeps it with a Map; here the
+ * database keeps it.
  */
 export class PostgresDocumentIntakePort implements DocumentIntakePort {
   readonly #pool: Pool;
+  readonly #now: () => Date;
 
+  /**
+   * `now` is injected, as everywhere else in this service: the composition
+   * root makes the real clock, a test makes a fixed one. The first version of
+   * this class read `new Date()` itself, and its tests fixed their fixtures
+   * at 2026-09-09 — which passed all afternoon and failed the moment the
+   * date rolled over, because an intake "opened" at a fixed instant was by
+   * then sixteen hours expired by the wall clock. A store that consults a
+   * clock its caller cannot see is a store whose tests depend on the day.
+   */
   public constructor(
     pool: Pool,
     public readonly schedule: RetentionSchedule,
     public readonly register: LawfulBasisRegister,
     public readonly vault: DocumentVault,
+    now: () => Date,
   ) {
     this.#pool = pool;
+    this.#now = now;
   }
 
   public async open(intake: DocumentIntake): Promise<void> {
@@ -145,8 +162,7 @@ export class PostgresDocumentIntakePort implements DocumentIntakePort {
   }
 
   public async take(conversationId: string, intakeId: IntakeId): Promise<DocumentIntake | null> {
-    // eslint-disable-next-line no-restricted-syntax -- the expiry is the database's clock, not the request's
-    const now = new Date();
+    const now = this.#now();
     const rows = await this.#pool.query<{
       student_id: string;
       document_type: string;
@@ -155,15 +171,20 @@ export class PostgresDocumentIntakePort implements DocumentIntakePort {
       content_hash: string;
       declared_size_bytes: string | number;
       opened_at: Date;
+      expires_at: Date;
     }>(
       `DELETE FROM document_intakes
-        WHERE conversation_id = $1 AND intake_id = $2 AND expires_at > $3
+        WHERE conversation_id = $1 AND intake_id = $2
         RETURNING student_id, document_type, purpose, content_type, content_hash,
-                  declared_size_bytes, opened_at`,
-      [conversationId, intakeId, now],
+                  declared_size_bytes, opened_at, expires_at`,
+      [conversationId, intakeId],
     );
     const row = rows.rows[0];
     if (row === undefined) return null;
+    // Spent either way. An expired intake is not a permission, and the row
+    // that recorded it is gone with this statement rather than left for a
+    // sweep to find.
+    if (row.expires_at.getTime() <= now.getTime()) return null;
 
     const upload: DocumentUpload = {
       studentId: row.student_id,
