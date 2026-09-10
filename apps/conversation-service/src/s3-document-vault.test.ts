@@ -123,6 +123,7 @@ describe("the real SDK's presigner", () => {
       checksumSha256: checksumHeaderValue(HASH),
       kmsKeyId: KMS,
       expiresInSeconds: 60,
+      signingDate: NOW,
       unhoistableHeaders: new Set(REQUIRED_SIGNED_HEADERS),
     });
     const parsed = new URL(url);

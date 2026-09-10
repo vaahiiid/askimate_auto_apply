@@ -91,9 +91,11 @@ export class InMemoryObjectStore {
   }
 
   /** The presigner an `InMemoryDocumentVault` hands to `mintBoundUpload`. */
-  public presign(now: Date): (request: PresignRequest) => Promise<string> {
+  public presign(): (request: PresignRequest) => Promise<string> {
     return (request) => {
       const signedHeaders = ["host", ...[...request.unhoistableHeaders].sort()];
+      // Dated at the instant the mint decided, as the SDK is told to (P83).
+      const now = request.signingDate;
       const grant: Grant = {
         key: request.key,
         checksumSha256: request.checksumSha256,
@@ -120,8 +122,9 @@ export class InMemoryObjectStore {
    * signed. This is the URL the first run refuted the property under, and the
    * URL `assertBoundUploadUrl` must refuse.
    */
-  public presignHoisted(now: Date): (request: PresignRequest) => Promise<string> {
+  public presignHoisted(): (request: PresignRequest) => Promise<string> {
     return (request) => {
+      const now = request.signingDate;
       const grant: Grant = {
         key: request.key,
         checksumSha256: request.checksumSha256,
@@ -283,7 +286,7 @@ export class InMemoryDocumentVault implements DocumentVault {
       intake,
       kmsKeyId: this.kmsKeyId,
       now,
-      presign: this.objects.presign(now),
+      presign: this.objects.presign(),
     });
   }
 

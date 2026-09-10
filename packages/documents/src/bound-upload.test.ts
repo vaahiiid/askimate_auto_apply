@@ -129,7 +129,7 @@ describe("minting a bound upload", () => {
       now: NOW,
       presign: (request) => {
         seen.push(request);
-        return store.presign(NOW)(request);
+        return store.presign()(request);
       },
     });
 
@@ -157,10 +157,10 @@ describe("minting a bound upload", () => {
     // and nothing is returned.
     const store = new InMemoryObjectStore();
     await expect(
-      mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presignHoisted(NOW) }),
+      mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presignHoisted() }),
     ).rejects.toThrow(UnboundUploadError);
     await expect(
-      mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presignHoisted(NOW) }),
+      mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presignHoisted() }),
     ).rejects.toThrow(/HOISTED/);
   });
 
@@ -179,6 +179,34 @@ describe("minting a bound upload", () => {
         bounds,
       ),
     ).not.toThrow();
+  });
+
+  it("measures the URL's life from the clock the bound was computed on, not the presigner's", async () => {
+    // ── CI #176, a docs-only push, red ─────────────────────────────────────
+    //
+    // `s3-document-vault.test.ts` minted against the real SDK and was refused:
+    // "valid until 16:48:04.000, past the intake's 16:48:03.964". The bound
+    // is computed from `now`; the SDK dated the signature at ITS wall clock,
+    // truncated to the second, which had already ticked over. Thirty-six
+    // milliseconds, one second on the URL, and an exact check that is right
+    // to refuse. This presigner does what the SDK did — signs at the next
+    // whole second unless it is told the signing date — and the mint must
+    // tell it, so the URL's life is measured from the same clock as the bound.
+    const now = new Date("2026-09-09T14:00:00.964Z");
+    const nextSecond = new Date("2026-09-09T14:00:01.000Z");
+    const store = new InMemoryObjectStore();
+    const sdkLike = (request: PresignRequest): Promise<string> =>
+      store.presign()({
+        ...request,
+        signingDate: (request as { signingDate?: Date }).signingDate ?? nextSecond,
+      });
+    const opened = intake(now);
+    const prepared = await mintBoundUpload({ intake: opened, kmsKeyId: KMS, now, presign: sdkLike });
+    const url = new URL(prepared.url);
+    expect(url.searchParams.get("X-Amz-Date"), "dated by the mint's clock, not the presigner's").toBe(
+      "20260909T140000Z",
+    );
+    expect(prepared.expiresAt.getTime()).toBeLessThanOrEqual(opened.expiresAt.getTime());
   });
 
   it("REFUSES a URL that would outlive the intake it was minted for", () => {
@@ -208,21 +236,21 @@ describe("minting a bound upload", () => {
     const opened = intake();
     const store = new InMemoryObjectStore();
     await expect(
-      mintBoundUpload({ intake: opened, kmsKeyId: KMS, now: opened.expiresAt, presign: store.presign(opened.expiresAt) }),
+      mintBoundUpload({ intake: opened, kmsKeyId: KMS, now: opened.expiresAt, presign: store.presign() }),
     ).rejects.toThrow(IntakeRefusedError);
   });
 
   it("REFUSES to mint with no customer-managed key configured", async () => {
     const store = new InMemoryObjectStore();
     await expect(
-      mintBoundUpload({ intake: intake(), kmsKeyId: " ", now: NOW, presign: store.presign(NOW) }),
+      mintBoundUpload({ intake: intake(), kmsKeyId: " ", now: NOW, presign: store.presign() }),
     ).rejects.toThrow(/ADR-0010/);
   });
 });
 
 describe("the in-memory bucket enforces what the run observed", () => {
   async function prepared(store: InMemoryObjectStore) {
-    return mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presign(NOW) });
+    return mintBoundUpload({ intake: intake(), kmsKeyId: KMS, now: NOW, presign: store.presign() });
   }
 
   it("E1 — accepts the declared bytes with the stated headers", async () => {

@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.97.1] — 2026-09-10
+
+**P83 — the presigned URL is dated at the mint's `now`.** CI #176, on the docs-only push
+`a02d989`, failed `s3-document-vault.test.ts` with `UnboundUploadError`: the URL was valid until
+`16:48:04.000`, one second past the intake's `16:48:03.964`.
+
+### Fixed
+
+- `PresignRequest` carries `signingDate`, and `mintBoundUpload` sets it to the mint's `now`. The
+  bound is computed from that instant; the SDK's presigner dated the signature at its own clock a
+  moment later, truncated to the second, so `X-Amz-Date` could fall one second after `now` and the
+  exact check in `assertBoundUploadUrl` refused a URL that was right by every other measure. The S3
+  presigner now passes `signingDate` to `getSignedUrl`; the in-memory store stamps the same date.
+  The check itself is unchanged.
+- The test reproduces CI's failure first: an SDK-like presigner that dates at the next second, a
+  mint at `…00.964Z` — it fails with exactly CI's message before the fix, and asserts the signed
+  date and the bound after it.
+
+---
+
 ## [0.97.0] — 2026-09-10
 
 **P81 — the first real form, read.** Sheffield's PGT application, eleven pages, through attached

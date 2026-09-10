@@ -98,6 +98,17 @@ export interface PresignRequest {
   readonly checksumSha256: string;
   readonly kmsKeyId: string;
   readonly expiresInSeconds: number;
+  /**
+   * The instant the signature is dated — `X-Amz-Date`.
+   *
+   * Decided by the mint, not by the presigner's wall clock. The bound
+   * (`expiresInSeconds`) is computed from the mint's `now`; a presigner that
+   * dates the signature at its own clock, truncated to the second, can date it
+   * one second LATER than that `now`, and `assertBoundUploadUrl`'s exact check
+   * then refuses a URL that is right by every other measure. CI #176 (P83).
+   * The SDK takes this as `signingDate`; the in-memory store stamps it.
+   */
+  readonly signingDate: Date;
   /** The headers the presigner must NOT hoist into the query string. */
   readonly unhoistableHeaders: ReadonlySet<string>;
 }
@@ -242,6 +253,7 @@ export async function mintBoundUpload(input: {
     checksumSha256,
     kmsKeyId,
     expiresInSeconds,
+    signingDate: now,
     unhoistableHeaders: new Set(REQUIRED_SIGNED_HEADERS),
   });
 

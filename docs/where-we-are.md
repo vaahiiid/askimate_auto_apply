@@ -4380,3 +4380,27 @@ wrote an `mfa` handoff on a page that has none (P82).
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P83 — the presigned URL is dated at the mint's `now`
+
+CI #176 went red on the docs-only push of P81. The failing test was the real SDK presigner's, in
+`s3-document-vault.test.ts`: `UnboundUploadError`, a URL valid until `16:48:04.000` against an
+intake that opened at `16:48:03.964`. Nothing in that push touched code, so the cause was already
+there and only the clock chose the moment to show it.
+
+The cause: `mintBoundUpload` computes the bound from its `now` and asks the presigner for a URL
+that lives that many seconds. The SDK dated the signature at its own wall clock, truncated to the
+second — so when `now` was late in a second, `X-Amz-Date` fell in the next one, the URL's life
+ended one second after the bound, and the exact check in `assertBoundUploadUrl` refused it. The
+check was right. The signature's date was the thing decided in the wrong place.
+
+The fix moves that decision to the mint: `PresignRequest` carries `signingDate`, the mint sets it
+to its `now`, the S3 presigner passes it to `getSignedUrl`, and the in-memory store stamps the
+same date. Per Vahid's rule from P80 — *"make the test fail first without the fix — I do not want a
+fix I cannot prove"* — the new test uses an SDK-like presigner that dates at the next second and a
+mint at `…00.964Z`; before the fix it fails with CI's exact message, after it the signed date is
+the mint's and the bound holds. The check is unchanged.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

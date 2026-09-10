@@ -93,6 +93,10 @@ export function s3Presigner(client: S3Client, bucket: string) {
       }),
       {
         expiresIn: request.expiresInSeconds,
+        // Dated at the mint's `now`, not this process's clock a moment later:
+        // the bound was computed from that instant, and a signature dated one
+        // second after it is a URL the exact check refuses (CI #176, P83).
+        signingDate: request.signingDate,
         // ── The whole finding of 2026-09-09, as one option ─────────────
         //
         // Without this the SDK hoists x-amz-checksum-sha256 into the query
