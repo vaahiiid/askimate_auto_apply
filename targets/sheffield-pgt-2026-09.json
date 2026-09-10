@@ -1,0 +1,76 @@
+{
+  "$comment": [
+    "A discovery target. DATA, not code (brief §3.2). Read-only throughout: the runner cannot",
+    "fill, click or submit (ADR-0014); robots.txt is read first and obeyed, and page requests are",
+    "at least one second apart (ADR-0091). Only hosts in allowedHosts are reachable.",
+    "",
+    "DO NOT RUN THIS FILE FROM THE CLOUD SESSION, AND DO NOT RUN IT WITHOUT VAHID SAYING SO.",
+    "Vahid, 2026-09-10: 'Do not run discovery. Create the target file, record the facts above, and",
+    "answer the network question.' The environment's egress policy refuses www.sheffield.ac.uk in",
+    "any case (docs/target-sheffield-pgt.md, 'The scoped run cannot be made from this environment').",
+    "",
+    "Confirmed by Vahid, 2026-09-10. Everything below about Sheffield is what its public pages",
+    "STATE, transcribed from Vahid's message with the source URL and the date he retrieved it.",
+    "None of it has been observed by this repository. The claims are what the run would confirm",
+    "or refute; the eight authentication questions are asked, not answered.",
+    "",
+    "Two fields are Vahid's to supply and are NOT invented here: which course (courseName), and",
+    "the intake YEAR (all PGT master's start in September; the year is part of the submission key)."
+  ],
+  "targetId": "sheffield-pgt-september-direct",
+  "institutionName": "University of Sheffield",
+  "courseName": "Postgraduate taught master's — course not yet chosen (Vahid's to supply)",
+  "intake": "September — year not yet stated (Vahid's to supply)",
+  "route": "direct_portal",
+  "routeNotes": [
+    "Direct application through the university's own Postgraduate Online Application Form.",
+    "Not UCAS. Stated by Vahid, 2026-09-10.",
+    "The host the form itself lives on is not known. The entry point is on www.sheffield.ac.uk;",
+    "where the login boundary falls, and on which host, is the first thing this run is for.",
+    "Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new applicants that",
+    "an email will be sent containing their login details. If the PGT form behaves the same way,",
+    "the approach is portal_issued under ADR-0020, not student_chosen. To be CONFIRMED BY",
+    "OBSERVATION, not assumed from the sibling form (Vahid, 2026-09-10)."
+  ],
+  "allowedHosts": [
+    "sheffield.ac.uk"
+  ],
+  "seedUrls": [
+    "https://www.sheffield.ac.uk/postgradapplication",
+    "https://sheffield.ac.uk/postgraduate/taught/apply/applying"
+  ],
+  "linkPatterns": [
+    "postgradapplication",
+    "postgraduate",
+    "taught",
+    "appl(y|ication)",
+    "how-to-apply",
+    "entry-requirement",
+    "admission",
+    "arpform",
+    "login|sign-?in|register|create-?account|new-?account",
+    "forgot|reset-?password"
+  ],
+  "maxPages": 15,
+  "crawlDelayMs": 2000,
+  "claimsToVerify": [
+    "STATED (https://sheffield.ac.uk/postgraduate/taught/apply/applying, retrieved 2026-09-10): the form is in two parts; Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked * that must all be completed before Part 2 opens",
+    "STATED (same source, 2026-09-10): Part 2 is course selection — up to three courses per application",
+    "STATED (same source, 2026-09-10): supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form",
+    "STATED (same source, 2026-09-10): the application is submitted only when Submit Application is clicked, and incomplete sections are prompted back at that point",
+    "STATED (same source, 2026-09-10): no application fee for PGT master's",
+    "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
+    "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
+    "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
+    "TO OBSERVE: whether the form issues a credential by email (portal_issued) as the sibling /arpform/login.app form states it does, or asks the applicant to choose a password (student_chosen)",
+    "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+    "AUTH 1 — Does the applicant choose their own password at account creation?",
+    "AUTH 2 — Does the portal generate a credential and email it to them?",
+    "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
+    "AUTH 4 — Must the email be verified before the form is reachable?",
+    "AUTH 5 — Is MFA or a one-time code required, and where?",
+    "AUTH 6 — Is a CAPTCHA present, and where?",
+    "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+    "AUTH 8 — Can control be handed back cleanly?"
+  ]
+}

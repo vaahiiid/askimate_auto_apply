@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-browser-runner",
-  "version": "0.94.1",
+  "version": "0.95.0",
   "private": true,
   "type": "module",
   "exports": {

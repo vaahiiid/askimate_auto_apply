@@ -4245,3 +4245,37 @@ the comment above it now says what the audit measured. The full account is
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P78 — the Sheffield target file, the sourced facts, and the network answer
+
+Vahid: *"Sheffield target confirmed. Create the target file now. Do not run anything against it
+yet."* Three things, none of them a run.
+
+The target file, `targets/sheffield-pgt-2026-09.json`: his two entry URLs as seeds, `sheffield.ac.uk`
+as the one allowed host, fifteen pages, two seconds between them. It parses — checked through
+`parseTarget` without a browser — and it has not been run. Which course, and which September, are
+his to supply and are written as such in the file rather than guessed; the year is part of the
+submission key, so a guess there would be a guess about identity.
+
+The facts: six things Sheffield's public pages state, each recorded in the target document with its
+source URL and the date he retrieved it, the way the Requirements Service records an official
+source — and each marked as *stated by the institution, observed by nobody here*. The target file
+carries them as claims for the run to confirm or refute, beside the eight authentication questions
+it asks and does not answer.
+
+The thing he wants noticed: Sheffield's sibling form says it emails new applicants their login
+details. If the PGT form does the same, the approach is `portal_issued`, and the code today creates
+the account with no secure step and has no routine sign-in for a credential the student relays —
+ADR-0101 built B as the resume path, for a password the student chose. That is recorded as a
+question for observation and a decision for him after it, not as a change made ahead of either.
+
+The network answer, from the docs and this session's proxy: the environment's Network access level
+is the thing. Trusted allows package registries, GitHub and cloud SDK hosts — `*.amazonaws.com`
+among them, which is why the bucket was reachable and Sheffield was not. Custom with
+`sheffield.ac.uk` is the narrowest widening; Full opens the whole internet to every session in the
+environment and buys this run nothing, because the runner already refuses every host outside the
+target's list before a request leaves the machine. The full answer is in the target document.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

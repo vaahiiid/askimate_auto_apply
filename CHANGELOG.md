@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.95.0] — 2026-09-10
+
+**P78 — the Sheffield target file, the sourced facts, and the network answer.** Nothing run.
+
+### Added
+
+- `targets/sheffield-pgt-2026-09.json`: the discovery target for the University of Sheffield's
+  PGT application, direct route, September intake — Vahid's two entry URLs as seeds, one allowed
+  host, fifteen pages, a two-second delay. Parses; not run. Course and intake year marked as
+  Vahid's to supply.
+- `docs/target-sheffield-pgt.md`: the confirmation, six sourced facts with URL and retrieval date,
+  the `portal_issued` question with what the code does with either answer today, and the answer to
+  which environment setting governs egress and what each level opens.
+
+### Changed
+
+- State document blocker 1 names the confirmed target and what the run needs from the environment.
+
+---
+
 ## [0.94.1] — 2026-09-10
 
 ### Fixed

@@ -1,9 +1,76 @@
 # Target 1 — University of Sheffield, PGT, September intake, direct application
 
-**Selected by Vahid, 2026-09-08.** For the blueprint phase, not for the transport phase.
+**Selected by Vahid, 2026-09-08. Confirmed by Vahid, 2026-09-10:** *"Sheffield target confirmed."*
+For the blueprint phase, not for the transport phase.
 **Nothing in this document is an observation of Sheffield's site.** Everything about Sheffield below
-is Vahid's, transcribed. What is measured is what a *discovery run* would do, and that is measured
-from this repository's own code.
+is Vahid's, transcribed — either his description, or what he reports the institution's public pages
+state, with the source URL and the date he retrieved it. What is measured is what a *discovery run*
+would do, and that is measured from this repository's own code.
+
+**The target file exists: [`targets/sheffield-pgt-2026-09.json`](../targets/sheffield-pgt-2026-09.json).**
+It parses (`parseTarget`, checked 2026-09-10 without opening a browser) and **has not been run**.
+Two of its fields are Vahid's to supply and are marked so rather than invented: which course, and
+the intake year.
+
+## The target, as confirmed
+
+| | |
+|---|---|
+| Institution | University of Sheffield |
+| Route | Direct — the university's own Postgraduate Online Application Form. **Not UCAS.** |
+| Level | Postgraduate taught master's |
+| Intake | September. Vahid: *"there is no January or February intake — all PGT masters start in September, which makes intake modelling trivial for this target"* |
+| Entry point | https://www.sheffield.ac.uk/postgradapplication |
+| Public guidance | https://sheffield.ac.uk/postgraduate/taught/apply/applying |
+
+## What the public pages state — sourced facts, per the Requirements Service's provenance rule
+
+Each fact carries its source URL and retrieval date, the way `packages/requirements` records an
+official-source page (`sourceUrl`, `retrievedAt`). **Stated by the institution, transcribed from
+Vahid's message of 2026-09-10; not observed by this repository.** Discovery confirms or refutes each.
+
+| # | Stated fact | Source | Retrieved |
+|---|---|---|---|
+| S1 | The form is in two parts. Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked `*` that must all be completed before Part 2 opens | https://sheffield.ac.uk/postgraduate/taught/apply/applying | 2026-09-10 |
+| S2 | Part 2 is course selection. Up to three courses per application | same | 2026-09-10 |
+| S3 | Supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form | same | 2026-09-10 |
+| S4 | The application is submitted only when *Submit Application* is clicked, and incomplete sections are prompted back at that point | same | 2026-09-10 |
+| S5 | No application fee for PGT master's | same | 2026-09-10 |
+| S6 | The entry point to the form | https://www.sheffield.ac.uk/postgradapplication | 2026-09-10 |
+
+What each one means for the blueprint, if confirmed: S1 is a two-part form with a gate between the
+parts, which the page walk (`#nextPage`) already models as pages with a `nextPageRef`; S3 is the
+attachment path P73–P74 built, exercised for real; S4 is the submission boundary ADR-0014 stops
+before; S5 removes the payment handoff.
+
+## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
+
+Vahid, 2026-09-10: *"Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new
+applicants that an email will be sent containing their login details. If the PGT form behaves the
+same way, Sheffield is `portal_issued` under ADR-0020, not `student_chosen` — the portal mails a
+credential we never read. That matters for blocker 19: under `portal_issued`, B's secure box carries
+a credential the student relays from their own mail rather than a password they chose. Your
+decision sheet already covers that case, and I want it confirmed by observation rather than assumed
+from a sibling form."*
+
+Recorded as a question for discovery (the target file carries it as a claim to observe), and what
+the code does with the answer today, so nothing is assumed:
+
+- `portal_issued` is one of the four approaches `chooseApproach` ranks (`packages/account`), and the
+  orchestrator issues `create_account` under it with **no secure step**: there is no password for
+  us to ask for, because the portal sends one to the student's own inbox, which this system cannot
+  read (no mailbox capability, enforced by the boundary check).
+- What is **not** built is the sign-in that follows. ADR-0101 built B — `portal_sign_in` through
+  the secure box — as the *resume* path, for `student_chosen` through the secure channel only;
+  `resumeStepFor` says in its own words that under `portal_issued` *"no password reached us through
+  the secure channel and none can"* and hands a lost session to a specialist. Under `portal_issued`
+  the first sign-in after creation is not a resume; it is the routine path, and the credential the
+  box would carry is the one the student relays from their mail. The blocker-19 sheet covers that
+  case (*"the same box carries the emailed code or credential instead of a password"*), and
+  ADR-0101 recorded it without building it.
+- So if observation confirms `portal_issued`, the decision that follows is Vahid's: whether B's box
+  carries a relayed credential on the routine path. It is not made here, and the model is not
+  adapted in advance of the observation — the same rule as the three-choices question below.
 
 ## The target, and why
 
@@ -145,6 +212,47 @@ So the run needs one of:
   runnable anywhere: it needs a target file, Chromium, and outbound HTTPS. Nothing about discovery
   depends on where it runs.
 
-**The target file does not exist yet either**, and building it needs the entry URL for the PGT
-application — which is the sort of thing this document must not invent. Whoever makes the run
-supplies it, with `maxPages` of 10–15 and `crawlDelayMs` at or above the floor.
+~~**The target file does not exist yet either**~~ — it does, since 2026-09-10:
+[`targets/sheffield-pgt-2026-09.json`](../targets/sheffield-pgt-2026-09.json), with the two entry
+URLs Vahid supplied as seeds, `allowedHosts` of `sheffield.ac.uk`, `maxPages` 15 and `crawlDelayMs`
+2000 (the floor is 1000; a target may ask to be slower). Not run.
+
+### Which setting governs, and what widening it would allow — answered 2026-09-10
+
+Vahid: *"Is the cloud environment's Network access setting the thing that governs this, and what
+would changing it allow that Trusted does not? I would rather understand what I am opening than
+open it and find out."*
+
+**Yes, it is that setting.** Read from https://code.claude.com/docs/en/cloud-environments on
+2026-09-10, and from this session's own proxy status:
+
+- Every cloud session runs in an *environment*, and each environment sets one **Network access**
+  level for the outbound connections its sessions can make: **None**, **Trusted**, **Full** or
+  **Custom**. The default is **Trusted**: an allowlist of package registries, GitHub and cloud SDK
+  hosts, and nothing else. `*.amazonaws.com` is on that list, which is why `s3.eu-west-2.amazonaws.com`
+  was reachable in P58 and `www.sheffield.ac.uk` was refused at the egress proxy with a 403 to
+  CONNECT. This environment behaves exactly as Trusted.
+- **Custom** takes a domain list, one per line, with `*.` for every subdomain, and a checkbox to
+  keep the Trusted defaults as well. The narrowest widening that lets the scoped run happen is
+  Custom with `www.sheffield.ac.uk` and `sheffield.ac.uk` — or `*.sheffield.ac.uk`, since the host
+  the form itself lives on is not known — with the defaults kept, so the session can still install
+  packages.
+- **Full** allows any domain. It would let the run happen too, and it opens outbound HTTPS from
+  every process in every session of that environment to the whole internet. Discovery does not need
+  it: the runner already aborts every request to a host outside the target's `allowedHosts` before
+  it leaves the machine, so a page's off-host scripts and CDNs are blocked by the runner whether or
+  not the proxy would let them through. Full buys nothing for this run that Custom does not.
+- What the level does **not** touch, at any setting: GitHub (a separate proxy), the Anthropic API,
+  and MCP connector traffic, which travels through Anthropic's servers. What it applies to: every
+  process in the sandbox, including a browser the runner opens. The level is a property of the
+  *environment*, so it applies to every session started in it, not only this one; the docs do not
+  say whether a session already running picks up a change, so assume a new session is needed.
+- Two things worth knowing before opening it. First, all outbound traffic from an Anthropic-hosted
+  session passes through Anthropic's security proxy, which keeps *"a DNS-level audit trail of
+  requested hostnames"*; the request Sheffield would see comes from Anthropic's egress, not from
+  Vahid's address, while the User-Agent still names AskiMate-AAS-Discovery honestly. Second, the
+  run's own preconditions do not change with the setting: robots.txt is read before the browser
+  opens and an unreadable one allows nothing; the one-second floor stands; the session is read-only.
+
+The alternative stands too: `pnpm run discover targets/sheffield-pgt-2026-09.json` runs anywhere
+with Chromium and outbound HTTPS, and nothing about discovery depends on where it runs.
