@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.96.2] — 2026-09-10
+
+### Added
+
+- `pnpm run inspect-dependencies <run-directory>` — reads a run's captured pages where they were
+  made and prints what the markup declares about fields depending on other fields: inline
+  handlers on controls, endpoints the page's scripts name, selects with no options in the
+  capture, the site's own search forms marked as furniture, and the guard's refusals by rule. No
+  values are printed. Written for the first real Sheffield read, whose education page attempted a
+  `POST` to load grading systems for a chosen country.
+
+---
+
 ## [0.96.1] — 2026-09-10
 
 **P80 — the first real attached read failed on `__name`; fixed through the real command.**

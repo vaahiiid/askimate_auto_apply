@@ -204,7 +204,9 @@ session had ended; sign in again and re-run.
 
 `inspection-runs/<run>/` (or `--out <dir>`) — `pages/*.html` (input values and textarea bodies
 removed, the page itself untouched), screenshots, `blueprint.draft.json`, and a `run.json` that
-`pnpm run inspect-discovery` reads. A "Requests refused N" line on the terminal is explained in
+`pnpm run inspect-discovery` reads. `pnpm run inspect-dependencies <run>` reads the captures where
+they are and prints which fields depend on other fields, with no values; paste its output. A
+"Requests refused N" line on the terminal is explained in
 `run.json` under `blockedRequests`: each entry names the method, the URL, the rule that refused it
 (`host` for a page reaching off the target's hosts, `method` for a write the page attempted,
 `navigation` for a bounce off the list) and the reason. **Look at `pages/*.html` first.** Values are scrubbed, but a

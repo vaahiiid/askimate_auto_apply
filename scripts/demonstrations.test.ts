@@ -192,6 +192,15 @@ describe("the published demonstrations", () => {
     });
   });
 
+  describe("inspect-dependencies", () => {
+    const bare = run("inspect-dependencies.ts");
+    it("REFUSES without a run directory, and says what it wants", () => {
+      expect(bare.code).not.toBe(0);
+      expect(bare.out).toContain("Usage:");
+      expect(bare.out).toContain("run.json");
+    });
+  });
+
   describe("inspect-discovery", () => {
     const bare = run("inspect-discovery.ts");
 
@@ -234,7 +243,7 @@ describe("the published demonstrations", () => {
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",
-      "inspect:attached",
+      "inspect:attached", "inspect-dependencies",
     ];
 
     const unguarded = published.filter(

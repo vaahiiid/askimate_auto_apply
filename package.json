@@ -1,6 +1,6 @@
 {
   "name": "askimate-aas",
-  "version": "0.96.1",
+  "version": "0.96.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -21,6 +21,7 @@
     "end-to-end": "tsx scripts/end-to-end.ts",
     "verify-bedrock": "tsx scripts/verify-bedrock.ts",
     "inspect-discovery": "tsx scripts/inspect-discovery.ts",
+    "inspect-dependencies": "tsx scripts/inspect-dependencies.ts",
     "retention-status": "tsx scripts/retention-status.ts",
     "catalogue": "tsx scripts/catalogue.ts",
     "interventions": "tsx scripts/interventions.ts",
