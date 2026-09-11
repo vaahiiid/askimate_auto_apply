@@ -534,6 +534,10 @@ function hashContent(content: {
   for (const entry of [...content.entries].sort(byFieldRef)) {
     // ADR-0103 gap 3: WHICH entry of a repeating page is inside the yes — the
     // same two qualifications in the other order are a different application.
+    // P97 measured this index as redundant: the sort is stable, so lines with
+    // the same field reference already stand in item order and swapping two
+    // items changes the hash without it. It is kept as the explicit statement
+    // of a property that would otherwise live in a sort's stability.
     lines.push(`field${entry.fieldRef}${entry.item === undefined ? "" : `#${String(entry.item.index)}`}${entry.text}`);
   }
   for (const repeat of [...content.repeats].sort((a, b) => (a.fieldKey < b.fieldKey ? -1 : a.fieldKey > b.fieldKey ? 1 : 0))) {
@@ -545,7 +549,7 @@ function hashContent(content: {
       `document${attachment.fieldRef}${attachment.documentRef}` +
         `${attachment.document.contentHash}` +
         // ADR-0103 gap 4: what is marked beside the slot is inside the yes.
-        `${attachment.companion === undefined ? "" : `${attachment.companion.fieldRef}={attachment.companion.text}`}`,
+        `${attachment.companion === undefined ? "" : `${attachment.companion.fieldRef}=${attachment.companion.text}`}`,
     );
   }
   for (const handoff of [...content.handoffs].sort(byFieldRef)) {

@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.107.0] — 2026-09-11
+
+**P97 — deliberate regressions over the four gaps ADR-0103 built; the companion's value was
+never in the hash.**
+
+### Fixed
+
+- The preview's hash interpolates the companion's text beside the attachment. P93 hashed the
+  literal characters `{attachment.companion.text}` — the field reference was in the yes and the
+  value was not. Found while preparing the audit's third mutation; the test that holds the
+  entries, document and slot fixed and changes only the mark failed against the old line.
+
+### Changed
+
+- Fifteen mutations applied to disk and restored byte-for-byte (`docs/p97-regression-audit.md`).
+  Eleven caught on the first pass. Three tests strengthened: the order rule is now tested on a
+  mapped select, where no other rule can refuse in its place; the typeahead test meets two
+  identical entries and one near entry. One mutation stays uncaught and is labelled: the entry's
+  index in the hash is redundancy over a stable sort.
+
+---
+
 ## [0.106.1] — 2026-09-11
 
 **Blocker 21 raised: a document per item of a repeating page, and a condition inside one.**

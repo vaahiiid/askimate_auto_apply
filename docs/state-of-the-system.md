@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,493 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,494 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -137,6 +137,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P90** | The plan honours `visibleWhen` | Recorded by discovery since the blueprint schema existed, read by nothing until now: a field's condition, and its section's, is evaluated at plan time against the plan's own values, to a fixed point. A field the form hides for these answers is neither filled nor missing — dropped from instructions, blockers and uploads, listed under `hidden`, and not a violation in the validator. Sheffield's two postcode boxes were both planned with one hidden on the page; the international one is now absent for a UK address, and an unmapped required field on a hidden branch no longer blocks. Fail-first on a synthetic address page and on the Sheffield draft |
 | **P91** | The entry page read; the AUTH questions answered from it; the registration and login locators authored | Vahid's signed-out read of the entry page and the reset page, three pages, zero failed, recorded unedited. From the capture: AUTH 1 yes, 3 none offered, 6 no CAPTCHA on those pages (tags refused), 8 yes by design; 2 and 5 settled for what the pages show and open for what follows a submit; 4 and 7 not settled by any page read, and not inferred. The curated draft carries the login URL and locators and a registration page first in the walk; the mapping set sends the e-mail from the profile and the passwords to the Secure Plane. The eight facts are recorded with `unobserved` on 4 and 5, and the chooser refuses on exactly those — the design holding: what settles them is Vahid's own account of registering and signing in. Two tool defects the draft showed, fixed fail-first: `password` inputs came back unknown; buttons came back as fields |
+| **P97** | Deliberate regressions over the four gaps ADR-0103 built; the companion's value was never in the hash | Fifteen mutations applied to disk and restored byte-for-byte: the companion's check, entry and hash; the late option's order, wait and bound; the typeahead's check and its two wrong choices; the repeating page's rendering, ledger identity, hash position, driver filter and add-another; the repeated fieldRef. **Preparing M3 found a defect**: the hash held the literal text `{attachment.companion.text}`, so the mark beside a document was never in the yes — fixed, test first. Eleven of fifteen caught on the first pass; three weak tests made strong (the order rule masked by the type rule; the typeahead never meeting two identical or one near entry); one kept as labelled redundancy (the entry's index over a stable sort). `docs/p97-regression-audit.md` |
 | **P96** | ADR-0103 gap 3 built — a page filled once per item of a list; each item its own page to the ledger; every entry in the preview | `BlueprintPage.repeats` names the list a page repeats over; the profile package says which fields are lists and the parser refuses any other. `checkUsable` refuses a mapping on the page drawing from anything but that list, a document, handoff or credential mapped on it, or a condition. The plan renders each item through the mapping's rule with the list's provenance and carries `item` on the instruction; an unconfirmed optional block is filled zero times and asks for nothing. The preview lists each entry in order and says none plainly, count and position inside the hash. The driver offers the page once per item, each its own ledger target; the runner returns to the page, presses add-another, saves one. The journey adds two qualifications end to end. All four ADR-0103 gaps are built; a fifth is raised — Sheffield's education page carries documents per qualification and a condition, which the rule refuses on a repeating page once mapped |
 | **P95** | ADR-0103 gap 2 built — a typeahead is typed into and the one exact entry chosen; a fill, not an advance | `FieldInputType` gains `typeahead` and the field says where its entries are found; `checkUsable` refuses one that does not, and entries on a field that is not one. The runner types the text, waits a bounded five seconds for exactly one entry reading it, and clicks that entry; none or more than one fails with what was offered and chooses nothing; an entry reading as a submission is refused. The fixture portal's study page asks the course through a server-answered search; the Sheffield draft marks its two Tom Select boxes, entry locator flagged as the library's default pending the next read |
 | **P94** | ADR-0103 gap 1 built — options that arrive after another field: ordered, waited for, never chosen among | `BlueprintField.optionsAfter` names the field whose setting loads this one's options. `checkUsable` refuses an order the fill could not follow, a dependent with nothing to wait for, and a mapped dependent whose earlier field nothing maps. The plan carries it to the runner, which waits a bounded five seconds for the one named option before selecting and fails the page as drift with what the list offered if it never arrives. The fixture portal's apply page now fills the passport-country list after the nationality and after a round trip; the gated fixture, the demonstration and the Sheffield draft's education chain record the dependency |
@@ -498,7 +499,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,493 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,494 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -511,7 +512,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,493 tests**, by the workspace they live in. Generated — run
+**2,494 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -520,7 +521,7 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/mapping` | 54 |
 | `packages/domain` | 376 | `packages/conversation` | 52 |
-| `scripts` | 306 | `packages/preparation` | 49 |
+| `scripts` | 306 | `packages/preparation` | 50 |
 | `apps/browser-runner` | 282 | `packages/profile` | 49 |
 | `packages/case-store` | 145 | `packages/disclosure` | 47 |
 | `packages/orchestrator` | 118 | `packages/catalogue` | 43 |

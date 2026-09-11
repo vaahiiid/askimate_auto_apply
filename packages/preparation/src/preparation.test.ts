@@ -836,6 +836,41 @@ import {
 } from "@askimate/aas-mapping/fixtures/gated";
 
 describe("an attachment's companion in the preview (P93)", () => {
+  it("binds the yes to the companion's VALUE: a different mark beside the same document changes the hash (P97)", () => {
+    // Found by P97's audit, not by a test: P93 declared the companion inside
+    // the hash and hashed its field reference with the literal text
+    // "{attachment.companion.text}" — the value never entered it. The same
+    // shape as the P86 defect ADR-0102 §7 records. This holds the entries,
+    // the document and the slot fixed and changes only what is marked.
+    const withMark = (whenAttached: string): SubmissionPreview => {
+      const blueprint = {
+        ...GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
+        pages: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT.pages.map((page) =>
+          page.pageRef === "page-documents"
+            ? {
+                ...page,
+                requiredDocuments: page.requiredDocuments.map((slot) =>
+                  slot.companion === undefined ? slot : { ...slot, companion: { ...slot.companion, whenAttached } },
+                ),
+              }
+            : page,
+        ),
+      };
+      const check = checkUsable(GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET, blueprint);
+      if (!check.usable) expect.unreachable(check.refusal.kind);
+      const plan = planFill(blueprint, check.mappingSet, COMPLETE);
+      const built = buildPreview(blueprint, plan, DOCUMENTS);
+      if (!built.built) expect.unreachable(built.refusal.detail);
+      return built.preview;
+    };
+    const now = withMark("now");
+    const later = withMark("later");
+    expect(now.attachments[0]?.companion?.text).toBe("now");
+    expect(later.attachments[0]?.companion?.text).toBe("later");
+    expect(now.entries).toEqual(later.entries);
+    expect(later.contentHash).not.toBe(now.contentHash);
+  });
+
   const gatedPreview = (): SubmissionPreview => {
     const check = checkUsable(GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT);
     if (!check.usable) expect.unreachable(check.refusal.kind);

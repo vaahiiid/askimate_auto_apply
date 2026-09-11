@@ -4818,3 +4818,29 @@ change under it; the fifth waits on his word.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P97 — deliberate regressions over the four gaps; the companion's value was never in the hash
+
+Fifteen mutations against what P93–P96 built, each applied to disk, run against the tests that
+govern it, and restored byte-for-byte. Preparing the third of them found the defect this phase
+is named for: the line that put the companion inside the yes interpolated the field reference
+and hashed the literal characters `{attachment.companion.text}` beside it — the mark's value was
+never in the hash, and P93's test, which checked the mark was named beside the attachment,
+agreed with the line. The same shape ADR-0102 §7 records for P86. Fixed test first: hold the
+entries, the document and the slot, change only the mark, and the hash must change; it did not,
+and now does.
+
+Eleven of fifteen were caught on the first pass. Three of the misses were the tests' fault and
+are now strong: the order rule had been tested on a text field, which the next rule refused in
+its place with the same kind, so removing the order rule changed nothing the test could see; the
+typeahead's rule — the one entry whose text equals the text — had never met two identical entries
+or one near one, the two ways to choose wrongly. The fourth miss stays and is labelled: the
+entry's index in the hash is redundancy over a stable sort, kept as the explicit statement of a
+property that would otherwise live in an engine guarantee. And one thing the journey did not
+catch is worth its sentence: without the item in the ledger's key the two qualifications still
+had different targets, because their values differ; the key matters for two identical entries,
+which the unit test states and the journey does not stage.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

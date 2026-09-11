@@ -74,7 +74,9 @@
   // choosing one puts its text in the box. Two entries share a prefix on
   // purpose, so "Ira" offers two and "Iran" offers one.
   (function () {
-    var COUNTRIES = ["Iran", "Iraq", "Ireland", "Italy", "United Kingdom"];
+    // "Ireland" twice, as a real list can repeat an entry: two exact matches
+    // choose nothing (P97).
+    var COUNTRIES = ["Iran", "Iraq", "Ireland", "Ireland", "Italy", "United Kingdom"];
     var box = document.getElementById("birthCountry");
     var list = document.getElementById("birthCountryOptions");
     box.addEventListener("input", function () {

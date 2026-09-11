@@ -658,11 +658,16 @@ describe("a field whose options arrive after another is set (P94, gap 1)", () =>
   });
 
   it("REFUSES an order the fill could not follow: a field that precedes the one it depends on", () => {
-    const check = checkUsable(SET, withField("given_name", (f) => ({ ...f, optionsAfter: { fieldRef: "nationality" } })));
+    // P97: on a SELECT that is mapped, so that neither the "offers no options"
+    // rule nor the "mapped by nothing" rule can refuse it in the order rule's
+    // place — the audit's M4 removed the order rule and a text field was
+    // still refused, for the wrong reason.
+    const check = checkUsable(SET, withField("nationality", (f) => ({ ...f, optionsAfter: { fieldRef: "passport_country" } })));
     expect(check.usable).toBe(false);
     if (!check.usable) {
       expect(check.refusal.kind).toBe("options_after_invalid");
-      expect(check.refusal.detail).toContain("given_name");
+      expect(check.refusal.detail).toContain("nationality");
+      expect(check.refusal.detail).toContain("comes after it");
     }
   });
 

@@ -322,6 +322,16 @@ describe("filling a fixture portal", () => {
     await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Atlantis"))).rejects.toThrow(
       OptionNotAvailableError,
     );
+    // "Ital" offers ONE entry, Italy — and it is not the text, so it is not
+    // chosen: the nearest entry is never the answer (P97's M7b).
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ital"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
+    // "Ireland" offers TWO entries that both read exactly it: neither is
+    // chosen, because "the one entry" is the rule (P97's M7).
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ireland"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
     expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen]" }).catch(() => "none")).toBe("none");
   }, 30_000);
 
