@@ -34,6 +34,10 @@
     <option value="">Choose a nationality first</option>
   </select>
 
+  <label for="birthCountry">Country of birth</label>
+  <input type="text" id="birthCountry" name="birth_country" autocomplete="off">
+  <ul id="birthCountryOptions" role="listbox"></ul>
+
   <label for="passport">Passport photo page</label>
   <input type="file" id="passport" name="passport" accept=".pdf,.jpg">
 
@@ -65,6 +69,33 @@
       });
     }, 400);
   });
+
+  // P95: a typeahead. Entries appear as the applicant types, after a pause;
+  // choosing one puts its text in the box. Two entries share a prefix on
+  // purpose, so "Ira" offers two and "Iran" offers one.
+  (function () {
+    var COUNTRIES = ["Iran", "Iraq", "Ireland", "Italy", "United Kingdom"];
+    var box = document.getElementById("birthCountry");
+    var list = document.getElementById("birthCountryOptions");
+    box.addEventListener("input", function () {
+      var typed = box.value.toLowerCase();
+      setTimeout(function () {
+        list.innerHTML = "";
+        if (typed.length === 0) return;
+        COUNTRIES.filter(function (c) { return c.toLowerCase().indexOf(typed) === 0; }).forEach(function (c) {
+          var entry = document.createElement("li");
+          entry.setAttribute("role", "option");
+          entry.textContent = c;
+          entry.addEventListener("click", function () {
+            box.value = c;
+            box.setAttribute("data-chosen", c);
+            list.innerHTML = "";
+          });
+          list.appendChild(entry);
+        });
+      }, 300);
+    });
+  })();
 
   // A portal that saves a draft as the applicant types. Preparation must
   // permit this — blocking it would block the work — and must record it.

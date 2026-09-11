@@ -221,6 +221,21 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
           title: "Your course",
           fields: [
             {
+              // P95 (ADR-0103, gap 2): a box the applicant types into, which
+              // offers entries as they type; one is chosen. The entries are
+              // found by `typeahead.optionLocator`; the runner types the mapped
+              // text, waits for the ONE entry whose text equals it, and chooses
+              // that entry — never the nearest.
+              fieldRef: "course",
+              label: "Course",
+              inputType: "typeahead",
+              dataCategory: "ordinary",
+              // By id: the label "Course" is also a word in the statement's label.
+              locators: [{ strategy: "id", value: "course" }],
+              validations: [{ kind: "required", source: "dom_attribute" }],
+              typeahead: { optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } },
+            },
+            {
               fieldRef: "personal_statement",
               label: "Why do you want to study this course?",
               inputType: "textarea",
@@ -345,6 +360,17 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         },
       },
       note: "The fixture portal asks the passport's country beside the nationality; the same fact, asked twice.",
+    },
+    {
+      fieldRef: "course",
+      source: {
+        kind: "constant",
+        value: "MSc Example Studies",
+        classification: "application_metadata",
+        rationale:
+          "The course this entry is for, as the portal's course search names it; identical for " +
+          "every applicant to it. The entry chosen must read exactly this.",
+      },
     },
     {
       fieldRef: "personal_statement",

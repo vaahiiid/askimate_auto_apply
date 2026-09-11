@@ -420,6 +420,24 @@ class RecordingSession implements ApplicationSession {
     this.#neverArrives = locatorValue;
   }
 
+  /** Typeahead choices, with whether the text was the student's (P95). */
+  public readonly chosen: { locator: FieldLocator; optionLocator: FieldLocator; text: string; confirmed: boolean }[] = [];
+
+  public fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void> {
+    this.acts.push(`choose ${locator.value}`);
+    const text = (value as unknown as { value: string }).value;
+    this.chosen.push({ locator, optionLocator, text, confirmed: true });
+    this.filled.push({ locator, text, confirmed: true });
+    return Promise.resolve();
+  }
+
+  public fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
+    this.acts.push(`choose ${locator.value}`);
+    this.chosen.push({ locator, optionLocator, text, confirmed: false });
+    this.filled.push({ locator, text, confirmed: false });
+    return Promise.resolve();
+  }
+
   public awaitOption(locator: FieldLocator, value: string): Promise<void> {
     this.acts.push(`await ${locator.value}`);
     this.awaited.push({ locator, value });
@@ -670,6 +688,47 @@ describe("executing a plan", () => {
     expect(failures(report)[0]?.drift).toBe(true);
     expect(failures(report)[0]?.error).toContain("never appeared");
     expect(session.filled.some((f) => f.locator.value === second)).toBe(false);
+  });
+
+  // ── P95 (ADR-0103, gap 2): a typeahead is typed into and chosen from ────
+
+  const ENTRIES: FieldLocator = { strategy: "css", value: "[role=option]" };
+
+  /** The plan with the course code's instruction, and the first confirmed one, made typeaheads. */
+  function typeaheadPlan(): { plan: FillPlan; constantRef: string; confirmedRef: string } {
+    const base = plan();
+    const constant = base.instructions.find((i) => i.value.kind === "reviewed_constant");
+    const confirmed = base.instructions.find((i) => i.value.kind === "confirmed");
+    if (constant === undefined || confirmed === undefined) expect.unreachable("both kinds are in the plan");
+    return {
+      plan: {
+        ...base,
+        instructions: base.instructions.map((instruction) =>
+          instruction === constant || instruction === confirmed
+            ? { ...instruction, inputType: "typeahead", typeahead: { optionLocator: ENTRIES } }
+            : instruction,
+        ),
+      },
+      constantRef: constant.locators[0]?.value ?? "",
+      confirmedRef: confirmed.locators[0]?.value ?? "",
+    };
+  }
+
+  it("chooses a typeahead entry through the typeahead act, keeping confirmed and constant apart", async () => {
+    const session = new RecordingSession();
+    const { plan: withTypeaheads, constantRef, confirmedRef } = typeaheadPlan();
+    const report = await executePlan(session, withTypeaheads, documentSource, CONTEXT);
+
+    expect(report.completed).toBe(true);
+    expect(session.chosen).toHaveLength(2);
+    const constant = session.chosen.find((c) => c.locator.value === constantRef);
+    const confirmed = session.chosen.find((c) => c.locator.value === confirmedRef);
+    expect(constant?.confirmed).toBe(false);
+    expect(constant?.text).toBe("PG-EX-2026");
+    expect(confirmed?.confirmed).toBe(true);
+    expect(constant?.optionLocator).toEqual(ENTRIES);
+    // Nothing else went through the typeahead act.
+    expect(session.acts.filter((a) => a.startsWith("choose "))).toHaveLength(2);
   });
 
   it("reports a missing document rather than filling around it", async () => {

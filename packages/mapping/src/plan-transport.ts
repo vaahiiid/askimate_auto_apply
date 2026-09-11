@@ -88,6 +88,17 @@ export interface StoredFillInstruction {
   readonly value: StoredFillValue;
   /** The field this one's options follow (ADR-0103, gap 1). */
   readonly optionsAfter?: { readonly fieldRef: string };
+  /** Where a typeahead's entries are found (ADR-0103, gap 2). */
+  readonly typeahead?: { readonly optionLocator: FieldLocator };
+}
+
+/** A typeahead's entry locator, copied field by field. */
+function copyTypeahead(
+  typeahead: { readonly optionLocator: FieldLocator } | undefined,
+): { readonly typeahead?: { readonly optionLocator: FieldLocator } } {
+  return typeahead === undefined
+    ? {}
+    : { typeahead: { optionLocator: { strategy: typeahead.optionLocator.strategy, value: typeahead.optionLocator.value } } };
 }
 
 /** An upload, as a reference: which box, which document, where. No bytes, no id, no hash. */
@@ -153,6 +164,7 @@ export function toStoredPlan(
           })),
           value: storedValue(instruction.value),
           ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+          ...copyTypeahead(instruction.typeahead),
         }),
       ),
       uploads: plan.uploads.map(
@@ -245,6 +257,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
         })),
         value: rebuiltValue(instruction.value),
         ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+        ...copyTypeahead(instruction.typeahead),
       }),
     ),
     uploads: stored.uploads.map((upload) => ({

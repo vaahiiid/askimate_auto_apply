@@ -54,7 +54,7 @@ describe("the end-to-end run, executed for real", () => {
     expect(code).toBe(0);
 
     // Discovery saw the portal.
-    expect(stdout).toContain("observed 7 fields");
+    expect(stdout).toContain("observed 8 fields");
     expect(stdout).toContain("draft blueprint — status draft");
 
     // The blueprint had to be reviewed before anything used it.

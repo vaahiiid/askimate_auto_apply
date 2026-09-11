@@ -163,6 +163,22 @@ describe("the password actually arrived, proved the way a portal proves it", () 
   });
 });
 
+describe("a course search the applicant types into (P95)", () => {
+  it("answers entries for what was typed, and only exact text names a course", async () => {
+    const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
+    await form("/apply", { given_name: "N", family_name: "H", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, signedIn);
+    const html = await (await fetch(`${portal.baseUrl}/study`, { headers: { cookie: signedIn } })).text();
+    expect(html).toContain('<input type="text" id="course" name="course_name" autocomplete="off">');
+    expect(html).toContain('<ul id="courseOptions" role="listbox"></ul>');
+    const offered = await (await fetch(`${portal.baseUrl}/courses?q=MSc`, { headers: { cookie: signedIn } })).json();
+    expect(offered).toEqual([
+      { code: "PG-EX-2026", name: "MSc Example Studies" },
+      { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)" },
+    ]);
+    expect(await (await fetch(`${portal.baseUrl}/courses?q=`, { headers: { cookie: signedIn } })).json()).toEqual([]);
+  });
+});
+
 describe("a list the page fills after another field is set (P94)", () => {
   it("offers nothing until the nationality is chosen, then what the portal answers for it", async () => {
     const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
@@ -237,9 +253,15 @@ describe("the application form remembers, and the review page shows it", () => {
     expect(early.status).toBe(302);
     expect(early.headers.get("location")).toBe("/study");
 
+    // P95: the course is chosen from a typeahead; a save naming no course the
+    // search offers is refused.
+    const noCourse = await form("/study", { personal_statement: "Because the course is the one I want." }, signedIn);
+    expect(noCourse.status).toBe(400);
+    expect(await noCourse.text()).toContain("Choose your course from the list.");
+
     const secondPage = await form(
       "/study",
-      { personal_statement: "Because the course is the one I want." },
+      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026" },
       signedIn,
     );
     expect(secondPage.status).toBe(302);
@@ -267,7 +289,7 @@ describe("the application form remembers, and the review page shows it", () => {
     // hash, size and name. Posted here the way a browser posts a file.
     const cookie = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
     await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, cookie);
-    await form("/study", { personal_statement: "Because the course is the one I want." }, cookie);
+    await form("/study", { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026" }, cookie);
     const page3 = await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } });
     const html = await page3.text();
     expect(html).toContain('<label for="passport">Upload your passport</label>');

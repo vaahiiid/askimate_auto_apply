@@ -323,7 +323,7 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.5 and the mapping set 0.3.2. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.6 and the mapping set 0.3.3. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
@@ -350,9 +350,17 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
 4. ~~`pnpm run inspect-dependencies` output from Vahid's machine~~ — received 2026-09-11, in
    `inspect-dependencies.txt`, read above.
 5. Four schema gaps raised and decided (ADR-0103): ~~options that arrive after another field is
-   set~~ — built in P94; a typeahead as a fill mechanism; a repeatable entry (education,
-   employment) as a page shape; ~~a companion field whose value follows another act (the upload
-   radios)~~ — built in P93.
+   set~~ — built in P94; ~~a typeahead as a fill mechanism~~ — built in P95; a repeatable entry
+   (education, employment) as a page shape; ~~a companion field whose value follows another act
+   (the upload radios)~~ — built in P93.
+   - **P95.** The curated draft (0.2.6) marks `institutionCountry-ts-control` and
+     `institution-ts-control` as `typeahead`, with the entry locator
+     `.ts-dropdown .option[data-selectable]`. **That locator is Tom Select's default markup, not
+     something this capture shows** — the captured pages are not committed, and the draft records
+     only the two boxes. The reviewer confirms it on the next read, or corrects it; until then no
+     mapping to either box is signed. The `<select>` each box fronts (`institutionCountry`,
+     `institutionCode`) stays as captured; the typeahead is the way in, and the select is what the
+     portal submits.
    - **P94.** The curated draft (0.2.5) records `optionsAfter` on the four education fields the
      handlers name: `institutionCode` after `institutionCountry`, `gradingSystemId` after
      `institutionCode`, `grade` after `gradingSystemId`, `subject` after `subjectSearch`. Their

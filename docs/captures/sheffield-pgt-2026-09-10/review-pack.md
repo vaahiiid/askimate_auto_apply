@@ -282,9 +282,9 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 | field | type | label | proposed | needs |
 |---|---|---|---|---|
 | `institutionCountry` | select | institutionCountry | `ordinary` | mechanical |
-| `institutionCountry-ts-control` | text | institutionCountry-ts-control | `ordinary` | mechanical |
+| `institutionCountry-ts-control` | typeahead | institutionCountry-ts-control | `ordinary` | mechanical |
 | `institutionCode` | select | institutionCode | `ordinary` | mechanical |
-| `institution-ts-control` | text | Search for an institution... | `ordinary` | mechanical |
+| `institution-ts-control` | typeahead | Search for an institution... | `ordinary` | mechanical |
 | `unlistedInstitution` | text | unlistedInstitution | `ordinary` | mechanical |
 | `degree` | select | degree | `ordinary` | mechanical |
 | `unlistedDegree` | text | unlistedDegree | `ordinary` | mechanical |

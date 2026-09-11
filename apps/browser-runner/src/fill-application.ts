@@ -215,6 +215,16 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
       label: instruction.label,
       inputType: instruction.inputType as StoredFillPlan["instructions"][number]["inputType"],
       ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+      ...(instruction.typeahead === undefined
+        ? {}
+        : {
+            typeahead: {
+              optionLocator: {
+                strategy: instruction.typeahead.optionLocator.strategy,
+                value: instruction.typeahead.optionLocator.value,
+              },
+            },
+          }),
       locators: instruction.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,

@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -21632,7 +21632,7 @@
             {
               "fieldRef": "institutionCountry-ts-control",
               "label": "institutionCountry-ts-control",
-              "inputType": "text",
+              "inputType": "typeahead",
               "dataCategory": "ordinary",
               "locators": [
                 {
@@ -21640,7 +21640,13 @@
                   "value": "institutionCountry-ts-control"
                 }
               ],
-              "validations": []
+              "validations": [],
+              "typeahead": {
+                "optionLocator": {
+                  "strategy": "css",
+                  "value": ".ts-dropdown .option[data-selectable]"
+                }
+              }
             },
             {
               "fieldRef": "institutionCode",
@@ -21671,7 +21677,7 @@
             {
               "fieldRef": "institution-ts-control",
               "label": "Search for an institution...",
-              "inputType": "text",
+              "inputType": "typeahead",
               "dataCategory": "ordinary",
               "locators": [
                 {
@@ -21683,7 +21689,13 @@
                   "value": "Search for an institution..."
                 }
               ],
-              "validations": []
+              "validations": [],
+              "typeahead": {
+                "optionLocator": {
+                  "strategy": "css",
+                  "value": ".ts-dropdown .option[data-selectable]"
+                }
+              }
             },
             {
               "fieldRef": "unlistedInstitution",

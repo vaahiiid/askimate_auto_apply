@@ -96,6 +96,14 @@ function session(over: Partial<ApplicationSession> = {}): ApplicationSession & {
     },
     attach: () => Promise.reject(new Error("no documents")),
     awaitOption: () => Promise.resolve(),
+    fillTypeahead: (_locator, _entries, value) => {
+      typed.push(String((value as unknown as { value: string }).value));
+      return Promise.resolve();
+    },
+    fillTypeaheadConstant: (_locator, _entries, text) => {
+      typed.push(text);
+      return Promise.resolve();
+    },
     readValue: () => Promise.resolve("Niloofar"),
     currentUrl: () => Promise.resolve(url),
     ...over,

@@ -266,6 +266,8 @@ export interface TransportedInstruction {
   readonly value: TransportedValue;
   /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier. */
   readonly optionsAfter?: { readonly fieldRef: string };
+  /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator. */
+  readonly typeahead?: { readonly optionLocator: FillLocator };
 }
 
 /**
@@ -715,6 +717,14 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       if (!nonEmpty(named)) return null;
       optionsAfter = { fieldRef: named };
     }
+    const entries = held["typeahead"];
+    let typeahead: { readonly optionLocator: FillLocator } | undefined;
+    if (entries !== undefined) {
+      if (typeof entries !== "object" || entries === null) return null;
+      const optionLocator = parseLocator((entries as Record<string, unknown>)["optionLocator"]);
+      if (optionLocator === null) return null;
+      typeahead = { optionLocator };
+    }
     instructions.push({
       fieldRef: held["fieldRef"],
       label: held["label"],
@@ -722,6 +732,7 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       locators,
       value: parsed,
       ...(optionsAfter === undefined ? {} : { optionsAfter }),
+      ...(typeahead === undefined ? {} : { typeahead }),
     });
   }
 

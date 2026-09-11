@@ -48,6 +48,14 @@ export interface ApplicationSession {
    * not by the bound. Never chooses among what arrives.
    */
   awaitOption(locator: FieldLocator, value: string): Promise<void>;
+  /**
+   * Types a confirmed value into a typeahead and chooses the ONE entry, found
+   * by `optionLocator`, whose text equals it exactly (ADR-0103, gap 2). No
+   * entry, or more than one, fails with what was offered; nothing is chosen.
+   */
+  fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
+  /** The same for a reviewed constant — kept apart from `fillTypeahead` for the reason `fillConstant` is. */
+  fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
   readValue(locator: FieldLocator): Promise<string>;
@@ -178,7 +186,16 @@ export async function executePlan(
       if (instruction.optionsAfter !== undefined) {
         await session.awaitOption(locator, textOf(instruction.value));
       }
-      if (instruction.value.kind === "confirmed") {
+      if (instruction.typeahead !== undefined) {
+        // A typeahead is typed into and chosen from (ADR-0103, gap 2). The
+        // two kinds stay apart here too.
+        const entries = instruction.typeahead.optionLocator;
+        if (instruction.value.kind === "confirmed") {
+          await session.fillTypeahead(locator, entries, instruction.value.value);
+        } else {
+          await session.fillTypeaheadConstant(locator, entries, textOf(instruction.value));
+        }
+      } else if (instruction.value.kind === "confirmed") {
         await session.fill(locator, instruction.value.value);
       } else {
         // A reviewed constant is not the student's data and does not go through

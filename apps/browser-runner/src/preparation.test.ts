@@ -297,6 +297,34 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue({ strategy: "id", value: "passportCountry" })).toBe("");
   }, 30_000);
 
+  // ── P95 (ADR-0103, gap 2) ─────────────────────────────────────────────
+
+  const BIRTH_COUNTRY: FieldLocator = { strategy: "id", value: "birthCountry" };
+  const ENTRIES: FieldLocator = { strategy: "css", value: "#birthCountryOptions [role=option]" };
+
+  it("types into a typeahead, waits for the ONE entry that reads exactly the text, and chooses it", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Iran"));
+    expect(await session.readValue(BIRTH_COUNTRY)).toBe("Iran");
+    expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen='Iran']" })).toBe("Iran");
+  }, 30_000);
+
+  it("refuses when no entry reads exactly the text, naming what was offered — and chooses nothing", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    // "Ira" offers Iran and Iraq: neither IS the text, so neither is chosen.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ira"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ira"))).rejects.toThrow(/Iraq/);
+    // "Atlantis" offers nothing.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Atlantis"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
+    expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen]" }).catch(() => "none")).toBe("none");
+  }, 30_000);
+
   it("attaches a document", async () => {
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);

@@ -41,6 +41,7 @@ import {
   WriteLog,
   decidePreparationRequest,
   isStateChanging,
+  looksLikeSubmission,
 } from "./preparation-safety.js";
 import { BlockedRequestLog } from "./safety.js";
 import type { RedactedValue } from "./sensitive.js";
@@ -149,6 +150,10 @@ export class LocatorNotFoundError extends Error {
  * on a slow day, with room; not a retry loop.
  */
 const OPTION_WAIT_MS = 5_000;
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export class PlaywrightPreparationSession implements FillableSession {
   readonly #allowList: HostAllowList;
@@ -354,6 +359,60 @@ export class PlaywrightPreparationSession implements FillableSession {
     // Unwrapped at the last possible moment. Before this line it is a
     // ConfirmedValue and nothing else could have been passed here.
     await this.#type(locator, unwrapConfirmed(value));
+  }
+
+  public async fillTypeahead(
+    locator: FieldLocator,
+    optionLocator: FieldLocator,
+    value: ConfirmedValue<string>,
+  ): Promise<void> {
+    await this.#chooseTypeahead(locator, optionLocator, unwrapConfirmed(value));
+  }
+
+  public async fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
+    await this.#chooseTypeahead(locator, optionLocator, text);
+  }
+
+  /**
+   * A typeahead (ADR-0103, gap 2): type the text, wait — bounded — for the
+   * ONE entry whose text equals it exactly, choose that entry.
+   *
+   * The Tom Select boxes on the first real form: the visible input searches,
+   * the entries appear beneath it, and the `<select>` behind is set by the
+   * choice. Three refusals, all with what the list offered: no entry reads
+   * exactly the text; more than one does; or the entry reads as a submission
+   * control — a fill never presses one. Nothing is chosen in any of them.
+   * The click is not an advance and the allow-list is not consulted for it,
+   * because the entry is the answer, not a control.
+   */
+  async #chooseTypeahead(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
+    const box = await this.#resolve([locator]);
+    await box.fill(text);
+
+    const page = this.#requirePage();
+    const entries = toPlaywrightLocator(page, optionLocator);
+    if (entries === null) throw new LocatorNotFoundError([optionLocator]);
+    const exact = entries.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`) });
+
+    // Bounded by attempts, not by a clock: the session's clock is injectable
+    // and a test's may stand still.
+    let matches = await exact.count();
+    for (let attempt = 0; matches !== 1 && attempt < OPTION_WAIT_MS / 100; attempt++) {
+      await page.waitForTimeout(100);
+      matches = await exact.count();
+    }
+    if (matches !== 1) {
+      const offered = (await entries.allTextContents()).map((entry) => ({ value: entry.trim(), label: "" }));
+      throw new OptionNotAvailableError(locator, text, offered);
+    }
+    if (looksLikeSubmission(text)) {
+      throw new ClickRefusedError({
+        allowed: false,
+        locator: optionLocator,
+        reason: `Refusing to choose a typeahead entry that reads as a submission control.`,
+      });
+    }
+    await exact.first().click();
   }
 
   /**

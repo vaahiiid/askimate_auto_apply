@@ -233,7 +233,7 @@ const MAPPING_STATUSES: readonly MappingSetStatus[] = ["draft", "reviewed", "sup
 const ROUTES: readonly ApplicationRoute[] = ["direct_portal", "partner_portal", "assisted_manual"];
 const INPUT_TYPES: readonly FieldInputType[] = [
   "text", "textarea", "email", "password", "tel", "number", "date",
-  "select", "multiselect", "radio", "checkbox", "file", "unknown",
+  "select", "multiselect", "radio", "checkbox", "file", "typeahead", "unknown",
 ];
 const LOCATOR_STRATEGIES: readonly FieldLocator["strategy"][] = [
   "label", "name", "id", "css", "role", "placeholder",
@@ -311,6 +311,9 @@ function readField(value: unknown, path: string): BlueprintField {
   const optionsAfter = optionalWith(source, "optionsAfter", path, (held, at) => ({
     fieldRef: text(record(held, at), "fieldRef", at),
   }));
+  const typeahead = optionalWith(source, "typeahead", path, (held, at) => ({
+    optionLocator: readLocator(record(held, at)["optionLocator"], `${at}.optionLocator`),
+  }));
   const mapsTo = optionalText(source, "mapsTo", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
   // — and refused absent by `checkUsable`, not by the parser.
@@ -328,6 +331,7 @@ function readField(value: unknown, path: string): BlueprintField {
     ...(options === undefined ? {} : { options }),
     ...(visibleWhen === undefined ? {} : { visibleWhen }),
     ...(optionsAfter === undefined ? {} : { optionsAfter }),
+    ...(typeahead === undefined ? {} : { typeahead }),
     ...(mapsTo === undefined ? {} : { mapsTo }),
   };
 }

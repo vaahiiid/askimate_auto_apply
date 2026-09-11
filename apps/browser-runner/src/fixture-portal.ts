@@ -69,6 +69,8 @@ export interface PortalApplication {
   readonly nationality: string;
   /** The passport's country, from the list the page fills after the nationality (P94). */
   readonly passportCountry: string;
+  /** The course chosen from the study page's search (P95); "" until page two is saved. */
+  readonly courseCode: string;
   readonly personalStatement: string;
   /** The passport, once page three is saved (P74). */
   readonly passport: PortalUpload | null;
@@ -287,12 +289,53 @@ const STUDY_PAGE = (error: string | null): string =>
     "Your course",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/study" id="studyForm">
+  <label for="course">Course</label>
+  <input type="text" id="course" name="course_name" autocomplete="off">
+  <ul id="courseOptions" role="listbox"></ul>
+  <input type="hidden" id="courseCode" name="course_code" value="">
+
   <label for="statement">Why do you want to study this course?</label>
   <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
 
   <button type="submit" id="studyContinueBtn">Save and continue</button>
-</form>`,
+</form>
+<script>
+  // P95 (ADR-0103, gap 2): a course search. Entries come from the server for
+  // what was typed, after a pause; choosing one names the course by its code.
+  // Two entries share a prefix, so only exact text names one course.
+  (function () {
+    var box = document.getElementById("course");
+    var list = document.getElementById("courseOptions");
+    var code = document.getElementById("courseCode");
+    box.addEventListener("input", function () {
+      code.value = "";
+      fetch("/courses?q=" + encodeURIComponent(box.value))
+        .then(function (response) { return response.json(); })
+        .then(function (offered) {
+          list.innerHTML = "";
+          offered.forEach(function (course) {
+            var entry = document.createElement("li");
+            entry.setAttribute("role", "option");
+            entry.textContent = course.name;
+            entry.addEventListener("click", function () {
+              box.value = course.name;
+              code.value = course.code;
+              list.innerHTML = "";
+            });
+            list.appendChild(entry);
+          });
+        });
+    });
+  })();
+</script>`,
   );
+
+/** The courses the study page's search offers. */
+const COURSES: readonly { readonly code: string; readonly name: string }[] = [
+  { code: "PG-EX-2026", name: "MSc Example Studies" },
+  { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)" },
+  { code: "PG-OT-2026", name: "MA Other Studies" },
+];
 
 /**
  * The THIRD application page: a document (P74).
@@ -331,6 +374,7 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <dt>Date of birth</dt><dd id="reviewDob">${escapeHtml(application.dateOfBirth)}</dd>
   <dt>Nationality</dt><dd id="reviewNationality">${escapeHtml(application.nationality)}</dd>
   <dt>Passport country</dt><dd id="reviewPassportCountry">${escapeHtml(application.passportCountry)}</dd>
+  <dt>Course</dt><dd id="reviewCourse">${escapeHtml(application.courseCode)}</dd>
   <dt>Personal statement</dt>
   <dd id="reviewStatement">${escapeHtml(application.personalStatement)}</dd>
   <dt>Passport</dt>
@@ -618,11 +662,22 @@ export async function startFixturePortal(
           dateOfBirth,
           nationality: body.get("nationality") ?? "",
           passportCountry,
+          courseCode: applications.get(signedInAs)?.courseCode ?? "",
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
           passport: applications.get(signedInAs)?.passport ?? null,
           passportStatus: applications.get(signedInAs)?.passportStatus ?? null,
         });
         send(response, 302, "", { location: "/study" });
+        return;
+      }
+
+      if (method === "GET" && path === "/courses") {
+        // The study page's search, answered after a pause for what was typed.
+        const typed = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+        const offered = typed.length === 0 ? [] : COURSES.filter((course) => course.name.toLowerCase().startsWith(typed));
+        setTimeout(() => {
+          response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(offered));
+        }, 300);
         return;
       }
 
@@ -642,12 +697,19 @@ export async function startFixturePortal(
           send(response, 302, "", { location: "/apply" });
           return;
         }
-        const statement = body2(await readBody(request));
+        const studyBody = await readBody(request);
+        const statement = body2(studyBody);
         if (statement.length === 0) {
           send(response, 400, STUDY_PAGE("Tell us why you want to study this course."));
           return;
         }
-        applications.set(signedInAs, { ...held, personalStatement: statement });
+        // P95: the course must be one the search offers — chosen, not typed.
+        const courseCode = studyBody.get("course_code") ?? "";
+        if (!COURSES.some((course) => course.code === courseCode)) {
+          send(response, 400, STUDY_PAGE("Choose your course from the list."));
+          return;
+        }
+        applications.set(signedInAs, { ...held, personalStatement: statement, courseCode });
         send(response, 302, "", { location: "/documents" });
         return;
       }

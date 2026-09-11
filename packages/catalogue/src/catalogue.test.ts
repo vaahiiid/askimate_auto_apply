@@ -239,6 +239,17 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("optionsAfter");
   });
 
+  it("round-trips a typeahead's entry locator (P95)", () => {
+    const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const field = parsed.value.blueprint.pages
+      .flatMap((page) => page.sections)
+      .flatMap((section) => section.fields)
+      .find((candidate) => candidate.fieldRef === "course");
+    expect(field?.inputType).toBe("typeahead");
+    expect(field?.typeahead).toEqual({ optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } });
+  });
+
   it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
     // Found on the Sheffield draft, not designed: the language page and the
     // education page both call their file input `certificate` and its status

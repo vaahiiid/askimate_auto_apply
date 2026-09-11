@@ -1383,7 +1383,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       expect(
         claimed.plan?.instructions.map((instruction) => instruction.fieldRef),
         "and only the fields on it",
-      ).toEqual(["personal_statement"]);
+      ).toEqual(["course", "personal_statement"]);
 
       // The production performer again, on the restarted instance's own hold.
       const outcome = await restarted.performer(claimed);

@@ -706,3 +706,57 @@ describe("a field whose options arrive after another is set (P94, gap 1)", () =>
     expect(back.instructions.find((i) => i.fieldRef === "nationality")?.optionsAfter).toBeUndefined();
   });
 });
+
+describe("a typeahead (P95, gap 2)", () => {
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const withField = (
+    fieldRef: string,
+    patch: (field: BlueprintField) => BlueprintField,
+  ): ApplicationBlueprint => ({
+    ...BLUEPRINT,
+    pages: BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => (field.fieldRef === fieldRef ? patch(field) : field)),
+      })),
+    })),
+  });
+
+  it("plans the typeahead with where its entries are found, and the text to type", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const course = plan.instructions.find((i) => i.fieldRef === "course");
+    expect(course?.inputType).toBe("typeahead");
+    expect(course?.typeahead).toEqual({ optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } });
+    expect(course === undefined ? "" : textOf(course.value)).toBe("MSc Example Studies");
+    expect(plan.instructions.find((i) => i.fieldRef === "personal_statement")?.typeahead).toBeUndefined();
+  });
+
+  it("REFUSES a typeahead that does not say where its entries are, and entries on a field that is not one", () => {
+    const bare = checkUsable(SET, withField("course", ({ typeahead: _dropped, ...field }) => field));
+    expect(bare.usable).toBe(false);
+    if (!bare.usable) expect(bare.refusal.kind).toBe("typeahead_invalid");
+
+    const misplaced = checkUsable(
+      SET,
+      withField("personal_statement", (f) => ({ ...f, typeahead: { optionLocator: { strategy: "css", value: "li" } } })),
+    );
+    expect(misplaced.usable).toBe(false);
+    if (!misplaced.usable) expect(misplaced.refusal.kind).toBe("typeahead_invalid");
+  });
+
+  it("carries the entries' locator through transport", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    const back = rehydratePlan(stored.plan);
+    expect(back.instructions.find((i) => i.fieldRef === "course")?.typeahead).toEqual({
+      optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
+    });
+  });
+});

@@ -283,7 +283,9 @@ export type MappingRefusal =
    * field is not on the same page before it, the dependent offers no options, or the earlier
    * field is mapped by nothing while the dependent is — its option could never arrive.
    */
-  | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A typeahead field that does not say where its entries are, or entries declared on a field that is not one (gap 2). */
+  | { readonly kind: "typeahead_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -590,6 +592,29 @@ export function checkUsable(
           `A document slot names ${badCompanions.join(", ")} as the control set beside it when a ` +
           `file is attached, which it may not be: a companion must be on the blueprint, offer the ` +
           `value the slot names, and be mapped by nothing — it follows the attach (ADR-0103).`,
+      },
+    };
+  }
+
+  // ── ADR-0103 gap 2: a typeahead says where its entries are, and only a typeahead does ──
+  const typeaheadProblems = allFields(blueprint).filter(
+    (field) => (field.inputType === "typeahead") !== (field.typeahead !== undefined),
+  );
+  if (typeaheadProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "typeahead_invalid",
+        fieldRefs: typeaheadProblems.map((field) => field.fieldRef),
+        detail:
+          typeaheadProblems
+            .map((field) =>
+              field.inputType === "typeahead"
+                ? `${field.fieldRef} is a typeahead that does not say where its entries are found`
+                : `${field.fieldRef} is a ${field.inputType} field that declares typeahead entries`,
+            )
+            .join("; ") +
+          ". A typeahead carries the locator of the entries it offers, and nothing else does (ADR-0103).",
       },
     };
   }

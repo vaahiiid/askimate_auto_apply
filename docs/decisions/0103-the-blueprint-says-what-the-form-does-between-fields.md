@@ -111,13 +111,35 @@ As built:
   taken with the earlier fields set, and `checkUsable` will refuse one that does, as `option`
   rendering always has.
 
-## Gap 2 — a typeahead — DECIDED, to build (P95)
+## Gap 2 — a typeahead — DECIDED and BUILT (P95)
 
 `FieldInputType` gains `typeahead`, with `BlueprintField.typeahead?: { optionLocator }` — the
 locator of the entries the control offers as the student types. The runner types the mapped text,
 waits for an entry whose text equals it exactly, and chooses that entry; no entry, or more than
 one, fails with what was offered. Choosing a typeahead entry is a fill, not an advance, and the
 click guard is told so.
+
+As built:
+
+- `checkUsable` refuses (`typeahead_invalid`) a typeahead field that does not say where its
+  entries are, and entries declared on a field that is not a typeahead. The plan carries the
+  entry locator on the instruction, through the transport and the wire.
+- The session gains two acts, `fillTypeahead` for a confirmed value and `fillTypeaheadConstant`
+  for a reviewed constant — kept apart for the reason `fill` and `fillConstant` are — and the
+  runner routes a typeahead instruction to them. The act types the text, waits a bounded five
+  seconds for exactly one entry whose text equals it, and clicks that entry. No entry or more
+  than one fails with what was offered and chooses nothing; "Ira" offering *Iran* and *Iraq*
+  chooses neither. The entry's click does not consult the advance allow-list, because the entry
+  is the answer and not a control — but an entry that reads as a submission control is refused
+  by the same rule that guards every click.
+- Discovery does not produce the type: a typeahead reads as a text input. The reviewer sets it.
+- The fixture portal's study page asks the course through a search answered by the server for
+  what was typed, two courses sharing a prefix, and refuses a save naming no course the search
+  offers; the gated fixture maps it as a reviewed constant. The demonstration form carries a
+  typeahead the page answers by script, for the confirmed path.
+- The curated Sheffield draft marks `institutionCountry-ts-control` and `institution-ts-control`
+  as typeaheads. Their entry locator is Tom Select's default markup, not the capture's — the
+  captured pages are not in the repository — and the README says so; the next read confirms it.
 
 ## Gap 3 — a repeatable entry — DECIDED, to build (P96)
 

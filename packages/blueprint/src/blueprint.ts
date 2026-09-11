@@ -81,6 +81,12 @@ export type FieldInputType =
   | "radio"
   | "checkbox"
   | "file"
+  /**
+   * A box the applicant types into, which offers entries as they type; one is
+   * chosen (ADR-0103, gap 2). Never produced by discovery — a typeahead reads
+   * as a text input — the reviewer sets it, with `typeahead.optionLocator`.
+   */
+  | "typeahead"
   | "unknown";
 
 /**
@@ -151,6 +157,14 @@ export interface BlueprintField {
    * discovery does not infer it.
    */
   readonly optionsAfter?: { readonly fieldRef: string };
+  /**
+   * Where a typeahead's entries are found as the applicant types (ADR-0103,
+   * gap 2). Required when `inputType` is `typeahead`, refused otherwise. The
+   * runner types the mapped text, waits a bounded time for the ONE entry whose
+   * text equals it exactly, and chooses that entry; no entry, or more than
+   * one, fails with what was offered. Choosing is a fill, not an advance.
+   */
+  readonly typeahead?: { readonly optionLocator: FieldLocator };
   /**
    * The canonical profile field this maps to.
    *

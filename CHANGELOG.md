@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.105.0] — 2026-09-11
+
+**P95 — ADR-0103 gap 2 built: a typeahead is typed into and the one exact entry chosen; a
+fill, not an advance.**
+
+### Added
+
+- `FieldInputType` gains `typeahead`; `BlueprintField.typeahead?: { optionLocator }` says where
+  its entries are found. Parsed by the catalogue, carried on the plan's instruction through the
+  transport and the wire. `checkUsable` refuses (`typeahead_invalid`) a typeahead without an
+  entry locator and an entry locator on a field that is not one.
+- `fillTypeahead` and `fillTypeaheadConstant` on the application session, kept apart as `fill`
+  and `fillConstant` are: type the text, wait a bounded five seconds for exactly one entry whose
+  text equals it, click that entry. No entry or more than one fails with what was offered and
+  chooses nothing; an entry reading as a submission control is refused. The advance allow-list
+  is not consulted: the entry is the answer, not a control.
+- The fixture portal's study page asks the course through a server-answered search with two
+  courses sharing a prefix, and refuses a save naming no offered course; the gated fixture maps
+  it as a reviewed constant; the demonstration form carries a script-answered typeahead for the
+  confirmed path. The Sheffield draft (0.2.6; set 0.3.3) marks its two Tom Select boxes, with
+  the entry locator flagged as the library's default rather than the capture's.
+
+---
+
 ## [0.104.0] — 2026-09-11
 
 **P94 — ADR-0103 gap 1 built: a field whose options the portal loads after another is set is

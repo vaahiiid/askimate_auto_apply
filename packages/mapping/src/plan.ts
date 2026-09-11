@@ -87,6 +87,12 @@ export interface FillInstruction {
    * the plan, because `checkUsable` refused any other order.
    */
   readonly optionsAfter?: { readonly fieldRef: string };
+  /**
+   * Where the entries of a typeahead are found (ADR-0103, gap 2). The runner
+   * types the text, waits for the one entry that reads exactly it, and
+   * chooses that entry — a fill, not an advance.
+   */
+  readonly typeahead?: { readonly optionLocator: FieldLocator };
 }
 
 /** The text a fill instruction will type, whichever kind it is. */
@@ -464,13 +470,16 @@ function hiddenFields(
 
 function instructionShape(
   field: BlueprintField,
-): Pick<FillInstruction, "fieldRef" | "label" | "inputType" | "locators" | "optionsAfter"> {
+): Pick<FillInstruction, "fieldRef" | "label" | "inputType" | "locators" | "optionsAfter" | "typeahead"> {
   return {
     fieldRef: field.fieldRef,
     label: field.label,
     inputType: field.inputType,
     locators: field.locators,
     ...(field.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: field.optionsAfter.fieldRef } }),
+    ...(field.typeahead === undefined
+      ? {}
+      : { typeahead: { optionLocator: { strategy: field.typeahead.optionLocator.strategy, value: field.typeahead.optionLocator.value } } }),
   };
 }
 

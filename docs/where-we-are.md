@@ -4742,3 +4742,32 @@ the list does not hold as `option` rendering always has.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P95 — ADR-0103 gap 2 built: a typeahead is typed into and the one exact entry chosen
+
+The two Tom Select boxes on Sheffield's education page — a text input that searches, a list of
+entries beneath it, a hidden select set by the choice — were a mechanism the fill had never met.
+The schema now names it: `typeahead`, with the locator of the entries it offers. The rule for
+choosing is the same rule `option` rendering has always had, moved to a list that is not there
+until someone types: the mapped text is what the reviewer saw, the runner types it and waits a
+bounded time for exactly one entry whose text equals it, and chooses that one. No entry chooses
+nothing; two entries choose nothing — "Ira" offering *Iran* and *Iraq* is a mapping to correct,
+not a choice to make; and both fail with what the list offered so the reviewer can see which.
+
+Choosing an entry is a click, and the click guard exists to stop a fill pressing the wrong
+button. The entry is not on the advance allow-list and is not consulted against it — it is the
+answer, not a control — but the same rule that refuses every click on something that reads as a
+submission refuses an entry that does. The two acts, confirmed and constant, stay apart at the
+session for the reason `fill` and `fillConstant` do. Discovery does not produce the type; a
+typeahead reads as a text input, and the reviewer sets it.
+
+The fixture portal's study page now asks the course through a search the server answers for
+what was typed, two courses sharing a prefix, and refuses a save naming no offered course; the
+journey chooses it as a reviewed constant. The Sheffield draft marks its two boxes, and the
+README says plainly that the entry locator is Tom Select's default markup and not the capture's,
+because the captured pages are not in the repository: the next read confirms or corrects it, and
+no mapping to either box is signed before then.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

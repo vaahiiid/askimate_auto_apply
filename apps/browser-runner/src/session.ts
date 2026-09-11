@@ -123,6 +123,14 @@ export interface FillableSession extends ReadOnlySession {
    * field offered when the bound passes; never chooses among what arrives.
    */
   awaitOption(locator: FieldLocator, value: string): Promise<void>;
+  /**
+   * Types a confirmed value into a typeahead and chooses the one entry whose
+   * text equals it exactly (ADR-0103, gap 2). Choosing is a fill, not an
+   * advance: the entry is not on the click allow-list and need not be.
+   */
+  fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
+  /** The same for a reviewed constant, kept apart for the reason `fillConstant` is. */
+  fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   /** Uploads a document by vault ID. The runner never sees the vault itself. */
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
