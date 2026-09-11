@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.106.1] — 2026-09-11
+
+**Blocker 21 raised: a document per item of a repeating page, and a condition inside one.**
+Records only.
+
+### Added
+
+- `docs/decision-sheet-blocker-21-a-document-per-item-of-a-repeating-page.md`: why the two
+  refusals P96 built are right, three options (the profile holds documents per item; the
+  documents are the student's own act on that page; the page is not marked), the per-item
+  condition as a separate smaller piece, a recommendation, and what is needed from Vahid. Nothing
+  is decided; nothing is built against it. Recorded as blocker 21 in the state document.
+
+---
+
 ## [0.106.0] — 2026-09-11
 
 **P96 — ADR-0103 gap 3 built: a page filled once per item of a list, each item its own page to

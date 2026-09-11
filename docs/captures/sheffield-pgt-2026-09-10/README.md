@@ -361,10 +361,12 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
      refuse it the moment one was mapped. Both refusals are right as built: a document is mapped
      to a held document type, not to an item, so "the certificate for the second qualification"
      has no way to be said; and a condition on a repeating page would be answered by which item
-     nobody could say. So the draft stays 0.2.6 with `page7`
-     unmarked, and this is raised as **a fifth gap for Vahid: a document per item of a repeating
-     page, and a condition inside one.** It is a schema and product question — what a student
-     holds per qualification — not a curation detail. The employment page has neither documents
+     nobody could say. So the draft stays 0.2.6 with `page7` unmarked, and this is raised as **a
+     fifth gap for Vahid: a document per item of a repeating page, and a condition inside one** —
+     blocker 21, with a decision sheet
+     (`../../decision-sheet-blocker-21-a-document-per-item-of-a-repeating-page.md`). It is a
+     schema and product question — what a student holds per qualification — not a curation
+     detail. The employment page has neither documents
      nor conditions and would mark cleanly once the registry holds employment (item 7).
    - **P95.** The curated draft (0.2.6) marks `institutionCountry-ts-control` and
      `institution-ts-control` as `typeahead`, with the entry locator
