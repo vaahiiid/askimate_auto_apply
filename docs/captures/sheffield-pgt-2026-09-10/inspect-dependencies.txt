@@ -1,0 +1,115 @@
+pnpm run inspect-dependencies — output from Vahid's machine, sent 2026-09-11.
+Transcribed as sent. Two URLs under "Requests the guard refused" arrived
+wrapped as chat links; the host and path are kept, the wrapping is not.
+No values are in this output; the tool prints names, ids, handler text
+and endpoint paths only.
+
+Dependencies declared by the captured pages  attached-sheffield-pgt-september-direct-2026-09-10T16-13-23-186Z
+
+overview.do
+  form 1  GET //search.sheffield.ac.uk/search  10 controls — site search only
+
+summary.do
+  form 1  GET //search.sheffield.ac.uk/search  10 controls — site search only
+
+personal.do
+  form 2  POST /postgradapplication/personal.do  28 controls
+    radio takenCourseAtShefUni  onclick: updatePreviousPerson()   (x2)
+    radio appliedBefore         onclick: updatePreviousPerson()   (x2)
+    radio nameChanged           onchange: updatePreviousPerson()  (x2)
+
+contact.do
+  form 2  POST /postgradapplication/contact.do  48 controls
+    text   email        onchange: displayEmailChangedWarning()
+    text   corrAddress1/2/3, corrTown, corrRegion, corrPostcode,
+           corrPostcode2, corrIntlPostcode   onblur: updateLetterPreview('corr')
+    select corrCountry [260 options]          onchange: updateLetterPreview('corr')
+    text   corrTelephone, corrFax             onblur: sameAddressChanged()
+    checkbox sameAddressCheck                 onclick: sameAddressChanged()  (x2)
+    text   permAddress1/2/3, permTown, permRegion, permPostcode,
+           permPostcode2, permIntlPostcode    onblur: updateLetterPreview('perm')
+    select permCountry [260 options]          onchange: updateLetterPreview('perm')
+
+nationality.do
+  form 2  POST /postgradapplication/nationality.do  103 controls
+    select fundingNationality [243]        onchange: updateSections()
+    select secondFundingNationality [243]  onchange: updateSections()
+    select countryOfBirth [243]            onchange: updateSections()
+    select permanentResidence [262]        onchange: updateSections()
+    radio  livedOutsideCountry             onclick: updateSections()  (x2)
+    radio  alwaysUKResident                onclick: updateSections()  (x2)
+    radio  britishPassport                 onclick: showHideDocumentUploads()  (x2)
+    radio  indefinateVisa                  onclick: showHideDocumentUploads()  (x2)
+    radio  refugeeStatus                   onclick: showHideDocumentUploads()  (x2)
+    radio  spouseOfUKCitizen               onclick: showHideDocumentUploads()  (x2)
+    radio  livingInUK                      onchange: updateSections()  (x2)
+    radio  previousStudentVisa             onchange: updateSections()  (x2)
+    select qualificationLevel [7]          onchange: highestQualificationChanged()
+    file   passportScan, visaScan, utilityBillScan, proofOfUKSpouse, refugeeProof
+           each: onclick AND onchange tick their own *UploadRadio
+    submit saveBtn  onclick: return validate();
+
+language.app
+  form 2  POST /postgradapplication/language.app  28 controls
+    radio  previousEnglishEducation  onclick: showHideEnglishTestDetails()  (x2)
+    select englishQualTypeCode [42]  onchange: elqTypeChanged()
+    select dateOfAward.year [88]     onchange: elqTypeChanged()
+    radio  certificateStatus         onclick: elqTypeChanged()  (x5)
+    submit saveBtn  onclick: showFileUploadWarning();
+
+education.do?new=true
+  form 2  POST /postgradapplication/education.do  61 controls
+    select institutionCountry [256]  onchange: institutionChanged()
+    select institutionCode [1]       onchange: institutionChanged()
+    select degree [43]               onchange: degreeChanged()
+    text   subjectSearch             onkeypress: return handleSubjectSearchEnterPressed()
+    button subjectSearchButton       onclick: searchSubjects()
+    select subject [2]               onchange: subjectListChanged()
+    select endDateMonth [13], endDateYear [75], awardDateMonth [13],
+           awardDateYear [75]        onchange: endDateChanged(false)
+    select gradingSystemId [1]       onchange: loadGrades()
+    select grade [1]                 onchange: endDateChanged(true)
+    file   certificate, transcript, officialCertTranslation,
+           officialTranTranslation, certificateTranslation, transcriptTranslation
+           each: onclick AND onchange tick their own *UploadRadio
+    submit saveBtn  onclick: showFileUploadWarning();
+
+employment.do
+  form 2  POST /postgradapplication/employment.do  10 controls — no inline handlers
+
+equalOpportunities.do
+  form 2  POST /postgradapplication/equalOpportunities.do  18 controls
+    checkbox noDisability, ratherNotSay   onclick: noDisabilityClicked(this)
+    checkbox dyslexia, blindness, deafness, wheelchair, autistic,
+             mentalHealth, unseen, developmentCondition, otherDisability
+                                          onclick: disabilityClicked()
+
+marketing.do
+  form 2  POST /postgradapplication/marketing.do  13 controls — no inline handlers
+
+documents.do
+  form 2  POST /postgradapplication/documents.do  13 controls
+    file   other1..other5
+           each: onclick AND onchange tick their own *UploadRadio
+    submit saveBtn  onclick: disables backBtn, shows savingMessage,
+           generateHiddenSaveBtnField(...)
+
+Requests the guard refused (from run.json)
+  method: 4
+    POST tr6.snapchat.com/p
+    POST tr.snapchat.com/p
+    POST mc.yandex.com/watch/105476076
+    POST www.sheffield.ac.uk/postgradapplication/getGradingSystemsForCountry.do
+  host: 12
+    GET www.googletagmanager.com/gtm.js   (x11)
+    GET tags.srv.stackadapt.com/js_tracking
+
+Summary
+  inline handlers on controls   129
+  selects with no options       0
+  endpoints named by scripts    0
+
+Limits, as the tool states them: a listener attached by addEventListener is not
+an attribute and is not seen here unless the script names the control's id. A
+select the page fills after a choice is reported as having no options only if
+the capture was taken before any choice.

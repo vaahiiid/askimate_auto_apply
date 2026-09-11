@@ -79,6 +79,15 @@ in that README, and no further: Part 2 was not read, and it is what settles it. 
 `portal_issued` question was open on the captures and is closed by Vahid's statement of
 2026-09-11, in the next section.
 
+## The dependencies read, and the draft blueprint — 2026-09-11
+
+Vahid's `inspect-dependencies` output is in the capture directory with the reading of it: the
+education chain confirmed by handler, the upload radio on sixteen of seventeen slots, and the
+Article 9 fields on the equal-opportunities page, which are blocker 20 and his decision
+([sheet](./decision-sheet-article-9-fields-a-portal-asks-for.md)). The curated draft blueprint,
+`blueprint.draft.curated.json` 0.2.0, carries the course and intake above; it parses and is
+refused as `not_reviewed`. The four schema gaps for step 4 are listed in the README.
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 **Answered 2026-09-11, by Vahid's direct statement, verbatim:** *"Password: student_chosen,

@@ -224,7 +224,91 @@ is confirmed by structure.
    an institution's country, 262 for permanent residence. Four lists, four reviewed constants to
    map, not one.
 
-## What step 4 needs before the curated blueprint
+## The dependencies output, confirmed — 2026-09-11
+
+`inspect-dependencies.txt` beside this file is `pnpm run inspect-dependencies` as Vahid ran it
+on his machine: 129 inline handlers, no select empty in the capture, no endpoint named by a
+script. It confirms the static-dependency table above handler by handler, and it settles three
+things.
+
+**The education chain is confirmed by handler, not inferred.** `institutionCountry` → `onchange:
+institutionChanged()` → `institutionCode` (one option, blank) → `gradingSystemId` → `onchange:
+loadGrades()` → `grade` (one option, blank); beside it `subjectSearch` → `searchSubjects()` →
+`subject` (two options: *Enter a search*, *Not in list*). Four selects sit with no real option
+until the one before them is set and the server has answered — three by lookup, one by search.
+The lookup fires on load too, with `institutionCode=` empty, which is the refused POST. What the
+blueprint has to carry is **an order and a wait**: set the earlier field, wait for the later one's
+options to change, then set it. The schema has neither word; this is gap 1 for step 4, and the
+curated draft records these four fields without any condition rather than a wrong one.
+
+**Attaching a document is two acts, and the page does the second one itself on sixteen of the
+seventeen slots.** Sixteen file inputs — five on nationality, six on education, five on other
+documents — carry `onclick` **and** `onchange` handlers that tick their own *upload now* radio
+(`…UploadRadio`). The seventeenth, the English-language `certificate` on `language.app`, carries
+no handler at all; there the four `certificateStatus` radios (*now* / *later* / *not providing* /
+*Not Required*) are set by hand and each re-runs `elqTypeChanged()`. And on `documents.do` the
+radios the handlers name were **not in the captured form** — the draft has no radio on that page —
+so on five slots the radio's existence is known from handler text only; the reviewer confirms it
+from the screenshot.
+
+What the runner does today: `attach()` calls Playwright's `setInputFiles`, which dispatches
+`input` and `change` on the element. So on the sixteen, the page's own `onchange` would tick the
+radio — done by the portal's script, not by the runner, and **verified by nothing**: the runner
+does not read the radio afterwards, and the language slot would be left on whatever it was. If a
+fill did only the first act and the script did not fire, the upload may not register on save.
+
+What the blueprint has to carry, per slot: **(a)** the file input, which it has, as a
+`requiredDocument` and a field; **(b)** the status radio group as a field, with its options and
+the stable `id` of the *now* option where captured (education and language have ids;
+nationality and other documents came back name-only); **(c)** the relation — *this radio's "now"
+option accompanies this file input* — which the schema cannot say. A `constant` mapping of *now*
+on the radio is right only when a document is mapped to the slot, and a constant that is
+conditional on another mapping is a fourth vocabulary gap. The curated draft carries (a) and (b),
+in DOM order, radio directly beside its file input, and names (c) here. A runner that verifies the
+radio after attaching is a build item on the attachment path (P73–P74), raised, not built.
+
+**The equal-opportunities page asks Article 9 questions.** Eleven disability checkboxes, a
+support-needs box and an ethnic-origin select. That is Vahid's decision, written up as
+[`decision-sheet-article-9-fields-a-portal-asks-for.md`](../../decision-sheet-article-9-fields-a-portal-asks-for.md)
+(blocker 20). The curated draft records the fields as observed and maps nothing; it does not
+design around the question.
+
+## The curated draft — `blueprint.draft.curated.json`, version 0.2.0
+
+Built 2026-09-11 from `blueprint.draft.json` (the tool's, unedited beside it) with the course and
+intake Vahid supplied. Status **draft**; `checkExecutable` refuses it (`not_reviewed`), as it
+should. It parses under the catalogue's `parseBlueprint`. Every change from the tool's draft:
+
+- `courseName` MSc Management and International Business; `intake` `2027-09`; version 0.2.0.
+- The site-search form (`query`, `btnG`) is dropped from every page; `saveBtn` and `backBtn` are
+  dropped as fields and `saveBtn` becomes every form page's `advanceControl` (the tool had a blank
+  label locator on five pages and the wrong label on education). `nextPageRef` chains page 3 to
+  page 11 in the order the form presents them; page 11 has no next, because Part 2 is unread.
+- The overview and summary pages stay, as observed URLs with no fields, titled as navigation.
+- Radio inputs that share a name are one `radio` field with `options`; the option `value` is the
+  captured `id` where there was one and otherwise the label, **not the submitted value**, which the
+  capture does not carry. The reviewer completes those.
+- Where the captured label carries the portal's `*`, the field has a `required` validation with
+  source `specialist_noted` — authored here from the label text in this same file, for the reviewer
+  to confirm; thirteen fields, all on personal, contact and employment. The five pages whose
+  labels were not read carry none, so their asterisks are the reviewer's from the screenshots.
+- `visibleWhen` on twelve fields, only where the condition's value is in the captured options:
+  the previous-name and previous-application fields on personal, the UK and international
+  postcode boxes on contact, and `unlistedDegree` on education. The rest of the static table
+  above is not encoded, because a wrong condition is worse than none.
+- Seventeen `requiredDocuments` keep the portal's field names and get plain labels;
+  `acceptedFormats` stay empty (not stated by the markup) and `required` false.
+- The tool's `mfa` handoff is not carried (P82). `handoffPoints` is empty.
+- `authentication`: required, account creation required, the password answer in Vahid's words,
+  and no `loginUrl` or login form until the signed-out read.
+- `unobservedClaims` is the target file's claims list as it stands, answered ones included.
+- Blank option labels (the portal's *please select* entries) are named so the parser accepts them.
+
+**What is not in it, by design:** the order-and-wait for the four dependent selects (gap 1); the
+typeahead fill for `institution-ts-control` (gap 2); the repeatable entry for education and
+employment (gap 3); the companion radio relation (gap 4); any mapping; any Article 9 decision.
+
+## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
    International Business, September 2027 (`2027-09` in the target file).
@@ -252,7 +336,9 @@ is confirmed by structure.
      in the signed-in profile, item 3).
 3. Part 2 — course choice — read the same way, for the three-choices question and the submission
    boundary.
-4. `pnpm run inspect-dependencies` output from Vahid's machine, to confirm the handler-level
-   dependencies.
-5. Three schema gaps raised and decided: options that arrive after another field is set; a
-   typeahead as a fill mechanism; a repeatable entry (education, employment) as a page shape.
+4. ~~`pnpm run inspect-dependencies` output from Vahid's machine~~ — received 2026-09-11, in
+   `inspect-dependencies.txt`, read above.
+5. Four schema gaps raised and decided: options that arrive after another field is set; a
+   typeahead as a fill mechanism; a repeatable entry (education, employment) as a page shape; a
+   companion field whose value follows another act (the upload radios).
+6. Blocker 20 — the Article 9 fields — decided on its sheet.

@@ -4462,3 +4462,48 @@ that read is only that and not more.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P85 — the dependencies read, the Article 9 sheet, and the draft blueprint with the course and intake set
+
+Vahid ran `inspect-dependencies` on his machine and sent the output; it is in the capture
+directory as sent. It confirms the static-dependency table handler by handler and settles three
+things he asked about.
+
+The education chain is confirmed by handler, not inferred: country → `institutionChanged()` →
+institution → `loadGrades()` → grading system → grade, and a subject search beside it. Four selects
+sit empty until the one before them is set and the server has answered. What the blueprint has to
+carry is an order and a wait, and the schema has neither word — gap 1, recorded, and the curated
+draft carries those four fields without a condition rather than with a wrong one.
+
+Attaching a document is two acts, and on sixteen of the seventeen slots the page does the second
+one itself: the file input's `onchange` ticks its own *upload now* radio. The English-language
+slot does not — its four status radios are set by hand. And on the five other-documents slots the
+radio the handler names was not in the captured form at all. The runner's `attach()` calls
+Playwright's `setInputFiles`, which fires `change`, so the page's script would tick the radio on
+the sixteen — done by the portal, verified by nothing. The draft carries each status radio as a
+field beside its file input; the relation between them is a fourth schema gap, named; a runner
+that verifies the radio after attaching is raised for the attachment path, not built.
+
+The equal-opportunities page asks eleven disability checkboxes and an ethnic-origin select —
+Article 9, and Vahid's decision, not a defect to design around. The sheet
+(`decision-sheet-article-9-fields-a-portal-asks-for.md`, blocker 20) reads the tree first: nothing
+in this system can hold such an answer, by type; the existing `student_handoff` mapping would make
+the whole application untransportable (`has_handoffs`); an optional unmapped field is passed over
+in silence; a constant can be put in any field with only two reviewers between it and the form.
+His instinct — the student answers those themselves and we never store the answer — holds as
+option A, with two things it needs: a preview line naming what was left for the student, and a
+mapping-level refusal so the wrong reading cannot be written. B, *pass it through unstored*, is
+shown not to exist here: every typed value is in the preview, the stored plan and the log by
+design, so B is a reversal of ADR-0077 under another name. What the sheet could not see from the
+tree is whether the page saves blank; everything that depends on that is marked.
+
+And the draft blueprint is built: `blueprint.draft.curated.json`, 0.2.0, from the tool's draft
+with the course and intake set, the search forms and buttons out, radio groups merged, thirteen
+required validations from the captured asterisks, twelve `visibleWhen` conditions whose values
+the capture holds, the mfa handoff gone, the password answer in the notes. It parses, and
+`checkExecutable` refuses it as `not_reviewed`, as it should. Every change from the tool's draft
+is listed in the README, and so is everything left out by design.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

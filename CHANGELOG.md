@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.97.4] — 2026-09-11
+
+**P85 — the dependencies read, the Article 9 sheet, and the draft blueprint with the course and
+intake set.** Records and one artefact; no code.
+
+### Added
+
+- `docs/captures/sheffield-pgt-2026-09-10/inspect-dependencies.txt`: Vahid's
+  `inspect-dependencies` output, transcribed; and the README's reading of it — the education
+  chain confirmed by handler; the upload radio the file input ticks on sixteen of seventeen slots,
+  not on the English-language one, and not captured at all on the five other-documents slots;
+  what the blueprint has to carry per slot; a fourth schema gap, the companion field.
+- `docs/decision-sheet-article-9-fields-a-portal-asks-for.md` — blocker 20: what happens when a
+  portal asks a special-category question this system cannot hold. Options A to E costed from the
+  tree; B (pass through, unstored) shown not to exist in this architecture; recommendation A — the
+  student answers at the university, the preview names what was left — with the two things it
+  needs and the one thing it depends on.
+- `docs/captures/sheffield-pgt-2026-09-10/blueprint.draft.curated.json`, version 0.2.0, status
+  draft: the tool's draft with the course and intake set, the search forms and buttons removed,
+  radio groups merged, thirteen `required` validations from the captured asterisks, twelve
+  `visibleWhen` conditions whose values are in the captured options, the mfa handoff dropped,
+  and the password answer in the authentication notes. Parses; `checkExecutable` refuses it as
+  `not_reviewed`. Every change from the tool's draft is listed in the README.
+
+---
+
 ## [0.97.3] — 2026-09-11
 
 **P84 — two of the four answered, in Vahid's words.** Records only; no code.

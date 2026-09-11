@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-domain",
-  "version": "0.97.3",
+  "version": "0.97.4",
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
