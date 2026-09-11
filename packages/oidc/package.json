@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-oidc",
-  "version": "0.97.4",
+  "version": "0.97.5",
   "private": true,
   "type": "module",
   "exports": {

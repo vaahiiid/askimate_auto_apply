@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.97.5] — 2026-09-11
+
+**Blocker 20 decided, recorded before building.** Records only.
+
+### Changed
+
+- The Article 9 sheet carries Vahid's decision verbatim: the empty save is refused, so *"use the
+  refusal the form offers"* — reviewed constants never presented as the student's answer — with
+  three conditions to be enforced, not noted. Marked NOT YET BUILT: he asked for the
+  expressibility of each condition first, and one capture fact is raised with it — the captured
+  ethnic-origin list has *Prefer not to say* (998) and no *Information withheld* option.
+
+---
+
 ## [0.97.4] — 2026-09-11
 
 **P85 — the dependencies read, the Article 9 sheet, and the draft blueprint with the course and

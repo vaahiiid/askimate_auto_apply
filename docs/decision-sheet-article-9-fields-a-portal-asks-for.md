@@ -1,6 +1,9 @@
 # Decision sheet — a field the portal asks for that our own rules forbid us to hold
 
-**For:** Vahid · **Prepared:** 2026-09-11 · **Answerable in one sitting**
+**For:** Vahid · **Prepared:** 2026-09-11 · ~~**Answerable in one sitting**~~
+**✅ DECIDED — Vahid Mohammadi, 2026-09-11. Not A as written: the empty save is refused. "Use the
+refusal the form offers", three conditions enforced, not noted. NOT YET BUILT — the expressibility
+of each condition was answered first, as he asked; see "What was decided" below.**
 Companion to [blocker 19](./decision-sheet-blocker-19-how-a-runner-is-signed-in.md) and
 [B1](./decision-sheet-b1-retention-periods.md). Recorded as **blocker 20** in
 [`state-of-the-system.md`](./state-of-the-system.md).
@@ -20,6 +23,41 @@ Companion to [blocker 19](./decision-sheet-blocker-19-how-a-runner-is-signed-in.
 > `OrdinaryFieldKey`. The DPIA determination of what *is* special-category is not made here; the
 > statute's list is quoted in `packages/profile/src/categories.ts` and applied below to fields whose
 > labels put them inside it beyond argument.
+
+## What was decided — 2026-09-11, in Vahid's words
+
+The dependency this sheet marked is settled by his observation: *"The empty save is refused …
+saving Section G blank returns 'Please tick the box to say you have no disabilities, or tick a
+disability'. The page will not advance unless something is ticked."* So option A as written
+breaks, and the scope is every Article 9 field on the page, the ethnic-origin select included.
+
+> *"We tick 'Prefer not to say' for disability and 'Information withheld' for ethnic origin.
+> Those are not the student's answer and we must never present them as one. They are a stated
+> refusal to route Article 9 data through us, made on a form that offers exactly that option and
+> tells the student where the real answer belongs."*
+>
+> *"Three conditions, and I want all three enforced, not noted."*
+>
+> 1. *"The preview must say plainly what we did and why: that we did not answer these on the
+>    student's behalf, what we entered instead, and that the university will ask again directly
+>    after registration. If the student reads the preview and cannot tell that a question about
+>    their health was left unanswered by us deliberately, the authorisation is not informed."*
+> 2. *"The values must be reviewed constants at the mapping boundary with that rationale
+>    attached, never sourced from a profile field. No path may exist by which a real answer
+>    reaches those controls, whatever the student says in the conversation. Make it the same
+>    shape as ADR-0077: refused at mapping, not checked at fill."*
+> 3. *"And it must not be silent. If a future portal has no equivalent opt-out, the fill must
+>    stop rather than pick something. Write that as the general rule — this decision is 'use the
+>    refusal the form offers', not 'answer Article 9 fields with a safe default'."*
+>
+> *"Tell me if any of that is not expressible, and say so before building rather than
+> approximating it."*
+
+One fact from the capture, raised with the expressibility answer and not resolved here: the
+captured `ethnicOriginCode` list has no *Information withheld* entry. Its opt-out option is
+**`998 — Prefer not to say`**; *Information withheld* is the wording of the field's label, not of
+any option in the list the tool read. Which one the dropdown shows is his to confirm from his
+screen before the mapping names a value.
 
 ## The question
 
