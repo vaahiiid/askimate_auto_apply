@@ -290,8 +290,8 @@ export type MappingRefusal =
   /**
    * A repeating page that could not be filled once per item (gap 3): it repeats over a field
    * that is not a list; a mapping on it draws from anything but that list, or is not a value at
-   * all (a document, a handoff, a credential, a refusal); or a condition on it — each item would
-   * answer differently.
+   * all (a document, a credential, a refusal — or a handoff on anything but a document slot,
+   * ADR-0104); or a condition on it that looks off the page, which no item could answer.
    */
   | { readonly kind: "repeat_mapping_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
@@ -644,17 +644,31 @@ export function checkUsable(
       repeatProblems.push(`${page.pageRef} repeats over "${over}", which is not a list-valued profile field`);
       repeatRefs.push(page.pageRef);
     }
+    const onPage = new Set(page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)));
     for (const section of page.sections) {
       for (const field of section.fields) {
-        if (field.visibleWhen !== undefined || section.visibleWhen !== undefined) {
-          repeatProblems.push(`${field.fieldRef} is shown or hidden by a condition on a page that repeats`);
-          repeatRefs.push(field.fieldRef);
+        // ADR-0104: a condition inside a repeat is answered per item, against
+        // that item's own values — so it may look only at the page.
+        for (const condition of [field.visibleWhen, section.visibleWhen]) {
+          if (condition !== undefined && !onPage.has(condition.whenFieldRef)) {
+            repeatProblems.push(
+              `${field.fieldRef} is shown or hidden by "${condition.whenFieldRef}", which is not on the page that repeats`,
+            );
+            repeatRefs.push(field.fieldRef);
+          }
         }
         const mapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === field.fieldRef);
         if (mapping === undefined) continue;
         if (mapping.source.kind === "profile_field") {
           if (mapping.source.fieldKey !== over) {
             repeatProblems.push(`${field.fieldRef} draws from "${mapping.source.fieldKey}" on a page that repeats over "${over}"`);
+            repeatRefs.push(field.fieldRef);
+          }
+        } else if (mapping.source.kind === "student_handoff") {
+          // ADR-0104 (B): the documents of a repeating page are the student's
+          // own act — a handoff on a document slot, and on nothing else.
+          if (field.inputType !== "file") {
+            repeatProblems.push(`${field.fieldRef} is handed to the student on a page that repeats, and it is not a document slot`);
             repeatRefs.push(field.fieldRef);
           }
         } else if (mapping.source.kind !== "constant") {
@@ -672,8 +686,9 @@ export function checkUsable(
         fieldRefs: repeatRefs,
         detail:
           `${repeatProblems.join("; ")}. A page filled once per item draws every value from one item ` +
-          `of the list it repeats over, or from a reviewed constant; nothing on it may hide, hand ` +
-          `off, or attach (ADR-0103).`,
+          `of the list it repeats over, or from a reviewed constant; its document slots may be left ` +
+          `to the student and nothing else may be; a condition on it looks only at the page ` +
+          `(ADR-0103, ADR-0104).`,
       },
     };
   }

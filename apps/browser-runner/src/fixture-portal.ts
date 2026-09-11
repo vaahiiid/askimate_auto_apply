@@ -355,7 +355,7 @@ ${qualifications
   .join("\n")}
 </ul>
 <button type="button" id="addQualificationBtn">Add a qualification</button>
-<form method="post" action="/education/add" id="qualificationForm" hidden>
+<form method="post" action="/education/add" id="qualificationForm" enctype="multipart/form-data" hidden>
   <label for="qualificationLevel">Qualification</label>
   <input type="text" id="qualificationLevel" name="level" maxlength="80">
 
@@ -368,6 +368,14 @@ ${qualifications
   <label for="qualificationYear">Year completed</label>
   <input type="text" id="qualificationYear" name="year" pattern="\\d{4}">
 
+  <div id="gradeNoteRow" hidden>
+    <label for="qualificationGradeNote">Grade, as on the certificate</label>
+    <input type="text" id="qualificationGradeNote" name="grade_note">
+  </div>
+
+  <label for="qualificationCertificate">Certificate</label>
+  <input type="file" id="qualificationCertificate" name="certificate" accept=".pdf,.jpg,.png">
+
   <button type="submit" id="saveQualificationBtn">Save this qualification</button>
 </form>
 <form method="post" action="/education" id="educationForm">
@@ -376,6 +384,11 @@ ${qualifications
 <script>
   document.getElementById("addQualificationBtn").addEventListener("click", function () {
     document.getElementById("qualificationForm").hidden = false;
+  });
+  // The grade box is asked only of a school qualification (ADR-0104: a
+  // condition inside a repeat, answered per entry).
+  document.getElementById("qualificationLevel").addEventListener("input", function (event) {
+    document.getElementById("gradeNoteRow").hidden = event.target.value !== "High school diploma";
   });
 </script>`,
   );
@@ -386,6 +399,10 @@ export interface PortalQualification {
   readonly subject: string;
   readonly institution: string;
   readonly year: string;
+  /** The grade box, shown for a school qualification only; "" otherwise. */
+  readonly gradeNote: string;
+  /** The certificate's filename when the applicant attached one; null otherwise. */
+  readonly certificate: string | null;
 }
 
 /** The courses the study page's search offers. */
@@ -750,21 +767,29 @@ export async function startFixturePortal(
           send(response, 302, "", { location: "/apply" });
           return;
         }
-        const body = await readBody(request);
-        const level = body.get("level") ?? "";
+        // Multipart, as the form is: a certificate may come with the entry.
+        const parts = await readMultipart(request);
+        const field = (name: string): string => parts.get(name)?.bytes.toString("utf8") ?? "";
+        const level = field("level");
         if (level.trim().length === 0) {
           send(response, 400, EDUCATION_PAGE(held.qualifications, "Say what the qualification is."));
           return;
         }
+        const certificate = parts.get("certificate");
         applications.set(signedInAs, {
           ...held,
           qualifications: [
             ...held.qualifications,
             {
               level,
-              subject: body.get("subject") ?? "",
-              institution: body.get("institution") ?? "",
-              year: body.get("year") ?? "",
+              subject: field("subject"),
+              institution: field("institution"),
+              year: field("year"),
+              gradeNote: field("grade_note"),
+              certificate:
+                certificate === undefined || certificate.filename === null || certificate.filename.length === 0
+                  ? null
+                  : certificate.filename,
             },
           ],
         });

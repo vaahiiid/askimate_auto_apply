@@ -575,10 +575,22 @@ export function renderHandover(input: {
   readonly portalHost: string;
   readonly email: string;
   readonly approach: AuthenticationApproach;
+  /**
+   * What the student attaches themselves before submitting (ADR-0104): the
+   * document slots of a repeating page, each named with its entry. Said here
+   * as well as in the preview, because this is the message they act on.
+   */
+  readonly leftToStudent?: readonly string[];
 }): string {
+  const ownActs =
+    input.leftToStudent === undefined || input.leftToStudent.length === 0
+      ? ""
+      : `Before you submit, attach these yourself on the portal — I did not attach them:\n` +
+        `${input.leftToStudent.map((act) => `  - ${act}`).join("\n")}\n\n`;
   return (
     `Your application to ${input.institutionName} is complete, and the account is yours.\n\n` +
     `Sign in at ${input.portalHost} with ${input.email}.\n\n` +
+    `${ownActs}` +
     `${handoverMiddle(input)}\n\n` +
     `Tell me when you are in, and I will close this off.`
   );

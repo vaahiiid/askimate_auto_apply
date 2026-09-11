@@ -761,6 +761,23 @@ describe("handover", () => {
     expect(text).toContain("only you can get into the account");
   });
 
+  it("names what the student attaches themselves, with its entry, before they submit (ADR-0104)", () => {
+    const text = renderHandover({
+      institutionName: "Ulster University",
+      portalHost: "apply.qahighereducation.com",
+      email: "niloofar@example.com",
+      approach: "passwordless",
+      leftToStudent: ["Certificate — Your qualifications, entry 1 of 2", "Certificate — Your qualifications, entry 2 of 2"],
+    });
+    expect(text).toContain("Before you submit, attach these yourself on the portal — I did not attach them:");
+    expect(text).toContain("  - Certificate — Your qualifications, entry 1 of 2");
+    expect(text).toContain("  - Certificate — Your qualifications, entry 2 of 2");
+    // Nothing to attach: nothing said, so the message does not change shape for every run.
+    expect(
+      renderHandover({ institutionName: "U", portalHost: "h", email: "e", approach: "passwordless", leftToStudent: [] }),
+    ).not.toContain("Before you submit");
+  });
+
   it("does not claim to have destroyed a password it never held", () => {
     const text = renderHandover({
       institutionName: "Ulster University",

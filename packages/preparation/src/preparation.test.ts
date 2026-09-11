@@ -919,12 +919,55 @@ describe("a page filled once per item, in the preview (P96)", () => {
   it("lists each entry under its own heading, in the student's order, every field of it", () => {
     const preview = previewFor(QUALIFICATIONS);
     const items = preview.entries.filter((entry) => entry.item !== undefined);
-    expect(items.map((entry) => entry.item?.index)).toEqual([0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(items.map((entry) => entry.item?.index)).toEqual([0, 0, 0, 0, 1, 1, 1, 1, 1]);
     const text = renderPreview(preview);
     expect(text).toContain("Your qualifications — entry 1 of 2:");
     expect(text).toContain("Your qualifications — entry 2 of 2:");
     expect(text.indexOf("Sharif University of Technology")).toBeLessThan(text.indexOf("Farzanegan High School"));
     expect(text).toContain("  Institution: Sharif University of Technology");
+  });
+
+  it("says under EACH entry what the student attaches themselves, apart from what was filled (ADR-0104)", () => {
+    // Vahid, 2026-09-11: *"under each qualification, the student must be able
+    // to see which documents they are attaching themselves and which ones we
+    // filled. If a student reads it and cannot tell the difference, B's
+    // honesty is only in the design."*
+    const preview = previewFor(QUALIFICATIONS);
+    const handoffs = preview.handoffs.filter((h) => h.fieldRef === "qualification_certificate");
+    expect(handoffs.map((h) => h.item?.index)).toEqual([0, 1]);
+    const text = renderPreview(preview);
+    const first = text.indexOf("Your qualifications — entry 1 of 2:");
+    const second = text.indexOf("Your qualifications — entry 2 of 2:");
+    const attachFirst = text.indexOf("  You attach yourself: Certificate", first);
+    expect(attachFirst).toBeGreaterThan(first);
+    expect(attachFirst).toBeLessThan(second);
+    expect(text.indexOf("  You attach yourself: Certificate", second)).toBeGreaterThan(second);
+    // The school diploma's grade note is filled; the bachelor's is not shown
+    // and not listed — the condition is answered per item.
+    expect(text.slice(second)).toContain("  Grade, as on the certificate: 19.1");
+    expect(text.slice(first, second)).not.toContain("Grade, as on the certificate");
+    // Not in the general list at the end: it belongs to its entry.
+    expect(text).not.toMatch(/You will complete these yourself:\n {2}Certificate/);
+  });
+
+  it("binds the yes to what the student attaches themselves, per entry", () => {
+    const preview = previewFor(QUALIFICATIONS);
+    const blueprintWithout = {
+      ...GATED_PORTAL_BLUEPRINT,
+      pages: GATED_PORTAL_BLUEPRINT.pages.map((page) =>
+        page.pageRef === "page-education"
+          ? { ...page, sections: page.sections.map((s) => ({ ...s, fields: s.fields.filter((f) => f.fieldRef !== "qualification_certificate") })) }
+          : page,
+      ),
+    };
+    const setWithout = { ...GATED_PORTAL_MAPPING_SET, mappings: GATED_PORTAL_MAPPING_SET.mappings.filter((m) => m.fieldRef !== "qualification_certificate") };
+    const check = checkUsable(setWithout, blueprintWithout);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprintWithout, check.mappingSet, profile(QUALIFICATIONS));
+    const built = buildPreview(blueprintWithout, plan, new Map());
+    if (!built.built) expect.unreachable(built.refusal.detail);
+    expect(built.preview.entries).toEqual(preview.entries);
+    expect(built.preview.contentHash).not.toBe(preview.contentHash);
   });
 
   it("says plainly when the block is filled zero times", () => {

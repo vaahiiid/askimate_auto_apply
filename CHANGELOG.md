@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.108.0] — 2026-09-11
+
+**P98 — ADR-0104: blocker 21 decided by Vahid. A repeating page's documents are the student's
+own act, said under each entry; a condition inside a repeat is answered per item.**
+
+### Added
+
+- ADR-0104, Accepted, carrying his decision in full: B, with the per-item condition; C out; A
+  recorded as an option and not the end state, his correction of the sheet's framing.
+- `checkUsable` admits a `student_handoff` on a repeating page for a document slot only, and a
+  condition on a repeating page that looks at the page; one that looks off it is refused.
+- The plan carries a document slot's handoff once per item; the page's conditions are evaluated
+  per item against that item's own values, and a field hidden for an entry is recorded with it.
+  `HandoffRequirement` carries the field's type and its item.
+- `toStoredPlan` no longer refuses a plan for a handoff on a document slot: the runner fills the
+  page, and the student attaches. A handoff on anything else still refuses.
+- The preview says *You attach yourself: …* under each entry, inside the content hash with the
+  entry; the general list carries only handoffs that belong to no entry. The handover message
+  names the same acts with their entry, at the ask and at the confirmation.
+- The fixture portal's education form takes a certificate and shows a grade box for a school
+  qualification only; the gated fixture maps both; the journey holds the per-item condition and
+  the two *You attach yourself* lines. The Sheffield draft (0.2.7; set 0.3.4) marks its
+  education page as repeating and leaves its six document slots to the student.
+
+---
+
 ## [0.107.0] — 2026-09-11
 
 **P97 — deliberate regressions over the four gaps ADR-0103 built; the companion's value was

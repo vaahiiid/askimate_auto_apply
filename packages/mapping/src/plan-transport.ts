@@ -140,7 +140,7 @@ export interface StoredFillPlan {
 export type PlanTransportRefusal =
   /** The plan is not executable: a required field has no mapping, or worse. */
   | "has_blockers"
-  /** A field the student must do themselves. Not automatable by definition. */
+  /** A field the student must do themselves, other than a document slot (ADR-0104). Not automatable by definition. */
   | "has_handoffs";
 
 /**
@@ -154,7 +154,11 @@ export function toStoredPlan(
   plan: FillPlan,
 ): { readonly ok: true; readonly plan: StoredFillPlan } | { readonly ok: false; readonly refusal: PlanTransportRefusal } {
   if (plan.blockers.length > 0) return { ok: false, refusal: "has_blockers" };
-  if (plan.handoffs.length > 0) return { ok: false, refusal: "has_handoffs" };
+  // ADR-0104: a document slot left to the student is not dropped and not a
+  // refusal — the runner fills the page and the preview says, under the entry,
+  // what the student attaches themselves. A handoff on anything else still
+  // makes the plan a person's, not a runner's.
+  if (plan.handoffs.some((handoff) => handoff.inputType !== "file")) return { ok: false, refusal: "has_handoffs" };
 
   return {
     ok: true,

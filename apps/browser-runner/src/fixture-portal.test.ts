@@ -174,21 +174,32 @@ describe("a page filled once per qualification (P96)", () => {
     await form("/apply", { given_name: "N", family_name: "H", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, signedIn);
     const empty = await (await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn } })).text();
     expect(empty).toContain('<button type="button" id="addQualificationBtn">Add a qualification</button>');
-    expect(empty).toContain('<form method="post" action="/education/add" id="qualificationForm" hidden>');
+    expect(empty).toContain('<form method="post" action="/education/add" id="qualificationForm" enctype="multipart/form-data" hidden>');
     expect(empty).not.toContain('class="qualification"');
 
-    const first = await form("/education/add", { level: "BSc", subject: "Maths", institution: "A", year: "2021" }, signedIn);
+    const entry = async (fields: Record<string, string>, certificate?: string): Promise<Response> => {
+      const body = new FormData();
+      for (const [name, value] of Object.entries(fields)) body.set(name, value);
+      if (certificate !== undefined) body.set("certificate", new Blob(["%PDF-1.7\n"], { type: "application/pdf" }), certificate);
+      return await fetch(`${portal.baseUrl}/education/add`, { method: "POST", headers: { cookie: signedIn }, body, redirect: "manual" });
+    };
+    const first = await entry({ level: "BSc", subject: "Maths", institution: "A", year: "2021" });
     expect(first.status).toBe(302);
     expect(first.headers.get("location")).toBe("/education");
-    const second = await form("/education/add", { level: "Diploma", subject: "Physics", institution: "B", year: "2017" }, signedIn);
+    const second = await entry({ level: "Diploma", subject: "Physics", institution: "B", year: "2017", grade_note: "19" }, "diploma.pdf");
     expect(second.status).toBe(302);
     const listed = await (await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn } })).text();
     expect(listed.match(/class="qualification"/g)).toHaveLength(2);
     expect(listed.indexOf("BSc — Maths")).toBeLessThan(listed.indexOf("Diploma — Physics"));
     expect(portal.application(EMAIL)?.qualifications.map((q) => q.level)).toEqual(["BSc", "Diploma"]);
+    // The certificate the applicant attached, and the grade box, are held with the entry (ADR-0104).
+    expect(portal.application(EMAIL)?.qualifications.map((q) => [q.gradeNote, q.certificate])).toEqual([
+      ["", null],
+      ["19", "diploma.pdf"],
+    ]);
 
     // A blank qualification is refused; leaving the page adds nothing.
-    const blank = await form("/education/add", { level: "  ", subject: "", institution: "", year: "" }, signedIn);
+    const blank = await entry({ level: "  ", subject: "", institution: "", year: "" });
     expect(blank.status).toBe(400);
     const left = await form("/education", {}, signedIn);
     expect(left.status).toBe(302);

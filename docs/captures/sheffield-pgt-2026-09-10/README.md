@@ -323,7 +323,7 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.6 and the mapping set 0.3.3. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.7 and the mapping set 0.3.4. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
@@ -353,8 +353,15 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    after another field is set (P94); a typeahead as a fill mechanism (P95); a repeatable entry
    (education, employment) as a page shape (P96); a companion field whose value follows another
    act, the upload radios (P93).
-   - **P96 — a finding, not a marking.** The education page (`page7`) is the repeatable entry
-     the gap was raised for, and the built schema **cannot yet mark it**: `checkUsable` refuses a
+   - **P98 — marked, under ADR-0104.** Vahid decided blocker 21 on 2026-09-11 (B, with the
+     per-item condition): the curated draft (0.2.7) marks `page7` as repeating over
+     `education.prior_qualifications`; the mapping set (0.3.4) leaves its six document slots to
+     the student as handoffs, said under each qualification in the preview; `unlistedDegree`,
+     shown by `degree` on the same page, is answered per entry. How the portal reaches a second
+     entry was not read, and the draft records no `addAnother`. No field on the page is mapped
+     yet: which portal box each part of a `Qualification` fills waits on the reviewer.
+   - **P96 — the finding as it stood.** The education page (`page7`) is the repeatable entry
+     the gap was raised for, and the schema as built in P96 **could not mark it**: `checkUsable` refuses a
      condition on a repeating page, and refuses any document mapped on one, and `page7` has
      both in prospect — `unlistedDegree`, shown by another field, refuses it today; six document
      slots (certificate, transcript and their translations, one set per qualification) would

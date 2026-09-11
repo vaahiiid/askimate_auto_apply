@@ -551,6 +551,30 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
  * because a run that fills a form it then cannot save has wasted the
  * student's answers.
  */
+/**
+ * What the student attaches themselves (ADR-0104): the document slots of a
+ * repeating page, named with their entry, as the fill plan holds them. The
+ * same list at the handover's ask and at its confirmation, because the
+ * confirmation is bound to the text they were shown (ADR-0050).
+ */
+function studentsOwnActs(state: RunState): readonly string[] {
+  const usable = checkUsable(state.inputs.mappingSet, state.inputs.blueprint);
+  if (!usable.usable) return [];
+  const plan = planFill(state.inputs.blueprint, usable.mappingSet, state.profile);
+  const titles = new Map(
+    state.inputs.blueprint.pages.flatMap((page) =>
+      page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
+    ),
+  );
+  return plan.handoffs
+    .filter((handoff) => handoff.inputType === "file")
+    .map((handoff) =>
+      handoff.item === undefined
+        ? handoff.label
+        : `${handoff.label} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`,
+    );
+}
+
 function accountStepFor(state: RunState): RunStep | null {
   if (!state.inputs.blueprint.authentication.required) return null;
 
@@ -638,6 +662,7 @@ function accountStepFor(state: RunState): RunStep | null {
         portalHost: account.portalHost,
         email: unwrapConfirmed(account.email),
         approach: account.authentication.approach,
+        leftToStudent: studentsOwnActs(state),
       }),
     };
   }
@@ -1209,6 +1234,7 @@ export function accountCreated(
     portalHost,
     email: unwrapConfirmed(email),
     approach: plan.approach,
+    leftToStudent: studentsOwnActs(state),
   });
   const handover = checkHandoverComplete({
     checklist,

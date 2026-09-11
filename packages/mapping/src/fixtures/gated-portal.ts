@@ -257,6 +257,27 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               locators: [{ strategy: "id", value: "qualificationYear" }],
               validations: [{ kind: "pattern", value: "\\d{4}", source: "dom_attribute" }],
             },
+            {
+              // ADR-0104: a condition inside a repeat, answered per item — the
+              // page shows this box only for a school qualification.
+              fieldRef: "qualification_grade_note",
+              label: "Grade, as on the certificate",
+              inputType: "text",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationGradeNote" }],
+              validations: [],
+              visibleWhen: { whenFieldRef: "qualification_level", operator: "equals", value: "High school diploma" },
+            },
+            {
+              // ADR-0104: the documents of a repeating page are the student's own
+              // act. Mapped as a handoff; the preview says so under each entry.
+              fieldRef: "qualification_certificate",
+              label: "Certificate",
+              inputType: "file",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationCertificate" }],
+              validations: [{ kind: "accept", value: ".pdf,.jpg,.png", source: "dom_attribute" }],
+            },
           ],
         },
       ],
@@ -447,6 +468,17 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         kind: "profile_field",
         fieldKey: "education.prior_qualifications",
         format: { kind: "part", path: "completionYear", then: { kind: "number" } },
+      },
+    },
+    {
+      fieldRef: "qualification_grade_note",
+      source: { kind: "profile_field", fieldKey: "education.prior_qualifications", format: { kind: "part", path: "grade" } },
+    },
+    {
+      fieldRef: "qualification_certificate",
+      source: {
+        kind: "student_handoff",
+        reason: "You attach the certificate for each qualification yourself, on the qualifications page (ADR-0104).",
       },
     },
     {

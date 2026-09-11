@@ -4844,3 +4844,37 @@ which the unit test states and the journey does not stage.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P98 — ADR-0104: blocker 21 decided; a repeating page's documents are the student's own act, said under each entry
+
+Vahid decided the fifth gap the day it was raised, and in his words: B, with the per-item
+condition built with it. C is out — *"the education page is the heart of a university
+application"* — and B is honest in a way A is not yet, because it says in the preview which parts
+the student does themselves and attaches nothing that could be wrong. He also corrected the
+sheet's framing, and the correction is the part worth carrying: A is an option, not the end state.
+It changes what a student holds, that is a product decision he has not made, and answering the
+sheet did not make it. Nothing here plans A.
+
+What B needed was found on the way in. A field handed to the student had never reached a run at
+all: the transport refused any plan with a handoff, so a mapping set with one made the whole
+application a person's work and no page was ever handed to a runner. That was right for a
+declaration checkbox and wrong for a certificate slot on a page the runner should still fill, so
+the rule is now the narrower one: a handoff on a document slot is the student's part of a page
+the runner fills; a handoff on anything else still keeps the plan from a runner. The preview says
+under each entry what the student attaches themselves, apart from the fields we filled — his
+condition, that a student reading it can tell the difference — and the handover message names the
+same acts with their entry, at the ask and at the confirmation, so the message they act on says it
+too. A condition inside a repeat is answered per item, against that item's own values, and a
+field hidden for one qualification is recorded as hidden for that one; a condition that looks off
+the page is refused, because no item could answer it.
+
+The fixture's education form now takes a certificate and asks a grade only of a school
+qualification; the journey holds that the diploma's grade was typed, the bachelor's box was left
+alone, nothing was attached by the runner, and the preview carries the two *You attach yourself*
+lines. Sheffield's education page is marked, its six slots left to the student, its one condition
+admitted. Whether the portal reaches a second entry by a URL or a control was not read, and the
+next read says.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

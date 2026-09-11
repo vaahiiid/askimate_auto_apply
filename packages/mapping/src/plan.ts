@@ -161,6 +161,14 @@ export interface HandoffRequirement {
   readonly fieldRef: string;
   readonly label: string;
   readonly reason: string;
+  /**
+   * What the field is. A handoff on a document slot (`file`) is the student's
+   * own act on a page the runner still fills, and does not refuse transport
+   * (ADR-0104); a handoff on anything else still does.
+   */
+  readonly inputType: FieldInputType;
+  /** Which entry of a repeating page this belongs to (ADR-0104). */
+  readonly item?: { readonly index: number; readonly count: number };
 }
 
 /** Something that stops the plan being complete. */
@@ -213,6 +221,8 @@ export interface HiddenField {
   readonly label: string;
   /** The field whose planned value hides this one. */
   readonly whenFieldRef: string;
+  /** On a repeating page, WHICH entry hides it — the condition is answered per item (ADR-0104). */
+  readonly item?: { readonly index: number; readonly count: number };
 }
 
 export interface FillPlan {
@@ -334,6 +344,7 @@ export function planFill(
           fieldRef: field.fieldRef,
           label: field.label,
           reason: mapping.source.reason,
+          inputType: field.inputType,
         });
         break;
 
@@ -424,6 +435,7 @@ export function planFill(
   // with no prior qualifications has none to add — unless a mapped field on
   // the page is required, in which case it asks, as any required field does.
   const repeats: RepeatedPage[] = [];
+  const itemHidden: HiddenField[] = [];
   for (const page of blueprint.pages) {
     if (page.repeats === undefined) continue;
     const fields = page.sections.flatMap((section) => section.fields);
@@ -461,15 +473,30 @@ export function planFill(
 
     const list = unwrapConfirmed(resolution);
     const count = Array.isArray(list) ? list.length : 0;
+    const governedOnPage = conditionsOf({ ...blueprint, pages: [page] }).filter((entry) => entry.conditions.length > 0);
     for (let index = 0; index < count; index++) {
       const item = { index, count };
+      const itemInstructions: FillInstruction[] = [];
+      const itemHandoffs: HandoffRequirement[] = [];
+      const itemBlockers: FillBlocker[] = [];
       for (const field of fields) {
         const mapping = mappingFor(mappingSet, field.fieldRef);
         if (mapping === undefined) continue;
         if (mapping.source.kind === "constant") {
-          instructions.push({
+          itemInstructions.push({
             ...instructionShape(field),
             value: { kind: "reviewed_constant", constant: reviewedConstant(mappingSet, mapping.source) },
+            item,
+          });
+          continue;
+        }
+        if (mapping.source.kind === "student_handoff") {
+          // ADR-0104 (B): the student's own act, once per entry, said under it.
+          itemHandoffs.push({
+            fieldRef: field.fieldRef,
+            label: field.label,
+            reason: mapping.source.reason,
+            inputType: field.inputType,
             item,
           });
           continue;
@@ -477,7 +504,7 @@ export function planFill(
         if (mapping.source.kind !== "profile_field") continue; // refused by checkUsable
         const rendered = renderConfirmedItem(resolution, index, mapping.source.format);
         if (!rendered.rendered) {
-          blockers.push({
+          itemBlockers.push({
             kind: "render_refused",
             fieldRef: field.fieldRef,
             label: field.label,
@@ -486,12 +513,24 @@ export function planFill(
           });
           continue;
         }
-        instructions.push({
+        itemInstructions.push({
           ...instructionShape(field),
           value: { kind: "confirmed", value: rendered.value, fieldKey },
           item,
         });
       }
+      // ADR-0104: a condition inside a repeat is answered PER ITEM, against
+      // this item's own values — shown for the qualification it applies to,
+      // hidden for the other, and recorded as hidden for that entry.
+      const hiddenHere = hiddenAmong(
+        governedOnPage,
+        new Map(itemInstructions.map((instruction) => [instruction.fieldRef, textOf(instruction.value)])),
+      );
+      const shownHere = (fieldRef: string): boolean => !hiddenHere.has(fieldRef);
+      instructions.push(...itemInstructions.filter((instruction) => shownHere(instruction.fieldRef)));
+      handoffs.push(...itemHandoffs.filter((handoff) => shownHere(handoff.fieldRef)));
+      blockers.push(...itemBlockers.filter((blocker) => shownHere(blocker.fieldRef)));
+      for (const hiddenField of hiddenHere.values()) itemHidden.push({ ...hiddenField, item });
     }
     repeats.push({ pageRef: page.pageRef, title: page.title, fieldKey, count });
   }
@@ -504,8 +543,10 @@ export function planFill(
   // upload are dropped and it is listed under `hidden`, so the preview and
   // the fill see what the student would. A field whose controller is itself
   // hidden is hidden too, which is why this runs to a fixed point.
-  const hidden = hiddenFields(blueprint, instructions);
-  const shown = (fieldRef: string): boolean => !hidden.has(fieldRef);
+  // The fields of a repeating page were answered per item above and are not
+  // evaluated again here, where one text per field reference would be wrong.
+  const hidden = hiddenFields(blueprint, instructions, repeated);
+  const shown = (fieldRef: string): boolean => repeated.has(fieldRef) || !hidden.has(fieldRef);
 
   return {
     blueprintId: String(blueprint.blueprintId),
@@ -516,7 +557,7 @@ export function planFill(
     handoffs,
     credentials,
     blockers: blockers.filter((blocker) => shown(blocker.fieldRef)),
-    hidden: [...hidden.values()],
+    hidden: [...hidden.values(), ...itemHidden],
     repeats,
   };
 }
@@ -556,9 +597,22 @@ function holds(condition: FieldCondition, text: string | undefined): boolean {
 function hiddenFields(
   blueprint: ApplicationBlueprint,
   instructions: readonly FillInstruction[],
+  except: ReadonlySet<string>,
 ): Map<string, HiddenField> {
-  const texts = new Map(instructions.map((instruction) => [instruction.fieldRef, textOf(instruction.value)]));
-  const governed = conditionsOf(blueprint).filter((entry) => entry.conditions.length > 0);
+  const texts = new Map(
+    instructions.filter((instruction) => !except.has(instruction.fieldRef)).map((instruction) => [instruction.fieldRef, textOf(instruction.value)]),
+  );
+  const governed = conditionsOf(blueprint).filter(
+    (entry) => entry.conditions.length > 0 && !except.has(entry.field.fieldRef),
+  );
+  return hiddenAmong(governed, texts);
+}
+
+/** The fixed point of "hidden": a field whose condition fails, or whose controlling field is itself hidden. */
+function hiddenAmong(
+  governed: readonly { readonly field: BlueprintField; readonly conditions: readonly FieldCondition[] }[],
+  texts: ReadonlyMap<string, string>,
+): Map<string, HiddenField> {
   const hidden = new Map<string, HiddenField>();
   for (let changed = true; changed; ) {
     changed = false;

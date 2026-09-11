@@ -1,6 +1,10 @@
 # Decision sheet — a document per item of a repeating page, and a condition inside one
 
-**For:** Vahid · **Prepared:** 2026-09-11 · **Answerable in one sitting**
+**For:** Vahid · **Prepared:** 2026-09-11 · ~~**Answerable in one sitting**~~
+**✅ DECIDED — Vahid Mohammadi, 2026-09-11: B, and the per-item condition built with it. C out; A
+recorded as an option, not the end state — his correction of this sheet's framing. Built in P98;
+see [ADR-0104](./decisions/0104-a-repeating-pages-documents-are-the-students-own-act.md), which
+carries his words in full.**
 Companion to [blocker 19](./decision-sheet-blocker-19-how-a-runner-is-signed-in.md) and
 [blocker 20](./decision-sheet-article-9-fields-a-portal-asks-for.md). Recorded as **blocker 21** in
 [`state-of-the-system.md`](./state-of-the-system.md).

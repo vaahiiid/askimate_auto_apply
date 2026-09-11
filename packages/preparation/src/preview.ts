@@ -121,6 +121,8 @@ export interface PreviewHandoff {
   readonly fieldRef: string;
   readonly label: string;
   readonly reason: string;
+  /** Under which entry of a repeating page it is said (ADR-0104). */
+  readonly item?: PreviewItem;
 }
 
 /**
@@ -443,6 +445,9 @@ export function buildPreview(
     fieldRef: handoff.fieldRef,
     label: handoff.label,
     reason: handoff.reason,
+    ...(handoff.item === undefined
+      ? {}
+      : { item: { index: handoff.item.index, count: handoff.item.count, title: pageTitleOf.get(handoff.fieldRef) ?? "" } }),
   }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
@@ -553,7 +558,8 @@ function hashContent(content: {
     );
   }
   for (const handoff of [...content.handoffs].sort(byFieldRef)) {
-    lines.push(`handoff${handoff.fieldRef}`);
+    // ADR-0104: what the student attaches themselves, under which entry.
+    lines.push(`handoff${handoff.fieldRef}${handoff.item === undefined ? "" : `#${String(handoff.item.index)}`}`);
   }
   // ADR-0102: what was entered instead of an answer, why, the form's quoted
   // words and which controls were left untouched are all inside the yes — a
@@ -615,7 +621,16 @@ export function renderPreview(preview: SubmissionPreview): string {
     "",
   ];
 
+  // ADR-0104: what the student attaches themselves is said UNDER its entry,
+  // apart from what was filled, so the two can be told apart while reading.
+  const ownActs = (item: PreviewItem | undefined): readonly string[] =>
+    item === undefined
+      ? []
+      : preview.handoffs
+          .filter((handoff) => handoff.item?.title === item.title && handoff.item.index === item.index)
+          .map((handoff) => `  You attach yourself: ${handoff.label}`);
   let heading: string | null = null;
+  let current: PreviewItem | undefined;
   for (const entry of preview.entries) {
     // ADR-0103 gap 3: each entry of a repeating page under its own heading,
     // in the order the student gave them, every field of it.
@@ -624,8 +639,10 @@ export function renderPreview(preview: SubmissionPreview): string {
         ? null
         : `${entry.item.title} — entry ${String(entry.item.index + 1)} of ${String(entry.item.count)}:`;
     if (entryHeading !== heading) {
+      lines.push(...ownActs(current));
       if (entryHeading !== null) lines.push(entryHeading);
       heading = entryHeading;
+      current = entry.item;
     }
     const indent = entry.item === undefined ? "" : "  ";
     // What it means first, then what is actually sent — because the student
@@ -641,6 +658,7 @@ export function renderPreview(preview: SubmissionPreview): string {
       lines.push(`${indent}    (set by AskiMate: ${entry.attribution.rationale})`);
     }
   }
+  lines.push(...ownActs(current));
   for (const repeat of preview.repeats) {
     // Said plainly: a block filled zero times is a fact the student is
     // authorising, not an omission.
@@ -693,9 +711,10 @@ export function renderPreview(preview: SubmissionPreview): string {
     }
   }
 
-  if (preview.handoffs.length > 0) {
+  const general = preview.handoffs.filter((handoff) => handoff.item === undefined);
+  if (general.length > 0) {
     lines.push("", "You will complete these yourself:");
-    for (const handoff of preview.handoffs) {
+    for (const handoff of general) {
       lines.push(`  ${handoff.label}`);
     }
   }

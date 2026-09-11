@@ -798,6 +798,8 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
       ["qualification_subject", 1, 2, "Mathematics and Physics"],
       ["qualification_institution", 1, 2, "Farzanegan High School"],
       ["qualification_year", 1, 2, "2017"],
+      // Shown for the school diploma only (ADR-0104): the condition is answered per item.
+      ["qualification_grade_note", 1, 2, "19.1"],
     ]);
     expect(plan.blockers).toEqual([]);
     expect(plan.repeats).toEqual([
@@ -856,6 +858,45 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     }
   });
 
+  it("leaves a repeating page's document slots to the student, once per item, and says so (ADR-0104)", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_QUALIFICATIONS);
+    const certificates = plan.handoffs.filter((h) => h.fieldRef === "qualification_certificate");
+    expect(certificates.map((h) => h.item)).toEqual([
+      { index: 0, count: 2 },
+      { index: 1, count: 2 },
+    ]);
+    expect(certificates[0]?.inputType).toBe("file");
+    expect(plan.blockers).toEqual([]);
+    // The runner still gets the page: a document slot left to the student does
+    // not refuse transport; a handoff on anything else still does.
+    const stored = toStoredPlan(plan);
+    expect(stored.ok).toBe(true);
+    const ticked: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.map((m) =>
+        m.fieldRef === "qualification_year" ? { ...m, source: { kind: "student_handoff", reason: "x" } } : m,
+      ),
+    };
+    const c = checkUsable(ticked, BLUEPRINT);
+    expect(c.usable, "a handoff on a text field of a repeating page is refused").toBe(false);
+  });
+
+  it("answers a condition inside a repeat PER ITEM: shown for the qualification it applies to, hidden for the other (ADR-0104)", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_QUALIFICATIONS);
+    const notes = plan.instructions.filter((i) => i.fieldRef === "qualification_grade_note");
+    // The second qualification is the school diploma: its grade note is typed;
+    // the bachelor's is hidden, and recorded as hidden for THAT item.
+    expect(notes.map((i) => [i.item?.index, textOf(i.value)])).toEqual([[1, "19.1"]]);
+    expect(plan.hidden).toEqual([
+      { fieldRef: "qualification_grade_note", label: "Grade, as on the certificate", whenFieldRef: "qualification_level", item: { index: 0, count: 2 } },
+    ]);
+    expect(plan.repeats[0]?.count).toBe(2);
+  });
+
   it("REFUSES a document, a handoff or a condition on a repeating page, and a list that is not one", () => {
     const handedOff: MappingSet = {
       ...SET,
@@ -879,13 +920,16 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     expect(c1b.usable).toBe(false);
     if (!c1b.usable) expect(c1b.refusal.kind).toBe("repeat_mapping_invalid");
 
+    // ADR-0104: a condition inside a repeat is answered per item, so one on
+    // the page is allowed; one that looks OFF the page has no item to be
+    // answered by and is refused.
     const conditioned = withEducation((page) => ({
       ...page,
       sections: page.sections.map((section) => ({
         ...section,
         fields: section.fields.map((field) =>
           field.fieldRef === "qualification_year"
-            ? { ...field, visibleWhen: { whenFieldRef: "qualification_level", operator: "is_not_empty" } }
+            ? { ...field, visibleWhen: { whenFieldRef: "nationality", operator: "is_not_empty" } }
             : field,
         ),
       })),
@@ -893,6 +937,7 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     const c2 = checkUsable(SET, conditioned);
     expect(c2.usable).toBe(false);
     if (!c2.usable) expect(c2.refusal.kind).toBe("repeat_mapping_invalid");
+    expect(checkUsable(SET, BLUEPRINT).usable, "the fixture's own on-page condition is allowed").toBe(true);
 
     const notAList = withEducation((page) => ({ ...page, repeats: { fieldKey: "identity.given_name" } }));
     const c3 = checkUsable(SET, notAList);

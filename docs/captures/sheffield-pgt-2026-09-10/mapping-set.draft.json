@@ -20,13 +20,15 @@
     "",
     "Registration (page0), P91, from the signed-out read of the entry page: the e-mail from the profile; the two",
     "password fields as secure_credential for portal_account_creation, filled by the Secure Plane from a value",
-    "nothing else holds, which checkUsable requires of any password field (ADR-0043)."
+    "nothing else holds, which checkUsable requires of any password field (ADR-0043).",
+    "",
+    "Education (page7), P98: the page repeats over education.prior_qualifications (ADR-0104). Its six document slots are student handoffs — the student attaches them, and the preview says so under each qualification. No field on it is mapped yet: the registry's Qualification has level, subject, institution, countryCode, completionYear, grade and gradeScale, and which portal box each fills waits on the reviewer."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.6",
+  "blueprintVersion": "0.2.7",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -242,6 +244,48 @@
         "rationale": "Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer."
       },
       "note": "Vahid, 2026-09-11, from the live dropdown: 'the option is \"Prefer not to say\". There is no \"Information withheld\" entry in the list.' The field's captured text carries no later-opportunity statement, so nothing is quoted."
+    },
+    {
+      "fieldRef": "certificate",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the degree certificate for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
+    },
+    {
+      "fieldRef": "transcript",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the transcript for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
+    },
+    {
+      "fieldRef": "officialCertTranslation",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the official certificate translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
+    },
+    {
+      "fieldRef": "officialTranTranslation",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the official transcript translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
+    },
+    {
+      "fieldRef": "certificateTranslation",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the certificate translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
+    },
+    {
+      "fieldRef": "transcriptTranslation",
+      "source": {
+        "kind": "student_handoff",
+        "reason": "You attach the transcript translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
+      }
     }
   ]
 }
