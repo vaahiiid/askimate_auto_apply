@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.109.0] — 2026-09-11
+
+**P100 — ADR-0105: a slot's companion is handed to the student with its slot; a list's options
+may be loaded by a press that loads options and nothing else.** Both decided by Vahid.
+
+### Added
+
+- ADR-0105, Accepted, carrying both decisions and his reasoning; the press's guards and the limit
+  stated before building.
+- `checkUsable` admits a `student_handoff` on a document slot's own companion when the slot is
+  handed to the student too — on any page, and on a repeating page as the one addition to
+  ADR-0104's rule — and refuses a companion handed alone or any other radio. The plan marks such
+  a handoff with its slot (`ofSlot`); the transport admits it; the preview says *You answer
+  yourself:* under the entry after *You attach yourself:*; the handover names it as answered with
+  its slot.
+- `optionsAfter.press`: a control pressed after the earlier field is set and before the bounded
+  wait. `checkUsable` refuses a press that is any page's advance control, add-another or the
+  submission control; the runner presses it through the click guard, which refuses a submission
+  name, and fails the page as drift if the press left it. The performer puts the press on the
+  click allow-list because the plane sent it.
+- The fixture portal's education form carries a certificate status radio handed with the slot;
+  its study page shows start dates only on a press, for the chosen course, and refuses one the
+  course does not offer. The journey holds both. The Sheffield draft (0.2.9; set 0.3.6) hands
+  the six status radios with their slots and presses `subjectSearchButton` for `subject`.
+
+---
+
 ## [0.108.1] — 2026-09-11
 
 **P99 — Vahid's live read of three Sheffield pages, confirmed against the capture; two shape

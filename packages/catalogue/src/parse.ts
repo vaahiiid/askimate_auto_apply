@@ -308,9 +308,11 @@ function readField(value: unknown, path: string): BlueprintField {
     ? undefined
     : list(source, "options", path, readOption);
   const visibleWhen = optionalWith(source, "visibleWhen", path, readCondition);
-  const optionsAfter = optionalWith(source, "optionsAfter", path, (held, at) => ({
-    fieldRef: text(record(held, at), "fieldRef", at),
-  }));
+  const optionsAfter = optionalWith(source, "optionsAfter", path, (held, at) => {
+    const block = record(held, at);
+    const press = optionalWith(block, "press", at, readLocator);
+    return { fieldRef: text(block, "fieldRef", at), ...(press === undefined ? {} : { press }) };
+  });
   const typeahead = optionalWith(source, "typeahead", path, (held, at) => ({
     optionLocator: readLocator(record(held, at)["optionLocator"], `${at}.optionLocator`),
   }));

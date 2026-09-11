@@ -86,8 +86,8 @@ export interface StoredFillInstruction {
   readonly inputType: FieldInputType;
   readonly locators: readonly FieldLocator[];
   readonly value: StoredFillValue;
-  /** The field this one's options follow (ADR-0103, gap 1). */
-  readonly optionsAfter?: { readonly fieldRef: string };
+  /** The field this one's options follow (ADR-0103, gap 1), and the control pressed to load them (ADR-0105). */
+  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
   /** Where a typeahead's entries are found (ADR-0103, gap 2). */
   readonly typeahead?: { readonly optionLocator: FieldLocator };
   /** Which item of a repeating page this is (ADR-0103, gap 3). */
@@ -99,6 +99,20 @@ function copyItem(
   item: { readonly index: number; readonly count: number } | undefined,
 ): { readonly item?: { readonly index: number; readonly count: number } } {
   return item === undefined ? {} : { item: { index: item.index, count: item.count } };
+}
+
+/** The dependency, copied field by field. */
+function copyOptionsAfter(
+  after: { readonly fieldRef: string; readonly press?: FieldLocator } | undefined,
+): { readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator } } {
+  return after === undefined
+    ? {}
+    : {
+        optionsAfter: {
+          fieldRef: after.fieldRef,
+          ...(after.press === undefined ? {} : { press: { strategy: after.press.strategy, value: after.press.value } }),
+        },
+      };
 }
 
 /** A typeahead's entry locator, copied field by field. */
@@ -158,7 +172,10 @@ export function toStoredPlan(
   // refusal — the runner fills the page and the preview says, under the entry,
   // what the student attaches themselves. A handoff on anything else still
   // makes the plan a person's, not a runner's.
-  if (plan.handoffs.some((handoff) => handoff.inputType !== "file")) return { ok: false, refusal: "has_handoffs" };
+  // ...and (ADR-0105) a slot's companion handed with its slot goes with it.
+  if (plan.handoffs.some((handoff) => handoff.inputType !== "file" && handoff.ofSlot === undefined)) {
+    return { ok: false, refusal: "has_handoffs" };
+  }
 
   return {
     ok: true,
@@ -176,7 +193,7 @@ export function toStoredPlan(
             value: locator.value,
           })),
           value: storedValue(instruction.value),
-          ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+          ...copyOptionsAfter(instruction.optionsAfter),
           ...copyTypeahead(instruction.typeahead),
           ...copyItem(instruction.item),
         }),
@@ -270,7 +287,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
           value: locator.value,
         })),
         value: rebuiltValue(instruction.value),
-        ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+        ...copyOptionsAfter(instruction.optionsAfter),
         ...copyTypeahead(instruction.typeahead),
         ...copyItem(instruction.item),
       }),

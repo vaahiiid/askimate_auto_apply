@@ -6025,7 +6025,16 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
       fieldRef: instruction.fieldRef,
       label: instruction.label,
       inputType: instruction.inputType,
-      ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+      ...(instruction.optionsAfter === undefined
+        ? {}
+        : {
+            optionsAfter: {
+              fieldRef: instruction.optionsAfter.fieldRef,
+              ...(instruction.optionsAfter.press === undefined
+                ? {}
+                : { press: { strategy: instruction.optionsAfter.press.strategy, value: instruction.optionsAfter.press.value } }),
+            },
+          }),
       ...(instruction.typeahead === undefined
         ? {}
         : {

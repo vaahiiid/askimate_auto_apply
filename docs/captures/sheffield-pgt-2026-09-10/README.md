@@ -386,6 +386,15 @@ waiting is not expressible** — the runner presses only a page's advance contro
 the earlier field is set (`optionsAfter: { fieldRef, press? }`), on the click allow-list because
 the plane sent it, as *add another* is. Waits on Vahid's word.
 
+**Both proposals decided and built — Vahid, 2026-09-11 (ADR-0105, P100).** The six status
+radios beside the education page's slots are handed to the student with their slots — *"'My
+transcript is in English' is not the student attaching something, it is the student answering
+the question the slot asks"* — and the preview says so under each qualification. `subject` now
+presses `subjectSearchButton` after `subjectSearch` and waits for the option; the control is
+named from the dependencies read (`onclick: searchSubjects()`), and the guards on it and their
+limit are in the ADR. The four-versus-six slots, the asterisks, the titles and the *in English*
+wording stay as his report, for the re-read.
+
 **The Tom Select entry locator** (`.ts-dropdown .option[data-selectable]`, P95) is still the
 library's default and not the capture's. What would confirm it: with the institution box open
 and two letters typed so the entries show, DevTools → Elements → the element whose class begins
@@ -398,7 +407,7 @@ and two letters typed so the entries show, DevTools → Elements → the element
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.8 and the mapping set 0.3.5. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.9 and the mapping set 0.3.6. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:

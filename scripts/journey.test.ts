@@ -914,6 +914,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // ADR-0104, in Vahid's words: under each qualification the student can
     // see which documents they attach themselves and which we filled.
     expect(preview.presentedText.match(/ {2}You attach yourself: Certificate/g)).toHaveLength(2);
+    expect(preview.presentedText.match(/ {2}You answer yourself: Certificate status/g)).toHaveLength(2);
     // The destination the student reads is the one the bytes go to — the
     // fixture portal this entry is deployed against — and not the host the
     // reviewed blueprint observed (ADR-0098 as amended in P74). The runner's
@@ -1435,7 +1436,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       expect(
         claimed.plan?.instructions.map((instruction) => instruction.fieldRef),
         "and only the fields on it",
-      ).toEqual(["course", "personal_statement"]);
+      ).toEqual(["course", "start_date", "personal_statement"]);
 
       // The production performer again, on the restarted instance's own hold.
       const outcome = await restarted.performer(claimed);
@@ -1450,6 +1451,8 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       // ── Both pages, and page one was NOT filled again ─────────────────
       const application = portal.application(EMAIL);
       expect(application?.personalStatement).toBe("Because it is the course I want.");
+      // ADR-0105: chosen from the list the press showed, never typed.
+      expect(application?.startDate).toBe("2026-09");
       expect(application?.givenName, "page one survived untouched").toBe("Niloofar");
 
       const posts = portal.requests.filter(

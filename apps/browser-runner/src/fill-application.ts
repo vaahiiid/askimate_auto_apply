@@ -229,7 +229,16 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
       fieldRef: instruction.fieldRef,
       label: instruction.label,
       inputType: instruction.inputType as StoredFillPlan["instructions"][number]["inputType"],
-      ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
+      ...(instruction.optionsAfter === undefined
+        ? {}
+        : {
+            optionsAfter: {
+              fieldRef: instruction.optionsAfter.fieldRef,
+              ...(instruction.optionsAfter.press === undefined
+                ? {}
+                : { press: { strategy: instruction.optionsAfter.press.strategy, value: instruction.optionsAfter.press.value } }),
+            },
+          }),
       ...(instruction.typeahead === undefined
         ? {}
         : {

@@ -156,7 +156,20 @@ export interface BlueprintField {
    * Recorded by the reviewer from a capture taken with the earlier field set;
    * discovery does not infer it.
    */
-  readonly optionsAfter?: { readonly fieldRef: string };
+  readonly optionsAfter?: {
+    readonly fieldRef: string;
+    /**
+     * A control pressed after `fieldRef` is set and before the wait, when the
+     * portal loads the options only on a press — a search-then-select
+     * (ADR-0105). It must be a control that loads options: `checkUsable`
+     * refuses the page's advance control, its add-another and the submission
+     * control; the runner refuses a name that reads as a submission and fails
+     * the page as drift if the press leaves it. A press that saves without
+     * navigating and without a save-like name cannot be told from a lookup by
+     * the runner; naming the control is the reviewer's act.
+     */
+    readonly press?: FieldLocator;
+  };
   /**
    * Where a typeahead's entries are found as the applicant types (ADR-0103,
    * gap 2). Required when `inputType` is `typeahead`, refused otherwise. The

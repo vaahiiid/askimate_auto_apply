@@ -304,9 +304,24 @@ describe("the application form remembers, and the review page shows it", () => {
     expect(noCourse.status).toBe(400);
     expect(await noCourse.text()).toContain("Choose your course from the list.");
 
+    // ADR-0105: the start date is chosen from a list a press shows; one the
+    // course does not offer is refused.
+    const wrongDate = await form(
+      "/study",
+      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2031-01" },
+      signedIn,
+    );
+    expect(wrongDate.status).toBe(400);
+    expect(await wrongDate.text()).toContain("Choose a start date the course offers.");
+    const offered = await (await fetch(`${portal.baseUrl}/start-dates?course=PG-EX-2026`, { headers: { cookie: signedIn } })).json();
+    expect(offered).toEqual([
+      { value: "2026-09", label: "September 2026" },
+      { value: "2027-01", label: "January 2027" },
+    ]);
+
     const secondPage = await form(
       "/study",
-      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026" },
+      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2026-09" },
       signedIn,
     );
     expect(secondPage.status).toBe(302);
@@ -334,7 +349,7 @@ describe("the application form remembers, and the review page shows it", () => {
     // hash, size and name. Posted here the way a browser posts a file.
     const cookie = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
     await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, cookie);
-    await form("/study", { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026" }, cookie);
+    await form("/study", { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2026-09" }, cookie);
     const page3 = await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } });
     const html = await page3.text();
     expect(html).toContain('<label for="passport">Upload your passport</label>');
@@ -479,10 +494,14 @@ describe("the blueprint describes THIS portal", () => {
             }
             const target = toPlaywrightLocator(page, first);
             if (target === null) expect.unreachable(`${field.fieldRef} built no locator`);
+            // A radio group is ONE question found by its shared name and set by
+            // value (P88, P93): its locator matches one input per option, so the
+            // page must offer exactly the options the blueprint lists.
+            const expected = field.inputType === "radio" ? (field.options?.length ?? 0) : 1;
             await expect(
               target.count(),
               `${blueprintPage.pageRef}/${field.fieldRef} (${first.strategy}=${first.value})`,
-            ).resolves.toBe(1);
+            ).resolves.toBe(expected);
           }
         }
         // And the control the blueprint says advances the page.

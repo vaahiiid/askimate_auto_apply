@@ -71,6 +71,8 @@ export interface PortalApplication {
   readonly passportCountry: string;
   /** The course chosen from the study page's search (P95); "" until page two is saved. */
   readonly courseCode: string;
+  /** The start date chosen from the list a press shows (ADR-0105); "" until page two is saved. */
+  readonly startDate: string;
   /** The qualifications added on the education page (P96), in the order added. */
   readonly qualifications: readonly PortalQualification[];
   readonly personalStatement: string;
@@ -296,12 +298,36 @@ const STUDY_PAGE = (error: string | null): string =>
   <ul id="courseOptions" role="listbox"></ul>
   <input type="hidden" id="courseCode" name="course_code" value="">
 
+  <label for="startDate">Start date</label>
+  <button type="button" id="showStartDatesBtn">Show start dates</button>
+  <select id="startDate" name="start_date" required>
+    <option value="">Show the start dates first</option>
+  </select>
+
   <label for="statement">Why do you want to study this course?</label>
   <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
 
   <button type="submit" id="studyContinueBtn">Save and continue</button>
 </form>
 <script>
+  // ADR-0105: a search-then-select. The start dates are loaded for the chosen
+  // course only when the control is pressed; the press loads options and
+  // nothing else — no navigation, no save.
+  document.getElementById("showStartDatesBtn").addEventListener("click", function () {
+    var list = document.getElementById("startDate");
+    fetch("/start-dates?course=" + encodeURIComponent(document.getElementById("courseCode").value))
+      .then(function (response) { return response.json(); })
+      .then(function (offered) {
+        list.innerHTML = '<option value="">Please select</option>';
+        offered.forEach(function (entry) {
+          var option = document.createElement("option");
+          option.value = entry.value;
+          option.textContent = entry.label;
+          list.appendChild(option);
+        });
+      });
+  });
+
   // P95 (ADR-0103, gap 2): a course search. Entries come from the server for
   // what was typed, after a pause; choosing one names the course by its code.
   // Two entries share a prefix, so only exact text names one course.
@@ -375,6 +401,12 @@ ${qualifications
 
   <label for="qualificationCertificate">Certificate</label>
   <input type="file" id="qualificationCertificate" name="certificate" accept=".pdf,.jpg,.png">
+  <fieldset id="certificateStatus">
+    <legend>Certificate status</legend>
+    <label><input type="radio" name="certificate_status" value="now"> I am attaching it now</label>
+    <label><input type="radio" name="certificate_status" value="later"> I will send it later</label>
+    <label><input type="radio" name="certificate_status" value="english"> It is in English</label>
+  </fieldset>
 
   <button type="submit" id="saveQualificationBtn">Save this qualification</button>
 </form>
@@ -403,7 +435,19 @@ export interface PortalQualification {
   readonly gradeNote: string;
   /** The certificate's filename when the applicant attached one; null otherwise. */
   readonly certificate: string | null;
+  /** The status the applicant set beside the certificate (ADR-0105): "now", "later", "english" or "". */
+  readonly certificateStatus: string;
 }
+
+/** The start dates each course offers, shown on a press. */
+const START_DATES: Record<string, readonly { readonly value: string; readonly label: string }[]> = {
+  "PG-EX-2026": [
+    { value: "2026-09", label: "September 2026" },
+    { value: "2027-01", label: "January 2027" },
+  ],
+  "PG-EX-2026-PT": [{ value: "2026-09", label: "September 2026" }],
+  "PG-OT-2026": [{ value: "2027-01", label: "January 2027" }],
+};
 
 /** The courses the study page's search offers. */
 const COURSES: readonly { readonly code: string; readonly name: string }[] = [
@@ -452,6 +496,7 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <dt>Qualifications</dt>
   <dd id="reviewQualifications">${application.qualifications.length === 0 ? "none" : application.qualifications.map((q) => escapeHtml(`${q.level} (${q.institution}, ${q.year})`)).join("; ")}</dd>
   <dt>Course</dt><dd id="reviewCourse">${escapeHtml(application.courseCode)}</dd>
+  <dt>Start date</dt><dd id="reviewStartDate">${escapeHtml(application.startDate)}</dd>
   <dt>Personal statement</dt>
   <dd id="reviewStatement">${escapeHtml(application.personalStatement)}</dd>
   <dt>Passport</dt>
@@ -740,6 +785,7 @@ export async function startFixturePortal(
           nationality: body.get("nationality") ?? "",
           passportCountry,
           courseCode: applications.get(signedInAs)?.courseCode ?? "",
+          startDate: applications.get(signedInAs)?.startDate ?? "",
           qualifications: applications.get(signedInAs)?.qualifications ?? [],
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
           passport: applications.get(signedInAs)?.passport ?? null,
@@ -786,6 +832,7 @@ export async function startFixturePortal(
               institution: field("institution"),
               year: field("year"),
               gradeNote: field("grade_note"),
+              certificateStatus: field("certificate_status"),
               certificate:
                 certificate === undefined || certificate.filename === null || certificate.filename.length === 0
                   ? null
@@ -803,6 +850,14 @@ export async function startFixturePortal(
           return;
         }
         send(response, 302, "", { location: "/study" });
+        return;
+      }
+
+      if (method === "GET" && path === "/start-dates") {
+        const offered = START_DATES[url.searchParams.get("course") ?? ""] ?? [];
+        setTimeout(() => {
+          response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(offered));
+        }, 300);
         return;
       }
 
@@ -844,7 +899,14 @@ export async function startFixturePortal(
           send(response, 400, STUDY_PAGE("Choose your course from the list."));
           return;
         }
-        applications.set(signedInAs, { ...held, personalStatement: statement, courseCode });
+        // ADR-0105: the start date must be one the course offers — shown on
+        // a press, chosen, not typed.
+        const startDate = studyBody.get("start_date") ?? "";
+        if (!(START_DATES[courseCode] ?? []).some((entry) => entry.value === startDate)) {
+          send(response, 400, STUDY_PAGE("Choose a start date the course offers."));
+          return;
+        }
+        applications.set(signedInAs, { ...held, personalStatement: statement, courseCode, startDate });
         send(response, 302, "", { location: "/documents" });
         return;
       }

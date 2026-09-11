@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-envelope-cache-redis",
-  "version": "0.108.1",
+  "version": "0.109.0",
   "private": true,
   "type": "module",
   "exports": {

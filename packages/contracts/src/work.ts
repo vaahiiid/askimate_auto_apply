@@ -271,8 +271,8 @@ export interface TransportedInstruction {
   readonly inputType: string;
   readonly locators: readonly FillLocator[];
   readonly value: TransportedValue;
-  /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier. */
-  readonly optionsAfter?: { readonly fieldRef: string };
+  /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier; and the control pressed to load them (ADR-0105), a locator. */
+  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FillLocator };
   /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator. */
   readonly typeahead?: { readonly optionLocator: FillLocator };
   /** Which item of a repeating page this is (ADR-0103, gap 3): two counts. */
@@ -747,12 +747,15 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
     const parsed = parseTransportedValue(held["value"]);
     if (parsed === null) return null;
     const after = held["optionsAfter"];
-    let optionsAfter: { readonly fieldRef: string } | undefined;
+    let optionsAfter: { readonly fieldRef: string; readonly press?: FillLocator } | undefined;
     if (after !== undefined) {
       if (typeof after !== "object" || after === null) return null;
       const named = (after as Record<string, unknown>)["fieldRef"];
       if (!nonEmpty(named)) return null;
-      optionsAfter = { fieldRef: named };
+      const pressRaw = (after as Record<string, unknown>)["press"];
+      const press = pressRaw === undefined ? null : parseLocator(pressRaw);
+      if (pressRaw !== undefined && press === null) return null;
+      optionsAfter = { fieldRef: named, ...(press === null ? {} : { press }) };
     }
     const entries = held["typeahead"];
     let typeahead: { readonly optionLocator: FillLocator } | undefined;

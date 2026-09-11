@@ -438,6 +438,14 @@ class RecordingSession implements ApplicationSession {
     return Promise.resolve();
   }
 
+  #leavesOnClick: { locator: string; url: string } | null = null;
+  #url = "https://apply.example.test/personal";
+
+  /** Pressing this control navigates: the page is left. */
+  public leavesPageOnClick(locatorValue: string, url: string): void {
+    this.#leavesOnClick = { locator: locatorValue, url };
+  }
+
   public awaitOption(locator: FieldLocator, value: string): Promise<void> {
     this.acts.push(`await ${locator.value}`);
     this.awaited.push({ locator, value });
@@ -473,7 +481,9 @@ class RecordingSession implements ApplicationSession {
   }
 
   public click(locator: FieldLocator): Promise<void> {
+    this.acts.push(`click ${locator.value}`);
     this.clicked.push(locator);
+    if (this.#leavesOnClick !== null && this.#leavesOnClick.locator === locator.value) this.#url = this.#leavesOnClick.url;
     return Promise.resolve();
   }
 
@@ -488,7 +498,7 @@ class RecordingSession implements ApplicationSession {
   }
 
   public currentUrl(): Promise<string> {
-    return Promise.resolve("https://apply.example.test/personal");
+    return Promise.resolve(this.#url);
   }
 }
 
@@ -676,6 +686,42 @@ describe("executing a plan", () => {
     const order = session.acts;
     expect(order.indexOf(`fill ${first}`)).toBeLessThan(order.indexOf(`await ${second}`));
     expect(order.indexOf(`await ${second}`)).toBeLessThan(order.indexOf(`fill ${second}`));
+  });
+
+  it("presses the control that loads the options AFTER the earlier field and BEFORE the wait (P100)", async () => {
+    const session = new RecordingSession();
+    const { plan: dependent, first, second } = dependentPlan();
+    const press: FieldLocator = { strategy: "id", value: "showOptionsBtn" };
+    const pressing: FillPlan = {
+      ...dependent,
+      instructions: dependent.instructions.map((i) =>
+        i.optionsAfter === undefined ? i : { ...i, optionsAfter: { ...i.optionsAfter, press } },
+      ),
+    };
+    const report = await executePlan(session, pressing, documentSource, CONTEXT);
+    expect(report.completed).toBe(true);
+    const order = session.acts;
+    expect(order.indexOf(`fill ${first}`)).toBeLessThan(order.indexOf("click showOptionsBtn"));
+    expect(order.indexOf("click showOptionsBtn")).toBeLessThan(order.indexOf(`await ${second}`));
+    expect(session.clicked.map((c) => c.value)).toEqual(["showOptionsBtn"]);
+  });
+
+  it("fails the page as drift when the press LEAVES the page — a control that advanced, saved or submitted is not one that loads options (P100)", async () => {
+    const session = new RecordingSession();
+    session.leavesPageOnClick("showOptionsBtn", "https://apply.example.test/review");
+    const { plan: dependent, second } = dependentPlan();
+    const pressing: FillPlan = {
+      ...dependent,
+      instructions: dependent.instructions.map((i) =>
+        i.optionsAfter === undefined ? i : { ...i, optionsAfter: { ...i.optionsAfter, press: { strategy: "id", value: "showOptionsBtn" } } },
+      ),
+    };
+    const report = await executePlan(session, pressing, documentSource, CONTEXT);
+    expect(report.completed).toBe(false);
+    expect(failures(report)[0]?.drift).toBe(true);
+    expect(failures(report)[0]?.error).toContain("left the page");
+    expect(session.awaited).toHaveLength(0);
+    expect(session.filled.some((f) => f.locator.value === second)).toBe(false);
   });
 
   it("fails the page as drift when the option never arrives, with nothing typed into that field", async () => {

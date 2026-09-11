@@ -278,10 +278,35 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               locators: [{ strategy: "id", value: "qualificationCertificate" }],
               validations: [{ kind: "accept", value: ".pdf,.jpg,.png", source: "dom_attribute" }],
             },
+            {
+              // ADR-0105: the slot's own companion, handed to the student WITH the
+              // slot — "It is in English" is the student answering the question
+              // the slot asks, not attaching something.
+              fieldRef: "qualification_certificate_status",
+              label: "Certificate status",
+              inputType: "radio",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "name", value: "certificate_status" }],
+              validations: [],
+              options: [
+                { value: "now", label: "I am attaching it now" },
+                { value: "later", label: "I will send it later" },
+                { value: "english", label: "It is in English" },
+              ],
+            },
           ],
         },
       ],
-      requiredDocuments: [],
+      // The slot's companion, so the relation is on the blueprint (ADR-0103 gap 4).
+      requiredDocuments: [
+        {
+          fieldRef: "qualification_certificate",
+          label: "Certificate",
+          acceptedFormats: [".pdf", ".jpg", ".png"],
+          required: false,
+          companion: { fieldRef: "qualification_certificate_status", whenAttached: "now" },
+        },
+      ],
       // Saves ONE qualification and shows the list again — not "Save and
       // continue", which leaves the page; the next item comes back to it.
       advanceControl: { strategy: "id", value: "saveQualificationBtn" },
@@ -317,6 +342,22 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               locators: [{ strategy: "id", value: "course" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
               typeahead: { optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } },
+            },
+            {
+              // ADR-0105: a search-then-select. The list is empty until the
+              // "Show start dates" control is pressed for the chosen course;
+              // the press loads options and does nothing else.
+              fieldRef: "start_date",
+              label: "Start date",
+              inputType: "select",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "startDate" }],
+              validations: [{ kind: "required", source: "dom_attribute" }],
+              options: [
+                { value: "2026-09", label: "September 2026" },
+                { value: "2027-01", label: "January 2027" },
+              ],
+              optionsAfter: { fieldRef: "course", press: { strategy: "id", value: "showStartDatesBtn" } },
             },
             {
               fieldRef: "personal_statement",
@@ -479,6 +520,22 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
       source: {
         kind: "student_handoff",
         reason: "You attach the certificate for each qualification yourself, on the qualifications page (ADR-0104).",
+      },
+    },
+    {
+      fieldRef: "qualification_certificate_status",
+      source: {
+        kind: "student_handoff",
+        reason: "You say, with the certificate, whether it is attached now, sent later, or in English (ADR-0105).",
+      },
+    },
+    {
+      fieldRef: "start_date",
+      source: {
+        kind: "constant",
+        value: "2026-09",
+        classification: "application_metadata",
+        rationale: "The September 2026 intake this entry is for; the portal lists it once the course's dates are shown.",
       },
     },
     {

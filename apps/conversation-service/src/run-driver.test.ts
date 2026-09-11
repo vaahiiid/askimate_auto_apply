@@ -3414,7 +3414,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     expect(work.formUrl).toBe("https://gated.portal.test/study");
     expect(
       work.plan?.instructions.map((instruction) => instruction.fieldRef),
-    ).toEqual(["course", "personal_statement"]);
+    ).toEqual(["course", "start_date", "personal_statement"]);
     const leases = await pool.query<{ page_ref: string | null }>(
       "SELECT page_ref FROM work_leases WHERE run_id = $1",
       [runId],
@@ -8825,9 +8825,19 @@ describeIfDatabase("which declaration actually decides", () => {
       "Documents needed: passport",
     );
 
-    // And nothing acts on it. The blueprint attaches nothing…
+    // And nothing acts on it. The blueprint attaches nothing — its one declared
+    // slot is the education page's certificate, which the STUDENT attaches
+    // (ADR-0104) and which is declared only so its companion radio is known
+    // (ADR-0103 gap 4, ADR-0105); the plan attaches nothing for it…
+    const handedToStudent = new Set(
+      DOCUMENT_ENTRY.mappingSet.mappings
+        .filter((mapping) => mapping.source.kind === "student_handoff")
+        .map((mapping) => mapping.fieldRef),
+    );
     expect(
-      DOCUMENT_ENTRY.blueprint.pages.flatMap((page) => page.requiredDocuments),
+      DOCUMENT_ENTRY.blueprint.pages
+        .flatMap((page) => page.requiredDocuments)
+        .filter((declared) => !handedToStudent.has(declared.fieldRef)),
     ).toEqual([]);
     // …the mapping plans nothing…
     expect(

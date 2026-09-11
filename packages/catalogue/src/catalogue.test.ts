@@ -239,6 +239,16 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("optionsAfter");
   });
 
+  it("round-trips the control an options-after field presses (P100)", () => {
+    const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const field = parsed.value.blueprint.pages
+      .flatMap((page) => page.sections)
+      .flatMap((section) => section.fields)
+      .find((candidate) => candidate.fieldRef === "start_date");
+    expect(field?.optionsAfter).toEqual({ fieldRef: "course", press: { strategy: "id", value: "showStartDatesBtn" } });
+  });
+
   it("round-trips a typeahead's entry locator (P95)", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);

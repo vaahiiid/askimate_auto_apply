@@ -123,6 +123,8 @@ export interface PreviewHandoff {
   readonly reason: string;
   /** Under which entry of a repeating page it is said (ADR-0104). */
   readonly item?: PreviewItem;
+  /** The slot this is the companion of, handed with it (ADR-0105): the student answers, not attaches. */
+  readonly ofSlot?: string;
 }
 
 /**
@@ -448,6 +450,7 @@ export function buildPreview(
     ...(handoff.item === undefined
       ? {}
       : { item: { index: handoff.item.index, count: handoff.item.count, title: pageTitleOf.get(handoff.fieldRef) ?? "" } }),
+    ...(handoff.ofSlot === undefined ? {} : { ofSlot: handoff.ofSlot }),
   }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
@@ -628,7 +631,11 @@ export function renderPreview(preview: SubmissionPreview): string {
       ? []
       : preview.handoffs
           .filter((handoff) => handoff.item?.title === item.title && handoff.item.index === item.index)
-          .map((handoff) => `  You attach yourself: ${handoff.label}`);
+          // The slot first, then the answer that goes with it (ADR-0105).
+          .sort((a, b) => Number(a.ofSlot !== undefined) - Number(b.ofSlot !== undefined))
+          .map((handoff) =>
+            handoff.ofSlot === undefined ? `  You attach yourself: ${handoff.label}` : `  You answer yourself: ${handoff.label}`,
+          );
   let heading: string | null = null;
   let current: PreviewItem | undefined;
   for (const entry of preview.entries) {
@@ -715,7 +722,7 @@ export function renderPreview(preview: SubmissionPreview): string {
   if (general.length > 0) {
     lines.push("", "You will complete these yourself:");
     for (const handoff of general) {
-      lines.push(`  ${handoff.label}`);
+      lines.push(handoff.ofSlot === undefined ? `  ${handoff.label}` : `  ${handoff.label} (answered with the document itself)`);
     }
   }
 

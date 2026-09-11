@@ -566,13 +566,21 @@ function studentsOwnActs(state: RunState): readonly string[] {
       page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
     ),
   );
+  const labels = new Map(
+    state.inputs.blueprint.pages.flatMap((page) =>
+      page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, field.label] as const)),
+    ),
+  );
   return plan.handoffs
-    .filter((handoff) => handoff.inputType === "file")
-    .map((handoff) =>
-      handoff.item === undefined
-        ? handoff.label
-        : `${handoff.label} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`,
-    );
+    .filter((handoff) => handoff.inputType === "file" || handoff.ofSlot !== undefined)
+    .map((handoff) => {
+      // ADR-0105: the slot's companion, answered with the slot.
+      const what =
+        handoff.ofSlot === undefined ? handoff.label : `${handoff.label} (answered with ${labels.get(handoff.ofSlot) ?? handoff.ofSlot})`;
+      return handoff.item === undefined
+        ? what
+        : `${what} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`;
+    });
 }
 
 function accountStepFor(state: RunState): RunStep | null {

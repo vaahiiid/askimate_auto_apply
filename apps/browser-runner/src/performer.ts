@@ -116,6 +116,12 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       clickableControls: [
         ...(advance === undefined ? [] : [advance]),
         ...(work.repeat?.addAnother === undefined ? [] : [work.repeat.addAnother]),
+        // ...and each control the plan presses to load a list's options
+        // (ADR-0105) — sent by the plane, refused by name if it reads as a
+        // submission, and checked after the press not to have left the page.
+        ...(work.plan?.instructions ?? []).flatMap((instruction) =>
+          instruction.optionsAfter?.press === undefined ? [] : [instruction.optionsAfter.press],
+        ),
       ],
     });
     const outcome = await fillApplication(work, {

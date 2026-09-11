@@ -959,3 +959,84 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     expect(educationPage(BLUEPRINT).repeats?.fieldKey).toBe("education.prior_qualifications");
   });
 });
+
+describe("a slot's companion handed with the slot, and a control pressed to load options (P100, ADR-0105)", () => {
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const QUALIFICATIONS = [
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+  ];
+  const WITH_ONE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
+  const withoutMapping = (fieldRef: string): MappingSet => ({ ...SET, mappings: SET.mappings.filter((m) => m.fieldRef !== fieldRef) });
+  const remapped = (fieldRef: string, source: MappingSet["mappings"][number]["source"]): MappingSet => ({
+    ...SET,
+    mappings: SET.mappings.map((m) => (m.fieldRef === fieldRef ? { ...m, source } : m)),
+  });
+
+  it("hands the slot's own companion to the student WITH the slot, once per item, and says which slot it belongs to", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_ONE);
+    const status = plan.handoffs.find((h) => h.fieldRef === "qualification_certificate_status");
+    expect(status?.item).toEqual({ index: 0, count: 1 });
+    expect(status?.ofSlot).toBe("qualification_certificate");
+    expect(status?.inputType).toBe("radio");
+    // Not a companion instruction: nothing is attached, so nothing is marked.
+    expect(plan.instructions.some((i) => i.fieldRef === "qualification_certificate_status")).toBe(false);
+    // And it crosses to the runner: the page is still filled.
+    expect(toStoredPlan(plan).ok).toBe(true);
+  });
+
+  it("REFUSES the companion's handoff when its slot is not handed off, and any other radio's handoff on the page", () => {
+    // The slot mapped to nothing: the companion has no slot to go with. The
+    // companion rule (ADR-0103 gap 4) refuses it first — a mapped companion
+    // whose slot is not handed with it — and that is the right rule to.
+    const alone = checkUsable(withoutMapping("qualification_certificate"), BLUEPRINT);
+    expect(alone.usable).toBe(false);
+    if (!alone.usable) expect(alone.refusal.kind).toBe("document_companion_invalid");
+    // A radio that is nobody's companion: not a licence.
+    const level = checkUsable(remapped("qualification_level", { kind: "student_handoff", reason: "x" }), BLUEPRINT);
+    expect(level.usable).toBe(false);
+    if (!level.usable) expect(level.refusal.kind).toBe("repeat_mapping_invalid");
+  });
+
+  it("plans the control to press before waiting for the options", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const start = plan.instructions.find((i) => i.fieldRef === "start_date");
+    expect(start?.optionsAfter).toEqual({ fieldRef: "course", press: { strategy: "id", value: "showStartDatesBtn" } });
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    expect(rehydratePlan(stored.plan).instructions.find((i) => i.fieldRef === "start_date")?.optionsAfter?.press).toEqual({
+      strategy: "id",
+      value: "showStartDatesBtn",
+    });
+  });
+
+  it("REFUSES a press that is the page's advance control, its add-another, or the submission control", () => {
+    const withPress = (press: { strategy: "id" | "role"; value: string }): ApplicationBlueprint => ({
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) =>
+            field.fieldRef === "start_date" ? { ...field, optionsAfter: { fieldRef: "course", press } } : field,
+          ),
+        })),
+      })),
+    });
+    const advance = checkUsable(SET, withPress({ strategy: "role", value: "button:Save and continue" }));
+    expect(advance.usable).toBe(false);
+    if (!advance.usable) expect(advance.refusal.kind).toBe("options_after_invalid");
+    const another = checkUsable(SET, withPress({ strategy: "id", value: "addQualificationBtn" }));
+    expect(another.usable).toBe(false);
+    if (!another.usable) expect(another.refusal.kind).toBe("options_after_invalid");
+    const submit = BLUEPRINT.submission?.submitControl;
+    if (submit === undefined) expect.unreachable("the fixture records its submit control");
+    const submitting = checkUsable(SET, withPress({ strategy: submit.strategy as "id", value: submit.value }));
+    expect(submitting.usable).toBe(false);
+    if (!submitting.usable) expect(submitting.refusal.kind).toBe("options_after_invalid");
+  });
+});

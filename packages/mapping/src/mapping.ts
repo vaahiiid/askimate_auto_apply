@@ -582,11 +582,32 @@ export function checkUsable(
   }
 
   // ── ADR-0103 gap 4: a slot's companion follows the attach, and nothing else ──
+  //
+  // ADR-0105: unless the slot itself is the student's act — then its own
+  // companion may be handed to them WITH it, because "it is in English" is the
+  // student answering the question the slot asks. That companion, with that
+  // slot, and nothing else.
+  const handedOff = new Set(
+    mappingSet.mappings.filter((mapping) => mapping.source.kind === "student_handoff").map((mapping) => mapping.fieldRef),
+  );
+  const slotOfCompanion = new Map(
+    allRequiredDocuments(blueprint).flatMap((document) =>
+      document.companion === undefined ? [] : [[document.companion.fieldRef, document.fieldRef] as const],
+    ),
+  );
+  const handedWithItsSlot = (fieldRef: string): boolean => {
+    const slot = slotOfCompanion.get(fieldRef);
+    return slot !== undefined && handedOff.has(fieldRef) && handedOff.has(slot);
+  };
   const badCompanions: string[] = [];
   for (const document of allRequiredDocuments(blueprint)) {
     if (document.companion === undefined) continue;
     const field = fieldsByRef.get(document.companion.fieldRef);
-    if (field === undefined || !formOffers(field, document.companion.whenAttached) || mapped.has(field.fieldRef)) {
+    if (
+      field === undefined ||
+      !formOffers(field, document.companion.whenAttached) ||
+      (mapped.has(field.fieldRef) && !handedWithItsSlot(field.fieldRef))
+    ) {
       badCompanions.push(document.companion.fieldRef);
     }
   }
@@ -666,9 +687,12 @@ export function checkUsable(
           }
         } else if (mapping.source.kind === "student_handoff") {
           // ADR-0104 (B): the documents of a repeating page are the student's
-          // own act — a handoff on a document slot, and on nothing else.
-          if (field.inputType !== "file") {
-            repeatProblems.push(`${field.fieldRef} is handed to the student on a page that repeats, and it is not a document slot`);
+          // own act — a handoff on a document slot, and (ADR-0105) on that
+          // slot's own companion handed with it, and on nothing else.
+          if (field.inputType !== "file" && !handedWithItsSlot(field.fieldRef)) {
+            repeatProblems.push(
+              `${field.fieldRef} is handed to the student on a page that repeats, and it is neither a document slot nor a slot's companion handed with its slot`,
+            );
             repeatRefs.push(field.fieldRef);
           }
         } else if (mapping.source.kind !== "constant") {
@@ -703,10 +727,28 @@ export function checkUsable(
   // fill that fails on every run, and it is refused here rather than there.
   const orderProblems: string[] = [];
   const orderRefs: string[] = [];
+  const sameLocator = (a: FieldLocator | undefined, b: FieldLocator | undefined): boolean =>
+    a !== undefined && b !== undefined && a.strategy === b.strategy && a.value === b.value;
+  // Every control the blueprint knows to move the application, on any page:
+  // none of them loads options, and a press may be none of them.
+  const movingControls: readonly FieldLocator[] = [
+    ...blueprint.pages.flatMap((page) => [page.advanceControl, page.repeats?.addAnother]),
+    blueprint.submission?.submitControl,
+  ].filter((control): control is FieldLocator => control !== undefined);
   for (const page of blueprint.pages) {
     const order = page.sections.flatMap((section) => section.fields);
     order.forEach((field, index) => {
       if (field.optionsAfter === undefined) return;
+      // ADR-0105: a press loads options and nothing else. The controls that
+      // advance, add another or submit are known to the blueprint, and a press
+      // that is one of them is refused here; the runner refuses a submission
+      // name and a press that leaves the page.
+      const press = field.optionsAfter.press;
+      if (press !== undefined && movingControls.some((control) => sameLocator(press, control))) {
+        orderProblems.push(`${field.fieldRef} presses ${press.strategy}="${press.value}", which advances, adds another or submits`);
+        orderRefs.push(field.fieldRef);
+        return;
+      }
       const earlierIndex = order.findIndex((candidate) => candidate.fieldRef === field.optionsAfter?.fieldRef);
       const problem =
         earlierIndex === -1

@@ -4905,3 +4905,34 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P100 — ADR-0105: a slot's companion handed with its slot; a list's options loaded by a press
+
+Both proposals from his live read came back decided the same day, with the reasoning he wants
+the record to carry. The companion first: a student whose transcript is in English is not
+attaching something, they are answering the question the slot asks, and a rule that stopped them
+saying so would make the education page unfillable for a whole class of applicant — the rule
+defeating the purpose option B was chosen for, the same shape as the twelve-checkbox cover in
+ADR-0102. So a slot's own companion may be handed to the student with that slot, and nothing else
+may: not a licence to hand over any radio on a repeating page. It crosses to the runner with the
+slot, the preview says *You answer yourself* under the entry beside *You attach yourself*, and
+the handover names it as answered with the document itself.
+
+The press second, with the constraint he wanted enforced and not assumed: the control named must
+load options, and pressing it must not be able to advance, save or submit. The guard on the
+typeahead entry — a submission-looking name is refused at the click — guards the press the same
+way, and two more stand beside it: the mapping boundary refuses a press that is any page's
+advance control, add-another or the submission control, and the runner reads the page's URL
+before and after and fails the page as drift if the press left it. He asked to be told before
+building if the guard could not do it, and the limit is written where it belongs: a control that
+saves without navigating and without a save-like name cannot be told from a lookup by the
+runner; naming the control is the reviewer's act, from the dependencies read, and those three
+checks are what stands between a wrong naming and a saved page.
+
+Sheffield's subject is now a search-then-select the plan can walk — type, press, wait, choose —
+and its six status radios go to the student with their slots. The four-versus-six slots, the
+asterisks and the *in English* wording stay his report, for the re-read he will make.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

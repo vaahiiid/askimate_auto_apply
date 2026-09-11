@@ -942,6 +942,9 @@ describe("a page filled once per item, in the preview (P96)", () => {
     expect(attachFirst).toBeGreaterThan(first);
     expect(attachFirst).toBeLessThan(second);
     expect(text.indexOf("  You attach yourself: Certificate", second)).toBeGreaterThan(second);
+    // ADR-0105: the slot's companion, handed with it, said under the same entry.
+    expect(text.slice(first, second)).toContain("  You answer yourself: Certificate status");
+    expect(text.slice(second)).toContain("  You answer yourself: Certificate status");
     // The school diploma's grade note is filled; the bachelor's is not shown
     // and not listed — the condition is answered per item.
     expect(text.slice(second)).toContain("  Grade, as on the certificate: 19.1");
@@ -952,15 +955,22 @@ describe("a page filled once per item, in the preview (P96)", () => {
 
   it("binds the yes to what the student attaches themselves, per entry", () => {
     const preview = previewFor(QUALIFICATIONS);
+    // Without the certificate slot — and with it its companion and the slot's
+    // declaration, which cannot stand alone (ADR-0103 gap 4, ADR-0105).
+    const OWN = new Set(["qualification_certificate", "qualification_certificate_status"]);
     const blueprintWithout = {
       ...GATED_PORTAL_BLUEPRINT,
       pages: GATED_PORTAL_BLUEPRINT.pages.map((page) =>
         page.pageRef === "page-education"
-          ? { ...page, sections: page.sections.map((s) => ({ ...s, fields: s.fields.filter((f) => f.fieldRef !== "qualification_certificate") })) }
+          ? {
+              ...page,
+              requiredDocuments: [],
+              sections: page.sections.map((s) => ({ ...s, fields: s.fields.filter((f) => !OWN.has(f.fieldRef)) })),
+            }
           : page,
       ),
     };
-    const setWithout = { ...GATED_PORTAL_MAPPING_SET, mappings: GATED_PORTAL_MAPPING_SET.mappings.filter((m) => m.fieldRef !== "qualification_certificate") };
+    const setWithout = { ...GATED_PORTAL_MAPPING_SET, mappings: GATED_PORTAL_MAPPING_SET.mappings.filter((m) => !OWN.has(m.fieldRef)) };
     const check = checkUsable(setWithout, blueprintWithout);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(blueprintWithout, check.mappingSet, profile(QUALIFICATIONS));

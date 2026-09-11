@@ -184,6 +184,26 @@ export async function executePlan(
       // and `checkUsable` refused any other — so wait for the option, bounded,
       // before selecting it (ADR-0103, gap 1).
       if (instruction.optionsAfter !== undefined) {
+        // ADR-0105: a control pressed to load the options — a search-then-
+        // select. It loads options and nothing else: a press that leaves the
+        // page advanced, saved or submitted it, and that is drift, not a fill.
+        const press = instruction.optionsAfter.press;
+        if (press !== undefined) {
+          const before = await session.currentUrl();
+          await session.click(press);
+          const after = await session.currentUrl();
+          if (after !== before) {
+            outcomes.push({
+              kind: "failed",
+              fieldRef: instruction.fieldRef,
+              error:
+                `Pressing ${press.strategy}="${press.value}" to load the options left the page: a control ` +
+                `that advances, saves or submits is not one that loads options (ADR-0105).`,
+              drift: true,
+            });
+            return report(outcomes, plan, false, transmissions);
+          }
+        }
         await session.awaitOption(locator, textOf(instruction.value));
       }
       if (instruction.typeahead !== undefined) {

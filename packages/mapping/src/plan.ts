@@ -86,7 +86,7 @@ export interface FillInstruction {
    * told to select before selecting; the field it follows precedes this one in
    * the plan, because `checkUsable` refused any other order.
    */
-  readonly optionsAfter?: { readonly fieldRef: string };
+  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
   /**
    * Where the entries of a typeahead are found (ADR-0103, gap 2). The runner
    * types the text, waits for the one entry that reads exactly it, and
@@ -169,6 +169,12 @@ export interface HandoffRequirement {
   readonly inputType: FieldInputType;
   /** Which entry of a repeating page this belongs to (ADR-0104). */
   readonly item?: { readonly index: number; readonly count: number };
+  /**
+   * The slot this handoff is the companion of, when it is one handed to the
+   * student WITH its slot (ADR-0105): the student answers the question the
+   * slot asks. Such a handoff does not refuse transport either.
+   */
+  readonly ofSlot?: string;
 }
 
 /** Something that stops the plan being complete. */
@@ -275,6 +281,16 @@ export function planFill(
       .filter((document) => document.companion !== undefined)
       .map((document) => [document.fieldRef, document.companion] as const),
   );
+  // ADR-0105: which field is which slot's companion, for a handoff handed with its slot.
+  const slotOfCompanion = new Map(
+    allRequiredDocuments(blueprint).flatMap((document) =>
+      document.companion === undefined ? [] : [[document.companion.fieldRef, document.fieldRef] as const],
+    ),
+  );
+  const ofSlotFor = (fieldRef: string): { readonly ofSlot?: string } => {
+    const slot = slotOfCompanion.get(fieldRef);
+    return slot === undefined || mappingFor(mappingSet, slot)?.source.kind !== "student_handoff" ? {} : { ofSlot: slot };
+  };
   const companionFields = new Set(
     [...companionOf.entries()]
       .filter(([slot]) => mappingFor(mappingSet, slot)?.source.kind === "document")
@@ -345,6 +361,7 @@ export function planFill(
           label: field.label,
           reason: mapping.source.reason,
           inputType: field.inputType,
+          ...ofSlotFor(field.fieldRef),
         });
         break;
 
@@ -498,6 +515,7 @@ export function planFill(
             reason: mapping.source.reason,
             inputType: field.inputType,
             item,
+            ...ofSlotFor(field.fieldRef),
           });
           continue;
         }
@@ -637,7 +655,16 @@ function instructionShape(
     label: field.label,
     inputType: field.inputType,
     locators: field.locators,
-    ...(field.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: field.optionsAfter.fieldRef } }),
+    ...(field.optionsAfter === undefined
+      ? {}
+      : {
+          optionsAfter: {
+            fieldRef: field.optionsAfter.fieldRef,
+            ...(field.optionsAfter.press === undefined
+              ? {}
+              : { press: { strategy: field.optionsAfter.press.strategy, value: field.optionsAfter.press.value } }),
+          },
+        }),
     ...(field.typeahead === undefined
       ? {}
       : { typeahead: { optionLocator: { strategy: field.typeahead.optionLocator.strategy, value: field.typeahead.optionLocator.value } } }),
