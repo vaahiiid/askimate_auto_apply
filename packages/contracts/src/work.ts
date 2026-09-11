@@ -252,6 +252,8 @@ export type TransportedValue =
       readonly text: string;
       readonly rationale: string;
       readonly formSays?: string;
+      /** The other controls of the same question, left untouched (ADR-0102). */
+      readonly covers: readonly string[];
       readonly mappingSetId: string;
       readonly reviewedBy: string;
     };
@@ -624,11 +626,14 @@ function parseTransportedValue(value: unknown): TransportedValue | null {
     }
     const formSays = record["formSays"];
     if (formSays !== undefined && typeof formSays !== "string") return null;
+    const covers = record["covers"];
+    if (!Array.isArray(covers) || !covers.every((entry) => typeof entry === "string")) return null;
     return {
       kind: "form_refusal",
       text: record["text"] as string,
       rationale: record["rationale"] as string,
       ...(formSays === undefined ? {} : { formSays }),
+      covers: covers,
       mappingSetId: record["mappingSetId"] as string,
       reviewedBy: record["reviewedBy"] as string,
     };

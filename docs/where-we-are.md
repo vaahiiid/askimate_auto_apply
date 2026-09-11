@@ -4540,3 +4540,34 @@ written: the ethnic-origin dropdown's wording is his to state from his screen.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P87 — the correction recorded, a refusal covers its question's other controls, and the first real mapping set
+
+Vahid read the live dropdown: *Prefer not to say*, and no *Information withheld* entry. The
+capture was right; his recollection had come from the label. He asked for that to be recorded as
+a dated correction to his own words rather than quietly fixed, because *"the form's own words and
+my recollection of them are different things, and this is an instance of exactly that"*. It is in
+ADR-0102, in his words.
+
+Writing the first real mapping set found the rule as built one step too strict: Sheffield's
+disability question is twelve checkboxes, *Prefer not to say* among them, and the eleven others —
+each special-category, each with no refusal of its own — would have blocked the plan. So a refusal
+now *covers* the other controls of its question: each must be special-category, in the blueprint,
+mapped by nothing and covered once; they are planned as nothing and the preview names every one
+under *Left untouched, as part of this*. A cover cannot reach an ordinary field and cannot silence
+a question that has no refusal.
+
+And a fault of P86's own, found by writing the hash test properly: the content hash had been given
+the refusals as a parameter and never folded them in, and the P86 test passed because it compared
+against a preview whose entries differed too. The hash now moves with each refusal's value,
+rationale, quoted words and covers, and the test holds the entries fixed to prove it.
+
+The artefacts for Iman: the curated draft at 0.2.2 with all 216 fields classified as proposals —
+fourteen special-category, the rest ordinary — the equal-opportunities mapping set as a draft in
+Vahid's words, and a review pack that lists every field by page with what needs a judgement
+(23) and what is mechanical (193), the thirteen required validations, and the exact block the
+student will read. A test holds the two drafts to the real checks as if reviewed.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

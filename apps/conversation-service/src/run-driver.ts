@@ -5989,6 +5989,7 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
                 ...(instruction.value.formSays === undefined
                   ? {}
                   : { formSays: instruction.value.formSays }),
+                covers: [...instruction.value.covers],
                 mappingSetId: instruction.value.mappingSetId,
                 reviewedBy: instruction.value.reviewedBy,
               }

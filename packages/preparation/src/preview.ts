@@ -121,6 +121,8 @@ export interface PreviewFormRefusal {
   readonly rationale: string;
   /** The form's own words, quoted. Absent when the form said nothing. */
   readonly formSays?: string;
+  /** The other controls of the same question, left untouched. Named, so the student sees them. */
+  readonly covers: readonly { readonly fieldRef: string; readonly label: string }[];
   readonly reviewedBy: string;
 }
 
@@ -289,6 +291,7 @@ export function buildPreview(
   const portalHost = deployment?.portalHost ?? new URL(observed).host;
 
   const optionLabels = optionLabelsOf(blueprint);
+  const labelOf = new Map(allFields(blueprint).map((field) => [field.fieldRef, field.label]));
 
   // Refusals are kept OUT of the entries (ADR-0102): an entry is an answer,
   // and a refusal must never be listed as one. The switch is exhaustive, so a
@@ -345,6 +348,10 @@ export function buildPreview(
               : `entered "${readable ?? text}"`,
           rationale: attribution.rationale,
           ...(attribution.formSays === undefined ? {} : { formSays: attribution.formSays }),
+          covers: attribution.covers.map((fieldRef) => ({
+            fieldRef,
+            label: labelOf.get(fieldRef) ?? fieldRef,
+          })),
           reviewedBy: attribution.reviewedBy,
         });
         break;
@@ -470,6 +477,17 @@ function hashContent(content: {
   for (const handoff of [...content.handoffs].sort(byFieldRef)) {
     lines.push(`handoff${handoff.fieldRef}`);
   }
+  // ADR-0102: what was entered instead of an answer, why, the form's quoted
+  // words and which controls were left untouched are all inside the yes — a
+  // refusal changed to an answer, or to a different refusal, voids it. (P86
+  // declared this parameter and never hashed it; P87's test holds the entries
+  // fixed and changes only the refusal, which is what catches that.)
+  for (const refusal of [...content.refusals].sort(byFieldRef)) {
+    lines.push(
+      `refusal${refusal.fieldRef}${refusal.text}${refusal.rationale}${refusal.formSays ?? ""}` +
+        `${refusal.covers.map((covered) => covered.fieldRef).sort().join(",")}`,
+    );
+  }
 
   return `sha256:${createHash("sha256").update(lines.join("")).digest("hex")}`;
 }
@@ -548,6 +566,10 @@ export function renderPreview(preview: SubmissionPreview): string {
       lines.push(`    Not answered on your behalf. Instead we ${refusal.entered}.`);
       lines.push(`    Why: ${refusal.rationale}`);
       if (refusal.formSays !== undefined) lines.push(`    The form says: "${refusal.formSays}"`);
+      if (refusal.covers.length > 0) {
+        lines.push("    Left untouched, as part of this:");
+        for (const covered of refusal.covers) lines.push(`      ${covered.label}`);
+      }
     }
   }
 

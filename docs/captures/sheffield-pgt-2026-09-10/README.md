@@ -274,9 +274,11 @@ support-needs box and an ethnic-origin select. That is Vahid's decision, written
 the fill uses the refusal the form offers — *Prefer not to say* for disability, and for ethnic
 origin the option the live dropdown shows, which he is confirming (the capture holds `998 — Prefer
 not to say`; *Information withheld* is the label's wording). The curated draft, 0.2.1, classifies
-the fourteen fields on this page `special_category`; every other field stays unclassified until
-review, and a reviewed entry is refused until all 216 carry a category. No mapping set is written
-here until the ethnic-origin value is his.
+the fourteen fields on this page `special_category`, and 0.2.2 classifies the other 202 `ordinary`
+as proposals for review. Vahid confirmed both values from the live dropdown on 2026-09-11 and
+corrected his own words (ADR-0102). The page's mapping set is
+`mapping-set.equal-opportunities.draft.json`; the review pack for Iman is `review-pack.md`;
+`scripts/sheffield-draft.test.ts` holds both drafts to the real checks.
 
 ## The curated draft — `blueprint.draft.curated.json`, version 0.2.0
 

@@ -54,11 +54,12 @@ breaks, and the scope is every Article 9 field on the page, the ethnic-origin se
 > *"Tell me if any of that is not expressible, and say so before building rather than
 > approximating it."*
 
-One fact from the capture, raised with the expressibility answer and not resolved here: the
-captured `ethnicOriginCode` list has no *Information withheld* entry. Its opt-out option is
-**`998 — Prefer not to say`**; *Information withheld* is the wording of the field's label, not of
-any option in the list the tool read. Which one the dropdown shows is his to confirm from his
-screen before the mapping names a value.
+One fact from the capture was raised with the expressibility answer: the captured
+`ethnicOriginCode` list has no *Information withheld* entry; its opt-out is **`998 — Prefer not to
+say`**, and *Information withheld* is the wording of the field's label. **Resolved by Vahid from
+the live dropdown, 2026-09-11, as a dated correction to his own words** (recorded in ADR-0102):
+*"the capture was right and I was wrong. I read 'Information withheld' from the field's label text
+and reported it as the option."* Both values are *Prefer not to say*.
 
 ## The question
 

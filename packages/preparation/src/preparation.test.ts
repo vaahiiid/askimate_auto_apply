@@ -652,6 +652,65 @@ describe("the preview, on a page that asks what we cannot hold (ADR-0102)", () =
     expect(preview.contentHash).not.toBe(without.contentHash);
   });
 
+  it("binds the yes to each refusal itself: a changed rationale or cover changes the hash", () => {
+    // P86's hash test compared against a preview with no refusals at all,
+    // which differs in its ENTRIES too — so it would have passed with the
+    // refusals left out of the hash, and they were. This one holds the
+    // entries fixed and changes only what the refusal says.
+    type Mapping = (typeof SENSITIVE_REFUSAL_MAPPINGS)[number];
+    const previewWith = (mutate: (m: Mapping) => Mapping, blueprint: ApplicationBlueprint = BLUEPRINT) => {
+      const check = checkUsable(
+        {
+          ...FIXTURE_MAPPING_SET,
+          blueprintVersion: blueprint.version,
+          mappings: [...FIXTURE_MAPPING_SET.mappings, ...SENSITIVE_REFUSAL_MAPPINGS.map(mutate)],
+        },
+        blueprint,
+      );
+      if (!check.usable) expect.unreachable(check.refusal.kind);
+      const result = buildPreview(blueprint, planFill(blueprint, check.mappingSet, COMPLETE), DOCUMENTS);
+      if (!result.built) expect.unreachable(result.refusal.kind);
+      return result.preview;
+    };
+    // Dropping a cover leaves the covered control a blocker (that is the
+    // mechanism working), so the cover variant drops the control too: same
+    // entries, one cover fewer.
+    const withoutOther: ApplicationBlueprint = {
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.filter((field) => field.fieldRef !== "disability_other"),
+        })),
+      })),
+    };
+    const base = previewWith((m) => m);
+    const otherRationale = previewWith((m) =>
+      m.fieldRef === "ethnic_origin" && m.source.kind === "form_refusal"
+        ? { ...m, source: { ...m.source, rationale: "a different reason" } }
+        : m,
+    );
+    const noCovers = previewWith(
+      (m) =>
+        m.fieldRef === "disability_prefer_not_to_say" && m.source.kind === "form_refusal"
+          ? { ...m, source: { ...m.source, covers: ["disability_dyslexia"] } }
+          : m,
+      withoutOther,
+    );
+    expect(base.entries).toEqual(otherRationale.entries);
+    expect(base.contentHash).not.toBe(otherRationale.contentHash);
+    expect(base.contentHash).not.toBe(noCovers.contentHash);
+  });
+
+  it("names the other controls of the question the refusal covers, left untouched", () => {
+    const preview = previewWithRefusals();
+    const text = renderPreview(preview);
+    expect(text).toContain("Left untouched, as part of this:");
+    expect(text).toContain("Learning difference such as dyslexia, dyspraxia or AD(H)D");
+    expect(preview.entries.map((entry) => entry.fieldRef)).not.toContain("disability_dyslexia");
+  });
+
   it("prints no 'form says' line when the form said nothing — quote or omit", () => {
     const text = renderPreview(previewWithRefusals());
     const ethnic = text.slice(text.indexOf("ethnic origin"));

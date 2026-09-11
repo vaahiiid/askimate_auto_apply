@@ -19,6 +19,39 @@ not shipped artefacts.
 
 ---
 
+## [0.99.0] — 2026-09-11
+
+**P87 — the correction recorded, a refusal covers its question's other controls, and the first
+real mapping set.**
+
+### Changed
+
+- ADR-0102 carries Vahid's dated correction to his own words: the ethnic-origin list offers
+  *Prefer not to say*, not *Information withheld*, which was the label's wording. Both values are
+  *Prefer not to say*; the disability refusal quotes the form's later-opportunity sentence, the
+  ethnic-origin refusal quotes nothing, because that field's captured text says nothing.
+- `form_refusal.covers` — the other controls of the same question, each special-category, mapped
+  by nothing, covered once (`form_refusal_cover_invalid` otherwise), left untouched, planned as
+  nothing, and named in the preview under *Left untouched, as part of this*. Found while writing
+  the first real set: without it the eleven other disability boxes blocked the plan.
+- The content hash now covers each refusal's value, rationale, quoted words and covers. P86
+  declared the parameter and never hashed it; a test that holds the entries fixed and changes only
+  the refusal catches that now.
+
+### Added
+
+- `docs/captures/sheffield-pgt-2026-09-10/mapping-set.equal-opportunities.draft.json` — the
+  page's mapping set, draft, authored from Vahid's words for Iman Behravan's review.
+- The curated draft 0.2.2 classifies all 216 fields: fourteen `special_category`, the rest
+  `ordinary` as proposals; `review-pack.md` lists every field by page with what needs a
+  judgement (23) and what is mechanical (193), the thirteen required validations, and the
+  rendered block the student will read.
+- `scripts/sheffield-draft.test.ts` holds the two drafts to the real checks as if reviewed: all
+  fields classified, both refusals accepted, the only blockers the thirteen required fields on
+  unmapped pages, and the block rendered as decided.
+
+---
+
 ## [0.98.0] — 2026-09-11
 
 **P86 — ADR-0102: use the refusal the form offers.** Blocker 20, built as Vahid decided it, with

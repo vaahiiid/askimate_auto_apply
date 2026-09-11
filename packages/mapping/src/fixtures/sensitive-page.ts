@@ -33,6 +33,25 @@ export const SENSITIVE_PAGE: BlueprintPage = {
           locators: [{ strategy: "name", value: "ratherNotSay" }],
           validations: [],
         },
+        // The other controls of the same question — the boxes an applicant
+        // with a disability would tick. Ticking the refusal answers the
+        // question; these are left untouched and the refusal COVERS them.
+        {
+          fieldRef: "disability_dyslexia",
+          label: "Learning difference such as dyslexia, dyspraxia or AD(H)D",
+          inputType: "checkbox",
+          dataCategory: "special_category",
+          locators: [{ strategy: "name", value: "dyslexia" }],
+          validations: [],
+        },
+        {
+          fieldRef: "disability_other",
+          label: "An impairment, health condition or learning difference not listed above",
+          inputType: "checkbox",
+          dataCategory: "special_category",
+          locators: [{ strategy: "name", value: "otherDisability" }],
+          validations: [],
+        },
         {
           fieldRef: "ethnic_origin",
           label: "Please select the term you feel describes your ethnic origin.",
@@ -83,6 +102,7 @@ export const SENSITIVE_REFUSAL_MAPPINGS: readonly FieldMapping[] = [
         "Health is Article 9 data this system cannot hold. The form offers this refusal and " +
         "says the university asks again at registration.",
       formSays: "if you go on to register on a course you will have another opportunity to answer later",
+      covers: ["disability_dyslexia", "disability_other"],
     },
   },
   {

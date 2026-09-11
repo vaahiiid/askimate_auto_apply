@@ -75,6 +75,7 @@ export type StoredFillValue =
       readonly text: string;
       readonly rationale: string;
       readonly formSays?: string;
+      readonly covers: readonly string[];
       readonly mappingSetId: string;
       readonly reviewedBy: string;
     };
@@ -174,6 +175,7 @@ function storedValue(value: FillValue): StoredFillValue {
       readonly text: string;
       readonly rationale: string;
       readonly formSays?: string;
+      readonly covers: readonly string[];
       readonly mappingSetId: string;
       readonly reviewedBy: string;
     };
@@ -182,6 +184,7 @@ function storedValue(value: FillValue): StoredFillValue {
       text: refusal.text,
       rationale: refusal.rationale,
       ...(refusal.formSays === undefined ? {} : { formSays: refusal.formSays }),
+      covers: [...refusal.covers],
       mappingSetId: refusal.mappingSetId,
       reviewedBy: refusal.reviewedBy,
     };
@@ -264,6 +267,7 @@ function rebuiltValue(stored: StoredFillValue): FillValue {
         text: stored.text,
         rationale: stored.rationale,
         ...(stored.formSays === undefined ? {} : { formSays: stored.formSays }),
+        covers: [...stored.covers],
         mappingSetId: stored.mappingSetId,
         reviewedBy: stored.reviewedBy,
       } as unknown as Extract<FillValue, { kind: "form_refusal" }>["refusal"],

@@ -187,10 +187,20 @@ export function planFill(
   const credentials: CredentialRequirement[] = [];
   const blockers: FillBlocker[] = [];
 
+  // ADR-0102: the other controls of a question one refusal answers. Left
+  // untouched, and not blockers — `checkUsable` has held each is
+  // special-category and mapped by nothing.
+  const covered = new Set(
+    mappingSet.mappings.flatMap((mapping) =>
+      mapping.source.kind === "form_refusal" ? [...(mapping.source.covers ?? [])] : [],
+    ),
+  );
+
   for (const field of allFields(blueprint)) {
     const mapping = mappingFor(mappingSet, field.fieldRef);
 
     if (mapping === undefined) {
+      if (covered.has(field.fieldRef)) continue;
       // A special-category field is never passed over, required or not: with
       // no refusal mapped the fill STOPS (ADR-0102). Checked before the
       // optional rule below, which would otherwise make silence the default.

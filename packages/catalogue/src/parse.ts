@@ -533,11 +533,13 @@ function readValueSource(value: unknown, path: string): ValueSource {
       // mandatory; `formSays` is optional and, when present, must be the
       // form's own words — also `checkUsable`'s question.
       const formSays = optionalText(source, "formSays", path);
+      const covers = source["covers"] === undefined ? undefined : textList(source, "covers", path);
       return {
         kind,
         value: text(source, "value", path),
         rationale: text(source, "rationale", path),
         ...(formSays === undefined ? {} : { formSays }),
+        ...(covers === undefined ? {} : { covers }),
       };
     }
   }

@@ -4,7 +4,7 @@ import { proposeValue, studentId, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 
-import { checkUsable, constantsIn, unmappedRequiredFields } from "./mapping.js";
+import { checkUsable, constantsIn, formRefusalAttribution, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
@@ -497,6 +497,35 @@ describe("ADR-0102 — use the refusal the form offers", () => {
     expect(refusal.kind).toBe("form_refusal_composed");
   });
 
+  it("lets one refusal COVER the other controls of the same question, and plans nothing for them", () => {
+    // Sheffield's disability question is twelve checkboxes; "Prefer not to
+    // say" is one of them. Ticking it answers the question, and the other
+    // eleven are neither answered nor blockers — they are covered.
+    const check = checkUsable(withMappings(SENSITIVE_REFUSAL_MAPPINGS), BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const blocked = plan.blockers.filter((b) => b.kind === "special_category_unhandled").map((b) => b.fieldRef);
+    expect(blocked).toEqual(["support_needs"]);
+    expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("disability_dyslexia");
+  });
+
+  it("REFUSES a cover that is not special-category, not in the blueprint, or itself mapped", () => {
+    const refusalWith = (covers: readonly string[]) => ({
+      fieldRef: "disability_prefer_not_to_say",
+      source: { ...SENSITIVE_REFUSAL_MAPPINGS[0]!.source, covers } as MappingSet["mappings"][number]["source"],
+    });
+    expect(refusalOf(withMappings([refusalWith(["preferred_name"]), SENSITIVE_REFUSAL_MAPPINGS[1]!])).kind).toBe(
+      "form_refusal_cover_invalid",
+    );
+    expect(refusalOf(withMappings([refusalWith(["no_such_field"]), SENSITIVE_REFUSAL_MAPPINGS[1]!])).kind).toBe(
+      "form_refusal_cover_invalid",
+    );
+    // Covering the ethnic-origin field, which has its own refusal mapped.
+    expect(refusalOf(withMappings([refusalWith(["ethnic_origin"]), SENSITIVE_REFUSAL_MAPPINGS[1]!])).kind).toBe(
+      "form_refusal_cover_invalid",
+    );
+  });
+
   it("carries a refusal through transport as a refusal, with the form's words", () => {
     const check = checkUsable(withMappings([...SENSITIVE_REFUSAL_MAPPINGS, { fieldRef: "support_needs", source: { kind: "student_handoff", reason: "x" } }]), BLUEPRINT);
     // (student_handoff on support_needs is itself refused — mismapped — so
@@ -531,5 +560,6 @@ describe("ADR-0102 — use the refusal the form offers", () => {
     expect(refusal?.value.kind).toBe("form_refusal");
     if (refusal?.value.kind !== "form_refusal") expect.unreachable("kind");
     expect(textOf(refusal.value)).toBe("true");
+    expect(formRefusalAttribution(refusal.value.refusal).covers).toEqual(["disability_dyslexia", "disability_other"]);
   });
 });

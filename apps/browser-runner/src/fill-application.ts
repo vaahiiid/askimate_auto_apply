@@ -243,6 +243,7 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
                 ...(instruction.value.formSays === undefined
                   ? {}
                   : { formSays: instruction.value.formSays }),
+                covers: [...instruction.value.covers],
                 mappingSetId: instruction.value.mappingSetId,
                 reviewedBy: instruction.value.reviewedBy,
               }

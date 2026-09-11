@@ -138,6 +138,17 @@ export type ValueSource =
       readonly value: string;
       readonly rationale: string;
       readonly formSays?: string;
+      /**
+       * The other controls of the SAME question, left untouched.
+       *
+       * Found while writing the first real set (2026-09-11): Sheffield's
+       * disability question is twelve checkboxes and *Prefer not to say* is
+       * one of them. Ticking it answers the question; the other eleven are
+       * neither answered nor blockers. Each covered field must be
+       * special-category, in the blueprint, mapped by nothing, and covered
+       * once — `checkUsable` refuses otherwise — and the preview names them.
+       */
+      readonly covers?: readonly string[];
     }
   /**
    * The Secure Plane fills this. A MARKER, and nothing else (ADR-0043).
@@ -262,7 +273,9 @@ export type MappingRefusal =
   /** A refusal value the field's options do not hold, or a field with no options to refuse with. */
   | { readonly kind: "form_refusal_not_offered"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A `formSays` the form's captured text does not contain. */
-  | { readonly kind: "form_refusal_composed"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "form_refusal_composed"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A cover naming a field that is not special-category, not in the blueprint, mapped, or covered twice. */
+  | { readonly kind: "form_refusal_cover_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -488,6 +501,9 @@ export function checkUsable(
 
   const notOffered: string[] = [];
   const composed: string[] = [];
+  const badCovers: string[] = [];
+  const mapped = new Set(mappingSet.mappings.map((mapping) => mapping.fieldRef));
+  const coveredOnce = new Set<string>();
   for (const mapping of mappingSet.mappings) {
     if (mapping.source.kind !== "form_refusal") continue;
     const field = fieldsByRef.get(mapping.fieldRef);
@@ -495,6 +511,17 @@ export function checkUsable(
     if (!formOffers(field, mapping.source.value)) notOffered.push(mapping.fieldRef);
     if (mapping.source.formSays !== undefined && !formSays(field, mapping.source.formSays)) {
       composed.push(mapping.fieldRef);
+    }
+    for (const covered of mapping.source.covers ?? []) {
+      const target = fieldsByRef.get(covered);
+      const invalid =
+        target === undefined ||
+        target.dataCategory !== "special_category" ||
+        mapped.has(covered) ||
+        covered === mapping.fieldRef ||
+        coveredOnce.has(covered);
+      if (invalid) badCovers.push(covered);
+      coveredOnce.add(covered);
     }
   }
   if (notOffered.length > 0) {
@@ -507,6 +534,19 @@ export function checkUsable(
           `The form offers no such refusal on ${notOffered.join(", ")}: the value is not among ` +
           `the field's captured options, or the field has no options to refuse with (a text box ` +
           `has none). "Use the refusal the form offers" — and with none, the fill stops (ADR-0102).`,
+      },
+    };
+  }
+  if (badCovers.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "form_refusal_cover_invalid",
+        fieldRefs: badCovers,
+        detail:
+          `A refusal covers ${badCovers.join(", ")}, which it may not: a covered field must be in ` +
+          `the blueprint, special-category, mapped by nothing, and covered by one refusal only — ` +
+          `it is the other controls of the same question, left untouched (ADR-0102).`,
       },
     };
   }
@@ -628,6 +668,7 @@ export type ReviewedFormRefusal = Brand<
     readonly text: string;
     readonly rationale: string;
     readonly formSays?: string;
+    readonly covers: readonly string[];
     readonly mappingSetId: string;
     readonly reviewedBy: string;
   },
@@ -643,9 +684,10 @@ export function reviewedFormRefusal(
     text: source.value,
     rationale: source.rationale,
     ...(source.formSays === undefined ? {} : { formSays: source.formSays }),
+    covers: [...(source.covers ?? [])],
     mappingSetId: mappingSet.mappingSetId,
     reviewedBy: mappingSet.reviewedBy ?? "",
-  } as ReviewedFormRefusal;
+  } as unknown as ReviewedFormRefusal;
 }
 
 /** The text a refusal will enter — an option value, or "true" for a ticked box. */
@@ -657,6 +699,7 @@ export function formRefusalText(refusal: ReviewedFormRefusal): string {
 export function formRefusalAttribution(refusal: ReviewedFormRefusal): {
   readonly rationale: string;
   readonly formSays?: string;
+  readonly covers: readonly string[];
   readonly mappingSetId: string;
   readonly reviewedBy: string;
 } {

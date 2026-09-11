@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -39,6 +39,7 @@
               "fieldRef": "titleCode",
               "label": "Title:",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -181,6 +182,7 @@
               "fieldRef": "forename",
               "label": "First / Given Name:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -206,6 +208,7 @@
               "fieldRef": "surname",
               "label": "Family Name:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -231,6 +234,7 @@
               "fieldRef": "middleNames",
               "label": "Middle Names:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -251,6 +255,7 @@
               "fieldRef": "knownAs",
               "label": "Preferred/Chosen First Name:(optional)",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -271,6 +276,7 @@
               "fieldRef": "sex",
               "label": "sex",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -297,6 +303,7 @@
               "fieldRef": "dobDay",
               "label": "Date of Birth:*",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -452,6 +459,7 @@
               "fieldRef": "dobMonth",
               "label": "dobMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -518,6 +526,7 @@
               "fieldRef": "dobYear",
               "label": "dobYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -836,6 +845,7 @@
               "fieldRef": "passportNameConfirmation",
               "label": "Tick to confirm that you have entered your names and date of birth as they appear in your passport. This is to ensure you are able to get a student visa if you need to apply for one:",
               "inputType": "checkbox",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -856,6 +866,7 @@
               "fieldRef": "hesaNumber",
               "label": "HESA Number:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -876,6 +887,7 @@
               "fieldRef": "learnerNumber",
               "label": "Unique Learner Number:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -896,6 +908,7 @@
               "fieldRef": "takenCourseAtShefUni",
               "label": "takenCourseAtShefUni",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -918,6 +931,7 @@
               "fieldRef": "appliedBefore",
               "label": "appliedBefore",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -940,6 +954,7 @@
               "fieldRef": "registrationNumber",
               "label": "registrationNumber",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -957,6 +972,7 @@
               "fieldRef": "previousCourseName",
               "label": "previousCourseName",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -974,6 +990,7 @@
               "fieldRef": "previousApplicantNumber",
               "label": "previousApplicantNumber",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -991,6 +1008,7 @@
               "fieldRef": "nameChanged",
               "label": "nameChanged",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -1013,6 +1031,7 @@
               "fieldRef": "previousForename",
               "label": "Previous First / Given Name:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1038,6 +1057,7 @@
               "fieldRef": "previousSurname",
               "label": "Previous Family Name:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1082,6 +1102,7 @@
               "fieldRef": "email",
               "label": "E-mail:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1107,6 +1128,7 @@
               "fieldRef": "confirmEmail",
               "label": "Confirm E-Mail:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1132,6 +1154,7 @@
               "fieldRef": "corrAddress1",
               "label": "Address Line 1:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1162,6 +1185,7 @@
               "fieldRef": "corrAddress2",
               "label": "Address Line 2:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1188,6 +1212,7 @@
               "fieldRef": "corrAddress3",
               "label": "Address Line 3:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1214,6 +1239,7 @@
               "fieldRef": "corrTown",
               "label": "Town / City:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1244,6 +1270,7 @@
               "fieldRef": "corrRegion",
               "label": "County / Region / Area:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -1264,6 +1291,7 @@
               "fieldRef": "corrCountry",
               "label": "Country:*",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -2331,6 +2359,7 @@
               "fieldRef": "corrPostcode",
               "label": "UK Post Code: (* UK only)",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -2366,6 +2395,7 @@
               "fieldRef": "corrPostcode2",
               "label": "corrPostcode2",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2393,6 +2423,7 @@
               "fieldRef": "corrIntlPostcode",
               "label": "International Postal Code:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -2424,6 +2455,7 @@
               "fieldRef": "corrTelephone",
               "label": "Telephone Number:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -2450,6 +2482,7 @@
               "fieldRef": "corrContactDateType",
               "label": "corrContactDateType",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2476,6 +2509,7 @@
               "fieldRef": "corrStartDay",
               "label": "corrStartDay",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2622,6 +2656,7 @@
               "fieldRef": "corrStartMonth",
               "label": "corrStartMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2692,6 +2727,7 @@
               "fieldRef": "corrStartYear",
               "label": "corrStartYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2734,6 +2770,7 @@
               "fieldRef": "corrEndDay",
               "label": "corrEndDay",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2880,6 +2917,7 @@
               "fieldRef": "corrEndMonth",
               "label": "corrEndMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2950,6 +2988,7 @@
               "fieldRef": "corrEndYear",
               "label": "corrEndYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -2992,6 +3031,7 @@
               "fieldRef": "sameAddressCheck",
               "label": "Same as correspondence address",
               "inputType": "checkbox",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3008,6 +3048,7 @@
               "fieldRef": "permAddress1",
               "label": "Address Line 1:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3034,6 +3075,7 @@
               "fieldRef": "permAddress2",
               "label": "Address Line 2:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3060,6 +3102,7 @@
               "fieldRef": "permAddress3",
               "label": "Address Line 3:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3086,6 +3129,7 @@
               "fieldRef": "permTown",
               "label": "Town / City:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3112,6 +3156,7 @@
               "fieldRef": "permRegion",
               "label": "County / Region / Area:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -3138,6 +3183,7 @@
               "fieldRef": "permCountry",
               "label": "Country:",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -4200,6 +4246,7 @@
               "fieldRef": "permPostcode",
               "label": "UK Post Code:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -4231,6 +4278,7 @@
               "fieldRef": "permPostcode2",
               "label": "permPostcode2",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -4258,6 +4306,7 @@
               "fieldRef": "permIntlPostcode",
               "label": "International Postal Code:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -4289,6 +4338,7 @@
               "fieldRef": "permTelephone",
               "label": "Telephone Number:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -4315,6 +4365,7 @@
               "fieldRef": "alternativeEmail",
               "label": "Alternative Email:",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -4354,6 +4405,7 @@
               "fieldRef": "fundingNationality",
               "label": "fundingNationality",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -5344,6 +5396,7 @@
               "fieldRef": "secondFundingNationality",
               "label": "secondFundingNationality",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -6334,6 +6387,7 @@
               "fieldRef": "countryOfBirth",
               "label": "countryOfBirth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -7324,6 +7378,7 @@
               "fieldRef": "permanentResidence",
               "label": "permanentResidence",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -8390,6 +8445,7 @@
               "fieldRef": "ukPermanentResidence",
               "label": "ukPermanentResidence",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9336,6 +9392,7 @@
               "fieldRef": "livedOutsideCountry",
               "label": "livedOutsideCountry",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9358,6 +9415,7 @@
               "fieldRef": "alwaysUKResident",
               "label": "alwaysUKResident",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9380,6 +9438,7 @@
               "fieldRef": "dateEnteredUKDay",
               "label": "dateEnteredUKDay",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9522,6 +9581,7 @@
               "fieldRef": "dateEnteredUKMonth",
               "label": "dateEnteredUKMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9588,6 +9648,7 @@
               "fieldRef": "dateEnteredUKYear",
               "label": "dateEnteredUKYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9886,6 +9947,7 @@
               "fieldRef": "alwaysEUResident",
               "label": "alwaysEUResident",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -9908,6 +9970,7 @@
               "fieldRef": "previousCountry1",
               "label": "previousCountry1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -10966,6 +11029,7 @@
               "fieldRef": "dateFromDay1",
               "label": "dateFromDay1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11108,6 +11172,7 @@
               "fieldRef": "dateFromMonth1",
               "label": "dateFromMonth1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11174,6 +11239,7 @@
               "fieldRef": "dateFromYear1",
               "label": "dateFromYear1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11472,6 +11538,7 @@
               "fieldRef": "dateToDay1",
               "label": "dateToDay1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11614,6 +11681,7 @@
               "fieldRef": "dateToMonth1",
               "label": "dateToMonth1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11680,6 +11748,7 @@
               "fieldRef": "dateToYear1",
               "label": "dateToYear1",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -11978,6 +12047,7 @@
               "fieldRef": "previousCountry2",
               "label": "previousCountry2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13036,6 +13106,7 @@
               "fieldRef": "dateFromDay2",
               "label": "dateFromDay2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13178,6 +13249,7 @@
               "fieldRef": "dateFromMonth2",
               "label": "dateFromMonth2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13244,6 +13316,7 @@
               "fieldRef": "dateFromYear2",
               "label": "dateFromYear2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13542,6 +13615,7 @@
               "fieldRef": "dateToDay2",
               "label": "dateToDay2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13684,6 +13758,7 @@
               "fieldRef": "dateToMonth2",
               "label": "dateToMonth2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -13750,6 +13825,7 @@
               "fieldRef": "dateToYear2",
               "label": "dateToYear2",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -14048,6 +14124,7 @@
               "fieldRef": "previousCountry3",
               "label": "previousCountry3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15106,6 +15183,7 @@
               "fieldRef": "dateFromDay3",
               "label": "dateFromDay3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15248,6 +15326,7 @@
               "fieldRef": "dateFromMonth3",
               "label": "dateFromMonth3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15314,6 +15393,7 @@
               "fieldRef": "dateFromYear3",
               "label": "dateFromYear3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15612,6 +15692,7 @@
               "fieldRef": "dateToDay3",
               "label": "dateToDay3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15754,6 +15835,7 @@
               "fieldRef": "dateToMonth3",
               "label": "dateToMonth3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -15820,6 +15902,7 @@
               "fieldRef": "dateToYear3",
               "label": "dateToYear3",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -16118,6 +16201,7 @@
               "fieldRef": "previousCountry4",
               "label": "previousCountry4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17176,6 +17260,7 @@
               "fieldRef": "dateFromDay4",
               "label": "dateFromDay4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17318,6 +17403,7 @@
               "fieldRef": "dateFromMonth4",
               "label": "dateFromMonth4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17384,6 +17470,7 @@
               "fieldRef": "dateFromYear4",
               "label": "dateFromYear4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17682,6 +17769,7 @@
               "fieldRef": "dateToDay4",
               "label": "dateToDay4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17824,6 +17912,7 @@
               "fieldRef": "dateToMonth4",
               "label": "dateToMonth4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -17890,6 +17979,7 @@
               "fieldRef": "dateToYear4",
               "label": "dateToYear4",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18188,6 +18278,7 @@
               "fieldRef": "britishPassport",
               "label": "britishPassport",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18210,6 +18301,7 @@
               "fieldRef": "indefinateVisa",
               "label": "indefinateVisa",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18232,6 +18324,7 @@
               "fieldRef": "refugeeStatus",
               "label": "refugeeStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18254,6 +18347,7 @@
               "fieldRef": "migrantWorker",
               "label": "migrantWorker",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18276,6 +18370,7 @@
               "fieldRef": "spouseOfUKCitizen",
               "label": "spouseOfUKCitizen",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18298,6 +18393,7 @@
               "fieldRef": "euPassport",
               "label": "euPassport",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18320,6 +18416,7 @@
               "fieldRef": "spouseOfEUCitizen",
               "label": "spouseOfEUCitizen",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18342,6 +18439,7 @@
               "fieldRef": "passportNumber",
               "label": "passportNumber",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18360,6 +18458,7 @@
               "fieldRef": "livingInUK",
               "label": "livingInUK",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18382,6 +18481,7 @@
               "fieldRef": "previousStudentVisa",
               "label": "previousStudentVisa",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18404,6 +18504,7 @@
               "fieldRef": "qualificationLevel",
               "label": "qualificationLevel",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18450,6 +18551,7 @@
               "fieldRef": "highestQualification(ENGLISH_LANGUAGE_STUDY)",
               "label": "highestQualification(ENGLISH_LANGUAGE_STUDY)",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18492,6 +18594,7 @@
               "fieldRef": "highestQualification(SCHOOL_LEVEL)",
               "label": "highestQualification(SCHOOL_LEVEL)",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18518,6 +18621,7 @@
               "fieldRef": "highestQualification(FOUNDATION_LEVEL)",
               "label": "highestQualification(FOUNDATION_LEVEL)",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18548,6 +18652,7 @@
               "fieldRef": "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)",
               "label": "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18578,6 +18683,7 @@
               "fieldRef": "highestQualification(UNIVERSITY_LEVEL)",
               "label": "highestQualification(UNIVERSITY_LEVEL)",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18628,6 +18734,7 @@
               "fieldRef": "highestQualificationOther",
               "label": "highestQualificationOther",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18650,6 +18757,7 @@
               "fieldRef": "yearsOnStudentVisa",
               "label": "yearsOnStudentVisa",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18720,6 +18828,7 @@
               "fieldRef": "monthsOnStudentVisa",
               "label": "monthsOnStudentVisa",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18790,6 +18899,7 @@
               "fieldRef": "applicationLocation",
               "label": "applicationLocation",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18812,6 +18922,7 @@
               "fieldRef": "visaExpiryDay",
               "label": "visaExpiryDay",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -18954,6 +19065,7 @@
               "fieldRef": "visaExpiryMonth",
               "label": "visaExpiryMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19020,6 +19132,7 @@
               "fieldRef": "visaExpiryYear",
               "label": "visaExpiryYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19058,6 +19171,7 @@
               "fieldRef": "passportScanStatus",
               "label": "passportScanStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19084,6 +19198,7 @@
               "fieldRef": "passportScan",
               "label": "passportScan",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19096,6 +19211,7 @@
               "fieldRef": "visaScanStatus",
               "label": "visaScanStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19122,6 +19238,7 @@
               "fieldRef": "visaScan",
               "label": "visaScan",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19134,6 +19251,7 @@
               "fieldRef": "utilityBillScanStatus",
               "label": "utilityBillScanStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19160,6 +19278,7 @@
               "fieldRef": "utilityBillScan",
               "label": "utilityBillScan",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19172,6 +19291,7 @@
               "fieldRef": "proofOfUKSpouseStatus",
               "label": "proofOfUKSpouseStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19198,6 +19318,7 @@
               "fieldRef": "proofOfUKSpouse",
               "label": "proofOfUKSpouse",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19210,6 +19331,7 @@
               "fieldRef": "refugeeProofStatus",
               "label": "refugeeProofStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19236,6 +19358,7 @@
               "fieldRef": "refugeeProof",
               "label": "refugeeProof",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19298,6 +19421,7 @@
               "fieldRef": "firstLanguage",
               "label": "firstLanguage",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19314,6 +19438,7 @@
               "fieldRef": "previousEnglishEducation",
               "label": "previousEnglishEducation",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19336,6 +19461,7 @@
               "fieldRef": "previousEducationLanguage",
               "label": "previousEducationLanguage",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19352,6 +19478,7 @@
               "fieldRef": "englishQualTypeCode",
               "label": "englishQualTypeCode",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19538,6 +19665,7 @@
               "fieldRef": "title",
               "label": "title",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19554,6 +19682,7 @@
               "fieldRef": "dateOfAward.day",
               "label": "dateOfAward.day",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19700,6 +19829,7 @@
               "fieldRef": "dateOfAward.month",
               "label": "dateOfAward.month",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -19770,6 +19900,7 @@
               "fieldRef": "dateOfAward.year",
               "label": "dateOfAward.year",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20140,6 +20271,7 @@
               "fieldRef": "certificateNumber",
               "label": "certificateNumber",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20156,6 +20288,7 @@
               "fieldRef": "certificateNumber2",
               "label": "certificateNumber2",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20172,6 +20305,7 @@
               "fieldRef": "awardingBody",
               "label": "awardingBody",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20188,6 +20322,7 @@
               "fieldRef": "overallScore",
               "label": "overallScore",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20204,6 +20339,7 @@
               "fieldRef": "overallScoreComponent",
               "label": "overallScoreComponent",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20220,6 +20356,7 @@
               "fieldRef": "listeningScore",
               "label": "listeningScore",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20236,6 +20373,7 @@
               "fieldRef": "readingScore",
               "label": "readingScore",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20252,6 +20390,7 @@
               "fieldRef": "writingScore",
               "label": "writingScore",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20268,6 +20407,7 @@
               "fieldRef": "speakingScore",
               "label": "speakingScore",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20284,6 +20424,7 @@
               "fieldRef": "certificateStatus",
               "label": "certificateStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20314,6 +20455,7 @@
               "fieldRef": "certificate",
               "label": "certificate",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -20352,6 +20494,7 @@
               "fieldRef": "institutionCountry",
               "label": "institutionCountry",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21394,6 +21537,7 @@
               "fieldRef": "institutionCountry-ts-control",
               "label": "institutionCountry-ts-control",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "id",
@@ -21406,6 +21550,7 @@
               "fieldRef": "institutionCode",
               "label": "institutionCode",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21428,6 +21573,7 @@
               "fieldRef": "institution-ts-control",
               "label": "Search for an institution...",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "id",
@@ -21444,6 +21590,7 @@
               "fieldRef": "unlistedInstitution",
               "label": "unlistedInstitution",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21466,6 +21613,7 @@
               "fieldRef": "degree",
               "label": "degree",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21656,6 +21804,7 @@
               "fieldRef": "unlistedDegree",
               "label": "unlistedDegree",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21679,6 +21828,7 @@
               "fieldRef": "subjectSearch",
               "label": "subjectSearch",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21695,6 +21845,7 @@
               "fieldRef": "subject",
               "label": "subject",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21721,6 +21872,7 @@
               "fieldRef": "unlistedSubject",
               "label": "unlistedSubject",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21739,6 +21891,7 @@
               "fieldRef": "startDateMonth",
               "label": "startDateMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -21805,6 +21958,7 @@
               "fieldRef": "startDateYear",
               "label": "startDateYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22119,6 +22273,7 @@
               "fieldRef": "endDateMonth",
               "label": "endDateMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22189,6 +22344,7 @@
               "fieldRef": "endDateYear",
               "label": "endDateYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22507,6 +22663,7 @@
               "fieldRef": "awardDateMonth",
               "label": "awardDateMonth",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22577,6 +22734,7 @@
               "fieldRef": "awardDateYear",
               "label": "awardDateYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22895,6 +23053,7 @@
               "fieldRef": "gradingSystemId",
               "label": "gradingSystemId",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22917,6 +23076,7 @@
               "fieldRef": "grade",
               "label": "grade",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22939,6 +23099,7 @@
               "fieldRef": "unlistedGrade",
               "label": "unlistedGrade",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22957,6 +23118,7 @@
               "fieldRef": "unlistedGradeDescription",
               "label": "unlistedGradeDescription",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -22975,6 +23137,7 @@
               "fieldRef": "highestEducationLevel",
               "label": "Please tick here if this is this the highest qualification level you have taken:",
               "inputType": "checkbox",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -22995,6 +23158,7 @@
               "fieldRef": "certificateStatus",
               "label": "certificateStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23025,6 +23189,7 @@
               "fieldRef": "certificate",
               "label": "certificate",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23037,6 +23202,7 @@
               "fieldRef": "transcriptStatus",
               "label": "transcriptStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23067,6 +23233,7 @@
               "fieldRef": "transcript",
               "label": "transcript",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23079,6 +23246,7 @@
               "fieldRef": "officialCertTranslStatus",
               "label": "officialCertTranslStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23109,6 +23277,7 @@
               "fieldRef": "officialCertTranslation",
               "label": "officialCertTranslation",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23121,6 +23290,7 @@
               "fieldRef": "officialTranTranslStatus",
               "label": "officialTranTranslStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23151,6 +23321,7 @@
               "fieldRef": "officialTranTranslation",
               "label": "officialTranTranslation",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23163,6 +23334,7 @@
               "fieldRef": "certificateTranslationStatus",
               "label": "certificateTranslationStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23193,6 +23365,7 @@
               "fieldRef": "certificateTranslation",
               "label": "certificateTranslation",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23205,6 +23378,7 @@
               "fieldRef": "transcriptTranslationStatus",
               "label": "transcriptTranslationStatus",
               "inputType": "radio",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23235,6 +23409,7 @@
               "fieldRef": "transcriptTranslation",
               "label": "transcriptTranslation",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23303,6 +23478,7 @@
               "fieldRef": "startMonth",
               "label": "Start Date:*",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -23382,6 +23558,7 @@
               "fieldRef": "startYear",
               "label": "startYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -23684,6 +23861,7 @@
               "fieldRef": "endMonth",
               "label": "End Date:",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -23758,6 +23936,7 @@
               "fieldRef": "endYear",
               "label": "endYear",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24060,6 +24239,7 @@
               "fieldRef": "position",
               "label": "Job Title / Position held:*",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -24090,6 +24270,7 @@
               "fieldRef": "employerDetails",
               "label": "Name and address of employer:*",
               "inputType": "textarea",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -24115,6 +24296,7 @@
               "fieldRef": "duties",
               "label": "Brief Overview of Duties(Max 4000 characters):*",
               "inputType": "textarea",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -24562,6 +24744,7 @@
               "fieldRef": "marketingAreaCode",
               "label": "Can you please tell us where you heard about The University of Sheffield?",
               "inputType": "select",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -24728,6 +24911,7 @@
               "fieldRef": "specifics",
               "label": "Please provide more details, if you can",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "label",
@@ -24754,6 +24938,7 @@
               "fieldRef": "otherInst1",
               "label": "otherInst1",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24772,6 +24957,7 @@
               "fieldRef": "otherInstCourse1",
               "label": "otherInstCourse1",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24790,6 +24976,7 @@
               "fieldRef": "otherInst2",
               "label": "otherInst2",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24808,6 +24995,7 @@
               "fieldRef": "otherInstCourse2",
               "label": "otherInstCourse2",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24826,6 +25014,7 @@
               "fieldRef": "otherInst3",
               "label": "otherInst3",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24844,6 +25033,7 @@
               "fieldRef": "otherInstCourse3",
               "label": "otherInstCourse3",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24862,6 +25052,7 @@
               "fieldRef": "otherInst4",
               "label": "otherInst4",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24880,6 +25071,7 @@
               "fieldRef": "otherInstCourse4",
               "label": "otherInstCourse4",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24917,6 +25109,7 @@
               "fieldRef": "other1Desc",
               "label": "other1Desc",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24929,6 +25122,7 @@
               "fieldRef": "other1",
               "label": "other1",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24941,6 +25135,7 @@
               "fieldRef": "other2Desc",
               "label": "other2Desc",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24953,6 +25148,7 @@
               "fieldRef": "other2",
               "label": "other2",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24965,6 +25161,7 @@
               "fieldRef": "other3Desc",
               "label": "other3Desc",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24977,6 +25174,7 @@
               "fieldRef": "other3",
               "label": "other3",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -24989,6 +25187,7 @@
               "fieldRef": "other4Desc",
               "label": "other4Desc",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -25001,6 +25200,7 @@
               "fieldRef": "other4",
               "label": "other4",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -25013,6 +25213,7 @@
               "fieldRef": "other5Desc",
               "label": "other5Desc",
               "inputType": "text",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",
@@ -25025,6 +25226,7 @@
               "fieldRef": "other5",
               "label": "other5",
               "inputType": "file",
+              "dataCategory": "ordinary",
               "locators": [
                 {
                   "strategy": "name",

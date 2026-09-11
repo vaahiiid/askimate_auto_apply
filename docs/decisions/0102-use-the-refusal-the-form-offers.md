@@ -57,10 +57,21 @@ Two refinements, after the expressibility of each condition was answered before 
 > turns a health question into an ordinary field with nothing to notice. 216 fields is a real cost
 > and it is a cost paid once, inside a review that has to happen anyway."*
 
-One value is deliberately **not** named here. The captured ethnic-origin list carries *Prefer not
-to say* (`998`) and no *Information withheld* entry — that wording is the field's label, not an
-option. Vahid: *"Do not name a value until I tell you what it says."* The mechanism below does not
-depend on which; the Sheffield mapping set waits on his reading of the live dropdown.
+**Correction to the decision's words — Vahid, 2026-09-11, from the live dropdown.** The decision
+above says *"Information withheld" for ethnic origin*. The list offers no such entry. His words:
+
+> *"Confirmed from the live dropdown: the option is 'Prefer not to say'. There is no 'Information
+> withheld' entry in the list. So the capture was right and I was wrong. I read 'Information
+> withheld' from the field's label text and reported it as the option. The label names a choice
+> the list does not offer. Record that as a correction to my words in ADR-0102, dated, rather than
+> quietly using the right value — the whole point of the quote-or-omit rule is that the form's own
+> words and my recollection of them are different things, and this is an instance of exactly
+> that."*
+
+So both values are *Prefer not to say*: the disability checkbox `ratherNotSay`, whose own label
+carries the later-opportunity sentence and may be quoted; and ethnic-origin option `998`, whose
+captured text — label and twenty-two options — carries no equivalent statement, so the preview
+prints no such line for it. *"Omit, do not borrow the disability field's sentence."*
 
 ## What is built
 
@@ -122,6 +133,22 @@ and an `ask` naming it each fail to compile at the line that names it —
 `Type '"identity.religion"' is not assignable to type 'OrdinaryFieldKey'`. The catalogue parser
 refuses the same in a file. Vahid: *"I want them closed while they are still empty."*
 
+**7 · A refusal covers the other controls of the same question.** *Found while writing the first
+real set, 2026-09-11.* Sheffield's disability question is twelve checkboxes and *Prefer not to
+say* is one of them; the rule as built in §3 would have blocked the plan on the other eleven, each
+a special-category field with no refusal of its own. So `form_refusal` carries `covers`: the other
+controls of the same question, each of which must be in the blueprint, special-category, mapped by
+nothing and covered by one refusal only (`form_refusal_cover_invalid` otherwise). They are left
+untouched, planned as nothing, and the preview names every one under *Left untouched, as part of
+this*, inside the hash. A cover cannot reach an ordinary field, and cannot silence a question that
+has no refusal: the text box beside the disability group is covered only because it is part of
+that question, and a reviewer who disagrees removes it from the list and the plan blocks on it.
+
+**Also found, and fixed:** P86 declared the refusals as a parameter of the content hash and never
+hashed them; its test compared against a preview with no refusals, whose entries differ too, and
+so passed. P87's test holds the entries fixed and changes only a refusal's rationale, or a cover,
+and the hash now moves with each.
+
 ## Where the refusal happens — said plainly
 
 Vahid asked for *"the same shape as ADR-0077: refused at mapping, not checked at fill,"* and
@@ -136,7 +163,6 @@ exists on the profile side (§6), where the registry is a closed type.
 
 ## What this does not decide
 
-- Which option the Sheffield ethnic-origin dropdown offers. Vahid's to state from his screen.
 - What is special-category. The classification is the reviewer's determination on the reviewed
   entry, against the statute's list quoted in `packages/profile/src/categories.ts`; this record
   applies it only to the Sheffield page's fields, whose labels put them inside it beyond argument.
