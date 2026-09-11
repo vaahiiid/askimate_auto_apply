@@ -37,6 +37,7 @@
   <label for="birthCountry">Country of birth</label>
   <input type="text" id="birthCountry" name="birth_country" autocomplete="off">
   <ul id="birthCountryOptions" role="listbox"></ul>
+  <input type="hidden" id="birthCountryCode" name="birth_country_code" value="">
 
   <label for="passport">Passport photo page</label>
   <input type="file" id="passport" name="passport" accept=".pdf,.jpg">
@@ -73,24 +74,44 @@
   // P95: a typeahead. Entries appear as the applicant types, after a pause;
   // choosing one puts its text in the box. Two entries share a prefix on
   // purpose, so "Ira" offers two and "Iran" offers one.
+  //
+  // P101: each entry carries, as Tom Select's do on the first real form, a
+  // `data-value` the form submits that is NOT the visible text ("IRAN" against
+  // "Iran"; "MYANMAR" against a long label), a `data-selectable` mark, and a
+  // class that changes with state ("option", "option selected",
+  // "option active"). The runner matches an entry by what it reads, and a
+  // class is never part of the locator.
   (function () {
     // "Ireland" twice, as a real list can repeat an entry: two exact matches
     // choose nothing (P97).
-    var COUNTRIES = ["Iran", "Iraq", "Ireland", "Ireland", "Italy", "United Kingdom"];
+    var COUNTRIES = [
+      ["IRAN", "Iran", "option selected"],
+      ["IRAQ", "Iraq", "option"],
+      ["IRELAND", "Ireland", "option"],
+      ["IRELAND-2", "Ireland", "option active"],
+      ["ITALY", "Italy", "option"],
+      ["MYANMAR", "Myanmar (Burma) [The Republic of the Union of Myanmar]", "option"],
+      ["UNITED KINGDOM", "United Kingdom", "option"]
+    ];
     var box = document.getElementById("birthCountry");
     var list = document.getElementById("birthCountryOptions");
+    var code = document.getElementById("birthCountryCode");
     box.addEventListener("input", function () {
       var typed = box.value.toLowerCase();
       setTimeout(function () {
         list.innerHTML = "";
         if (typed.length === 0) return;
-        COUNTRIES.filter(function (c) { return c.toLowerCase().indexOf(typed) === 0; }).forEach(function (c) {
+        COUNTRIES.filter(function (c) { return c[1].toLowerCase().indexOf(typed) === 0; }).forEach(function (c) {
           var entry = document.createElement("li");
           entry.setAttribute("role", "option");
-          entry.textContent = c;
+          entry.setAttribute("data-selectable", "");
+          entry.setAttribute("data-value", c[0]);
+          entry.className = c[2];
+          entry.textContent = c[1];
           entry.addEventListener("click", function () {
-            box.value = c;
-            box.setAttribute("data-chosen", c);
+            box.value = c[1];
+            box.setAttribute("data-chosen", c[1]);
+            code.value = c[0];
             list.innerHTML = "";
           });
           list.appendChild(entry);

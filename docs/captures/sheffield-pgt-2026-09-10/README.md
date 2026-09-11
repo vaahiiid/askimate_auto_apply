@@ -395,11 +395,56 @@ named from the dependencies read (`onclick: searchSubjects()`), and the guards o
 limit are in the ADR. The four-versus-six slots, the asterisks, the titles and the *in English*
 wording stay as his report, for the re-read.
 
-**The Tom Select entry locator** (`.ts-dropdown .option[data-selectable]`, P95) is still the
-library's default and not the capture's. What would confirm it: with the institution box open
-and two letters typed so the entries show, DevTools → Elements → the element whose class begins
-`ts-dropdown` → *Copy outerHTML*, pasted into the chat or saved beside this README as
-`ts-dropdown.html`. One element, one box; the country box is the same widget.
+**The Tom Select entry locator — confirmed from the markup Vahid copied, 2026-09-11 (P101).**
+He copied the country box's dropdown (`institutionCountry`) from the live page, not the
+institution box, since both are the same widget. Its shape, in his words: the dropdown is
+`.ts-dropdown` and its list `.ts-dropdown-content`, whose id is the field's name plus
+`-ts-dropdown`; each entry is a `div.option` with `role="option"`, a `data-value` carrying the
+value the form submits, `data-selectable`, and an id of the field's name plus `-opt-N`; a
+selected entry carries `class="option selected"` and an active one `class="option active"`.
+The 255 entries are the captured `<select id="institutionCountry">`'s options without its blank
+*please select* (256 with it): the count agrees, and the two pairs he quoted — `UNITED KINGDOM` /
+*United Kingdom*, `MYANMAR` / *Myanmar (Burma) [The Republic of the Union of Myanmar]* — are in
+the draft value for value and label for label, held since P85. The other 253 are not compared.
+
+Three things follow, and the draft (0.2.10, set 0.3.7) carries the first:
+
+- **The locator is per box and by structure, not by class.**
+  `#institutionCountry-ts-dropdown [role="option"][data-selectable]` for the country box —
+  the list by its id, an entry by its role and its selectable mark. The former locator
+  (`.ts-dropdown .option[data-selectable]`) would have matched the entries of *both* boxes on
+  the page, since both dropdowns stay in the document while closed, and a text present in both
+  lists would have counted twice and been refused. Class never enters: `.option` matched
+  `option selected` too, but naming the role and the mark means the state classes he saw are
+  not consulted at all. The institution box's locator is written the same way
+  (`#institution-ts-dropdown …`, the id from `<select id="institution">`) **on his report that
+  it is the same widget and the library's id rule, not from a copy** — see below for what
+  would confirm it.
+- **The runner matches an entry by the text it shows, never by `data-value`.** Confirmed in
+  the code and proven against a fixture that carries his shape (`preparation.test.ts`, P101):
+  typing *United Kingdom* chooses the entry and the form then holds `UNITED KINGDOM`; naming
+  `MYANMAR` or `IRAN` finds no entry and chooses nothing; the long Myanmar label is matched
+  when it is the text; the state classes change nothing. Exact means exact, case included.
+- **What the mapping names — raised, not decided.** Today a mapping to either box names the
+  visible text, because that is the one string the runner types and matches, and the preview
+  shows the student that same text. Vahid's expectation, in his words: *"I would expect the
+  mapping to name the value the form submits, and the runner to find the entry by text."*
+  That is buildable, and it is the rule selects and radios already follow: the mapping names
+  the submitted value; the blueprint's `options` (which the captured select supplies) give the
+  label; the runner types the label and chooses the one entry that reads it **and** carries the
+  value — a stronger match than text alone. It changes what a mapping to these boxes names and
+  what the preview shows, so it waits on his word; no mapping to either box is signed, so
+  nothing waits on it.
+
+**What the institution box could differ in, and what would settle it.** The widget is the same;
+what the country copy cannot show is the institution list's *loading*: `institutionCode` is
+captured with one blank option and `optionsAfter: institutionCountry`, so its entries arrive
+from the server after the country is chosen, and possibly only after some letters are typed.
+That decides whether the bounded wait (five seconds) is enough, whether `data-value` is a code
+rather than a name, and whether two institutions can read the same. One copy settles it: with
+the country set to United Kingdom and *Sheff* typed, DevTools → Elements → the element with id
+`institution-ts-dropdown` → *Copy outerHTML*; and from the Network tab the URL (not the body)
+of any request that fires as the letters are typed.
 
 ## What step 4 still needs
 
@@ -460,13 +505,14 @@ and two letters typed so the entries show, DevTools → Elements → the element
      detail. The employment page has neither documents
      nor conditions and would mark cleanly once the registry holds employment (item 7).
    - **P95.** The curated draft (0.2.6) marks `institutionCountry-ts-control` and
-     `institution-ts-control` as `typeahead`, with the entry locator
-     `.ts-dropdown .option[data-selectable]`. **That locator is Tom Select's default markup, not
-     something this capture shows** — the captured pages are not committed, and the draft records
-     only the two boxes. The reviewer confirms it on the next read, or corrects it; until then no
-     mapping to either box is signed. The `<select>` each box fronts (`institutionCountry`,
-     `institutionCode`) stays as captured; the typeahead is the way in, and the select is what the
-     portal submits.
+     `institution-ts-control` as `typeahead`. ~~The entry locator is Tom Select's default
+     markup, not something this capture shows~~ — **confirmed for the country box from the
+     markup Vahid copied on 2026-09-11 (P101, above)**: the draft (0.2.10) names each box's own
+     list by id and an entry by role and selectable mark. The institution box's locator follows
+     the same rule on his report and waits on its own copy. The `<select>` each box fronts
+     (`institutionCountry`, `institutionCode`) stays as captured; the typeahead is the way in,
+     and the select is what the portal submits. What the mapping names — the text shown or the
+     value submitted — is raised above and undecided; no mapping to either box is signed.
    - **P94.** The curated draft (0.2.5) records `optionsAfter` on the four education fields the
      handlers name: `institutionCode` after `institutionCountry`, `gradingSystemId` after
      `institutionCode`, `grade` after `gradingSystemId`, `subject` after `subjectSearch`. Their

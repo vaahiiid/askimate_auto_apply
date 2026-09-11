@@ -300,7 +300,11 @@ describe("filling a fixture portal", () => {
   // ── P95 (ADR-0103, gap 2) ─────────────────────────────────────────────
 
   const BIRTH_COUNTRY: FieldLocator = { strategy: "id", value: "birthCountry" };
-  const ENTRIES: FieldLocator = { strategy: "css", value: "#birthCountryOptions [role=option]" };
+  // The shape of the Sheffield draft's locator (P101): the list by its id, an
+  // entry by its role and its selectable mark — never by a class, which
+  // changes with state.
+  const ENTRIES: FieldLocator = { strategy: "css", value: '#birthCountryOptions [role="option"][data-selectable]' };
+  const CODE: FieldLocator = { strategy: "id", value: "birthCountryCode" };
 
   it("types into a typeahead, waits for the ONE entry that reads exactly the text, and chooses it", async () => {
     const session = await openSession();
@@ -333,6 +337,56 @@ describe("filling a fixture portal", () => {
       OptionNotAvailableError,
     );
     expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen]" }).catch(() => "none")).toBe("none");
+  }, 30_000);
+
+  // ── P101: what the runner matches, against the Tom Select markup Vahid copied ──
+
+  it("matches an entry by the text it shows, not by the value the form submits", async () => {
+    // Vahid's copy of the live country box: "United Kingdom" shows, the form
+    // submits "UNITED KINGDOM"; "Myanmar (Burma) [The Republic of the Union
+    // of Myanmar]" shows, the form submits "MYANMAR". The mapped text is what
+    // the applicant would read and type.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("United Kingdom"));
+    expect(await session.readValue(BIRTH_COUNTRY)).toBe("United Kingdom");
+    // Choosing the entry is what makes the form hold the submitted value.
+    expect(await session.readValue(CODE)).toBe("UNITED KINGDOM");
+  }, 30_000);
+
+  it("does NOT match an entry by its submitted value, and the case of the text is part of the text", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    // The value the form submits is not something an applicant reads; a
+    // mapping naming it would find no entry, and nothing is chosen.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("MYANMAR"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
+    // Nor does "IRAN" read as "Iran": exact means exact.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("IRAN"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
+    expect(await session.readValue(CODE)).toBe("");
+    // The long label IS matched, when it is the text.
+    await session.fillTypeahead(
+      BIRTH_COUNTRY,
+      ENTRIES,
+      confirmedText("Myanmar (Burma) [The Republic of the Union of Myanmar]"),
+    );
+    expect(await session.readValue(CODE)).toBe("MYANMAR");
+  }, 30_000);
+
+  it("is not put off by the state classes an entry carries", async () => {
+    // "Iran" is rendered `class="option selected"` and the second "Ireland"
+    // `class="option active"`: the locator names role and selectable mark,
+    // so the class is not consulted — one is chosen, two are still refused.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Iran"));
+    expect(await session.readValue(CODE)).toBe("IRAN");
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ireland"))).rejects.toThrow(
+      OptionNotAvailableError,
+    );
   }, 30_000);
 
   it("attaches a document", async () => {

@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.109.1] — 2026-09-11
+
+**P101 — the Tom Select entry locator confirmed from the markup Vahid copied; the runner's match is
+on visible text, proven; what the mapping names raised, not decided.**
+
+### Changed
+
+- The Sheffield draft (0.2.10; set 0.3.7) names each typeahead box's own list by id and an entry
+  by role and selectable mark: `#institutionCountry-ts-dropdown [role="option"][data-selectable]`,
+  from the country box's copied markup; the institution box the same way on his report that it
+  is the same widget, pending its own copy. The former class-based locator would have matched
+  both boxes' entries at once.
+- The runner preparation fixture's typeahead entries carry a `data-value` that differs from the
+  text, a `data-selectable` mark and state classes, as the live entries do. Three tests prove the
+  runner matches the text an entry shows, refuses the submitted value and the wrong case, and is
+  not put off by the classes.
+- The capture README records his read, the three findings, what would settle the institution
+  box, and his expectation that a mapping names the submitted value — as a proposal, undecided.
+
+---
+
 ## [0.109.0] — 2026-09-11
 
 **P100 — ADR-0105: a slot's companion is handed to the student with its slot; a list's options

@@ -4906,6 +4906,31 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P101 — the Tom Select entry locator, confirmed from what he copied; text, not value
+
+He sent the country box's dropdown markup from the live page, with its shape spelled out so the
+locator could be written from structure rather than from a paraphrase, and two questions with
+it: does the runner match on the visible text or on the value the form submits, and does the
+single-match rule depend on a class that changes with state. The second answers itself once the
+locator names the list by its id and an entry by its role and selectable mark, which is what the
+draft now does for each box on its own — the old class-based default would have counted both
+boxes' entries together, since a closed dropdown stays in the document. The first is answered in
+the code and then proven rather than asserted: the fixture's entries now carry his shape, a
+`data-value` that is not the text, and the runner chooses *United Kingdom* by reading it, leaves
+`UNITED KINGDOM` and `IRAN` unchosen, and matches the long Myanmar label when that is the text.
+
+What the mapping should name is the question that remains, and it is his. Today it names the
+text, because that is the one string the runner types and matches and the student reads in the
+preview. His expectation — name the submitted value, find by text — is the rule selects and
+radios already follow, and the captured select already holds the value-to-label table it needs,
+so it is buildable and would make the match stronger, not weaker. It is recorded as a proposal
+and not built. Nothing waits on it: no mapping to either box is signed. The institution box is
+the same widget; what one more copy would settle is how its list loads.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P100 — ADR-0105: a slot's companion handed with its slot; a list's options loaded by a press
 
 Both proposals from his live read came back decided the same day, with the reasoning he wants

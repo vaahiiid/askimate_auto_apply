@@ -27,10 +27,10 @@
     "P100 (ADR-0105): the six status radios beside the education page's slots are handed to the student with their slots — 'My transcript is in English' is the student answering the question the slot asks. The subject list is loaded by pressing subjectSearchButton after typing subjectSearch (the dependencies read names the control: onclick searchSubjects()); the press is recorded on the field, not mapped."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.9",
+  "blueprintVersion": "0.2.10",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
