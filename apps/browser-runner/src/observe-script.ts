@@ -123,7 +123,12 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
       fields: [...form.querySelectorAll("input, select, textarea")]
         // Hidden inputs and CSRF tokens are machinery, not questions asked of
         // the student, so they are not part of the blueprint's field list.
-        .filter((element) => element.getAttribute("type") !== "hidden")
+        // Nor are the form's buttons (P91): a submit is a control, recorded
+        // under candidateAdvanceControls when it advances, and never a field.
+        .filter((element) => {
+          const type = (element.getAttribute("type") ?? "").toLowerCase();
+          return !["hidden", "submit", "button", "reset", "image"].includes(type);
+        })
         .map(readField),
     };
     const action = form.getAttribute("action");

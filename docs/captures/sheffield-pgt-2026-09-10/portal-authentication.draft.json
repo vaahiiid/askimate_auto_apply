@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "The eight facts the reviewed entry records (ObservedPortalAuthentication), authored from the signed-out read",
+    "of the entry page on 2026-09-11 (../sheffield-pgt-2026-09-11-entry/README.md answers each with its evidence).",
+    "'unobserved' is the honest value where no page that was read can answer: AUTH 4 (e-mail verification before",
+    "the form) and AUTH 7's delivery. AUTH 5 is 'unobserved' too: none on the pages read, and what follows the",
+    "login button was not observed. DRAFT, for the reviewed entry Iman Behravan approves."
+  ],
+  "portalHost": "www.sheffield.ac.uk",
+  "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z",
+  "observedAt": "2026-09-11T12:16:47.760Z",
+  "applicantChoosesPassword": true,
+  "portalIssuesCredential": false,
+  "passwordlessAvailable": false,
+  "emailVerificationRequired": "unobserved",
+  "mfaOrOtpRequired": "unobserved",
+  "captchaPresent": false,
+  "passwordResetAvailable": true,
+  "credentialsCanBeHandedBack": true
+}

@@ -88,6 +88,16 @@ Article 9 fields on the equal-opportunities page, which are blocker 20 and his d
 `blueprint.draft.curated.json` 0.2.0, carries the course and intake above; it parses and is
 refused as `not_reviewed`. The four schema gaps for step 4 are listed in the README.
 
+## The entry page, read signed out — 2026-09-11
+
+The registration and login pages are one page, the entry point, read by Vahid from a signed-out
+profile (`captures/sheffield-pgt-2026-09-11-entry/`). Its README answers AUTH 1–8 from the
+capture: 1, 3, 6 and 8 settled; 2 and 5 for what the pages show; 4 and 7 not settled by any page
+read. The login URL and locators and a registration page are in the curated draft (0.2.3); the
+eight facts are in `portal-authentication.draft.json`, and the approach chooser refuses on the two
+unobserved ones until Vahid states what stood between *Start Application* and the form, and what
+followed the login button.
+
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 
 **Answered 2026-09-11, by Vahid's direct statement, verbatim:** *"Password: student_chosen,

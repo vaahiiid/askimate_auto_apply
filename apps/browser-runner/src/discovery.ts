@@ -40,6 +40,11 @@ export function inputTypeOf(field: ObservedField): FieldInputType {
       return "date";
     case "file":
       return "file";
+    case "password":
+      // P91: the one type the schema names so a blueprint can be HONEST about
+      // a credential field (see `FieldInputType`), and the switch had no case
+      // for it — Sheffield's entry page came back with three "unknown"s.
+      return "password";
     case "radio":
       return "radio";
     case "checkbox":

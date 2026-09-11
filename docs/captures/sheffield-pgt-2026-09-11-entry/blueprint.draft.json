@@ -1,0 +1,560 @@
+{
+  "blueprintId": "bp-sheffield-pgt-september-direct",
+  "version": "0.1.0",
+  "status": "draft",
+  "institutionName": "University of Sheffield",
+  "courseName": "Postgraduate taught master's — course not yet chosen (Vahid's to supply)",
+  "intake": "September — year not yet stated (Vahid's to supply)",
+  "route": "direct_portal",
+  "authentication": {
+    "required": true,
+    "accountCreationRequired": true,
+    "notes": "login: 4 signal(s) — e.g. input[type=password] name=\"password\" (https://www.sheffield.ac.uk/postgradapplication/)\naccount_creation: 2 signal(s) — e.g. 3 password fields on one page (confirm-password pattern) (https://www.sheffield.ac.uk/postgradapplication/)\n\nReviewer's note from the run: Observed from a session a person signed in to by hand (attached inspection, P79). The registration and login pages themselves were not observed by this run, and the registration and login boxes are authored by a person from their captures."
+  },
+  "pages": [
+    {
+      "pageRef": "page1",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/",
+      "sections": [
+        {
+          "sectionRef": "page1.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "btnG",
+              "label": "btnG",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "btnG"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        },
+        {
+          "sectionRef": "page1.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "email",
+              "label": "E-mail Address:",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "E-mail Address:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "email"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newemail"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "password",
+              "label": "Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "password"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newpassword"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "confirmPassword",
+              "label": "Confirm Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Confirm Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "confirmPassword"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newconfirmpassword"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "startApplicationBtn",
+              "label": "startApplicationBtn",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "startApplicationBtn"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        },
+        {
+          "sectionRef": "page1.form2",
+          "title": "Form 3",
+          "fields": [
+            {
+              "fieldRef": "email",
+              "label": "E-mail Address:",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "E-mail Address:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "email"
+                },
+                {
+                  "strategy": "id",
+                  "value": "returnemail"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "password",
+              "label": "Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "password"
+                },
+                {
+                  "strategy": "id",
+                  "value": "returnpass"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "loginBtn",
+              "label": "loginBtn",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "loginBtn"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [],
+      "advanceControl": {
+        "strategy": "label",
+        "value": ""
+      }
+    },
+    {
+      "pageRef": "page2",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/",
+      "sections": [
+        {
+          "sectionRef": "page2.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "btnG",
+              "label": "btnG",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "btnG"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        },
+        {
+          "sectionRef": "page2.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "email",
+              "label": "E-mail Address:",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "E-mail Address:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "email"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newemail"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "password",
+              "label": "Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "password"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newpassword"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "confirmPassword",
+              "label": "Confirm Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Confirm Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "confirmPassword"
+                },
+                {
+                  "strategy": "id",
+                  "value": "newconfirmpassword"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "startApplicationBtn",
+              "label": "startApplicationBtn",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "startApplicationBtn"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        },
+        {
+          "sectionRef": "page2.form2",
+          "title": "Form 3",
+          "fields": [
+            {
+              "fieldRef": "email",
+              "label": "E-mail Address:",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "E-mail Address:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "email"
+                },
+                {
+                  "strategy": "id",
+                  "value": "returnemail"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "password",
+              "label": "Password:",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Password:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "password"
+                },
+                {
+                  "strategy": "id",
+                  "value": "returnpass"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "loginBtn",
+              "label": "loginBtn",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "loginBtn"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [],
+      "advanceControl": {
+        "strategy": "label",
+        "value": ""
+      }
+    },
+    {
+      "pageRef": "page3",
+      "title": "Postgraduate Online Application",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do",
+      "sections": [
+        {
+          "sectionRef": "page3.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "btnG",
+              "label": "btnG",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "btnG"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        },
+        {
+          "sectionRef": "page3.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "email",
+              "label": "email",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "email"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "sendBtn",
+              "label": "sendBtn",
+              "inputType": "unknown",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "sendBtn"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": []
+    }
+  ],
+  "handoffPoints": [],
+  "provenance": {
+    "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z",
+    "discoveredAt": "2026-09-11T12:16:47.760Z",
+    "observedUrls": [
+      "https://www.sheffield.ac.uk/postgradapplication/",
+      "https://www.sheffield.ac.uk/postgradapplication/",
+      "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do"
+    ],
+    "unobservedClaims": [
+      "STATED (https://sheffield.ac.uk/postgraduate/taught/apply/applying, retrieved 2026-09-10): the form is in two parts; Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked * that must all be completed before Part 2 opens",
+      "STATED (same source, 2026-09-10): Part 2 is course selection — up to three courses per application",
+      "STATED (same source, 2026-09-10): supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form",
+      "STATED (same source, 2026-09-10): the application is submitted only when Submit Application is clicked, and incomplete sections are prompted back at that point",
+      "STATED (same source, 2026-09-10): no application fee for PGT master's",
+      "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
+      "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
+      "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
+      "TO OBSERVE: whether the form issues a credential by email (portal_issued) as the sibling /arpform/login.app form states it does, or asks the applicant to choose a password (student_chosen)",
+      "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+      "AUTH 1 — Does the applicant choose their own password at account creation?",
+      "AUTH 2 — Does the portal generate a credential and email it to them?",
+      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
+      "AUTH 4 — Must the email be verified before the form is reachable?",
+      "AUTH 5 — Is MFA or a one-time code required, and where?",
+      "AUTH 6 — Is a CAPTCHA present, and where?",
+      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+      "AUTH 8 — Can control be handed back cleanly?"
+    ]
+  },
+  "observedSignals": [
+    {
+      "kind": "login",
+      "evidence": "input[type=password] name=\"password\"",
+      "locator": {
+        "strategy": "name",
+        "value": "password"
+      },
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    },
+    {
+      "kind": "login",
+      "evidence": "input[type=password] name=\"confirmPassword\"",
+      "locator": {
+        "strategy": "name",
+        "value": "confirmPassword"
+      },
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    },
+    {
+      "kind": "account_creation",
+      "evidence": "3 password fields on one page (confirm-password pattern)",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    },
+    {
+      "kind": "login",
+      "evidence": "input[type=password] name=\"password\"",
+      "locator": {
+        "strategy": "name",
+        "value": "password"
+      },
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    },
+    {
+      "kind": "login",
+      "evidence": "input[type=password] name=\"confirmPassword\"",
+      "locator": {
+        "strategy": "name",
+        "value": "confirmPassword"
+      },
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    },
+    {
+      "kind": "account_creation",
+      "evidence": "3 password fields on one page (confirm-password pattern)",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/"
+    }
+  ]
+}

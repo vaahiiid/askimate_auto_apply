@@ -388,4 +388,5 @@ No fields (navigation page).
 - The mapping of the other pages. Personal and contact are mapped in the same set (P89) for the
   second sitting; employment's four required fields cannot be mapped until the registry has
   employment fields (raised, not decided); the rest are unmapped.
-- Part 2 and the registration/login pages — unread.
+- Part 2 — unread. The registration and login pages were read on 2026-09-11 and their locators
+  are in the draft (0.2.3) for the second sitting.

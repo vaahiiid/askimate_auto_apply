@@ -4629,3 +4629,33 @@ mapped, blocks as it should. Fail-first on a synthetic address page and on the S
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P91 — the entry page read, the AUTH questions answered from it, the locators authored
+
+Vahid read the entry page and the forgotten-password page from a profile signed in to nothing:
+three pages, zero failed, three refusals, all Google Tag Manager. He described what he saw and
+asked for the eight authentication questions to be answered from the capture, not from his
+description, and for the ones no page can settle to be said so. Four are settled by the capture:
+the applicant chooses a password (AUTH 1), nothing passwordless is offered (3), no CAPTCHA sits on
+those pages (6, with the caveat that tags were refused), and handover follows from the password
+being the student's own (8). Two are settled for what the pages show and open for what follows a
+submit (2, 5). Two no page read can settle: whether the e-mail must be verified before the form
+opens (4), and whether the reset works and where it sends (7). They are not inferred.
+
+The locators the entry had waited on are authored: the login URL and its three locators in the
+draft's authentication block, and a registration page first in the walk with the two password
+fields typed as passwords and mapped to the Secure Plane, the e-mail from the profile.
+
+The eight facts are recorded for the reviewed entry with `unobserved` on 4 and 5 — and the
+chooser refuses on exactly those two, as ADR-0020 built it to: an unobserved answer is not a
+"no". The test holds the refusal and that, with both observed as false, the same facts choose
+`student_chosen`. What settles them is Vahid's own account of registering and signing in,
+recorded as his statement the way the password question was, or a run that does both.
+
+Two defects of the tool the draft made visible, fixed against tests that failed first: a password
+input came back `unknown`, because the converter had no case for the one type the schema names so
+a blueprint can be honest about a credential; and the form's buttons came back as fields.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

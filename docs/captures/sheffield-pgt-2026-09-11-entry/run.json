@@ -1,0 +1,48 @@
+{
+  "runId": "attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z",
+  "mode": "attached_read_only",
+  "target": {
+    "targetId": "sheffield-pgt-september-direct",
+    "institutionName": "University of Sheffield",
+    "allowedHosts": [
+      "sheffield.ac.uk"
+    ]
+  },
+  "cdpEndpoint": "127.0.0.1:9223",
+  "urls": [
+    "https://www.sheffield.ac.uk/postgradapplication",
+    "https://www.sheffield.ac.uk/postgradapplication/",
+    "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do"
+  ],
+  "visited": [
+    "https://www.sheffield.ac.uk/postgradapplication/",
+    "https://www.sheffield.ac.uk/postgradapplication/",
+    "https://www.sheffield.ac.uk/postgradapplication/forgottenPassword.do"
+  ],
+  "failed": [],
+  "blockedRequests": [
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T",
+      "rule": "host",
+      "reason": "Discovery mode blocked a request to https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T: the host is not on the allow-list for this run (sheffield.ac.uk). Discovery is scoped to one target."
+    }
+  ],
+  "refusedNavigations": [],
+  "crawlDelayMs": 2000,
+  "robots": "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",
+  "capturesScrubbed": "input values and textarea bodies removed from pages/*.html; the page itself was not touched",
+  "startedAt": "2026-09-11T12:16:47.760Z"
+}

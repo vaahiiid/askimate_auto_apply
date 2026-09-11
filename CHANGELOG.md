@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.102.0] — 2026-09-11
+
+**P91 — the entry page read, the AUTH questions answered from it, the registration and login
+locators authored.**
+
+### Added
+
+- `docs/captures/sheffield-pgt-2026-09-11-entry/`: Vahid's signed-out read of the entry page and
+  the forgotten-password page, unedited, with a README answering AUTH 1–8 from the capture and
+  saying which it settles (1, 3, 6, 8), which it settles only for what the pages show (2, 5) and
+  which no page read can settle (4, 7).
+- The curated draft (0.2.3) carries `authentication.loginUrl`, the login form's three locators,
+  and a registration page first in the walk whose two password fields are typed `password`. The
+  mapping set (0.3.0) sends the e-mail from the profile and both passwords to the Secure Plane.
+- `portal-authentication.draft.json`: the eight facts for the reviewed entry, `unobserved` on
+  AUTH 4 and 5 — and the guard test holds that the chooser refuses on exactly those two, as
+  designed, and chooses `student_chosen` once they are observed.
+
+### Fixed
+
+- Discovery records a `password` input as `password` — the one type the schema names so a
+  blueprint can be honest about a credential field — where it had returned `unknown`; and the
+  observer no longer records a form's submit and button inputs as fields. Both seen on the entry
+  page's draft; both fail-first.
+
+---
+
 ## [0.101.0] — 2026-09-11
 
 **P90 — the plan honours `visibleWhen`.**

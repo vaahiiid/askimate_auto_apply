@@ -198,6 +198,10 @@ describe("discovery against a fixture portal", () => {
       ]);
       // The observer records the value the input submits.
       expect(fields.find((f) => f.name === "study_mode")?.value).toBe("FT");
+      // P91: a submit or button input is a control, not a question asked of
+      // the student. Sheffield's entry page came back with three buttons as
+      // fields of type "unknown".
+      expect(fields.some((f) => f.type === "submit" || f.type === "button")).toBe(false);
       // No candidate advance control with nothing to find it by, and no
       // sentence that merely contains "start"; the real button, by id, wins.
       for (const candidate of observation.candidateAdvanceControls) {
@@ -265,6 +269,13 @@ describe("radio groups and the advance control, from a synthetic observation (P8
 });
 
 describe("observation to blueprint conversion", () => {
+  it("records a password input as a password, so the blueprint can be honest about it (P91)", () => {
+    // Sheffield's entry page: three password inputs came back "unknown",
+    // because the switch had no case for the one type the schema names for
+    // exactly this reason (see `FieldInputType`).
+    expect(inputTypeOf({ tagName: "input", type: "password", required: false })).toBe("password");
+  });
+
   it("records an unrecognised input type as unknown rather than guessing", () => {
     // "unknown" is a finding a specialist can act on. A wrong guess is not.
     expect(inputTypeOf({ tagName: "input", type: "color", required: false })).toBe("unknown");

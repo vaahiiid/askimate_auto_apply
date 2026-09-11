@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -8,10 +8,102 @@
   "route": "direct_portal",
   "authentication": {
     "required": true,
+    "loginUrl": "https://www.sheffield.ac.uk/postgradapplication/",
+    "login": {
+      "emailLocator": {
+        "strategy": "id",
+        "value": "returnemail"
+      },
+      "passwordLocator": {
+        "strategy": "id",
+        "value": "returnpass"
+      },
+      "submitLocator": {
+        "strategy": "name",
+        "value": "loginBtn"
+      }
+    },
     "accountCreationRequired": true,
-    "notes": "Sign-in required; the eleven pages were read through Vahid's own signed-in session (attached inspection, 2026-09-10). Password: student_chosen — Vahid's direct statement, 2026-09-11: 'I created the account myself and I typed the password I chose. Sheffield did not email me one.' loginUrl and the login form are not recorded: the registration and login pages have not been read (a signed-out read is pending). The tool's draft carried an mfa handoff on the contact page from six postcode boxes; that was the observation script's error (P82) and it is not carried here."
+    "notes": "Sign-in required. Registration and login are the same page, the entry point (read signed out, 2026-09-11, ../sheffield-pgt-2026-09-11-entry/): New Applicants takes e-mail, password and its confirmation before Start Application; Logged in Before takes e-mail and password. Password: student_chosen — the form asks for one, and Vahid's direct statement of 2026-09-11 says he typed the one he chose. No CAPTCHA, no magic link or emailed code on the three pages read. Whether the e-mail must be verified before the form opens (AUTH 4) and what follows the login button (AUTH 5) were not observed. The eleven form pages were read through Vahid's own signed-in session (attached inspection, 2026-09-10)."
   },
   "pages": [
+    {
+      "pageRef": "page0",
+      "title": "Sign in or start an application — the entry page; registration is its New Applicants form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/",
+      "sections": [
+        {
+          "sectionRef": "page0.register",
+          "title": "New Applicants",
+          "fields": [
+            {
+              "fieldRef": "newemail",
+              "label": "E-mail Address:",
+              "inputType": "email",
+              "dataCategory": "ordinary",
+              "locators": [
+                {
+                  "strategy": "id",
+                  "value": "newemail"
+                },
+                {
+                  "strategy": "label",
+                  "value": "E-mail Address:"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "specialist_noted"
+                }
+              ]
+            },
+            {
+              "fieldRef": "newpassword",
+              "label": "Password:",
+              "inputType": "password",
+              "dataCategory": "ordinary",
+              "locators": [
+                {
+                  "strategy": "id",
+                  "value": "newpassword"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "specialist_noted"
+                }
+              ]
+            },
+            {
+              "fieldRef": "newconfirmpassword",
+              "label": "Confirm Password:",
+              "inputType": "password",
+              "dataCategory": "ordinary",
+              "locators": [
+                {
+                  "strategy": "id",
+                  "value": "newconfirmpassword"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "specialist_noted"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [],
+      "advanceControl": {
+        "strategy": "name",
+        "value": "startApplicationBtn"
+      },
+      "nextPageRef": "page3"
+    },
     {
       "pageRef": "page1",
       "title": "Overview — the landing page after sign-in; navigation only",

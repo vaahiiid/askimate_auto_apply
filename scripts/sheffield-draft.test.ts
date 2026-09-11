@@ -19,6 +19,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { chooseApproach } from "@askimate/aas-account";
+import type { ObservedPortalAuthentication } from "@askimate/aas-account";
 import { parseBlueprint, parseMappingSet } from "@askimate/aas-catalogue";
 import { proposeValue, studentId } from "@askimate/aas-domain";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
@@ -123,6 +125,43 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(typed.has("corrIntlPostcode")).toBe(false);
     expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
     expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping", "no_mapping", "no_mapping", "no_mapping"]);
+  });
+
+  it("carry the registration and login the entry page showed, the passwords to the Secure Plane (P91)", () => {
+    expect(blueprint.authentication.loginUrl).toBe("https://www.sheffield.ac.uk/postgradapplication/");
+    expect(blueprint.authentication.login?.emailLocator).toEqual({ strategy: "id", value: "returnemail" });
+    expect(blueprint.pages[0]?.pageRef).toBe("page0");
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE);
+    // A password field reaches the plan only as a credential requirement — no
+    // value, no instruction — and the e-mail is typed from the profile.
+    expect(plan.credentials.map((c) => c.fieldRef).sort()).toEqual(["newconfirmpassword", "newpassword"]);
+    expect(plan.instructions.find((i) => i.fieldRef === "newemail")?.value.kind).toBe("confirmed");
+  });
+
+  it("record eight authentication facts, two unobserved — and the chooser refuses on exactly those (P91)", () => {
+    // AUTH 4 (must the e-mail be verified before the form?) and AUTH 5 (is a
+    // code demanded after the login button?) cannot be settled by a page that
+    // was read, so the file says `unobserved` — and the chooser will not pick
+    // an approach until they are observed. "An unobserved answer is not a
+    // no." That is the design holding, not a gap in the drafts: what settles
+    // them is Vahid's own account of registering and signing in, or a run.
+    const raw = JSON.parse(readFileSync(join(DIR, "portal-authentication.draft.json"), "utf8")) as Record<string, unknown>;
+    const observed = { ...raw, observedAt: new Date(raw["observedAt"] as string) } as unknown as ObservedPortalAuthentication;
+    expect(observed.applicantChoosesPassword).toBe(true);
+    expect(observed.emailVerificationRequired).toBe("unobserved");
+    expect(observed.mfaOrOtpRequired).toBe("unobserved");
+    const choice = chooseApproach({ observed, studentPresentAtCreation: true });
+    expect(choice.chosen).toBe(false);
+    if (choice.chosen) expect.unreachable("two facts are unobserved");
+    expect(choice.refusal.kind).toBe("unobserved");
+    if (choice.refusal.kind === "unobserved") expect(choice.refusal.questions).toHaveLength(2);
+    // With those two observed as false, the same facts choose student_chosen.
+    const settled = { ...observed, emailVerificationRequired: false as const, mfaOrOtpRequired: false as const };
+    const then = chooseApproach({ observed: settled, studentPresentAtCreation: true });
+    expect(then.chosen).toBe(true);
+    if (then.chosen) expect(then.plan.approach).toBe("student_chosen");
   });
 
   it("refuse to render a country the partial map does not name, rather than approximate", () => {

@@ -16,16 +16,47 @@
     "",
     "NOT mapped, and why: employment (page8) asks four required fields — start date, position, employer,",
     "duties — for which the profile registry has no field. A registry addition is a product decision (what the",
-    "profile collects), raised in P89, not made here. Every optional field without a mapping is passed over."
+    "profile collects), raised in P89, not made here. Every optional field without a mapping is passed over.",
+    "",
+    "Registration (page0), P91, from the signed-out read of the entry page: the e-mail from the profile; the two",
+    "password fields as secure_credential for portal_account_creation, filled by the Secure Plane from a value",
+    "nothing else holds, which checkUsable requires of any password field (ADR-0043)."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.2",
+  "blueprintVersion": "0.2.3",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
+    {
+      "fieldRef": "newemail",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.email",
+        "format": {
+          "kind": "text"
+        }
+      },
+      "note": "The address the account is registered under; the same one the contact page asks for again."
+    },
+    {
+      "fieldRef": "newpassword",
+      "source": {
+        "kind": "secure_credential",
+        "purpose": "portal_account_creation"
+      },
+      "note": "Chosen by the student in the secure box (ADR-0042); never a value here."
+    },
+    {
+      "fieldRef": "newconfirmpassword",
+      "source": {
+        "kind": "secure_credential",
+        "purpose": "portal_account_creation"
+      },
+      "note": "The same password, typed again by the Secure Plane."
+    },
     {
       "fieldRef": "forename",
       "source": {
