@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.104.0] — 2026-09-11
+
+**P94 — ADR-0103 gap 1 built: a field whose options the portal loads after another is set is
+planned after it, waited for, and never chosen among.**
+
+### Added
+
+- `BlueprintField.optionsAfter?: { fieldRef }`, parsed by the catalogue, carried on the plan's
+  instruction through the transport and the wire. `checkUsable` refuses (`options_after_invalid`)
+  a dependent field whose earlier field is not before it on the same page or is itself, a
+  dependent with no options to wait for, and a mapped dependent whose earlier field nothing maps.
+- `awaitOption(locator, value)` on the application session: the runner waits a bounded five
+  seconds for the one option it was told to select before selecting it, and fails the page as
+  drift with what the list offered when the bound passes; nothing is typed into that field.
+- The fixture portal's apply page asks the passport's country from a list it fetches after the
+  nationality is chosen, answered after a pause, and refuses a save without it; the gated
+  fixture, the demonstration form and the demonstration's stubbed review carry the dependency.
+- The curated Sheffield draft (0.2.5; mapping set 0.3.2) records the education chain the
+  handlers name on its four dependent selects.
+
+---
+
 ## [0.103.0] — 2026-09-11
 
 **P93 — ADR-0103: the blueprint says what the form does between fields; gap 4 built — a

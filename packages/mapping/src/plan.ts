@@ -80,6 +80,13 @@ export interface FillInstruction {
   readonly inputType: FieldInputType;
   readonly locators: readonly FieldLocator[];
   readonly value: FillValue;
+  /**
+   * This field's options are loaded by the portal after `fieldRef` is set
+   * (ADR-0103, gap 1). The runner waits a bounded time for the option it is
+   * told to select before selecting; the field it follows precedes this one in
+   * the plan, because `checkUsable` refused any other order.
+   */
+  readonly optionsAfter?: { readonly fieldRef: string };
 }
 
 /** The text a fill instruction will type, whichever kind it is. */
@@ -457,12 +464,13 @@ function hiddenFields(
 
 function instructionShape(
   field: BlueprintField,
-): Pick<FillInstruction, "fieldRef" | "label" | "inputType" | "locators"> {
+): Pick<FillInstruction, "fieldRef" | "label" | "inputType" | "locators" | "optionsAfter"> {
   return {
     fieldRef: field.fieldRef,
     label: field.label,
     inputType: field.inputType,
     locators: field.locators,
+    ...(field.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: field.optionsAfter.fieldRef } }),
   };
 }
 

@@ -264,6 +264,8 @@ export interface TransportedInstruction {
   readonly inputType: string;
   readonly locators: readonly FillLocator[];
   readonly value: TransportedValue;
+  /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier. */
+  readonly optionsAfter?: { readonly fieldRef: string };
 }
 
 /**
@@ -705,12 +707,21 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
 
     const parsed = parseTransportedValue(held["value"]);
     if (parsed === null) return null;
+    const after = held["optionsAfter"];
+    let optionsAfter: { readonly fieldRef: string } | undefined;
+    if (after !== undefined) {
+      if (typeof after !== "object" || after === null) return null;
+      const named = (after as Record<string, unknown>)["fieldRef"];
+      if (!nonEmpty(named)) return null;
+      optionsAfter = { fieldRef: named };
+    }
     instructions.push({
       fieldRef: held["fieldRef"],
       label: held["label"],
       inputType: held["inputType"],
       locators,
       value: parsed,
+      ...(optionsAfter === undefined ? {} : { optionsAfter }),
     });
   }
 

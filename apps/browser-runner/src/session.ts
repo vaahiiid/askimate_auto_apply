@@ -117,6 +117,12 @@ export interface FillableSession extends ReadOnlySession {
    * it.
    */
   fillConstant(locator: FieldLocator, text: string): Promise<void>;
+  /**
+   * Waits, bounded, for a field to offer the option `value` (ADR-0103, gap 1):
+   * a list the portal fills after another field is set. Rejects with what the
+   * field offered when the bound passes; never chooses among what arrives.
+   */
+  awaitOption(locator: FieldLocator, value: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   /** Uploads a document by vault ID. The runner never sees the vault itself. */
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;

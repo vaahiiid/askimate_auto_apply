@@ -141,6 +141,17 @@ export interface BlueprintField {
   /** Only present when this condition holds. */
   readonly visibleWhen?: FieldCondition;
   /**
+   * This field's options are loaded by the portal AFTER `fieldRef` is set
+   * (ADR-0103, gap 1) — a grading system's list after the institution, a
+   * passport's country after the nationality. Fill order follows the
+   * blueprint's field order, so `checkUsable` refuses a dependent field that
+   * precedes the one it follows; the runner waits a bounded time for the
+   * option it was told to select, and never chooses among what arrives.
+   * Recorded by the reviewer from a capture taken with the earlier field set;
+   * discovery does not infer it.
+   */
+  readonly optionsAfter?: { readonly fieldRef: string };
+  /**
    * The canonical profile field this maps to.
    *
    * DELIBERATELY OPTIONAL and deliberately not filled in by discovery. Mapping

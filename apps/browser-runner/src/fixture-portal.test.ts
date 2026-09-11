@@ -163,6 +163,23 @@ describe("the password actually arrived, proved the way a portal proves it", () 
   });
 });
 
+describe("a list the page fills after another field is set (P94)", () => {
+  it("offers nothing until the nationality is chosen, then what the portal answers for it", async () => {
+    const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
+    const html = await (await fetch(`${portal.baseUrl}/apply`, { headers: { cookie: signedIn } })).text();
+    expect(html).toContain('<select id="passportCountry" name="passport_country" required>');
+    expect(html).toContain("/passport-countries?nationality=");
+    // The list the page will fetch, and the one it would fetch for nothing.
+    const forIran = await (await fetch(`${portal.baseUrl}/passport-countries?nationality=IR`, { headers: { cookie: signedIn } })).json();
+    expect(forIran).toEqual([
+      { value: "IR", label: "Iran (Islamic Republic of)" },
+      { value: "XX", label: "Another country" },
+    ]);
+    const forNothing = await (await fetch(`${portal.baseUrl}/passport-countries?nationality=`, { headers: { cookie: signedIn } })).json();
+    expect(forNothing).toEqual([]);
+  });
+});
+
 describe("the application form remembers, and the review page shows it", () => {
   it("stores what was filled and renders it back", async () => {
     const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
@@ -182,6 +199,16 @@ describe("the application form remembers, and the review page shows it", () => {
     // sent an ISO date would be told, rather than silently storing the wrong one.
     expect(refused.status).toBe(400);
 
+    // P94: the passport's country is a list the page fills after the
+    // nationality; a save without it is refused, like the real form's.
+    const withoutCountry = await form(
+      "/apply",
+      { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR" },
+      signedIn,
+    );
+    expect(withoutCountry.status).toBe(400);
+    expect(await withoutCountry.text()).toContain("Choose the country that issued your passport.");
+
     const accepted = await form(
       "/apply",
       {
@@ -189,6 +216,7 @@ describe("the application form remembers, and the review page shows it", () => {
         family_name: "Hosseini",
         date_of_birth: "02/04/1999",
         nationality: "IR",
+        passport_country: "IR",
       },
       signedIn,
     );
@@ -238,7 +266,7 @@ describe("the application form remembers, and the review page shows it", () => {
     // reachable only once page two is saved; the portal keeps the file's
     // hash, size and name. Posted here the way a browser posts a file.
     const cookie = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
-    await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR" }, cookie);
+    await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, cookie);
     await form("/study", { personal_statement: "Because the course is the one I want." }, cookie);
     const page3 = await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } });
     const html = await page3.text();

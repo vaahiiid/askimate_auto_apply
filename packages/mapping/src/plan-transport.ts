@@ -86,6 +86,8 @@ export interface StoredFillInstruction {
   readonly inputType: FieldInputType;
   readonly locators: readonly FieldLocator[];
   readonly value: StoredFillValue;
+  /** The field this one's options follow (ADR-0103, gap 1). */
+  readonly optionsAfter?: { readonly fieldRef: string };
 }
 
 /** An upload, as a reference: which box, which document, where. No bytes, no id, no hash. */
@@ -150,6 +152,7 @@ export function toStoredPlan(
             value: locator.value,
           })),
           value: storedValue(instruction.value),
+          ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
         }),
       ),
       uploads: plan.uploads.map(
@@ -241,6 +244,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
           value: locator.value,
         })),
         value: rebuiltValue(instruction.value),
+        ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
       }),
     ),
     uploads: stored.uploads.map((upload) => ({

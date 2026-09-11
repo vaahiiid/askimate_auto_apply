@@ -41,6 +41,13 @@ export interface ApplicationSession {
    * covered by the mapping set's two-person review (ADR-0017).
    */
   fillConstant(locator: FieldLocator, text: string): Promise<void>;
+  /**
+   * Waits a bounded time for the option `value` to be offered by the field
+   * (ADR-0103, gap 1) — a list the portal loads after another field is set.
+   * Resolves once it is there; rejects with what the field offered if it is
+   * not by the bound. Never chooses among what arrives.
+   */
+  awaitOption(locator: FieldLocator, value: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
   readValue(locator: FieldLocator): Promise<string>;
@@ -164,6 +171,13 @@ export async function executePlan(
     }
 
     try {
+      // A field whose options the portal loads after another is set: the
+      // earlier field is already filled — the plan's order is the blueprint's,
+      // and `checkUsable` refused any other — so wait for the option, bounded,
+      // before selecting it (ADR-0103, gap 1).
+      if (instruction.optionsAfter !== undefined) {
+        await session.awaitOption(locator, textOf(instruction.value));
+      }
       if (instruction.value.kind === "confirmed") {
         await session.fill(locator, instruction.value.value);
       } else {

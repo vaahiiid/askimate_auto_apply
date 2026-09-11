@@ -263,7 +263,14 @@ async function main(): Promise<void> {
       ...page,
       sections: page.sections.map((section) => ({
         ...section,
-        fields: section.fields.map((field) => ({ ...field, dataCategory: "ordinary" as const })),
+        fields: section.fields.map((field) => ({
+          ...field,
+          dataCategory: "ordinary" as const,
+          // What the reviewer saw: the passport's country list is filled by
+          // the page after the nationality is chosen (ADR-0103, gap 1).
+          // Discovery does not infer this; the review records it.
+          ...(field.fieldRef === "passport_country" ? { optionsAfter: { fieldRef: "nationality" } } : {}),
+        })),
       })),
     })),
     status: "reviewed",
@@ -321,6 +328,14 @@ async function main(): Promise<void> {
       },
       {
         fieldRef: "nationality",
+        source: {
+          kind: "profile_field",
+          fieldKey: "identity.nationality",
+          format: { kind: "option", options: { Iranian: "IR", British: "GB" } },
+        },
+      },
+      {
+        fieldRef: "passport_country",
         source: {
           kind: "profile_field",
           fieldKey: "identity.nationality",

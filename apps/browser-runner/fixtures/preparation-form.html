@@ -29,6 +29,11 @@
     <option value="IR">Iran</option>
   </select>
 
+  <label for="passportCountry">Country that issued your passport</label>
+  <select id="passportCountry" name="passport_country" required>
+    <option value="">Choose a nationality first</option>
+  </select>
+
   <label for="passport">Passport photo page</label>
   <input type="file" id="passport" name="passport" accept=".pdf,.jpg">
 
@@ -40,6 +45,27 @@
 </form>
 
 <script>
+  // P94: a list the page fills by script once another field is set, after a
+  // round trip — the education chain's shape on the first real form. Nothing
+  // is offered until the nationality is chosen, and then not at once.
+  document.getElementById("nationality").addEventListener("change", function (event) {
+    var list = document.getElementById("passportCountry");
+    var chosen = event.target.value;
+    setTimeout(function () {
+      list.innerHTML = "";
+      // A blank first entry, as real lists have: nothing is chosen until
+      // someone chooses, so a read-back after a refused wait says "".
+      var offered = chosen === "IR" ? [["", "Please select"], ["IR", "Iran"], ["XX", "Another country"]]
+        : chosen === "GB" ? [["", "Please select"], ["GB", "United Kingdom"], ["XX", "Another country"]] : [];
+      offered.forEach(function (pair) {
+        var option = document.createElement("option");
+        option.value = pair[0];
+        option.textContent = pair[1];
+        list.appendChild(option);
+      });
+    }, 400);
+  });
+
   // A portal that saves a draft as the applicant types. Preparation must
   // permit this — blocking it would block the work — and must record it.
   document.getElementById("continueBtn").addEventListener("click", function () {

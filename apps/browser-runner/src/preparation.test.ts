@@ -264,6 +264,39 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue({ strategy: "id", value: "nationality" })).toBe("");
   }, 30_000);
 
+  // ── P94 (ADR-0103, gap 1) ─────────────────────────────────────────────
+
+  it("waits for an option the page loads AFTER another field is set, then selects it", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fill({ strategy: "id", value: "nationality" }, confirmedText("IR"));
+    // Not yet there: the page fills the list 400ms after the change.
+    await expect(
+      session.fill({ strategy: "id", value: "passportCountry" }, confirmedText("IR")),
+    ).rejects.toThrow(OptionNotAvailableError);
+
+    await session.awaitOption({ strategy: "id", value: "passportCountry" }, "IR");
+    await session.fill({ strategy: "id", value: "passportCountry" }, confirmedText("IR"));
+    expect(await session.readValue({ strategy: "id", value: "passportCountry" })).toBe("IR");
+  }, 30_000);
+
+  it("fails with what the page offered when the option never arrives — bounded, and nothing chosen", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fill({ strategy: "id", value: "nationality" }, confirmedText("IR"));
+
+    const started = Date.now();
+    await expect(
+      session.awaitOption({ strategy: "id", value: "passportCountry" }, "GB"),
+    ).rejects.toThrow(OptionNotAvailableError);
+    expect(Date.now() - started).toBeLessThan(20_000);
+    // The error names what WAS offered once the list had arrived.
+    await expect(
+      session.awaitOption({ strategy: "id", value: "passportCountry" }, "GB"),
+    ).rejects.toThrow(/IR/);
+    expect(await session.readValue({ strategy: "id", value: "passportCountry" })).toBe("");
+  }, 30_000);
+
   it("attaches a document", async () => {
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);

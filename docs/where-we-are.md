@@ -4714,3 +4714,31 @@ README says which and why they wait on a re-read.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P94 — ADR-0103 gap 1 built: options that arrive after another field are ordered, waited for, never chosen among
+
+The education chain on the first real form — country, then institution, then grading system,
+then grade, each list empty until the one before it is set and the server has answered — is
+the shape the schema could not say, and now says: `optionsAfter` names the field whose setting
+loads this one's options. Three things follow from one word. Order: the plan's instructions are
+the blueprint's field order, so `checkUsable` refuses a dependent that precedes the field it
+follows, one that names a field on another page or itself, one that is not a list at all, and a
+mapped dependent whose earlier field nothing maps — a mapping that names an option the earlier
+field would never cause to appear fails on every run, and it is refused at the mapping boundary
+rather than discovered at the form. Wait: the runner, before selecting, asks the session for the
+one option it was told to select, bounded at five seconds, and fails the page as drift with what
+the list offered when the bound passes; nothing is typed into that field. Never choose: the wait
+is for one named value, not for the list to change, so the runner never picks among what arrives.
+
+The fixture portal's apply page now asks the passport's country from a list it fetches after the
+nationality is chosen and the server has answered, after a pause, and refuses a save without it;
+a fill that did not wait meets an empty list. The demonstration form does the same by script, and
+its stubbed review records the dependency where a reviewer would. Discovery does not infer it.
+The Sheffield draft records the four dependent selects the handlers name; their lists are as
+captured with nothing set, so no mapping may name an option until a capture is taken with the
+earlier fields set — the schema's limit was always the capture's, and the check refuses an option
+the list does not hold as `option` rendering always has.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

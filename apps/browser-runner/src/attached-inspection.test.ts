@@ -123,6 +123,10 @@ describe("attached inspection reads a form behind a login (P79)", () => {
       await page.fill("#familyName", "Hosseini");
       await page.fill("#dob", "02/04/1999");
       await page.selectOption("#nationality", { index: 1 });
+      // The passport-country list arrives after the nationality (P94); the
+      // person waits for it, as a person does, and chooses. Its GET is a read.
+      await page.waitForSelector('#passportCountry option[value="IR"]', { state: "attached" });
+      await page.selectOption("#passportCountry", "IR");
       await page.click("#continueBtn").catch(() => undefined);
       await page.waitForTimeout(500);
       postsWhileAttached = portal.requests.slice(before).filter((r) => r.method === "POST").length;
@@ -139,6 +143,8 @@ describe("attached inspection reads a form behind a login (P79)", () => {
     await page.fill("#familyName", "Hosseini");
     await page.fill("#dob", "02/04/1999");
     await page.selectOption("#nationality", { index: 1 });
+    await page.waitForSelector('#passportCountry option[value="IR"]', { state: "attached" });
+    await page.selectOption("#passportCountry", "IR");
     await Promise.all([page.waitForURL(/\/study$/), page.click("#continueBtn")]);
     expect(portal.application("person@example.test")?.givenName).toBe("Niloofar");
   }, 60_000);

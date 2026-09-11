@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -21663,7 +21663,10 @@
                   "value": "",
                   "label": "(blank — the portal's \"please select\" entry)"
                 }
-              ]
+              ],
+              "optionsAfter": {
+                "fieldRef": "institutionCountry"
+              }
             },
             {
               "fieldRef": "institution-ts-control",
@@ -21962,7 +21965,10 @@
                   "value": "Not in list",
                   "label": "Not in list"
                 }
-              ]
+              ],
+              "optionsAfter": {
+                "fieldRef": "subjectSearch"
+              }
             },
             {
               "fieldRef": "unlistedSubject",
@@ -23166,7 +23172,10 @@
                   "value": "",
                   "label": "Enter your institution to see grades"
                 }
-              ]
+              ],
+              "optionsAfter": {
+                "fieldRef": "institutionCode"
+              }
             },
             {
               "fieldRef": "grade",
@@ -23189,7 +23198,10 @@
                   "value": "",
                   "label": "(blank — the portal's \"please select\" entry)"
                 }
-              ]
+              ],
+              "optionsAfter": {
+                "fieldRef": "gradingSystemId"
+              }
             },
             {
               "fieldRef": "unlistedGrade",

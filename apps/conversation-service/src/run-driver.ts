@@ -5960,6 +5960,7 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
       fieldRef: instruction.fieldRef,
       label: instruction.label,
       inputType: instruction.inputType,
+      ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
       locators: instruction.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,

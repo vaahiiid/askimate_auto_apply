@@ -95,6 +95,7 @@ function session(over: Partial<ApplicationSession> = {}): ApplicationSession & {
       return Promise.resolve();
     },
     attach: () => Promise.reject(new Error("no documents")),
+    awaitOption: () => Promise.resolve(),
     readValue: () => Promise.resolve("Niloofar"),
     currentUrl: () => Promise.resolve(url),
     ...over,

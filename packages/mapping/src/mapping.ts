@@ -277,7 +277,13 @@ export type MappingRefusal =
   /** A cover naming a field that is not special-category, not in the blueprint, mapped, or covered twice. */
   | { readonly kind: "form_refusal_cover_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A document slot's companion that is not on the blueprint, does not offer the value, or is mapped as well (gap 4). */
-  | { readonly kind: "document_companion_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "document_companion_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A field whose options follow another that the fill could not honour (gap 1): the earlier
+   * field is not on the same page before it, the dependent offers no options, or the earlier
+   * field is mapped by nothing while the dependent is — its option could never arrive.
+   */
+  | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -588,7 +594,59 @@ export function checkUsable(
     };
   }
 
+  // ── ADR-0103 gap 1: a field whose options arrive after another is set ──
+  //
+  // Fill order is the blueprint's field order, and a wait is only as good as
+  // the thing it waits for. So the earlier field must sit before the dependent
+  // on the same page; the dependent must be one that has options to wait for;
+  // and if the dependent is mapped, the earlier field must be too — a mapping
+  // that names an option the earlier field would never cause to appear is a
+  // fill that fails on every run, and it is refused here rather than there.
+  const orderProblems: string[] = [];
+  const orderRefs: string[] = [];
+  for (const page of blueprint.pages) {
+    const order = page.sections.flatMap((section) => section.fields);
+    order.forEach((field, index) => {
+      if (field.optionsAfter === undefined) return;
+      const earlierIndex = order.findIndex((candidate) => candidate.fieldRef === field.optionsAfter?.fieldRef);
+      const problem =
+        earlierIndex === -1
+          ? `follows "${field.optionsAfter.fieldRef}", which is not on its page`
+          : earlierIndex === index
+            ? "follows itself"
+            : earlierIndex > index
+              ? `follows "${field.optionsAfter.fieldRef}", which comes after it`
+              : !hasOptions(field)
+                ? `is a ${field.inputType} field, which offers no options to wait for`
+                : mapped.has(field.fieldRef) && !mapped.has(field.optionsAfter.fieldRef)
+                  ? `is mapped while "${field.optionsAfter.fieldRef}", which its options follow, is mapped by nothing`
+                  : null;
+      if (problem !== null) {
+        orderProblems.push(`${field.fieldRef} ${problem}`);
+        orderRefs.push(field.fieldRef);
+      }
+    });
+  }
+  if (orderProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "options_after_invalid",
+        fieldRefs: orderRefs,
+        detail:
+          `${orderProblems.join("; ")}. A field's options may follow only a field before it on the ` +
+          `same page, it must offer options, and the field it follows must be mapped whenever it is ` +
+          `(ADR-0103).`,
+      },
+    };
+  }
+
   return { usable: true, mappingSet: mappingSet as UsableMappingSet };
+}
+
+/** Whether a field is one whose options a runner could wait for. */
+function hasOptions(field: BlueprintField): boolean {
+  return field.inputType === "select" || field.inputType === "multiselect" || field.inputType === "radio";
 }
 
 /** Whether the form itself offers `value` as something to choose on this field. */

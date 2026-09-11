@@ -177,6 +177,26 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
                 { value: "GB", label: "United Kingdom" },
               ],
             },
+            {
+              // P94 (ADR-0103, gap 1): the portal fills this list by script
+              // once a nationality is chosen — the education chain's shape on
+              // the first real form. The options here are what the reviewer
+              // saw with a nationality set; the runner waits for the one it
+              // is told to select and never chooses among what arrives.
+              fieldRef: "passport_country",
+              label: "Country that issued your passport",
+              inputType: "select",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "label", value: "Country that issued your passport" }],
+              validations: [{ kind: "required", source: "dom_attribute" }],
+              options: [
+                { value: "IR", label: "Iran (Islamic Republic of)" },
+                { value: "IQ", label: "Iraq" },
+                { value: "GB", label: "United Kingdom" },
+                { value: "XX", label: "Another country" },
+              ],
+              optionsAfter: { fieldRef: "nationality" },
+            },
           ],
         },
       ],
@@ -313,6 +333,18 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
           options: { Iranian: "IR", Iraqi: "IQ", British: "GB" },
         },
       },
+    },
+    {
+      fieldRef: "passport_country",
+      source: {
+        kind: "profile_field",
+        fieldKey: "identity.nationality",
+        format: {
+          kind: "option",
+          options: { Iranian: "IR", Iraqi: "IQ", British: "GB" },
+        },
+      },
+      note: "The fixture portal asks the passport's country beside the nationality; the same fact, asked twice.",
     },
     {
       fieldRef: "personal_statement",

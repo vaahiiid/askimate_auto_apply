@@ -6,7 +6,7 @@ import { proposeValue, studentId } from "@askimate/aas-domain";
 import { newInterview } from "@askimate/aas-interview";
 import { DeterministicModelClient } from "@askimate/aas-llm";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
-import type { MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
+import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
 import {
   InMemoryAuthorisationLedger,
@@ -402,12 +402,33 @@ class RecordingSession implements ApplicationSession {
   public readonly filled: { locator: FieldLocator; text: string; confirmed: boolean }[] = [];
   public readonly attached: { locator: FieldLocator; documentId: string }[] = [];
   public readonly clicked: FieldLocator[] = [];
+  /** Every act, in order — so a test can hold that a wait came between two fills. */
+  public readonly acts: string[] = [];
+  /** What the session was asked to wait for (P94). */
+  public readonly awaited: { locator: FieldLocator; value: string }[] = [];
   #failOn: string | null = null;
   #failWith: Error | null = null;
+  #neverArrives: string | null = null;
 
   public failOn(locatorValue: string, error: Error): void {
     this.#failOn = locatorValue;
     this.#failWith = error;
+  }
+
+  /** The option named for this locator never appears. */
+  public neverArrivesOn(locatorValue: string): void {
+    this.#neverArrives = locatorValue;
+  }
+
+  public awaitOption(locator: FieldLocator, value: string): Promise<void> {
+    this.acts.push(`await ${locator.value}`);
+    this.awaited.push({ locator, value });
+    if (locator.value === this.#neverArrives) {
+      const error = new Error(`"${value}" never appeared among the options of ${locator.value}`);
+      error.name = "OptionNotAvailableError";
+      return Promise.reject(error);
+    }
+    return Promise.resolve();
   }
 
   public goto(_url: string): Promise<void> {
@@ -418,6 +439,7 @@ class RecordingSession implements ApplicationSession {
     if (locator.value === this.#failOn && this.#failWith !== null) {
       return Promise.reject(this.#failWith);
     }
+    this.acts.push(`fill ${locator.value}`);
     this.filled.push({
       locator,
       text: (value as unknown as { value: string }).value,
@@ -427,6 +449,7 @@ class RecordingSession implements ApplicationSession {
   }
 
   public fillConstant(locator: FieldLocator, text: string): Promise<void> {
+    this.acts.push(`fill ${locator.value}`);
     this.filled.push({ locator, text, confirmed: false });
     return Promise.resolve();
   }
@@ -602,6 +625,51 @@ describe("executing a plan", () => {
 
     const report = await executePlan(session, plan(), documentSource, CONTEXT);
     expect(failures(report)[0]?.drift).toBe(true);
+  });
+
+  // ── P94 (ADR-0103, gap 1): options that arrive after another field ──────
+
+  /** The plan with its SECOND instruction made to follow its first. */
+  function dependentPlan(): { plan: FillPlan; first: string; second: string } {
+    const base = plan();
+    const [first, second] = base.instructions;
+    if (first === undefined || second === undefined) expect.unreachable("two instructions");
+    return {
+      plan: {
+        ...base,
+        instructions: base.instructions.map((instruction) =>
+          instruction === second ? { ...instruction, optionsAfter: { fieldRef: first.fieldRef } } : instruction,
+        ),
+      },
+      first: first.locators[0]?.value ?? "",
+      second: second.locators[0]?.value ?? "",
+    };
+  }
+
+  it("waits for a dependent field's option AFTER the field it follows is filled, and before selecting", async () => {
+    const session = new RecordingSession();
+    const { plan: dependent, first, second } = dependentPlan();
+    const report = await executePlan(session, dependent, documentSource, CONTEXT);
+
+    expect(report.completed).toBe(true);
+    expect(session.awaited).toHaveLength(1);
+    expect(session.awaited[0]?.locator.value).toBe(second);
+    expect(session.awaited[0]?.value).toBe(session.filled.find((f) => f.locator.value === second)?.text);
+    const order = session.acts;
+    expect(order.indexOf(`fill ${first}`)).toBeLessThan(order.indexOf(`await ${second}`));
+    expect(order.indexOf(`await ${second}`)).toBeLessThan(order.indexOf(`fill ${second}`));
+  });
+
+  it("fails the page as drift when the option never arrives, with nothing typed into that field", async () => {
+    const session = new RecordingSession();
+    const { plan: dependent, second } = dependentPlan();
+    session.neverArrivesOn(second);
+    const report = await executePlan(session, dependent, documentSource, CONTEXT);
+
+    expect(report.completed).toBe(false);
+    expect(failures(report)[0]?.drift).toBe(true);
+    expect(failures(report)[0]?.error).toContain("never appeared");
+    expect(session.filled.some((f) => f.locator.value === second)).toBe(false);
   });
 
   it("reports a missing document rather than filling around it", async () => {

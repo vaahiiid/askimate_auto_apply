@@ -78,7 +78,7 @@ occurrence's path, naming the first. The tool's own draft repeats names freely (
 `saveBtn`); a curated draft may not, and the two language-page fields are renamed
 `languageCertificate` and `languageCertificateStatus`, locators unchanged.
 
-## Gap 1 — options that arrive after another field — DECIDED, to build (P94)
+## Gap 1 — options that arrive after another field — DECIDED and BUILT (P94)
 
 `BlueprintField.optionsAfter?: { fieldRef }` — this field's options are loaded by the portal after
 `fieldRef` is set. Fill order follows the blueprint's field order, and `checkUsable` refuses a
@@ -88,6 +88,28 @@ the form offered if it does not. The mapping names the option by the label or va
 saw once the earlier field was set; the runner never chooses among what arrives. What the
 reviewer can see of a dependent list is a limit of the capture, not of the schema: a capture taken
 with the earlier field set shows the list, and the curation records that state.
+
+As built:
+
+- `checkUsable` refuses (`options_after_invalid`) a dependent field whose earlier field is not on
+  the same page before it, or is itself; a dependent that is not a select, multiselect or radio —
+  there is nothing to wait for; and a mapped dependent whose earlier field is mapped by nothing —
+  its option could never arrive, so the fill would fail on every run, and the refusal is here
+  rather than there.
+- The plan carries `optionsAfter` on the instruction, through the transport and the wire, and the
+  runner calls `awaitOption(locator, value)` before the fill — a new act on the session, for one
+  named option, bounded at five seconds — and the page fails as drift with what the list offered
+  when the bound passes. Nothing is typed into that field.
+- Discovery does not infer the dependency; the reviewer records it. The demonstration's stubbed
+  review does exactly that for the fixture form's passport-country list, which the page now fills
+  after the nationality and after a round trip, as the fixture portal's does; a fill that did not
+  wait meets an empty list and is refused.
+- The curated Sheffield draft records the education chain the handlers name: `institutionCode`
+  after `institutionCountry`, `gradingSystemId` after `institutionCode`, `grade` after
+  `gradingSystemId`, `subject` after `subjectSearch`. Their option lists are what the capture held
+  with nothing set — one blank entry each — so no mapping can name an option until a capture is
+  taken with the earlier fields set, and `checkUsable` will refuse one that does, as `option`
+  rendering always has.
 
 ## Gap 2 — a typeahead — DECIDED, to build (P95)
 

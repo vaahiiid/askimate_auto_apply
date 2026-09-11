@@ -3354,7 +3354,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     expect(
       work.plan?.instructions.map((instruction) => instruction.fieldRef),
       "only that page's fields",
-    ).toEqual(["given_name", "family_name", "dob", "nationality"]);
+    ).toEqual(["given_name", "family_name", "dob", "nationality", "passport_country"]);
 
     // The lease names the page, so the report keys the right intent (ADR-0047).
     const leases = await pool.query<{ page_ref: string | null; kind: string }>(

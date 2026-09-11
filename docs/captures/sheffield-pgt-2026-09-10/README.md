@@ -323,7 +323,7 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.4 and the mapping set 0.3.1. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.5 and the mapping set 0.3.2. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
@@ -349,10 +349,16 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    boundary.
 4. ~~`pnpm run inspect-dependencies` output from Vahid's machine~~ — received 2026-09-11, in
    `inspect-dependencies.txt`, read above.
-5. Four schema gaps raised and decided (ADR-0103): options that arrive after another field is
-   set; a typeahead as a fill mechanism; a repeatable entry (education, employment) as a page
-   shape; ~~a companion field whose value follows another act (the upload radios)~~ — built in
-   P93. The curated draft (0.2.4) carries `companion` on the seven slots whose *upload now* radio
+5. Four schema gaps raised and decided (ADR-0103): ~~options that arrive after another field is
+   set~~ — built in P94; a typeahead as a fill mechanism; a repeatable entry (education,
+   employment) as a page shape; ~~a companion field whose value follows another act (the upload
+   radios)~~ — built in P93.
+   - **P94.** The curated draft (0.2.5) records `optionsAfter` on the four education fields the
+     handlers name: `institutionCode` after `institutionCountry`, `gradingSystemId` after
+     `institutionCode`, `grade` after `gradingSystemId`, `subject` after `subjectSearch`. Their
+     options are as captured with nothing set — a blank entry each — so no mapping may name one
+     until a capture is taken with the earlier fields set; the schema now says the order and the
+     wait, and the check refuses an option the list does not hold. The curated draft (0.2.4) carries `companion` on the seven slots whose *upload now* radio
    value the capture holds: the six education slots (`…UploadRadio`) and the language slot
    (`certificateStatusUpload`, the one labelled *I will upload my certificate now*). On the
    education page the radio labels were not captured — the option is read from its value, which

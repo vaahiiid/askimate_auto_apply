@@ -6,7 +6,7 @@ import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@aski
 
 import { checkUsable, constantsIn, formRefusalAttribution, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
-import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, BlueprintField } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "./fixtures/portal.js";
 import {
@@ -624,5 +624,85 @@ describe("a document slot's companion (P93, gap 4)", () => {
     const stored = toStoredPlan(plan);
     if (!stored.ok) expect.unreachable(stored.refusal);
     expect(rehydratePlan(stored.plan).uploads[0]?.companion?.text).toBe("now");
+  });
+});
+
+describe("a field whose options arrive after another is set (P94, gap 1)", () => {
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+
+  /** The blueprint with one field patched, wherever it sits. */
+  const withField = (
+    fieldRef: string,
+    patch: (field: BlueprintField) => BlueprintField,
+  ): ApplicationBlueprint => ({
+    ...BLUEPRINT,
+    pages: BLUEPRINT.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => (field.fieldRef === fieldRef ? patch(field) : field)),
+      })),
+    })),
+  });
+
+  it("plans the dependent field AFTER the field it follows, and says which it follows", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const refs = plan.instructions.map((i) => i.fieldRef);
+    expect(refs.indexOf("passport_country")).toBeGreaterThan(refs.indexOf("nationality"));
+    const dependent = plan.instructions.find((i) => i.fieldRef === "passport_country");
+    expect(dependent?.optionsAfter).toEqual({ fieldRef: "nationality" });
+    expect(plan.instructions.find((i) => i.fieldRef === "nationality")?.optionsAfter).toBeUndefined();
+  });
+
+  it("REFUSES an order the fill could not follow: a field that precedes the one it depends on", () => {
+    const check = checkUsable(SET, withField("given_name", (f) => ({ ...f, optionsAfter: { fieldRef: "nationality" } })));
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("options_after_invalid");
+      expect(check.refusal.detail).toContain("given_name");
+    }
+  });
+
+  it("REFUSES a dependency on a field that is not on the blueprint, on another page, or itself", () => {
+    for (const fieldRef of ["no_such_field", "personal_statement", "passport_country"]) {
+      const check = checkUsable(SET, withField("passport_country", (f) => ({ ...f, optionsAfter: { fieldRef } })));
+      expect(check.usable, fieldRef).toBe(false);
+      if (!check.usable) expect(check.refusal.kind).toBe("options_after_invalid");
+    }
+  });
+
+  it("REFUSES a dependent field that offers no options to wait for", () => {
+    const check = checkUsable(SET, withField("family_name", (f) => ({ ...f, optionsAfter: { fieldRef: "given_name" } })));
+    expect(check.usable).toBe(false);
+    if (!check.usable) expect(check.refusal.kind).toBe("options_after_invalid");
+  });
+
+  it("REFUSES a mapped dependent whose earlier field nothing maps — the option could never arrive", () => {
+    const withoutNationality: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.filter((m) => m.fieldRef !== "nationality"),
+    };
+    const check = checkUsable(withoutNationality, BLUEPRINT);
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("options_after_invalid");
+      expect(check.refusal.detail).toContain("nationality");
+    }
+  });
+
+  it("carries the dependency through transport", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    const back = rehydratePlan(stored.plan);
+    expect(back.instructions.find((i) => i.fieldRef === "passport_country")?.optionsAfter).toEqual({
+      fieldRef: "nationality",
+    });
+    expect(back.instructions.find((i) => i.fieldRef === "nationality")?.optionsAfter).toBeUndefined();
   });
 });

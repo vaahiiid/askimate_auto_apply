@@ -143,6 +143,13 @@ export class LocatorNotFoundError extends Error {
   }
 }
 
+/**
+ * How long a list the portal fills after another field may take to offer the
+ * option the fill was told to select (ADR-0103, gap 1). One server round trip
+ * on a slow day, with room; not a retry loop.
+ */
+const OPTION_WAIT_MS = 5_000;
+
 export class PlaywrightPreparationSession implements FillableSession {
   readonly #allowList: HostAllowList;
   readonly #clickAllowList: ClickAllowList;
@@ -347,6 +354,56 @@ export class PlaywrightPreparationSession implements FillableSession {
     // Unwrapped at the last possible moment. Before this line it is a
     // ConfirmedValue and nothing else could have been passed here.
     await this.#type(locator, unwrapConfirmed(value));
+  }
+
+  /**
+   * Waits, bounded, for a list to offer `value` (ADR-0103, gap 1).
+   *
+   * The education chain on the first real form: an institution's grading
+   * systems arrive after the institution is chosen and the server has
+   * answered. Fill order already put the earlier field first; this is the
+   * wait, and it is for ONE named option — the one the reviewer saw — not for
+   * "the list to change". When the bound passes the error names what the
+   * list offered, so the review can see whether the option moved or the list
+   * never loaded.
+   */
+  public async awaitOption(locator: FieldLocator, value: string): Promise<void> {
+    const target = await this.#resolve([locator]);
+    const tagName = (await target.evaluate((element) => element.tagName)).toLowerCase();
+    const type = tagName === "select" ? "select" : await target.getAttribute("type");
+
+    const wanted =
+      type === "select"
+        ? target.locator(`option[value="${cssEscape(value)}"]`)
+        : type === "radio"
+          ? target
+              .page()
+              .locator(
+                `input[type="radio"][name="${cssEscape((await target.getAttribute("name")) ?? "")}"][value="${cssEscape(value)}"]`,
+              )
+          : null;
+    if (wanted === null) {
+      throw new OptionNotAvailableError(locator, value, []);
+    }
+    try {
+      await wanted.first().waitFor({ state: "attached", timeout: OPTION_WAIT_MS });
+    } catch {
+      const available =
+        type === "select"
+          ? await target.evaluate((element) =>
+              [...(element as HTMLSelectElement).options].map((option) => ({
+                value: option.value,
+                label: option.textContent ?? "",
+              })),
+            )
+          : await target
+              .page()
+              .locator(`input[type="radio"][name="${cssEscape((await target.getAttribute("name")) ?? "")}"]`)
+              .evaluateAll((elements) =>
+                elements.map((element) => ({ value: (element as HTMLInputElement).value, label: "" })),
+              );
+      throw new OptionNotAvailableError(locator, value, available);
+    }
   }
 
   async #type(locator: FieldLocator, text: string): Promise<void> {

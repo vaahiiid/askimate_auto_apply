@@ -216,6 +216,29 @@ describe("parsing rebuilds rather than casts", () => {
     expect(parsed.refusal.detail).toContain("expected one of");
   });
 
+  it("round-trips a field's optionsAfter (P94), and refuses one that names nothing", () => {
+    const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const field = parsed.value.blueprint.pages
+      .flatMap((page) => page.sections)
+      .flatMap((section) => section.fields)
+      .find((candidate) => candidate.fieldRef === "passport_country");
+    expect(field?.optionsAfter).toEqual({ fieldRef: "nationality" });
+
+    const broken = JSON.parse(documentOf()) as Record<string, unknown>;
+    const pages = (broken["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+    for (const page of pages) {
+      for (const section of page["sections"] as Record<string, unknown>[]) {
+        for (const candidate of section["fields"] as Record<string, unknown>[]) {
+          if (candidate["fieldRef"] === "passport_country") candidate["optionsAfter"] = {};
+        }
+      }
+    }
+    const refused = parseReviewedEntry(broken);
+    if (refused.ok) expect.unreachable("an optionsAfter without a fieldRef should refuse");
+    expect(refused.refusal.path).toContain("optionsAfter");
+  });
+
   it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
     // Found on the Sheffield draft, not designed: the language page and the
     // education page both call their file input `certificate` and its status

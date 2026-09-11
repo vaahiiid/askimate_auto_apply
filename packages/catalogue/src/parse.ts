@@ -308,6 +308,9 @@ function readField(value: unknown, path: string): BlueprintField {
     ? undefined
     : list(source, "options", path, readOption);
   const visibleWhen = optionalWith(source, "visibleWhen", path, readCondition);
+  const optionsAfter = optionalWith(source, "optionsAfter", path, (held, at) => ({
+    fieldRef: text(record(held, at), "fieldRef", at),
+  }));
   const mapsTo = optionalText(source, "mapsTo", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
   // — and refused absent by `checkUsable`, not by the parser.
@@ -324,6 +327,7 @@ function readField(value: unknown, path: string): BlueprintField {
     validations: list(source, "validations", path, readValidation),
     ...(options === undefined ? {} : { options }),
     ...(visibleWhen === undefined ? {} : { visibleWhen }),
+    ...(optionsAfter === undefined ? {} : { optionsAfter }),
     ...(mapsTo === undefined ? {} : { mapsTo }),
   };
 }

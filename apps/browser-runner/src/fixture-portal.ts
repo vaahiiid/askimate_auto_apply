@@ -67,6 +67,8 @@ export interface PortalApplication {
   readonly familyName: string;
   readonly dateOfBirth: string;
   readonly nationality: string;
+  /** The passport's country, from the list the page fills after the nationality (P94). */
+  readonly passportCountry: string;
   readonly personalStatement: string;
   /** The passport, once page three is saved (P74). */
   readonly passport: PortalUpload | null;
@@ -227,9 +229,50 @@ const APPLY_PAGE = (error: string | null): string =>
     <option value="GB">United Kingdom</option>
   </select>
 
+  <label for="passportCountry">Country that issued your passport</label>
+  <select id="passportCountry" name="passport_country" required>
+    <option value="">Choose a nationality first</option>
+  </select>
+
   <button type="submit" id="continueBtn">Save and continue</button>
-</form>`,
+</form>
+<script>
+  // P94 (ADR-0103, gap 1): a list the page fills from the server once another
+  // field is set — the education chain's shape on the first real form. Nothing
+  // is offered until the nationality is chosen, and then only after the answer.
+  document.getElementById("nationality").addEventListener("change", function (event) {
+    var list = document.getElementById("passportCountry");
+    list.innerHTML = '<option value="">Loading…</option>';
+    fetch("/passport-countries?nationality=" + encodeURIComponent(event.target.value))
+      .then(function (response) { return response.json(); })
+      .then(function (offered) {
+        list.innerHTML = "";
+        offered.forEach(function (entry) {
+          var option = document.createElement("option");
+          option.value = entry.value;
+          option.textContent = entry.label;
+          list.appendChild(option);
+        });
+      });
+  });
+</script>`,
   );
+
+/** What the portal offers as a passport's country for a nationality — answered late, on purpose. */
+const PASSPORT_COUNTRIES: Record<string, readonly { readonly value: string; readonly label: string }[]> = {
+  IR: [
+    { value: "IR", label: "Iran (Islamic Republic of)" },
+    { value: "XX", label: "Another country" },
+  ],
+  IQ: [
+    { value: "IQ", label: "Iraq" },
+    { value: "XX", label: "Another country" },
+  ],
+  GB: [
+    { value: "GB", label: "United Kingdom" },
+    { value: "XX", label: "Another country" },
+  ],
+};
 
 /**
  * The SECOND application page.
@@ -287,6 +330,7 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <dt>Last name</dt><dd id="reviewFamilyName">${escapeHtml(application.familyName)}</dd>
   <dt>Date of birth</dt><dd id="reviewDob">${escapeHtml(application.dateOfBirth)}</dd>
   <dt>Nationality</dt><dd id="reviewNationality">${escapeHtml(application.nationality)}</dd>
+  <dt>Passport country</dt><dd id="reviewPassportCountry">${escapeHtml(application.passportCountry)}</dd>
   <dt>Personal statement</dt>
   <dd id="reviewStatement">${escapeHtml(application.personalStatement)}</dd>
   <dt>Passport</dt>
@@ -541,11 +585,28 @@ export async function startFixturePortal(
         return;
       }
 
+      if (method === "GET" && path === "/passport-countries") {
+        // The list the apply page fetches after the nationality is chosen.
+        // Answered after a pause, so a fill that did not wait meets an empty
+        // list — the thing P94 exists to handle.
+        const offered = PASSPORT_COUNTRIES[url.searchParams.get("nationality") ?? ""] ?? [];
+        setTimeout(() => {
+          response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(offered));
+        }, 400);
+        return;
+      }
+
       if (method === "POST" && path === "/apply") {
         const body = await readBody(request);
         const dateOfBirth = body.get("date_of_birth") ?? "";
         if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateOfBirth)) {
           send(response, 400, APPLY_PAGE("Enter your date of birth as DD/MM/YYYY."));
+          return;
+        }
+        const passportCountry = body.get("passport_country") ?? "";
+        const offeredFor = PASSPORT_COUNTRIES[body.get("nationality") ?? ""] ?? [];
+        if (!offeredFor.some((entry) => entry.value === passportCountry)) {
+          send(response, 400, APPLY_PAGE("Choose the country that issued your passport."));
           return;
         }
         // Page one is KEPT on save, and page two is a separate submission. That
@@ -556,6 +617,7 @@ export async function startFixturePortal(
           familyName: body.get("family_name") ?? "",
           dateOfBirth,
           nationality: body.get("nationality") ?? "",
+          passportCountry,
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
           passport: applications.get(signedInAs)?.passport ?? null,
           passportStatus: applications.get(signedInAs)?.passportStatus ?? null,
