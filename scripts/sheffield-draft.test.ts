@@ -20,17 +20,49 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseBlueprint, parseMappingSet } from "@askimate/aas-catalogue";
-import { studentId } from "@askimate/aas-domain";
-import { checkUsable, planFill } from "@askimate/aas-mapping";
+import { proposeValue, studentId } from "@askimate/aas-domain";
+import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import { buildPreview, renderPreview } from "@askimate/aas-preparation";
-import { emptyProfile } from "@askimate/aas-profile";
+import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
+import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
+
+const NOW = new Date(0);
+const STUDENT = studentId("stu");
+
+function withConfirmed(entries: readonly [ProfileFieldKey, unknown][]): ConfirmedProfile {
+  let profile = emptyProfile(STUDENT, NOW);
+  for (const [key, value] of entries) {
+    const result = applyConfirmation({
+      key,
+      proposed: proposeValue({
+        value: value as ProfileFieldType<ProfileFieldKey>,
+        origin: "conversation",
+        verbatim: "as stated",
+        confidence: 0.9,
+      }),
+      confirmation: { studentRef: STUDENT, presentedText: "…", respondedAt: NOW, response: { kind: "accepted" } },
+    });
+    if (isDeclined(result)) expect.unreachable("accepted");
+    profile = confirmField(profile, result, NOW);
+  }
+  return profile;
+}
+
+const PROFILE_ENTRIES: readonly [ProfileFieldKey, unknown][] = [
+  ["identity.given_name", "Niloofar"],
+  ["identity.family_name", "Hosseini"],
+  ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+  ["contact.email", "niloofar.hosseini@example.com"],
+  ["contact.address", { line1: "12 Example Road", city: "Sheffield", postalCode: "S10 2TN", countryCode: "GB" }],
+];
+const PROFILE = withConfirmed(PROFILE_ENTRIES);
 
 const DIR = join(import.meta.dirname, "..", "docs", "captures", "sheffield-pgt-2026-09-10");
 
 function load() {
   const blueprint = parseBlueprint(JSON.parse(readFileSync(join(DIR, "blueprint.draft.curated.json"), "utf8")));
   const mappingSet = parseMappingSet(
-    JSON.parse(readFileSync(join(DIR, "mapping-set.equal-opportunities.draft.json"), "utf8")),
+    JSON.parse(readFileSync(join(DIR, "mapping-set.draft.json"), "utf8")),
   );
   if (!blueprint.ok) expect.unreachable(`blueprint: ${JSON.stringify(blueprint.refusal)}`);
   if (!mappingSet.ok) expect.unreachable(`mapping set: ${JSON.stringify(mappingSet.refusal)}`);
@@ -60,15 +92,52 @@ describe("the Sheffield drafts, under the real checks", () => {
       "ratherNotSay",
       "ethnicOriginCode",
     ]);
-    // The other pages are unmapped, so their required fields block — and
-    // NOTHING else does: no covered control, no unclassified field.
-    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["no_mapping"]));
-    expect(plan.blockers).toHaveLength(13);
+    // With an empty profile the mapped fields want values (the interview's
+    // job), and the four employment fields have no mapping because the
+    // registry has no field for them (P89, raised) — and NOTHING else blocks:
+    // no covered control, no unclassified field, no refused render.
+    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
+      "duties",
+      "employerDetails",
+      "position",
+      "startMonth",
+    ]);
+  });
+
+  it("fill the personal and contact pages from a confirmed profile, the date as three selects", () => {
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE);
+    const typed = new Map(plan.instructions.map((i) => [i.fieldRef, textOf(i.value)]));
+    expect(typed.get("forename")).toBe("Niloofar");
+    expect(typed.get("surname")).toBe("Hosseini");
+    expect(typed.get("dobDay")).toBe("2");
+    expect(typed.get("dobMonth")).toBe("April");
+    expect(typed.get("dobYear")).toBe("1999");
+    expect(typed.get("confirmEmail")).toBe("niloofar.hosseini@example.com");
+    expect(typed.get("corrCountry")).toBe("UNITED KINGDOM");
+    expect(typed.get("corrPostcode")).toBe("S10 2TN");
+    expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping", "no_mapping", "no_mapping", "no_mapping"]);
+  });
+
+  it("refuse to render a country the partial map does not name, rather than approximate", () => {
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const elsewhere = withConfirmed([
+      ...PROFILE_ENTRIES.filter(([key]) => key !== "contact.address"),
+      ["contact.address", { line1: "1 Rue Example", city: "Lyon", postalCode: "69001", countryCode: "FR" }],
+    ]);
+    const plan = planFill(blueprint, check.mappingSet, elsewhere);
+    const refused = plan.blockers.find((b) => b.kind === "render_refused");
+    expect(refused?.fieldRef).toBe("corrCountry");
   });
 
   it("render the block as decided: the quote on disability, nothing quoted on ethnic origin", () => {
     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page9") };
-    const check = checkUsable(asIfReviewed, page);
+    const onPage = new Set(page.pages.flatMap((p) => p.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))));
+    const pageOnly = { ...asIfReviewed, mappings: asIfReviewed.mappings.filter((m) => onPage.has(m.fieldRef)) };
+    const check = checkUsable(pageOnly, page);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(page, check.mappingSet, emptyProfile(studentId("stu"), new Date(0)));
     const preview = buildPreview(page, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });

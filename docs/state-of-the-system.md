@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,444 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,447 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -134,6 +134,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P86** | ADR-0102 — use the refusal the form offers | Blocker 20 built as Vahid decided it. `BlueprintField.dataCategory`, set by the reviewer and never by discovery; a mapping set is refused while any field is unclassified. `ValueSource.form_refusal` — the value the form offers, a mandatory rationale, the form's own words or nothing — the only source `checkUsable` accepts on a special-category field, refused when misused, not offered or composed. With no refusal mapped the plan blocks `special_category_unhandled`, required or not, and a specialist is asked. The preview lists refusals under *We did not answer these for you*, never among the answers, inside the hash. Transport, wire and both conversions carry the kind. Found while costing the sheet: `profile_field` and the interview's `ask` were typed by the whole registry; both are now `OrdinaryFieldKey`, measured to refuse a special-category key at the line that names it. Eleven tests, all failing before the mechanism. The curated Sheffield draft classifies its fourteen equal-opportunities fields |
 | **P87** | The correction recorded, a refusal covers its question's other controls, and the first real mapping set | Vahid's dated correction in ADR-0102: the ethnic-origin list offers *Prefer not to say*; *Information withheld* was the label's wording he reported as the option. `form_refusal.covers`, found while writing the first real set — Sheffield's disability question is twelve boxes and the rule would have blocked the plan on the eleven others; a cover must be special-category, unmapped and covered once, is planned as nothing and named in the preview. The hash now moves with each refusal (P86 had declared it and not hashed it). The equal-opportunities mapping set is written as a draft for Iman's review; the curated draft classifies all 216 fields as proposals; the review pack counts 23 judgement rows and 193 mechanical; a test holds the drafts to the real checks |
 | **P88** | Three defects of the discovery tool the first real form exposed | Fixed fail-first, each against the shape Sheffield showed: radio inputs sharing a name become one field whose options carry the submitted values, recorded by the observer (the draft had one field per input and no values); an advance-control candidate is never blank, a sentence containing "start" is not a button, and the page's control prefers an id (the draft had a blank locator on five pages); `inspect-discovery` counts refusals by rule and calls only a write on the target state-changing (the summary had called fifteen off-host tags writes). ADR-0102 §7 now says what the P86 hash test did wrong — it agreed with the code — and the assertion is retired |
+| **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P85** | The dependencies read, the Article 9 sheet, and the draft blueprint with the course and intake set | Vahid's `inspect-dependencies` output recorded and read: the education chain is confirmed by handler (four selects empty until the one before them is set and the server answers — an order and a wait the schema cannot say); sixteen of seventeen file inputs tick their own *upload now* radio by `onchange`, the English-language slot does not, and the five other-documents radios were not in the capture at all — the runner's `setInputFiles` fires the page's script and verifies nothing, so the draft carries the radio as a field beside each slot and names the relation as a fourth schema gap. The equal-opportunities page asks eleven disability boxes and an ethnic-origin select: Article 9, Vahid's decision, written as blocker 20's sheet — B (pass through, unstored) does not exist here because every typed value is in the preview, the stored plan and the log by design; `student_handoff` would make the whole application untransportable; A (unmapped, passed over, named in the preview) recommended with the two things it needs. The curated draft blueprint, 0.2.0, parses and is refused as `not_reviewed` |
 
 ---
@@ -488,7 +489,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,444 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,447 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -501,7 +502,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,444 tests**, by the workspace they live in. Generated — run
+**2,447 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -510,7 +511,7 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 300 | `packages/profile` | 46 |
+| `scripts` | 302 | `packages/profile` | 47 |
 | `apps/browser-runner` | 274 | `packages/preparation` | 43 |
 | `packages/case-store` | 145 | `packages/catalogue` | 39 |
 | `packages/orchestrator` | 114 | `packages/mapping` | 36 |

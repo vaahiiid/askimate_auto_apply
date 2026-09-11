@@ -1,0 +1,216 @@
+{
+  "$comment": [
+    "The mapping set for the Sheffield PGT form, DRAFT, one file for the whole blueprint (a plan reads one set).",
+    "Authored from Vahid's words; the approver is Iman Behravan (step 5 reviewer pair). Not usable until reviewed",
+    "by a second person, and not executable until every required field is mapped.",
+    "",
+    "Equal opportunities (page9), 2026-09-11, ADR-0102 and Vahid's correction from the live dropdown: both values",
+    "are 'Prefer not to say'. The disability refusal COVERS the eleven other controls of the same question. The",
+    "ethnic-origin refusal quotes nothing: the field's captured text says nothing about a later opportunity.",
+    "",
+    "Personal (page3) and contact (page4), P89: mapped as far as the profile registry reaches. Date of birth is",
+    "three selects, rendered with the D / MMMM / YYYY patterns. The e-mail is asked twice and mapped twice. The",
+    "country select takes the portal's own upper-case names; the option map here is PARTIAL — eight countries",
+    "whose names the capture shows — and a student from any other refuses to render (render_refused) rather",
+    "than being approximated. The reviewer extends it from the captured option list, never from memory.",
+    "",
+    "NOT mapped, and why: employment (page8) asks four required fields — start date, position, employer,",
+    "duties — for which the profile registry has no field. A registry addition is a product decision (what the",
+    "profile collects), raised in P89, not made here. Every optional field without a mapping is passed over."
+  ],
+  "mappingSetId": "map-sheffield-pgt-2027-09",
+  "version": "0.2.0",
+  "status": "draft",
+  "blueprintId": "bp-sheffield-pgt-september-direct",
+  "blueprintVersion": "0.2.2",
+  "authoredBy": "Vahid Mohammadi",
+  "authoredAt": "2026-09-11T12:00:00Z",
+  "mappings": [
+    {
+      "fieldRef": "forename",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.given_name",
+        "format": {
+          "kind": "text"
+        }
+      },
+      "note": "First / Given Name:* — the captured label carries the asterisk."
+    },
+    {
+      "fieldRef": "surname",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.family_name",
+        "format": {
+          "kind": "text"
+        }
+      },
+      "note": "Family Name:* — the captured label carries the asterisk."
+    },
+    {
+      "fieldRef": "dobDay",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.date_of_birth",
+        "format": {
+          "kind": "date",
+          "pattern": "D"
+        }
+      },
+      "note": "Date of Birth:* asked as three selects; the day options are '1'…'31', unpadded."
+    },
+    {
+      "fieldRef": "dobMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.date_of_birth",
+        "format": {
+          "kind": "date",
+          "pattern": "MMMM"
+        }
+      },
+      "note": "The month options are English names, 'January'…'December'."
+    },
+    {
+      "fieldRef": "dobYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.date_of_birth",
+        "format": {
+          "kind": "date",
+          "pattern": "YYYY"
+        }
+      },
+      "note": "The year options are four-digit years."
+    },
+    {
+      "fieldRef": "email",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.email",
+        "format": {
+          "kind": "text"
+        }
+      },
+      "note": "E-mail:* — the address the account was registered with; the reviewer confirms the portal accepts a different one here."
+    },
+    {
+      "fieldRef": "confirmEmail",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.email",
+        "format": {
+          "kind": "text"
+        }
+      },
+      "note": "Confirm E-Mail:* — the same value typed again, as the form asks."
+    },
+    {
+      "fieldRef": "corrAddress1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "line1"
+        }
+      },
+      "note": "Address Line 1:*"
+    },
+    {
+      "fieldRef": "corrTown",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "city"
+        }
+      },
+      "note": "Town / City:*"
+    },
+    {
+      "fieldRef": "corrCountry",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "countryCode",
+          "then": {
+            "kind": "option",
+            "options": {
+              "GB": "UNITED KINGDOM",
+              "IR": "IRAN",
+              "IN": "INDIA",
+              "PK": "PAKISTAN",
+              "CN": "CHINA",
+              "NG": "NIGERIA",
+              "TR": "TURKEY",
+              "US": "UNITED STATES"
+            }
+          }
+        }
+      },
+      "note": "Country:* — the portal's own upper-case names as values. PARTIAL map; any other country refuses to render, for the reviewer to extend from the captured options."
+    },
+    {
+      "fieldRef": "corrPostcode",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "postalCode"
+        }
+      },
+      "note": "UK Post Code: (* UK only) — shown when the country is the United Kingdom."
+    },
+    {
+      "fieldRef": "corrIntlPostcode",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "postalCode"
+        }
+      },
+      "note": "The international postcode box, shown when the country is not the United Kingdom. Both boxes carry the same part; the fill honours neither visibility yet (a known gap)."
+    },
+    {
+      "fieldRef": "ratherNotSay",
+      "source": {
+        "kind": "form_refusal",
+        "value": "true",
+        "rationale": "Health is Article 9 data this system does not hold. The form's own 'Prefer not to say' is ticked: a stated refusal to route the answer through AskiMate, not the student's answer. The empty save is refused (Vahid, 2026-09-11), so a refusal the form offers is the only honest entry.",
+        "formSays": "if you go on to register on a course you will have another opportunity to answer later",
+        "covers": [
+          "noDisability",
+          "dyslexia",
+          "blindness",
+          "deafness",
+          "wheelchair",
+          "autistic",
+          "mentalHealth",
+          "unseen",
+          "developmentCondition",
+          "otherDisability",
+          "additionalSupport",
+          "supportNeeds"
+        ]
+      },
+      "note": "Vahid, 2026-09-11: 'the \"Prefer not to say\" checkbox, whose own label reads \"if you go on to register on a course you will have another opportunity to answer later\". That line is the form's words and may be quoted.'"
+    },
+    {
+      "fieldRef": "ethnicOriginCode",
+      "source": {
+        "kind": "form_refusal",
+        "value": "998",
+        "rationale": "Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer."
+      },
+      "note": "Vahid, 2026-09-11, from the live dropdown: 'the option is \"Prefer not to say\". There is no \"Information withheld\" entry in the list.' The field's captured text carries no later-opportunity statement, so nothing is quoted."
+    }
+  ]
+}

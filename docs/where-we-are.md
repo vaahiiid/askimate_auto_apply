@@ -4591,3 +4591,25 @@ had called them so.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P89 — the personal and contact pages mapped as far as the registry reaches
+
+The Sheffield mapping set is now one draft for the whole blueprint, because a plan reads one set,
+and it carries the personal and contact pages as far as the profile registry reaches. Names map
+to names. The date of birth is three selects — day `1`…`31`, month by English name, year — which
+no closed date pattern could produce one part of, so the closed set has three more members,
+`D`, `MMMM` and `YYYY`, added against a test that failed first. The e-mail is asked twice and
+mapped twice. The address maps by part. The country select takes the portal's own upper-case
+names, and the option map is partial: eight countries whose names the capture shows, and any
+other refuses to render rather than being approximated, which is the rule the format layer has
+always had. A confirmed fixture profile fills all of it under the real checks.
+
+What it could not map, and why, is the finding. Employment asks four required fields — start
+date, position, employer name and address, duties — and the registry collects no employment
+history. So nothing can be mapped, the interview cannot ask, and the plan blocks on all four.
+Adding fields to the registry is a decision about what the profile collects, with each new field
+classified; it is raised for Vahid, not made.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

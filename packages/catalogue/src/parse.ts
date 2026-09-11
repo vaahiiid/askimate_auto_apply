@@ -253,6 +253,7 @@ const HANDOFF_KINDS: readonly HandoffPoint["kind"][] = [
 ];
 const DATE_PATTERNS = [
   "YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "DD-MM-YYYY", "D MMMM YYYY", "DD MMM YYYY",
+  "D", "MMMM", "YYYY",
 ] as const;
 const PASSWORD_DELIVERIES: readonly PasswordDelivery[] = [
   "student_types_into_portal", "askimate_secure_channel",

@@ -277,8 +277,9 @@ not to say`; *Information withheld* is the label's wording). The curated draft, 
 the fourteen fields on this page `special_category`, and 0.2.2 classifies the other 202 `ordinary`
 as proposals for review. Vahid confirmed both values from the live dropdown on 2026-09-11 and
 corrected his own words (ADR-0102). The page's mapping set is
-`mapping-set.equal-opportunities.draft.json`; the review pack for Iman is `review-pack.md`;
-`scripts/sheffield-draft.test.ts` holds both drafts to the real checks.
+`mapping-set.draft.json` — one set for the whole blueprint, since a plan reads one; P89 added the
+personal and contact pages to it, as far as the registry reaches. The review pack for Iman is
+`review-pack.md`; `scripts/sheffield-draft.test.ts` holds both drafts to the real checks.
 
 ## The curated draft — `blueprint.draft.curated.json`, version 0.2.0
 
@@ -349,4 +350,11 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
 5. Four schema gaps raised and decided: options that arrive after another field is set; a
    typeahead as a fill mechanism; a repeatable entry (education, employment) as a page shape; a
    companion field whose value follows another act (the upload radios).
-6. Blocker 20 — the Article 9 fields — decided on its sheet.
+6. ~~Blocker 20 — the Article 9 fields~~ — decided and built (ADR-0102); the page is mapped.
+7. **The employment page's four required fields have no profile field** — start date, position,
+   employer name and address, duties. The registry (`packages/profile`) collects no employment
+   history, so nothing can be mapped, the interview cannot ask, and the plan blocks `no_mapping`
+   on all four. Adding fields to the registry is a product decision about what the profile
+   collects, with each new field classified; raised in P89, not made.
+8. The country select's option map is partial — eight countries whose names the capture shows —
+   and refuses to render any other; the reviewer extends it from the captured option list.

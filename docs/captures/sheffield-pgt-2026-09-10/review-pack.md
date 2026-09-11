@@ -1,6 +1,6 @@
 # Review pack — Sheffield PGT, the curated draft and the equal-opportunities mapping set
 
-**For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · generated from `blueprint.draft.curated.json` (0.2.2) and `mapping-set.equal-opportunities.draft.json` (0.1.0)
+**For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · generated from `blueprint.draft.curated.json` (0.2.2) and `mapping-set.draft.json` (0.2.0; the equal-opportunities page is this sitting's; its personal and contact mappings, added in P89, are the second sitting's)
 
 What this sitting is, and is not. It is the review ADR-0102 requires before either artefact can be
 used: every field classified (`ordinary` or `special_category`), and the one page's mapping set
@@ -385,5 +385,7 @@ No fields (navigation page).
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,
   the companion upload radio) — raised in the capture README, not decided here.
 - Radio option values: the draft carries the captured `id` or the label, not the submitted value.
-- The mapping of the other ten pages. Only equal opportunities is mapped.
+- The mapping of the other pages. Personal and contact are mapped in the same set (P89) for the
+  second sitting; employment's four required fields cannot be mapped until the registry has
+  employment fields (raised, not decided); the rest are unmapped.
 - Part 2 and the registration/login pages — unread.

@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.100.0] — 2026-09-11
+
+**P89 — the personal and contact pages mapped as far as the registry reaches.**
+
+### Added
+
+- `DatePattern` gains `D`, `MMMM` and `YYYY`: one part of a date, for a portal that asks it as
+  three selects. Sheffield's date of birth is day `1`…`31`, month `January`…`December`, year.
+  Three more members of the closed set, not a format string. Fail-first.
+- The Sheffield mapping set is one file for the whole blueprint, `mapping-set.draft.json` (0.2.0),
+  and carries the personal and contact pages: names, the date of birth as three selects, the
+  e-mail asked twice, the address parts, and the country as a **partial** option map of eight
+  captured names that refuses to render any other country rather than approximate.
+
+### Raised, not decided
+
+- Employment's four required fields — start date, position, employer name and address, duties —
+  have no profile field. The registry collects no employment history; nothing can be mapped, the
+  interview cannot ask, and the plan blocks on all four. A registry addition is a product decision
+  about what the profile collects.
+
+---
+
 ## [0.99.1] — 2026-09-11
 
 **P88 — three defects of the discovery tool the first real form exposed, fixed fail-first.**

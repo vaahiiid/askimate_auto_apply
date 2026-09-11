@@ -83,7 +83,13 @@ export type DatePattern =
   | "MM/DD/YYYY"
   | "DD-MM-YYYY"
   | "D MMMM YYYY"
-  | "DD MMM YYYY";
+  | "DD MMM YYYY"
+  // One part of a date, for a portal that asks it as three selects (P89:
+  // Sheffield's date of birth is day "1"…"31", month "January"…"December",
+  // year). Three more members of the closed set — still not a format string.
+  | "D"
+  | "MMMM"
+  | "YYYY";
 
 /** Why a value could not be rendered. */
 export type RenderRefusal =
@@ -140,6 +146,12 @@ function formatDate(date: Date, pattern: DatePattern): string {
       return `${String(day)} ${monthName} ${year}`;
     case "DD MMM YYYY":
       return `${two(day)} ${monthName.slice(0, 3).toUpperCase()} ${year}`;
+    case "D":
+      return String(day);
+    case "MMMM":
+      return monthName;
+    case "YYYY":
+      return year;
   }
 }
 

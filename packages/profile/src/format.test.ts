@@ -33,6 +33,23 @@ function confirmed<K extends ProfileFieldKey>(
   return result.value;
 }
 
+describe("a date asked as three selects (P89)", () => {
+  // Sheffield asks the date of birth as day, month and year dropdowns whose
+  // values are "2", "April" and "1999". None of the closed patterns produces
+  // one part of a date, so a mapping could not say it. Three more members of
+  // the closed set — still not a format string.
+  it("renders the day unpadded, the month by name, and the year", () => {
+    const dob = confirmed("identity.date_of_birth", new Date("1999-04-02T00:00:00Z"));
+    const day = renderConfirmed(dob, { kind: "date", pattern: "D" });
+    const month = renderConfirmed(dob, { kind: "date", pattern: "MMMM" });
+    const year = renderConfirmed(dob, { kind: "date", pattern: "YYYY" });
+    if (!day.rendered || !month.rendered || !year.rendered) expect.unreachable("a date renders");
+    expect(unwrapConfirmed(day.value)).toBe("2");
+    expect(unwrapConfirmed(month.value)).toBe("April");
+    expect(unwrapConfirmed(year.value)).toBe("1999");
+  });
+});
+
 describe("rendering a confirmed value for a portal", () => {
   it("writes a date the way the portal writes dates", () => {
     const dob = confirmed("identity.date_of_birth", new Date("1999-04-02T00:00:00Z"));
