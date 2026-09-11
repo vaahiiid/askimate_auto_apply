@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.102.1] — 2026-09-11
+
+**P92 — AUTH 4 and 5, in Vahid's words; the chooser picks `student_chosen`, and the refusal is
+proved to still bite.** Records and one test.
+
+### Changed
+
+- `portal-authentication.draft.json`: `emailVerificationRequired` and `mfaOrOtpRequired` are
+  `false`, observed by Vahid and not by a run, with his direct statement of 2026-09-11 quoted in
+  the file's comment, the entry README, the target file and the target document — and his
+  caveat carried with them: *"this is Sheffield's behaviour, not a property of direct portals."*
+  The type carries no per-fact provenance; the comment and the READMEs are where it lives.
+- `scripts/sheffield-draft.test.ts` holds that the chooser picks `student_chosen` for this entry,
+  and — one fact at a time — that it still refuses when either is set back to `unobserved`.
+
+---
+
 ## [0.102.0] — 2026-09-11
 
 **P91 — the entry page read, the AUTH questions answered from it, the registration and login

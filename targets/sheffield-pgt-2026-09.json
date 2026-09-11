@@ -76,10 +76,10 @@
     "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
     "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
     "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
-    "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
-    "AUTH 4 — Must the email be verified before the form is reachable?",
-    "AUTH 5 — Is MFA or a one-time code required, and where?",
-    "AUTH 6 — Is a CAPTCHA present, and where?",
+    "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE OFFERED on the entry page (signed-out read, 2026-09-11): e-mail and password, and a reset page",
+    "AUTH 4 — Must the email be verified before the form is reachable? NO — observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I entered an email and a password on the New Applicants form, pressed Start Application, and went straight into the form. No email had to be opened, no link clicked.' Sheffield's behaviour, not a property of direct portals",
+    "AUTH 5 — Is MFA or a one-time code required, and where? NO — none on the pages read (2026-09-10, 2026-09-11), and observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.' This entry only",
+    "AUTH 6 — Is a CAPTCHA present, and where? NONE on the three entry pages or the eleven form pages read; caveat: tag manager was refused, so a tag-injected one could not have loaded; Vahid saw none with tags allowed",
     "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
     "AUTH 8 — Can control be handed back cleanly?"
   ]

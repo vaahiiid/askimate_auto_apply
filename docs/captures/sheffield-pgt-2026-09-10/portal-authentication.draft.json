@@ -1,10 +1,22 @@
 {
   "$comment": [
-    "The eight facts the reviewed entry records (ObservedPortalAuthentication), authored from the signed-out read",
-    "of the entry page on 2026-09-11 (../sheffield-pgt-2026-09-11-entry/README.md answers each with its evidence).",
-    "'unobserved' is the honest value where no page that was read can answer: AUTH 4 (e-mail verification before",
-    "the form) and AUTH 7's delivery. AUTH 5 is 'unobserved' too: none on the pages read, and what follows the",
-    "login button was not observed. DRAFT, for the reviewed entry Iman Behravan approves."
+    "The eight facts the reviewed entry records (ObservedPortalAuthentication), for THIS entry and no other.",
+    "Six are from the signed-out read of the entry page on 2026-09-11 (../sheffield-pgt-2026-09-11-entry/README.md",
+    "answers each with its evidence). Two — emailVerificationRequired and mfaOrOtpRequired — no page read could",
+    "settle; they are OBSERVED BY VAHID, NOT BY A RUN, and recorded as his direct statement of 2026-09-11:",
+    "  AUTH 4: 'no verification step. I entered an email and a password on the New Applicants form, pressed Start",
+    "  Application, and went straight into the form. No email had to be opened, no link clicked, nothing stood",
+    "  between the button and the first page.'",
+    "  AUTH 5: 'no second factor. I signed in again later with email and password only and went straight into the",
+    "  form. No code arrived and none was asked for.'",
+    "The type carries one discoveryRunId for the record and no per-fact provenance; this comment and the READMEs",
+    "are where the provenance of those two facts lives, and the reviewer reads them together.",
+    "Vahid, 2026-09-11, carried with them in his words: 'this is Sheffield's behaviour, not a property of direct",
+    "portals. Another university may verify the email, or ask for a code, and finding that out is per-target work,",
+    "not something these two answers settle for anything but this entry.'",
+    "DRAFT, for the reviewed entry Iman Behravan approves. With all eight observed, chooseApproach picks",
+    "student_chosen; scripts/sheffield-draft.test.ts holds that, and holds that the chooser still refuses when",
+    "either of the two is set back to unobserved."
   ],
   "portalHost": "www.sheffield.ac.uk",
   "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-11T12-16-47-760Z",
@@ -12,8 +24,8 @@
   "applicantChoosesPassword": true,
   "portalIssuesCredential": false,
   "passwordlessAvailable": false,
-  "emailVerificationRequired": "unobserved",
-  "mfaOrOtpRequired": "unobserved",
+  "emailVerificationRequired": false,
+  "mfaOrOtpRequired": false,
   "captchaPresent": false,
   "passwordResetAvailable": true,
   "credentialsCanBeHandedBack": true

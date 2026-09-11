@@ -323,9 +323,9 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.3 and the mapping set 0.3.0. AUTH 4 and 5 remain `unobserved`, and the
-   approach chooser refuses until they are stated or observed. The instructions below are kept
-   as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
+   curated draft 0.2.3 and the mapping set 0.3.0. AUTH 4 and 5 are settled by Vahid's direct
+   statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
+   chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
    - A second Chrome profile, signed in to nothing, on its own port: the runbook's flags with
      `--remote-debugging-port=9223` and a new `--user-data-dir`. Nothing of his is in that session.

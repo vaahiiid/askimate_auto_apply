@@ -94,9 +94,14 @@ The registration and login pages are one page, the entry point, read by Vahid fr
 profile (`captures/sheffield-pgt-2026-09-11-entry/`). Its README answers AUTH 1–8 from the
 capture: 1, 3, 6 and 8 settled; 2 and 5 for what the pages show; 4 and 7 not settled by any page
 read. The login URL and locators and a registration page are in the curated draft (0.2.3); the
-eight facts are in `portal-authentication.draft.json`, and the approach chooser refuses on the two
-unobserved ones until Vahid states what stood between *Start Application* and the form, and what
-followed the login button.
+eight facts are in `portal-authentication.draft.json`. AUTH 4 and 5, which no page read could
+settle, are settled by Vahid's direct statement of 2026-09-11 and marked observed by him, not by
+a run: *"no verification step … nothing stood between the button and the first page"*; *"no
+second factor … No code arrived and none was asked for."* With all eight observed the approach
+chooser picks `student_chosen` for this entry, and the test proves it still refuses when either
+fact is set back to unobserved. In his words, carried with the two answers: *"this is Sheffield's
+behaviour, not a property of direct portals … per-target work, not something these two answers
+settle for anything but this entry."*
 
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
 

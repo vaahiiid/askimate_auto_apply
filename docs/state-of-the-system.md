@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,452 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,454 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -137,6 +137,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P90** | The plan honours `visibleWhen` | Recorded by discovery since the blueprint schema existed, read by nothing until now: a field's condition, and its section's, is evaluated at plan time against the plan's own values, to a fixed point. A field the form hides for these answers is neither filled nor missing — dropped from instructions, blockers and uploads, listed under `hidden`, and not a violation in the validator. Sheffield's two postcode boxes were both planned with one hidden on the page; the international one is now absent for a UK address, and an unmapped required field on a hidden branch no longer blocks. Fail-first on a synthetic address page and on the Sheffield draft |
 | **P91** | The entry page read; the AUTH questions answered from it; the registration and login locators authored | Vahid's signed-out read of the entry page and the reset page, three pages, zero failed, recorded unedited. From the capture: AUTH 1 yes, 3 none offered, 6 no CAPTCHA on those pages (tags refused), 8 yes by design; 2 and 5 settled for what the pages show and open for what follows a submit; 4 and 7 not settled by any page read, and not inferred. The curated draft carries the login URL and locators and a registration page first in the walk; the mapping set sends the e-mail from the profile and the passwords to the Secure Plane. The eight facts are recorded with `unobserved` on 4 and 5, and the chooser refuses on exactly those — the design holding: what settles them is Vahid's own account of registering and signing in. Two tool defects the draft showed, fixed fail-first: `password` inputs came back unknown; buttons came back as fields |
+| **P92** | AUTH 4 and 5 in Vahid's words; the chooser picks `student_chosen`; the refusal proved to still bite | Two facts no page read could settle are settled by his direct statement of 2026-09-11, marked observed by him and not by a run: no verification step between *Start Application* and the form; no code at sign-in. Recorded with his caveat that this is Sheffield's behaviour and not a property of direct portals — per-target work. With all eight facts observed the approach chooser picks `student_chosen` for this entry; the test holds that, and holds one fact at a time that the chooser still refuses when either is set back to unobserved |
 | **P85** | The dependencies read, the Article 9 sheet, and the draft blueprint with the course and intake set | Vahid's `inspect-dependencies` output recorded and read: the education chain is confirmed by handler (four selects empty until the one before them is set and the server answers — an order and a wait the schema cannot say); sixteen of seventeen file inputs tick their own *upload now* radio by `onchange`, the English-language slot does not, and the five other-documents radios were not in the capture at all — the runner's `setInputFiles` fires the page's script and verifies nothing, so the draft carries the radio as a field beside each slot and names the relation as a fourth schema gap. The equal-opportunities page asks eleven disability boxes and an ethnic-origin select: Article 9, Vahid's decision, written as blocker 20's sheet — B (pass through, unstored) does not exist here because every typed value is in the preview, the stored plan and the log by design; `student_handoff` would make the whole application untransportable; A (unmapped, passed over, named in the preview) recommended with the two things it needs. The curated draft blueprint, 0.2.0, parses and is refused as `not_reviewed` |
 
 ---
@@ -491,7 +492,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,452 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,454 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -504,7 +505,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,452 tests**, by the workspace they live in. Generated — run
+**2,454 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -513,7 +514,7 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/conversation` | 52 |
 | `packages/domain` | 376 | `packages/disclosure` | 47 |
-| `scripts` | 304 | `packages/profile` | 47 |
+| `scripts` | 306 | `packages/profile` | 47 |
 | `apps/browser-runner` | 275 | `packages/preparation` | 45 |
 | `packages/case-store` | 145 | `packages/catalogue` | 39 |
 | `packages/orchestrator` | 114 | `packages/mapping` | 36 |

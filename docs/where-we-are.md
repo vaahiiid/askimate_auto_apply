@@ -4659,3 +4659,23 @@ a blueprint can be honest about a credential; and the form's buttons came back a
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P92 — AUTH 4 and 5 in Vahid's words; the chooser picks `student_chosen`; the refusal still bites
+
+The two facts no page read could settle are settled the way the password question was: by
+Vahid's own account of what he did, recorded as his direct statement of 2026-09-11 and marked
+observed by him rather than by a run. No verification step stood between *Start Application* and
+the first form page; no code was asked for at sign-in. The facts file, the entry README, the
+target file and the target document carry his words, and carry with them the caveat he asked
+for: this is Sheffield's behaviour, not a property of direct portals, and it settles nothing for
+any entry but this one. The type has no per-fact provenance, so the file's comment and the
+READMEs are where "observed by Vahid" lives, and the reviewer reads them together.
+
+With all eight facts observed the approach chooser picks `student_chosen` for this entry. He
+asked for the refusal to be proved to still bite rather than merely to have stopped firing, so the
+test sets each of the two facts back to `unobserved` in turn, against the committed file, and
+holds that the chooser refuses on exactly that one question.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

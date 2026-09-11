@@ -61,6 +61,11 @@ const PROFILE = withConfirmed(PROFILE_ENTRIES);
 
 const DIR = join(import.meta.dirname, "..", "docs", "captures", "sheffield-pgt-2026-09-10");
 
+function facts(): ObservedPortalAuthentication {
+  const raw = JSON.parse(readFileSync(join(DIR, "portal-authentication.draft.json"), "utf8")) as Record<string, unknown>;
+  return { ...raw, observedAt: new Date(raw["observedAt"] as string) } as unknown as ObservedPortalAuthentication;
+}
+
 function load() {
   const blueprint = parseBlueprint(JSON.parse(readFileSync(join(DIR, "blueprint.draft.curated.json"), "utf8")));
   const mappingSet = parseMappingSet(
@@ -140,29 +145,34 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.instructions.find((i) => i.fieldRef === "newemail")?.value.kind).toBe("confirmed");
   });
 
-  it("record eight authentication facts, two unobserved — and the chooser refuses on exactly those (P91)", () => {
-    // AUTH 4 (must the e-mail be verified before the form?) and AUTH 5 (is a
-    // code demanded after the login button?) cannot be settled by a page that
-    // was read, so the file says `unobserved` — and the chooser will not pick
-    // an approach until they are observed. "An unobserved answer is not a
-    // no." That is the design holding, not a gap in the drafts: what settles
-    // them is Vahid's own account of registering and signing in, or a run.
-    const raw = JSON.parse(readFileSync(join(DIR, "portal-authentication.draft.json"), "utf8")) as Record<string, unknown>;
-    const observed = { ...raw, observedAt: new Date(raw["observedAt"] as string) } as unknown as ObservedPortalAuthentication;
+  it("record eight authentication facts, all observed, and the chooser picks student_chosen (P92)", () => {
+    // AUTH 4 and 5 could not be settled by a page that was read. They are
+    // settled by Vahid's direct statement of 2026-09-11 — observed by him,
+    // not by a run — and the file says so in its comment, because the type
+    // carries no per-fact provenance. For this entry only, in his words:
+    // "this is Sheffield's behaviour, not a property of direct portals."
+    const observed = facts();
     expect(observed.applicantChoosesPassword).toBe(true);
-    expect(observed.emailVerificationRequired).toBe("unobserved");
-    expect(observed.mfaOrOtpRequired).toBe("unobserved");
+    expect(observed.emailVerificationRequired).toBe(false);
+    expect(observed.mfaOrOtpRequired).toBe(false);
     const choice = chooseApproach({ observed, studentPresentAtCreation: true });
-    expect(choice.chosen).toBe(false);
-    if (choice.chosen) expect.unreachable("two facts are unobserved");
-    expect(choice.refusal.kind).toBe("unobserved");
-    if (choice.refusal.kind === "unobserved") expect(choice.refusal.questions).toHaveLength(2);
-    // With those two observed as false, the same facts choose student_chosen.
-    const settled = { ...observed, emailVerificationRequired: false as const, mfaOrOtpRequired: false as const };
-    const then = chooseApproach({ observed: settled, studentPresentAtCreation: true });
-    expect(then.chosen).toBe(true);
-    if (then.chosen) expect(then.plan.approach).toBe("student_chosen");
+    expect(choice.chosen).toBe(true);
+    if (choice.chosen) expect(choice.plan.approach).toBe("student_chosen");
   });
+
+  it.each([["emailVerificationRequired"], ["mfaOrOtpRequired"]] as const)(
+    "still REFUSES when %s alone is set back to unobserved — the refusal bites, it has not merely stopped firing",
+    (fact) => {
+      // "An unobserved answer is not a no." Proved on each of the two facts
+      // his statement settled, one at a time, against the committed file.
+      const observed = { ...facts(), [fact]: "unobserved" as const };
+      const choice = chooseApproach({ observed, studentPresentAtCreation: true });
+      expect(choice.chosen).toBe(false);
+      if (choice.chosen) expect.unreachable("an unobserved fact must refuse");
+      expect(choice.refusal.kind).toBe("unobserved");
+      if (choice.refusal.kind === "unobserved") expect(choice.refusal.questions).toHaveLength(1);
+    },
+  );
 
   it("refuse to render a country the partial map does not name, rather than approximate", () => {
     const check = checkUsable(asIfReviewed, blueprint);
