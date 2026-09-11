@@ -71,6 +71,8 @@ export interface PortalApplication {
   readonly passportCountry: string;
   /** The course chosen from the study page's search (P95); "" until page two is saved. */
   readonly courseCode: string;
+  /** The qualifications added on the education page (P96), in the order added. */
+  readonly qualifications: readonly PortalQualification[];
   readonly personalStatement: string;
   /** The passport, once page three is saved (P74). */
   readonly passport: PortalUpload | null;
@@ -330,6 +332,62 @@ const STUDY_PAGE = (error: string | null): string =>
 </script>`,
   );
 
+/**
+ * The education page (P96, ADR-0103 gap 3): the qualifications added so far,
+ * an "Add a qualification" control that reveals an empty form, a save that
+ * adds ONE and shows the list again, and a continue that leaves the page. The
+ * shape of a real portal's repeatable block — one entry per qualification,
+ * each through the same boxes.
+ */
+const EDUCATION_PAGE = (
+  qualifications: readonly PortalQualification[],
+  error: string | null,
+): string =>
+  page(
+    "Your qualifications",
+    `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
+<ul id="qualifications">
+${qualifications
+  .map(
+    (q) =>
+      `  <li class="qualification">${escapeHtml(q.level)} — ${escapeHtml(q.subject)}, ${escapeHtml(q.institution)}, ${escapeHtml(q.year)}</li>`,
+  )
+  .join("\n")}
+</ul>
+<button type="button" id="addQualificationBtn">Add a qualification</button>
+<form method="post" action="/education/add" id="qualificationForm" hidden>
+  <label for="qualificationLevel">Qualification</label>
+  <input type="text" id="qualificationLevel" name="level" maxlength="80">
+
+  <label for="qualificationSubject">Subject</label>
+  <input type="text" id="qualificationSubject" name="subject">
+
+  <label for="qualificationInstitution">Institution</label>
+  <input type="text" id="qualificationInstitution" name="institution">
+
+  <label for="qualificationYear">Year completed</label>
+  <input type="text" id="qualificationYear" name="year" pattern="\\d{4}">
+
+  <button type="submit" id="saveQualificationBtn">Save this qualification</button>
+</form>
+<form method="post" action="/education" id="educationForm">
+  <button type="submit" id="educationContinueBtn">Save and continue</button>
+</form>
+<script>
+  document.getElementById("addQualificationBtn").addEventListener("click", function () {
+    document.getElementById("qualificationForm").hidden = false;
+  });
+</script>`,
+  );
+
+/** One qualification as the education page holds it. */
+export interface PortalQualification {
+  readonly level: string;
+  readonly subject: string;
+  readonly institution: string;
+  readonly year: string;
+}
+
 /** The courses the study page's search offers. */
 const COURSES: readonly { readonly code: string; readonly name: string }[] = [
   { code: "PG-EX-2026", name: "MSc Example Studies" },
@@ -374,6 +432,8 @@ const REVIEW_PAGE = (application: PortalApplication): string =>
   <dt>Date of birth</dt><dd id="reviewDob">${escapeHtml(application.dateOfBirth)}</dd>
   <dt>Nationality</dt><dd id="reviewNationality">${escapeHtml(application.nationality)}</dd>
   <dt>Passport country</dt><dd id="reviewPassportCountry">${escapeHtml(application.passportCountry)}</dd>
+  <dt>Qualifications</dt>
+  <dd id="reviewQualifications">${application.qualifications.length === 0 ? "none" : application.qualifications.map((q) => escapeHtml(`${q.level} (${q.institution}, ${q.year})`)).join("; ")}</dd>
   <dt>Course</dt><dd id="reviewCourse">${escapeHtml(application.courseCode)}</dd>
   <dt>Personal statement</dt>
   <dd id="reviewStatement">${escapeHtml(application.personalStatement)}</dd>
@@ -663,10 +723,60 @@ export async function startFixturePortal(
           nationality: body.get("nationality") ?? "",
           passportCountry,
           courseCode: applications.get(signedInAs)?.courseCode ?? "",
+          qualifications: applications.get(signedInAs)?.qualifications ?? [],
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
           passport: applications.get(signedInAs)?.passport ?? null,
           passportStatus: applications.get(signedInAs)?.passportStatus ?? null,
         });
+        send(response, 302, "", { location: "/study" });
+        return;
+      }
+
+      if (method === "GET" && path === "/education") {
+        // Reachable once page one is saved, like the study page; unlike it,
+        // not on the save chain — a block a student may fill zero times.
+        const held = applications.get(signedInAs);
+        if (held === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        send(response, 200, EDUCATION_PAGE(held.qualifications, null));
+        return;
+      }
+
+      if (method === "POST" && path === "/education/add") {
+        const held = applications.get(signedInAs);
+        if (held === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
+        const body = await readBody(request);
+        const level = body.get("level") ?? "";
+        if (level.trim().length === 0) {
+          send(response, 400, EDUCATION_PAGE(held.qualifications, "Say what the qualification is."));
+          return;
+        }
+        applications.set(signedInAs, {
+          ...held,
+          qualifications: [
+            ...held.qualifications,
+            {
+              level,
+              subject: body.get("subject") ?? "",
+              institution: body.get("institution") ?? "",
+              year: body.get("year") ?? "",
+            },
+          ],
+        });
+        send(response, 302, "", { location: "/education" });
+        return;
+      }
+
+      if (method === "POST" && path === "/education") {
+        if (applications.get(signedInAs) === undefined) {
+          send(response, 302, "", { location: "/apply" });
+          return;
+        }
         send(response, 302, "", { location: "/study" });
         return;
       }

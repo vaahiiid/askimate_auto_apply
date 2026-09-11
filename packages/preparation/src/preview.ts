@@ -32,7 +32,7 @@ import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { allFields } from "@askimate/aas-blueprint";
 import { provenanceOf } from "@askimate/aas-domain";
 import type { ConfirmationProvenance } from "@askimate/aas-domain";
-import type { CredentialPurpose, FillPlan } from "@askimate/aas-mapping";
+import type { CredentialPurpose, FillInstruction, FillPlan } from "@askimate/aas-mapping";
 import {
   constantAttribution,
   constantText,
@@ -57,10 +57,26 @@ export interface PreviewDocument {
   readonly contentHash: string;
 }
 
+/** A page filled once per item (ADR-0103, gap 3). */
+export interface PreviewRepeat {
+  readonly title: string;
+  readonly fieldKey: string;
+  readonly count: number;
+}
+
+/** Which entry of a repeating page a line belongs to (ADR-0103, gap 3). */
+export interface PreviewItem {
+  readonly index: number;
+  readonly count: number;
+  readonly title: string;
+}
+
 /** One line of the preview. */
 export interface PreviewEntry {
   readonly fieldRef: string;
   readonly label: string;
+  /** Which entry of a repeating page this line belongs to (ADR-0103, gap 3). */
+  readonly item?: PreviewItem;
   /** Exactly what will be submitted. What the hash covers. */
   readonly text: string;
   /**
@@ -179,6 +195,8 @@ export interface SubmissionPreview {
   readonly refusals: readonly PreviewFormRefusal[];
   /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
   readonly credentials: readonly PreviewCredential[];
+  /** Pages filled once per item, and how many times (ADR-0103, gap 3). Zero is said plainly. */
+  readonly repeats: readonly PreviewRepeat[];
   /** `sha256:…` over the canonical content. */
   readonly contentHash: string;
   readonly hashAlgorithm: "sha256";
@@ -299,6 +317,21 @@ export function buildPreview(
 
   const optionLabels = optionLabelsOf(blueprint);
   const labelOf = new Map(allFields(blueprint).map((field) => [field.fieldRef, field.label]));
+  const pageTitleOf = new Map(
+    blueprint.pages.flatMap((page) =>
+      page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
+    ),
+  );
+  const itemOf = (instruction: FillInstruction): { readonly item?: PreviewItem } =>
+    instruction.item === undefined
+      ? {}
+      : {
+          item: {
+            index: instruction.item.index,
+            count: instruction.item.count,
+            title: pageTitleOf.get(instruction.fieldRef) ?? "",
+          },
+        };
 
   // Refusals are kept OUT of the entries (ADR-0102): an entry is an answer,
   // and a refusal must never be listed as one. The switch is exhaustive, so a
@@ -316,6 +349,7 @@ export function buildPreview(
           label: instruction.label,
           text,
           ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
+          ...itemOf(instruction),
           attribution: {
             kind: "student_confirmed",
             fieldKey: value.fieldKey,
@@ -332,6 +366,7 @@ export function buildPreview(
           label: instruction.label,
           text,
           ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
+          ...itemOf(instruction),
           attribution: {
             kind: "reviewed_constant",
             rationale: constantAttribution(value.constant).rationale,
@@ -418,6 +453,12 @@ export function buildPreview(
       "Filled from the password you typed in the secure box. AskiMate cannot read it back.",
   }));
 
+  const repeats: PreviewRepeat[] = plan.repeats.map((repeat) => ({
+    title: repeat.title,
+    fieldKey: repeat.fieldKey,
+    count: repeat.count,
+  }));
+
   const contentHash = hashContent({
     blueprintId: plan.blueprintId,
     blueprintVersion: plan.blueprintVersion,
@@ -428,6 +469,7 @@ export function buildPreview(
     handoffs,
     refusals,
     credentials,
+    repeats,
   });
 
   return {
@@ -445,6 +487,7 @@ export function buildPreview(
       handoffs,
       refusals,
       credentials,
+      repeats,
       contentHash,
       hashAlgorithm: "sha256",
       // Non-enumerable, so it does not show up in Object.keys or a spread and
@@ -479,6 +522,7 @@ function hashContent(content: {
   readonly handoffs: readonly PreviewHandoff[];
   readonly refusals: readonly PreviewFormRefusal[];
   readonly credentials: readonly PreviewCredential[];
+  readonly repeats: readonly PreviewRepeat[];
 }): string {
   const lines: string[] = [
     `blueprint${content.blueprintId}${content.blueprintVersion}`,
@@ -488,7 +532,13 @@ function hashContent(content: {
   ];
 
   for (const entry of [...content.entries].sort(byFieldRef)) {
-    lines.push(`field${entry.fieldRef}${entry.text}`);
+    // ADR-0103 gap 3: WHICH entry of a repeating page is inside the yes — the
+    // same two qualifications in the other order are a different application.
+    lines.push(`field${entry.fieldRef}${entry.item === undefined ? "" : `#${String(entry.item.index)}`}${entry.text}`);
+  }
+  for (const repeat of [...content.repeats].sort((a, b) => (a.fieldKey < b.fieldKey ? -1 : a.fieldKey > b.fieldKey ? 1 : 0))) {
+    // ...and how many there are, so "none" and "one" are different things to say yes to.
+    lines.push(`repeat${repeat.fieldKey}${String(repeat.count)}`);
   }
   for (const attachment of [...content.attachments].sort(byFieldRef)) {
     lines.push(
@@ -561,19 +611,36 @@ export function renderPreview(preview: SubmissionPreview): string {
     "",
   ];
 
+  let heading: string | null = null;
   for (const entry of preview.entries) {
+    // ADR-0103 gap 3: each entry of a repeating page under its own heading,
+    // in the order the student gave them, every field of it.
+    const entryHeading =
+      entry.item === undefined
+        ? null
+        : `${entry.item.title} — entry ${String(entry.item.index + 1)} of ${String(entry.item.count)}:`;
+    if (entryHeading !== heading) {
+      if (entryHeading !== null) lines.push(entryHeading);
+      heading = entryHeading;
+    }
+    const indent = entry.item === undefined ? "" : "  ";
     // What it means first, then what is actually sent — because the student
     // must be able to check it AND must not be shown something other than the
     // value that will reach the university.
     lines.push(
       entry.displayText === undefined
-        ? `${entry.label}: ${entry.text}`
-        : `${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`,
+        ? `${indent}${entry.label}: ${entry.text}`
+        : `${indent}${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`,
     );
     if (entry.attribution.kind === "reviewed_constant") {
       // Marked, because it is the one thing here the student did not tell us.
-      lines.push(`    (set by AskiMate: ${entry.attribution.rationale})`);
+      lines.push(`${indent}    (set by AskiMate: ${entry.attribution.rationale})`);
     }
+  }
+  for (const repeat of preview.repeats) {
+    // Said plainly: a block filled zero times is a fact the student is
+    // authorising, not an omission.
+    if (repeat.count === 0) lines.push(`${repeat.title}: none — the page is left as it is`);
   }
 
   if (preview.refusals.length > 0) {

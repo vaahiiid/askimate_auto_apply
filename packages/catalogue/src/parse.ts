@@ -54,7 +54,7 @@ import type {
 } from "@askimate/aas-mapping";
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
 import type { FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
-import { PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
+import { LIST_VALUED_FIELD_KEYS, PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
 import type { ObservedPortalAuthentication, PasswordDelivery, PortalAuthFact } from "@askimate/aas-account";
 
 import type { ReviewedCatalogueEntry } from "./entry.js";
@@ -371,6 +371,21 @@ function readPage(value: unknown, path: string): BlueprintPage {
   const url = optionalText(source, "url", path);
   const advanceControl = optionalWith(source, "advanceControl", path, readLocator);
   const nextPageRef = optionalText(source, "nextPageRef", path);
+  const repeats = optionalWith(source, "repeats", path, (held, at) => {
+    const block = record(held, at);
+    const fieldKey = text(block, "fieldKey", at);
+    // A page may repeat only over a list-valued, ordinary field: nothing at
+    // runtime could otherwise tell "once per qualification" from "once per
+    // given name", and a special-category list may not reach a form at all.
+    if (!(LIST_VALUED_FIELD_KEYS as readonly string[]).includes(fieldKey)) {
+      fail(`${at}.fieldKey`, `is not a list-valued profile field a page can repeat over`);
+    }
+    if (categoryOf(fieldKey as ProfileFieldKey) !== "ordinary") {
+      fail(`${at}.fieldKey`, `is not an ordinary field and may not be mapped to a form`);
+    }
+    const addAnother = optionalWith(block, "addAnother", at, readLocator);
+    return { fieldKey, ...(addAnother === undefined ? {} : { addAnother }) };
+  });
   return {
     pageRef: text(source, "pageRef", path),
     title: text(source, "title", path),
@@ -379,6 +394,7 @@ function readPage(value: unknown, path: string): BlueprintPage {
     requiredDocuments: list(source, "requiredDocuments", path, readRequiredDocument),
     ...(advanceControl === undefined ? {} : { advanceControl }),
     ...(nextPageRef === undefined ? {} : { nextPageRef }),
+    ...(repeats === undefined ? {} : { repeats }),
   };
 }
 

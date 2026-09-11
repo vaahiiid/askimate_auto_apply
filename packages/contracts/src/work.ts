@@ -212,6 +212,13 @@ export interface ClaimedWork {
    * ═════════════════════════════════════════════════════════════════════
    */
   readonly advanceLocator?: FillLocator;
+  /**
+   * Which item of a repeating page this fill is, and the control that opens a
+   * fresh entry on it (ADR-0103, gap 3). Present only for such a page. The
+   * runner presses `addAnother` after landing, before typing; the advance
+   * control saves this one item, and the next item comes as the next work.
+   */
+  readonly repeat?: RepeatTargets;
 }
 
 /** How a value reached the profile. Mirrors `ConfirmationProvenance`. */
@@ -268,6 +275,8 @@ export interface TransportedInstruction {
   readonly optionsAfter?: { readonly fieldRef: string };
   /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator. */
   readonly typeahead?: { readonly optionLocator: FillLocator };
+  /** Which item of a repeating page this is (ADR-0103, gap 3): two counts. */
+  readonly item?: { readonly index: number; readonly count: number };
 }
 
 /**
@@ -333,7 +342,7 @@ type OpenStrings<T> = {
       // implied. `registration` carries a URL and selectors from a REVIEWED
       // blueprint; `plan` carries confirmed answers, and its own assertion
       // below closes the door this one opens.
-      NonNullable<T[K]> extends RegistrationTargets | LoginTargets | TransportedPlan | FillLocator
+      NonNullable<T[K]> extends RegistrationTargets | LoginTargets | TransportedPlan | FillLocator | RepeatTargets
       ? never
       : NonNullable<T[K]> extends string
         ? K extends
@@ -535,6 +544,22 @@ const HANDLE_PATTERN = /^sh_[0-9a-f]{32}$/;
  * put it, so the omissions above hold on this side of the wire too and not only
  * on the side that wrote them.
  */
+/** Which item of a repeating page a fill is, and how a fresh entry is opened (ADR-0103, gap 3). */
+export interface RepeatTargets {
+  readonly index: number;
+  readonly count: number;
+  readonly addAnother?: FillLocator;
+}
+
+/**
+ * COMPILE-TIME: the repeat exemption above cannot carry text either — two
+ * counts and a locator, and nothing else can be added to it unnoticed.
+ */
+type OpenRepeat = {
+  [K in keyof RepeatTargets]-?: NonNullable<RepeatTargets[K]> extends number | FillLocator ? never : K;
+}[keyof RepeatTargets];
+export type NO_REPEAT_FIELD_IS_FREE_TEXT = AssertNever<OpenRepeat>;
+
 export function parseClaimedWork(value: unknown): ClaimedWork | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
@@ -570,6 +595,17 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
   const plan = kind === "execute" ? parseTransportedPlan(record["plan"]) : null;
   const formUrl = record["formUrl"];
   const advanceLocator = kind === "execute" ? parseLocator(record["advanceLocator"]) : null;
+  let repeat: ClaimedWork["repeat"] | null = null;
+  if (kind === "execute" && record["repeat"] !== undefined) {
+    const held = record["repeat"];
+    if (typeof held !== "object" || held === null) return null;
+    const { index, count, addAnother } = held as Record<string, unknown>;
+    if (!Number.isInteger(index) || !Number.isInteger(count)) return null;
+    if ((index as number) < 0 || (count as number) < 1 || (index as number) >= (count as number)) return null;
+    const control = addAnother === undefined ? null : parseLocator(addAnother);
+    if (addAnother !== undefined && control === null) return null;
+    repeat = { index: index as number, count: count as number, ...(control === null ? {} : { addAnother: control }) };
+  }
   if (kind === "execute") {
     if (plan === null || advanceLocator === null) return null;
     if (typeof formUrl !== "string" || formUrl.length === 0) return null;
@@ -591,6 +627,7 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     ...(plan === null ? {} : { plan }),
     ...(typeof formUrl === "string" && formUrl.length > 0 ? { formUrl } : {}),
     ...(advanceLocator === null ? {} : { advanceLocator }),
+    ...(repeat === null ? {} : { repeat }),
   };
 }
 
@@ -725,6 +762,15 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       if (optionLocator === null) return null;
       typeahead = { optionLocator };
     }
+    const itemRaw = held["item"];
+    let item: { readonly index: number; readonly count: number } | undefined;
+    if (itemRaw !== undefined) {
+      if (typeof itemRaw !== "object" || itemRaw === null) return null;
+      const { index, count } = itemRaw as Record<string, unknown>;
+      if (!Number.isInteger(index) || !Number.isInteger(count)) return null;
+      if ((index as number) < 0 || (count as number) < 1 || (index as number) >= (count as number)) return null;
+      item = { index: index as number, count: count as number };
+    }
     instructions.push({
       fieldRef: held["fieldRef"],
       label: held["label"],
@@ -733,6 +779,7 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       value: parsed,
       ...(optionsAfter === undefined ? {} : { optionsAfter }),
       ...(typeahead === undefined ? {} : { typeahead }),
+      ...(item === undefined ? {} : { item }),
     });
   }
 

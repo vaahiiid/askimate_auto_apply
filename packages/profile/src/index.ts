@@ -15,7 +15,14 @@ export type {
   ProfileFieldTypes,
   Qualification,
 } from "./fields.js";
-export { FIELD_LABELS, FINANCIAL_FIELDS, PROFILE_FIELD_KEYS, isFinancialField } from "./fields.js";
+export type { ListValuedFieldKey } from "./fields.js";
+export {
+  FIELD_LABELS,
+  FINANCIAL_FIELDS,
+  LIST_VALUED_FIELD_KEYS,
+  PROFILE_FIELD_KEYS,
+  isFinancialField,
+} from "./fields.js";
 
 // ── B1 row 2, made structural (ADR-0077) ───────────────────────────────────
 export type { DataCategory, OrdinaryFieldKey } from "./categories.js";
@@ -38,7 +45,7 @@ export type {
 export { applyConfirmation, isDeclined, renderForConfirmation } from "./confirmation.js";
 
 export type { DatePattern, FormatRule, RenderRefusal, RenderResult } from "./format.js";
-export { isRenderRefused, renderConfirmed } from "./format.js";
+export { isRenderRefused, renderConfirmed, renderConfirmedItem } from "./format.js";
 
 export type { ConfirmedProfile } from "./profile.js";
 export {

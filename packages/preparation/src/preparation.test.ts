@@ -828,7 +828,12 @@ describe("a field the form hides for these answers (P90)", () => {
 // P93 — the preview says what is marked beside an attachment.
 // ───────────────────────────────────────────────────────────────────────────
 
-import { GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET } from "@askimate/aas-mapping/fixtures/gated";
+import {
+  GATED_PORTAL_BLUEPRINT,
+  GATED_PORTAL_MAPPING_SET,
+  GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
+  GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET,
+} from "@askimate/aas-mapping/fixtures/gated";
 
 describe("an attachment's companion in the preview (P93)", () => {
   const gatedPreview = (): SubmissionPreview => {
@@ -849,5 +854,58 @@ describe("an attachment's companion in the preview (P93)", () => {
       displayText: "I am uploading it now",
     });
     expect(renderPreview(preview)).toContain("    marked: Passport status — I am uploading it now");
+  });
+});
+
+describe("a page filled once per item, in the preview (P96)", () => {
+  const QUALIFICATIONS = [
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", completionYear: 2017, grade: "19.1", gradeScale: "iran_20_point" },
+  ];
+  const profile = (qualifications: readonly unknown[] | null): ConfirmedProfile =>
+    withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["identity.nationality", "Iranian"],
+      ["contact.email", "niloofar.hosseini@example.com"],
+      ["study.personal_statement", STATEMENT],
+      ...(qualifications === null ? [] : [["education.prior_qualifications", qualifications] as [ProfileFieldKey, unknown]]),
+    ]);
+  const previewFor = (qualifications: readonly unknown[] | null): SubmissionPreview => {
+    const check = checkUsable(GATED_PORTAL_MAPPING_SET, GATED_PORTAL_BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(GATED_PORTAL_BLUEPRINT, check.mappingSet, profile(qualifications));
+    const built = buildPreview(GATED_PORTAL_BLUEPRINT, plan, new Map());
+    if (!built.built) expect.unreachable(built.refusal.detail);
+    return built.preview;
+  };
+
+  it("lists each entry under its own heading, in the student's order, every field of it", () => {
+    const preview = previewFor(QUALIFICATIONS);
+    const items = preview.entries.filter((entry) => entry.item !== undefined);
+    expect(items.map((entry) => entry.item?.index)).toEqual([0, 0, 0, 0, 1, 1, 1, 1]);
+    const text = renderPreview(preview);
+    expect(text).toContain("Your qualifications — entry 1 of 2:");
+    expect(text).toContain("Your qualifications — entry 2 of 2:");
+    expect(text.indexOf("Sharif University of Technology")).toBeLessThan(text.indexOf("Farzanegan High School"));
+    expect(text).toContain("  Institution: Sharif University of Technology");
+  });
+
+  it("says plainly when the block is filled zero times", () => {
+    const preview = previewFor(null);
+    expect(preview.entries.some((entry) => entry.item !== undefined)).toBe(false);
+    expect(preview.repeats).toEqual([{ title: "Your qualifications", fieldKey: "education.prior_qualifications", count: 0 }]);
+    expect(renderPreview(preview)).toContain("Your qualifications: none — the page is left as it is");
+  });
+
+  it("binds the yes to the entries' ORDER and their number, not only their text", () => {
+    const two = previewFor(QUALIFICATIONS);
+    const swapped = previewFor([QUALIFICATIONS[1], QUALIFICATIONS[0]]);
+    const one = previewFor([QUALIFICATIONS[0]]);
+    const none = previewFor(null);
+    expect(swapped.contentHash).not.toBe(two.contentHash);
+    expect(one.contentHash).not.toBe(two.contentHash);
+    expect(none.contentHash).not.toBe(one.contentHash);
   });
 });

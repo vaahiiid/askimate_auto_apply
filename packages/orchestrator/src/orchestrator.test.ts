@@ -1440,6 +1440,14 @@ describe("the ledger identity of a page that carries a document", () => {
     expect(withNew).not.toBe(withOld);
   });
 
+  it("is a DIFFERENT page for each item of a repeating page (P96)", () => {
+    const first = pageFillTarget({ pageRef: "page-1", values, item: { index: 0, count: 2 } });
+    const second = pageFillTarget({ pageRef: "page-1", values, item: { index: 1, count: 2 } });
+    expect(first).not.toBe(pageFillTarget({ pageRef: "page-1", values }));
+    expect(second).not.toBe(first);
+    expect(first).toMatch(/^page-1@sha256:[0-9a-f]{64}$/);
+  });
+
   it("names the intent by page, box and document, one function for both ends", () => {
     expect(attachmentIdentity(passport)).toBe(`doc-1@${"a".repeat(64)}`);
     expect(attachmentIntentTarget({ pageRef: "page-1", attachment: passport })).toBe(

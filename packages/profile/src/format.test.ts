@@ -5,7 +5,7 @@ import type { ConfirmedValue } from "@askimate/aas-domain";
 
 import { applyConfirmation, isDeclined } from "./confirmation.js";
 import type { ProfileFieldKey, ProfileFieldType } from "./fields.js";
-import { renderConfirmed } from "./format.js";
+import { renderConfirmed, renderConfirmedItem } from "./format.js";
 
 const NOW = new Date("2026-08-26T10:00:00Z");
 
@@ -161,5 +161,54 @@ describe("the shape of the rule", () => {
   it("cannot be reached without a confirmed value to start from", () => {
     // @ts-expect-error a plain string is not a ConfirmedValue
     renderConfirmed("Niloofar", { kind: "text" });
+  });
+});
+
+describe("rendering one item of a list-valued field (P96)", () => {
+  const STUDENT_P96 = studentId("stu-p96");
+  const NOW_P96 = new Date("2026-09-11T00:00:00Z");
+  function confirmedList(): ConfirmedValue<ProfileFieldType<"education.prior_qualifications">> {
+    const result = applyConfirmation({
+      key: "education.prior_qualifications",
+      proposed: proposeValue({
+        value: [
+          { level: "BSc", subject: "Maths", institution: "A", countryCode: "IR", completionYear: 2021, grade: "17", gradeScale: "iran_20_point" },
+          { level: "Diploma", subject: "Physics", institution: "B", countryCode: "IR", completionYear: 2017, grade: "19", gradeScale: "iran_20_point" },
+        ],
+        origin: "conversation",
+        verbatim: "as stated",
+        confidence: 0.9,
+      }),
+      confirmation: { studentRef: STUDENT_P96, presentedText: "…", respondedAt: NOW_P96, response: { kind: "accepted" } },
+    });
+    if (isDeclined(result)) expect.unreachable("accepted");
+    return result.value;
+  }
+
+  it("renders the named item through the rule, carrying the list's provenance", () => {
+    const list = confirmedList();
+    const second = renderConfirmedItem(list, 1, { kind: "part", path: "subject" });
+    if (!second.rendered) expect.unreachable(second.refusal.kind);
+    expect(unwrapConfirmed(second.value)).toBe("Physics");
+    expect(provenanceOf(second.value)).toEqual(provenanceOf(list));
+    const year = renderConfirmedItem(list, 0, { kind: "part", path: "completionYear", then: { kind: "number" } });
+    if (!year.rendered) expect.unreachable(year.refusal.kind);
+    expect(unwrapConfirmed(year.value)).toBe("2021");
+  });
+
+  it("refuses a value that is not a list, and an item the list does not have", () => {
+    const list = confirmedList();
+    const beyond = renderConfirmedItem(list, 2, { kind: "part", path: "subject" });
+    expect(beyond.rendered).toBe(false);
+    if (!beyond.rendered) expect(beyond.refusal.kind).toBe("no_such_item");
+    const name = applyConfirmation({
+      key: "identity.given_name",
+      proposed: proposeValue({ value: "Niloofar", origin: "conversation", verbatim: "Niloofar", confidence: 0.9 }),
+      confirmation: { studentRef: STUDENT_P96, presentedText: "…", respondedAt: NOW_P96, response: { kind: "accepted" } },
+    });
+    if (isDeclined(name)) expect.unreachable("accepted");
+    const notList = renderConfirmedItem(name.value, 0, { kind: "text" });
+    expect(notList.rendered).toBe(false);
+    if (!notList.rendered) expect(notList.refusal.kind).toBe("not_a_list");
   });
 });

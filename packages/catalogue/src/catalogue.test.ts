@@ -250,6 +250,25 @@ describe("parsing rebuilds rather than casts", () => {
     expect(field?.typeahead).toEqual({ optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } });
   });
 
+  it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {
+    const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const page = parsed.value.blueprint.pages.find((candidate) => candidate.pageRef === "page-education");
+    expect(page?.repeats).toEqual({
+      fieldKey: "education.prior_qualifications",
+      addAnother: { strategy: "id", value: "addQualificationBtn" },
+    });
+
+    const broken = JSON.parse(documentOf()) as Record<string, unknown>;
+    const pages = (broken["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+    for (const candidate of pages) {
+      if (candidate["pageRef"] === "page-education") candidate["repeats"] = { fieldKey: "identity.given_name" };
+    }
+    const refused = parseReviewedEntry(broken);
+    if (refused.ok) expect.unreachable("a page cannot repeat over a field that is not a list");
+    expect(refused.refusal.path).toContain("repeats.fieldKey");
+  });
+
   it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
     // Found on the Sheffield draft, not designed: the language page and the
     // education page both call their file input `certificate` and its status

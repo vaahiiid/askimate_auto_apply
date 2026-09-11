@@ -31,6 +31,7 @@ import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askima
 import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
+import { LIST_VALUED_FIELD_KEYS } from "@askimate/aas-profile";
 
 /** Where a portal field's value comes from. */
 export type ValueSource =
@@ -285,7 +286,14 @@ export type MappingRefusal =
    */
   | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A typeahead field that does not say where its entries are, or entries declared on a field that is not one (gap 2). */
-  | { readonly kind: "typeahead_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "typeahead_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * A repeating page that could not be filled once per item (gap 3): it repeats over a field
+   * that is not a list; a mapping on it draws from anything but that list, or is not a value at
+   * all (a document, a handoff, a credential, a refusal); or a condition on it — each item would
+   * answer differently.
+   */
+  | { readonly kind: "repeat_mapping_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -615,6 +623,57 @@ export function checkUsable(
             )
             .join("; ") +
           ". A typeahead carries the locator of the entries it offers, and nothing else does (ADR-0103).",
+      },
+    };
+  }
+
+  // ── ADR-0103 gap 3: a page filled once per item draws only from its list ──
+  //
+  // Every mapping on a repeating page is relative to ONE item of the list the
+  // page repeats over: a mapping from another field would type the same
+  // given name into every qualification, a handoff or a credential has no
+  // "per item", a document is mapped to a held type and not to an item, and a
+  // condition on the page would be evaluated against which item nobody could
+  // say. The page's own declarations decide nothing here (ADR-0066).
+  const repeatProblems: string[] = [];
+  const repeatRefs: string[] = [];
+  for (const page of blueprint.pages) {
+    if (page.repeats === undefined) continue;
+    const over = page.repeats.fieldKey;
+    if (!(LIST_VALUED_FIELD_KEYS as readonly string[]).includes(over)) {
+      repeatProblems.push(`${page.pageRef} repeats over "${over}", which is not a list-valued profile field`);
+      repeatRefs.push(page.pageRef);
+    }
+    for (const section of page.sections) {
+      for (const field of section.fields) {
+        if (field.visibleWhen !== undefined || section.visibleWhen !== undefined) {
+          repeatProblems.push(`${field.fieldRef} is shown or hidden by a condition on a page that repeats`);
+          repeatRefs.push(field.fieldRef);
+        }
+        const mapping = mappingSet.mappings.find((candidate) => candidate.fieldRef === field.fieldRef);
+        if (mapping === undefined) continue;
+        if (mapping.source.kind === "profile_field") {
+          if (mapping.source.fieldKey !== over) {
+            repeatProblems.push(`${field.fieldRef} draws from "${mapping.source.fieldKey}" on a page that repeats over "${over}"`);
+            repeatRefs.push(field.fieldRef);
+          }
+        } else if (mapping.source.kind !== "constant") {
+          repeatProblems.push(`${field.fieldRef} is mapped as ${mapping.source.kind} on a page that repeats`);
+          repeatRefs.push(field.fieldRef);
+        }
+      }
+    }
+  }
+  if (repeatProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "repeat_mapping_invalid",
+        fieldRefs: repeatRefs,
+        detail:
+          `${repeatProblems.join("; ")}. A page filled once per item draws every value from one item ` +
+          `of the list it repeats over, or from a reviewed constant; nothing on it may hide, hand ` +
+          `off, or attach (ADR-0103).`,
       },
     };
   }

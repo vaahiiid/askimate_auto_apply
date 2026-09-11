@@ -202,6 +202,68 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
       ],
       requiredDocuments: [],
       advanceControl: { strategy: "role", value: "button:Save and continue" },
+      nextPageRef: "page-education",
+    },
+    {
+      // ── A page filled once per qualification (P96, ADR-0103 gap 3) ─────
+      //
+      // The portal lists the qualifications added so far and reveals an empty
+      // form behind an "Add a qualification" control; saving the form adds
+      // one and shows the list again. The page is filled once per item of
+      // `education.prior_qualifications`, reached each time through the page's
+      // URL and the `addAnother` control. Every field is optional: a student
+      // with no prior qualifications fills it zero times, and nothing asks.
+      pageRef: "page-education",
+      title: "Your qualifications",
+      url: `${GATED_PORTAL_ORIGIN}/education`,
+      repeats: {
+        fieldKey: "education.prior_qualifications",
+        addAnother: { strategy: "id", value: "addQualificationBtn" },
+      },
+      sections: [
+        {
+          sectionRef: "sec-qualification",
+          title: "A qualification",
+          fields: [
+            {
+              fieldRef: "qualification_level",
+              label: "Qualification",
+              inputType: "text",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationLevel" }],
+              validations: [{ kind: "maxlength", value: "80", source: "dom_attribute" }],
+            },
+            {
+              fieldRef: "qualification_subject",
+              label: "Subject",
+              inputType: "text",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationSubject" }],
+              validations: [],
+            },
+            {
+              fieldRef: "qualification_institution",
+              label: "Institution",
+              inputType: "text",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationInstitution" }],
+              validations: [],
+            },
+            {
+              fieldRef: "qualification_year",
+              label: "Year completed",
+              inputType: "text",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "qualificationYear" }],
+              validations: [{ kind: "pattern", value: "\\d{4}", source: "dom_attribute" }],
+            },
+          ],
+        },
+      ],
+      requiredDocuments: [],
+      // Saves ONE qualification and shows the list again — not "Save and
+      // continue", which leaves the page; the next item comes back to it.
+      advanceControl: { strategy: "id", value: "saveQualificationBtn" },
       nextPageRef: "page-study",
     },
     {
@@ -360,6 +422,32 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         },
       },
       note: "The fixture portal asks the passport's country beside the nationality; the same fact, asked twice.",
+    },
+    // The qualification fields: each formatted from ONE item of the list the
+    // page repeats over (P96). A `part` path is relative to the item.
+    {
+      fieldRef: "qualification_level",
+      source: { kind: "profile_field", fieldKey: "education.prior_qualifications", format: { kind: "part", path: "level" } },
+    },
+    {
+      fieldRef: "qualification_subject",
+      source: { kind: "profile_field", fieldKey: "education.prior_qualifications", format: { kind: "part", path: "subject" } },
+    },
+    {
+      fieldRef: "qualification_institution",
+      source: {
+        kind: "profile_field",
+        fieldKey: "education.prior_qualifications",
+        format: { kind: "part", path: "institution" },
+      },
+    },
+    {
+      fieldRef: "qualification_year",
+      source: {
+        kind: "profile_field",
+        fieldKey: "education.prior_qualifications",
+        format: { kind: "part", path: "completionYear", then: { kind: "number" } },
+      },
     },
     {
       fieldRef: "course",

@@ -9984,7 +9984,9 @@ describeIfDatabase("one intent per attachment, and the record of what left (ADR-
       pages: [
         GATED_ENTRY.blueprint.pages[0]!,
         GATED_ENTRY.blueprint.pages[1]!,
-        { ...GATED_ENTRY.blueprint.pages[2]!, nextPageRef: "page-documents" },
+        // The education page (P96) sits between the application and the study page.
+        GATED_ENTRY.blueprint.pages[2]!,
+        { ...GATED_ENTRY.blueprint.pages[3]!, nextPageRef: "page-documents" },
         {
           pageRef: "page-documents",
           title: "Your documents",

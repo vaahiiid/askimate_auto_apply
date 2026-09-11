@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.106.0] — 2026-09-11
+
+**P96 — ADR-0103 gap 3 built: a page filled once per item of a list, each item its own page to
+the ledger, every entry in the preview.** The last of the four gaps; all four are now built.
+
+### Added
+
+- `BlueprintPage.repeats?: { fieldKey, addAnother? }`; `LIST_VALUED_FIELD_KEYS` in the profile
+  package says which fields are lists, and the parser refuses a page repeating over anything
+  else. `checkUsable` refuses (`repeat_mapping_invalid`) a mapping on the page drawing from any
+  other field, a document, handoff, credential or refusal mapped on it, or a condition on it.
+- `renderConfirmedItem`: one item of a confirmed list through a rule, with the list's
+  provenance. The plan carries the page's instructions once per item with `item: { index,
+  count }`, through the transport and the wire, and says how many times each repeating page is
+  filled. An unconfirmed list fills an optional block zero times and asks for nothing; a
+  required field on it asks.
+- The preview lists each entry under its own heading in the student's order and says *none*
+  plainly; the count and each entry's position are inside the content hash.
+- `pageFillTarget` carries the item, so each item is its own page to the ledger; the run driver
+  offers a repeating page once per item; the work item carries `repeat: { index, count,
+  addAnother? }`; the runner comes back to the page, presses `addAnother` when there is one, and
+  saves one item.
+- The fixture portal's education page (list, *Add a qualification*, one save per item); the
+  gated fixture's page and mappings; the journey adds two qualifications through the whole path.
+  The Sheffield draft is unchanged: its education page carries six document slots per
+  qualification and a conditional field, and the built rule refuses the condition on a repeating
+  page and would refuse any document mapped on one —
+  raised as a fifth gap (a document per item; a condition inside a repeat), not marked around.
+
+---
+
 ## [0.105.0] — 2026-09-11
 
 **P95 — ADR-0103 gap 2 built: a typeahead is typed into and the one exact entry chosen; a

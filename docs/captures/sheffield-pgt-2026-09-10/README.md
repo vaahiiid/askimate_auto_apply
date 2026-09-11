@@ -349,10 +349,23 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    boundary.
 4. ~~`pnpm run inspect-dependencies` output from Vahid's machine~~ — received 2026-09-11, in
    `inspect-dependencies.txt`, read above.
-5. Four schema gaps raised and decided (ADR-0103): ~~options that arrive after another field is
-   set~~ — built in P94; ~~a typeahead as a fill mechanism~~ — built in P95; a repeatable entry
-   (education, employment) as a page shape; ~~a companion field whose value follows another act
-   (the upload radios)~~ — built in P93.
+5. ~~Four schema gaps raised and decided (ADR-0103)~~ — all four built: options that arrive
+   after another field is set (P94); a typeahead as a fill mechanism (P95); a repeatable entry
+   (education, employment) as a page shape (P96); a companion field whose value follows another
+   act, the upload radios (P93).
+   - **P96 — a finding, not a marking.** The education page (`page7`) is the repeatable entry
+     the gap was raised for, and the built schema **cannot yet mark it**: `checkUsable` refuses a
+     condition on a repeating page, and refuses any document mapped on one, and `page7` has
+     both in prospect — `unlistedDegree`, shown by another field, refuses it today; six document
+     slots (certificate, transcript and their translations, one set per qualification) would
+     refuse it the moment one was mapped. Both refusals are right as built: a document is mapped
+     to a held document type, not to an item, so "the certificate for the second qualification"
+     has no way to be said; and a condition on a repeating page would be answered by which item
+     nobody could say. So the draft stays 0.2.6 with `page7`
+     unmarked, and this is raised as **a fifth gap for Vahid: a document per item of a repeating
+     page, and a condition inside one.** It is a schema and product question — what a student
+     holds per qualification — not a curation detail. The employment page has neither documents
+     nor conditions and would mark cleanly once the registry holds employment (item 7).
    - **P95.** The curated draft (0.2.6) marks `institutionCountry-ts-control` and
      `institution-ts-control` as `typeahead`, with the entry locator
      `.ts-dropdown .option[data-selectable]`. **That locator is Tom Select's default markup, not

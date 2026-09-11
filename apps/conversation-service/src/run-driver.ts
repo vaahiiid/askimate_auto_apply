@@ -4308,12 +4308,30 @@ export class RunDriver {
    * `#markFilledIfDone` asks it whether anything is left. A counter would be a
    * second answer to the same question, able to disagree with the ledger.
    */
+  /** Whether any item of a repeating page is recorded saved (ADR-0103, gap 3). */
+  async #anyItemSaved(runId: RunId, entry: CatalogueEntry, plan: FillPlan): Promise<boolean> {
+    for (const page of entry.blueprint.pages) {
+      if (page.repeats === undefined) continue;
+      const fields = new Set(page.sections.flatMap((section) => section.fields.map((f) => f.fieldRef)));
+      const count = plan.repeats.find((repeat) => repeat.pageRef === page.pageRef)?.count ?? 0;
+      for (let index = 0; index < count; index++) {
+        const verdict = await this.#verdictFor(
+          runId,
+          "advance_portal_page",
+          pageFillTarget({ pageRef: page.pageRef, values: pageValuesOf(plan, fields, { index }), item: { index, count } }),
+        );
+        if (verdict.kind === "already_done" && verdict.outcome === "succeeded") return true;
+      }
+    }
+    return false;
+  }
+
   async #nextPage(
     runId: RunId,
     entry: CatalogueEntry,
     plan: FillPlan,
     attachments: readonly PreviewAttachment[],
-  ): Promise<ApplicationBlueprint["pages"][number] | null> {
+  ): Promise<NextPage | null> {
     // A page with something to fill OR something to attach. Until P73 an
     // upload-only page was skipped as having no fields — the documents page
     // of a real portal is exactly that page, and it was never offered.
@@ -4332,6 +4350,28 @@ export class RunDriver {
       if (!fields.some((field) => wanted.has(field.fieldRef))) continue;
 
       const onThisPage = new Set(fields.map((f) => f.fieldRef));
+
+      // ── ADR-0103 gap 3: a repeating page, once per item ──────────────────
+      //
+      // Each item is its own target in the ledger: saved once, and the next
+      // item is offered until every item is. A page that repeats carries no
+      // document slot (`checkUsable` refused one), so its items have no
+      // attachments to check.
+      if (page.repeats !== undefined) {
+        const count = plan.repeats.find((repeat) => repeat.pageRef === page.pageRef)?.count ?? 0;
+        for (let index = 0; index < count; index++) {
+          const item = { index, count };
+          const verdict = await this.#verdictFor(
+            runId,
+            "advance_portal_page",
+            pageFillTarget({ pageRef: page.pageRef, values: pageValuesOf(plan, onThisPage, item), item }),
+          );
+          if (verdict.kind === "already_done" && verdict.outcome === "succeeded") continue;
+          return { page, item };
+        }
+        continue;
+      }
+
       const attached = pageAttachmentsOf(attachments, onThisPage);
       const verdict = await this.#verdictFor(
         runId,
@@ -4361,13 +4401,13 @@ export class RunDriver {
             break;
           }
         }
-        if (!attachmentsDone) return page;
+        if (!attachmentsDone) return { page };
       }
       // `failed_cleanly` is a claim that nothing happened out there, so the page
       // is offered again. `already_done` + `succeeded` is skipped. The unfinished
       // verdicts never reach here — `#unfinishedAction` stopped the run.
       if (verdict.kind === "already_done" && verdict.outcome === "succeeded") continue;
-      return page;
+      return { page };
     }
     return null;
   }
@@ -4454,6 +4494,9 @@ export class RunDriver {
     const plan = planFill(entry.blueprint, usable.mappingSet, state.profile);
     const attachments = await this.#heldAttachments(entry, plan, state.inputs.studentRef);
     if ((await this.#nextPage(runId, entry, plan, attachments)) !== null) return false;
+    // A repeating page's items are their own targets (ADR-0103, gap 3) — one
+    // saved item is one saved page for this question's purpose.
+    if (await this.#anyItemSaved(runId, entry, plan)) return true;
 
     // Nothing left to fill — but "nothing left" is also true of a run that
     // never had a fillable page. `markFilled` only means something once at
@@ -5830,8 +5873,8 @@ function workPayloadFor(
     readonly kind: WorkKind;
     readonly account: ReturnType<typeof accountWorkOf>;
     readonly plan: FillPlan | null;
-    /** Which page to hand out, decided from the ledger by `#nextPage`. */
-    readonly page: ApplicationBlueprint["pages"][number] | null;
+    /** Which page to hand out — and which item of it — decided from the ledger by `#nextPage`. */
+    readonly page: NextPage | null;
     /** The run's attachments as the preview resolves them (ADR-0069, P73). */
     readonly attachments: readonly PreviewAttachment[];
   },
@@ -5844,7 +5887,7 @@ function workPayloadFor(
       /** The attachments on THIS page, one `attach_document` intent each. */
       readonly attachments?: readonly PageAttachment[];
       readonly carries: Partial<
-        Pick<ClaimedWork, "registration" | "login" | "plan" | "formUrl" | "advanceLocator">
+        Pick<ClaimedWork, "registration" | "login" | "plan" | "formUrl" | "advanceLocator" | "repeat">
       >;
     }
   | null {
@@ -5896,8 +5939,8 @@ function workPayloadFor(
   //
   // WHICH page is `#nextPage`'s answer, from the intent ledger (ADR-0047), so
   // a page already saved is never handed out twice.
-  const page = input.page;
-  if (page === null) return null;
+  if (input.page === null) return null;
+  const { page, item } = input.page;
   const at = atOrigin(page.url ?? "", entry.portalOrigin);
   if (at === null || hostOf(at) !== portalHost) return null;
 
@@ -5910,8 +5953,11 @@ function workPayloadFor(
   const onThisPage = new Set(
     page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)),
   );
-  const instructions = transported.plan.instructions.filter((instruction) =>
-    onThisPage.has(instruction.fieldRef),
+  const instructions = transported.plan.instructions.filter(
+    (instruction) =>
+      onThisPage.has(instruction.fieldRef) &&
+      // On a repeating page, THIS item's instructions and no other's (gap 3).
+      (item === undefined ? instruction.item === undefined : instruction.item?.index === item.index),
   );
   // The uploads on THIS page, by the same rule as the fields. A page whose
   // only box is a file input is still a page to fill (ADR-0099).
@@ -5931,14 +5977,33 @@ function workPayloadFor(
         text: instruction.value.text,
       })),
       attachments: pageAttachmentsOf(input.attachments, onThisPage),
+      ...(item === undefined ? {} : { item }),
     }).slice(page.pageRef.length + 1),
     attachments: pageAttachmentsOf(input.attachments, onThisPage),
     carries: {
       plan: toWirePlan({ ...transported.plan, instructions, uploads }),
       formUrl: at,
       advanceLocator: { strategy: advance.strategy, value: advance.value },
+      // Which item this is, and how the runner reaches a fresh entry (gap 3).
+      ...(item === undefined || page.repeats === undefined
+        ? {}
+        : {
+            repeat: {
+              index: item.index,
+              count: item.count,
+              ...(page.repeats.addAnother === undefined
+                ? {}
+                : { addAnother: { strategy: page.repeats.addAnother.strategy, value: page.repeats.addAnother.value } }),
+            },
+          }),
     },
   };
+}
+
+/** A page to hand out, and which item of it when the page repeats (ADR-0103, gap 3). */
+interface NextPage {
+  readonly page: ApplicationBlueprint["pages"][number];
+  readonly item?: { readonly index: number; readonly count: number };
 }
 
 /**
@@ -5971,6 +6036,7 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
               },
             },
           }),
+      ...(instruction.item === undefined ? {} : { item: { index: instruction.item.index, count: instruction.item.count } }),
       locators: instruction.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,

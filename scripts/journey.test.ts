@@ -545,6 +545,16 @@ beforeAll(async () => {
   );
   await confirmInto(profiles, "identity.nationality", "Iranian", "Iranian");
   await confirmInto(profiles, "contact.email", EMAIL, EMAIL);
+  // Two qualifications: the education page is filled once per item (P96).
+  await confirmInto(
+    profiles,
+    "education.prior_qualifications",
+    [
+      { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+      { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", completionYear: 2017, grade: "19.1", gradeScale: "iran_20_point" },
+    ],
+    "as stated",
+  );
   await confirmInto(
     profiles,
     "study.personal_statement",
@@ -1375,6 +1385,39 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
         "secret_consumed",
       ]);
 
+      // ── The qualifications page, once per qualification (P96) ─────────
+      //
+      // ADR-0103 gap 3. The same page is handed out twice, each time for one
+      // item, each its own target in the ledger; the runner comes back to
+      // the page's URL, presses "Add a qualification", fills the form and
+      // saves that one; the portal holds both, in the student's order.
+      for (const index of [0, 1]) {
+        const entry = await restarted.intake.claim();
+        if (entry === null) expect.unreachable(`qualification ${String(index + 1)} is still to add`);
+        expect(entry.kind).toBe("execute");
+        expect(entry.formUrl, `qualification ${String(index + 1)}: the same page`).toBe(`${portal.baseUrl}/education`);
+        expect(entry.repeat).toEqual({
+          index,
+          count: 2,
+          addAnother: { strategy: "id", value: "addQualificationBtn" },
+        });
+        expect(entry.plan?.instructions.map((instruction) => instruction.fieldRef)).toEqual([
+          "qualification_level",
+          "qualification_subject",
+          "qualification_institution",
+          "qualification_year",
+        ]);
+        expect(entry.plan?.instructions.every((instruction) => instruction.item?.index === index)).toBe(true);
+        expect(await restarted.performer(entry)).toEqual({ kind: "succeeded" });
+        expect(
+          await restarted.intake.report(entry.runId, { leaseId: entry.leaseId, outcome: "succeeded" }),
+        ).toBe(true);
+      }
+      expect(portal.application(EMAIL)?.qualifications.map((q) => [q.level, q.institution, q.year])).toEqual([
+        ["Bachelor's degree", "Sharif University of Technology", "2021"],
+        ["High school diploma", "Farzanegan High School", "2017"],
+      ]);
+
       // ── Page two, in the session the sign-in gave this runner ─────────
       const claimed = await restarted.intake.claim();
       if (claimed === null) expect.unreachable("page two is still to do");
@@ -1410,9 +1453,13 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           WHERE run_id = $1 AND action = 'advance_portal_page' ORDER BY target`,
         [runId],
       );
-      expect(intents.rows.map((row) => row.outcome)).toEqual(["succeeded", "succeeded"]);
+      expect(intents.rows.map((row) => row.outcome)).toEqual(["succeeded", "succeeded", "succeeded", "succeeded"]);
       expect(intents.rows[0]?.target).toMatch(/^page-application@sha256:[0-9a-f]{64}$/);
-      expect(intents.rows[1]?.target).toMatch(/^page-study@sha256:[0-9a-f]{64}$/);
+      // One target per qualification (P96): two saved items, two rows.
+      expect(intents.rows[1]?.target).toMatch(/^page-education@sha256:[0-9a-f]{64}$/);
+      expect(intents.rows[2]?.target).toMatch(/^page-education@sha256:[0-9a-f]{64}$/);
+      expect(intents.rows[1]?.target).not.toBe(intents.rows[2]?.target);
+      expect(intents.rows[3]?.target).toMatch(/^page-study@sha256:[0-9a-f]{64}$/);
 
       // ═══════════════════════════════════════════════════════════════════
       // Page three: the passport (P74 — ADR-0069, ADR-0099). In the session

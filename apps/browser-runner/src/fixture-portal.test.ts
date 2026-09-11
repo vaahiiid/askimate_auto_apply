@@ -163,6 +163,40 @@ describe("the password actually arrived, proved the way a portal proves it", () 
   });
 });
 
+describe("a page filled once per qualification (P96)", () => {
+  it("lists what was added, adds one per save, and lets the applicant add none", async () => {
+    const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
+    // Unreachable before page one, like the study page.
+    const early = await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn }, redirect: "manual" });
+    expect(early.status).toBe(302);
+    expect(early.headers.get("location")).toBe("/apply");
+
+    await form("/apply", { given_name: "N", family_name: "H", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, signedIn);
+    const empty = await (await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn } })).text();
+    expect(empty).toContain('<button type="button" id="addQualificationBtn">Add a qualification</button>');
+    expect(empty).toContain('<form method="post" action="/education/add" id="qualificationForm" hidden>');
+    expect(empty).not.toContain('class="qualification"');
+
+    const first = await form("/education/add", { level: "BSc", subject: "Maths", institution: "A", year: "2021" }, signedIn);
+    expect(first.status).toBe(302);
+    expect(first.headers.get("location")).toBe("/education");
+    const second = await form("/education/add", { level: "Diploma", subject: "Physics", institution: "B", year: "2017" }, signedIn);
+    expect(second.status).toBe(302);
+    const listed = await (await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn } })).text();
+    expect(listed.match(/class="qualification"/g)).toHaveLength(2);
+    expect(listed.indexOf("BSc — Maths")).toBeLessThan(listed.indexOf("Diploma — Physics"));
+    expect(portal.application(EMAIL)?.qualifications.map((q) => q.level)).toEqual(["BSc", "Diploma"]);
+
+    // A blank qualification is refused; leaving the page adds nothing.
+    const blank = await form("/education/add", { level: "  ", subject: "", institution: "", year: "" }, signedIn);
+    expect(blank.status).toBe(400);
+    const left = await form("/education", {}, signedIn);
+    expect(left.status).toBe(302);
+    expect(left.headers.get("location")).toBe("/study");
+    expect(portal.application(EMAIL)?.qualifications).toHaveLength(2);
+  });
+});
+
 describe("a course search the applicant types into (P95)", () => {
   it("answers entries for what was typed, and only exact text names a course", async () => {
     const signedIn = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));

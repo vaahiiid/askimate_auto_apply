@@ -340,6 +340,7 @@ describe("a plan survives the round trip to the runner and back", () => {
       handoffs: [],
       blockers: [],
       hidden: [],
+      repeats: [],
     };
     const taken = toStoredPlan(transportable);
     if (!taken.ok)
@@ -394,6 +395,7 @@ describe("a plan survives the round trip to the runner and back", () => {
       credentials: [],
       blockers: [],
       hidden: [],
+      repeats: [],
     };
     // Since P66 (ADR-0099) an upload CROSSES, as a reference — which box, which
     // document the mapping named, where the box is — and nothing more. No

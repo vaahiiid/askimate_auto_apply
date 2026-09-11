@@ -2065,6 +2065,25 @@ components:
 
             Not the submit control, and it cannot become one: the runner's click
             guard admits exactly the locators it is given (ADR-0014).
+        repeat:
+          type: object
+          additionalProperties: false
+          required: [index, count]
+          description: >-
+            Present when the page is filled once per item of a list (ADR-0103,
+            gap 3): which item this fill is, of how many, and the control that
+            opens a fresh entry on the page. The runner presses `addAnother`
+            after landing and before typing; `advanceLocator` saves this one
+            item; the next item comes as the next unit of work.
+          properties:
+            index:
+              type: integer
+              minimum: 0
+            count:
+              type: integer
+              minimum: 1
+            addAnother:
+              $ref: "#/components/schemas/WorkLocator"
 
     TransportedPlan:
       type: object

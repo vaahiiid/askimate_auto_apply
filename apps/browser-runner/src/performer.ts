@@ -111,7 +111,12 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       allowedHosts: [hostnameOf(work.portalHost)],
       // EXACTLY the control the plane sent, and nothing else: the submit
       // button is unreachable however the blueprint changes (ADR-0014).
-      clickableControls: advance === undefined ? [] : [advance],
+      // ...plus the control that opens a fresh entry on a page filled once
+      // per item (ADR-0103, gap 3), which is also the plane's to send.
+      clickableControls: [
+        ...(advance === undefined ? [] : [advance]),
+        ...(work.repeat?.addAnother === undefined ? [] : [work.repeat.addAnother]),
+      ],
     });
     const outcome = await fillApplication(work, {
       now: deps.now,

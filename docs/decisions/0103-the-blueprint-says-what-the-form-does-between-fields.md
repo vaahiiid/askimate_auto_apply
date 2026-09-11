@@ -141,7 +141,7 @@ As built:
   as typeaheads. Their entry locator is Tom Select's default markup, not the capture's — the
   captured pages are not in the repository — and the README says so; the next read confirms it.
 
-## Gap 3 — a repeatable entry — DECIDED, to build (P96)
+## Gap 3 — a repeatable entry — DECIDED and BUILT (P96)
 
 `BlueprintPage.repeats?: { fieldKey; addAnother? }` — the page is filled once per item of a
 list-valued profile field (`education.prior_qualifications` is one), and mappings on that page
@@ -149,6 +149,39 @@ use `part` paths relative to the item. The plan carries the page's instructions 
 with the item's index, the page walk revisits the page through its own *new entry* URL or
 *add another* control between items, and the preview lists each entry. This is the largest of the
 four and touches the page walk; it is last for that reason.
+
+As built:
+
+- Which fields are lists is stated once, in the profile package (`LIST_VALUED_FIELD_KEYS`), and
+  the parser refuses a page that repeats over anything else. `checkUsable` refuses
+  (`repeat_mapping_invalid`) a mapping on a repeating page that draws from any field but the one
+  the page repeats over, or that is a document, a handoff, a credential or a refusal — a document
+  is mapped to a held type and not to an item; and a condition on it — each item would answer it
+  differently. The page's own document declarations decide nothing (ADR-0066).
+- The plan resolves the list once and renders each item through the mapping's rule with the
+  list's provenance (`renderConfirmedItem`): the student confirmed the list, and each item is that
+  confirmation. Instructions carry `item: { index, count }`, through the transport and the wire;
+  the plan says how many times each repeating page is filled.
+- **An unconfirmed list fills an optional block zero times and asks for nothing** — a student
+  with no prior qualifications has none to add — unless a mapped field on the page is required,
+  in which case it asks, as any required field does. The preview says *none* plainly; the count
+  and each entry's position are inside the yes, so the same two qualifications in the other
+  order, or one of them, are a different application.
+- Each item is its own page to the ledger (`pageFillTarget` carries the item): saved once,
+  offered again for the next, never twice. The work item carries `repeat: { index, count,
+  addAnother? }`; the runner comes back to the page's URL, presses `addAnother` when the page has
+  one (the control is on the click allow-list because the plane sent it, as the advance control
+  is), fills the form and saves that one item.
+- The fixture portal's education page lists the qualifications added so far, reveals its form
+  behind *Add a qualification*, saves one per submit, and refuses a blank one; the journey adds
+  two through the whole path and the ledger holds a row for each.
+- The Sheffield draft **does not** mark its education page, and this is the finding P96 ends on:
+  the page the gap was raised for carries six document slots per qualification and one field
+  shown by another; the built rule refuses the condition on a repeating page now, and would refuse
+  any document mapped on it — a document is mapped to a held type, not to an item, and a
+  condition inside a repeat has no item to be answered by.
+  That is a fifth gap, raised for Vahid and not designed around here: a document per item, and a
+  condition inside a repeating page.
 
 ## What this does not decide
 

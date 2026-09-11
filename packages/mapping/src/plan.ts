@@ -37,7 +37,7 @@ import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, UnavailableReason } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedProfile, OrdinaryFieldKey, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
-import { renderConfirmed, resolveField } from "@askimate/aas-profile";
+import { renderConfirmed, renderConfirmedItem, resolveField } from "@askimate/aas-profile";
 
 import type { CredentialPurpose, ReviewedConstant, ReviewedFormRefusal, UsableMappingSet } from "./mapping.js";
 import {
@@ -93,6 +93,21 @@ export interface FillInstruction {
    * chooses that entry — a fill, not an advance.
    */
   readonly typeahead?: { readonly optionLocator: FieldLocator };
+  /**
+   * Which item of a repeating page this instruction belongs to (ADR-0103,
+   * gap 3): the page is filled `count` times, and this is fill `index`. Absent
+   * off a repeating page.
+   */
+  readonly item?: { readonly index: number; readonly count: number };
+}
+
+/** A page filled once per item of a list (ADR-0103, gap 3), and how many times. */
+export interface RepeatedPage {
+  readonly pageRef: string;
+  readonly title: string;
+  readonly fieldKey: string;
+  /** Zero when the list is unconfirmed and nothing on the page is required. */
+  readonly count: number;
 }
 
 /** The text a fill instruction will type, whichever kind it is. */
@@ -212,6 +227,8 @@ export interface FillPlan {
   readonly blockers: readonly FillBlocker[];
   /** Fields the form hides for these answers: neither filled nor missing (P90). */
   readonly hidden: readonly HiddenField[];
+  /** Pages filled once per item, with how many times each (ADR-0103, gap 3). */
+  readonly repeats: readonly RepeatedPage[];
 }
 
 /**
@@ -254,7 +271,16 @@ export function planFill(
       .map(([, companion]) => companion?.fieldRef ?? ""),
   );
 
+  // ADR-0103 gap 3: the fields of a page filled once per item are planned
+  // below, per item, and not here.
+  const repeated = new Set(
+    blueprint.pages
+      .filter((page) => page.repeats !== undefined)
+      .flatMap((page) => page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef))),
+  );
+
   for (const field of allFields(blueprint)) {
+    if (repeated.has(field.fieldRef)) continue;
     const mapping = mappingFor(mappingSet, field.fieldRef);
 
     if (mapping === undefined) {
@@ -390,6 +416,86 @@ export function planFill(
     }
   }
 
+  // ── ADR-0103 gap 3: a page filled once per item of a list ───────────────
+  //
+  // The list is resolved once; each item is rendered through the mapping's
+  // rule, relative to the item, with the list's provenance. An unconfirmed
+  // list fills an optional block zero times and asks for nothing — a student
+  // with no prior qualifications has none to add — unless a mapped field on
+  // the page is required, in which case it asks, as any required field does.
+  const repeats: RepeatedPage[] = [];
+  for (const page of blueprint.pages) {
+    if (page.repeats === undefined) continue;
+    const fields = page.sections.flatMap((section) => section.fields);
+    // `checkUsable` held that this names a list-valued ordinary field.
+    const fieldKey = page.repeats.fieldKey as OrdinaryFieldKey;
+    const resolution = resolveField(profile, fieldKey);
+
+    for (const field of fields) {
+      if (mappingFor(mappingSet, field.fieldRef) === undefined && isRequired(field)) {
+        blockers.push({
+          kind: "no_mapping",
+          fieldRef: field.fieldRef,
+          label: field.label,
+          detail:
+            `Required field "${field.label}" has no mapping. A specialist decides what belongs ` +
+            `here — it is not something to work out while a form is open.`,
+        });
+      }
+    }
+
+    if (isFieldUnavailable(resolution)) {
+      for (const field of fields) {
+        if (mappingFor(mappingSet, field.fieldRef)?.source.kind !== "profile_field" || !isRequired(field)) continue;
+        blockers.push({
+          kind: "value_unavailable",
+          fieldRef: field.fieldRef,
+          label: field.label,
+          fieldKey,
+          reason: resolution.reason,
+        });
+      }
+      repeats.push({ pageRef: page.pageRef, title: page.title, fieldKey, count: 0 });
+      continue;
+    }
+
+    const list = unwrapConfirmed(resolution);
+    const count = Array.isArray(list) ? list.length : 0;
+    for (let index = 0; index < count; index++) {
+      const item = { index, count };
+      for (const field of fields) {
+        const mapping = mappingFor(mappingSet, field.fieldRef);
+        if (mapping === undefined) continue;
+        if (mapping.source.kind === "constant") {
+          instructions.push({
+            ...instructionShape(field),
+            value: { kind: "reviewed_constant", constant: reviewedConstant(mappingSet, mapping.source) },
+            item,
+          });
+          continue;
+        }
+        if (mapping.source.kind !== "profile_field") continue; // refused by checkUsable
+        const rendered = renderConfirmedItem(resolution, index, mapping.source.format);
+        if (!rendered.rendered) {
+          blockers.push({
+            kind: "render_refused",
+            fieldRef: field.fieldRef,
+            label: field.label,
+            fieldKey,
+            refusal: rendered.refusal,
+          });
+          continue;
+        }
+        instructions.push({
+          ...instructionShape(field),
+          value: { kind: "confirmed", value: rendered.value, fieldKey },
+          item,
+        });
+      }
+    }
+    repeats.push({ pageRef: page.pageRef, title: page.title, fieldKey, count });
+  }
+
   // ── P90: what the form hides for these answers ─────────────────────────
   //
   // A condition is evaluated against the plan's own values — the text this
@@ -411,6 +517,7 @@ export function planFill(
     credentials,
     blockers: blockers.filter((blocker) => shown(blocker.fieldRef)),
     hidden: [...hidden.values()],
+    repeats,
   };
 }
 

@@ -120,6 +120,21 @@ export async function fillApplication(
   const challenged = await deps.challenge();
   if (challenged !== null) return { kind: "failed", failure: challengeFailure(challenged) };
 
+  // ── A page filled once per item: open a fresh entry first (ADR-0103, gap 3) ──
+  //
+  // The page lists what was added so far and reveals its form behind a
+  // control; each item of the list comes back here, presses it, fills the
+  // form, and saves that one item. A control the page no longer has is the
+  // blueprint out of date with the portal — drift, like any other locator.
+  const addAnother = work.repeat?.addAnother;
+  if (addAnother !== undefined) {
+    try {
+      await deps.session.click({ strategy: addAnother.strategy, value: addAnother.value });
+    } catch {
+      return { kind: "failed", failure: "portal_drift" };
+    }
+  }
+
   const report = await executePlan(
     deps.session,
     rehydratePlan(toStoredPlan(wire)),
@@ -225,6 +240,7 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
               },
             },
           }),
+      ...(instruction.item === undefined ? {} : { item: { index: instruction.item.index, count: instruction.item.count } }),
       locators: instruction.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,

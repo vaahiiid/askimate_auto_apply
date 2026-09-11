@@ -4771,3 +4771,50 @@ no mapping to either box is signed before then.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P96 — ADR-0103 gap 3 built: a page filled once per item of a list, each item its own page to the ledger
+
+The last and largest of the four: Sheffield's education page is one qualification form, and the
+applicant adds one entry per qualification through the same boxes. A blueprint page can now say
+it repeats over a list-valued profile field, and everything downstream follows from that one
+word. The mapping boundary: every mapping on such a page draws from one item of that list or is
+a reviewed constant — a mapping from another field would type the same given name into every
+qualification, a handoff or a credential has no per-item, a document is mapped to a held type
+and not to an item, a condition would be answered by which item nobody could say — and each is
+refused at `checkUsable`, not discovered at the form; the page's own declarations decide nothing
+there (ADR-0066). The plan: the list is resolved once and each item is
+rendered through the mapping's rule with the list's provenance, because the student confirmed the
+list and each item is that confirmation; the instruction carries which item it is, and the plan
+says how many times each repeating page is filled. The preview: each entry under its own heading
+in the student's order, every field of it, *none* said plainly, and both the count and each
+entry's position inside the yes — the same two qualifications in the other order are a different
+application. The ledger: each item is its own page target, saved once and offered again for the
+next; the driver hands the page out once per item, the work item says which item and how a fresh
+entry is opened, and the runner comes back to the page's URL, presses *add another* when there is
+one, fills the form and saves that one.
+
+Two rules stated because they could have been left implicit. An unconfirmed list fills an
+optional block zero times and asks for nothing — a student with no prior qualifications has none
+to add, and the interview does not ask a question whose honest answer is "none" — unless a
+mapped field on the page is required, in which case it asks as any required field does. And which
+fields are lists is said once, in the profile package, so a page repeating over a given name is
+refused at the parse rather than producing one entry per character.
+
+The journey adds two qualifications through the whole path: the same page handed out twice,
+each with its own four instructions and its own ledger row, the portal holding both in the
+student's order, and page two still not filled again.
+
+And the finding it ends on: the Sheffield page the gap was raised for cannot be marked. Its
+education page carries six document slots per qualification — certificate, transcript, their
+translations — and a field shown by another; the rule as built refuses the condition on a
+repeating page today and would refuse any document mapped on one, rightly: a document is mapped
+to a held document type and not to an item, so "the certificate for the second qualification"
+has no way to be said, and a condition inside a repeat has no item to be answered by. The draft stays as it was and the README raises it as a fifth gap
+for Vahid — a document per item, and a condition inside a repeating page — which is a product
+question about what a student holds per qualification before it is a schema one. With this, the
+four gaps ADR-0103 decided are built, and Part 2 can be read against a schema that will not
+change under it; the fifth waits on his word.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

@@ -1077,8 +1077,15 @@ export function pageFillTarget(input: {
    * it was, so no page without uploads moves.
    */
   readonly attachments?: readonly PageAttachment[];
+  /**
+   * Which item of a repeating page (ADR-0103, gap 3). Each item is its own
+   * page to the ledger: saved once, offered again for the next. Absent leaves
+   * the key exactly as it was.
+   */
+  readonly item?: { readonly index: number; readonly count: number };
 }): string {
   const parts = [
+    ...(input.item === undefined ? [] : [`#item=${String(input.item.index)}/${String(input.item.count)}`]),
     ...input.values.map((value) => `${value.fieldRef}=${value.text}`),
     ...(input.attachments ?? []).map(
       (attachment) => `${attachment.fieldRef}=${attachmentIdentity(attachment)}`,
@@ -1140,9 +1147,12 @@ export function attachmentIntentTarget(input: {
 export function pageValuesOf(
   plan: FillPlan,
   fieldRefs: ReadonlySet<string>,
+  item?: { readonly index: number },
 ): readonly { readonly fieldRef: string; readonly text: string }[] {
   return plan.instructions
     .filter((instruction) => fieldRefs.has(instruction.fieldRef))
+    // On a repeating page, only THIS item's instructions (ADR-0103, gap 3).
+    .filter((instruction) => (item === undefined ? instruction.item === undefined : instruction.item?.index === item.index))
     .map((instruction) => ({ fieldRef: instruction.fieldRef, text: textOf(instruction.value) }));
 }
 

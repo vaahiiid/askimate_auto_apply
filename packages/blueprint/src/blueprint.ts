@@ -271,6 +271,15 @@ export interface BlueprintPage {
   readonly advanceControl?: FieldLocator;
   /** Where advancing leads. */
   readonly nextPageRef?: string;
+  /**
+   * The page is filled once per item of a list-valued profile field
+   * (ADR-0103, gap 3) — one qualification, one previous visa. Mappings on it
+   * draw from that field and are relative to the item; the plan carries the
+   * page's instructions once per item; the walk comes back to the page's URL
+   * for each, pressing `addAnother` first when the page has one; the preview
+   * lists each entry. `advanceControl` saves ONE item.
+   */
+  readonly repeats?: { readonly fieldKey: string; readonly addAnother?: FieldLocator };
 }
 
 /** A point where only the student can act (brief §7). */

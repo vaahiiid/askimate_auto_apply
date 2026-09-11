@@ -90,6 +90,15 @@ export interface StoredFillInstruction {
   readonly optionsAfter?: { readonly fieldRef: string };
   /** Where a typeahead's entries are found (ADR-0103, gap 2). */
   readonly typeahead?: { readonly optionLocator: FieldLocator };
+  /** Which item of a repeating page this is (ADR-0103, gap 3). */
+  readonly item?: { readonly index: number; readonly count: number };
+}
+
+/** The item, copied field by field. */
+function copyItem(
+  item: { readonly index: number; readonly count: number } | undefined,
+): { readonly item?: { readonly index: number; readonly count: number } } {
+  return item === undefined ? {} : { item: { index: item.index, count: item.count } };
 }
 
 /** A typeahead's entry locator, copied field by field. */
@@ -165,6 +174,7 @@ export function toStoredPlan(
           value: storedValue(instruction.value),
           ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
           ...copyTypeahead(instruction.typeahead),
+          ...copyItem(instruction.item),
         }),
       ),
       uploads: plan.uploads.map(
@@ -258,6 +268,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
         value: rebuiltValue(instruction.value),
         ...(instruction.optionsAfter === undefined ? {} : { optionsAfter: { fieldRef: instruction.optionsAfter.fieldRef } }),
         ...copyTypeahead(instruction.typeahead),
+        ...copyItem(instruction.item),
       }),
     ),
     uploads: stored.uploads.map((upload) => ({
@@ -275,6 +286,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
     blockers: [],
     // Hidden fields never crossed: the plane dropped them before transport.
     hidden: [],
+    repeats: [],
   };
 }
 

@@ -6,7 +6,7 @@ import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@aski
 
 import { checkUsable, constantsIn, formRefusalAttribution, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
-import type { ApplicationBlueprint, BlueprintField } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, BlueprintField, BlueprintPage } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "./fixtures/portal.js";
 import {
@@ -758,5 +758,154 @@ describe("a typeahead (P95, gap 2)", () => {
     expect(back.instructions.find((i) => i.fieldRef === "course")?.typeahead).toEqual({
       optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
     });
+  });
+});
+
+describe("a page filled once per item of a list (P96, gap 3)", () => {
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const QUALIFICATIONS = [
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", completionYear: 2017, grade: "19.1", gradeScale: "iran_20_point" },
+  ];
+  const WITH_QUALIFICATIONS = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
+  const educationPage = (blueprint: ApplicationBlueprint) => {
+    const page = blueprint.pages.find((p) => p.pageRef === "page-education");
+    if (page === undefined) expect.unreachable("the fixture has an education page");
+    return page;
+  };
+  const withEducation = (patch: (page: BlueprintPage) => BlueprintPage): ApplicationBlueprint => ({
+    ...BLUEPRINT,
+    pages: BLUEPRINT.pages.map((page) => (page.pageRef === "page-education" ? patch(page) : page)),
+  });
+
+  it("plans the page's fields once per item, in item order, each from its own item", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_QUALIFICATIONS);
+    const onPage = plan.instructions.filter((i) => i.fieldRef.startsWith("qualification_"));
+    expect(onPage.map((i) => [i.fieldRef, i.item?.index, i.item?.count, textOf(i.value)])).toEqual([
+      ["qualification_level", 0, 2, "Bachelor's degree"],
+      ["qualification_subject", 0, 2, "Industrial Engineering"],
+      ["qualification_institution", 0, 2, "Sharif University of Technology"],
+      ["qualification_year", 0, 2, "2021"],
+      ["qualification_level", 1, 2, "High school diploma"],
+      ["qualification_subject", 1, 2, "Mathematics and Physics"],
+      ["qualification_institution", 1, 2, "Farzanegan High School"],
+      ["qualification_year", 1, 2, "2017"],
+    ]);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.repeats).toEqual([
+      { pageRef: "page-education", title: "Your qualifications", fieldKey: "education.prior_qualifications", count: 2 },
+    ]);
+    // Fields off the page carry no item.
+    expect(plan.instructions.find((i) => i.fieldRef === "given_name")?.item).toBeUndefined();
+  });
+
+  it("fills an optional block ZERO times when the list is not confirmed, and asks for nothing", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    expect(plan.instructions.some((i) => i.fieldRef.startsWith("qualification_"))).toBe(false);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.repeats).toEqual([
+      { pageRef: "page-education", title: "Your qualifications", fieldKey: "education.prior_qualifications", count: 0 },
+    ]);
+  });
+
+  it("ASKS when a required field on the block has no list to draw from", () => {
+    const required = withEducation((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.fieldRef === "qualification_level"
+            ? { ...field, validations: [{ kind: "required", source: "dom_attribute" }] }
+            : field,
+        ),
+      })),
+    }));
+    const check = checkUsable(SET, required);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(required, check.mappingSet, COMPLETE_PROFILE);
+    expect(plan.blockers.map((b) => [b.kind, b.fieldRef])).toEqual([["value_unavailable", "qualification_level"]]);
+    const blocker = plan.blockers[0];
+    if (blocker?.kind !== "value_unavailable") expect.unreachable("asked");
+    expect(blocker.fieldKey).toBe("education.prior_qualifications");
+  });
+
+  it("REFUSES a mapping on the block that draws from anything but the list it repeats over", () => {
+    const elsewhere: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.map((m) =>
+        m.fieldRef === "qualification_subject"
+          ? { ...m, source: { kind: "profile_field", fieldKey: "identity.given_name", format: { kind: "text" } } }
+          : m,
+      ),
+    };
+    const check = checkUsable(elsewhere, BLUEPRINT);
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("repeat_mapping_invalid");
+      expect(check.refusal.detail).toContain("qualification_subject");
+    }
+  });
+
+  it("REFUSES a document, a handoff or a condition on a repeating page, and a list that is not one", () => {
+    const handedOff: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.map((m) =>
+        m.fieldRef === "qualification_year" ? { ...m, source: { kind: "student_handoff", reason: "x" } } : m,
+      ),
+    };
+    const c1 = checkUsable(handedOff, BLUEPRINT);
+    expect(c1.usable).toBe(false);
+    if (!c1.usable) expect(c1.refusal.kind).toBe("repeat_mapping_invalid");
+
+    // A document is mapped to a held type, not to an item: "the certificate for
+    // the second qualification" has no way to be said, so it is refused here.
+    const attaching: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.map((m) =>
+        m.fieldRef === "qualification_year" ? { ...m, source: { kind: "document", documentRef: "passport" } } : m,
+      ),
+    };
+    const c1b = checkUsable(attaching, BLUEPRINT);
+    expect(c1b.usable).toBe(false);
+    if (!c1b.usable) expect(c1b.refusal.kind).toBe("repeat_mapping_invalid");
+
+    const conditioned = withEducation((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) =>
+          field.fieldRef === "qualification_year"
+            ? { ...field, visibleWhen: { whenFieldRef: "qualification_level", operator: "is_not_empty" } }
+            : field,
+        ),
+      })),
+    }));
+    const c2 = checkUsable(SET, conditioned);
+    expect(c2.usable).toBe(false);
+    if (!c2.usable) expect(c2.refusal.kind).toBe("repeat_mapping_invalid");
+
+    const notAList = withEducation((page) => ({ ...page, repeats: { fieldKey: "identity.given_name" } }));
+    const c3 = checkUsable(SET, notAList);
+    expect(c3.usable).toBe(false);
+    if (!c3.usable) expect(c3.refusal.kind).toBe("repeat_mapping_invalid");
+  });
+
+  it("carries the item through transport", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_QUALIFICATIONS);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    const back = rehydratePlan(stored.plan);
+    expect(back.instructions.filter((i) => i.fieldRef === "qualification_level").map((i) => i.item)).toEqual([
+      { index: 0, count: 2 },
+      { index: 1, count: 2 },
+    ]);
+    expect(educationPage(BLUEPRINT).repeats?.fieldKey).toBe("education.prior_qualifications");
   });
 });

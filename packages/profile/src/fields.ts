@@ -117,6 +117,19 @@ export interface ProfileFieldTypes {
 }
 
 export type ProfileFieldKey = keyof ProfileFieldTypes;
+
+/**
+ * The fields whose value is a LIST — the ones a form page may repeat over
+ * (ADR-0103, gap 3). Named here, beside the types, because nothing at runtime
+ * can otherwise tell a list-valued key from any other, and a blueprint page
+ * that repeats over a name must be refused at the parse if it is not one.
+ */
+export const LIST_VALUED_FIELD_KEYS = [
+  "education.prior_qualifications",
+  "immigration.previous_uk_visas",
+  "immigration.previous_visa_refusals",
+] as const satisfies readonly ProfileFieldKey[];
+export type ListValuedFieldKey = (typeof LIST_VALUED_FIELD_KEYS)[number];
 export type ProfileFieldType<K extends ProfileFieldKey> = ProfileFieldTypes[K];
 
 /** Every field key, for iteration. */

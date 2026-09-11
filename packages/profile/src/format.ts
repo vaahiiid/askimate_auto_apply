@@ -106,7 +106,11 @@ export type RenderRefusal =
   /** The rule does not fit the value's type — a mapping mistake, not a data one. */
   | { readonly kind: "rule_does_not_fit"; readonly detail: string }
   /** A `part` rule named a path the value does not have. */
-  | { readonly kind: "no_such_part"; readonly detail: string };
+  | { readonly kind: "no_such_part"; readonly detail: string }
+  /** An item was asked of a value that is not a list (ADR-0103, gap 3). */
+  | { readonly kind: "not_a_list"; readonly detail: string }
+  /** An item the list does not have. */
+  | { readonly kind: "no_such_item"; readonly detail: string };
 
 export type RenderResult =
   | { readonly rendered: true; readonly value: ConfirmedValue<string> }
@@ -252,6 +256,37 @@ function typeName(value: unknown): string {
  * It is not a second way to create confirmed data. It is the same confirmed
  * data, written the way this portal writes it.
  */
+/**
+ * Renders ONE item of a list-valued confirmed field (ADR-0103, gap 3).
+ *
+ * A page that repeats over `education.prior_qualifications` types each
+ * qualification into the same boxes in turn; the mapping's rule is relative to
+ * the item, and the provenance is the list's — the student confirmed the list,
+ * and each item is that confirmation, not a new one.
+ */
+export function renderConfirmedItem<T>(
+  confirmed: ConfirmedValue<T>,
+  index: number,
+  rule: FormatRule,
+): RenderResult {
+  const list = unwrapConfirmed(confirmed);
+  if (!Array.isArray(list)) {
+    return { rendered: false, refusal: { kind: "not_a_list", detail: `The confirmed value is ${typeName(list)}, not a list.` } };
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= list.length) {
+    return {
+      rendered: false,
+      refusal: { kind: "no_such_item", detail: `The list has ${String(list.length)} item(s); there is no item ${String(index)}.` },
+    };
+  }
+  const applied = applyRule(list[index], rule);
+  if (typeof applied !== "string") return { rendered: false, refusal: applied };
+  return {
+    rendered: true,
+    value: { value: applied, provenance: provenanceOf(confirmed) } as unknown as ConfirmedValue<string>,
+  };
+}
+
 export function renderConfirmed<T>(
   confirmed: ConfirmedValue<T>,
   rule: FormatRule,
