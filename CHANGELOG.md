@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.99.1] — 2026-09-11
+
+**P88 — three defects of the discovery tool the first real form exposed, fixed fail-first.**
+
+### Fixed
+
+- The observer records a radio or checkbox input's `value`, and discovery groups radio inputs
+  sharing a name into ONE field whose options carry the values the form submits (`on` where the
+  markup declares none). The Sheffield draft had one field per input and no values; the curation
+  merged them by hand and the review pack lists the values as unknown.
+- An advance-control candidate is never a locator with nothing to find it by, a sentence that
+  merely contains "start" is not a candidate, buttons come before links, and the page's
+  `advanceControl` prefers an id. The Sheffield draft had a blank label locator on five pages and
+  a sentence on the education page.
+- `inspect-discovery` counts refusals by rule and calls only a method refusal on the target a
+  state-changing request. P81's sixteen refusals were one write and fifteen off-host tags; the
+  summary had called all sixteen writes.
+- ADR-0102 §7 says what P86's hash test did wrong, not only what the code did; the assertion
+  that agreed with the code is retired.
+
+---
+
 ## [0.99.0] — 2026-09-11
 
 **P87 — the correction recorded, a refusal covers its question's other controls, and the first

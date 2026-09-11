@@ -40,6 +40,8 @@ export interface ObservedField {
   readonly maxLength?: number;
   readonly pattern?: string;
   readonly accept?: string;
+  /** A radio or checkbox input's `value` attribute — what the form submits when it is chosen (P88). */
+  readonly value?: string;
   readonly options?: readonly { readonly value: string; readonly label: string }[];
 }
 

@@ -144,10 +144,17 @@ this*, inside the hash. A cover cannot reach an ordinary field, and cannot silen
 has no refusal: the text box beside the disability group is covered only because it is part of
 that question, and a reviewer who disagrees removes it from the list and the plan blocks on it.
 
-**Also found, and fixed:** P86 declared the refusals as a parameter of the content hash and never
-hashed them; its test compared against a preview with no refusals, whose entries differ too, and
-so passed. P87's test holds the entries fixed and changes only a refusal's rationale, or a cover,
-and the hash now moves with each.
+**Also found, and fixed — and what the test did wrong, not only the code.** P86 declared the
+refusals as a parameter of the content hash and never folded them in. Its test — *"counts it in
+the hash"* — compared a preview carrying two refusals against one carrying none. Those two previews
+differ in their *entries* as well, so their hashes differed for a reason that had nothing to do
+with refusals, and the assertion passed against code that ignored them. The test agreed with the
+code rather than checking it: it never held the thing it was named for as the only variable. Vahid,
+2026-09-11: *"A test that compared against a preview carrying the same error is a test agreeing
+with the code rather than checking it — the shape this repository has found before, and the
+argument for fail-first in one sentence."* P87's test holds the entries fixed and changes only a
+refusal's rationale, or a cover; it failed against P86's code, which is what a test is for, and the
+hash now moves with each. The P86 assertion is retired rather than left to keep passing.
 
 ## Where the refusal happens — said plainly
 

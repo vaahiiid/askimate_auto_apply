@@ -56,7 +56,12 @@ interface RunRecord {
   readonly target: { readonly institutionName: string; readonly allowedHosts: readonly string[] };
   readonly visited: readonly string[];
   readonly failed: readonly { readonly url: string; readonly error: string }[];
-  readonly blockedRequests: readonly { readonly method: string; readonly url: string }[];
+  readonly blockedRequests: readonly {
+    readonly method: string;
+    readonly url: string;
+    /** `host`, `method`, `robots` or `navigation` (P79). Absent on runs older than the rule field. */
+    readonly rule?: string;
+  }[];
 }
 
 function heading(step: string, title: string): void {
@@ -99,22 +104,45 @@ async function main(): Promise<void> {
   // The most important line in this section. A portal that writes during
   // ordinary browsing cannot be inspected without side effects, and that
   // changes what a controlled live run means.
-  if (run.blockedRequests.length === 0) {
+  // P88: by RULE. Sixteen refusals on the first real form were one write by
+  // the portal and fifteen analytics tags reaching off-host; counting them
+  // together as "state-changing" overstated the portal and buried the one
+  // that mattered. A run from before the rule field counts as writes, as it
+  // always did.
+  const byRule = { method: 0, host: 0, robots: 0, navigation: 0 };
+  const writes: RunRecord["blockedRequests"][number][] = [];
+  for (const blocked of run.blockedRequests) {
+    const rule = blocked.rule ?? "method";
+    if (rule === "host" || rule === "robots" || rule === "navigation") {
+      byRule[rule] += 1;
+    } else {
+      byRule.method += 1;
+      writes.push(blocked);
+    }
+  }
+  if (writes.length === 0) {
     console.log(
       `\n  ${GREEN}✓${RESET} The portal attempted no state-changing requests. It can be` +
         ` inspected read-only.`,
     );
   } else {
-    console.log(
-      `\n  ${RED}⚠ ${String(run.blockedRequests.length)} state-changing request(s) were blocked.${RESET}`,
-    );
-    for (const blocked of run.blockedRequests.slice(0, 10)) {
+    console.log(`\n  ${RED}⚠ ${String(writes.length)} state-changing request(s) were blocked.${RESET}`);
+    for (const blocked of writes.slice(0, 10)) {
       console.log(`    ${blocked.method} ${DIM}${blocked.url}${RESET}`);
     }
     console.log(
       `\n  ${DIM}The portal writes during ordinary browsing. A specialist must decide what\n` +
         `  that means before any live run — merely opening pages may register something.${RESET}`,
     );
+  }
+  if (byRule.host > 0) {
+    console.log(`  ${String(byRule.host)} request(s) went to hosts outside the allow-list and were refused.`);
+  }
+  if (byRule.robots > 0) {
+    console.log(`  ${String(byRule.robots)} request(s) were not made because robots.txt disallows them.`);
+  }
+  if (byRule.navigation > 0) {
+    console.log(`  ${String(byRule.navigation)} navigation(s) off the page list were refused.`);
   }
 
   // ── 2. The draft blueprint ─────────────────────────────────────────────

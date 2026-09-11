@@ -4571,3 +4571,23 @@ student will read. A test holds the two drafts to the real checks as if reviewed
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P88 — three defects of the discovery tool the first real form exposed
+
+Vahid's reading of ADR-0102 §7 stands in the record now as he put it: the P86 hash test compared
+against a preview carrying the same error, so it agreed with the code rather than checking it.
+The ADR says that, and the assertion is retired rather than left to keep passing.
+
+Then the tool. Three things the Sheffield draft made visible were the tool's, not the form's, and
+each is fixed against a test that reproduced the shape first. A radio group is one question: the
+observer now records each input's submitted value, and discovery emits one field with options
+carrying them, where the draft had one field per input and no values. An advance control is
+never a locator with nothing in it, a sentence that happens to contain "start" is not a button,
+and the page's control prefers an id, where the draft had a blank label on five pages and a
+sentence on the education page. And `inspect-discovery` counts refusals by rule: one write on
+the target is state-changing; fifteen analytics tags refused off-host are not, and the summary
+had called them so.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

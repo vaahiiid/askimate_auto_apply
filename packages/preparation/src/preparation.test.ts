@@ -641,15 +641,18 @@ describe("the preview, on a page that asks what we cannot hold (ADR-0102)", () =
     expect(text).toContain("Why:");
   });
 
-  it("does not list a refusal among the answers, and counts it in the hash", () => {
+  it("does not list a refusal among the answers", () => {
+    // This test once also asserted "counts it in the hash" by comparing
+    // against a preview with no refusals — whose ENTRIES differ too, so the
+    // hashes differed for the wrong reason and the assertion passed against
+    // code that ignored refusals (ADR-0102 §7). The hash is checked below by
+    // a test that holds the entries fixed; the weak assertion is gone.
     const preview = previewWithRefusals();
     expect(preview.entries.map((entry) => entry.fieldRef)).not.toContain("ethnic_origin");
     expect(preview.refusals.map((refusal) => refusal.fieldRef).sort()).toEqual([
       "disability_prefer_not_to_say",
       "ethnic_origin",
     ]);
-    const without = previewFor();
-    expect(preview.contentHash).not.toBe(without.contentHash);
   });
 
   it("binds the yes to each refusal itself: a changed rationale or cover changes the hash", () => {

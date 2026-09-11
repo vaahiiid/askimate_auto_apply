@@ -100,6 +100,11 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     if (label !== undefined) field["label"] = label;
     const type = attr("type");
     if (type !== undefined) field["type"] = type;
+    // P88: a radio or checkbox submits its `value` attribute, and the first
+    // real form's draft carried none — so the reviewer could not tell what
+    // "Yes" would send. Recorded as observed; absent when the markup has none.
+    const value = attr("value");
+    if (value !== undefined && (type === "radio" || type === "checkbox")) field["value"] = value;
     const placeholder = attr("placeholder");
     if (placeholder !== undefined) field["placeholder"] = placeholder;
     if (maxLength !== undefined && Number.isFinite(maxLength)) field["maxLength"] = maxLength;
@@ -131,20 +136,31 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
   // Controls that plausibly advance a flow. Candidates only — which one really
   // advances is a decision for the reviewing specialist, not for a heuristic.
   const advanceWords = /\b(next|continue|proceed|save and continue|start|apply|begin)\b/i;
+  const controlText = (element: Element): string =>
+    ((element.textContent ?? "") + " " + (element.getAttribute("value") ?? "")).replace(/\s+/g, " ").trim();
   const candidateAdvanceControls: FieldLocator[] = [
     ...document.querySelectorAll("button, a[href], input[type=submit], input[type=button]"),
   ]
     .filter((element) => {
-      const text = (element.textContent ?? "") + " " + (element.getAttribute("value") ?? "");
+      const text = controlText(element);
+      // P88, from the first real form: a link whose sentence happened to
+      // contain "start" became a page's advance control, and an icon-only
+      // submit became a locator with nothing to find it by. A control's text
+      // is a few words; a sentence is not a button, and an element with no
+      // id and no text cannot be a candidate at all.
+      if (text.length === 0 && element.getAttribute("id") === null) return false;
+      if (text.length > 30) return false;
       return advanceWords.test(text);
     })
+    // Buttons before links: a link that says "continue" is usually navigation.
+    .sort((a, b) => Number(a.tagName === "A") - Number(b.tagName === "A"))
     .slice(0, 20)
     .map((element) => {
       const id = element.getAttribute("id");
-      if (id !== null) return { strategy: "id" as const, value: id };
-      const text = (element.textContent ?? element.getAttribute("value") ?? "").trim();
-      return { strategy: "label" as const, value: text };
-    });
+      if (id !== null && id.length > 0) return { strategy: "id" as const, value: id };
+      return { strategy: "label" as const, value: controlText(element) };
+    })
+    .filter((locator) => locator.value.length > 0);
 
   // ── Flow signals ────────────────────────────────────────────────────────
   //

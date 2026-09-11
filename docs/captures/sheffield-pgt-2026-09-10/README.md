@@ -294,7 +294,8 @@ should. It parses under the catalogue's `parseBlueprint`. Every change from the 
 - The overview and summary pages stay, as observed URLs with no fields, titled as navigation.
 - Radio inputs that share a name are one `radio` field with `options`; the option `value` is the
   captured `id` where there was one and otherwise the label, **not the submitted value**, which the
-  capture does not carry. The reviewer completes those.
+  capture does not carry. The reviewer completes those. (P88 fixed the tool: a re-read groups the
+  radios itself and records each input's submitted value. This draft predates that.)
 - Where the captured label carries the portal's `*`, the field has a `required` validation with
   source `specialist_noted` — authored here from the label text in this same file, for the reviewer
   to confirm; thirteen fields, all on personal, contact and employment. The five pages whose

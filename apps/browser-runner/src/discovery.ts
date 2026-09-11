@@ -87,7 +87,48 @@ export function locatorsOf(field: ObservedField): BlueprintField["locators"] {
 
 /** Converts one observed form into a blueprint section. */
 export function sectionFrom(form: ObservedForm, pageRef: string): BlueprintSection {
-  const fields: BlueprintField[] = form.fields.map((field, index) => {
+  // P88: radio inputs sharing a name are ONE question. The first real form's
+  // draft carried one field per input, none with the value it would submit,
+  // and the curation had to merge them by hand. Grouped here, in the first
+  // input's place, each option carrying the value observed — "on" when the
+  // markup declares none, which is what the browser submits.
+  const groups = new Map<string, { field: Record<string, unknown>; required: boolean }>();
+  const fields: BlueprintField[] = [];
+  form.fields.forEach((field, index) => {
+    if (field.type === "radio" && field.name !== undefined) {
+      const value = field.value ?? "on";
+      const option = { value, label: field.label ?? value };
+      const group = groups.get(field.name);
+      if (group !== undefined) {
+        (group.field["options"] as { value: string; label: string }[]).push(option);
+        group.required = group.required || field.required;
+        group.field["validations"] = validationsOf({ ...field, required: group.required });
+        return;
+      }
+      const grouped: Record<string, unknown> = {
+        fieldRef: field.name,
+        label: field.name,
+        inputType: "radio",
+        locators: [{ strategy: "name", value: field.name }],
+        validations: validationsOf({ ...field, required: field.required }),
+        options: [option],
+      };
+      groups.set(field.name, { field: grouped, required: field.required });
+      fields.push(grouped as unknown as BlueprintField);
+      return;
+    }
+    fields.push(fieldFrom(field, index, form, pageRef));
+  });
+
+  return {
+    sectionRef: `${pageRef}.form${String(form.formIndex)}`,
+    title: `Form ${String(form.formIndex + 1)}`,
+    fields,
+  };
+}
+
+function fieldFrom(field: ObservedField, index: number, form: ObservedForm, pageRef: string): BlueprintField {
+  {
     const fieldRef = field.name ?? field.id ?? `${pageRef}.form${String(form.formIndex)}.field${String(index)}`;
     const blueprintField: Record<string, unknown> = {
       fieldRef,
@@ -102,13 +143,7 @@ export function sectionFrom(form: ObservedForm, pageRef: string): BlueprintSecti
     };
     if (field.options !== undefined) blueprintField["options"] = field.options;
     return blueprintField as unknown as BlueprintField;
-  });
-
-  return {
-    sectionRef: `${pageRef}.form${String(form.formIndex)}`,
-    title: `Form ${String(form.formIndex + 1)}`,
-    fields,
-  };
+  }
 }
 
 /** Converts one page observation into a blueprint page. */
@@ -138,7 +173,10 @@ export function pageFrom(observation: PageObservation, pageRef: string): Bluepri
     sections,
     requiredDocuments,
   };
-  const advance = observation.candidateAdvanceControls[0];
+  // P88: never a locator with nothing to find it by, and an id over a label
+  // — the first real form's draft had a blank label on five pages.
+  const candidates = observation.candidateAdvanceControls.filter((c) => c.value.trim().length > 0);
+  const advance = candidates.find((c) => c.strategy === "id") ?? candidates[0];
   if (advance !== undefined) page["advanceControl"] = advance;
 
   return page as unknown as BlueprintPage;

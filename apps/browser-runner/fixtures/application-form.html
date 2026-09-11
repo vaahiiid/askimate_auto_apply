@@ -39,6 +39,19 @@
     <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
   </fieldset>
 
+  <fieldset>
+    <legend>Mode of study</legend>
+    <!-- P88: one question, two radio inputs. Discovery must emit ONE field
+         with two options carrying the SUBMITTED values, not two fields. -->
+    <input type="radio" id="modeFT" name="study_mode" value="FT"><label for="modeFT">Full-time</label>
+    <input type="radio" id="modePT" name="study_mode" value="PT"><label for="modePT">Part-time</label>
+  </fieldset>
+
+  <!-- P88: Sheffield's education page made these two mistakes real: an icon-only
+       submit with no text became a blank locator, and a sentence in a link that
+       happened to contain "start" became the page's advance control. -->
+  <input type="submit" value="" aria-label="">
+  <a href="#dates">Please select the start date of your course.</a>
   <input type="hidden" name="csrf_token" value="should-not-appear-in-blueprint">
   <button type="submit" id="continueBtn">Save and continue</button>
   <button type="button" id="submitBtn">Submit application</button>

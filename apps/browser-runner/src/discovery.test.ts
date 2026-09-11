@@ -15,6 +15,7 @@ import type { FlowSignal } from "./observe-script.js";
 import { PlaywrightDiscoverySession } from "./playwright-session.js";
 import { HostAllowList, decideDiscoveryRequest, decideDiscoveryRequestForHost } from "./safety.js";
 import { draftBlueprintFrom, inputTypeOf, pageFrom, validationsOf } from "./discovery.js";
+import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { PageObservation } from "./session.js";
 import { checkExecutable } from "@askimate/aas-blueprint";
 
@@ -185,6 +186,26 @@ describe("discovery against a fixture portal", () => {
       // Discovery does NOT guess mappings.
       expect(all.every((f) => f.mapsTo === undefined)).toBe(true);
 
+      // ── P88: what the first real form exposed ──────────────────────────
+      // A radio group is ONE question: one field, its options carrying the
+      // values the form submits, not one field per input with no value.
+      const studyMode = all.filter((f) => f.fieldRef === "study_mode");
+      expect(studyMode).toHaveLength(1);
+      expect(studyMode[0]?.inputType).toBe("radio");
+      expect(studyMode[0]?.options).toEqual([
+        { value: "FT", label: "Full-time" },
+        { value: "PT", label: "Part-time" },
+      ]);
+      // The observer records the value the input submits.
+      expect(fields.find((f) => f.name === "study_mode")?.value).toBe("FT");
+      // No candidate advance control with nothing to find it by, and no
+      // sentence that merely contains "start"; the real button, by id, wins.
+      for (const candidate of observation.candidateAdvanceControls) {
+        expect(candidate.value.length).toBeGreaterThan(0);
+        expect(candidate.value).not.toContain("start date of your course");
+      }
+      expect(blueprint.pages[0]?.advanceControl).toEqual({ strategy: "id", value: "continueBtn" });
+
       // And the draft is not executable.
       const check = checkExecutable(blueprint);
       expect(check.executable).toBe(false);
@@ -196,6 +217,52 @@ describe("discovery against a fixture portal", () => {
 });
 
 // ── Pure conversion rules ─────────────────────────────────────────────────
+
+describe("radio groups and the advance control, from a synthetic observation (P88)", () => {
+  const observation = (candidates: FieldLocator[]): PageObservation => ({
+    url: "https://portal.test/page",
+    title: "Page",
+    observedAt: new Date(0),
+    forms: [
+      {
+        formIndex: 0,
+        fields: [
+          { tagName: "input", type: "radio", name: "sex", id: "sexF", value: "F", label: "Female", required: false },
+          { tagName: "input", type: "text", name: "middle", required: false },
+          { tagName: "input", type: "radio", name: "sex", id: "sexM", value: "M", label: "Male", required: true },
+          { tagName: "input", type: "radio", name: "sex", id: "sexO", label: "Other", required: false },
+        ],
+      },
+    ],
+    candidateAdvanceControls: candidates,
+    signals: [],
+  });
+
+  it("emits one radio field per name, in the first input's place, with every option's submitted value", () => {
+    const page = pageFrom(observation([]), "p");
+    const fields = page.sections[0]?.fields ?? [];
+    expect(fields.map((f) => f.fieldRef)).toEqual(["sex", "middle"]);
+    const sex = fields[0];
+    expect(sex?.inputType).toBe("radio");
+    expect(sex?.locators).toEqual([{ strategy: "name", value: "sex" }]);
+    // An input with no value attribute submits "on"; recorded as observed, not invented.
+    expect(sex?.options).toEqual([
+      { value: "F", label: "Female" },
+      { value: "M", label: "Male" },
+      { value: "on", label: "Other" },
+    ]);
+    // Required if any input in the group says so.
+    expect(sex?.validations).toEqual([{ kind: "required", source: "dom_attribute" }]);
+  });
+
+  it("never emits a blank advance locator, and prefers one found by id", () => {
+    expect(pageFrom(observation([{ strategy: "label", value: "" }]), "p").advanceControl).toBeUndefined();
+    expect(
+      pageFrom(observation([{ strategy: "label", value: "Save" }, { strategy: "id", value: "saveBtn" }]), "p")
+        .advanceControl,
+    ).toEqual({ strategy: "id", value: "saveBtn" });
+  });
+});
 
 describe("observation to blueprint conversion", () => {
   it("records an unrecognised input type as unknown rather than guessing", () => {
