@@ -35,6 +35,7 @@ import { isNotUnderstood } from "@askimate/aas-llm";
 import type {
   ConfirmedField,
   ConfirmedProfile,
+  OrdinaryFieldKey,
   ProfileFieldKey,
   ProfileFieldType,
 } from "@askimate/aas-profile";
@@ -58,7 +59,8 @@ import { FIELD_SPECS } from "./field-specs.js";
  */
 export type InterviewAction =
   /** Say this to the student, and send their reply back. */
-  | { readonly kind: "ask"; readonly say: ModelText; readonly fieldKey: ProfileFieldKey }
+  /** `OrdinaryFieldKey`: the interview cannot ask what this system may not hold (ADR-0102). */
+  | { readonly kind: "ask"; readonly say: ModelText; readonly fieldKey: OrdinaryFieldKey }
   /** Ask the student to upload a document, in the conversation. */
   | {
       readonly kind: "request_document";
@@ -98,7 +100,7 @@ export interface InterviewState {
   readonly studentRef: string;
   readonly profile: ConfirmedProfile;
   /** What this application needs. Derived from requirements and the blueprint. */
-  readonly requiredFields: readonly ProfileFieldKey[];
+  readonly requiredFields: readonly OrdinaryFieldKey[];
   /**
    * Documents the application needs, by type.
    *
@@ -131,7 +133,7 @@ export const MAX_ATTEMPTS_PER_FIELD = 3;
 export function newInterview(input: {
   readonly studentRef: string;
   readonly profile: ConfirmedProfile;
-  readonly requiredFields: readonly ProfileFieldKey[];
+  readonly requiredFields: readonly OrdinaryFieldKey[];
   readonly requiredDocuments: readonly string[];
 }): InterviewState {
   return {

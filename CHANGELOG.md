@@ -19,6 +19,40 @@ not shipped artefacts.
 
 ---
 
+## [0.98.0] — 2026-09-11
+
+**P86 — ADR-0102: use the refusal the form offers.** Blocker 20, built as Vahid decided it, with
+the three conditions enforced rather than noted.
+
+### Added
+
+- `BlueprintField.dataCategory` — the reviewer's classification, `ordinary` or
+  `special_category`; never set by discovery; a mapping set against a blueprint with any
+  unclassified field is refused (`unclassified_fields`). Absent is not ordinary.
+- `ValueSource.form_refusal` — the refusal the form itself offers on a special-category field:
+  the value, a mandatory rationale, and the form's own words or nothing. `checkUsable` refuses
+  `special_category_mismapped`, `form_refusal_misused`, `form_refusal_not_offered` and
+  `form_refusal_composed`; `planFill` blocks `special_category_unhandled` on a special-category
+  field with no refusal mapped, required or not, and the orchestrator asks a specialist.
+- The preview's `refusals`, under their own heading — *We did not answer these for you* — with
+  what was entered, why, and the form's quoted words when it has any; never among the entries;
+  inside the content hash.
+- `form_refusal` on the stored plan, the wire contract and both conversions.
+- The sensitive-page fixture and eleven tests, all failing before the mechanism.
+
+### Changed
+
+- `profile_field.fieldKey` and the interview's `ask.fieldKey` are `OrdinaryFieldKey` — two
+  channels ADR-0077 left open, found while costing blocker 20 and closed while still empty.
+  Measured: a special-category profile field fails to compile at both.
+- The catalogue parser reads `dataCategory` and `form_refusal`, and refuses a `profile_field`
+  mapping that names a non-ordinary key.
+- The curated Sheffield draft (0.2.1) classifies its fourteen equal-opportunities fields
+  `special_category`. The rest stay unclassified until review, which is what refuses them.
+- The fixtures' fields are classified `ordinary`.
+
+---
+
 ## [0.97.5] — 2026-09-11
 
 **Blocker 20 decided, recorded before building.** Records only.

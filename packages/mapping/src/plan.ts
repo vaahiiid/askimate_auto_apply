@@ -30,11 +30,18 @@ import type { ApplicationBlueprint, BlueprintField, FieldInputType, FieldLocator
 import { allFields } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, UnavailableReason } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
-import type { ConfirmedProfile, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
+import type { ConfirmedProfile, OrdinaryFieldKey, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
 import { renderConfirmed, resolveField } from "@askimate/aas-profile";
 
-import type { CredentialPurpose, ReviewedConstant, UsableMappingSet } from "./mapping.js";
-import { constantText, isRequired, mappingFor, reviewedConstant } from "./mapping.js";
+import type { CredentialPurpose, ReviewedConstant, ReviewedFormRefusal, UsableMappingSet } from "./mapping.js";
+import {
+  constantText,
+  formRefusalText,
+  isRequired,
+  mappingFor,
+  reviewedConstant,
+  reviewedFormRefusal,
+} from "./mapping.js";
 
 /**
  * What is about to be typed into one field.
@@ -56,7 +63,9 @@ import { constantText, isRequired, mappingFor, reviewedConstant } from "./mappin
  */
 export type FillValue =
   | { readonly kind: "confirmed"; readonly value: ConfirmedValue<string>; readonly fieldKey: ProfileFieldKey }
-  | { readonly kind: "reviewed_constant"; readonly constant: ReviewedConstant };
+  | { readonly kind: "reviewed_constant"; readonly constant: ReviewedConstant }
+  /** The refusal the form offers on a question this system cannot answer (ADR-0102). */
+  | { readonly kind: "form_refusal"; readonly refusal: ReviewedFormRefusal };
 
 /** One thing to type into one field. */
 export interface FillInstruction {
@@ -69,7 +78,14 @@ export interface FillInstruction {
 
 /** The text a fill instruction will type, whichever kind it is. */
 export function textOf(value: FillValue): string {
-  return value.kind === "confirmed" ? unwrapConfirmed(value.value) : constantText(value.constant);
+  switch (value.kind) {
+    case "confirmed":
+      return unwrapConfirmed(value.value);
+    case "reviewed_constant":
+      return constantText(value.constant);
+    case "form_refusal":
+      return formRefusalText(value.refusal);
+  }
 }
 
 /** A document to attach. */
@@ -111,6 +127,15 @@ export type FillBlocker =
   /** A required field nobody mapped. A mapping-set gap, not a student gap. */
   | { readonly kind: "no_mapping"; readonly fieldRef: string; readonly label: string; readonly detail: string }
   /**
+   * A special-category field with no refusal mapped — required or not (ADR-0102).
+   *
+   * Structural, so the orchestrator asks a specialist rather than the interview:
+   * there is nothing a student could say that this system may hold. The general
+   * rule in Vahid's words: *"If a future portal has no equivalent opt-out, the
+   * fill must stop rather than pick something."*
+   */
+  | { readonly kind: "special_category_unhandled"; readonly fieldRef: string; readonly label: string; readonly detail: string }
+  /**
    * The mapping is right and the student has not supplied the value.
    *
    * The ordinary, expected blocker, and the one that drives the interview: it
@@ -120,7 +145,7 @@ export type FillBlocker =
       readonly kind: "value_unavailable";
       readonly fieldRef: string;
       readonly label: string;
-      readonly fieldKey: ProfileFieldKey;
+      readonly fieldKey: OrdinaryFieldKey;
       readonly reason: UnavailableReason;
     }
   /** The value exists and cannot be written in this portal's notation. */
@@ -128,7 +153,7 @@ export type FillBlocker =
       readonly kind: "render_refused";
       readonly fieldRef: string;
       readonly label: string;
-      readonly fieldKey: ProfileFieldKey;
+      readonly fieldKey: OrdinaryFieldKey;
       readonly refusal: RenderRefusal;
     };
 
@@ -166,6 +191,21 @@ export function planFill(
     const mapping = mappingFor(mappingSet, field.fieldRef);
 
     if (mapping === undefined) {
+      // A special-category field is never passed over, required or not: with
+      // no refusal mapped the fill STOPS (ADR-0102). Checked before the
+      // optional rule below, which would otherwise make silence the default.
+      if (field.dataCategory === "special_category") {
+        blockers.push({
+          kind: "special_category_unhandled",
+          fieldRef: field.fieldRef,
+          label: field.label,
+          detail:
+            `"${field.label}" asks what this system cannot hold, and no refusal the form offers ` +
+            `is mapped for it. The fill stops rather than picking something: use the refusal the ` +
+            `form offers, and if the form offers none, a person decides (ADR-0102).`,
+        });
+        continue;
+      }
       // An OPTIONAL unmapped field is not a problem: portals carry fields no
       // applicant needs to complete, and leaving one blank is the correct
       // behaviour rather than a gap to fill.
@@ -183,6 +223,16 @@ export function planFill(
     }
 
     switch (mapping.source.kind) {
+      case "form_refusal":
+        // Not an answer. Planned as its own kind so the preview can say so and
+        // the runner can enter it — `checkUsable` has already held that the
+        // field is special-category and the form offers this value.
+        instructions.push({
+          ...instructionShape(field),
+          value: { kind: "form_refusal", refusal: reviewedFormRefusal(mappingSet, mapping.source) },
+        });
+        break;
+
       case "student_handoff":
         handoffs.push({
           fieldRef: field.fieldRef,
@@ -286,7 +336,7 @@ export function isComplete(plan: FillPlan): boolean {
 }
 
 /** The canonical fields the interview should go and ask about. */
-export function fieldsToCollect(plan: FillPlan): readonly ProfileFieldKey[] {
+export function fieldsToCollect(plan: FillPlan): readonly OrdinaryFieldKey[] {
   const keys = plan.blockers
     .filter(
       (blocker): blocker is Extract<FillBlocker, { kind: "value_unavailable" }> =>

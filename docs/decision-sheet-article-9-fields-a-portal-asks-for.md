@@ -2,8 +2,9 @@
 
 **For:** Vahid · **Prepared:** 2026-09-11 · ~~**Answerable in one sitting**~~
 **✅ DECIDED — Vahid Mohammadi, 2026-09-11. Not A as written: the empty save is refused. "Use the
-refusal the form offers", three conditions enforced, not noted. NOT YET BUILT — the expressibility
-of each condition was answered first, as he asked; see "What was decided" below.**
+refusal the form offers", three conditions enforced, not noted. Built in P86 — see
+[ADR-0102](./decisions/0102-use-the-refusal-the-form-offers.md); the Sheffield mapping set waits on
+his reading of the ethnic-origin dropdown.**
 Companion to [blocker 19](./decision-sheet-blocker-19-how-a-runner-is-signed-in.md) and
 [B1](./decision-sheet-b1-retention-periods.md). Recorded as **blocker 20** in
 [`state-of-the-system.md`](./state-of-the-system.md).

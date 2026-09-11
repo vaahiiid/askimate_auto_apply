@@ -4507,3 +4507,36 @@ is listed in the README, and so is everything left out by design.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P86 — ADR-0102: use the refusal the form offers
+
+Blocker 20, decided by Vahid on 2026-09-11 after the page refused an empty save, and built as
+he decided it: *"use the refusal the form offers, not answer Article 9 fields with a safe
+default"*, with three conditions enforced rather than noted. He asked first whether each was
+expressible, and the answer was given before a line was written. One limit he accepted is stated
+plainly in the ADR: a portal's fields are discovered data, so the refusal is the branded
+usable-set check — review time, on data, before anything is built on the mapping — and not a
+type error. It is the same place a mismapped password is refused.
+
+What is built. A field carries the reviewer's classification, never discovery's, and a mapping set
+is refused while any field is unclassified: absent is not ordinary, because *"one reviewer's
+omission turns a health question into an ordinary field with nothing to notice"*. A new source,
+`form_refusal`, is the only one accepted on a special-category field — the value the form offers,
+a mandatory rationale, and the form's own words or nothing: *"quote or omit, never compose"*, and
+the check refuses a line the form's captured text does not contain. With no refusal mapped the
+plan blocks and a specialist is asked, required or not. The preview lists refusals under their
+own heading, *We did not answer these for you*, with what was entered and why; never among the
+answers; inside the hash. Transport, the wire and both conversions carry the kind as a refusal.
+
+Found, not designed, and worth its own line: ADR-0077 closed extraction against special-category
+fields and left the `profile_field` mapping and the interview's `ask` typed by the whole registry.
+Both are now `OrdinaryFieldKey`, closed while still empty. Measured, the way ADR-0077 measured its
+own wall: a special-category profile field fails to compile at the line that names it, in both.
+
+Eleven tests failed before the mechanism and pass after. The curated Sheffield draft classifies
+its fourteen equal-opportunities fields; the rest wait for review. No Sheffield mapping set is
+written: the ethnic-origin dropdown's wording is his to state from his screen.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

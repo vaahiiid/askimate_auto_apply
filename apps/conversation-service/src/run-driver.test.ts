@@ -9998,6 +9998,7 @@ describeIfDatabase("one intent per attachment, and the record of what left (ADR-
                   fieldRef: "passport_upload",
                   label: "Upload your passport",
                   inputType: "file",
+                  dataCategory: "ordinary",
                   locators: [{ strategy: "label", value: "Upload your passport" }],
                   validations: [{ kind: "required", source: "dom_attribute" }],
                 },

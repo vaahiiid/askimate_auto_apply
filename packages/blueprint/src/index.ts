@@ -13,6 +13,7 @@ export type {
   ExecutabilityRefusal,
   ExecutableBlueprint,
   FieldCondition,
+  FieldDataCategory,
   FieldInputType,
   FieldLocator,
   FieldOption,
@@ -21,4 +22,11 @@ export type {
   RequiredDocument,
   SubmissionModel,
 } from "./blueprint.js";
-export { allFields, allRequiredDocuments, checkExecutable, unmappedFields } from "./blueprint.js";
+export {
+  allFields,
+  allRequiredDocuments,
+  checkExecutable,
+  specialCategoryFields,
+  unclassifiedFields,
+  unmappedFields,
+} from "./blueprint.js";

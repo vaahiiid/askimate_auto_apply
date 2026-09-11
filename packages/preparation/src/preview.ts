@@ -33,7 +33,12 @@ import { allFields } from "@askimate/aas-blueprint";
 import { provenanceOf } from "@askimate/aas-domain";
 import type { ConfirmationProvenance } from "@askimate/aas-domain";
 import type { CredentialPurpose, FillPlan } from "@askimate/aas-mapping";
-import { constantAttribution, constantText } from "@askimate/aas-mapping";
+import {
+  constantAttribution,
+  constantText,
+  formRefusalAttribution,
+  formRefusalText,
+} from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 /** A document as it will be attached. */
@@ -96,6 +101,30 @@ export interface PreviewHandoff {
 }
 
 /**
+ * A question this system did not answer, and what it entered instead (ADR-0102).
+ *
+ * Its own list, deliberately not an entry: an entry is an answer the student
+ * gave or metadata a reviewer set, and a refusal is neither. Vahid, 2026-09-11:
+ * *"Those are not the student's answer and we must never present them as one."*
+ * `renderPreview` prints these under their own heading, with what was
+ * entered, why, and — only when the form itself says so — the form's words.
+ */
+export interface PreviewFormRefusal {
+  readonly fieldRef: string;
+  readonly label: string;
+  /** What is actually sent. */
+  readonly text: string;
+  /** The option's label, when the field has one. */
+  readonly displayText?: string;
+  /** What the student reads as the act: `ticked this box` or `entered "…"`. */
+  readonly entered: string;
+  readonly rationale: string;
+  /** The form's own words, quoted. Absent when the form said nothing. */
+  readonly formSays?: string;
+  readonly reviewedBy: string;
+}
+
+/**
  * A field the Secure Plane will fill. ADR-0043.
  *
  * ── It has no `text`, and it is still in the hash ─────────────────────────
@@ -137,6 +166,8 @@ export interface SubmissionPreview {
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  /** Questions not answered on the student's behalf, and what was entered (ADR-0102). */
+  readonly refusals: readonly PreviewFormRefusal[];
   /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
   readonly credentials: readonly PreviewCredential[];
   /** `sha256:…` over the canonical content. */
@@ -259,32 +290,67 @@ export function buildPreview(
 
   const optionLabels = optionLabelsOf(blueprint);
 
-  const entries: PreviewEntry[] = plan.instructions.map((instruction) => {
-    const text =
-      instruction.value.kind === "confirmed"
-        ? unwrapText(instruction.value.value)
-        : constantText(instruction.value.constant);
-    const readable = optionLabels.get(instruction.fieldRef)?.get(text);
-
-    return {
-    fieldRef: instruction.fieldRef,
-    label: instruction.label,
-    text,
-    ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
-    attribution:
-      instruction.value.kind === "confirmed"
-        ? {
+  // Refusals are kept OUT of the entries (ADR-0102): an entry is an answer,
+  // and a refusal must never be listed as one. The switch is exhaustive, so a
+  // new value kind cannot render as an ordinary answer or vanish in silence.
+  const entries: PreviewEntry[] = [];
+  const refusals: PreviewFormRefusal[] = [];
+  for (const instruction of plan.instructions) {
+    const value = instruction.value;
+    switch (value.kind) {
+      case "confirmed": {
+        const text = unwrapText(value.value);
+        const readable = optionLabels.get(instruction.fieldRef)?.get(text);
+        entries.push({
+          fieldRef: instruction.fieldRef,
+          label: instruction.label,
+          text,
+          ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
+          attribution: {
             kind: "student_confirmed",
-            fieldKey: instruction.value.fieldKey,
-            provenance: provenanceOf(instruction.value.value),
-          }
-        : {
-            kind: "reviewed_constant",
-            rationale: constantAttribution(instruction.value.constant).rationale,
-            reviewedBy: constantAttribution(instruction.value.constant).reviewedBy,
+            fieldKey: value.fieldKey,
+            provenance: provenanceOf(value.value),
           },
-    };
-  });
+        });
+        break;
+      }
+      case "reviewed_constant": {
+        const text = constantText(value.constant);
+        const readable = optionLabels.get(instruction.fieldRef)?.get(text);
+        entries.push({
+          fieldRef: instruction.fieldRef,
+          label: instruction.label,
+          text,
+          ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
+          attribution: {
+            kind: "reviewed_constant",
+            rationale: constantAttribution(value.constant).rationale,
+            reviewedBy: constantAttribution(value.constant).reviewedBy,
+          },
+        });
+        break;
+      }
+      case "form_refusal": {
+        const text = formRefusalText(value.refusal);
+        const readable = optionLabels.get(instruction.fieldRef)?.get(text);
+        const attribution = formRefusalAttribution(value.refusal);
+        refusals.push({
+          fieldRef: instruction.fieldRef,
+          label: instruction.label,
+          text,
+          ...(readable !== undefined && readable !== text ? { displayText: readable } : {}),
+          entered:
+            instruction.inputType === "checkbox" && text === "true"
+              ? "ticked this box"
+              : `entered "${readable ?? text}"`,
+          rationale: attribution.rationale,
+          ...(attribution.formSays === undefined ? {} : { formSays: attribution.formSays }),
+          reviewedBy: attribution.reviewedBy,
+        });
+        break;
+      }
+    }
+  }
 
   const attachments: PreviewAttachment[] = [];
   for (const upload of plan.uploads) {
@@ -331,6 +397,7 @@ export function buildPreview(
     entries,
     attachments,
     handoffs,
+    refusals,
     credentials,
   });
 
@@ -347,6 +414,7 @@ export function buildPreview(
       entries,
       attachments,
       handoffs,
+      refusals,
       credentials,
       contentHash,
       hashAlgorithm: "sha256",
@@ -380,6 +448,7 @@ function hashContent(content: {
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  readonly refusals: readonly PreviewFormRefusal[];
   readonly credentials: readonly PreviewCredential[];
 }): string {
   const lines: string[] = [
@@ -462,6 +531,23 @@ export function renderPreview(preview: SubmissionPreview): string {
     if (entry.attribution.kind === "reviewed_constant") {
       // Marked, because it is the one thing here the student did not tell us.
       lines.push(`    (set by AskiMate: ${entry.attribution.rationale})`);
+    }
+  }
+
+  if (preview.refusals.length > 0) {
+    // ── ADR-0102: not answers. Said plainly, under their own heading ──────
+    //
+    // Vahid, 2026-09-11: *"If the student reads the preview and cannot tell
+    // that a question about their health was left unanswered by us
+    // deliberately, the authorisation is not informed."* So: which question,
+    // that we did not answer it, what we entered, why — and the form's own
+    // words about what happens next, quoted, or nothing.
+    lines.push("", "We did not answer these for you:");
+    for (const refusal of preview.refusals) {
+      lines.push(`  ${refusal.label}`);
+      lines.push(`    Not answered on your behalf. Instead we ${refusal.entered}.`);
+      lines.push(`    Why: ${refusal.rationale}`);
+      if (refusal.formSays !== undefined) lines.push(`    The form says: "${refusal.formSays}"`);
     }
   }
 

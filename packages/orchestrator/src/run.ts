@@ -435,7 +435,7 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
       reason: structural[0]?.kind ?? "mapping_gap",
       detail: structural
         .map((blocker) =>
-          blocker.kind === "no_mapping"
+          blocker.kind === "no_mapping" || blocker.kind === "special_category_unhandled"
             ? blocker.detail
             : `"${blocker.label}" could not be written: ${blocker.refusal.detail}`,
         )

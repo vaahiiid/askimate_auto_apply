@@ -53,8 +53,8 @@ import type {
   ValueSource,
 } from "@askimate/aas-mapping";
 import { CREDENTIAL_PURPOSES } from "@askimate/aas-mapping";
-import type { FormatRule, ProfileFieldKey } from "@askimate/aas-profile";
-import { PROFILE_FIELD_KEYS } from "@askimate/aas-profile";
+import type { FormatRule, OrdinaryFieldKey, ProfileFieldKey } from "@askimate/aas-profile";
+import { PROFILE_FIELD_KEYS, categoryOf } from "@askimate/aas-profile";
 import type { ObservedPortalAuthentication, PasswordDelivery, PortalAuthFact } from "@askimate/aas-account";
 
 import type { ReviewedCatalogueEntry } from "./entry.js";
@@ -308,10 +308,17 @@ function readField(value: unknown, path: string): BlueprintField {
     : list(source, "options", path, readOption);
   const visibleWhen = optionalWith(source, "visibleWhen", path, readCondition);
   const mapsTo = optionalText(source, "mapsTo", path);
+  // ADR-0102: the reviewer's classification. Optional here — a draft has none
+  // — and refused absent by `checkUsable`, not by the parser.
+  const dataCategory =
+    source["dataCategory"] === undefined
+      ? undefined
+      : oneOf(source, "dataCategory", path, ["ordinary", "special_category"] as const);
   return {
     fieldRef: text(source, "fieldRef", path),
     label: text(source, "label", path),
     inputType: oneOf(source, "inputType", path, INPUT_TYPES),
+    ...(dataCategory === undefined ? {} : { dataCategory }),
     locators: list(source, "locators", path, readLocator),
     validations: list(source, "validations", path, readValidation),
     ...(options === undefined ? {} : { options }),
@@ -482,7 +489,7 @@ function readFormatRule(value: unknown, path: string): FormatRule {
 function readValueSource(value: unknown, path: string): ValueSource {
   const source = record(value, path);
   const kind = oneOf(source, "kind", path, [
-    "profile_field", "document", "student_handoff", "constant", "secure_credential",
+    "profile_field", "document", "student_handoff", "constant", "secure_credential", "form_refusal",
   ] as const);
 
   switch (kind) {
@@ -491,9 +498,14 @@ function readValueSource(value: unknown, path: string): ValueSource {
       if (!(PROFILE_FIELD_KEYS as readonly string[]).includes(fieldKey)) {
         fail(`${path}.fieldKey`, `is not a canonical profile field`);
       }
+      // ADR-0102: a mapping may name only an ordinary field. Refused here so a
+      // file cannot say what the type forbids.
+      if (categoryOf(fieldKey as ProfileFieldKey) !== "ordinary") {
+        fail(`${path}.fieldKey`, `is not an ordinary field and may not be mapped to a form`);
+      }
       return {
         kind,
-        fieldKey: fieldKey as ProfileFieldKey,
+        fieldKey: fieldKey as OrdinaryFieldKey,
         format: readFormatRule(source["format"], `${path}.format`),
       };
     }
@@ -515,6 +527,19 @@ function readValueSource(value: unknown, path: string): ValueSource {
       };
     case "secure_credential":
       return { kind, purpose: oneOf(source, "purpose", path, CREDENTIAL_PURPOSES) };
+    case "form_refusal": {
+      // ADR-0102. The value is what the form offers; whether the form offers
+      // it is `checkUsable`'s question, against the blueprint. Rationale is
+      // mandatory; `formSays` is optional and, when present, must be the
+      // form's own words — also `checkUsable`'s question.
+      const formSays = optionalText(source, "formSays", path);
+      return {
+        kind,
+        value: text(source, "value", path),
+        rationale: text(source, "rationale", path),
+        ...(formSays === undefined ? {} : { formSays }),
+      };
+    }
   }
 }
 

@@ -168,8 +168,10 @@ export async function executePlan(
         await session.fill(locator, instruction.value.value);
       } else {
         // A reviewed constant is not the student's data and does not go through
-        // the confirmed path. The two stay distinguishable all the way to the
-        // keyboard — no fabricated provenance, at any point.
+        // the confirmed path; nor is a form refusal (ADR-0102), which enters
+        // the option the form offers and nothing of the student's. The kinds
+        // stay distinguishable all the way to the keyboard — no fabricated
+        // provenance, at any point.
         await session.fillConstant(locator, textOf(instruction.value));
       }
       outcomes.push({

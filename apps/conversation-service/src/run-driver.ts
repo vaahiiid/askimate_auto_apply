@@ -5981,13 +5981,24 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
                   : { documentId: instruction.value.provenance.documentId }),
               },
             }
-          : {
-              kind: "reviewed_constant" as const,
-              text: instruction.value.text,
-              rationale: instruction.value.rationale,
-              mappingSetId: instruction.value.mappingSetId,
-              reviewedBy: instruction.value.reviewedBy,
-            },
+          : instruction.value.kind === "form_refusal"
+            ? {
+                kind: "form_refusal" as const,
+                text: instruction.value.text,
+                rationale: instruction.value.rationale,
+                ...(instruction.value.formSays === undefined
+                  ? {}
+                  : { formSays: instruction.value.formSays }),
+                mappingSetId: instruction.value.mappingSetId,
+                reviewedBy: instruction.value.reviewedBy,
+              }
+            : {
+                kind: "reviewed_constant" as const,
+                text: instruction.value.text,
+                rationale: instruction.value.rationale,
+                mappingSetId: instruction.value.mappingSetId,
+                reviewedBy: instruction.value.reviewedBy,
+              },
     })),
     // References only (ADR-0099): the runner asks for each under its lease.
     uploads: stored.uploads.map((upload) => ({

@@ -253,8 +253,19 @@ async function main(): Promise<void> {
   heading("2", "Specialist review of the blueprint");
   stub("A human checks the draft against the real portal and marks it reviewed.");
 
+  // The stubbed review also does what a review now does under ADR-0102:
+  // classifies every field. Discovery leaves `dataCategory` absent on purpose,
+  // and `checkUsable` refuses a blueprint with any field unclassified. The
+  // fixture portal asks nothing special-category, so every field is ordinary.
   const blueprint: ApplicationBlueprint = {
     ...draft,
+    pages: draft.pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.map((field) => ({ ...field, dataCategory: "ordinary" as const })),
+      })),
+    })),
     status: "reviewed",
     provenance: { ...draft.provenance, reviewedBy: "specialist-a", reviewedAt: NOW },
   };

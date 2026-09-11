@@ -594,3 +594,67 @@ describe("where a submission preview is allowed to go", () => {
     expect(() => JSON.stringify(built())).toThrow(/renderPreview/);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0102 — the preview says plainly what we did not answer, and what we
+// entered instead. Never listed as an answer.
+// ───────────────────────────────────────────────────────────────────────────
+
+import { SENSITIVE_REFUSAL_MAPPINGS, withSensitivePage } from "@askimate/aas-mapping/fixtures/sensitive";
+
+describe("the preview, on a page that asks what we cannot hold (ADR-0102)", () => {
+  const BLUEPRINT: ApplicationBlueprint = {
+    ...withSensitivePage(FIXTURE_BLUEPRINT),
+    pages: withSensitivePage(FIXTURE_BLUEPRINT).pages.map((page) => ({
+      ...page,
+      sections: page.sections.map((section) => ({
+        ...section,
+        fields: section.fields.filter((field) => field.fieldRef !== "support_needs"),
+      })),
+    })),
+  };
+  const usableRefusals = (): UsableMappingSet => {
+    const check = checkUsable(
+      {
+        ...FIXTURE_MAPPING_SET,
+        blueprintVersion: BLUEPRINT.version,
+        mappings: [...FIXTURE_MAPPING_SET.mappings, ...SENSITIVE_REFUSAL_MAPPINGS],
+      },
+      BLUEPRINT,
+    );
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    return check.mappingSet;
+  };
+  const previewWithRefusals = (): SubmissionPreview => {
+    const result = buildPreview(BLUEPRINT, planFill(BLUEPRINT, usableRefusals(), COMPLETE), DOCUMENTS);
+    if (!result.built) expect.unreachable(result.refusal.kind);
+    return result.preview;
+  };
+
+  it("says what we did not answer, what we entered instead, and the form's own words", () => {
+    const text = renderPreview(previewWithRefusals());
+    expect(text).toContain("We did not answer these for you");
+    expect(text).toContain("Prefer not to say (if you go on to register");
+    expect(text).toContain('we entered "Prefer not to say"');
+    expect(text).toContain("The form says:");
+    expect(text).toContain('"if you go on to register on a course you will have another opportunity to answer later"');
+    expect(text).toContain("Why:");
+  });
+
+  it("does not list a refusal among the answers, and counts it in the hash", () => {
+    const preview = previewWithRefusals();
+    expect(preview.entries.map((entry) => entry.fieldRef)).not.toContain("ethnic_origin");
+    expect(preview.refusals.map((refusal) => refusal.fieldRef).sort()).toEqual([
+      "disability_prefer_not_to_say",
+      "ethnic_origin",
+    ]);
+    const without = previewFor();
+    expect(preview.contentHash).not.toBe(without.contentHash);
+  });
+
+  it("prints no 'form says' line when the form said nothing — quote or omit", () => {
+    const text = renderPreview(previewWithRefusals());
+    const ethnic = text.slice(text.indexOf("ethnic origin"));
+    expect(ethnic).not.toContain("The form says:");
+  });
+});

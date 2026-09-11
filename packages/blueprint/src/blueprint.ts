@@ -83,6 +83,27 @@ export type FieldInputType =
   | "file"
   | "unknown";
 
+/**
+ * What a field asks for, for the purpose of deciding whether this system may
+ * hold an answer to it (ADR-0102).
+ *
+ *   ordinary          not within UK GDPR Article 9(1).
+ *   special_category  within it — health, ethnic origin, religion, and the
+ *                     rest of the statute's list. This system holds no answer
+ *                     to such a question; the only mapping it accepts is the
+ *                     refusal the form itself offers, and with none offered
+ *                     the fill stops.
+ *
+ * SET BY THE REVIEWER, NEVER BY DISCOVERY. A regex reading a label is not a
+ * determination, so `draftBlueprintFrom` leaves this absent on every field.
+ * And ABSENT IS NOT ORDINARY: a reviewed entry is refused while any field is
+ * unclassified (`checkUsable`, `unclassified_fields`), because the state that
+ * looks decided is the dangerous one (ADR-0077). Vahid, 2026-09-11: *"If
+ * absent means ordinary, one reviewer's omission turns a health question into
+ * an ordinary field with nothing to notice."*
+ */
+export type FieldDataCategory = "ordinary" | "special_category";
+
 /** A validation rule the portal enforces, as observed. */
 export interface FieldValidation {
   readonly kind: "required" | "maxlength" | "minlength" | "pattern" | "min" | "max" | "accept";
@@ -107,6 +128,8 @@ export interface BlueprintField {
   /** The label the student sees. Used to explain what is being asked. */
   readonly label: string;
   readonly inputType: FieldInputType;
+  /** The reviewer's classification. Absent on a draft; refused absent at review (ADR-0102). */
+  readonly dataCategory?: FieldDataCategory;
   /**
    * How to find it. Several strategies, most stable first — a portal that
    * changes its DOM often breaks a CSS selector long before it breaks a label.
@@ -381,4 +404,14 @@ export function unmappedFields(blueprint: ApplicationBlueprint): readonly Bluepr
 /** Every document the portal asks for. */
 export function allRequiredDocuments(blueprint: ApplicationBlueprint): readonly RequiredDocument[] {
   return blueprint.pages.flatMap((page) => page.requiredDocuments);
+}
+
+/** Fields the reviewer has not classified. A reviewed entry with any is refused (ADR-0102). */
+export function unclassifiedFields(blueprint: ApplicationBlueprint): readonly BlueprintField[] {
+  return allFields(blueprint).filter((field) => field.dataCategory === undefined);
+}
+
+/** Fields that ask what this system cannot hold (ADR-0102). */
+export function specialCategoryFields(blueprint: ApplicationBlueprint): readonly BlueprintField[] {
+  return allFields(blueprint).filter((field) => field.dataCategory === "special_category");
 }

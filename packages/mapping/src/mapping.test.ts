@@ -6,6 +6,7 @@ import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@aski
 
 import { checkUsable, constantsIn, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
+import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "./fixtures/portal.js";
 import {
@@ -358,5 +359,177 @@ describe("credential fields and credential sources, both ways", () => {
     const plan = planFill(GATED_PORTAL_BLUEPRINT, check.mappingSet, emptyProfile(STUDENT, NOW));
     const unmapped = plan.blockers.filter((blocker) => blocker.kind === "no_mapping");
     expect(unmapped).toEqual([]);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// ADR-0102 — a special-category field takes the refusal the form offers, or
+// the plan stops. Refused at the mapping boundary, never checked at fill.
+// ───────────────────────────────────────────────────────────────────────────
+
+import { SENSITIVE_REFUSAL_MAPPINGS, withSensitivePage } from "./fixtures/sensitive-page.js";
+import { rehydratePlan, toStoredPlan } from "./plan-transport.js";
+
+describe("ADR-0102 — use the refusal the form offers", () => {
+  const BLUEPRINT = withSensitivePage(FIXTURE_BLUEPRINT);
+  // The fixture set carries a student handoff (a CAPTCHA), which refuses
+  // transport by itself; these tests are about the refusals, so it is left out.
+  const withMappings = (mappings: readonly MappingSet["mappings"][number][]): MappingSet => ({
+    ...FIXTURE_MAPPING_SET,
+    blueprintVersion: BLUEPRINT.version,
+    mappings: [
+      ...FIXTURE_MAPPING_SET.mappings.filter((mapping) => mapping.source.kind !== "student_handoff"),
+      ...mappings,
+    ],
+  });
+  const refusalOf = (set: MappingSet) => {
+    const check = checkUsable(set, BLUEPRINT);
+    if (check.usable) expect.unreachable("expected the mapping set to be refused");
+    return check.refusal;
+  };
+
+  it("accepts the refusals the form offers, and plans them as refusals, not answers", () => {
+    const check = checkUsable(withMappings(SENSITIVE_REFUSAL_MAPPINGS), BLUEPRINT);
+    // The text box is unmapped, so the set is usable and the PLAN blocks —
+    // that is the next test. Here: the two mapped refusals plan as refusals.
+    expect(check.usable).toBe(true);
+    if (!check.usable) expect.unreachable("a set of offered refusals must be usable");
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const refusals = plan.instructions.filter((i) => i.value.kind === "form_refusal");
+    expect(refusals.map((i) => i.fieldRef).sort()).toEqual(["disability_prefer_not_to_say", "ethnic_origin"]);
+    expect(refusals.map((i) => textOf(i.value)).sort()).toEqual(["998", "true"]);
+  });
+
+  it("STOPS on a special-category field with no refusal mapped, required or not", () => {
+    // The general rule: a portal with no equivalent opt-out stops the fill
+    // rather than picking something. `support_needs` is optional on the
+    // page and has no refusal to offer; an ordinary optional field would be
+    // passed over in silence. This one is a structural blocker.
+    const check = checkUsable(withMappings(SENSITIVE_REFUSAL_MAPPINGS), BLUEPRINT);
+    if (!check.usable) expect.unreachable("usable");
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const blocker = plan.blockers.find((b) => b.kind === "special_category_unhandled");
+    expect(blocker).toBeDefined();
+    expect(blocker?.fieldRef).toBe("support_needs");
+    expect(toStoredPlan(plan).ok).toBe(false);
+  });
+
+  it("REFUSES a blueprint with any unclassified field — absent is not ordinary", () => {
+    // ADR-0077's own rule: the state that looks decided is the dangerous one.
+    // One reviewer's omission must not turn a health question into an
+    // ordinary field with nothing to notice.
+    const unclassified: ApplicationBlueprint = {
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => {
+            if (field.fieldRef !== "ethnic_origin") return field;
+            const { dataCategory: _omitted, ...unclassifiedField } = field;
+            return unclassifiedField;
+          }),
+        })),
+      })),
+    };
+    const check = checkUsable(withMappings(SENSITIVE_REFUSAL_MAPPINGS), unclassified);
+    expect(check.usable).toBe(false);
+    if (check.usable) expect.unreachable("an unclassified field must refuse the whole entry");
+    expect(check.refusal.kind).toBe("unclassified_fields");
+    if (check.refusal.kind === "unclassified_fields") expect(check.refusal.fieldRefs).toEqual(["ethnic_origin"]);
+  });
+
+  it("REFUSES any other source on a special-category field: constant, profile field, handoff", () => {
+    const others: MappingSet["mappings"][number]["source"][] = [
+      { kind: "constant", value: "998", classification: "application_metadata", rationale: "a default" },
+      { kind: "profile_field", fieldKey: "identity.nationality", format: { kind: "text" } },
+      { kind: "student_handoff", reason: "the student answers this" },
+    ];
+    for (const source of others) {
+      const refusal = refusalOf(withMappings([SENSITIVE_REFUSAL_MAPPINGS[0]!, { fieldRef: "ethnic_origin", source }]));
+      expect(refusal.kind, source.kind).toBe("special_category_mismapped");
+    }
+  });
+
+  it("REFUSES a form refusal on a field that is not special-category", () => {
+    const refusal = refusalOf(
+      withMappings([
+        ...SENSITIVE_REFUSAL_MAPPINGS,
+        { fieldRef: "preferred_name", source: { kind: "form_refusal", value: "x", rationale: "no" } },
+      ]),
+    );
+    expect(refusal.kind).toBe("form_refusal_misused");
+  });
+
+  it("REFUSES a refusal the form does not offer: a value not in the options, or a text box", () => {
+    const notAnOption = refusalOf(
+      withMappings([
+        SENSITIVE_REFUSAL_MAPPINGS[0]!,
+        { fieldRef: "ethnic_origin", source: { kind: "form_refusal", value: "999", rationale: "made up" } },
+      ]),
+    );
+    expect(notAnOption.kind).toBe("form_refusal_not_offered");
+
+    const textBox = refusalOf(
+      withMappings([
+        ...SENSITIVE_REFUSAL_MAPPINGS,
+        { fieldRef: "support_needs", source: { kind: "form_refusal", value: "N/A", rationale: "typed" } },
+      ]),
+    );
+    expect(textBox.kind).toBe("form_refusal_not_offered");
+  });
+
+  it("REFUSES a 'the form says' line the form does not say — quote or omit, never compose", () => {
+    const refusal = refusalOf(
+      withMappings([
+        {
+          fieldRef: "disability_prefer_not_to_say",
+          source: {
+            kind: "form_refusal",
+            value: "true",
+            rationale: "health",
+            formSays: "the university will ask you again after registration",
+          },
+        },
+        SENSITIVE_REFUSAL_MAPPINGS[1]!,
+      ]),
+    );
+    expect(refusal.kind).toBe("form_refusal_composed");
+  });
+
+  it("carries a refusal through transport as a refusal, with the form's words", () => {
+    const check = checkUsable(withMappings([...SENSITIVE_REFUSAL_MAPPINGS, { fieldRef: "support_needs", source: { kind: "student_handoff", reason: "x" } }]), BLUEPRINT);
+    // (student_handoff on support_needs is itself refused — mismapped — so
+    // build the transportable plan from a blueprint without the text box.)
+    expect(check.usable).toBe(false);
+    // Also without the fixture's handed-off field: with its handoff mapping
+    // left out (above) it would be a required field with no mapping.
+    const handedOff = new Set(
+      FIXTURE_MAPPING_SET.mappings
+        .filter((mapping) => mapping.source.kind === "student_handoff")
+        .map((mapping) => mapping.fieldRef),
+    );
+    const withoutTextBox: ApplicationBlueprint = {
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.filter(
+            (field) => field.fieldRef !== "support_needs" && !handedOff.has(field.fieldRef),
+          ),
+        })),
+      })),
+    };
+    const usableCheck = checkUsable(withMappings(SENSITIVE_REFUSAL_MAPPINGS), withoutTextBox);
+    if (!usableCheck.usable) expect.unreachable(usableCheck.refusal.kind);
+    const plan = planFill(withoutTextBox, usableCheck.mappingSet, COMPLETE_PROFILE);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    const back = rehydratePlan(stored.plan);
+    const refusal = back.instructions.find((i) => i.fieldRef === "disability_prefer_not_to_say");
+    expect(refusal?.value.kind).toBe("form_refusal");
+    if (refusal?.value.kind !== "form_refusal") expect.unreachable("kind");
+    expect(textOf(refusal.value)).toBe("true");
   });
 });

@@ -1,12 +1,13 @@
 {
   "name": "@askimate/aas-mapping",
-  "version": "0.97.5",
+  "version": "0.98.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./fixtures": "./src/fixtures/portal.ts",
-    "./fixtures/gated": "./src/fixtures/gated-portal.ts"
+    "./fixtures/gated": "./src/fixtures/gated-portal.ts",
+    "./fixtures/sensitive": "./src/fixtures/sensitive-page.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"

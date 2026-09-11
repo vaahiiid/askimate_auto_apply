@@ -245,6 +245,15 @@ export type TransportedValue =
       readonly rationale: string;
       readonly mappingSetId: string;
       readonly reviewedBy: string;
+    }
+  /** ADR-0102: the refusal the form offers. Never an answer; the runner enters it as a refusal. */
+  | {
+      readonly kind: "form_refusal";
+      readonly text: string;
+      readonly rationale: string;
+      readonly formSays?: string;
+      readonly mappingSetId: string;
+      readonly reviewedBy: string;
     };
 
 export interface TransportedInstruction {
@@ -607,6 +616,21 @@ function parseTransportedValue(value: unknown): TransportedValue | null {
       fieldKey: record["fieldKey"],
       text: record["text"],
       provenance,
+    };
+  }
+  if (record["kind"] === "form_refusal") {
+    for (const field of ["text", "rationale", "mappingSetId", "reviewedBy"]) {
+      if (typeof record[field] !== "string") return null;
+    }
+    const formSays = record["formSays"];
+    if (formSays !== undefined && typeof formSays !== "string") return null;
+    return {
+      kind: "form_refusal",
+      text: record["text"] as string,
+      rationale: record["rationale"] as string,
+      ...(formSays === undefined ? {} : { formSays }),
+      mappingSetId: record["mappingSetId"] as string,
+      reviewedBy: record["reviewedBy"] as string,
     };
   }
   if (record["kind"] !== "reviewed_constant") return null;

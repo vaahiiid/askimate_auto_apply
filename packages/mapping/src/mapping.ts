@@ -30,7 +30,7 @@
 import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askimate/aas-blueprint";
 import { allFields } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
-import type { FormatRule, ProfileFieldKey } from "@askimate/aas-profile";
+import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
 
 /** Where a portal field's value comes from. */
 export type ValueSource =
@@ -42,7 +42,16 @@ export type ValueSource =
    */
   | {
       readonly kind: "profile_field";
-      readonly fieldKey: ProfileFieldKey;
+      /**
+       * `OrdinaryFieldKey`, not `ProfileFieldKey` (ADR-0102 §"two channels").
+       *
+       * ADR-0077 closed extraction against special-category fields and left
+       * this channel and the interview's `ask` typed by the whole registry.
+       * Found while costing blocker 20, closed while both were still empty:
+       * a field classified `special_category` in `FIELD_CATEGORY` cannot be
+       * named by a mapping, so no reviewed set can route such data to a form.
+       */
+      readonly fieldKey: OrdinaryFieldKey;
       readonly format: FormatRule;
     }
   /**
@@ -95,6 +104,40 @@ export type ValueSource =
       readonly value: string;
       readonly classification: "application_metadata";
       readonly rationale: string;
+    }
+  /**
+   * The refusal the form itself offers, on a field that asks what this system
+   * cannot hold (ADR-0102).
+   *
+   * Vahid, 2026-09-11, on Sheffield's equal-opportunities page: *"Those are
+   * not the student's answer and we must never present them as one. They are
+   * a stated refusal to route Article 9 data through us, made on a form that
+   * offers exactly that option and tells the student where the real answer
+   * belongs."* And the general rule: *"this decision is 'use the refusal the
+   * form offers', not 'answer Article 9 fields with a safe default'."*
+   *
+   * So this is NOT a constant. A constant is application metadata; this is a
+   * declined question. It is the only source `checkUsable` accepts on a
+   * `special_category` field, and it is accepted only where the form offers
+   * it: `value` must be an option the field's captured `options` list holds,
+   * or `"true"` on a checkbox — a text box offers no refusal, and a
+   * special-category field with no refusal mapped stops the plan
+   * (`special_category_unhandled`) rather than being passed over.
+   *
+   * `formSays` is the form's OWN words about what happens to the question —
+   * Sheffield: *"if you go on to register on a course you will have another
+   * opportunity to answer later"* — and it must appear verbatim in the
+   * field's captured label or option labels, or be omitted. *"Quote or omit,
+   * never compose."* The preview prints it as the portal's statement.
+   *
+   * The preview never lists a refusal among the answers (`refusals`, not
+   * `entries`), and says what was not answered, what was entered, and why.
+   */
+  | {
+      readonly kind: "form_refusal";
+      readonly value: string;
+      readonly rationale: string;
+      readonly formSays?: string;
     }
   /**
    * The Secure Plane fills this. A MARKER, and nothing else (ADR-0043).
@@ -208,7 +251,18 @@ export type MappingRefusal =
    * box, and the fill agent's masked-field check would refuse it at the last
    * moment instead of the mapping being refused at review time.
    */
-  | { readonly kind: "credential_source_misused"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "credential_source_misused"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  // ── ADR-0102: what a special-category field may and may not be mapped to ──
+  /** A field the reviewer has not classified. Absent is not ordinary. */
+  | { readonly kind: "unclassified_fields"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A special-category field mapped to anything but the refusal the form offers. */
+  | { readonly kind: "special_category_mismapped"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** `form_refusal` on a field that is not special-category. */
+  | { readonly kind: "form_refusal_misused"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A refusal value the field's options do not hold, or a field with no options to refuse with. */
+  | { readonly kind: "form_refusal_not_offered"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A `formSays` the form's captured text does not contain. */
+  | { readonly kind: "form_refusal_composed"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -365,7 +419,130 @@ export function checkUsable(
     };
   }
 
+  // ── ADR-0102: special-category fields take the refusal the form offers ──
+  //
+  // Here and not at fill time. Vahid, 2026-09-11: *"refused at mapping, not
+  // checked at fill."* A portal's fields are discovered data, so there is no
+  // compile error to be had; what there is is this branded check, which
+  // `planFill` requires, so nothing downstream can see a set that failed it.
+  const fieldsByRef = new Map(allFields(blueprint).map((field) => [field.fieldRef, field]));
+
+  const unclassified = allFields(blueprint)
+    .filter((field) => field.dataCategory === undefined)
+    .map((field) => field.fieldRef);
+  if (unclassified.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "unclassified_fields",
+        fieldRefs: unclassified,
+        detail:
+          `${String(unclassified.length)} field(s) carry no data category: ${unclassified.slice(0, 8).join(", ")}` +
+          `${unclassified.length > 8 ? ", …" : ""}. A reviewed entry classifies every field, because ` +
+          `absent is not ordinary: one omission would turn a health question into a field with ` +
+          `nothing to notice (ADR-0102, ADR-0077).`,
+      },
+    };
+  }
+
+  const special = new Set(
+    allFields(blueprint)
+      .filter((field) => field.dataCategory === "special_category")
+      .map((field) => field.fieldRef),
+  );
+
+  const specialMismapped = mappingSet.mappings
+    .filter((mapping) => special.has(mapping.fieldRef) && mapping.source.kind !== "form_refusal")
+    .map((mapping) => mapping.fieldRef);
+  if (specialMismapped.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "special_category_mismapped",
+        fieldRefs: specialMismapped,
+        detail:
+          `${specialMismapped.join(", ")} ask${specialMismapped.length === 1 ? "s" : ""} what this ` +
+          `system cannot hold (special category). The only mapping accepted is ` +
+          `{ kind: "form_refusal" } naming the refusal the form itself offers — not a constant, ` +
+          `not a profile field, not a handoff (ADR-0102).`,
+      },
+    };
+  }
+
+  const refusalMisused = mappingSet.mappings
+    .filter((mapping) => mapping.source.kind === "form_refusal" && !special.has(mapping.fieldRef))
+    .map((mapping) => mapping.fieldRef);
+  if (refusalMisused.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "form_refusal_misused",
+        fieldRefs: refusalMisused,
+        detail:
+          `${refusalMisused.join(", ")} ${refusalMisused.length === 1 ? "is" : "are"} not ` +
+          `special-category, so { kind: "form_refusal" } does not belong there. A refusal is for ` +
+          `a question this system cannot answer; an ordinary field is answered or left (ADR-0102).`,
+      },
+    };
+  }
+
+  const notOffered: string[] = [];
+  const composed: string[] = [];
+  for (const mapping of mappingSet.mappings) {
+    if (mapping.source.kind !== "form_refusal") continue;
+    const field = fieldsByRef.get(mapping.fieldRef);
+    if (field === undefined) continue; // unknown refs were refused above
+    if (!formOffers(field, mapping.source.value)) notOffered.push(mapping.fieldRef);
+    if (mapping.source.formSays !== undefined && !formSays(field, mapping.source.formSays)) {
+      composed.push(mapping.fieldRef);
+    }
+  }
+  if (notOffered.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "form_refusal_not_offered",
+        fieldRefs: notOffered,
+        detail:
+          `The form offers no such refusal on ${notOffered.join(", ")}: the value is not among ` +
+          `the field's captured options, or the field has no options to refuse with (a text box ` +
+          `has none). "Use the refusal the form offers" — and with none, the fill stops (ADR-0102).`,
+      },
+    };
+  }
+  if (composed.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "form_refusal_composed",
+        fieldRefs: composed,
+        detail:
+          `formSays on ${composed.join(", ")} is not in the form's own text — not in the field's ` +
+          `captured label or option labels. Quote or omit, never compose (ADR-0102).`,
+      },
+    };
+  }
+
   return { usable: true, mappingSet: mappingSet as UsableMappingSet };
+}
+
+/** Whether the form itself offers `value` as something to choose on this field. */
+function formOffers(field: BlueprintField, value: string): boolean {
+  if (field.inputType === "checkbox") return value === "true";
+  if (field.inputType === "select" || field.inputType === "radio" || field.inputType === "multiselect") {
+    return (field.options ?? []).some((option) => option.value === value);
+  }
+  return false;
+}
+
+/** Whether `words` appear verbatim in the form's captured text for this field. */
+function formSays(field: BlueprintField, words: string): boolean {
+  const norm = (text: string): string => text.replace(/\s+/g, " ").trim().toLowerCase();
+  const wanted = norm(words);
+  if (wanted.length === 0) return false;
+  return [field.label, ...(field.options ?? []).map((option) => option.label)].some((text) =>
+    norm(text).includes(wanted),
+  );
 }
 
 export function isMappingRefused(check: MappingCheck): check is { usable: false; refusal: MappingRefusal } {
@@ -437,6 +614,53 @@ export function reviewedConstant(
     // by the time a UsableMappingSet exists.
     reviewedBy: mappingSet.reviewedBy ?? "",
   } as ReviewedConstant;
+}
+
+/**
+ * A refusal the form offers, as a reviewed mapping set actually contains it
+ * (ADR-0102). Branded exactly as `ReviewedConstant` is, and for the same
+ * reason: constructible only from a `UsableMappingSet`, which `checkUsable`
+ * mints only when the field is special-category, the value is offered, and
+ * the form's words are its own.
+ */
+export type ReviewedFormRefusal = Brand<
+  {
+    readonly text: string;
+    readonly rationale: string;
+    readonly formSays?: string;
+    readonly mappingSetId: string;
+    readonly reviewedBy: string;
+  },
+  "ReviewedFormRefusal"
+>;
+
+/** Mints a `ReviewedFormRefusal`. The `UsableMappingSet` parameter is the whole point. */
+export function reviewedFormRefusal(
+  mappingSet: UsableMappingSet,
+  source: Extract<ValueSource, { kind: "form_refusal" }>,
+): ReviewedFormRefusal {
+  return {
+    text: source.value,
+    rationale: source.rationale,
+    ...(source.formSays === undefined ? {} : { formSays: source.formSays }),
+    mappingSetId: mappingSet.mappingSetId,
+    reviewedBy: mappingSet.reviewedBy ?? "",
+  } as ReviewedFormRefusal;
+}
+
+/** The text a refusal will enter — an option value, or "true" for a ticked box. */
+export function formRefusalText(refusal: ReviewedFormRefusal): string {
+  return refusal.text;
+}
+
+/** Who stands behind a refusal and what the form said, for the preview and the record. */
+export function formRefusalAttribution(refusal: ReviewedFormRefusal): {
+  readonly rationale: string;
+  readonly formSays?: string;
+  readonly mappingSetId: string;
+  readonly reviewedBy: string;
+} {
+  return refusal;
 }
 
 /** The text a constant will type. */

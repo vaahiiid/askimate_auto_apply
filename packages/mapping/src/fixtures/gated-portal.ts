@@ -71,6 +71,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "account_email",
               label: "Email address",
               inputType: "email",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Email address" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
             },
@@ -96,6 +97,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "account_password",
               label: "Password",
               inputType: "password",
+              dataCategory: "ordinary",
               locators: [{ strategy: "name", value: "password" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -106,6 +108,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "account_password_confirm",
               label: "Confirm password",
               inputType: "password",
+              dataCategory: "ordinary",
               locators: [{ strategy: "name", value: "password_confirm" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -132,6 +135,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "given_name",
               label: "First name",
               inputType: "text",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "First name" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -142,6 +146,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "family_name",
               label: "Last name",
               inputType: "text",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Last name" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -152,6 +157,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "dob",
               label: "Date of birth",
               inputType: "text",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Date of birth" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -162,6 +168,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "nationality",
               label: "Nationality",
               inputType: "select",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Nationality" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
               options: [
@@ -197,6 +204,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "personal_statement",
               label: "Why do you want to study this course?",
               inputType: "textarea",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Why do you want to study this course?" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },
@@ -351,6 +359,7 @@ export const GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT: ApplicationBlueprint = {
               fieldRef: "passport_upload",
               label: "Upload your passport",
               inputType: "file",
+              dataCategory: "ordinary",
               locators: [{ strategy: "label", value: "Upload your passport" }],
               validations: [
                 { kind: "required", source: "dom_attribute" },

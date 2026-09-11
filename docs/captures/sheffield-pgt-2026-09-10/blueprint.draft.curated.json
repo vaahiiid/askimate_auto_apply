@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -24159,6 +24159,7 @@
               "fieldRef": "noDisability",
               "label": "You do not have a disability nor are aware of any additional support requirements",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24179,6 +24180,7 @@
               "fieldRef": "ratherNotSay",
               "label": "Prefer not to say (if you go on to register on a course you will have another opportunity to answer later)",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24199,6 +24201,7 @@
               "fieldRef": "dyslexia",
               "label": "Learning difference such as dyslexia, dyspraxia or AD(H)D",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24219,6 +24222,7 @@
               "fieldRef": "blindness",
               "label": "Blind or have a visual impairment uncorrected by glasses",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24239,6 +24243,7 @@
               "fieldRef": "deafness",
               "label": "Deaf/deaf or have a hearing impairment",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24259,6 +24264,7 @@
               "fieldRef": "wheelchair",
               "label": "Physical impairment (a condition that substantially limits one or more basic physical activities such as walking, climbing stairs, lifting or carrying)",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24279,6 +24285,7 @@
               "fieldRef": "autistic",
               "label": "Social/communication conditions such as a speech and language impairment or an autistic spectrum condition",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24299,6 +24306,7 @@
               "fieldRef": "mentalHealth",
               "label": "Mental health condition, challenge or disorder, such as depression, schizophrenia or anxiety",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24319,6 +24327,7 @@
               "fieldRef": "unseen",
               "label": "Long-term illness or health condition such as cancer, HIV, diabetes, chronic heart disease, or epilepsy",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24339,6 +24348,7 @@
               "fieldRef": "developmentCondition",
               "label": "Development condition that you have had since childhood which affects motor, cognitive, social and emotional skills, and speech and language",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24359,6 +24369,7 @@
               "fieldRef": "otherDisability",
               "label": "An impairment, health condition or learning difference not listed above",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24379,6 +24390,7 @@
               "fieldRef": "additionalSupport",
               "label": "If your disability means that you have additional support needs please tick here:",
               "inputType": "checkbox",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24399,6 +24411,7 @@
               "fieldRef": "supportNeeds",
               "label": "If you have additional support needs please provide a brief description:",
               "inputType": "textarea",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",
@@ -24419,6 +24432,7 @@
               "fieldRef": "ethnicOriginCode",
               "label": "Please select the term you feel describes your ethnic origin. If none of the terms seem appropriate, select 'Other ethnic background'. If you want to withhold this information, select 'Information withheld'.",
               "inputType": "select",
+              "dataCategory": "special_category",
               "locators": [
                 {
                   "strategy": "label",

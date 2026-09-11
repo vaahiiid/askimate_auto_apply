@@ -14,6 +14,7 @@ export type {
   MappingSet,
   MappingSetStatus,
   ReviewedConstant,
+  ReviewedFormRefusal,
   UsableMappingSet,
   ValueSource,
 } from "./mapping.js";
@@ -22,10 +23,13 @@ export {
   constantAttribution,
   constantText,
   constantsIn,
+  formRefusalAttribution,
+  formRefusalText,
   isMappingRefused,
   isRequired,
   mappingFor,
   reviewedConstant,
+  reviewedFormRefusal,
   unmappedRequiredFields,
 } from "./mapping.js";
 

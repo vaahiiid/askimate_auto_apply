@@ -270,8 +270,13 @@ radio after attaching is a build item on the attachment path (P73–P74), raised
 **The equal-opportunities page asks Article 9 questions.** Eleven disability checkboxes, a
 support-needs box and an ethnic-origin select. That is Vahid's decision, written up as
 [`decision-sheet-article-9-fields-a-portal-asks-for.md`](../../decision-sheet-article-9-fields-a-portal-asks-for.md)
-(blocker 20). The curated draft records the fields as observed and maps nothing; it does not
-design around the question.
+(blocker 20). Decided by Vahid on 2026-09-11 and built as ADR-0102: the empty save is refused, so
+the fill uses the refusal the form offers — *Prefer not to say* for disability, and for ethnic
+origin the option the live dropdown shows, which he is confirming (the capture holds `998 — Prefer
+not to say`; *Information withheld* is the label's wording). The curated draft, 0.2.1, classifies
+the fourteen fields on this page `special_category`; every other field stays unclassified until
+review, and a reviewed entry is refused until all 216 carry a category. No mapping set is written
+here until the ethnic-origin value is his.
 
 ## The curated draft — `blueprint.draft.curated.json`, version 0.2.0
 

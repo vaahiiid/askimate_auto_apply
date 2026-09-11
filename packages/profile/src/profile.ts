@@ -119,10 +119,10 @@ export function hasField(profile: ConfirmedProfile, key: ProfileFieldKey): boole
 }
 
 /** Which of the required fields are still missing. Drives the interview. */
-export function missingFields(
+export function missingFields<K extends ProfileFieldKey>(
   profile: ConfirmedProfile,
-  required: readonly ProfileFieldKey[],
-): readonly ProfileFieldKey[] {
+  required: readonly K[],
+): readonly K[] {
   return required.filter((key) => !profile.entries.has(key));
 }
 

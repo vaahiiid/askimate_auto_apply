@@ -68,6 +68,15 @@ export type StoredFillValue =
       readonly rationale: string;
       readonly mappingSetId: string;
       readonly reviewedBy: string;
+    }
+  /** ADR-0102. Crosses as a refusal, never as an answer or a constant. */
+  | {
+      readonly kind: "form_refusal";
+      readonly text: string;
+      readonly rationale: string;
+      readonly formSays?: string;
+      readonly mappingSetId: string;
+      readonly reviewedBy: string;
     };
 
 export interface StoredFillInstruction {
@@ -160,6 +169,23 @@ function storedValue(value: FillValue): StoredFillValue {
       provenance: provenanceOf(value.value),
     };
   }
+  if (value.kind === "form_refusal") {
+    const refusal = value.refusal as unknown as {
+      readonly text: string;
+      readonly rationale: string;
+      readonly formSays?: string;
+      readonly mappingSetId: string;
+      readonly reviewedBy: string;
+    };
+    return {
+      kind: "form_refusal",
+      text: refusal.text,
+      rationale: refusal.rationale,
+      ...(refusal.formSays === undefined ? {} : { formSays: refusal.formSays }),
+      mappingSetId: refusal.mappingSetId,
+      reviewedBy: refusal.reviewedBy,
+    };
+  }
   const constant = value.constant as unknown as {
     readonly text: string;
     readonly rationale: string;
@@ -227,6 +253,20 @@ function rebuiltValue(stored: StoredFillValue): FillValue {
       kind: "confirmed",
       fieldKey: stored.fieldKey,
       value: rehydrateConfirmed({ value: stored.text, provenance: stored.provenance }),
+    };
+  }
+  if (stored.kind === "form_refusal") {
+    // Rebuilt as the branded refusal it was, on the same guarantee as the
+    // constant below: it passed `checkUsable` on the plane that built the plan.
+    return {
+      kind: "form_refusal",
+      refusal: {
+        text: stored.text,
+        rationale: stored.rationale,
+        ...(stored.formSays === undefined ? {} : { formSays: stored.formSays }),
+        mappingSetId: stored.mappingSetId,
+        reviewedBy: stored.reviewedBy,
+      } as unknown as Extract<FillValue, { kind: "form_refusal" }>["refusal"],
     };
   }
   // Rebuilt as the branded constant it was. The brand's guarantee is that a
