@@ -14,13 +14,19 @@
     "None of it has been observed by this repository. The claims are what the run would confirm",
     "or refute; the eight authentication questions are asked, not answered.",
     "",
-    "Two fields are Vahid's to supply and are NOT invented here: which course (courseName), and",
-    "the intake YEAR (all PGT master's start in September; the year is part of the submission key)."
+    "Course and intake supplied by Vahid, 2026-09-11: MSc Management and International Business,",
+    "September 2027. His note, verbatim: 'the course page URL carries /2026/ — that is the page I",
+    "read it from, not the intake. The intake is September 2027 and the key should carry that.'",
+    "The intake is written the way the Ulster target writes it (YYYY-MM) so the key carries 2027-09.",
+    "This file's name dates the target's creation, September 2026, not the intake.",
+    "",
+    "The password question is CLOSED by Vahid's direct statement, 2026-09-11, recorded verbatim under",
+    "routeNotes and AUTH 1-2 below. It was not inferred from the sibling form or from a link."
   ],
   "targetId": "sheffield-pgt-september-direct",
   "institutionName": "University of Sheffield",
-  "courseName": "Postgraduate taught master's — course not yet chosen (Vahid's to supply)",
-  "intake": "September — year not yet stated (Vahid's to supply)",
+  "courseName": "MSc Management and International Business",
+  "intake": "2027-09",
   "route": "direct_portal",
   "routeNotes": [
     "Direct application through the university's own Postgraduate Online Application Form.",
@@ -30,7 +36,11 @@
     "Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new applicants that",
     "an email will be sent containing their login details. If the PGT form behaves the same way,",
     "the approach is portal_issued under ADR-0020, not student_chosen. To be CONFIRMED BY",
-    "OBSERVATION, not assumed from the sibling form (Vahid, 2026-09-10)."
+    "OBSERVATION, not assumed from the sibling form (Vahid, 2026-09-10).",
+    "ANSWERED. Vahid, 2026-09-11, his words: 'Password: student_chosen, confirmed by observation not",
+    "inference. I created the account myself and I typed the password I chose. Sheffield did not",
+    "email me one.' The PGT form does NOT behave like the sibling form. Course page, from which the",
+    "course name was read: https://sheffield.ac.uk/postgraduate/taught/courses/2026/management-and-international-business-msc"
   ],
   "allowedHosts": [
     "sheffield.ac.uk"
@@ -62,10 +72,10 @@
     "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
     "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
     "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
-    "TO OBSERVE: whether the form issues a credential by email (portal_issued) as the sibling /arpform/login.app form states it does, or asks the applicant to choose a password (student_chosen)",
+    "ANSWERED (Vahid's direct statement, 2026-09-11): student_chosen — he typed the password he chose at registration; Sheffield did not email one. Not portal_issued, whatever the sibling /arpform/login.app form states",
     "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
-    "AUTH 1 — Does the applicant choose their own password at account creation?",
-    "AUTH 2 — Does the portal generate a credential and email it to them?",
+    "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+    "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
     "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code?",
     "AUTH 4 — Must the email be verified before the form is reachable?",
     "AUTH 5 — Is MFA or a one-time code required, and where?",

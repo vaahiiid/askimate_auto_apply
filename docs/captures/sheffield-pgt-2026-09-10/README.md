@@ -112,6 +112,12 @@ refusals as writes; that wording predates the rule field and overstates it.
 
 ### Who sets the password
 
+**Settled 2026-09-11, by the second of the two observations below — Vahid's direct statement,
+verbatim:** *"Password: student_chosen, confirmed by observation not inference. I created the
+account myself and I typed the password I chose. Sheffield did not email me one."* `student_chosen`.
+The rest of this section is left as it was written on the captures alone, because it says what
+they could and could not support; the registration read is now for the locators, not for this.
+
 **What the captures support.** An account with a password exists — Vahid saw a *Change Password*
 link on the overview page. Nothing on the eleven pages carries a password field or a word about
 how the first one was set, and the run did not read the registration or login page.
@@ -220,9 +226,30 @@ is confirmed by structure.
 
 ## What step 4 needs before the curated blueprint
 
-1. The course and the intake year — Vahid's, still open in the target file.
+1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
+   International Business, September 2027 (`2027-09` in the target file).
 2. The registration and login pages, read in a fresh profile (above), for the `registration` and
-   `login` blocks and the password question.
+   `login` blocks. The password question no longer waits on it (settled above). **Exactly this,
+   and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
+   not more"*:
+   - A second Chrome profile, signed in to nothing, on its own port: the runbook's flags with
+     `--remote-debugging-port=9223` and a new `--user-data-dir`. Nothing of his is in that session.
+   - Four URLs, copied from the address bar, in this order: (1) the entry point
+     `https://www.sheffield.ac.uk/postgradapplication` — where a signed-out person lands is the
+     login page, and its URL is the second; (2) that login page, as it lands; (3) the *register* /
+     *create an account* page linked from it; (4) the *forgotten password* page linked from it.
+     Both (1) and (2) go on the list: the tool refuses a landing URL that is not on it.
+   - Type nothing, submit nothing, create nothing. The tool cannot, and he need not: an account
+     exists. The read is of the empty forms.
+   - `pnpm run inspect:attached sheffield-pgt-2026-09 --cdp http://127.0.0.1:9223 --out <dir>
+     <url1> <url2> <url3> <url4>` after `git pull`. It captures `pages/*.html` (values scrubbed),
+     screenshots, `blueprint.draft.json` and `run.json`; look at the pages first, then send the
+     directory. That gives the `login` and `registration` locators, whether registration asks for
+     a password twice (which the statement already answers, and the capture will show), whether a
+     CAPTCHA is on either page (AUTH 6), whether a magic link or emailed code is offered (AUTH 3),
+     and what the reset page asks for (AUTH 7).
+   - Not needed: signing in, the reset e-mail, any page past those four, Part 2 (a separate read
+     in the signed-in profile, item 3).
 3. Part 2 — course choice — read the same way, for the three-choices question and the submission
    boundary.
 4. `pnpm run inspect-dependencies` output from Vahid's machine, to confirm the handler-level

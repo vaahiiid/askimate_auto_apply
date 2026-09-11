@@ -4438,3 +4438,27 @@ was stale, because P83 added a test without regenerating it. This commit regener
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P84 — two of the four answered, in Vahid's words
+
+Records only. Vahid, 2026-09-11, supplied the course and the intake: MSc Management and
+International Business, September 2027. The target file carries `2027-09`, the way the Ulster
+target writes an intake, so the submission key carries the year he stated. His note is recorded
+with it: the course page URL carries `/2026/`, and that is the page he read the course from, not
+the intake.
+
+And he closed the password question on his own account creation, in his words: *"Password:
+student_chosen, confirmed by observation not inference. I created the account myself and I typed
+the password I chose. Sheffield did not email me one."* It is recorded as his direct statement
+with the date, in the target file, the target document and the capture README, and it is what
+closes the question — not the *Change Password* link the first read saw, which was consistent
+with both answers, and not the sibling form, which says the opposite. The PGT form does not
+behave like the sibling form.
+
+What the registration read still gives is the `registration` and `login` locators, and AUTH 3, 6
+and 7. The capture README now says exactly which pages, in what order, and what is captured, so
+that read is only that and not more.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

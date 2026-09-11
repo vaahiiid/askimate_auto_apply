@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.97.3] — 2026-09-11
+
+**P84 — two of the four answered, in Vahid's words.** Records only; no code.
+
+### Changed
+
+- `targets/sheffield-pgt-2026-09.json`: `courseName` is MSc Management and International Business
+  and `intake` is `2027-09`, both supplied by Vahid on 2026-09-11, with his note that the course
+  page URL's `/2026/` is the page he read it from and not the intake. The file's name dates its
+  creation, not the intake.
+- The password question is closed on his direct statement, quoted verbatim in the target file,
+  the target document and the capture README: `student_chosen`; AUTH 1 yes, AUTH 2 no. The
+  registration read is now for the `registration` and `login` locators, and the capture README
+  says exactly which pages, in what order, and what is captured, so that read is only that.
+
+---
+
 ## [0.97.2] — 2026-09-10
 
 **P82 — the observation script stops reading a postcode as a one-time code.** The two false

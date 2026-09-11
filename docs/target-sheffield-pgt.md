@@ -9,8 +9,9 @@ would do, and that is measured from this repository's own code.
 
 **The target file exists: [`targets/sheffield-pgt-2026-09.json`](../targets/sheffield-pgt-2026-09.json).**
 It parses (`parseTarget`, checked 2026-09-10 without opening a browser) and **has not been run**.
-Two of its fields are Vahid's to supply and are marked so rather than invented: which course, and
-the intake year.
+The two fields that were Vahid's to supply — which course, and the intake year — were supplied by
+him on 2026-09-11 and are in the file. The password question is closed the same day, by his direct
+statement; see below.
 
 ## The target, as confirmed
 
@@ -19,7 +20,8 @@ the intake year.
 | Institution | University of Sheffield |
 | Route | Direct — the university's own Postgraduate Online Application Form. **Not UCAS.** |
 | Level | Postgraduate taught master's |
-| Intake | September. Vahid: *"there is no January or February intake — all PGT masters start in September, which makes intake modelling trivial for this target"* |
+| Course | **MSc Management and International Business** (Vahid, 2026-09-11). Course page, as he read it: https://sheffield.ac.uk/postgraduate/taught/courses/2026/management-and-international-business-msc |
+| Intake | **September 2027** — `2027-09` in the file, so the submission key carries it. Vahid, 2026-09-11: *"the course page URL carries /2026/ — that is the page I read it from, not the intake. The intake is September 2027 and the key should carry that."* Earlier: *"there is no January or February intake — all PGT masters start in September, which makes intake modelling trivial for this target"* |
 | Entry point | https://www.sheffield.ac.uk/postgradapplication |
 | Public guidance | https://sheffield.ac.uk/postgraduate/taught/apply/applying |
 
@@ -72,11 +74,22 @@ the tool's `blueprint.draft.json` unedited, and the account of what the form is.
 sourced facts above: **S1** is consistent with what was read — nine Part 1 pages of exactly the
 kinds stated, the `*` convention for mandatory fields, and Part 2 behind them, unread; **S3** is
 confirmed by structure — seventeen document slots inside the sections; **S2**, **S4** and **S5**
-remain stated, not observed. The `portal_issued` question and the three-choices question are
-answered as far as the captures allow in that README, and no further: the registration page and
-Part 2 were not read, and they are what settles each.
+remain stated, not observed. The three-choices question is answered as far as the captures allow
+in that README, and no further: Part 2 was not read, and it is what settles it. The
+`portal_issued` question was open on the captures and is closed by Vahid's statement of
+2026-09-11, in the next section.
 
 ## The thing to notice before discovery — `portal_issued`, to be confirmed by observation
+
+**Answered 2026-09-11, by Vahid's direct statement, verbatim:** *"Password: student_chosen,
+confirmed by observation not inference. I created the account myself and I typed the password I
+chose. Sheffield did not email me one. Record it as my direct statement with today's date, and
+close that question."* So: `student_chosen`. AUTH 1 yes, AUTH 2 no. The PGT form does not behave
+like the sibling form. The question is closed on that statement and on nothing else — not on the
+*Change Password* link the first read saw, which was consistent with both answers. What the
+registration page read still gives is the `registration` and `login` locators the reviewed entry
+needs, and AUTH 3, 6 and 7; it is no longer what settles the password. The paragraphs below are
+kept as the question was asked, and what the code does under each answer.
 
 Vahid, 2026-09-10: *"Sheffield's sibling form (Alternative Routes, /arpform/login.app) tells new
 applicants that an email will be sent containing their login details. If the PGT form behaves the
