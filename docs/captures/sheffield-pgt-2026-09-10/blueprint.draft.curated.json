@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -20513,7 +20513,7 @@
               "validations": []
             },
             {
-              "fieldRef": "certificateStatus",
+              "fieldRef": "languageCertificateStatus",
               "label": "certificateStatus",
               "inputType": "radio",
               "dataCategory": "ordinary",
@@ -20544,7 +20544,7 @@
               ]
             },
             {
-              "fieldRef": "certificate",
+              "fieldRef": "languageCertificate",
               "label": "certificate",
               "inputType": "file",
               "dataCategory": "ordinary",
@@ -20561,10 +20561,14 @@
       ],
       "requiredDocuments": [
         {
-          "fieldRef": "certificate",
+          "fieldRef": "languageCertificate",
           "label": "English language certificate",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "languageCertificateStatus",
+            "whenAttached": "certificateStatusUpload"
+          }
         }
       ],
       "advanceControl": {
@@ -23518,37 +23522,61 @@
           "fieldRef": "certificate",
           "label": "Degree certificate",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "certificateStatus",
+            "whenAttached": "certificateUploadRadio"
+          }
         },
         {
           "fieldRef": "transcript",
           "label": "Transcript",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "transcriptStatus",
+            "whenAttached": "transcriptUploadRadio"
+          }
         },
         {
           "fieldRef": "officialCertTranslation",
           "label": "Official certificate translation",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "officialCertTranslStatus",
+            "whenAttached": "officialCertTranslationUploadRadio"
+          }
         },
         {
           "fieldRef": "officialTranTranslation",
           "label": "Official transcript translation",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "officialTranTranslStatus",
+            "whenAttached": "officialTranTranslationUploadRadio"
+          }
         },
         {
           "fieldRef": "certificateTranslation",
           "label": "Certificate translation",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "certificateTranslationStatus",
+            "whenAttached": "certificateTranslationUploadRadio"
+          }
         },
         {
           "fieldRef": "transcriptTranslation",
           "label": "Transcript translation",
           "acceptedFormats": [],
-          "required": false
+          "required": false,
+          "companion": {
+            "fieldRef": "transcriptTranslationStatus",
+            "whenAttached": "transcriptTranslationUploadRadio"
+          }
         }
       ],
       "advanceControl": {

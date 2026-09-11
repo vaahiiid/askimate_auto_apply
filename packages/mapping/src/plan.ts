@@ -33,7 +33,7 @@ import type {
   FieldInputType,
   FieldLocator,
 } from "@askimate/aas-blueprint";
-import { allFields } from "@askimate/aas-blueprint";
+import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, UnavailableReason } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedProfile, OrdinaryFieldKey, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
@@ -100,6 +100,13 @@ export interface UploadInstruction {
   readonly label: string;
   readonly documentRef: string;
   readonly locators: readonly FieldLocator[];
+  /** The attach's second act (ADR-0103, gap 4): the control set beside the slot, and its value. */
+  readonly companion?: {
+    readonly fieldRef: string;
+    readonly label: string;
+    readonly locators: readonly FieldLocator[];
+    readonly text: string;
+  };
 }
 
 /**
@@ -221,11 +228,26 @@ export function planFill(
     ),
   );
 
+  // ADR-0103 gap 4: which slots have a companion, and which fields are one.
+  const fieldsByRef = new Map(allFields(blueprint).map((field) => [field.fieldRef, field]));
+  const companionOf = new Map(
+    allRequiredDocuments(blueprint)
+      .filter((document) => document.companion !== undefined)
+      .map((document) => [document.fieldRef, document.companion] as const),
+  );
+  const companionFields = new Set(
+    [...companionOf.entries()]
+      .filter(([slot]) => mappingFor(mappingSet, slot)?.source.kind === "document")
+      .map(([, companion]) => companion?.fieldRef ?? ""),
+  );
+
   for (const field of allFields(blueprint)) {
     const mapping = mappingFor(mappingSet, field.fieldRef);
 
     if (mapping === undefined) {
       if (covered.has(field.fieldRef)) continue;
+      // A companion of an attached slot is set by the attach, not mapped.
+      if (companionFields.has(field.fieldRef)) continue;
       // A special-category field is never passed over, required or not: with
       // no refusal mapped the fill STOPS (ADR-0102). Checked before the
       // optional rule below, which would otherwise make silence the default.
@@ -287,14 +309,27 @@ export function planFill(
         });
         break;
 
-      case "document":
+      case "document": {
+        const companion = companionOf.get(field.fieldRef);
+        const companionField = companion === undefined ? undefined : fieldsByRef.get(companion.fieldRef);
         uploads.push({
           fieldRef: field.fieldRef,
           label: field.label,
           documentRef: mapping.source.documentRef,
           locators: field.locators,
+          ...(companion === undefined || companionField === undefined
+            ? {}
+            : {
+                companion: {
+                  fieldRef: companionField.fieldRef,
+                  label: companionField.label,
+                  locators: companionField.locators,
+                  text: companion.whenAttached,
+                },
+              }),
         });
         break;
+      }
 
       case "constant":
         instructions.push({

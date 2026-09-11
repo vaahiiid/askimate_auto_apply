@@ -28,7 +28,7 @@
  */
 
 import type { ApplicationBlueprint, BlueprintField, FieldLocator } from "@askimate/aas-blueprint";
-import { allFields } from "@askimate/aas-blueprint";
+import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
 import type { Brand } from "@askimate/aas-domain";
 import type { FormatRule, OrdinaryFieldKey } from "@askimate/aas-profile";
 
@@ -275,7 +275,9 @@ export type MappingRefusal =
   /** A `formSays` the form's captured text does not contain. */
   | { readonly kind: "form_refusal_composed"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A cover naming a field that is not special-category, not in the blueprint, mapped, or covered twice. */
-  | { readonly kind: "form_refusal_cover_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
+  | { readonly kind: "form_refusal_cover_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A document slot's companion that is not on the blueprint, does not offer the value, or is mapped as well (gap 4). */
+  | { readonly kind: "document_companion_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] };
 
 export type MappingCheck =
   | { readonly usable: true; readonly mappingSet: UsableMappingSet }
@@ -559,6 +561,29 @@ export function checkUsable(
         detail:
           `formSays on ${composed.join(", ")} is not in the form's own text — not in the field's ` +
           `captured label or option labels. Quote or omit, never compose (ADR-0102).`,
+      },
+    };
+  }
+
+  // ── ADR-0103 gap 4: a slot's companion follows the attach, and nothing else ──
+  const badCompanions: string[] = [];
+  for (const document of allRequiredDocuments(blueprint)) {
+    if (document.companion === undefined) continue;
+    const field = fieldsByRef.get(document.companion.fieldRef);
+    if (field === undefined || !formOffers(field, document.companion.whenAttached) || mapped.has(field.fieldRef)) {
+      badCompanions.push(document.companion.fieldRef);
+    }
+  }
+  if (badCompanions.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "document_companion_invalid",
+        fieldRefs: badCompanions,
+        detail:
+          `A document slot names ${badCompanions.join(", ")} as the control set beside it when a ` +
+          `file is attached, which it may not be: a companion must be on the blueprint, offer the ` +
+          `value the slot names, and be mapped by nothing — it follows the attach (ADR-0103).`,
       },
     };
   }

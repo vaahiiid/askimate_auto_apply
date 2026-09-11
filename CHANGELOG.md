@@ -19,6 +19,44 @@ not shipped artefacts.
 
 ---
 
+## [0.103.0] — 2026-09-11
+
+**P93 — ADR-0103: the blueprint says what the form does between fields; gap 4 built — a
+document slot's companion is planned after the attach, entered by the runner and read back.**
+
+### Added
+
+- ADR-0103, Accepted: four schema gaps the first real form showed, one principle for all four —
+  the blueprint records what the page does between fields, so the plan can order, wait and follow
+  rather than the runner guessing. Gap 4 is decided and built here; gaps 1–3 are decided and wait
+  on P94–P96.
+- `RequiredDocument.companion?: { fieldRef, whenAttached }`: the control the portal expects set
+  beside a slot when a file is placed in it. The plan carries it with the upload
+  (`UploadInstruction.companion`), only when a document is mapped to the slot; the runner sets it
+  **after** the attach and reads it back, failing the page with what the portal shows if it did
+  not take; the preview names it beside the attachment in the option's own words, inside the
+  content hash; the validator does not count it as missing. `checkUsable` refuses a companion
+  that is not on the blueprint, does not offer the value, or is mapped as well
+  (`document_companion_invalid`). Carried through the transport and the wire.
+- The fixture portal's documents page demands the status radio and does not tick it itself — the
+  seventeenth slot's shape — so the journey proves the second act: without it the save is refused
+  with the portal's own message.
+- The curated Sheffield draft (0.2.4) carries a companion on the seven slots whose *upload now*
+  value the capture holds; the mapping set is 0.3.1 against it. Ten slots wait on a re-read for
+  their radio values (README item 6b).
+
+### Changed
+
+- The Playwright fill session sets a radio group by the option's *value* and reads back the
+  checked member's value, where before a group found by name could only be ticked.
+- `parseBlueprint` refuses a fieldRef that appears twice in a blueprint, at the second
+  occurrence's path, naming the first. Found rather than designed: the Sheffield language and
+  education pages both named `certificate` and `certificateStatus`, every consumer keys by
+  fieldRef alone, and the companion check was the first to notice. The language page's two are
+  renamed `languageCertificate` and `languageCertificateStatus`, locators unchanged.
+
+---
+
 ## [0.102.1] — 2026-09-11
 
 **P92 — AUTH 4 and 5, in Vahid's words; the chooser picks `student_chosen`, and the refusal is

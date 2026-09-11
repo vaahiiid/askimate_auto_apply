@@ -246,6 +246,39 @@ export async function executePlan(
         fieldRef: upload.fieldRef,
         documentId: document.documentId,
       });
+      // ── ADR-0103 gap 4: the attach's second act ────────────────────────
+      //
+      // Set AFTER the file is in, because a portal's own script may set it
+      // from the file input's change event and a runner that set it first
+      // would be undone; then read back, because a companion the portal did
+      // not take is a save that will not register the upload.
+      const companion = upload.companion;
+      if (companion !== undefined) {
+        const companionLocator = companion.locators[0];
+        if (companionLocator === undefined) {
+          outcomes.push({
+            kind: "failed",
+            fieldRef: companion.fieldRef,
+            error: "The blueprint records no locator for this slot's companion.",
+            drift: true,
+          });
+          return report(outcomes, plan, false, transmissions);
+        }
+        await session.fillConstant(companionLocator, companion.text);
+        const stored = await session.readValue(companionLocator);
+        if (stored !== companion.text) {
+          outcomes.push({
+            kind: "failed",
+            fieldRef: companion.fieldRef,
+            error:
+              `"${companion.label}" did not take "${companion.text}" beside the attached ` +
+              `"${upload.label}": the portal shows "${stored}". The upload may not register on save.`,
+            drift: false,
+          });
+          return report(outcomes, plan, false, transmissions);
+        }
+        outcomes.push({ kind: "filled", fieldRef: companion.fieldRef, stored: redact(stored) });
+      }
     } catch (error) {
       outcomes.push({
         kind: "failed",

@@ -85,6 +85,12 @@ export function validatePlan(
   const filledSecurely = new Set(plan.credentials.map((credential) => credential.fieldRef));
   // P90: a field the form hides for these answers is not a missing one.
   const hidden = new Set(plan.hidden.map((field) => field.fieldRef));
+  // ADR-0103 gap 4: a slot's companion is set by the attach, not by an
+  // instruction — a required status radio beside an attached file is not
+  // missing, it is the attach's second act.
+  const companions = new Set(
+    plan.uploads.flatMap((upload) => (upload.companion === undefined ? [] : [upload.companion.fieldRef])),
+  );
 
   for (const fieldRef of filled.keys()) {
     if (!fields.has(fieldRef)) unknownFields.push(fieldRef);
@@ -99,6 +105,7 @@ export function validatePlan(
         handedOff: handedOff.has(field.fieldRef),
         filledSecurely: filledSecurely.has(field.fieldRef),
         hidden: hidden.has(field.fieldRef),
+        companion: companions.has(field.fieldRef),
       });
       if (violation !== null) violations.push(violation);
     }
@@ -118,6 +125,8 @@ interface FieldContext {
   readonly filledSecurely: boolean;
   /** Not shown by the form for these answers (P90). */
   readonly hidden: boolean;
+  /** Set beside an attached file by the attach itself (ADR-0103, gap 4). */
+  readonly companion: boolean;
 }
 
 function checkRule(
@@ -140,7 +149,9 @@ function checkRule(
       // the Secure Plane is not empty — it is filled by something other than
       // typing here. Reporting those as violations would bury the real ones,
       // and in the credential case would be a violation nobody could ever fix.
-      if (context.uploaded || context.handedOff || context.filledSecurely || context.hidden) return null;
+      if (context.uploaded || context.handedOff || context.filledSecurely || context.hidden || context.companion) {
+        return null;
+      }
       if (value !== undefined && value.trim().length > 0) return null;
       return violation(`"${field.label}" is required and the plan has nothing for it.`);
     }

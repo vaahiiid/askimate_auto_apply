@@ -94,6 +94,13 @@ export interface StoredUpload {
   readonly label: string;
   readonly documentRef: string;
   readonly locators: readonly FieldLocator[];
+  /** The attach's second act (ADR-0103, gap 4). */
+  readonly companion?: {
+    readonly fieldRef: string;
+    readonly label: string;
+    readonly locators: readonly FieldLocator[];
+    readonly text: string;
+  };
 }
 
 export interface StoredFillPlan {
@@ -154,6 +161,7 @@ export function toStoredPlan(
             strategy: locator.strategy,
             value: locator.value,
           })),
+          ...(upload.companion === undefined ? {} : { companion: copyCompanion(upload.companion) }),
         }),
       ),
       credentials: plan.credentials.map((credential) => ({ ...credential })),
@@ -239,6 +247,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
       fieldRef: upload.fieldRef,
       label: upload.label,
       documentRef: upload.documentRef,
+      ...(upload.companion === undefined ? {} : { companion: copyCompanion(upload.companion) }),
       locators: upload.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,
@@ -286,5 +295,15 @@ function rebuiltValue(stored: StoredFillValue): FillValue {
       mappingSetId: stored.mappingSetId,
       reviewedBy: stored.reviewedBy,
     } as unknown as Extract<FillValue, { kind: "reviewed_constant" }>["constant"],
+  };
+}
+
+/** A companion, copied field for field so nothing else rides along. */
+function copyCompanion(companion: NonNullable<StoredUpload["companion"]>): NonNullable<StoredUpload["companion"]> {
+  return {
+    fieldRef: companion.fieldRef,
+    label: companion.label,
+    locators: companion.locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
+    text: companion.text,
   };
 }

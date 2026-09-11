@@ -822,3 +822,32 @@ describe("a field the form hides for these answers (P90)", () => {
     expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping"]);
   });
 });
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// P93 — the preview says what is marked beside an attachment.
+// ───────────────────────────────────────────────────────────────────────────
+
+import { GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET } from "@askimate/aas-mapping/fixtures/gated";
+
+describe("an attachment's companion in the preview (P93)", () => {
+  const gatedPreview = (): SubmissionPreview => {
+    const check = checkUsable(GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, check.mappingSet, COMPLETE);
+    const result = buildPreview(GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, plan, DOCUMENTS, { portalHost: "gated.portal.test" });
+    if (!result.built) expect.unreachable(result.refusal.kind);
+    return result.preview;
+  };
+
+  it("names the companion beside the attachment, in the option's own words", () => {
+    const preview = gatedPreview();
+    expect(preview.attachments[0]?.companion).toEqual({
+      fieldRef: "passport_status",
+      label: "Passport status",
+      text: "now",
+      displayText: "I am uploading it now",
+    });
+    expect(renderPreview(preview)).toContain("    marked: Passport status — I am uploading it now");
+  });
+});

@@ -343,6 +343,10 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
   const source = record(value, path);
   const maxSizeBytes = optionalCount(source, "maxSizeBytes", path);
   const requiredWhen = optionalWith(source, "requiredWhen", path, readCondition);
+  const companion = optionalWith(source, "companion", path, (value, at) => {
+    const held = record(value, at);
+    return { fieldRef: text(held, "fieldRef", at), whenAttached: text(held, "whenAttached", at) };
+  });
   return {
     fieldRef: text(source, "fieldRef", path),
     label: text(source, "label", path),
@@ -350,6 +354,7 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
     ...(maxSizeBytes === undefined ? {} : { maxSizeBytes }),
     required: flag(source, "required", path),
     ...(requiredWhen === undefined ? {} : { requiredWhen }),
+    ...(companion === undefined ? {} : { companion }),
   };
 }
 
@@ -446,11 +451,39 @@ function readBlueprint(value: unknown, path: string): ApplicationBlueprint {
     route: oneOf(source, "route", path, ROUTES),
     ...(platform === undefined ? {} : { platform }),
     authentication: readAuthentication(source["authentication"], `${path}.authentication`),
-    pages: list(source, "pages", path, readPage),
+    pages: uniqueFieldRefs(list(source, "pages", path, readPage), `${path}.pages`),
     handoffPoints: list(source, "handoffPoints", path, readHandoff),
     ...(submission === undefined ? {} : { submission }),
     provenance: readProvenance(source["provenance"], `${path}.provenance`),
   };
+}
+
+/**
+ * A fieldRef names one field in the whole blueprint, not one per page.
+ *
+ * Found on the first real form rather than designed (P93): the Sheffield
+ * language page and its education page both called a file input `certificate`
+ * and its status radio `certificateStatus`, and the draft parsed. Every
+ * consumer keys by fieldRef alone — a mapping set's `fieldRef`, the plan's
+ * instructions, the preview's lines, the companion check — so a repeated one
+ * is an ambiguity each would resolve silently, and not all the same way. The
+ * refusal lands on the SECOND occurrence, at its own path, and names the first.
+ */
+function uniqueFieldRefs(pages: readonly BlueprintPage[], path: string): readonly BlueprintPage[] {
+  const seen = new Map<string, string>();
+  pages.forEach((page, p) => {
+    page.sections.forEach((section, s) => {
+      section.fields.forEach((field, f) => {
+        const at = `${path}[${p}].sections[${s}].fields[${f}]`;
+        const first = seen.get(field.fieldRef);
+        if (first !== undefined) {
+          fail(`${at}.fieldRef`, `"${field.fieldRef}" is already the fieldRef of ${first}; a fieldRef names one field in the blueprint`);
+        }
+        seen.set(field.fieldRef, at);
+      });
+    });
+  });
+  return pages;
 }
 
 // ── Mapping set ────────────────────────────────────────────────────────────

@@ -4679,3 +4679,38 @@ holds that the chooser refuses on exactly that one question.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P93 — ADR-0103; gap 4 built: a document slot's companion, planned after the attach, entered and read back
+
+The four things the first real form showed the schema could not say are decided in one ADR under
+one principle: the blueprint records what the page does *between* fields — which field loads
+another's options, which is typed into rather than chosen from, which block repeats, which control
+follows an attach — so the plan can order, wait and follow, and the runner never guesses. Gap 4 is
+built here because it is the one a fill would meet first and fail silently: sixteen of Sheffield's
+seventeen slots tick their own *upload now* radio from the file input's handler, the seventeenth
+does not, and a save without the radio may not register the file.
+
+`RequiredDocument.companion` names the control and the value. The plan carries it with the upload
+and only when a document is mapped to the slot — an unmapped slot's companion is left as the form
+has it and is never a blocker. The runner sets it after the attach, because a portal's own script
+may set it from the change event and a runner that went first would be undone, and reads it back;
+a companion the portal did not take fails the page with what the portal shows. The preview names
+it beside the attachment in the option's own words and the content hash covers it; the validator
+does not count it as missing. `checkUsable` refuses a companion that is not on the blueprint, does
+not offer the value, or is mapped as well — it follows the attach, and nothing else may set it.
+The fixture portal's documents page now demands the status and does not tick it itself, so the
+journey proves the second act rather than assuming it. Setting a radio group by value, and reading
+the checked member back, is new to the fill session too; before this a group found by name could
+only be ticked.
+
+Found rather than designed, while setting the seven Sheffield companions: the language page and
+the education page both call their file input `certificate` and its radio `certificateStatus`,
+and the draft parsed. Every consumer keys by fieldRef alone; the companion check was the first to
+meet the wrong field and refuse. The rule is now stated where the artefact enters — `parseBlueprint`
+refuses a repeated fieldRef at the second occurrence, naming the first — and the language page's
+two are renamed in the curated draft, locators unchanged. Ten slots carry no companion yet; the
+README says which and why they wait on a re-read.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

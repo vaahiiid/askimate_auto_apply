@@ -371,7 +371,31 @@ export class PlaywrightPreparationSession implements FillableSession {
     }
 
     const type = await target.getAttribute("type");
-    if (type === "checkbox" || type === "radio") {
+    if (type === "radio") {
+      // P93: a radio GROUP is found by name and set by VALUE — the option
+      // whose value is the text, and no other. "true" on a lone radio ticks
+      // it, as before; anything else must name an option the group offers.
+      if (text === "true" || text === "yes" || text === "on") {
+        await target.check();
+        return;
+      }
+      const name = await target.getAttribute("name");
+      const group = target
+        .page()
+        .locator(`input[type="radio"][name="${cssEscape(name ?? "")}"][value="${cssEscape(text)}"]`);
+      if ((await group.count()) === 0) {
+        const available = await target
+          .page()
+          .locator(`input[type="radio"][name="${cssEscape(name ?? "")}"]`)
+          .evaluateAll((elements) =>
+            elements.map((element) => ({ value: (element as HTMLInputElement).value, label: "" })),
+          );
+        throw new OptionNotAvailableError(locator, text, available);
+      }
+      await group.first().check();
+      return;
+    }
+    if (type === "checkbox") {
       // A checkbox carrying a student's answer is set from that answer, never
       // ticked because the form wants it ticked.
       if (text === "true" || text === "yes" || text === "on") await target.check();
@@ -415,6 +439,13 @@ export class PlaywrightPreparationSession implements FillableSession {
   public async readValue(locator: FieldLocator): Promise<string> {
     const target = await this.#resolve([locator]);
     const tagName = (await target.evaluate((element) => element.tagName)).toLowerCase();
+    if (tagName === "input" && (await target.getAttribute("type")) === "radio") {
+      // P93: what a radio group holds is the value of its CHECKED member, or
+      // nothing — not the value attribute of whichever input matched first.
+      const name = await target.getAttribute("name");
+      const checked = target.page().locator(`input[type="radio"][name="${cssEscape(name ?? "")}"]:checked`);
+      return (await checked.count()) === 0 ? "" : checked.first().inputValue();
+    }
     if (tagName === "select" || tagName === "input" || tagName === "textarea") {
       return target.inputValue();
     }
@@ -527,3 +558,8 @@ export class PlaywrightPreparationSession implements FillableSession {
 // the same blueprint locators from a different process and two copies of that
 // logic would eventually disagree about which element a blueprint meant.
 export { toPlaywrightLocator } from "@askimate/aas-browser-fill";
+
+/** Escapes a value for use inside a CSS attribute selector's quotes. */
+function cssEscape(value: string): string {
+  return value.replace(/["\\]/g, (character) => `\\${character}`);
+}

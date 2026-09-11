@@ -216,6 +216,27 @@ describe("parsing rebuilds rather than casts", () => {
     expect(parsed.refusal.detail).toContain("expected one of");
   });
 
+  it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
+    // Found on the Sheffield draft, not designed: the language page and the
+    // education page both call their file input `certificate` and its status
+    // radio `certificateStatus`. A mapping set names fields by fieldRef, so do
+    // the plan, the preview and the companion check; a repeated one is an
+    // ambiguity every one of them would resolve silently, each its own way.
+    const broken = JSON.parse(documentOf()) as Record<string, unknown>;
+    const blueprint = broken["blueprint"] as Record<string, unknown>;
+    const pages = blueprint["pages"] as Record<string, unknown>[];
+    const first = (pages[0]?.["sections"] as Record<string, unknown>[])[0]?.["fields"] as Record<string, unknown>[];
+    const second = (pages[1]?.["sections"] as Record<string, unknown>[])[0]?.["fields"] as Record<string, unknown>[];
+    if (first[0] === undefined || second[0] === undefined) expect.unreachable("fixture has two pages of fields");
+    second[0]["fieldRef"] = first[0]["fieldRef"];
+
+    const parsed = parseReviewedEntry(broken);
+    if (parsed.ok) expect.unreachable("a repeated fieldRef should refuse");
+    expect(parsed.refusal.path).toBe("entry.blueprint.pages[1].sections[0].fields[0].fieldRef");
+    expect(parsed.refusal.detail).toContain(String(first[0]["fieldRef"]));
+    expect(parsed.refusal.detail).toContain("pages[0].sections[0].fields[0]");
+  });
+
   it("refuses a date that is not one, rather than making an Invalid Date", () => {
     const broken = JSON.parse(documentOf()) as Record<string, unknown>;
     (broken["mappingSet"] as Record<string, unknown>)["authoredAt"] = "sometime last March";

@@ -285,6 +285,13 @@ export interface TransportedUpload {
   readonly label: string;
   readonly documentRef: string;
   readonly locators: readonly FillLocator[];
+  /** The attach's second act (ADR-0103, gap 4): the control set beside the slot, and its value. */
+  readonly companion?: {
+    readonly fieldRef: string;
+    readonly label: string;
+    readonly locators: readonly FillLocator[];
+    readonly text: string;
+  };
 }
 
 export interface TransportedPlan {
@@ -651,6 +658,23 @@ function parseTransportedValue(value: unknown): TransportedValue | null {
   };
 }
 
+/** A companion as sent, or `undefined` when absent, or `false` when malformed. */
+function parseCompanion(value: unknown): TransportedUpload["companion"] | undefined | false {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null) return false;
+  const held = value as Record<string, unknown>;
+  if (!nonEmpty(held["fieldRef"]) || typeof held["label"] !== "string" || typeof held["text"] !== "string") return false;
+  const locatorList = held["locators"];
+  if (!Array.isArray(locatorList) || locatorList.length === 0) return false;
+  const locators: FillLocator[] = [];
+  for (const candidate of locatorList as readonly unknown[]) {
+    const locator = parseLocator(candidate);
+    if (locator === null) return false;
+    locators.push(locator);
+  }
+  return { fieldRef: held["fieldRef"], label: held["label"], locators, text: held["text"] };
+}
+
 function parseTransportedPlan(value: unknown): TransportedPlan | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
@@ -707,14 +731,18 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
         if (locator === null) return null;
         locators.push(locator);
       }
-      // Exactly these four fields. A plane that sent a `documentId`, a
-      // `contentHash` or bytes beside them is answering a question the runner
-      // did not ask, and the runner has nowhere to put the answer.
+      // Exactly these fields, plus a companion when the slot has one (gap 4).
+      // A plane that sent a `documentId`, a `contentHash` or bytes beside them
+      // is answering a question the runner did not ask, and the runner has
+      // nowhere to put the answer.
+      const companion = parseCompanion(held["companion"]);
+      if (companion === false) return null;
       uploads.push({
         fieldRef: held["fieldRef"],
         label: held["label"],
         documentRef: held["documentRef"],
         locators,
+        ...(companion === undefined ? {} : { companion }),
       });
     }
   }

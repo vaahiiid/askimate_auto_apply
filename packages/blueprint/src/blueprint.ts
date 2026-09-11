@@ -220,6 +220,19 @@ export interface RequiredDocument {
   readonly maxSizeBytes?: number;
   readonly required: boolean;
   readonly requiredWhen?: FieldCondition;
+  /**
+   * The control the portal expects set beside this slot when a file is placed
+   * in it, and the value it must hold (ADR-0103, gap 4).
+   *
+   * Sheffield, 2026-09-11: every one of seventeen slots has a status radio —
+   * *upload now / later / not providing* — and on sixteen the file input's own
+   * script ticks *now*; on the seventeenth nothing does. Attaching is two acts.
+   * The plan carries the second act with the upload, the runner performs it
+   * after the attach and reads it back, and the preview says what was marked.
+   * The companion field is never mapped and never a blocker: it follows the
+   * document, and with no document mapped it is left as the form has it.
+   */
+  readonly companion?: { readonly fieldRef: string; readonly whenAttached: string };
 }
 
 /** One page in the flow. */

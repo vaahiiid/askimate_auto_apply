@@ -249,6 +249,8 @@ describe("the application form remembers, and the review page shows it", () => {
     const bytes = Buffer.from("%PDF-1.7\n a synthetic passport, not a real one\n");
     const body = new FormData();
     body.set("passport", new Blob([bytes], { type: "application/pdf" }), "passport.pdf");
+    // The companion the slot demands (P93): the portal refuses the file without it.
+    body.set("passportStatus", "now");
     const posted = await fetch(`${portal.baseUrl}/documents`, {
       method: "POST",
       headers: { cookie },

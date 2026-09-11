@@ -92,6 +92,13 @@ export interface PreviewAttachment {
   readonly label: string;
   readonly documentRef: string;
   readonly document: PreviewDocument;
+  /** What is marked beside the slot when the file goes in (ADR-0103, gap 4). */
+  readonly companion?: {
+    readonly fieldRef: string;
+    readonly label: string;
+    readonly text: string;
+    readonly displayText?: string;
+  };
 }
 
 export interface PreviewHandoff {
@@ -374,11 +381,26 @@ export function buildPreview(
         },
       };
     }
+    const companion = upload.companion;
+    const companionLabel =
+      companion === undefined ? undefined : optionLabels.get(companion.fieldRef)?.get(companion.text);
     attachments.push({
       fieldRef: upload.fieldRef,
       label: upload.label,
       documentRef: upload.documentRef,
       document,
+      ...(companion === undefined
+        ? {}
+        : {
+            companion: {
+              fieldRef: companion.fieldRef,
+              label: companion.label,
+              text: companion.text,
+              ...(companionLabel !== undefined && companionLabel !== companion.text
+                ? { displayText: companionLabel }
+                : {}),
+            },
+          }),
     });
   }
 
@@ -471,7 +493,9 @@ function hashContent(content: {
   for (const attachment of [...content.attachments].sort(byFieldRef)) {
     lines.push(
       `document${attachment.fieldRef}${attachment.documentRef}` +
-        `${attachment.document.contentHash}`,
+        `${attachment.document.contentHash}` +
+        // ADR-0103 gap 4: what is marked beside the slot is inside the yes.
+        `${attachment.companion === undefined ? "" : `${attachment.companion.fieldRef}={attachment.companion.text}`}`,
     );
   }
   for (const handoff of [...content.handoffs].sort(byFieldRef)) {
@@ -589,6 +613,12 @@ export function renderPreview(preview: SubmissionPreview): string {
         `    going to: ${preview.institutionName} (${preview.portalHost})`,
         `    for: this application — ${preview.courseName}, ${preview.intake}`,
       );
+      if (attachment.companion !== undefined) {
+        // ADR-0103 gap 4: the second act, in the option's own words.
+        lines.push(
+          `    marked: ${attachment.companion.label} — ${attachment.companion.displayText ?? attachment.companion.text}`,
+        );
+      }
     }
   }
 

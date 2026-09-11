@@ -6007,6 +6007,16 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
       label: upload.label,
       documentRef: upload.documentRef,
       locators: upload.locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
+      ...(upload.companion === undefined
+        ? {}
+        : {
+            companion: {
+              fieldRef: upload.companion.fieldRef,
+              label: upload.companion.label,
+              locators: upload.companion.locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
+              text: upload.companion.text,
+            },
+          }),
     })),
   };
 }

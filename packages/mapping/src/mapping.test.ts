@@ -564,3 +564,65 @@ describe("ADR-0102 — use the refusal the form offers", () => {
   });
 });
 
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// P93 — gap 4: a document slot's companion field follows the attach.
+// ───────────────────────────────────────────────────────────────────────────
+
+import { GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET } from "./fixtures/gated-portal.js";
+
+describe("a document slot's companion (P93, gap 4)", () => {
+  const BLUEPRINT = GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT;
+  const SET = GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET;
+
+  it("plans the companion after the attach, from the blueprint, with the value the slot names", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const upload = plan.uploads.find((u) => u.fieldRef === "passport_upload");
+    expect(upload?.companion).toEqual({
+      fieldRef: "passport_status",
+      label: "Passport status",
+      locators: [{ strategy: "name", value: "passportStatus" }],
+      text: "now",
+    });
+    // Neither an instruction nor a blocker: it is the attach's second act.
+    expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("passport_status");
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("passport_status");
+  });
+
+  it("REFUSES a companion that is mapped as well, not offered, or not on the blueprint", () => {
+    const mapped: MappingSet = {
+      ...SET,
+      mappings: [...SET.mappings, { fieldRef: "passport_status", source: { kind: "constant", value: "now", classification: "application_metadata", rationale: "x" } }],
+    };
+    const c1 = checkUsable(mapped, BLUEPRINT);
+    expect(c1.usable).toBe(false);
+    if (!c1.usable) expect(c1.refusal.kind).toBe("document_companion_invalid");
+
+    const withCompanion = (companion: { fieldRef: string; whenAttached: string }): ApplicationBlueprint => ({
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) =>
+        page.pageRef === "page-documents"
+          ? { ...page, requiredDocuments: page.requiredDocuments.map((d) => ({ ...d, companion })) }
+          : page,
+      ),
+    });
+    const c2 = checkUsable(SET, withCompanion({ fieldRef: "passport_status", whenAttached: "soon" }));
+    expect(c2.usable).toBe(false);
+    if (!c2.usable) expect(c2.refusal.kind).toBe("document_companion_invalid");
+    const c3 = checkUsable(SET, withCompanion({ fieldRef: "no_such_field", whenAttached: "now" }));
+    expect(c3.usable).toBe(false);
+    if (!c3.usable) expect(c3.refusal.kind).toBe("document_companion_invalid");
+  });
+
+  it("carries the companion through transport", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    expect(rehydratePlan(stored.plan).uploads[0]?.companion?.text).toBe("now");
+  });
+});

@@ -323,7 +323,7 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.3 and the mapping set 0.3.0. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.4 and the mapping set 0.3.1. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
@@ -349,9 +349,25 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    boundary.
 4. ~~`pnpm run inspect-dependencies` output from Vahid's machine~~ — received 2026-09-11, in
    `inspect-dependencies.txt`, read above.
-5. Four schema gaps raised and decided: options that arrive after another field is set; a
-   typeahead as a fill mechanism; a repeatable entry (education, employment) as a page shape; a
-   companion field whose value follows another act (the upload radios).
+5. Four schema gaps raised and decided (ADR-0103): options that arrive after another field is
+   set; a typeahead as a fill mechanism; a repeatable entry (education, employment) as a page
+   shape; ~~a companion field whose value follows another act (the upload radios)~~ — built in
+   P93. The curated draft (0.2.4) carries `companion` on the seven slots whose *upload now* radio
+   value the capture holds: the six education slots (`…UploadRadio`) and the language slot
+   (`certificateStatusUpload`, the one labelled *I will upload my certificate now*). On the
+   education page the radio labels were not captured — the option is read from its value, which
+   the handler text names — so the reviewer confirms each from the screenshot.
+   - **6b.** Ten slots carry no companion yet: the five on nationality, whose status radios were
+     not in the captured form (their values are known from handler text only, and the draft's
+     `…ScanStatus` options repeat one value three times), and the five on other documents, whose
+     radios the capture did not record at all. They wait for a re-read of those two pages; until
+     then a document mapped to one of them is attached with no second act, and the reviewer must
+     not sign that page as complete.
+   - Found while setting the seven: the language page and the education page both name their
+     file input `certificate` and its radio `certificateStatus`. A fieldRef names one field in
+     the whole blueprint, so `parseBlueprint` now refuses a repeat (P93) and the curated draft
+     renames the language page's two to `languageCertificate` and `languageCertificateStatus`,
+     locators unchanged. The tool's draft keeps the page's names.
 6. ~~Blocker 20 — the Article 9 fields~~ — decided and built (ADR-0102); the page is mapped.
 7. **The employment page's four required fields have no profile field** — start date, position,
    employer name and address, duties. The registry (`packages/profile`) collects no employment

@@ -70,6 +70,8 @@ export interface PortalApplication {
   readonly personalStatement: string;
   /** The passport, once page three is saved (P74). */
   readonly passport: PortalUpload | null;
+  /** The status the applicant set beside the passport (P93): "now" or "later". */
+  readonly passportStatus: string | null;
 }
 
 export interface FixturePortal {
@@ -263,6 +265,15 @@ const DOCUMENTS_PAGE = (error: string | null): string =>
 <form method="post" action="/documents" id="documentsForm" enctype="multipart/form-data">
   <label for="passport">Upload your passport</label>
   <input type="file" id="passport" name="passport" required accept=".pdf,.jpg,.png">
+  <!-- P93 (gap 4): the companion the real form has — a status the applicant
+       must set beside the file. Sheffield ticks it from the file input's own
+       script on sixteen slots and not on the seventeenth; this page is the
+       seventeenth, so the runner's second act is what the save depends on. -->
+  <fieldset>
+    <legend>Passport status</legend>
+    <input type="radio" id="passportNow" name="passportStatus" value="now"><label for="passportNow">I am uploading it now</label>
+    <input type="radio" id="passportLater" name="passportStatus" value="later"><label for="passportLater">I will upload it later</label>
+  </fieldset>
 
   <button type="submit" id="documentsContinueBtn">Save and continue</button>
 </form>`,
@@ -547,6 +558,7 @@ export async function startFixturePortal(
           nationality: body.get("nationality") ?? "",
           personalStatement: applications.get(signedInAs)?.personalStatement ?? "",
           passport: applications.get(signedInAs)?.passport ?? null,
+          passportStatus: applications.get(signedInAs)?.passportStatus ?? null,
         });
         send(response, 302, "", { location: "/study" });
         return;
@@ -599,13 +611,21 @@ export async function startFixturePortal(
           send(response, 302, "", { location: "/apply" });
           return;
         }
-        const passport = (await readMultipart(request)).get("passport");
+        const parts = await readMultipart(request);
+        const passport = parts.get("passport");
         if (passport === undefined || passport.bytes.length === 0) {
           send(response, 400, DOCUMENTS_PAGE("Choose the file to upload."));
           return;
         }
+        // P93: a file with no status is refused, as the real form refuses it.
+        const status = parts.get("passportStatus")?.bytes.toString("utf8") ?? "";
+        if (status !== "now") {
+          send(response, 400, DOCUMENTS_PAGE("Say whether you are uploading the passport now."));
+          return;
+        }
         applications.set(signedInAs, {
           ...held,
+          passportStatus: status,
           passport: {
             filename: passport.filename ?? "",
             contentType: passport.contentType,

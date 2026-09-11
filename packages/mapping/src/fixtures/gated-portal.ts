@@ -366,10 +366,32 @@ export const GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT: ApplicationBlueprint = {
                 { kind: "accept", value: ".pdf,.jpg,.png", source: "dom_attribute" },
               ],
             },
+            // P93 (gap 4): the status beside the slot. Not mapped — it follows
+            // the attach, as the slot's companion below says.
+            {
+              fieldRef: "passport_status",
+              label: "Passport status",
+              inputType: "radio",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "name", value: "passportStatus" }],
+              validations: [{ kind: "required", source: "dom_attribute" }],
+              options: [
+                { value: "now", label: "I am uploading it now" },
+                { value: "later", label: "I will upload it later" },
+              ],
+            },
           ],
         },
       ],
-      requiredDocuments: [],
+      requiredDocuments: [
+        {
+          fieldRef: "passport_upload",
+          label: "Upload your passport",
+          acceptedFormats: [".pdf", ".jpg", ".png"],
+          required: true,
+          companion: { fieldRef: "passport_status", whenAttached: "now" },
+        },
+      ],
       advanceControl: { strategy: "role", value: "button:Save and continue" },
     },
   ],

@@ -263,6 +263,16 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
         strategy: locator.strategy,
         value: locator.value,
       })),
+      ...(upload.companion === undefined
+        ? {}
+        : {
+            companion: {
+              fieldRef: upload.companion.fieldRef,
+              label: upload.companion.label,
+              locators: upload.companion.locators.map((locator) => ({ strategy: locator.strategy, value: locator.value })),
+              text: upload.companion.text,
+            },
+          }),
     })),
     credentials: [],
   };

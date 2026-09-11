@@ -268,8 +268,12 @@ No fields (navigation page).
 | `readingScore` | text | readingScore | `ordinary` | mechanical |
 | `writingScore` | text | writingScore | `ordinary` | mechanical |
 | `speakingScore` | text | speakingScore | `ordinary` | mechanical |
-| `certificateStatus` | radio | certificateStatus | `ordinary` | mechanical |
-| `certificate` | file | certificate | `ordinary` | mechanical |
+| `languageCertificateStatus` | radio | certificateStatus | `ordinary` | mechanical |
+| `languageCertificate` | file | certificate | `ordinary` | mechanical |
+
+(The two are `certificateStatus` and `certificate` on the page and in the tool's draft; the curated
+draft renames them because the education page uses the same two names, and a fieldRef names one
+field in the whole blueprint — the parser refuses a repeat since P93. The locators are unchanged.)
 
 ### page7 — Education — one qualification; the applicant adds one entry per qualification
 
