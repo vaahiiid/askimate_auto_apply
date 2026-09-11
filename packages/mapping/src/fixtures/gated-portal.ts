@@ -329,6 +329,22 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
           title: "Your course",
           fields: [
             {
+              // P102: the level the course search takes. On the first real
+              // form the institution lookup carries the chosen country in its
+              // request; here the course search carries the level, and offers
+              // nothing until one is chosen.
+              fieldRef: "study_level",
+              label: "Level of study",
+              inputType: "select",
+              dataCategory: "ordinary",
+              locators: [{ strategy: "id", value: "studyLevel" }],
+              validations: [{ kind: "required", source: "dom_attribute" }],
+              options: [
+                { value: "pg", label: "Postgraduate" },
+                { value: "ug", label: "Undergraduate" },
+              ],
+            },
+            {
               // P95 (ADR-0103, gap 2): a box the applicant types into, which
               // offers entries as they type; one is chosen. The entries are
               // found by `typeahead.optionLocator`; the runner types the mapped
@@ -342,6 +358,9 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               locators: [{ strategy: "id", value: "course" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
               typeahead: { optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } },
+              // P102: the entries arrive for what is typed AND the level chosen,
+              // so the level comes first. The wait is the typeahead's own.
+              optionsAfter: { fieldRef: "study_level" },
             },
             {
               // ADR-0105: a search-then-select. The list is empty until the
@@ -536,6 +555,15 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
         value: "2026-09",
         classification: "application_metadata",
         rationale: "The September 2026 intake this entry is for; the portal lists it once the course's dates are shown.",
+      },
+    },
+    {
+      fieldRef: "study_level",
+      source: {
+        kind: "constant",
+        value: "pg",
+        classification: "application_metadata",
+        rationale: "The level of the course this entry is for; the course search takes it (P102).",
       },
     },
     {

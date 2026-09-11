@@ -376,6 +376,25 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue(CODE)).toBe("MYANMAR");
   }, 30_000);
 
+  it("refuses a list wait on a typeahead's box — it offers entries for what is typed, not a list to wait on (P102)", async () => {
+    // Why the execution does not wait on a typeahead before typing: the box
+    // is a text input, and a list wait on it finds no list.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await expect(session.awaitOption(BIRTH_COUNTRY, "Iran")).rejects.toThrow(OptionNotAvailableError);
+  }, 30_000);
+
+  it("today, an entry that is the form's ESCAPE is chosen like any other when the text names it — OPEN (P102)", async () => {
+    // Sheffield's institution list ends with "Not in list": an escape the form
+    // offers, not an institution. Nothing in the runner tells it from one —
+    // exact text is the only rule — so a text that names it chooses it. Held
+    // here as observed, until the escape is named on the blueprint.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Not in list"));
+    expect(await session.readValue(CODE)).toBe("NOT-IN-LIST");
+  }, 30_000);
+
   it("is not put off by the state classes an entry carries", async () => {
     // "Iran" is rendered `class="option selected"` and the second "Ireland"
     // `class="option active"`: the locator names role and selectable mark,

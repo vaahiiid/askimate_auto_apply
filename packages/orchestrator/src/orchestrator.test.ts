@@ -777,6 +777,62 @@ describe("executing a plan", () => {
     expect(session.acts.filter((a) => a.startsWith("choose "))).toHaveLength(2);
   });
 
+  /** The constant's instruction made a typeahead whose entries follow the field before it (P102). */
+  function followingTypeaheadPlan(press?: FieldLocator): { plan: FillPlan; earlierRef: string; ref: string } {
+    const base = plan();
+    const index = base.instructions.findIndex((i) => i.value.kind === "reviewed_constant");
+    const earlier = base.instructions[index - 1];
+    const constant = base.instructions[index];
+    if (earlier === undefined || constant === undefined) expect.unreachable("a constant with a field before it");
+    return {
+      plan: {
+        ...base,
+        instructions: base.instructions.map((i) =>
+          i === constant
+            ? {
+                ...i,
+                inputType: "typeahead",
+                typeahead: { optionLocator: ENTRIES },
+                optionsAfter: { fieldRef: earlier.fieldRef, ...(press === undefined ? {} : { press }) },
+              }
+            : i,
+        ),
+      },
+      earlierRef: earlier.locators[0]?.value ?? "",
+      ref: constant.locators[0]?.value ?? "",
+    };
+  }
+
+  it("types into a typeahead whose entries follow another field AFTER that field, and never waits on the box as a list (P102)", async () => {
+    // The first real form's institution search carries the chosen country:
+    // the entries arrive for what is typed, once the country is set. The
+    // typeahead's own bounded wait is the wait; a list wait on a text box
+    // finds no list (preparation.test.ts holds that it refuses).
+    const session = new RecordingSession();
+    const { plan: following, earlierRef, ref } = followingTypeaheadPlan();
+    const report = await executePlan(session, following, documentSource, CONTEXT);
+    expect(report.completed).toBe(true);
+    expect(session.acts.indexOf(`fill ${earlierRef}`)).toBeLessThan(session.acts.indexOf(`choose ${ref}`));
+    expect(session.awaited).toHaveLength(0);
+    expect(session.chosen.map((c) => c.text)).toEqual(["PG-EX-2026"]);
+  });
+
+  it("still presses the control a following typeahead names, and still fails as drift when the press leaves the page (P102)", async () => {
+    const press: FieldLocator = { strategy: "id", value: "showEntriesBtn" };
+    const pressed = new RecordingSession();
+    const { plan: following, earlierRef, ref } = followingTypeaheadPlan(press);
+    expect((await executePlan(pressed, following, documentSource, CONTEXT)).completed).toBe(true);
+    expect(pressed.acts.indexOf(`fill ${earlierRef}`)).toBeLessThan(pressed.acts.indexOf("click showEntriesBtn"));
+    expect(pressed.acts.indexOf("click showEntriesBtn")).toBeLessThan(pressed.acts.indexOf(`choose ${ref}`));
+
+    const left = new RecordingSession();
+    left.leavesPageOnClick("showEntriesBtn", "https://apply.example.test/review");
+    const report = await executePlan(left, following, documentSource, CONTEXT);
+    expect(report.completed).toBe(false);
+    expect(failures(report)[0]?.drift).toBe(true);
+    expect(left.chosen).toHaveLength(0);
+  });
+
   it("reports a missing document rather than filling around it", async () => {
     const session = new RecordingSession();
     const report = await executePlan(session, plan(), () => Promise.resolve(null), CONTEXT);

@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.110.0] — 2026-09-11
+
+**P102 — the institution box observed: a typeahead's entries may follow another field (found,
+fixed, fails first); the duplicate entries as an observed case; "Not in list" checked.**
+
+### Added
+
+- `optionsAfter` on a typeahead: the usable-set check admits it (the entries follow the earlier
+  field; the order rules and the press apply), and the execution types after that field without
+  waiting on the box as a list — its bounded wait for the one entry is its own. Both refused
+  before: the check as *"offers no options to wait for"*, the runner as a list wait on a text
+  box. Vahid's observation that Sheffield's institution search carries the chosen country in its
+  request is the shape; the fixture portal's course search now takes a level the same way, and
+  the journey walks it.
+- The Sheffield draft (0.2.11; set 0.3.8): `institution-ts-control` follows
+  `institutionCountry-ts-control`.
+- Two runner proofs: a list wait on a typeahead's box refuses; an entry that is the form's
+  escape (*Not in list*) is chosen today like any other when the text names it — OPEN, its guard
+  deferred until the value-versus-text question is decided.
+
+### Recorded
+
+- The capture README: how the list loads (per keystroke, with the country; one request from the
+  runner's single fill; the page's own GET admitted by the request guard; robots for the path
+  not in the repository), the two identical entries as P95's refusal observed on the first real
+  form, and his requirement on the escape.
+
+---
+
 ## [0.109.1] — 2026-09-11
 
 **P101 — the Tom Select entry locator confirmed from the markup Vahid copied; the runner's match is

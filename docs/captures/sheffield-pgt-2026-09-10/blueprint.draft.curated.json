@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -21695,6 +21695,9 @@
                   "strategy": "css",
                   "value": "#institution-ts-dropdown [role=\"option\"][data-selectable]"
                 }
+              },
+              "optionsAfter": {
+                "fieldRef": "institutionCountry-ts-control"
               }
             },
             {

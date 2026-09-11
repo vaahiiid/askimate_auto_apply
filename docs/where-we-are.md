@@ -4906,6 +4906,39 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P102 — the institution box, observed: a typeahead whose entries follow another field
+
+He watched the institution box load and sent what it does: a GET per keystroke, carrying the
+typed text and the chosen country; eleven entries for *Sheff*, one of them twice; *Not in list*
+at the end. The first of these is a dependency the built shape could not say. `optionsAfter`
+was written for lists — a select whose options arrive after another field — and the usable-set
+check refused it on a typeahead as a field that offers no options to wait for; had it been
+admitted, the execution would have waited on the text box as though it were a list, which the
+runner refuses. The fix is small and was found the honest way: the observed shape went into
+the fixture first — the course search now takes a level, and offers nothing without one — the
+mapping and orchestrator tests failed on it, and then the check admits a typeahead's entries as
+following the earlier field, the order rules and the press apply to it as to any other, and its
+wait is its own, bounded, at the fill. The journey walks it end to end. The Sheffield draft now
+says the institution box follows the country box.
+
+The second is a fixture becoming a fact. P95 refuses when more than one entry reads the text,
+and P97 held that in a fixture with *Ireland* twice; *Sheffield International College* twice is
+the same refusal arriving on the first real form, and it is right: nothing visible tells the two
+apart, so choosing either would be a guess. He notes, correctly, that it strengthens the case
+for a mapping naming the submitted value, and he is not deciding until the copied markup shows
+what those two entries carry.
+
+The third is a requirement he typed and a gap proven. *Not in list* is an escape, not an
+institution, and today nothing in the runner tells it from one: a text that reads so chooses
+it, and the fixture holds that as an open finding. The guard that fits is the reviewer naming
+the escape on the blueprint, as the press is named — not a guess at the wording, which is the
+rule P82 removed. It waits, deliberately, on the value-versus-text decision, so that it is
+built once against whichever the mapping names.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P101 — the Tom Select entry locator, confirmed from what he copied; text, not value
 
 He sent the country box's dropdown markup from the live page, with its shape spelled out so the

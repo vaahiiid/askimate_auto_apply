@@ -436,15 +436,62 @@ Three things follow, and the draft (0.2.10, set 0.3.7) carries the first:
   what the preview shows, so it waits on his word; no mapping to either box is signed, so
   nothing waits on it.
 
-**What the institution box could differ in, and what would settle it.** The widget is the same;
-what the country copy cannot show is the institution list's *loading*: `institutionCode` is
-captured with one blank option and `optionsAfter: institutionCountry`, so its entries arrive
-from the server after the country is chosen, and possibly only after some letters are typed.
-That decides whether the bounded wait (five seconds) is enough, whether `data-value` is a code
-rather than a name, and whether two institutions can read the same. One copy settles it: with
-the country set to United Kingdom and *Sheff* typed, DevTools → Elements → the element with id
-`institution-ts-dropdown` → *Copy outerHTML*; and from the Network tab the URL (not the body)
-of any request that fires as the letters are typed.
+~~**What the institution box could differ in, and what would settle it.**~~ Settled by his
+observation below, the same day; the dropdown markup copy is still to come.
+
+**The institution box, observed — Vahid, 2026-09-11 (P102).** His report, and what was done
+with each part of it:
+
+- **How the list loads.** Typing in the box fires a GET, from `education.js` line 105:
+  `…/postgradapplication/ajax/institution/search.app?name=Sheff&studyAbroad=false&country=UNITED+KINGDOM`
+  — 2.5 kB, 92 ms, 200. The list is fetched *per keystroke* against the typed text **and the
+  chosen country**; it is not loaded once when the country is set. His two consequences for the
+  wait, both right: the list cannot arrive before something is typed, and the five-second bound
+  is measured against a 92 ms round trip, so it is generous on this portal. Two things the
+  runner adds. It fills the box in one act, not keystroke by keystroke, so the portal sees one
+  request carrying the whole text. And the request is the page's own, so it passes through the
+  runner's guard over every request the page makes: an on-target GET is admitted, and it is
+  neither a write to record nor a submission endpoint. Whether `robots.txt` says anything about
+  `/postgradapplication/ajax/` is **not in this repository** — the file was never read from here
+  (P78's egress refusal) and no capture holds it; the run reads it before the browser opens and
+  will obey what it says.
+- **The dependency, now expressible.** That the request carries the country confirms what the
+  handlers implied: the country is an input to the institution lookup. The draft (0.2.11, set
+  0.3.8) now says so — `institution-ts-control` has `optionsAfter: institutionCountry-ts-control`
+  (the box that is filled, which sets the `<select>` the request reads). **It could not say so
+  before this phase**: the usable-set check refused `optionsAfter` on a typeahead as *"a
+  typeahead field, which offers no options to wait for"*, and the execution would then have
+  waited on the text box as if it were a list, which the runner refuses. Both found by writing
+  the observed shape into the fixture and watching the tests fail, then fixed: a typeahead's
+  entries follow the earlier field, the order rules and the press apply to it, and the wait is
+  the typeahead's own at the fill. The fixture portal's course search now takes a level the same
+  way, and the journey walks it.
+- **Two entries read identically.** Typing *Sheff* returned eleven entries, and *Sheffield
+  International College* twice — different institutions with the same display text, presumably
+  different codes. **This is P95's refusal arriving in the first real form**: nothing in the
+  visible text can tell the two apart, so choosing either would be a guess, and the runner
+  chooses neither and says what was offered (P97's M7 holds it in a fixture; this is the
+  observed case). It strengthens the proposal above, in his words: *"Under that rule the two
+  would still read the same but carry different values, so a mapping could name which one.
+  Under text-only matching there is no way to express it at all."* He is not deciding it yet:
+  what the copied markup shows for those two entries' `data-value` comes first, and the copy is
+  still to arrive.
+- **"Not in list".** The list ends with an escape the form offers, not an institution. His
+  requirement: *"A mapping must never resolve to it by accident, and a student whose institution
+  genuinely is not listed is a handoff, not a match."* Checked: **today nothing stops it** beyond
+  the exact-text rule. The runner tells an entry from an entry by text alone, so a text that
+  reads *Not in list* — a reviewed constant, or a profile value that happens to read so —
+  chooses it, and the fixture proves it (`preparation.test.ts`, marked OPEN). A guess at the
+  wording (a heuristic on *not in list*, *other*, *none of the above*) is the kind of rule P82
+  removed. What fits is the reviewer naming the escape on the blueprint, as the press is named:
+  the usable-set check refuses a constant equal to it, the runner refuses to choose it whatever
+  the text's source, and the not-listed case is a handoff to `unlistedInstitution` or to the
+  student. **Not built yet, deliberately**: its shape follows the value-versus-text decision —
+  if the mapping names the submitted value, the escape is named by its value too — so it waits
+  for that decision rather than being built twice.
+
+Still to come from him: the dropdown markup copy, and the education page reopening after a
+save.
 
 ## What step 4 still needs
 

@@ -69,6 +69,8 @@ export interface PortalApplication {
   readonly nationality: string;
   /** The passport's country, from the list the page fills after the nationality (P94). */
   readonly passportCountry: string;
+  /** The level of study the course search takes (P102); "" until page two is saved. */
+  readonly studyLevel: string;
   /** The course chosen from the study page's search (P95); "" until page two is saved. */
   readonly courseCode: string;
   /** The start date chosen from the list a press shows (ADR-0105); "" until page two is saved. */
@@ -293,6 +295,13 @@ const STUDY_PAGE = (error: string | null): string =>
     "Your course",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/study" id="studyForm">
+  <label for="studyLevel">Level of study</label>
+  <select id="studyLevel" name="study_level" required>
+    <option value="">Please select</option>
+    <option value="pg">Postgraduate</option>
+    <option value="ug">Undergraduate</option>
+  </select>
+
   <label for="course">Course</label>
   <input type="text" id="course" name="course_name" autocomplete="off">
   <ul id="courseOptions" role="listbox"></ul>
@@ -331,13 +340,17 @@ const STUDY_PAGE = (error: string | null): string =>
   // P95 (ADR-0103, gap 2): a course search. Entries come from the server for
   // what was typed, after a pause; choosing one names the course by its code.
   // Two entries share a prefix, so only exact text names one course.
+  // P102: the request carries the chosen level, as the first real form's
+  // institution search carries the chosen country; with no level chosen the
+  // server offers nothing.
   (function () {
     var box = document.getElementById("course");
     var list = document.getElementById("courseOptions");
     var code = document.getElementById("courseCode");
+    var level = document.getElementById("studyLevel");
     box.addEventListener("input", function () {
       code.value = "";
-      fetch("/courses?q=" + encodeURIComponent(box.value))
+      fetch("/courses?q=" + encodeURIComponent(box.value) + "&level=" + encodeURIComponent(level.value))
         .then(function (response) { return response.json(); })
         .then(function (offered) {
           list.innerHTML = "";
@@ -450,10 +463,12 @@ const START_DATES: Record<string, readonly { readonly value: string; readonly la
 };
 
 /** The courses the study page's search offers. */
-const COURSES: readonly { readonly code: string; readonly name: string }[] = [
-  { code: "PG-EX-2026", name: "MSc Example Studies" },
-  { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)" },
-  { code: "PG-OT-2026", name: "MA Other Studies" },
+const COURSES: readonly { readonly code: string; readonly name: string; readonly level: string }[] = [
+  { code: "PG-EX-2026", name: "MSc Example Studies", level: "pg" },
+  { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)", level: "pg" },
+  { code: "PG-OT-2026", name: "MA Other Studies", level: "pg" },
+  // P102: a course of another level, so the level in the request is seen to matter.
+  { code: "UG-EX-2026", name: "BSc Example Studies", level: "ug" },
 ];
 
 /**
@@ -784,6 +799,7 @@ export async function startFixturePortal(
           dateOfBirth,
           nationality: body.get("nationality") ?? "",
           passportCountry,
+          studyLevel: applications.get(signedInAs)?.studyLevel ?? "",
           courseCode: applications.get(signedInAs)?.courseCode ?? "",
           startDate: applications.get(signedInAs)?.startDate ?? "",
           qualifications: applications.get(signedInAs)?.qualifications ?? [],
@@ -864,7 +880,14 @@ export async function startFixturePortal(
       if (method === "GET" && path === "/courses") {
         // The study page's search, answered after a pause for what was typed.
         const typed = (url.searchParams.get("q") ?? "").trim().toLowerCase();
-        const offered = typed.length === 0 ? [] : COURSES.filter((course) => course.name.toLowerCase().startsWith(typed));
+        // P102: for the level chosen, and nothing for none.
+        const level = url.searchParams.get("level") ?? "";
+        const offered =
+          typed.length === 0 || level.length === 0
+            ? []
+            : COURSES.filter((course) => course.level === level && course.name.toLowerCase().startsWith(typed)).map(
+                ({ code, name }) => ({ code, name }),
+              );
         setTimeout(() => {
           response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(offered));
         }, 300);
@@ -893,9 +916,16 @@ export async function startFixturePortal(
           send(response, 400, STUDY_PAGE("Tell us why you want to study this course."));
           return;
         }
-        // P95: the course must be one the search offers — chosen, not typed.
+        // P102: the level first; the search took it.
+        const studyLevel = studyBody.get("study_level") ?? "";
+        if (studyLevel !== "pg" && studyLevel !== "ug") {
+          send(response, 400, STUDY_PAGE("Choose your level of study."));
+          return;
+        }
+        // P95: the course must be one the search offers — chosen, not typed —
+        // and (P102) of the level chosen.
         const courseCode = studyBody.get("course_code") ?? "";
-        if (!COURSES.some((course) => course.code === courseCode)) {
+        if (!COURSES.some((course) => course.code === courseCode && course.level === studyLevel)) {
           send(response, 400, STUDY_PAGE("Choose your course from the list."));
           return;
         }
@@ -906,7 +936,7 @@ export async function startFixturePortal(
           send(response, 400, STUDY_PAGE("Choose a start date the course offers."));
           return;
         }
-        applications.set(signedInAs, { ...held, personalStatement: statement, courseCode, startDate });
+        applications.set(signedInAs, { ...held, personalStatement: statement, studyLevel, courseCode, startDate });
         send(response, 302, "", { location: "/documents" });
         return;
       }

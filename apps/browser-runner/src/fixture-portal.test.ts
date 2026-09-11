@@ -215,12 +215,17 @@ describe("a course search the applicant types into (P95)", () => {
     const html = await (await fetch(`${portal.baseUrl}/study`, { headers: { cookie: signedIn } })).text();
     expect(html).toContain('<input type="text" id="course" name="course_name" autocomplete="off">');
     expect(html).toContain('<ul id="courseOptions" role="listbox"></ul>');
-    const offered = await (await fetch(`${portal.baseUrl}/courses?q=MSc`, { headers: { cookie: signedIn } })).json();
+    // P102: the search takes the level, as the first real form's institution
+    // search takes the country. Nothing is offered for no level, or another.
+    const offered = await (await fetch(`${portal.baseUrl}/courses?q=MSc&level=pg`, { headers: { cookie: signedIn } })).json();
     expect(offered).toEqual([
       { code: "PG-EX-2026", name: "MSc Example Studies" },
       { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)" },
     ]);
-    expect(await (await fetch(`${portal.baseUrl}/courses?q=`, { headers: { cookie: signedIn } })).json()).toEqual([]);
+    expect(html).toContain('<select id="studyLevel" name="study_level" required>');
+    expect(await (await fetch(`${portal.baseUrl}/courses?q=MSc`, { headers: { cookie: signedIn } })).json()).toEqual([]);
+    expect(await (await fetch(`${portal.baseUrl}/courses?q=MSc&level=ug`, { headers: { cookie: signedIn } })).json()).toEqual([]);
+    expect(await (await fetch(`${portal.baseUrl}/courses?q=&level=pg`, { headers: { cookie: signedIn } })).json()).toEqual([]);
   });
 });
 
@@ -298,17 +303,29 @@ describe("the application form remembers, and the review page shows it", () => {
     expect(early.status).toBe(302);
     expect(early.headers.get("location")).toBe("/study");
 
+    // P102: the level comes first — the course search takes it.
+    const noLevel = await form("/study", { personal_statement: "Because the course is the one I want." }, signedIn);
+    expect(noLevel.status).toBe(400);
+    expect(await noLevel.text()).toContain("Choose your level of study.");
+
     // P95: the course is chosen from a typeahead; a save naming no course the
-    // search offers is refused.
-    const noCourse = await form("/study", { personal_statement: "Because the course is the one I want." }, signedIn);
+    // search offers is refused — and (P102) so is one of another level.
+    const noCourse = await form("/study", { personal_statement: "Because the course is the one I want.", study_level: "pg" }, signedIn);
     expect(noCourse.status).toBe(400);
     expect(await noCourse.text()).toContain("Choose your course from the list.");
+    const wrongLevel = await form(
+      "/study",
+      { personal_statement: "Because the course is the one I want.", study_level: "ug", course_code: "PG-EX-2026", start_date: "2026-09" },
+      signedIn,
+    );
+    expect(wrongLevel.status).toBe(400);
+    expect(await wrongLevel.text()).toContain("Choose your course from the list.");
 
     // ADR-0105: the start date is chosen from a list a press shows; one the
     // course does not offer is refused.
     const wrongDate = await form(
       "/study",
-      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2031-01" },
+      { personal_statement: "Because the course is the one I want.", study_level: "pg", course_code: "PG-EX-2026", start_date: "2031-01" },
       signedIn,
     );
     expect(wrongDate.status).toBe(400);
@@ -321,7 +338,7 @@ describe("the application form remembers, and the review page shows it", () => {
 
     const secondPage = await form(
       "/study",
-      { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2026-09" },
+      { personal_statement: "Because the course is the one I want.", study_level: "pg", course_code: "PG-EX-2026", start_date: "2026-09" },
       signedIn,
     );
     expect(secondPage.status).toBe(302);
@@ -349,7 +366,7 @@ describe("the application form remembers, and the review page shows it", () => {
     // hash, size and name. Posted here the way a browser posts a file.
     const cookie = sessionFrom(await form("/login", { email: EMAIL, password: PASSWORD }));
     await form("/apply", { given_name: "Niloofar", family_name: "Hosseini", date_of_birth: "02/04/1999", nationality: "IR", passport_country: "IR" }, cookie);
-    await form("/study", { personal_statement: "Because the course is the one I want.", course_code: "PG-EX-2026", start_date: "2026-09" }, cookie);
+    await form("/study", { personal_statement: "Because the course is the one I want.", study_level: "pg", course_code: "PG-EX-2026", start_date: "2026-09" }, cookie);
     const page3 = await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } });
     const html = await page3.text();
     expect(html).toContain('<label for="passport">Upload your passport</label>');

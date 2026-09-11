@@ -3414,7 +3414,7 @@ describeIfDatabase("which page a multi-page run does next", () => {
     expect(work.formUrl).toBe("https://gated.portal.test/study");
     expect(
       work.plan?.instructions.map((instruction) => instruction.fieldRef),
-    ).toEqual(["course", "start_date", "personal_statement"]);
+    ).toEqual(["study_level", "course", "start_date", "personal_statement"]);
     const leases = await pool.query<{ page_ref: string | null }>(
       "SELECT page_ref FROM work_leases WHERE run_id = $1",
       [runId],

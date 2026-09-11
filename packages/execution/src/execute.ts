@@ -204,7 +204,13 @@ export async function executePlan(
             return report(outcomes, plan, false, transmissions);
           }
         }
-        await session.awaitOption(locator, textOf(instruction.value));
+        // P102: a typeahead's entries arrive for what is typed, so there is
+        // no list to wait on before typing — the bounded wait for the one
+        // entry is the typeahead's own, below. The order and the press above
+        // are what `optionsAfter` means for it.
+        if (instruction.typeahead === undefined) {
+          await session.awaitOption(locator, textOf(instruction.value));
+        }
       }
       if (instruction.typeahead !== undefined) {
         // A typeahead is typed into and chosen from (ADR-0103, gap 2). The

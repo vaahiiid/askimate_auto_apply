@@ -787,7 +787,15 @@ export function checkUsable(
 
 /** Whether a field is one whose options a runner could wait for. */
 function hasOptions(field: BlueprintField): boolean {
-  return field.inputType === "select" || field.inputType === "multiselect" || field.inputType === "radio";
+  // P102: a typeahead offers entries — for what is typed, and on the first
+  // real form for the earlier field too (the institution search carries the
+  // chosen country). Its wait is its own, bounded, at the fill.
+  return (
+    field.inputType === "select" ||
+    field.inputType === "multiselect" ||
+    field.inputType === "radio" ||
+    field.inputType === "typeahead"
+  );
 }
 
 /** Whether the form itself offers `value` as something to choose on this field. */

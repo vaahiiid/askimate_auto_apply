@@ -753,6 +753,23 @@ describe("a typeahead (P95, gap 2)", () => {
     if (!misplaced.usable) expect(misplaced.refusal.kind).toBe("typeahead_invalid");
   });
 
+  it("ADMITS a typeahead whose entries follow another field, and plans it after that field (P102)", () => {
+    // The first real form's institution search carries the chosen country in
+    // its request: the entries follow the country, and the wait for them is
+    // the typeahead's own. A typeahead offers no list to wait for, but it does
+    // offer entries — after the earlier field is set.
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const refs = plan.instructions.map((i) => i.fieldRef);
+    expect(refs.indexOf("study_level")).toBeLessThan(refs.indexOf("course"));
+    expect(plan.instructions.find((i) => i.fieldRef === "course")?.optionsAfter).toEqual({ fieldRef: "study_level" });
+    // The order rules still hold for it: a field that comes after it is refused.
+    const after = checkUsable(SET, withField("course", (f) => ({ ...f, optionsAfter: { fieldRef: "start_date" } })));
+    expect(after.usable).toBe(false);
+    if (!after.usable) expect(after.refusal.kind).toBe("options_after_invalid");
+  });
+
   it("carries the entries' locator through transport", () => {
     const check = checkUsable(SET, BLUEPRINT);
     if (!check.usable) expect.unreachable(check.refusal.kind);
