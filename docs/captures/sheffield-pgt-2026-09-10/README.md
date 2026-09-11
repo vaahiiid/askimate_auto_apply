@@ -317,13 +317,88 @@ should. It parses under the catalogue's `parseBlueprint`. Every change from the 
 typeahead fill for `institution-ts-control` (gap 2); the repeatable entry for education and
 employment (gap 3); the companion radio relation (gap 4); any mapping; any Article 9 decision.
 
+## Vahid's live read of 2026-09-11 — three pages, confirmed against the capture
+
+His report, in his words, and what the JSON capture (`blueprint.draft.json`, `run.json`,
+`inspect-dependencies.txt`) confirms, cannot see, or contradicts. The three screenshots did not
+reach the repository; nothing below relies on them.
+
+**How the education page reaches a second entry.** *"Enter one qualification, click 'Save And
+Continue', and you are taken back to the Your Details page. To add more, click 'Add another
+qualification' from there and repeat."* The capture confirms the shape from the other side: the
+page the tool read is **`education.do?new=true`** — a *new entry* URL, read as an empty form —
+and `summary.do` is the page it returns to. So the continuation control is on `summary.do`, as
+he says, **and the shape as built does not need it**: a repeating page is reached each time
+through its own URL (ADR-0103 gap 3, "its own *new entry* URL or *add another* control"), and
+`?new=true` is that URL. Not a fifth gap, on one condition the next read settles: **after one
+qualification is saved, opening `education.do?new=true` directly must open an empty form**, not
+the saved entry. If it opens the saved entry, the continuation lives only behind the link on
+`summary.do`, and that is a gap — a control pressed on another page — to raise then. The draft
+is not bent either way: `page7` carries `repeats` with no `addAnother`.
+
+**The document slots.** *"Four slots, not six … all four asterisked … the two translation groups
+have a fourth option the others do not: 'My certificate is in English' / 'My transcript is in
+English'."* The capture holds **six** file inputs on the page — `certificate`, `transcript`,
+`officialCertTranslation`, `officialTranTranslation`, `certificateTranslation`,
+`transcriptTranslation` — each with its own four-option radio group and its own handlers
+(`inspect-dependencies.txt`, form 2, 61 controls). The page shows four rows, so two inputs are in
+the DOM and not shown, and the capture cannot say which two or what shows them; the draft keeps
+all six until the next read says. The capture holds **no labels** for this page's radios (each
+reads as its field name) and **no asterisks** (no `required` attribute was captured), so the
+option wording and the asterisks are recorded here on his report alone. The *in English* option
+is a fact about the rule, not only the draft: under ADR-0104 the slot is the student's act, but
+the radio group beside it is a separate field that a handoff on a repeating page may not name —
+the rule admits a handoff on a document slot and on nothing else. **A student whose transcript
+is in English answers that group and attaches nothing, and the shape as built cannot say so.**
+Proposed, not built: a document slot's companion radio group may be handed to the student
+*together with* the slot, so the whole row is theirs. That is an extension of ADR-0104's rule,
+and it waits on Vahid's word.
+
+**Accepted formats.** Recorded per page, as the page states them and not from any `accept`
+attribute (none was captured): the education page's six slots carry `.jpg .png .gif .pdf .doc
+.docx .odf`; `documents.do`'s five carry those and `.xls .xlsx .ppt .pptx .rtf .txt .tif`. The
+draft is 0.2.8 for it.
+
+**`documents.do`.** *"Five rows, each a Document Description text box and a file input. No
+radio group at all."* Confirmed by the capture exactly: `other1Desc`…`other5Desc` and
+`other1`…`other5`, no radio, and a `saveBtn`. The description box is in the draft and
+classified; what fills it is a mapping question — a reviewed constant naming the document, or
+the student's own words — that waits on the reviewer. **The 50MB total across all documents**
+is stated by the page and **not expressible**: the schema carries `maxSizeBytes` per slot and
+nothing per page; recorded here, and a page-level limit is a small schema addition if a
+reviewer needs it enforced before the fill. **The institution's own words on what must NOT go
+here** — education certificates, transcripts and English qualifications belong in their own
+sections; course-specific documents belong in Part 2's *Course Supporting Documents* — are a
+mapping constraint from the institution and bind the reviewer: nothing mapped to these five
+slots may be a certificate, a transcript, a language result or a course-specific document.
+That last is the first mention of a document slot in Part 2, for its read.
+
+**The typeahead.** *"Institution is a 'Search for an institution...' box. Subject is a different
+shape: a Search box, a Search button, and a Results select."* Confirmed: `institution-ts-control`
+(placeholder *Search for an institution...*) and `institutionCountry-ts-control` are the two Tom
+Select boxes, and both are marked `typeahead` (P95). **Subject is not a typeahead.** The capture
+has `subjectSearch` (text, Enter-key handler), `subjectSearchButton` (`onclick: searchSubjects()`)
+and `subject` (a select that reads *Enter a search* until the search has run) — a
+search-then-select. P94 marked `subject` as `optionsAfter: subjectSearch`, which is half of it:
+the wait for the option is right, and the **press of the Search button between typing and
+waiting is not expressible** — the runner presses only a page's advance control and a repeat's
+*add another*. Proposed, not built: `optionsAfter` carries an optional control to press after
+the earlier field is set (`optionsAfter: { fieldRef, press? }`), on the click allow-list because
+the plane sent it, as *add another* is. Waits on Vahid's word.
+
+**The Tom Select entry locator** (`.ts-dropdown .option[data-selectable]`, P95) is still the
+library's default and not the capture's. What would confirm it: with the institution box open
+and two letters typed so the entries show, DevTools → Elements → the element whose class begins
+`ts-dropdown` → *Copy outerHTML*, pasted into the chat or saved beside this README as
+`ts-dropdown.html`. One element, one box; the country box is the same widget.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
    International Business, September 2027 (`2027-09` in the target file).
 2. ~~The registration and login pages, read in a fresh profile~~ — read on 2026-09-11
    (`../sheffield-pgt-2026-09-11-entry/`); the `login` block and a registration page are in the
-   curated draft 0.2.7 and the mapping set 0.3.4. AUTH 4 and 5 are settled by Vahid's direct
+   curated draft 0.2.8 and the mapping set 0.3.5. AUTH 4 and 5 are settled by Vahid's direct
    statement of 2026-09-11, observed by him and not by a run, for this entry only; the approach
    chooser picks `student_chosen`. The instructions below are kept as they were given. **Exactly this, and not more** — Vahid, 2026-09-11: *"tell me now what you need from it so I do only it and
    not more"*:
@@ -393,6 +468,10 @@ employment (gap 3); the companion radio relation (gap 4); any mapping; any Artic
    (`certificateStatusUpload`, the one labelled *I will upload my certificate now*). On the
    education page the radio labels were not captured — the option is read from its value, which
    the handler text names — so the reviewer confirms each from the screenshot.
+   - **6b, corrected 2026-09-11 from Vahid's live read (below):** `documents.do` has **no**
+     radio groups — beside each of its five file inputs is a *Document Description* text box,
+     which the capture holds (`other1Desc`…`other5Desc`, classified ordinary, unmapped). So the
+     slots waiting on radio values are the five on nationality, not ten. As it stood:
    - **6b.** Ten slots carry no companion yet: the five on nationality, whose status radios were
      not in the captured form (their values are known from handler text only, and the draft's
      `…ScanStatus` options repeat one value three times), and the five on other documents, whose

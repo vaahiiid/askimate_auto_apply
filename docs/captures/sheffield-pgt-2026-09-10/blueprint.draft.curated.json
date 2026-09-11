@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -23545,7 +23545,15 @@
         {
           "fieldRef": "certificate",
           "label": "Degree certificate",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "certificateStatus",
@@ -23555,7 +23563,15 @@
         {
           "fieldRef": "transcript",
           "label": "Transcript",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "transcriptStatus",
@@ -23565,7 +23581,15 @@
         {
           "fieldRef": "officialCertTranslation",
           "label": "Official certificate translation",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "officialCertTranslStatus",
@@ -23575,7 +23599,15 @@
         {
           "fieldRef": "officialTranTranslation",
           "label": "Official transcript translation",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "officialTranTranslStatus",
@@ -23585,7 +23617,15 @@
         {
           "fieldRef": "certificateTranslation",
           "label": "Certificate translation",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "certificateTranslationStatus",
@@ -23595,7 +23635,15 @@
         {
           "fieldRef": "transcriptTranslation",
           "label": "Transcript translation",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf"
+          ],
           "required": false,
           "companion": {
             "fieldRef": "transcriptTranslationStatus",
@@ -25389,31 +25437,106 @@
         {
           "fieldRef": "other1",
           "label": "Other document 1",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".rtf",
+            ".txt",
+            ".tif"
+          ],
           "required": false
         },
         {
           "fieldRef": "other2",
           "label": "Other document 2",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".rtf",
+            ".txt",
+            ".tif"
+          ],
           "required": false
         },
         {
           "fieldRef": "other3",
           "label": "Other document 3",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".rtf",
+            ".txt",
+            ".tif"
+          ],
           "required": false
         },
         {
           "fieldRef": "other4",
           "label": "Other document 4",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".rtf",
+            ".txt",
+            ".tif"
+          ],
           "required": false
         },
         {
           "fieldRef": "other5",
           "label": "Other document 5",
-          "acceptedFormats": [],
+          "acceptedFormats": [
+            ".jpg",
+            ".png",
+            ".gif",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".odf",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".rtf",
+            ".txt",
+            ".tif"
+          ],
           "required": false
         }
       ],

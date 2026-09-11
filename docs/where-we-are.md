@@ -4878,3 +4878,30 @@ next read says.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P99 — his live read of three pages, confirmed against the capture; two findings raised, not built
+
+Vahid read three live pages and reported them in his words, asking that each be confirmed
+against a capture rather than his description. The screenshots did not reach the repository;
+the JSON capture, the run record and the dependencies output did the confirming. The education
+page's continuation is the page's own URL — the tool read `education.do?new=true` as an empty
+form, and that is the *new entry* URL the built shape already walks to for each item, so no
+*add another* control is needed and no gap is raised, on the one condition the next read settles:
+that the URL opens empty after a save. The page holds six file inputs where he saw four rows;
+which two are hidden, and by what, the capture cannot say, and the draft keeps all six. The
+radios' *in English* option is on his report alone, the capture having no labels for that page,
+and it exposed a limit in ADR-0104's rule: the radio beside a slot the student attaches is not
+the slot, and may not be handed to them with it. `documents.do` is exactly as he says — five
+description boxes, no radios — which corrects item 6b from ten slots to five, and its 50MB page
+total has no place in a schema that limits per slot. Subject is not a typeahead: a search box, a
+button, a select whose options arrive after the press. P94 marked the wait; the press is not
+expressible.
+
+Two proposals wait on his word and nothing is built against either: a document slot's companion
+radio handed to the student together with the slot; `optionsAfter` naming a control to press
+between setting the earlier field and waiting. The formats each page states are recorded per
+slot, from the page's text, since no `accept` attribute was ever captured.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.

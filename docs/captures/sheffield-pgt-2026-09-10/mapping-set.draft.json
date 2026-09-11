@@ -25,10 +25,10 @@
     "Education (page7), P98: the page repeats over education.prior_qualifications (ADR-0104). Its six document slots are student handoffs — the student attaches them, and the preview says so under each qualification. No field on it is mapped yet: the registry's Qualification has level, subject, institution, countryCode, completionYear, grade and gradeScale, and which portal box each fills waits on the reviewer."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.7",
+  "blueprintVersion": "0.2.8",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

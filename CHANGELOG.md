@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.108.1] — 2026-09-11
+
+**P99 — Vahid's live read of three Sheffield pages, confirmed against the capture; two shape
+findings raised, not built.** Records only.
+
+### Changed
+
+- The curated draft (0.2.8; set 0.3.5) carries accepted formats per slot as each page states
+  them — the education page's seven, `documents.do`'s fourteen — from the page's text, not an
+  `accept` attribute, which the capture never saw.
+- The capture README: the education page's continuation is its own `?new=true` URL, which the
+  shape as built expresses without an *add another* control, on one condition the next read
+  settles; the page holds six file inputs where four rows show; `documents.do` has description
+  boxes and no radios, so item 6b's ten slots are five; the 50MB page total is not expressible
+  and is recorded; the institution's words on what must not go there bind the reviewer.
+- Two findings proposed and not built, waiting on Vahid: a document slot's companion radio may
+  be handed to the student together with the slot (the *in English* option); `optionsAfter` may
+  name a control to press between typing and waiting (Sheffield's subject search-then-select,
+  which is not a typeahead).
+
+---
+
 ## [0.108.0] — 2026-09-11
 
 **P98 — ADR-0104: blocker 21 decided by Vahid. A repeating page's documents are the student's
