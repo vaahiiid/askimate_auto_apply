@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.101.0] — 2026-09-11
+
+**P90 — the plan honours `visibleWhen`.**
+
+### Added
+
+- `FillPlan.hidden`: fields the form does not show for these answers. A field's `visibleWhen`
+  (and its section's) is evaluated at plan time against the plan's own values, to a fixed point;
+  a hidden field's instruction, blockers and upload are dropped, and the validator no longer
+  counts a hidden required field as missing. Sheffield's two postcode boxes were both planned and
+  one was hidden on the page; a hidden required field with no mapping blocked a plan the form would
+  never have asked for. Fail-first, on a synthetic address page and on the Sheffield draft.
+
+---
+
 ## [0.100.0] — 2026-09-11
 
 **P89 — the personal and contact pages mapped as far as the registry reaches.**

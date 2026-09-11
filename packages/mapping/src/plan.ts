@@ -26,7 +26,13 @@
  * follows. It is a property of what the planner is able to construct.
  */
 
-import type { ApplicationBlueprint, BlueprintField, FieldInputType, FieldLocator } from "@askimate/aas-blueprint";
+import type {
+  ApplicationBlueprint,
+  BlueprintField,
+  FieldCondition,
+  FieldInputType,
+  FieldLocator,
+} from "@askimate/aas-blueprint";
 import { allFields } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, UnavailableReason } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
@@ -157,6 +163,23 @@ export type FillBlocker =
       readonly refusal: RenderRefusal;
     };
 
+/**
+ * A field the form does not show for these answers (P90).
+ *
+ * The blueprint records `visibleWhen` — "UK postcode, when the country is the
+ * United Kingdom" — and until P90 nothing read it: both postcode boxes were
+ * planned, one of them hidden on the page, and a hidden required field with
+ * no mapping blocked a plan the form would never have asked for. Evaluated
+ * here, at plan time, against the plan's own values, so the preview and the
+ * fill see only what the student would.
+ */
+export interface HiddenField {
+  readonly fieldRef: string;
+  readonly label: string;
+  /** The field whose planned value hides this one. */
+  readonly whenFieldRef: string;
+}
+
 export interface FillPlan {
   readonly blueprintId: string;
   readonly blueprintVersion: string;
@@ -167,6 +190,8 @@ export interface FillPlan {
   /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
   readonly credentials: readonly CredentialRequirement[];
   readonly blockers: readonly FillBlocker[];
+  /** Fields the form hides for these answers: neither filled nor missing (P90). */
+  readonly hidden: readonly HiddenField[];
 }
 
 /**
@@ -317,16 +342,82 @@ export function planFill(
     }
   }
 
+  // ── P90: what the form hides for these answers ─────────────────────────
+  //
+  // A condition is evaluated against the plan's own values — the text this
+  // plan will put in the controlling field. A field the form does not show
+  // is neither filled nor missing: its instruction, its blockers and its
+  // upload are dropped and it is listed under `hidden`, so the preview and
+  // the fill see what the student would. A field whose controller is itself
+  // hidden is hidden too, which is why this runs to a fixed point.
+  const hidden = hiddenFields(blueprint, instructions);
+  const shown = (fieldRef: string): boolean => !hidden.has(fieldRef);
+
   return {
     blueprintId: String(blueprint.blueprintId),
     blueprintVersion: blueprint.version,
     mappingSetId: mappingSet.mappingSetId,
-    instructions,
-    uploads,
+    instructions: instructions.filter((instruction) => shown(instruction.fieldRef)),
+    uploads: uploads.filter((upload) => shown(upload.fieldRef)),
     handoffs,
     credentials,
-    blockers,
+    blockers: blockers.filter((blocker) => shown(blocker.fieldRef)),
+    hidden: [...hidden.values()],
   };
+}
+
+/** Every field with the conditions that govern it: its own, and its section's. */
+function conditionsOf(
+  blueprint: ApplicationBlueprint,
+): readonly { readonly field: BlueprintField; readonly conditions: readonly FieldCondition[] }[] {
+  return blueprint.pages.flatMap((page) =>
+    page.sections.flatMap((section) =>
+      section.fields.map((field) => ({
+        field,
+        conditions: [section.visibleWhen, field.visibleWhen].filter(
+          (condition): condition is FieldCondition => condition !== undefined,
+        ),
+      })),
+    ),
+  );
+}
+
+/** Whether a condition holds, given the text the plan puts in its controlling field. */
+function holds(condition: FieldCondition, text: string | undefined): boolean {
+  switch (condition.operator) {
+    case "equals":
+      return text !== undefined && text === condition.value;
+    case "not_equals":
+      return text !== condition.value;
+    case "is_checked":
+      return text === "true";
+    case "is_not_empty":
+      return text !== undefined && text.trim().length > 0;
+    case "in":
+      return text !== undefined && (condition.values ?? []).includes(text);
+  }
+}
+
+function hiddenFields(
+  blueprint: ApplicationBlueprint,
+  instructions: readonly FillInstruction[],
+): Map<string, HiddenField> {
+  const texts = new Map(instructions.map((instruction) => [instruction.fieldRef, textOf(instruction.value)]));
+  const governed = conditionsOf(blueprint).filter((entry) => entry.conditions.length > 0);
+  const hidden = new Map<string, HiddenField>();
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const { field, conditions } of governed) {
+      if (hidden.has(field.fieldRef)) continue;
+      const failing = conditions.find(
+        (condition) => hidden.has(condition.whenFieldRef) || !holds(condition, texts.get(condition.whenFieldRef)),
+      );
+      if (failing === undefined) continue;
+      hidden.set(field.fieldRef, { fieldRef: field.fieldRef, label: field.label, whenFieldRef: failing.whenFieldRef });
+      changed = true;
+    }
+  }
+  return hidden;
 }
 
 function instructionShape(

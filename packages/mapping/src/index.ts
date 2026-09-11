@@ -39,6 +39,7 @@ export type {
   FillPlan,
   FillValue,
   HandoffRequirement,
+  HiddenField,
   UploadInstruction,
 } from "./plan.js";
 export { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";

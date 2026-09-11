@@ -177,7 +177,7 @@
           "path": "postalCode"
         }
       },
-      "note": "The international postcode box, shown when the country is not the United Kingdom. Both boxes carry the same part; the fill honours neither visibility yet (a known gap)."
+      "note": "The international postcode box, shown when the country is not the United Kingdom. Both boxes carry the same part; the plan honours the blueprint's visibleWhen (P90), so only the box the form shows is filled."
     },
     {
       "fieldRef": "ratherNotSay",

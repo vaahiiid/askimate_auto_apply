@@ -6,7 +6,7 @@ import type { RedactedDetail } from "@askimate/aas-domain";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 import { checkUsable, planFill } from "@askimate/aas-mapping";
-import type { FillPlan, UsableMappingSet } from "@askimate/aas-mapping";
+import type { FillPlan, MappingSet, UsableMappingSet } from "@askimate/aas-mapping";
 import { FIXTURE_BLUEPRINT, FIXTURE_MAPPING_SET } from "@askimate/aas-mapping/fixtures";
 
 import {
@@ -718,5 +718,107 @@ describe("the preview, on a page that asks what we cannot hold (ADR-0102)", () =
     const text = renderPreview(previewWithRefusals());
     const ethnic = text.slice(text.indexOf("ethnic origin"));
     expect(ethnic).not.toContain("The form says:");
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// P90 — the plan honours `visibleWhen`: a field the form does not show for
+// these answers is neither filled nor missing.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a field the form hides for these answers (P90)", () => {
+  const BLUEPRINT: ApplicationBlueprint = {
+    ...FIXTURE_BLUEPRINT,
+    version: "1.0.0-vis",
+    pages: [
+      {
+        pageRef: "page-address",
+        title: "Address",
+        sections: [
+          {
+            sectionRef: "sec-address",
+            title: "Address",
+            fields: [
+              {
+                fieldRef: "country",
+                label: "Country",
+                inputType: "select",
+                dataCategory: "ordinary",
+                locators: [{ strategy: "name", value: "country" }],
+                validations: [{ kind: "required", source: "dom_attribute" }],
+                options: [
+                  { value: "GB", label: "United Kingdom" },
+                  { value: "FR", label: "France" },
+                ],
+              },
+              {
+                fieldRef: "uk_postcode",
+                label: "UK postcode",
+                inputType: "text",
+                dataCategory: "ordinary",
+                locators: [{ strategy: "name", value: "uk_postcode" }],
+                validations: [{ kind: "required", source: "dom_attribute" }],
+                visibleWhen: { whenFieldRef: "country", operator: "equals", value: "GB" },
+              },
+              {
+                fieldRef: "intl_postcode",
+                label: "Postcode",
+                inputType: "text",
+                dataCategory: "ordinary",
+                locators: [{ strategy: "name", value: "intl_postcode" }],
+                validations: [{ kind: "required", source: "dom_attribute" }],
+                visibleWhen: { whenFieldRef: "country", operator: "not_equals", value: "GB" },
+              },
+              {
+                // Required, unmapped, and shown only for France: with a UK
+                // address it must not block, because the form never asks it.
+                fieldRef: "departement",
+                label: "Département",
+                inputType: "text",
+                dataCategory: "ordinary",
+                locators: [{ strategy: "name", value: "departement" }],
+                validations: [{ kind: "required", source: "dom_attribute" }],
+                visibleWhen: { whenFieldRef: "country", operator: "equals", value: "FR" },
+              },
+            ],
+          },
+        ],
+        requiredDocuments: [],
+      },
+    ],
+  };
+  const SET: MappingSet = {
+    ...FIXTURE_MAPPING_SET,
+    blueprintVersion: BLUEPRINT.version,
+    mappings: [
+      { fieldRef: "country", source: { kind: "profile_field", fieldKey: "contact.address", format: { kind: "part", path: "countryCode" } } },
+      { fieldRef: "uk_postcode", source: { kind: "profile_field", fieldKey: "contact.address", format: { kind: "part", path: "postalCode" } } },
+      { fieldRef: "intl_postcode", source: { kind: "profile_field", fieldKey: "contact.address", format: { kind: "part", path: "postalCode" } } },
+    ],
+  };
+  const planWith = (countryCode: string) => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const profile = withConfirmed([
+      ["contact.address", { line1: "1 Example Street", city: "Somewhere", postalCode: "S1 1AA", countryCode }],
+    ]);
+    return planFill(BLUEPRINT, check.mappingSet, profile);
+  };
+
+  it("does not plan, and does not miss, a field the form hides for these answers", () => {
+    const plan = planWith("GB");
+    expect(plan.instructions.map((i) => i.fieldRef).sort()).toEqual(["country", "uk_postcode"]);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.hidden.map((h) => h.fieldRef).sort()).toEqual(["departement", "intl_postcode"]);
+    // The validator agrees: a hidden required field is not a missing one.
+    expect(validatePlan(BLUEPRINT, plan).violations).toEqual([]);
+  });
+
+  it("shows the other branch for the other answer, and blocks on what that branch requires", () => {
+    const plan = planWith("FR");
+    expect(plan.instructions.map((i) => i.fieldRef).sort()).toEqual(["country", "intl_postcode"]);
+    expect(plan.hidden.map((h) => h.fieldRef)).toEqual(["uk_postcode"]);
+    // Now the form asks the département, and nobody mapped it.
+    expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping"]);
   });
 });

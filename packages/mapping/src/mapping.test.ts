@@ -563,3 +563,4 @@ describe("ADR-0102 — use the refusal the form offers", () => {
     expect(formRefusalAttribution(refusal.value.refusal).covers).toEqual(["disability_dyslexia", "disability_other"]);
   });
 });
+

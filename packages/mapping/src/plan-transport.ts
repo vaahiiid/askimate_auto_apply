@@ -247,6 +247,8 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
     handoffs: [],
     credentials: stored.credentials.map((credential) => ({ ...credential })),
     blockers: [],
+    // Hidden fields never crossed: the plane dropped them before transport.
+    hidden: [],
   };
 }
 

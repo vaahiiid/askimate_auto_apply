@@ -83,6 +83,8 @@ export function validatePlan(
   // they could type that would satisfy it. Found by wiring the first gated run
   // end to end.
   const filledSecurely = new Set(plan.credentials.map((credential) => credential.fieldRef));
+  // P90: a field the form hides for these answers is not a missing one.
+  const hidden = new Set(plan.hidden.map((field) => field.fieldRef));
 
   for (const fieldRef of filled.keys()) {
     if (!fields.has(fieldRef)) unknownFields.push(fieldRef);
@@ -96,6 +98,7 @@ export function validatePlan(
         uploaded: uploaded.has(field.fieldRef),
         handedOff: handedOff.has(field.fieldRef),
         filledSecurely: filledSecurely.has(field.fieldRef),
+        hidden: hidden.has(field.fieldRef),
       });
       if (violation !== null) violations.push(violation);
     }
@@ -113,6 +116,8 @@ interface FieldContext {
   readonly handedOff: boolean;
   /** Filled by the Secure Plane's agent, from a value nothing here holds. */
   readonly filledSecurely: boolean;
+  /** Not shown by the form for these answers (P90). */
+  readonly hidden: boolean;
 }
 
 function checkRule(
@@ -135,7 +140,7 @@ function checkRule(
       // the Secure Plane is not empty — it is filled by something other than
       // typing here. Reporting those as violations would bury the real ones,
       // and in the credential case would be a violation nobody could ever fix.
-      if (context.uploaded || context.handedOff || context.filledSecurely) return null;
+      if (context.uploaded || context.handedOff || context.filledSecurely || context.hidden) return null;
       if (value !== undefined && value.trim().length > 0) return null;
       return violation(`"${field.label}" is required and the plan has nothing for it.`);
     }

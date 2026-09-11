@@ -118,6 +118,10 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(typed.get("confirmEmail")).toBe("niloofar.hosseini@example.com");
     expect(typed.get("corrCountry")).toBe("UNITED KINGDOM");
     expect(typed.get("corrPostcode")).toBe("S10 2TN");
+    // P90: the international postcode box is hidden for a UK address, so it
+    // is neither filled nor missing — the form does not show it.
+    expect(typed.has("corrIntlPostcode")).toBe(false);
+    expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
     expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping", "no_mapping", "no_mapping", "no_mapping"]);
   });
 

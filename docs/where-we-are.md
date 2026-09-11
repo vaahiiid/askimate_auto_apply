@@ -4613,3 +4613,19 @@ classified; it is raised for Vahid, not made.
 ## Declared-but-unreachable surface
 
 **Four** — unchanged.
+
+# P90 — the plan honours `visibleWhen`
+
+The blueprint has recorded "UK postcode, when the country is the United Kingdom" since the
+schema was written, and nothing read it: the P85 reading noted that the executor honours no
+visibility, and P89's Sheffield mapping put the same postcode into both boxes and left it to a
+note. Now the plan evaluates each field's condition, and its section's, against its own values,
+to a fixed point, and a field the form does not show for these answers is neither filled nor
+missing: its instruction, blockers and upload are dropped, it is listed under `hidden`, and the
+validator does not count it as a missing required field. For a UK address the international box
+is gone; for a French one the UK box is, and the département the form then asks, which nobody
+mapped, blocks as it should. Fail-first on a synthetic address page and on the Sheffield draft.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
