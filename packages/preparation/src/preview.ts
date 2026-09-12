@@ -644,6 +644,8 @@ export function renderPreview(preview: SubmissionPreview): string {
     return [
       `${indent}We are telling ${preview.institutionName} that ${list} ${names.length === 1 ? "is" : "are"} coming later.`,
       `${indent}You attach ${names.length === 1 ? "it" : "them"} yourself. The application is not complete until you do.`,
+      // ADR-0108: said before the yes, and uncomfortably, on Vahid's word.
+      `${indent}Nobody is watching this, and nobody will remind you.`,
     ];
   };
   const ownActs = (item: PreviewItem | undefined): readonly string[] => {

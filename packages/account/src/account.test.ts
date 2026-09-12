@@ -767,15 +767,30 @@ describe("handover", () => {
       portalHost: "apply.qahighereducation.com",
       email: "niloofar@example.com",
       approach: "passwordless",
-      leftToStudent: ["Certificate — Your qualifications, entry 1 of 2", "Certificate — Your qualifications, entry 2 of 2"],
+      leftToStudent: [
+        { text: "Certificate — Your qualifications, entry 1 of 2", toldLater: true },
+        { text: "Certificate — Your qualifications, entry 2 of 2", toldLater: true },
+      ],
     });
     expect(text).toContain("Before you submit, attach these yourself on the portal — I did not attach them:");
     expect(text).toContain("  - Certificate — Your qualifications, entry 1 of 2");
     expect(text).toContain("  - Certificate — Your qualifications, entry 2 of 2");
-    // Nothing to attach: nothing said, so the message does not change shape for every run.
-    expect(
-      renderHandover({ institutionName: "U", portalHost: "h", email: "e", approach: "passwordless", leftToStudent: [] }),
-    ).not.toContain("Before you submit");
+    // ADR-0108, in Vahid's words: *"the student must be able to tell that we
+    // are not watching this and nobody will remind them. If the honest version
+    // of that sentence makes the product look worse, that is the product, not
+    // the sentence."* And an application with something owed is not complete.
+    expect(text).not.toContain("is complete");
+    expect(text).toContain("Your application to Ulster University is filled as far as I can take it, and the account is yours.");
+    expect(text).toContain("Ulster University has been told these are coming later.");
+    expect(text).toContain(
+      "Nobody is watching this, and nobody will remind you. If you do not attach them, Ulster University will treat the application as incomplete, and I will not know.",
+    );
+    expect(text).toContain("When you have attached one, tell me here and I will record it.");
+    // Nothing to attach: nothing said, and the application IS complete.
+    const nothing = renderHandover({ institutionName: "U", portalHost: "h", email: "e", approach: "passwordless", leftToStudent: [] });
+    expect(nothing).not.toContain("Before you submit");
+    expect(nothing).not.toContain("Nobody is watching");
+    expect(nothing).toContain("Your application to U is complete, and the account is yours.");
   });
 
   it("does not claim to have destroyed a password it never held", () => {

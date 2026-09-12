@@ -580,15 +580,28 @@ export function renderHandover(input: {
    * document slots of a repeating page, each named with its entry. Said here
    * as well as in the preview, because this is the message they act on.
    */
-  readonly leftToStudent?: readonly string[];
+  readonly leftToStudent?: readonly { readonly text: string; readonly toldLater: boolean }[];
 }): string {
+  const left = input.leftToStudent ?? [];
+  // ADR-0108, in Vahid's words: *"the student must be able to tell that we
+  // are not watching this and nobody will remind them. If the honest version
+  // of that sentence makes the product look worse, that is the product, not
+  // the sentence."* And an application with something owed is not complete.
   const ownActs =
-    input.leftToStudent === undefined || input.leftToStudent.length === 0
+    left.length === 0
       ? ""
       : `Before you submit, attach these yourself on the portal — I did not attach them:\n` +
-        `${input.leftToStudent.map((act) => `  - ${act}`).join("\n")}\n\n`;
+        `${left.map((act) => `  - ${act.text}`).join("\n")}\n\n` +
+        `${left.some((act) => act.toldLater) ? `${input.institutionName} has been told these are coming later. ` : ""}` +
+        `Nobody is watching this, and nobody will remind you. If you do not attach them, ` +
+        `${input.institutionName} will treat the application as incomplete, and I will not know. ` +
+        `When you have attached one, tell me here and I will record it.\n\n`;
+  const state =
+    left.length === 0
+      ? `Your application to ${input.institutionName} is complete, and the account is yours.`
+      : `Your application to ${input.institutionName} is filled as far as I can take it, and the account is yours.`;
   return (
-    `Your application to ${input.institutionName} is complete, and the account is yours.\n\n` +
+    `${state}\n\n` +
     `Sign in at ${input.portalHost} with ${input.email}.\n\n` +
     `${ownActs}` +
     `${handoverMiddle(input)}\n\n` +

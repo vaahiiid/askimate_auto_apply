@@ -59,6 +59,7 @@ export const STUDENT_DECISIONS = [
   "confirm_handoff",
   "confirm_value",
   "cancel",
+  "attached_myself",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -120,6 +121,17 @@ export type StudentDecision =
        * carried by the authenticated session the decision arrives on.
        */
       readonly kind: "cancel";
+    }
+  | {
+      /**
+       * The student says they attached something themselves (ADR-0108): the
+       * act the run recorded at the yes, by the key it published. No hash —
+       * it is a statement about their own act, not agreement to something
+       * shown — and the key is the run's, so a client cannot invent a debt
+       * or close one the case never recorded.
+       */
+      readonly kind: "attached_myself";
+      readonly item: string;
     };
 
 function readString(body: unknown, field: string): string | null {
@@ -143,6 +155,10 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   // rather than stored — the same rule every other parser here follows about
   // fields a caller might send hopefully.
   if (kind === "cancel") return { kind };
+  if (kind === "attached_myself") {
+    const item = readString(body, "item");
+    return item === null ? null : { kind, item };
+  }
   const contentHash = readString(body, "contentHash");
   if (contentHash === null) return null;
   return { kind, contentHash };

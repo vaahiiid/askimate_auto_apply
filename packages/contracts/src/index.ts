@@ -164,6 +164,7 @@ export type {
   RunRefusalCode,
   RunStatus,
   RunStepKind,
+  OwnActReading,
 } from "./runs.js";
 export {
   RUN_PHASES,
@@ -172,6 +173,7 @@ export {
   RUN_STEP_KINDS,
   parseConversationRun,
   parseRunPreview,
+  parseOwnActs,
 } from "./runs.js";
 
 // ── ADR-0045: the internal work API the Automation Runner pulls from ───────

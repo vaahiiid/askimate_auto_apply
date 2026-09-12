@@ -1,6 +1,12 @@
 # Decision sheet — the deferred state after the handover
 
-**For:** Vahid · **Prepared:** 2026-09-12 · raised on his instruction with ADR-0107, not decided.
+**For:** Vahid · **Prepared:** 2026-09-12 · ~~raised on his instruction with ADR-0107, not decided.~~
+**✅ DECIDED — Vahid Mohammadi, 2026-09-12: A, the durable record on the case, as the floor. Not
+the reminder** — *"an outbound message to a student after the conversation has closed is a
+different product surface … a reminder that fails silently leaves the student worse off than no
+reminder, because we have now implied someone is watching. Better that the record says plainly
+nobody is."* Built in P107; see
+[ADR-0108](./decisions/0108-the-deferred-state-is-a-record-on-the-case.md).
 Recorded as **blocker 24** in [`state-of-the-system.md`](./state-of-the-system.md).
 
 > **What raised it** — his words, deciding blocker 23: *"The deferred state must not be quietly

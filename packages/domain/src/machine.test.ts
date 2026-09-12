@@ -94,6 +94,30 @@ function authorisedCase(hash = "sha256:content-v1"): ApplicationCase {
 }
 
 describe("fold — deriving a case from its log", () => {
+  it("carries what the student owes the portal as a record, closed only by their word (ADR-0108)", () => {
+    // Vahid, 2026-09-12: *"Telling them once in a message that scrolls away is
+    // not a record of it, it is a mention of it. The case knows what it
+    // deferred, and it should carry that where the student and a specialist
+    // can both see it."*
+    const derived = fold(
+      buildLog([
+        OPENED,
+        { type: "OwnActRecorded", key: "certificate#0", label: "Certificate", page: "Your qualifications", entry: { index: 0, count: 2 }, told: { fieldRef: "certificate_status", text: "later", displayText: "I will send it later" } },
+        { type: "OwnActRecorded", key: "certificate#1", label: "Certificate", page: "Your qualifications", entry: { index: 1, count: 2 } },
+        { type: "OwnActDone", key: "certificate#0", doneAt: new Date("2026-09-12T12:00:00Z") },
+        // Unknown and repeated: neither invents an act nor undoes one.
+        { type: "OwnActDone", key: "no_such_act", doneAt: new Date("2026-09-12T12:01:00Z") },
+        { type: "OwnActDone", key: "certificate#0", doneAt: new Date("2026-09-12T12:02:00Z") },
+      ]),
+    );
+    expect(derived.ownActs).toEqual([
+      { key: "certificate#0", label: "Certificate", page: "Your qualifications", entry: { index: 0, count: 2 }, told: { fieldRef: "certificate_status", text: "later", displayText: "I will send it later" }, doneAt: new Date("2026-09-12T12:00:00Z") },
+      { key: "certificate#1", label: "Certificate", page: "Your qualifications", entry: { index: 1, count: 2 } },
+    ]);
+    // A case that never deferred anything owes nothing.
+    expect(fold(buildLog([OPENED])).ownActs).toEqual([]);
+  });
+
   it("derives the opening state", () => {
     const derived = fold(buildLog([OPENED]));
 

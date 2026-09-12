@@ -951,6 +951,8 @@ describe("a page filled once per item, in the preview (P96)", () => {
     for (const slice of [text.slice(first, second), text.slice(second)]) {
       expect(slice).toContain("  We are telling Gated University that your Certificate is coming later.");
       expect(slice).toContain("  You attach it yourself. The application is not complete until you do.");
+      // ADR-0108: said before the yes, uncomfortably.
+      expect(slice).toContain("  Nobody is watching this, and nobody will remind you.");
       expect(slice).not.toContain("You answer yourself");
     }
     // And what is said beside the slot is inside the yes: the same

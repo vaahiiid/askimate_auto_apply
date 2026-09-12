@@ -557,7 +557,7 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
  * same list at the handover's ask and at its confirmation, because the
  * confirmation is bound to the text they were shown (ADR-0050).
  */
-function studentsOwnActs(state: RunState): readonly string[] {
+function studentsOwnActs(state: RunState): readonly { readonly text: string; readonly toldLater: boolean }[] {
   const usable = checkUsable(state.inputs.mappingSet, state.inputs.blueprint);
   if (!usable.usable) return [];
   const plan = planFill(state.inputs.blueprint, usable.mappingSet, state.profile);
@@ -576,9 +576,11 @@ function studentsOwnActs(state: RunState): readonly string[] {
         handoff.deferred === undefined
           ? handoff.label
           : `${handoff.label} (${institution} has been told it is coming later; the application is not complete until you attach it)`;
-      return handoff.item === undefined
-        ? what
-        : `${what} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`;
+      const text =
+        handoff.item === undefined
+          ? what
+          : `${what} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`;
+      return { text, toldLater: handoff.deferred !== undefined };
     });
 }
 

@@ -1668,6 +1668,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           // hash that decision must carry — so a client never computes one.
           // `null` when the run is working and nothing is being asked of them.
           pending: reading?.pending ?? null,
+          // ADR-0108. What the student owes the portal, from the case's own
+          // record; empty when nothing was left to them.
+          ownActs: reading?.ownActs ?? [],
         });
       })().catch(next);
     },

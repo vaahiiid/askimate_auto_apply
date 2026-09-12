@@ -449,6 +449,15 @@ describe("the wire vocabulary is internally coherent", () => {
     expect(parseStudentDecision({ kind: "confirm_value" })).toBeNull();
     expect(parseStudentDecision({ kind: "resign" })).toBeNull();
     expect(parseStudentDecision(null)).toBeNull();
+    // ADR-0108: the student saying they attached something themselves names
+    // WHICH thing, by the key the run published — and nothing else. No hash:
+    // it is a statement about their own act, not agreement to something shown.
+    expect(parseStudentDecision({ kind: "attached_myself", item: "qualification_certificate#0" })).toEqual({
+      kind: "attached_myself",
+      item: "qualification_certificate#0",
+    });
+    expect(parseStudentDecision({ kind: "attached_myself" })).toBeNull();
+    expect(parseStudentDecision({ kind: "attached_myself", item: "" })).toBeNull();
   });
 
   it("takes a CANCELLATION with no hash, and ignores one sent anyway", () => {

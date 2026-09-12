@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.113.0] — 2026-09-12
+
+**P107 — ADR-0108: what the student owes the portal is a record on the case, closed by their
+word, and nobody claims to chase them. Blocker 24 decided A by Vahid.**
+
+### Added
+
+- ADR-0108, Accepted, in his words, with the reminder out on his reasons.
+- Two case events: `OwnActRecorded`, appended with the yes from the authorised preview — one per
+  document slot left to the student, per entry, with what the portal was told beside it; and
+  `OwnActDone`, the student's word. The case's fold carries `ownActs`.
+- The `attached_myself` decision: a key and no hash; answered before the run's situation, so an
+  act is closable after the handover; an unknown key is refused.
+- `GET …/runs` carries `ownActs`; the client lists them with a button per open item, under
+  *Still yours to do — nobody is watching this, and nobody will remind you*.
+- The wording, on his instruction: the preview says *Nobody is watching this, and nobody will
+  remind you* before the yes; the handover does not call an application with something owed
+  *complete*, and says the institution has been told, that nobody is watching, and that it will
+  not know.
+
+---
+
 ## [0.112.0] — 2026-09-12
 
 **P106 — ADR-0107: a handed slot's companion says "later". Blocker 23 decided A by Vahid; the

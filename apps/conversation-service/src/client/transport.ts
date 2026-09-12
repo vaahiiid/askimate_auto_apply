@@ -25,13 +25,12 @@
  * ever fetches.
  */
 
-import type { ConversationEvent } from "@askimate/aas-contracts";
+import type { ConversationEvent, OwnActReading } from "@askimate/aas-contracts";
 import {
   parseConversationEvent,
   parseConversationRun,
   parseProblem,
-  parseRunPreview,
-} from "@askimate/aas-contracts";
+  parseRunPreview, parseOwnActs } from "@askimate/aas-contracts";
 import type { ConversationRun, PriorOutcome, Problem, RunPreview } from "@askimate/aas-contracts";
 
 /** One conversation, as `GET /v1/conversations` returns it. */
@@ -77,6 +76,8 @@ export interface PendingDecision {
 export interface RunReading {
   readonly run: ConversationRun | null;
   readonly pending: PendingDecision | null;
+  /** What the student owes the portal, from the case's record (ADR-0108). */
+  readonly ownActs: readonly OwnActReading[];
 }
 
 /**
@@ -209,7 +210,10 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
             decision: String(raw["decision"]) as PendingDecision["decision"],
             contentHash: String(raw["contentHash"]),
           };
-    return { run, pending };
+    // ADR-0108. Absent from an older service reads as nothing owed; malformed refuses the read.
+    const ownActs = body["ownActs"] === undefined ? [] : parseOwnActs(body["ownActs"]);
+    if (ownActs === null) return null;
+    return { run, pending, ownActs };
   });
 }
 
@@ -346,7 +350,7 @@ export function reapply(
 export function decide(
   conversationId: string,
   runId: string,
-  decision: { readonly kind: string; readonly contentHash?: string },
+  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string },
 ): Promise<Outcome<unknown>> {
   return send(
     `/v1/conversations/${conversationId}/runs/${runId}/decision`,

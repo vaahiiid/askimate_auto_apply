@@ -94,7 +94,7 @@ interface View {
 const view: View = {
   conversationId: null,
   events: [],
-  run: { run: null, pending: null },
+  run: { run: null, pending: null, ownActs: [] },
   targets: [],
   offer: null,
   preview: null,
@@ -175,7 +175,7 @@ async function refresh(): Promise<void> {
   }
   if (run.ok) view.run = run.value;
   else {
-    view.run = { run: null, pending: null };
+    view.run = { run: null, pending: null, ownActs: [] };
     report(run.code);
   }
 
@@ -390,6 +390,30 @@ function drawPending(): void {
         void answer(pending.decision, pending.contentHash);
       }),
     );
+  }
+
+  // ADR-0108: what the student owes, from the case's own record, with the
+  // sentence Vahid wanted uncomfortable to read. Their word closes an item;
+  // nothing here checks and nothing reminds.
+  const owed = view.run.ownActs;
+  if (owed.length > 0) {
+    const heading = document.createElement("h2");
+    text(heading, "Still yours to do — nobody is watching this, and nobody will remind you");
+    panel.append(heading);
+    for (const act of owed) {
+      const line = document.createElement("p");
+      const where = act.entry === undefined ? "" : ` — ${act.page ?? ""}, entry ${String(act.entry.index + 1)} of ${String(act.entry.count)}`;
+      const told = act.told === undefined ? "" : ` (the portal has been told: "${act.told.displayText ?? act.told.text}")`;
+      text(line, `${act.done ? "Done: " : ""}${act.label}${where}${told}`);
+      panel.append(line);
+      if (!act.done) {
+        panel.append(
+          button("I have attached this myself", () => {
+            void answerOwnAct(act.key);
+          }),
+        );
+      }
+    }
   }
 
   // ADR-0053: available at every step, and carrying no hash. Offered because
@@ -972,6 +996,17 @@ async function instructReapplication(): Promise<void> {
     view.reapplication = null;
     view.offer = null;
   }
+  await refresh();
+}
+
+/** The student's word that they attached something themselves (ADR-0108). */
+async function answerOwnAct(item: string): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "attached_myself", item });
+  if (!recorded.ok) report(recorded.code);
   await refresh();
 }
 

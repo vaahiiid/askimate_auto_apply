@@ -197,3 +197,57 @@ export function parseRunPreview(value: unknown): RunPreview | null {
   if (typeof presentedText !== "string" || presentedText.length === 0) return null;
   return { contentHash, hashAlgorithm: "sha256", presentedText };
 }
+
+/**
+ * One thing the student owes the portal, as the run reads it out (ADR-0108).
+ *
+ * Labels and page titles are the reviewed blueprint's words, never the
+ * student's; `told` is the option the runner set beside the slot, in the
+ * form's words. `done` is the student's own word, and nothing else moves it.
+ */
+export interface OwnActReading {
+  readonly key: string;
+  readonly label: string;
+  readonly page?: string;
+  readonly entry?: { readonly index: number; readonly count: number };
+  readonly told?: { readonly text: string; readonly displayText?: string };
+  readonly done: boolean;
+}
+
+/** Bytes from the network to the list of own acts, or `null`. */
+export function parseOwnActs(value: unknown): readonly OwnActReading[] | null {
+  if (!Array.isArray(value)) return null;
+  const acts: OwnActReading[] = [];
+  for (const entry of value as readonly unknown[]) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const held = entry as Record<string, unknown>;
+    if (typeof held["key"] !== "string" || held["key"].length === 0) return null;
+    if (typeof held["label"] !== "string") return null;
+    if (typeof held["done"] !== "boolean") return null;
+    const page = held["page"];
+    if (page !== undefined && typeof page !== "string") return null;
+    let entryOf: OwnActReading["entry"];
+    if (held["entry"] !== undefined) {
+      const raw = held["entry"] as Record<string, unknown> | null;
+      if (raw === null || typeof raw !== "object" || !Number.isInteger(raw["index"]) || !Number.isInteger(raw["count"])) return null;
+      entryOf = { index: raw["index"] as number, count: raw["count"] as number };
+    }
+    let told: OwnActReading["told"];
+    if (held["told"] !== undefined) {
+      const raw = held["told"] as Record<string, unknown> | null;
+      if (raw === null || typeof raw !== "object" || typeof raw["text"] !== "string") return null;
+      const displayText = raw["displayText"];
+      if (displayText !== undefined && typeof displayText !== "string") return null;
+      told = { text: raw["text"], ...(displayText === undefined ? {} : { displayText }) };
+    }
+    acts.push({
+      key: held["key"],
+      label: held["label"],
+      ...(page === undefined ? {} : { page }),
+      ...(entryOf === undefined ? {} : { entry: entryOf }),
+      ...(told === undefined ? {} : { told }),
+      done: held["done"],
+    });
+  }
+  return acts;
+}

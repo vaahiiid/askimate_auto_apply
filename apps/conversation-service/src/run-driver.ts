@@ -107,6 +107,7 @@ import type {
   WorkflowRunRecord,
   WorkflowStatus,
   RecoveryReason,
+  OwnAct,
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
@@ -127,7 +128,9 @@ import { DISCLOSURE_ACTIVITY, authoriseDisclosure, determinationOf, mayTransmit 
 import type { DisclosureRequestRecord } from "@askimate/aas-disclosure";
 import { buildPreview, renderPreview } from "@askimate/aas-preparation";
 import type { PreviewAttachment, PreviewDeployment } from "@askimate/aas-preparation";
-import type { WorkDocument } from "@askimate/aas-contracts";
+import type { WorkDocument,
+  OwnActReading,
+} from "@askimate/aas-contracts";
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
@@ -435,6 +438,12 @@ export interface PendingDecision {
 export interface RunReading {
   readonly run: RunPosition;
   readonly pending: PendingDecision | null;
+  /**
+   * What the student owes the portal, from the case's own record (ADR-0108):
+   * recorded at the yes, closed only by their word, and read here so the
+   * student and a specialist see the same list.
+   */
+  readonly ownActs: readonly OwnActReading[];
 }
 
 export type RunOutcome =
@@ -2522,7 +2531,11 @@ export class RunDriver {
       resumed: true,
       concerns: [],
     };
-    return { run, pending };
+    // ADR-0108: what is owed, from the case log — the same record a
+    // specialist reads, and the one the student's word closes.
+    const events = await this.#options.stores.cases.read(record.caseId);
+    const ownActs = events.length === 0 ? [] : ownActReadingsOf(fold(events).ownActs);
+    return { run, pending, ownActs };
   }
 
   /**
@@ -2866,6 +2879,31 @@ export class RunDriver {
       return { ok: false, reason: "no_case" };
     }
 
+    // ── The student's word on something they owe (ADR-0108) ──────────────
+    //
+    // Before the run's situation is asked, because the situation is about
+    // what the run does next and this is not that: an act recorded at the
+    // yes is closable whatever the run is doing, including after it has
+    // finished and the account is theirs. Only the case log is consulted; a
+    // key the case never recorded is refused, and a second word is one.
+    if (input.decision.kind === "attached_myself") {
+      const log = await this.#options.stores.cases.read(record.caseId);
+      if (log.length === 0) return { ok: false, reason: "no_case" };
+      const owed = fold(log);
+      const item = input.decision.item;
+      const act = owed.ownActs.find((candidate) => candidate.key === item);
+      if (act === undefined) return { ok: false, reason: "not_asked" };
+      if (act.doneAt !== undefined) return { ok: true };
+      await this.#appendToCase(
+        record.caseId,
+        owed.sequence,
+        [{ type: "OwnActDone", key: act.key, doneAt: this.#options.now() }],
+        { conversationId: input.conversationId, caseId: record.caseId },
+        this.#options.now(),
+      );
+      return { ok: true };
+    }
+
     const situation = await this.#situation({
       entry,
       record,
@@ -2915,10 +2953,30 @@ export class RunDriver {
     const decided = decide(held, intent.intent);
     if (!decided.accepted) return this.#refusal("refused", record.status);
 
+    // ADR-0108: with the yes, what the student owes goes on the record — from
+    // the preview they authorised, which is the one thing the hash binds.
+    const owed: CaseEventPayload[] =
+      input.decision.kind === "authorise" && situation.step.kind === "authorise"
+        ? situation.step.preview.handoffs.map((handoff) => ({
+            type: "OwnActRecorded",
+            key: ownActKeyOf(handoff),
+            label: handoff.label,
+            ...(handoff.item === undefined ? {} : { page: handoff.item.title, entry: { index: handoff.item.index, count: handoff.item.count } }),
+            ...(handoff.deferred === undefined
+              ? {}
+              : {
+                  told: {
+                    fieldRef: handoff.deferred.fieldRef,
+                    text: handoff.deferred.text,
+                    ...(handoff.deferred.displayText === undefined ? {} : { displayText: handoff.deferred.displayText }),
+                  },
+                }),
+          }))
+        : [];
     await this.#appendToCase(
       record.caseId,
       held.sequence,
-      decided.events,
+      [...decided.events, ...owed],
       { conversationId: input.conversationId, caseId: record.caseId },
       this.#options.now(),
     );
@@ -6124,4 +6182,21 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
       ...(upload.recorded === undefined ? {} : { recorded: { strategy: upload.recorded.strategy, value: upload.recorded.value } }),
     })),
   };
+}
+
+/** The key an own act is recorded and closed under: the slot, and the entry when the page repeats (ADR-0108). */
+function ownActKeyOf(handoff: { readonly fieldRef: string; readonly item?: { readonly index: number } }): string {
+  return handoff.item === undefined ? handoff.fieldRef : `${handoff.fieldRef}#${String(handoff.item.index)}`;
+}
+
+/** The case's own acts, as the run reads them out: the record's words, and whether the student said they did it. */
+function ownActReadingsOf(acts: readonly OwnAct[]): readonly OwnActReading[] {
+  return acts.map((act) => ({
+    key: act.key,
+    label: act.label,
+    ...(act.page === undefined ? {} : { page: act.page }),
+    ...(act.entry === undefined ? {} : { entry: { index: act.entry.index, count: act.entry.count } }),
+    ...(act.told === undefined ? {} : { told: { text: act.told.text, ...(act.told.displayText === undefined ? {} : { displayText: act.told.displayText }) } }),
+    done: act.doneAt !== undefined,
+  }));
 }

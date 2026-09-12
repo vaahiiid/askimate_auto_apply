@@ -629,7 +629,7 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [run, pending]
+                required: [run, pending, ownActs]
                 properties:
                   run:
                     oneOf:
@@ -639,6 +639,17 @@ paths:
                     oneOf:
                       - $ref: "#/components/schemas/PendingDecision"
                       - type: "null"
+                  ownActs:
+                    type: array
+                    maxItems: 200
+                    items: { $ref: "#/components/schemas/OwnAct" }
+                    description: >-
+                      ADR-0108. What the student owes the portal, from the
+                      case's own record: each document slot left to them at
+                      the yes, what the portal was told about it, and whether
+                      they have said they did it. Empty when nothing was left
+                      to them. Nothing checks these and nothing reminds; the
+                      student's `attached_myself` decision is what closes one.
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { $ref: "#/components/responses/NotFound" }
         "503":
@@ -1650,6 +1661,7 @@ components:
       oneOf:
         - $ref: "#/components/schemas/HashedStudentDecision"
         - $ref: "#/components/schemas/CancelDecision"
+        - $ref: "#/components/schemas/AttachedMyselfDecision"
 
     HashedStudentDecision:
       type: object
@@ -1668,6 +1680,54 @@ components:
             `confirm_handoff`, the deterministic playback for `confirm_value`.
             Confirming something they can no longer see is confirming something
             else, so a mismatch is refused rather than recorded.
+
+    AttachedMyselfDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, item]
+      description: >-
+        ADR-0108. The student says they attached something themselves: the act
+        the run recorded at the yes, by the key it published in `ownActs`. No
+        hash — a statement about their own act, not agreement to something
+        shown — and a key the case never recorded is refused, so a client can
+        neither invent a debt nor close one that was not theirs.
+      properties:
+        kind:
+          type: string
+          enum: [attached_myself]
+        item:
+          type: string
+          minLength: 1
+          maxLength: 256
+
+    OwnAct:
+      type: object
+      additionalProperties: false
+      required: [key, label, done]
+      description: >-
+        ADR-0108. One thing the student owes the portal. `label` and `page` are
+        the reviewed blueprint's words; `told` is the option the runner set
+        beside the slot, in the form's words (ADR-0107); `done` is the
+        student's own word and nothing else moves it.
+      properties:
+        key: { type: string, minLength: 1, maxLength: 256 }
+        label: { type: string, maxLength: 200 }
+        page: { type: string, maxLength: 200 }
+        entry:
+          type: object
+          additionalProperties: false
+          required: [index, count]
+          properties:
+            index: { type: integer, minimum: 0 }
+            count: { type: integer, minimum: 1 }
+        told:
+          type: object
+          additionalProperties: false
+          required: [text]
+          properties:
+            text: { type: string, maxLength: 200 }
+            displayText: { type: string, maxLength: 200 }
+        done: { type: boolean }
 
     CancelDecision:
       type: object

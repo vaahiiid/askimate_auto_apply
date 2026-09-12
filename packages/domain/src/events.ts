@@ -269,6 +269,48 @@ export interface AuthorisationCaptured {
   readonly authorisedAt: Date;
 }
 
+/**
+ * Something the student owes the portal that this system created on their
+ * behalf (ADR-0108): a document slot left to them, and — when the portal was
+ * told so (ADR-0107) — that it is coming later. Recorded at the yes, from the
+ * preview the student authorised, one per slot per entry.
+ *
+ * Vahid, 2026-09-12: *"Telling them once in a message that scrolls away is
+ * not a record of it, it is a mention of it. The case knows what it
+ * deferred, and it should carry that where the student and a specialist can
+ * both see it."*
+ */
+export interface OwnActRecorded {
+  readonly type: "OwnActRecorded";
+  /** Stable within the case: the slot's field reference, and the entry when the page repeats. */
+  readonly key: string;
+  readonly label: string;
+  readonly page?: string;
+  readonly entry?: { readonly index: number; readonly count: number };
+  /** What the portal was told beside the slot, when it was told anything. */
+  readonly told?: { readonly fieldRef: string; readonly text: string; readonly displayText?: string };
+}
+
+/**
+ * The student said they did it (ADR-0108). Their word is what closes an act —
+ * nothing here checks, nothing here reminds, and the record says so.
+ */
+export interface OwnActDone {
+  readonly type: "OwnActDone";
+  readonly key: string;
+  readonly doneAt: Date;
+}
+
+/** One thing the student owes, as the case carries it (ADR-0108). */
+export interface OwnAct {
+  readonly key: string;
+  readonly label: string;
+  readonly page?: string;
+  readonly entry?: { readonly index: number; readonly count: number };
+  readonly told?: { readonly fieldRef: string; readonly text: string; readonly displayText?: string };
+  readonly doneAt?: Date;
+}
+
 /** A previously captured authorisation stopped being valid. */
 export interface AuthorisationVoided {
   readonly type: "AuthorisationVoided";
@@ -407,6 +449,8 @@ export type CaseEventPayload =
   | HandoffCompleted
   | AuthorisationCaptured
   | AuthorisationVoided
+  | OwnActRecorded
+  | OwnActDone
   | SubmissionAttempted
   | SubmissionSucceeded
   | SubmissionFailed

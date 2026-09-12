@@ -954,6 +954,41 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       "and the case machine moved with it (ADR-0049)",
     ).toBe(true);
 
+    // ── ADR-0108: what the student owes is a record on the case, not a mention ──
+    //
+    // Vahid, 2026-09-12: *"record the outstanding items as items, on the case,
+    // closable by the student saying they have done it. The student is told
+    // what they owe, and where. Nothing claims to chase them."*
+    expect(
+      logged.flatMap((event) => (event.type === "OwnActRecorded" ? [event.key] : [])),
+      "one per certificate the student attaches themselves, with its entry",
+    ).toEqual(["qualification_certificate#0", "qualification_certificate#1"]);
+    const readOwnActs = async (): Promise<readonly { key: string; label: string; told?: { text: string }; done: boolean }[]> => {
+      const read = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`, { headers: { cookie: devCookie } });
+      expect(read.status).toBe(200);
+      return ((await read.json()) as { ownActs: readonly { key: string; label: string; told?: { text: string }; done: boolean }[] }).ownActs;
+    };
+    const owed = await readOwnActs();
+    expect(owed.map((act) => [act.key, act.label, act.told?.text, act.done])).toEqual([
+      ["qualification_certificate#0", "Certificate", "later", false],
+      ["qualification_certificate#1", "Certificate", "later", false],
+    ]);
+    // The student's word closes one, and only one; a key the run never published is refused.
+    const attached = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: devCookie },
+      body: JSON.stringify({ kind: "attached_myself", item: "qualification_certificate#0" }),
+    });
+    expect(attached.status).toBe(204);
+    expect((await readOwnActs()).map((act) => act.done)).toEqual([true, false]);
+    const unknown = await recordingFetch(`${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs/${runId}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: devCookie },
+      body: JSON.stringify({ kind: "attached_myself", item: "no_such_act" }),
+    });
+    expect(unknown.status).toBeGreaterThanOrEqual(400);
+    expect((await readOwnActs()).map((act) => act.done)).toEqual([true, false]);
+
     // Only NOW is the password asked for (ADR-0101).
     const advanced = await recordingFetch(
       `${CONVERSATION_URL}/v1/conversations/${CONVERSATION}/runs`,

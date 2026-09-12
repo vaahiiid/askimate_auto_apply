@@ -4906,6 +4906,31 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P107 — what the student owes is a record, not a mention
+
+He took the floor and refused the reminder, and both for reasons that are now in the ADR. The
+record first: a student who authorised *later* has an obligation this system created on their
+behalf, and a sentence in a message that scrolls away is a mention of it, not a record. So the
+case carries it. With the yes, one event per document slot left to the student, per entry, from
+the preview they authorised — the thing the hash binds — with what the portal was told beside
+it. The student's word closes one, through a decision that carries a key and no hash, answered
+before the run's situation is asked so that it works after the handover and the account being
+theirs; a key the case never recorded is refused. The run reads the list out, the student's page
+lists it with a button per open item, and a specialist reading the run sees the same record.
+
+The reminder is out on its own terms and not because of the channel: a message to a student
+after the conversation has closed is a different product surface with its own consent,
+deliverability, failure modes and ways of being ignored, and a reminder that fails silently
+leaves the student worse off than none, because someone has been implied to be watching. So the
+record says plainly that nobody is. That sentence is in the preview before the yes, in the
+handover — which no longer calls an application with something owed complete — and on the
+student's page as the heading over what they still owe. He asked for it to be uncomfortable to
+read, and said that if the honest version makes the product look worse, that is the product.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P106 — a handed slot's companion says "later", and the line it must never cross
 
 He decided blocker 23 with a sentence and asked for the sentence to be the reasoning: *I will

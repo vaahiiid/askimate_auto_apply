@@ -134,6 +134,9 @@ export type {
   SubmissionSucceeded,
   TaskCompleted,
   TaskRaised,
+  OwnAct,
+  OwnActDone,
+  OwnActRecorded,
 } from "./events.js";
 export { HANDOFF_KINDS, REQUEST_CHANNELS, isEventOfType } from "./events.js";
 

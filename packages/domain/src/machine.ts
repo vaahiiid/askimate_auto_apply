@@ -23,8 +23,7 @@ import type {
   EventActor,
   HandoffKind,
   ReapplicationInstructed,
-  RequestEvidence,
-} from "./events.js";
+  RequestEvidence, OwnAct } from "./events.js";
 import type { CaseId, ExternalRef } from "./ids.js";
 import type { SubmissionIdentity } from "./idempotency.js";
 import { decideReapplication } from "./reapplication.js";
@@ -79,6 +78,12 @@ export interface ApplicationCase {
   readonly preparedContentHash?: string;
   /** True once a submission has been attempted with the current identity. */
   readonly submissionAttempted: boolean;
+  /**
+   * What the student owes the portal, as a record (ADR-0108): each slot left
+   * to them at the yes, what the portal was told about it, and whether they
+   * have said they did it. Empty for a case that deferred nothing.
+   */
+  readonly ownActs: readonly OwnAct[];
   readonly openHandoffToken?: string;
   /**
    * What the open handoff is waiting for.
@@ -150,6 +155,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let submissionAttempted = false;
   let priorCaseId: CaseId | undefined = first.priorCaseId;
   let reapplication: ApplicationCase["reapplication"];
+  const ownActs = new Map<string, OwnAct>();
 
   const tasks = new Map<string, Task>();
   const activeTriggers = new Set<ReviewTrigger>();
@@ -260,6 +266,29 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         authorisedContentHash = undefined;
         break;
 
+      case "OwnActRecorded": {
+        // Re-authorising records the same debt again: the label and what was
+        // told are refreshed, and a word already given is not taken back.
+        const before = ownActs.get(event.key);
+        ownActs.set(event.key, {
+          key: event.key,
+          label: event.label,
+          ...(event.page === undefined ? {} : { page: event.page }),
+          ...(event.entry === undefined ? {} : { entry: { ...event.entry } }),
+          ...(event.told === undefined ? {} : { told: { ...event.told } }),
+          ...(before?.doneAt === undefined ? {} : { doneAt: before.doneAt }),
+        });
+        break;
+      }
+
+      case "OwnActDone": {
+        // The student's word, once: a key the case never recorded invents
+        // nothing, and a second word keeps the first's time.
+        const act = ownActs.get(event.key);
+        if (act !== undefined && act.doneAt === undefined) ownActs.set(event.key, { ...act, doneAt: event.doneAt });
+        break;
+      }
+
       case "SubmissionAttempted":
         submissionAttempted = true;
         break;
@@ -315,6 +344,8 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     completedHandoffs,
     completedReviews,
     submissionAttempted,
+    // ADR-0108: what the student owes, in the order it was recorded.
+    ownActs: [...ownActs.values()],
     createdAt: first.occurredAt,
     updatedAt: last.occurredAt,
   };
