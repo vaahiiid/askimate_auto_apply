@@ -19,6 +19,16 @@ not shipped artefacts.
 
 ---
 
+## [0.113.1] — 2026-09-12
+
+**P107, corrected: CI #204 red on the boundary check.** The run driver compared a step's kind
+itself (`situation.step.kind === "authorise"`) to decide whether anything was owed at the yes.
+The Conversation Service coordinates and the orchestrator decides: it now narrows through the
+orchestrator's `awaitsStudentAuthorisation`, as the other four sites in the file do. No behaviour
+change; the local check had been run before that branch was written, which is the lesson.
+
+---
+
 ## [0.113.0] — 2026-09-12
 
 **P107 — ADR-0108: what the student owes the portal is a record on the case, closed by their

@@ -2956,7 +2956,7 @@ export class RunDriver {
     // ADR-0108: with the yes, what the student owes goes on the record — from
     // the preview they authorised, which is the one thing the hash binds.
     const owed: CaseEventPayload[] =
-      input.decision.kind === "authorise" && situation.step.kind === "authorise"
+      input.decision.kind === "authorise" && awaitsStudentAuthorisation(situation.step)
         ? situation.step.preview.handoffs.map((handoff) => ({
             type: "OwnActRecorded",
             key: ownActKeyOf(handoff),
