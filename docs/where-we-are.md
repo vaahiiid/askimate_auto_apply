@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P109 — the language page's radios, and a token that means three things
+
+He read the language page the same way: the certificate group offers the same four values as education, and the yes-or-no about previous English-medium education submits *Yes* and *No*. The draft carries both. He gave two caveats on his own method and both are honoured: the label strings his selector returned were a parent's text repeated, so none of them is recorded as the page's words, and the labels beside the values are the capture's per-option read from two days earlier, joined by the meaning of the value token — the test says exactly that. He offered to get the exact wording properly if told what to run, and a read-only console snippet is in the README for it, which also settles the twenty-three groups on three other pages that still carry the capture's element ids.
+
+The thing worth keeping from this reading is his observation: *NotRequired* has now meant three different things on the same form — a claim about the document, a claim about what Sheffield needs, and a claim about who the applicant is. The token is the page's, not a vocabulary, and nothing built may act on it. The draft test now asserts that no companion on any page and no mapping names it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P108 — the six radios, read; the fourth value, never ours
 
 He read the Documentary Evidence radios from the live page: six groups, the DOM's six, and every one offers the same four submitted values. The draft now names the attach, defer and not-providing values on all six companions from his reading, and the text beside each option as he gave it. What the capture had held for those radios were element ids, which the runner would have matched against nothing, so this reading was not a refinement but the first usable values for the group.

@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -19540,11 +19540,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "previousEnglishEducationYes",
+                  "value": "Yes",
                   "label": "Yes"
                 },
                 {
-                  "value": "previousEnglishEducation1",
+                  "value": "No",
                   "label": "No"
                 }
               ]
@@ -20526,19 +20526,19 @@
               "validations": [],
               "options": [
                 {
-                  "value": "certificateStatusUpload",
+                  "value": "Uploaded",
                   "label": "I will upload my certificate now"
                 },
                 {
-                  "value": "certificateStatus1",
+                  "value": "UploadLater",
                   "label": "I will upload my certificate later"
                 },
                 {
-                  "value": "certificateStatus3",
+                  "value": "NotSending",
                   "label": "I will not be providing my certificate"
                 },
                 {
-                  "value": "certificateStatus4",
+                  "value": "NotRequired",
                   "label": "Not Required"
                 }
               ]
@@ -20567,7 +20567,9 @@
           "required": false,
           "companion": {
             "fieldRef": "languageCertificateStatus",
-            "whenAttached": "certificateStatusUpload"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         }
       ],

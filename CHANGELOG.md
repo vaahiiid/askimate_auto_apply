@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.114.1] — 2026-09-12
+
+**P109 — the language page's radios, read live; NotRequired's third meaning.** Records and the
+draft only.
+
+### Changed
+
+- Sheffield curated draft 0.2.13: `languageCertificateStatus` carries `Uploaded` / `UploadLater`
+  / `NotSending` / `NotRequired` from Vahid's live reading, its companion names the three, and
+  `previousEnglishEducation` submits `Yes` / `No`. Labels are the capture's per-option read, not
+  the parent-text strings his method returned, on his caveat. Set 0.3.11 follows.
+
+### Recorded
+
+- `NotRequired` has meant three things on one form — the document, what Sheffield needs, who
+  the applicant is. The token is the page's; nothing acts on it; the draft test asserts it is
+  named by no companion on any page and by no mapping.
+- The DevTools snippet that reads each radio's value and its own label, for the twenty-three
+  groups that still carry the capture's ids.
+
+---
+
 ## [0.114.0] — 2026-09-12
 
 **P108 — the Documentary Evidence radios, read from the live page: six groups, the defer and

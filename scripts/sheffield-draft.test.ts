@@ -219,6 +219,40 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(JSON.stringify(mappingSet.mappings)).not.toContain("NotRequired");
   });
 
+  it("name the language page's certificate group as Vahid read it, and NotRequired is named by no companion on any page (P109)", () => {
+    // His live reading, 2026-09-12: the same four values as education. His
+    // two caveats are honoured: the three label strings his method returned
+    // were the parent's text, so the labels here are the capture's per-option
+    // read of 2026-09-10, joined to his values by the meaning of the value
+    // token — and none of his three strings is recorded as the page's words.
+    const language = blueprint.pages.find((p) => p.url?.includes("language.app") === true);
+    if (language === undefined) expect.unreachable("language page");
+    const fields = language.sections.flatMap((s) => s.fields);
+    expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.options).toEqual([
+      { value: "Uploaded", label: "I will upload my certificate now" },
+      { value: "UploadLater", label: "I will upload my certificate later" },
+      { value: "NotSending", label: "I will not be providing my certificate" },
+      { value: "NotRequired", label: "Not Required" },
+    ]);
+    expect(fields.find((f) => f.fieldRef === "previousEnglishEducation")?.options?.map((o) => o.value)).toEqual(["Yes", "No"]);
+    expect(language.requiredDocuments.map((d) => d.companion)).toEqual([
+      { fieldRef: "languageCertificateStatus", whenAttached: "Uploaded", whenDeferred: "UploadLater", whenNotProviding: "NotSending" },
+    ]);
+    // NotRequired has meant three things on this one form — a claim about
+    // the document, about what Sheffield needs, about who the applicant is.
+    // The token is the page's; nothing here may act on it. Named by nothing:
+    const companions = blueprint.pages.flatMap((p) => p.requiredDocuments.map((d) => d.companion));
+    expect(JSON.stringify(companions)).not.toContain("NotRequired");
+    expect(JSON.stringify(mappingSet.mappings)).not.toContain("NotRequired");
+    // Nothing on the language page is mapped, so its companion is left as the
+    // form has it: no instruction on it, no blocker for it.
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE);
+    expect(plan.instructions.some((i) => i.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus")).toBe(false);
+  });
+
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);

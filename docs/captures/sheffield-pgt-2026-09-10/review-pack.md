@@ -398,8 +398,14 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 - **The six status radios' values** are now from Vahid's reading of the live page (0.2.12):
   `Uploaded` / `UploadLater` / `NotSending` / `NotRequired` on every group. `NotRequired` is
   named by nothing and chosen by nothing; on two groups it has no text beside it, recorded as
-  an empty label. The language page's group (`languageCertificateStatus`) still carries the
-  capture's ids, not values.
+  an empty label. The language page's group (`languageCertificateStatus`) carries the same four
+  values from his reading of 2026-09-12 (0.2.13); its labels are the capture's per-option read,
+  joined by the meaning of the value token (P109). Twenty-three groups on personal, contact and
+  nationality still carry ids — listed in the README under P109 with the snippet that reads them.
+- **`NotRequired` means three different things on this form** — *My certificate is in English*
+  (the document), *Not required* (what Sheffield needs), *We do not require a certificate … if
+  you are a UK applicant* (who the applicant is). It is never chosen and nothing acts on the
+  token. If a mapping is ever proposed that treats it as one thing, it is wrong on two pages.
 
 ## Not in this sitting
 

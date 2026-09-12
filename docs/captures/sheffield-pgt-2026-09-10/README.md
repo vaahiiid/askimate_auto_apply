@@ -638,6 +638,61 @@ nothing, because which portal box each profile part fills waits on the reviewer.
 this set would save a qualification that says only *later* six times. The set's own comment
 says not to sign it while that is so.
 
+**The language page's radios, read live — Vahid, 2026-09-12 (P109).** `certificateStatus`
+offers the same four values as the education groups — `Uploaded`, `UploadLater`, `NotSending`,
+`NotRequired` — and `previousEnglishEducation` submits `Yes` / `No`. The curated draft (0.2.13)
+carries both, and the language slot's companion names `Uploaded` / `UploadLater` / `NotSending`.
+The set (0.3.11) follows; nothing on the page is mapped, so the companion is left as the form
+has it and the plan neither sets it nor blocks on it.
+
+His two caveats, both on his method and not on the page, and what was done with each:
+
+- **The three label strings his selector returned were the parent element's text** — *"I will
+  upload my certificate now"* three times over — *"not four distinct labels."* None of the
+  three is recorded as the page's words. The labels in the draft for this group are the
+  **capture's per-option read of 2026-09-10** (discovery's `label` locator, one per input:
+  *now* / *later* / *I will not be providing my certificate* / *Not Required*), joined to his
+  values by the meaning of the value token, and the test says so. Note the *not providing*
+  wording differs from the education page's (*this document* there, *my certificate* here) —
+  the capture's, unverified by him, and it is the text the preview would quote if that option
+  were ever chosen, which it is not. Likewise `previousEnglishEducation`: the values are his
+  (*Yes* / *No*), the per-option labels the capture's.
+- **`NotRequired` here reads** *"We do not require a certificate to be uploaded if you are a UK
+  appl[icant]…"* (truncated by his method; not recorded beyond the capture's *Not Required*).
+  *"A claim about who the applicant is, not about the document. Another thing we never choose,
+  for a third distinct reason."* So on this one form the token `NotRequired` has meant a claim
+  about the document (*My certificate is in English*), a claim about what Sheffield needs
+  (*Not required*), and a claim about the applicant (*if you are a UK applicant*). **The token
+  is the page's, and nothing built may act on it.** Any future rule of the form *"NotRequired
+  means the slot is optional"* would be wrong on two of the three; the draft test asserts it is
+  named by no companion on any page and by no mapping.
+
+**To get the exact wording beside each option, if it is wanted** — his offer: *"tell me what to
+run and I will get it properly."* In DevTools on the page, signed in, Console tab (reads the DOM;
+changes nothing; sends nothing):
+
+```js
+copy(JSON.stringify([...document.querySelectorAll('input[type="radio"]')].map(i => ({
+  name: i.name, value: i.value, id: i.id,
+  labelFor: [...i.labels ?? []].map(l => l.innerText.trim()),
+  textAfter: (i.nextSibling?.textContent ?? '').trim(),
+})), null, 1))
+```
+
+`labelFor` is the `<label>` associated with that one input — by `for` or by wrapping. Where two
+inputs share one wrapping `<label>` (his `previousEnglishEducation` case) both will show the
+combined text, and `textAfter` — the text node immediately after the input — is the per-option
+text the markup actually carries. The result lands on the clipboard; paste it whole.
+
+**What still carries the capture's ids as values** — twenty-three groups, none mapped, none
+mappable until read: personal (`sex`, `takenCourseAtShefUni`, `appliedBefore`, `nameChanged`),
+contact (`corrContactDateType`), nationality (`livedOutsideCountry`, `alwaysUKResident`,
+`alwaysEUResident`, `britishPassport`, `indefinateVisa`, `refugeeStatus`, `migrantWorker`,
+`spouseOfUKCitizen`, `euPassport`, `spouseOfEUCitizen`, `livingInUK`, `previousStudentVisa`,
+`applicationLocation`, and the five `…ScanStatus` / `…Status` groups beside its document slots,
+whose values the capture repeats three times over). The snippet above, run once on each of those
+three pages, settles all of them at once.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
