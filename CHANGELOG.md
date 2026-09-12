@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.112.0] — 2026-09-12
+
+**P106 — ADR-0107: a handed slot's companion says "later". Blocker 23 decided A by Vahid; the
+line it must never cross enforced; the preview in the student's words; blocker 24 raised.**
+
+### Added
+
+- ADR-0107, Accepted, in his words: *"'I will upload this later' is not a claim about the
+  document, it is a statement about when."* A slot's companion carries `whenDeferred` and
+  `whenNotProviding` on the blueprint; the parser refuses the two being one option.
+- The usable-set check: a companion is mapped by nothing — ADR-0105's admission of one handed
+  with its slot is withdrawn; a mapping naming the not-providing value is refused in his words;
+  a handed slot with no defer value is admitted only on a page the plan fills nothing on.
+- The plan sets a handed slot's companion to the defer value, once per entry, as a reviewed
+  constant marked as the slot's deferral; the handoff names what the portal is told.
+- The preview says under each entry *We are telling <institution> that your Certificate is coming
+  later. You attach it yourself. The application is not complete until you do.*, and the defer
+  value is inside the content hash. The handover says it beside each document.
+- The fixture portal drops a qualification saved with its radio unanswered, silently, as
+  Sheffield does; the journey saves two qualifications with *later* on each and reads them back.
+- Decision sheet for blocker 24, the deferred state after the handover: what exists (one
+  sentence at the handover, recorded), what does not (no record, no incomplete state, no check,
+  no reach), three options priced. Not decided.
+
+### Changed
+
+- The Sheffield mapping set (0.3.9) no longer hands the six education status radios to the
+  student; their defer values wait on a copy of the fieldset's markup.
+
+---
+
 ## [0.111.0] — 2026-09-12
 
 **P105 — ADR-0106: a page is saved when the portal shows it, not when a control was pressed.

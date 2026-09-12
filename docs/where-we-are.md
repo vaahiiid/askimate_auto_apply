@@ -4906,6 +4906,38 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P106 — a handed slot's companion says "later", and the line it must never cross
+
+He decided blocker 23 with a sentence and asked for the sentence to be the reasoning: *I will
+upload this later* is not a claim about the document, it is a statement about when. Nothing is
+being sent in this act, and that is true, and it is the only option of the three that is true.
+The line the option must never cross is the one the build now enforces: *later* is ours to say;
+*I will not be providing this* is a claim about the student's intent and never ours, on any
+portal. So the blueprint names both values on a slot's companion, the parser refuses them
+being one, the usable-set check refuses any mapping on a companion and says why in his words
+when the value is the refusal-style one, and a handed slot on a portal that offers nothing
+between *now* and *not providing* is admitted only where the page waits for the student —
+nothing on it filled by the plan — and refused otherwise, naming what would have been filled.
+
+ADR-0105's companion half is withdrawn by this: the student attaches, and we say when. The plan
+sets the companion once per entry as a reviewed constant whose rationale is his reason, marked
+as the slot's deferral; the runner fills it as any constant and ADR-0106 reads it back. His
+first condition is in the preview, under each entry, in the student's words rather than ours:
+we are telling Gated University that your Certificate is coming later; you attach it yourself;
+the application is not complete until you do. The defer value is inside the hash, so a
+different thing said beside the slot is a different thing to say yes to. The handover says it
+beside each document too. The fixture portal now drops an unanswered save silently, as
+Sheffield does, and the journey saves two qualifications with *later* on each.
+
+His second condition — that the deferred state must not be quietly forgotten — is not folded
+in. What exists is one sentence at the handover, recorded; what does not exist is any record of
+the items, any incomplete state, any way to check, and any way to reach the student afterwards.
+That is blocker 24, with three options priced, and it is his to decide.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P105 — a page is saved when the portal shows it; the three read-backs, built
 
 He accepted the price and said build it in the order set, and it is built the way the sheet

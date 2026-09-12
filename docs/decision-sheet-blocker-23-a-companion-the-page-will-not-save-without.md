@@ -1,6 +1,13 @@
 # Decision sheet — a companion the page will not save without
 
-**For:** Vahid · **Prepared:** 2026-09-12 · **ADR-0105 revisited, on his instruction.**
+**For:** Vahid · **Prepared:** 2026-09-12 · ~~**ADR-0105 revisited, on his instruction.**~~
+**✅ DECIDED — Vahid Mohammadi, 2026-09-12: A.** His reason, not the cost comparison: *"'I will
+upload this later' is not a claim about the document, it is a statement about when … That is
+true, and it is the only one of the three options that is true."* With the line A must never
+cross — the refusal-style option is *"not ours to say, ever, on any portal"* — enforced, and two
+conditions: the preview says it before the yes in the student's words, and the deferred state is
+raised as its own item (blocker 24). Built in P106; see
+[ADR-0107](./decisions/0107-a-handed-slots-companion-says-later.md).
 Companion to [blocker 22](./decision-sheet-blocker-22-a-page-is-saved-when-the-portal-shows-it.md).
 Recorded as **blocker 23** in [`state-of-the-system.md`](./state-of-the-system.md).
 

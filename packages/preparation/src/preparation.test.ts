@@ -919,7 +919,9 @@ describe("a page filled once per item, in the preview (P96)", () => {
   it("lists each entry under its own heading, in the student's order, every field of it", () => {
     const preview = previewFor(QUALIFICATIONS);
     const items = preview.entries.filter((entry) => entry.item !== undefined);
-    expect(items.map((entry) => entry.item?.index)).toEqual([0, 0, 0, 0, 1, 1, 1, 1, 1]);
+    // ...including, per entry, what the portal is told beside the slot (ADR-0107).
+    expect(items.map((entry) => entry.item?.index)).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]);
+    expect(renderPreview(preview)).toContain('  Certificate status: I will send it later  (sent as "later")');
     const text = renderPreview(preview);
     expect(text).toContain("Your qualifications — entry 1 of 2:");
     expect(text).toContain("Your qualifications — entry 2 of 2:");
@@ -942,9 +944,32 @@ describe("a page filled once per item, in the preview (P96)", () => {
     expect(attachFirst).toBeGreaterThan(first);
     expect(attachFirst).toBeLessThan(second);
     expect(text.indexOf("  You attach yourself: Certificate", second)).toBeGreaterThan(second);
-    // ADR-0105: the slot's companion, handed with it, said under the same entry.
-    expect(text.slice(first, second)).toContain("  You answer yourself: Certificate status");
-    expect(text.slice(second)).toContain("  You answer yourself: Certificate status");
+    // ADR-0107, in Vahid's words: *"for each qualification, that we are
+    // telling Sheffield the certificate and transcript are coming later, that
+    // the student attaches them themselves, and that the application is not
+    // complete until they do."*
+    for (const slice of [text.slice(first, second), text.slice(second)]) {
+      expect(slice).toContain("  We are telling Gated University that your Certificate is coming later.");
+      expect(slice).toContain("  You attach it yourself. The application is not complete until you do.");
+      expect(slice).not.toContain("You answer yourself");
+    }
+    // And what is said beside the slot is inside the yes: the same
+    // application with a different defer value is a different thing to
+    // authorise (ADR-0107).
+    const saysEnglish = {
+      ...GATED_PORTAL_BLUEPRINT,
+      pages: GATED_PORTAL_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        requiredDocuments: page.requiredDocuments.map((document) =>
+          document.companion === undefined ? document : { ...document, companion: { ...document.companion, whenDeferred: "english" } },
+        ),
+      })),
+    };
+    const check = checkUsable(GATED_PORTAL_MAPPING_SET, saysEnglish);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const other = buildPreview(saysEnglish, planFill(saysEnglish, check.mappingSet, profile(QUALIFICATIONS)), new Map());
+    if (!other.built) expect.unreachable(other.refusal.detail);
+    expect(other.preview.contentHash).not.toBe(preview.contentHash);
     // The school diploma's grade note is filled; the bachelor's is not shown
     // and not listed — the condition is answered per item.
     expect(text.slice(second)).toContain("  Grade, as on the certificate: 19.1");
@@ -976,7 +1001,8 @@ describe("a page filled once per item, in the preview (P96)", () => {
     const plan = planFill(blueprintWithout, check.mappingSet, profile(QUALIFICATIONS));
     const built = buildPreview(blueprintWithout, plan, new Map());
     if (!built.built) expect.unreachable(built.refusal.detail);
-    expect(built.preview.entries).toEqual(preview.entries);
+    // The same filled entries, less the deferral said beside the slot (ADR-0107).
+    expect(built.preview.entries).toEqual(preview.entries.filter((entry) => entry.fieldRef !== "qualification_certificate_status"));
     expect(built.preview.contentHash).not.toBe(preview.contentHash);
   });
 

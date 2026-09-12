@@ -914,7 +914,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // ADR-0104, in Vahid's words: under each qualification the student can
     // see which documents they attach themselves and which we filled.
     expect(preview.presentedText.match(/ {2}You attach yourself: Certificate/g)).toHaveLength(2);
-    expect(preview.presentedText.match(/ {2}You answer yourself: Certificate status/g)).toHaveLength(2);
+    // ADR-0107: what the portal is told about each certificate, in the student's words.
+    expect(preview.presentedText.match(/ {2}We are telling Gated University that your Certificate is coming later\./g)).toHaveLength(2);
+    expect(preview.presentedText.match(/ {2}You attach it yourself\. The application is not complete until you do\./g)).toHaveLength(2);
     // The destination the student reads is the one the bytes go to — the
     // fixture portal this entry is deployed against — and not the host the
     // reviewed blueprint observed (ADR-0098 as amended in P74). The runner's
@@ -1419,6 +1421,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           // the condition is answered per item — typed for the second entry,
           // not the first.
           ...(index === 1 ? ["qualification_grade_note"] : []),
+          // ADR-0107: the certificate is the student's own act, and the runner
+          // tells the portal it is coming later — once per entry.
+          "qualification_certificate_status",
         ]);
         expect(entry.plan?.instructions.every((instruction) => instruction.item?.index === index)).toBe(true);
         expect(await restarted.performer(entry)).toEqual({ kind: "succeeded" });
@@ -1426,9 +1431,9 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           await restarted.intake.report(entry.runId, { leaseId: entry.leaseId, outcome: "succeeded" }),
         ).toBe(true);
       }
-      expect(portal.application(EMAIL)?.qualifications.map((q) => [q.level, q.institution, q.year, q.gradeNote])).toEqual([
-        ["Bachelor's degree", "Sharif University of Technology", "2021", ""],
-        ["High school diploma", "Farzanegan High School", "2017", "19.1"],
+      expect(portal.application(EMAIL)?.qualifications.map((q) => [q.level, q.institution, q.year, q.gradeNote, q.certificateStatus])).toEqual([
+        ["Bachelor's degree", "Sharif University of Technology", "2021", "", "later"],
+        ["High school diploma", "Farzanegan High School", "2017", "19.1", "later"],
       ]);
       // The certificates are the student's own act (ADR-0104): nothing was attached by the runner.
       expect(portal.application(EMAIL)?.qualifications.map((q) => q.certificate)).toEqual([null, null]);

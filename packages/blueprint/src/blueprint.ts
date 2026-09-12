@@ -270,7 +270,24 @@ export interface RequiredDocument {
    * The companion field is never mapped and never a blocker: it follows the
    * document, and with no document mapped it is left as the form has it.
    */
-  readonly companion?: { readonly fieldRef: string; readonly whenAttached: string };
+  readonly companion?: {
+    readonly fieldRef: string;
+    readonly whenAttached: string;
+    /**
+     * The option the runner sets when the slot is the student's own act
+     * (ADR-0107): the defer-style one — *I will upload it later* — a
+     * statement about when, not a claim about the document. Named by the
+     * reviewer from the page. Absent, a handed slot on a page the runner
+     * fills is refused: the page waits for the student, or it is not option A.
+     */
+    readonly whenDeferred?: string;
+    /**
+     * The option that says the document will not be provided (ADR-0107),
+     * named so that it can be refused everywhere: *"a claim about the
+     * student's intent and not ours to say, ever, on any portal"*.
+     */
+    readonly whenNotProviding?: string;
+  };
   /**
    * What the page shows, reopened after a save, when a file is held in this
    * slot — a filename, a *remove* link, a *provided* mark (ADR-0106). A file

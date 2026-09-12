@@ -24,10 +24,12 @@
     "",
     "Education (page7), P98: the page repeats over education.prior_qualifications (ADR-0104). Its six document slots are student handoffs — the student attaches them, and the preview says so under each qualification. No field on it is mapped yet: the registry's Qualification has level, subject, institution, countryCode, completionYear, grade and gradeScale, and which portal box each fills waits on the reviewer.",
     "",
-    "P100 (ADR-0105): the six status radios beside the education page's slots are handed to the student with their slots — 'My transcript is in English' is the student answering the question the slot asks. The subject list is loaded by pressing subjectSearchButton after typing subjectSearch (the dependencies read names the control: onclick searchSubjects()); the press is recorded on the field, not mapped."
+    "P100 (ADR-0105): the six status radios beside the education page's slots are handed to the student with their slots — 'My transcript is in English' is the student answering the question the slot asks. The subject list is loaded by pressing subjectSearchButton after typing subjectSearch (the dependencies read names the control: onclick searchSubjects()); the press is recorded on the field, not mapped.",
+    "",
+    "Education (page7), ADR-0107 (2026-09-12): the six status radios are no longer handed to the student — a companion is mapped by nothing. When the radio's option values are read from a copy of the fieldset markup, the blueprint names each slot's defer option (whenDeferred) and its 'not providing' option (whenNotProviding); until then the slots are the student's act on a page nothing fills, which is admitted."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.11",
@@ -287,48 +289,6 @@
       "source": {
         "kind": "student_handoff",
         "reason": "You attach the transcript translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
-      }
-    },
-    {
-      "fieldRef": "certificateStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the certificate itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
-      }
-    },
-    {
-      "fieldRef": "transcriptStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the transcript itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
-      }
-    },
-    {
-      "fieldRef": "officialCertTranslStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the officialCertTranslation itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
-      }
-    },
-    {
-      "fieldRef": "officialTranTranslStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the officialTranTranslation itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
-      }
-    },
-    {
-      "fieldRef": "certificateTranslationStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the certificateTranslation itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
-      }
-    },
-    {
-      "fieldRef": "transcriptTranslationStatus",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Answered by you with the transcriptTranslation itself — attached now, sent later, not required, or in English (ADR-0105, Vahid's decision of 2026-09-11: the slot's own companion, handed with that slot)."
       }
     }
   ]

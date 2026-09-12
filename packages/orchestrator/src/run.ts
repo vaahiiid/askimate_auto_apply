@@ -566,17 +566,16 @@ function studentsOwnActs(state: RunState): readonly string[] {
       page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
     ),
   );
-  const labels = new Map(
-    state.inputs.blueprint.pages.flatMap((page) =>
-      page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, field.label] as const)),
-    ),
-  );
+  const institution = state.inputs.blueprint.institutionName;
   return plan.handoffs
-    .filter((handoff) => handoff.inputType === "file" || handoff.ofSlot !== undefined)
+    .filter((handoff) => handoff.inputType === "file")
     .map((handoff) => {
-      // ADR-0105: the slot's companion, answered with the slot.
+      // ADR-0107: what the portal was told beside the slot, so the student
+      // reads at the handover what they owe and what was said about it.
       const what =
-        handoff.ofSlot === undefined ? handoff.label : `${handoff.label} (answered with ${labels.get(handoff.ofSlot) ?? handoff.ofSlot})`;
+        handoff.deferred === undefined
+          ? handoff.label
+          : `${handoff.label} (${institution} has been told it is coming later; the application is not complete until you attach it)`;
       return handoff.item === undefined
         ? what
         : `${what} — ${titles.get(handoff.fieldRef) ?? ""}, entry ${String(handoff.item.index + 1)} of ${String(handoff.item.count)}`;

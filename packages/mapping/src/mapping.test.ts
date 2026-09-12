@@ -814,12 +814,16 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
       ["qualification_subject", 0, 2, "Industrial Engineering"],
       ["qualification_institution", 0, 2, "Sharif University of Technology"],
       ["qualification_year", 0, 2, "2021"],
+      // ADR-0107: the certificate is the student's own act; the portal is told
+      // it is coming later — once per entry.
+      ["qualification_certificate_status", 0, 2, "later"],
       ["qualification_level", 1, 2, "High school diploma"],
       ["qualification_subject", 1, 2, "Mathematics and Physics"],
       ["qualification_institution", 1, 2, "Farzanegan High School"],
       ["qualification_year", 1, 2, "2017"],
       // Shown for the school diploma only (ADR-0104): the condition is answered per item.
       ["qualification_grade_note", 1, 2, "19.1"],
+      ["qualification_certificate_status", 1, 2, "later"],
     ]);
     expect(plan.blockers).toEqual([]);
     expect(plan.repeats).toEqual([
@@ -987,37 +991,111 @@ describe("a slot's companion handed with the slot, and a control pressed to load
     { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
   ];
   const WITH_ONE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
-  const withoutMapping = (fieldRef: string): MappingSet => ({ ...SET, mappings: SET.mappings.filter((m) => m.fieldRef !== fieldRef) });
   const remapped = (fieldRef: string, source: MappingSet["mappings"][number]["source"]): MappingSet => ({
     ...SET,
     mappings: SET.mappings.map((m) => (m.fieldRef === fieldRef ? { ...m, source } : m)),
   });
 
-  it("hands the slot's own companion to the student WITH the slot, once per item, and says which slot it belongs to", () => {
+  // ── ADR-0107 (blocker 23, A): a handed slot's companion says "later" ──
+
+  /** The fixture blueprint with the certificate slot's companion values changed. */
+  const withCompanion = (companion: Record<string, string> | undefined): ApplicationBlueprint => ({
+    ...BLUEPRINT,
+    pages: BLUEPRINT.pages.map((page) => ({
+      ...page,
+      requiredDocuments: page.requiredDocuments.map((document) =>
+        document.fieldRef !== "qualification_certificate"
+          ? document
+          : companion === undefined
+            ? { ...document, companion: { fieldRef: "qualification_certificate_status", whenAttached: "now" } }
+            : { ...document, companion: { fieldRef: "qualification_certificate_status", whenAttached: "now", ...companion } },
+      ),
+    })),
+  });
+
+  it("sets a handed slot's companion to the reviewer-named DEFER value, once per item, as a statement about when — and says so on the slot's handoff", () => {
+    // Vahid, 2026-09-12: *"'I will upload this later' is not a claim about the
+    // document, it is a statement about when. We are not saying the student
+    // has a certificate, or does not, or will not send one. We are saying
+    // nothing is being sent in this act."*
     const check = checkUsable(SET, BLUEPRINT);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(BLUEPRINT, check.mappingSet, WITH_ONE);
-    const status = plan.handoffs.find((h) => h.fieldRef === "qualification_certificate_status");
+    const status = plan.instructions.find((i) => i.fieldRef === "qualification_certificate_status");
     expect(status?.item).toEqual({ index: 0, count: 1 });
-    expect(status?.ofSlot).toBe("qualification_certificate");
-    expect(status?.inputType).toBe("radio");
-    // Not a companion instruction: nothing is attached, so nothing is marked.
-    expect(plan.instructions.some((i) => i.fieldRef === "qualification_certificate_status")).toBe(false);
-    // And it crosses to the runner: the page is still filled.
+    expect(status === undefined ? "" : textOf(status.value)).toBe("later");
+    expect(status?.defers).toBe("qualification_certificate");
+    // The slot is still the student's own act, and its handoff names what the portal is told.
+    const slot = plan.handoffs.find((h) => h.fieldRef === "qualification_certificate");
+    expect(slot?.deferred).toEqual({ fieldRef: "qualification_certificate_status", label: "Certificate status", text: "later", displayText: "I will send it later" });
+    // The companion is not a handoff any more: the student attaches; we say when.
+    expect(plan.handoffs.some((h) => h.fieldRef === "qualification_certificate_status")).toBe(false);
     expect(toStoredPlan(plan).ok).toBe(true);
   });
 
-  it("REFUSES the companion's handoff when its slot is not handed off, and any other radio's handoff on the page", () => {
-    // The slot mapped to nothing: the companion has no slot to go with. The
-    // companion rule (ADR-0103 gap 4) refuses it first — a mapped companion
-    // whose slot is not handed with it — and that is the right rule to.
-    const alone = checkUsable(withoutMapping("qualification_certificate"), BLUEPRINT);
-    expect(alone.usable).toBe(false);
-    if (!alone.usable) expect(alone.refusal.kind).toBe("document_companion_invalid");
-    // A radio that is nobody's companion: not a licence.
+  it("REFUSES a companion mapped by anything — handed, or set to the refusal-style value, which is never ours to say", () => {
+    // ADR-0105's admission is withdrawn: the companion follows the slot, and
+    // for a handed slot it says "later" from the blueprint, not from a mapping.
+    const handed = checkUsable(
+      { ...SET, mappings: [...SET.mappings, { fieldRef: "qualification_certificate_status", source: { kind: "student_handoff", reason: "x" } }] },
+      BLUEPRINT,
+    );
+    expect(handed.usable).toBe(false);
+    if (!handed.usable) expect(handed.refusal.kind).toBe("document_companion_invalid");
+    // *"'I will not be providing this document' is a claim about the student's
+    // intent and is not ours to say, ever, on any portal."*
+    const refusing = checkUsable(
+      {
+        ...SET,
+        mappings: [
+          ...SET.mappings,
+          {
+            fieldRef: "qualification_certificate_status",
+            source: { kind: "constant", value: "none", classification: "application_metadata", rationale: "x" },
+          },
+        ],
+      },
+      BLUEPRINT,
+    );
+    expect(refusing.usable).toBe(false);
+    if (!refusing.usable) {
+      expect(refusing.refusal.kind).toBe("document_companion_invalid");
+      expect(refusing.refusal.detail).toContain("not ours to say");
+    }
+    // A radio that is nobody's companion: not a licence either.
     const level = checkUsable(remapped("qualification_level", { kind: "student_handoff", reason: "x" }), BLUEPRINT);
     expect(level.usable).toBe(false);
     if (!level.usable) expect(level.refusal.kind).toBe("repeat_mapping_invalid");
+  });
+
+  it("REFUSES a handed slot whose companion names no defer value on a page the runner fills — the page waits for the student, or it is not option A", () => {
+    // *"If a portal offers only 'now' or 'not providing' with nothing in
+    // between, that is not option A and the page waits for the student."*
+    const onlyNowOrNever = checkUsable(SET, withCompanion({ whenNotProviding: "none" }));
+    expect(onlyNowOrNever.usable).toBe(false);
+    if (!onlyNowOrNever.usable) {
+      expect(onlyNowOrNever.refusal.kind).toBe("document_companion_invalid");
+      expect(onlyNowOrNever.refusal.detail).toContain("waits for the student");
+    }
+    // The defer value must be one the form offers, and never the refusal one.
+    const notOffered = checkUsable(SET, withCompanion({ whenDeferred: "someday" }));
+    expect(notOffered.usable).toBe(false);
+    const sameAsRefusal = checkUsable(SET, withCompanion({ whenDeferred: "none", whenNotProviding: "none" }));
+    expect(sameAsRefusal.usable).toBe(false);
+    // The page waiting for the student: nothing on it filled by the plan — the
+    // slot stays the student's act and the other fields are mapped by nothing.
+    const waiting: MappingSet = {
+      ...SET,
+      mappings: SET.mappings.filter(
+        (m) => !["qualification_level", "qualification_subject", "qualification_institution", "qualification_year", "qualification_grade_note"].includes(m.fieldRef),
+      ),
+    };
+    const waits = checkUsable(waiting, withCompanion(undefined));
+    expect(waits.usable, waits.usable ? "" : waits.refusal.detail).toBe(true);
+    if (waits.usable) {
+      const plan = planFill(withCompanion(undefined), waits.mappingSet, WITH_ONE);
+      expect(plan.instructions.some((i) => i.fieldRef === "qualification_certificate_status")).toBe(false);
+    }
   });
 
   it("plans the control to press before waiting for the options", () => {

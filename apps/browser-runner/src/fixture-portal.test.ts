@@ -183,10 +183,17 @@ describe("a page filled once per qualification (P96)", () => {
       if (certificate !== undefined) body.set("certificate", new Blob(["%PDF-1.7\n"], { type: "application/pdf" }), certificate);
       return await fetch(`${portal.baseUrl}/education/add`, { method: "POST", headers: { cookie: signedIn }, body, redirect: "manual" });
     };
-    const first = await entry({ level: "BSc", subject: "Maths", institution: "A", year: "2021" });
+    // ADR-0106/0107, as Sheffield does it: a save with the evidence radio
+    // unanswered draws no error and records nothing.
+    const dropped = await entry({ level: "BSc", subject: "Maths", institution: "A", year: "2021" });
+    expect(dropped.status).toBe(302);
+    expect(dropped.headers.get("location")).toBe("/education");
+    expect(portal.application(EMAIL)?.qualifications).toHaveLength(0);
+
+    const first = await entry({ level: "BSc", subject: "Maths", institution: "A", year: "2021", certificate_status: "later" });
     expect(first.status).toBe(302);
     expect(first.headers.get("location")).toBe("/education");
-    const second = await entry({ level: "Diploma", subject: "Physics", institution: "B", year: "2017", grade_note: "19" }, "diploma.pdf");
+    const second = await entry({ level: "Diploma", subject: "Physics", institution: "B", year: "2017", grade_note: "19", certificate_status: "now" }, "diploma.pdf");
     expect(second.status).toBe(302);
     const listed = await (await fetch(`${portal.baseUrl}/education`, { headers: { cookie: signedIn } })).text();
     expect(listed.match(/class="qualification"/g)).toHaveLength(2);

@@ -570,9 +570,22 @@ reported as a success; it is not resolved. Raised as
 [blocker 23](../../decision-sheet-blocker-23-a-companion-the-page-will-not-save-without.md),
 with the options priced, for him to decide on its own.
 
+**Blocker 23 decided A — Vahid, 2026-09-12 (P106,
+[ADR-0107](../../decisions/0107-a-handed-slots-companion-says-later.md)).** The runner sets a
+handed slot's companion to the defer-style option the reviewer names — *"a statement about
+when, not a claim about the document"* — and never the refusal-style one. **On this draft the
+six values cannot be named yet:** the capture reads the status radios' `value` attributes as
+the field's name repeated (`certificateStatus` three times over, P88's note), so which value is
+*later* and which is *not providing* is not in the record. The set (0.3.9) no longer hands the
+six radios; the slots stay the student's act on a page nothing fills, which is admitted. **What
+settles it:** a copy of one qualification's Documentary Evidence fieldset (the four radio
+groups), DevTools → Elements → *Copy outerHTML* — that gives each radio's `value` and its label,
+and settles the *in English* wording too. The draft then names `whenDeferred` and
+`whenNotProviding` on each of the six slots.
+
 Still to come from him: the dropdown markup copy; `personal.do` reopened after a save (whether
 it shows the saved values — the first read-back's shape on this portal); the *Previous
-Education* markup on `summary.do`; and blocker 23, in his words.
+Education* markup on `summary.do`; the education fieldset markup; and blocker 24, in his words.
 
 ## What step 4 still needs
 

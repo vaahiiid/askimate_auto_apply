@@ -175,7 +175,7 @@ export function toStoredPlan(
   // what the student attaches themselves. A handoff on anything else still
   // makes the plan a person's, not a runner's.
   // ...and (ADR-0105) a slot's companion handed with its slot goes with it.
-  if (plan.handoffs.some((handoff) => handoff.inputType !== "file" && handoff.ofSlot === undefined)) {
+  if (plan.handoffs.some((handoff) => handoff.inputType !== "file")) {
     return { ok: false, refusal: "has_handoffs" };
   }
 

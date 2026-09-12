@@ -438,6 +438,7 @@ ${qualifications
     <label><input type="radio" name="certificate_status" value="now"> I am attaching it now</label>
     <label><input type="radio" name="certificate_status" value="later"> I will send it later</label>
     <label><input type="radio" name="certificate_status" value="english"> It is in English</label>
+    <label><input type="radio" name="certificate_status" value="none"> I will not be providing it</label>
   </fieldset>
 
   <button type="submit" id="saveQualificationBtn">Save this qualification</button>
@@ -864,6 +865,13 @@ export async function startFixturePortal(
           return;
         }
         const certificate = parts.get("certificate");
+        // Sheffield, observed by Vahid on 2026-09-12: with an evidence radio
+        // unanswered the save draws no error and records nothing. The same
+        // here, so the read-back (ADR-0106) is what catches it.
+        if (field("certificate_status").length === 0) {
+          send(response, 302, "", { location: "/education" });
+          return;
+        }
         applications.set(signedInAs, {
           ...held,
           qualifications: [

@@ -123,8 +123,8 @@ export interface PreviewHandoff {
   readonly reason: string;
   /** Under which entry of a repeating page it is said (ADR-0104). */
   readonly item?: PreviewItem;
-  /** The slot this is the companion of, handed with it (ADR-0105): the student answers, not attaches. */
-  readonly ofSlot?: string;
+  /** What the portal is told beside the slot while the student attaches it (ADR-0107). */
+  readonly deferred?: { readonly fieldRef: string; readonly label: string; readonly text: string; readonly displayText?: string };
 }
 
 /**
@@ -450,7 +450,7 @@ export function buildPreview(
     ...(handoff.item === undefined
       ? {}
       : { item: { index: handoff.item.index, count: handoff.item.count, title: pageTitleOf.get(handoff.fieldRef) ?? "" } }),
-    ...(handoff.ofSlot === undefined ? {} : { ofSlot: handoff.ofSlot }),
+    ...(handoff.deferred === undefined ? {} : { deferred: { ...handoff.deferred } }),
   }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
@@ -561,8 +561,13 @@ function hashContent(content: {
     );
   }
   for (const handoff of [...content.handoffs].sort(byFieldRef)) {
-    // ADR-0104: what the student attaches themselves, under which entry.
-    lines.push(`handoff${handoff.fieldRef}${handoff.item === undefined ? "" : `#${String(handoff.item.index)}`}`);
+    // ADR-0104: what the student attaches themselves, under which entry —
+    // and (ADR-0107) what the portal is told beside it meanwhile, so a change
+    // in what is said voids the yes.
+    lines.push(
+      `handoff${handoff.fieldRef}${handoff.item === undefined ? "" : `#${String(handoff.item.index)}`}` +
+        `${handoff.deferred === undefined ? "" : `${handoff.deferred.fieldRef}=${handoff.deferred.text}`}`,
+    );
   }
   // ADR-0102: what was entered instead of an answer, why, the form's quoted
   // words and which controls were left untouched are all inside the yes — a
@@ -626,16 +631,26 @@ export function renderPreview(preview: SubmissionPreview): string {
 
   // ADR-0104: what the student attaches themselves is said UNDER its entry,
   // apart from what was filled, so the two can be told apart while reading.
-  const ownActs = (item: PreviewItem | undefined): readonly string[] =>
-    item === undefined
-      ? []
-      : preview.handoffs
-          .filter((handoff) => handoff.item?.title === item.title && handoff.item.index === item.index)
-          // The slot first, then the answer that goes with it (ADR-0105).
-          .sort((a, b) => Number(a.ofSlot !== undefined) - Number(b.ofSlot !== undefined))
-          .map((handoff) =>
-            handoff.ofSlot === undefined ? `  You attach yourself: ${handoff.label}` : `  You answer yourself: ${handoff.label}`,
-          );
+  // ADR-0107, in Vahid's words: *"for each qualification, that we are telling
+  // Sheffield the certificate and transcript are coming later, that the
+  // student attaches them themselves, and that the application is not
+  // complete until they do. If a student authorises this and is surprised
+  // later, the preview failed."*
+  const deferralLines = (own: readonly PreviewHandoff[], indent: string): readonly string[] => {
+    const deferred = own.filter((handoff) => handoff.deferred !== undefined);
+    if (deferred.length === 0) return [];
+    const names = deferred.map((handoff) => `your ${handoff.label}`);
+    const list = names.length === 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1] ?? ""}`;
+    return [
+      `${indent}We are telling ${preview.institutionName} that ${list} ${names.length === 1 ? "is" : "are"} coming later.`,
+      `${indent}You attach ${names.length === 1 ? "it" : "them"} yourself. The application is not complete until you do.`,
+    ];
+  };
+  const ownActs = (item: PreviewItem | undefined): readonly string[] => {
+    if (item === undefined) return [];
+    const own = preview.handoffs.filter((handoff) => handoff.item?.title === item.title && handoff.item.index === item.index);
+    return [...own.map((handoff) => `  You attach yourself: ${handoff.label}`), ...deferralLines(own, "  ")];
+  };
   let heading: string | null = null;
   let current: PreviewItem | undefined;
   for (const entry of preview.entries) {
@@ -721,9 +736,8 @@ export function renderPreview(preview: SubmissionPreview): string {
   const general = preview.handoffs.filter((handoff) => handoff.item === undefined);
   if (general.length > 0) {
     lines.push("", "You will complete these yourself:");
-    for (const handoff of general) {
-      lines.push(handoff.ofSlot === undefined ? `  ${handoff.label}` : `  ${handoff.label} (answered with the document itself)`);
-    }
+    for (const handoff of general) lines.push(`  ${handoff.label}`);
+    lines.push(...deferralLines(general, "  "));
   }
 
   lines.push("", `Reference: ${preview.contentHash}`);

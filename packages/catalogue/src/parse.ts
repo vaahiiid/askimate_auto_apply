@@ -355,7 +355,26 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
   const requiredWhen = optionalWith(source, "requiredWhen", path, readCondition);
   const companion = optionalWith(source, "companion", path, (value, at) => {
     const held = record(value, at);
-    return { fieldRef: text(held, "fieldRef", at), whenAttached: text(held, "whenAttached", at) };
+    const whenAttached = text(held, "whenAttached", at);
+    // ADR-0107: the defer-style value is ours to say; the refusal-style one
+    // never is, and the two may not be the same option.
+    const whenDeferred = optionalText(held, "whenDeferred", at);
+    const whenNotProviding = optionalText(held, "whenNotProviding", at);
+    if (whenDeferred !== undefined && whenDeferred === whenNotProviding) {
+      fail(`${at}.whenDeferred`, `is the option that says the document will not be provided, which is never ours to say`);
+    }
+    if (whenDeferred !== undefined && whenDeferred === whenAttached) {
+      fail(`${at}.whenDeferred`, `is the option set when a file is attached, not a deferral`);
+    }
+    if (whenNotProviding !== undefined && whenNotProviding === whenAttached) {
+      fail(`${at}.whenNotProviding`, `is the option set when a file is attached`);
+    }
+    return {
+      fieldRef: text(held, "fieldRef", at),
+      whenAttached,
+      ...(whenDeferred === undefined ? {} : { whenDeferred }),
+      ...(whenNotProviding === undefined ? {} : { whenNotProviding }),
+    };
   });
   // ADR-0106: what the page shows when a file is held here.
   const recorded = optionalWith(source, "recorded", path, readLocator);

@@ -297,6 +297,7 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
                 { value: "now", label: "I am attaching it now" },
                 { value: "later", label: "I will send it later" },
                 { value: "english", label: "It is in English" },
+                { value: "none", label: "I will not be providing it" },
               ],
             },
           ],
@@ -309,7 +310,14 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
           label: "Certificate",
           acceptedFormats: [".pdf", ".jpg", ".png"],
           required: false,
-          companion: { fieldRef: "qualification_certificate_status", whenAttached: "now" },
+          companion: {
+            fieldRef: "qualification_certificate_status",
+            whenAttached: "now",
+            // ADR-0107: the slot is the student's own act; the runner says
+            // "later" — a statement about when — and never "not providing".
+            whenDeferred: "later",
+            whenNotProviding: "none",
+          },
         },
       ],
       // Saves ONE qualification and shows the list again — not "Save and
@@ -544,13 +552,6 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
       source: {
         kind: "student_handoff",
         reason: "You attach the certificate for each qualification yourself, on the qualifications page (ADR-0104).",
-      },
-    },
-    {
-      fieldRef: "qualification_certificate_status",
-      source: {
-        kind: "student_handoff",
-        reason: "You say, with the certificate, whether it is attached now, sent later, or in English (ADR-0105).",
       },
     },
     {

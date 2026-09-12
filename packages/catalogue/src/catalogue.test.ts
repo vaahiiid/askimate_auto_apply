@@ -288,6 +288,28 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("repeats.fieldKey");
   });
 
+  it("round-trips a companion's defer and not-providing values, and refuses the two being one option (ADR-0107)", () => {
+    const parsed = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const education = parsed.value.blueprint.pages.find((candidate) => candidate.pageRef === "page-education");
+    expect(education?.requiredDocuments[0]?.companion).toEqual({
+      fieldRef: "qualification_certificate_status",
+      whenAttached: "now",
+      whenDeferred: "later",
+      whenNotProviding: "none",
+    });
+    const same = JSON.parse(documentOf()) as Record<string, unknown>;
+    const pages = (same["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+    for (const candidate of pages) {
+      if (candidate["pageRef"] !== "page-education") continue;
+      const slot = (candidate["requiredDocuments"] as Record<string, unknown>[])[0] as Record<string, unknown>;
+      slot["companion"] = { fieldRef: "qualification_certificate_status", whenAttached: "now", whenDeferred: "none", whenNotProviding: "none" };
+    }
+    const refused = parseReviewedEntry(same);
+    if (refused.ok) expect.unreachable("the defer value may never be the not-providing one");
+    expect(refused.refusal.path).toContain("whenDeferred");
+  });
+
   it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
     // Found on the Sheffield draft, not designed: the language page and the
     // education page both call their file input `certificate` and its status

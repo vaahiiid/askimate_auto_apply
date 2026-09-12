@@ -583,32 +583,70 @@ export function checkUsable(
 
   // ── ADR-0103 gap 4: a slot's companion follows the attach, and nothing else ──
   //
-  // ADR-0105: unless the slot itself is the student's act — then its own
-  // companion may be handed to them WITH it, because "it is in English" is the
-  // student answering the question the slot asks. That companion, with that
-  // slot, and nothing else.
+  // ADR-0107 (blocker 23, A): a companion is mapped by nothing — ADR-0105's
+  // admission of one handed with its slot is withdrawn. When the slot is the
+  // student's own act, the runner sets the companion to the DEFER value the
+  // reviewer named on the blueprint — "I will upload it later", a statement
+  // about when — and never to the refusal-style one, which is a claim about
+  // the student's intent and not ours to say, ever, on any portal. Where no
+  // defer value is named, the page waits for the student: nothing on it may
+  // be filled by the plan.
   const handedOff = new Set(
     mappingSet.mappings.filter((mapping) => mapping.source.kind === "student_handoff").map((mapping) => mapping.fieldRef),
   );
-  const slotOfCompanion = new Map(
-    allRequiredDocuments(blueprint).flatMap((document) =>
-      document.companion === undefined ? [] : [[document.companion.fieldRef, document.fieldRef] as const],
-    ),
+  const pageOf = new Map(
+    blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page] as const))),
   );
-  const handedWithItsSlot = (fieldRef: string): boolean => {
-    const slot = slotOfCompanion.get(fieldRef);
-    return slot !== undefined && handedOff.has(fieldRef) && handedOff.has(slot);
-  };
   const badCompanions: string[] = [];
+  const companionProblems: string[] = [];
   for (const document of allRequiredDocuments(blueprint)) {
     if (document.companion === undefined) continue;
-    const field = fieldsByRef.get(document.companion.fieldRef);
-    if (
-      field === undefined ||
-      !formOffers(field, document.companion.whenAttached) ||
-      (mapped.has(field.fieldRef) && !handedWithItsSlot(field.fieldRef))
-    ) {
-      badCompanions.push(document.companion.fieldRef);
+    const companion = document.companion;
+    const field = fieldsByRef.get(companion.fieldRef);
+    if (field === undefined || !formOffers(field, companion.whenAttached)) {
+      badCompanions.push(companion.fieldRef);
+      companionProblems.push(`${companion.fieldRef} is not on the blueprint or does not offer "${companion.whenAttached}"`);
+      continue;
+    }
+    const mapping = mappingFor(mappingSet, field.fieldRef);
+    if (mapping !== undefined) {
+      badCompanions.push(companion.fieldRef);
+      const said = mapping.source.kind === "constant" ? mapping.source.value : mapping.source.kind === "form_refusal" ? mapping.source.value : null;
+      companionProblems.push(
+        said !== null && companion.whenNotProviding !== undefined && said === companion.whenNotProviding
+          ? `${companion.fieldRef} is set to "${said}", which says the document will not be provided — a claim about the student's intent and not ours to say (ADR-0107)`
+          : `${companion.fieldRef} is mapped, and a companion follows its slot: set with the attach, or to the defer value when the slot is the student's own act (ADR-0107)`,
+      );
+      continue;
+    }
+    if (companion.whenDeferred !== undefined) {
+      if (companion.whenDeferred === companion.whenNotProviding) {
+        badCompanions.push(companion.fieldRef);
+        companionProblems.push(`${companion.fieldRef}'s defer value is the one that says the document will not be provided, which is never ours to say (ADR-0107)`);
+        continue;
+      }
+      if (!formOffers(field, companion.whenDeferred)) {
+        badCompanions.push(companion.fieldRef);
+        companionProblems.push(`${companion.fieldRef} does not offer the defer value "${companion.whenDeferred}"`);
+        continue;
+      }
+    }
+    if (handedOff.has(document.fieldRef) && companion.whenDeferred === undefined) {
+      // A handed slot with no defer value to set: only a page that waits for
+      // the student — nothing on it filled by the plan — can carry it.
+      const page = pageOf.get(document.fieldRef);
+      const filled = (page?.sections ?? [])
+        .flatMap((section) => section.fields)
+        .filter((candidate) => {
+          const source = mappingFor(mappingSet, candidate.fieldRef)?.source.kind;
+          return source !== undefined && source !== "student_handoff";
+        });
+      if (filled.length > 0) {
+        badCompanions.push(companion.fieldRef);
+        companionProblems.push(
+          `${document.fieldRef} is the student's own act and ${companion.fieldRef} names no defer value to set beside it, so the page waits for the student — but ${filled.map((candidate) => candidate.fieldRef).join(", ")} would be filled on it (ADR-0107)`,
+        );
+      }
     }
   }
   if (badCompanions.length > 0) {
@@ -617,10 +655,7 @@ export function checkUsable(
       refusal: {
         kind: "document_companion_invalid",
         fieldRefs: badCompanions,
-        detail:
-          `A document slot names ${badCompanions.join(", ")} as the control set beside it when a ` +
-          `file is attached, which it may not be: a companion must be on the blueprint, offer the ` +
-          `value the slot names, and be mapped by nothing — it follows the attach (ADR-0103).`,
+        detail: `A document slot's companion may not be used as it is: ${companionProblems.join("; ")}.`,
       },
     };
   }
@@ -687,12 +722,10 @@ export function checkUsable(
           }
         } else if (mapping.source.kind === "student_handoff") {
           // ADR-0104 (B): the documents of a repeating page are the student's
-          // own act — a handoff on a document slot, and (ADR-0105) on that
-          // slot's own companion handed with it, and on nothing else.
-          if (field.inputType !== "file" && !handedWithItsSlot(field.fieldRef)) {
-            repeatProblems.push(
-              `${field.fieldRef} is handed to the student on a page that repeats, and it is neither a document slot nor a slot's companion handed with its slot`,
-            );
+          // own act — a handoff on a document slot, and on nothing else. The
+          // slot's companion is set by the runner (ADR-0107), not handed.
+          if (field.inputType !== "file") {
+            repeatProblems.push(`${field.fieldRef} is handed to the student on a page that repeats, and it is not a document slot`);
             repeatRefs.push(field.fieldRef);
           }
         } else if (mapping.source.kind !== "constant") {

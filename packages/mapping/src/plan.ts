@@ -99,6 +99,12 @@ export interface FillInstruction {
    * off a repeating page.
    */
   readonly item?: { readonly index: number; readonly count: number };
+  /**
+   * The slot this instruction is the deferral for (ADR-0107): the slot is the
+   * student's own act, and this sets its companion to the reviewer-named
+   * "later" — a statement about when, not about the document.
+   */
+  readonly defers?: string;
 }
 
 /** A page filled once per item of a list (ADR-0103, gap 3), and how many times. */
@@ -172,12 +178,16 @@ export interface HandoffRequirement {
   /** Which entry of a repeating page this belongs to (ADR-0104). */
   readonly item?: { readonly index: number; readonly count: number };
   /**
-   * The slot this handoff is the companion of, when it is one handed to the
-   * student WITH its slot (ADR-0105): the student answers the question the
-   * slot asks. Such a handoff does not refuse transport either.
+   * What the portal is told beside this slot while the student attaches it
+   * themselves (ADR-0107): the companion the runner sets, and the defer value
+   * it is set to — in the option's own words when the form has them. The
+   * preview says it in the student's words, and the hash holds it.
    */
-  readonly ofSlot?: string;
+  readonly deferred?: { readonly fieldRef: string; readonly label: string; readonly text: string; readonly displayText?: string };
 }
+
+/** What the portal is told beside a handed slot (ADR-0107). */
+type Deferral = NonNullable<HandoffRequirement["deferred"]>;
 
 /** Something that stops the plan being complete. */
 export type FillBlocker =
@@ -289,15 +299,30 @@ export function planFill(
       document.recorded === undefined ? [] : [[document.fieldRef, document.recorded] as const],
     ),
   );
-  // ADR-0105: which field is which slot's companion, for a handoff handed with its slot.
-  const slotOfCompanion = new Map(
-    allRequiredDocuments(blueprint).flatMap((document) =>
-      document.companion === undefined ? [] : [[document.companion.fieldRef, document.fieldRef] as const],
-    ),
-  );
-  const ofSlotFor = (fieldRef: string): { readonly ofSlot?: string } => {
-    const slot = slotOfCompanion.get(fieldRef);
-    return slot === undefined || mappingFor(mappingSet, slot)?.source.kind !== "student_handoff" ? {} : { ofSlot: slot };
+  // ADR-0107: a handed slot's companion is set to the reviewer-named defer
+  // value — a statement about when — and the slot's handoff says so.
+  const deferralFor = (
+    slotRef: string,
+  ): { readonly handoff: { readonly deferred?: Deferral }; readonly instruction: FillInstruction | null } => {
+    const companion = companionOf.get(slotRef);
+    const field = companion === undefined ? undefined : fieldsByRef.get(companion.fieldRef);
+    if (companion?.whenDeferred === undefined || field === undefined) return { handoff: {}, instruction: null };
+    const label = field.options?.find((option) => option.value === companion.whenDeferred)?.label;
+    return {
+      handoff: {
+        deferred: {
+          fieldRef: field.fieldRef,
+          label: field.label,
+          text: companion.whenDeferred,
+          ...(label === undefined || label === companion.whenDeferred ? {} : { displayText: label }),
+        },
+      },
+      instruction: {
+        ...instructionShape(field),
+        value: { kind: "reviewed_constant", constant: deferredConstant(mappingSet, companion.whenDeferred) },
+        defers: slotRef,
+      },
+    };
   };
   const companionFields = new Set(
     [...companionOf.entries()]
@@ -363,15 +388,18 @@ export function planFill(
         });
         break;
 
-      case "student_handoff":
+      case "student_handoff": {
+        const deferral = deferralFor(field.fieldRef);
         handoffs.push({
           fieldRef: field.fieldRef,
           label: field.label,
           reason: mapping.source.reason,
           inputType: field.inputType,
-          ...ofSlotFor(field.fieldRef),
+          ...deferral.handoff,
         });
+        if (deferral.instruction !== null) instructions.push(deferral.instruction);
         break;
+      }
 
       // ADR-0043. Nothing is read from the profile, nothing is rendered, and
       // no `FillValue` is built — because there is none that could hold this.
@@ -518,15 +546,18 @@ export function planFill(
           continue;
         }
         if (mapping.source.kind === "student_handoff") {
-          // ADR-0104 (B): the student's own act, once per entry, said under it.
+          // ADR-0104 (B): the student's own act, once per entry, said under it;
+          // ADR-0107: and what the portal is told beside it, set once per entry.
+          const deferral = deferralFor(field.fieldRef);
           itemHandoffs.push({
             fieldRef: field.fieldRef,
             label: field.label,
             reason: mapping.source.reason,
             inputType: field.inputType,
             item,
-            ...ofSlotFor(field.fieldRef),
+            ...deferral.handoff,
           });
+          if (deferral.instruction !== null) itemInstructions.push({ ...deferral.instruction, item });
           continue;
         }
         if (mapping.source.kind !== "profile_field") continue; // refused by checkUsable
@@ -695,4 +726,21 @@ export function fieldsToCollect(plan: FillPlan): readonly OrdinaryFieldKey[] {
     )
     .map((blocker) => blocker.fieldKey);
   return [...new Set(keys)];
+}
+
+/**
+ * The reviewed constant a handed slot's companion is set to (ADR-0107). Its
+ * text is the blueprint's `whenDeferred`, reviewed with the entry; its review
+ * is the mapping set's, since the set is what `checkUsable` held usable
+ * against this blueprint. The rationale is the decision's reason, verbatim.
+ */
+function deferredConstant(mappingSet: UsableMappingSet, whenDeferred: string): ReviewedConstant {
+  return reviewedConstant(mappingSet, {
+    kind: "constant",
+    value: whenDeferred,
+    classification: "application_metadata",
+    rationale:
+      "Nothing is sent in this act: the student attaches this document themselves, and the portal " +
+      "is told it is coming later — a statement about when, not a claim about the document (ADR-0107).",
+  });
 }
