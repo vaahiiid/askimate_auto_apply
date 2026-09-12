@@ -26,13 +26,15 @@
     "",
     "P100 (ADR-0105): the six status radios beside the education page's slots are handed to the student with their slots — 'My transcript is in English' is the student answering the question the slot asks. The subject list is loaded by pressing subjectSearchButton after typing subjectSearch (the dependencies read names the control: onclick searchSubjects()); the press is recorded on the field, not mapped.",
     "",
-    "Education (page7), ADR-0107 (2026-09-12): the six status radios are no longer handed to the student — a companion is mapped by nothing. When the radio's option values are read from a copy of the fieldset markup, the blueprint names each slot's defer option (whenDeferred) and its 'not providing' option (whenNotProviding); until then the slots are the student's act on a page nothing fills, which is admitted."
+    "Education (page7), ADR-0107 (2026-09-12): the six status radios are no longer handed to the student — a companion is mapped by nothing. When the radio's option values are read from a copy of the fieldset markup, the blueprint names each slot's defer option (whenDeferred) and its 'not providing' option (whenNotProviding); until then the slots are the student's act on a page nothing fills, which is admitted.",
+    "",
+    "Education (page7), P108 (2026-09-12): the six Documentary Evidence radios' values are now in the blueprint (0.2.12) from Vahid's reading of the live page — whenAttached Uploaded, whenDeferred UploadLater, whenNotProviding NotSending on every slot; NotRequired is the fourth value and is named by nothing. With the defer value named, the page is NO LONGER one that nothing fills: each qualification's six radios are set to UploadLater by the runner while the qualification's own fields (institution, degree, subject, dates, grade) still wait on the reviewer. DO NOT SIGN this set while that is so — a run would save a qualification that says only 'later' six times. The certificate slot's companion is paired with certificateStatus from the file input's own handler (onchange ticks certificateUploadRadio, the id of that group's Uploaded option), not from the name; the radio's copy says 'proof of registration', so what the slot IS is Iman's to settle from the page (README, P108)."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.11",
+  "blueprintVersion": "0.2.12",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

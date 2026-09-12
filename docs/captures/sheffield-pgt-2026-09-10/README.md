@@ -587,6 +587,57 @@ Still to come from him: the dropdown markup copy; `personal.do` reopened after a
 it shows the saved values — the first read-back's shape on this portal); the *Previous
 Education* markup on `summary.do`; the education fieldset markup; and blocker 24, in his words.
 
+**The Documentary Evidence radios, read from the live page — Vahid, 2026-09-12 (P108).** Six
+groups, not the four his choices had shown him — the DOM's six. Every group offers the same four
+submitted values: `Uploaded`, `UploadLater`, `NotSending`, `NotRequired`. In his words: *"So for
+all six: whenDeferred is UploadLater, whenNotProviding is NotSending. Clean, and the same across
+every group."* The curated draft (0.2.12) now carries each group's four values with the text
+beside each, as he read them, and names `Uploaded` / `UploadLater` / `NotSending` on all six
+companions; the set (0.3.10) follows the blueprint version. **The values the capture held were
+element ids**, not submitted values (`certificateUploadRadio`, `finalCertificateNotRequired`,
+and a group's name repeated for the rest) — the runner sets a radio by its `value` attribute, so
+on the live page none of them would have matched. The language page's group
+(`languageCertificateStatus`) still carries ids from the same capture and waits on the same kind
+of reading.
+
+Three things he asked to be handled rather than absorbed:
+
+- **`NotRequired` is a fourth value, and it is never ours.** On the two translation groups it
+  reads *My certificate/transcript is in English* — a claim about the document, the student's
+  to make (ADR-0107's class). On the first two it reads *Not required* — a claim about what
+  Sheffield needs. On the middle two it has no text at all. *"Whatever the blueprint does with
+  it, we never choose it."* Checked, with tests that fail if it changes: a mapping of the
+  fourth value on a companion is refused, as any mapping of a companion is; the plan sets a
+  handed slot's companion to the defer value and an attached slot's to the attach value and
+  nothing else; the fourth value appears nowhere in a plan, on the fixture or on this draft.
+  **One trap found and closed:** a companion the reviewer marks *required* — which these are
+  in effect, since P105 showed an entry saved with a radio unanswered is dropped — raised a
+  `no_mapping` blocker on the repeating page even though the deferral fills it, and the only
+  thing that blocker invites is the mapping the rules refuse. The plan no longer raises it.
+- **`certificateStatus` says "proof of registration", not "certificate".** *"Do not pair a slot
+  with a radio group by name similarity — pair by what the reviewed markup shows, and flag it
+  for Iman."* The pairing in the draft comes from the file input's own handler in the capture —
+  the `certificate` input's `onchange` ticks `certificateUploadRadio`, the id of that group's
+  *Uploaded* option — not from the two names sharing a stem. What is NOT settled is what the
+  slot *is*: the draft labels it *Degree certificate* (curated, not read from the page — the
+  captured label was the field's name), and the radio's copy says *proof of registration*. The
+  handoff reason in the set says "the degree certificate". **Flagged for Iman** in the review
+  pack: confirm from the page what the first slot asks for, and correct the slot's label and
+  the handoff's words to it. Nothing here asserts the answer.
+- **The two middle groups have no text beside `NotRequired`.** The blueprint records the empty
+  label as read (`parseBlueprint` now admits an empty option label for that reason). If that
+  option were ever chosen, the preview would have nothing to quote. **That is fine because we
+  do not choose it — not because there is nothing to say.** The rule that makes it safe is the
+  one above, and the tests above are what hold it.
+
+**A consequence to read before signing.** With the defer value named, the education page is no
+longer one that nothing fills: for each qualification the runner would set six radios to
+`UploadLater`, hand the six slots to the student, and press *Save and Continue* — while the
+qualification's own fields (institution, degree, subject, dates, grade) are still mapped by
+nothing, because which portal box each profile part fills waits on the reviewer. A run from
+this set would save a qualification that says only *later* six times. The set's own comment
+says not to sign it while that is so.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

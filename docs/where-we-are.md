@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P108 — the six radios, read; the fourth value, never ours
+
+He read the Documentary Evidence radios from the live page: six groups, the DOM's six, and every one offers the same four submitted values. The draft now names the attach, defer and not-providing values on all six companions from his reading, and the text beside each option as he gave it. What the capture had held for those radios were element ids, which the runner would have matched against nothing, so this reading was not a refinement but the first usable values for the group.
+
+Three things he asked to be handled rather than absorbed. The fourth value, *NotRequired*, is on the translation groups a claim about the document — *My certificate is in English* — and on the others a claim about what Sheffield needs, and on two of them nothing at all. We never choose it. That was checked rather than assumed: a mapping of it on a companion is refused, the plan names only the attach or the defer value, and no plan from the draft mentions it. One trap was found on the way and closed with a test that failed first: a companion marked required on a repeating page raised a blocker the deferral had already answered, and the only thing that blocker invites is the mapping the rules refuse. Second, `certificateStatus` says *proof of registration*, not *certificate*: the pairing in the draft rests on the file input's own handler, not the shared name, but what the slot is has not been read from the page, so it is flagged for Iman and asserted nowhere. Third, the two options with no text are recorded with no text, and the record says why that is fine — because the option is chosen by nothing, not because there is nothing to say.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P107 — what the student owes is a record, not a mention
 
 He took the floor and refused the reminder, and both for reasons that are now in the ADR. The

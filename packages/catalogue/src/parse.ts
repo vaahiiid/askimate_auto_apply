@@ -286,7 +286,11 @@ function readOption(value: unknown, path: string): FieldOption {
     // "please select" entry. Refusing it would make a blueprint unable to
     // describe a real portal, which is the failure ADR-0017 §3 is about.
     value: optionalTextAllowingEmpty(source, "value", path) ?? fail(`${path}.value`, "expected a string"),
-    label: text(source, "label", path),
+    // And a radio may have NO text beside it — Sheffield's education page
+    // shows two such (P108). The blueprint records what the page shows; an
+    // option with nothing to quote is chosen by nothing, which is the rule
+    // that makes this safe, not the absence of text.
+    label: optionalTextAllowingEmpty(source, "label", path) ?? fail(`${path}.label`, "expected a string"),
   };
 }
 

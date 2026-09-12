@@ -288,6 +288,34 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("repeats.fieldKey");
   });
 
+  it("keeps an option the page shows with NO text beside it — an empty label is what was read, not a gap (P108)", () => {
+    // Sheffield's education page, read by Vahid on 2026-09-12: on two of the
+    // six Documentary Evidence groups the NotRequired radio has no text at
+    // all. The blueprint records what the page shows. That the preview would
+    // then have nothing to quote matters for nothing — not because there is
+    // nothing to say, but because that option is chosen by nothing: the
+    // blueprint names three values and the fourth is never ours.
+    const same = JSON.parse(documentOf()) as Record<string, unknown>;
+    const pages = (same["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+    for (const candidate of pages) {
+      if (candidate["pageRef"] !== "page-education") continue;
+      for (const section of candidate["sections"] as Record<string, unknown>[]) {
+        for (const field of section["fields"] as Record<string, unknown>[]) {
+          if (field["fieldRef"] !== "qualification_certificate_status") continue;
+          field["options"] = (field["options"] as Record<string, unknown>[]).map((option) =>
+            option["value"] === "english" ? { ...option, label: "" } : option,
+          );
+        }
+      }
+    }
+    const parsed = parseReviewedEntry(same);
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const status = parsed.value.blueprint.pages
+      .flatMap((page) => page.sections.flatMap((section) => section.fields))
+      .find((field) => field.fieldRef === "qualification_certificate_status");
+    expect(status?.options?.find((option) => option.value === "english")).toEqual({ value: "english", label: "" });
+  });
+
   it("round-trips a companion's defer and not-providing values, and refuses the two being one option (ADR-0107)", () => {
     const parsed = parseReviewedEntry(JSON.parse(documentOf()));
     if (!parsed.ok) expect.unreachable(parsed.refusal.detail);

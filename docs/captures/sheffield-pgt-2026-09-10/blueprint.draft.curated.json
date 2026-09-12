@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -23295,20 +23295,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "certificateUploadRadio",
-                  "label": "certificateStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload proof of registration now"
                 },
                 {
-                  "value": "certificateStatus",
-                  "label": "certificateStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload proof of registration later"
                 },
                 {
-                  "value": "certificateStatus",
-                  "label": "certificateStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 },
                 {
-                  "value": "certificateNotRequired",
-                  "label": "certificateStatus"
+                  "value": "NotRequired",
+                  "label": "Not required"
                 }
               ]
             },
@@ -23339,20 +23339,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "transcriptUploadRadio",
-                  "label": "transcriptStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload my transcript now"
                 },
                 {
-                  "value": "transcriptStatus",
-                  "label": "transcriptStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload my transcript later"
                 },
                 {
-                  "value": "transcriptStatus",
-                  "label": "transcriptStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 },
                 {
-                  "value": "transcriptNotRequired",
-                  "label": "transcriptStatus"
+                  "value": "NotRequired",
+                  "label": "Not required"
                 }
               ]
             },
@@ -23383,20 +23383,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "officialCertTranslationUploadRadio",
-                  "label": "officialCertTranslStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload my final certificate now"
                 },
                 {
-                  "value": "officialCertTranslationUploadLaterRadio",
-                  "label": "officialCertTranslStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload my final certificate later"
                 },
                 {
-                  "value": "officialCertTranslStatus",
-                  "label": "officialCertTranslStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 },
                 {
-                  "value": "finalCertificateNotRequired",
-                  "label": "officialCertTranslStatus"
+                  "value": "NotRequired",
+                  "label": ""
                 }
               ]
             },
@@ -23427,20 +23427,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "officialTranTranslationUploadRadio",
-                  "label": "officialTranTranslStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload my final transcript now"
                 },
                 {
-                  "value": "officialTranTranslationUploadLaterRadio",
-                  "label": "officialTranTranslStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload my final transcript later"
                 },
                 {
-                  "value": "officialTranTranslStatus",
-                  "label": "officialTranTranslStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 },
                 {
-                  "value": "finalTranscriptNotRequired",
-                  "label": "officialTranTranslStatus"
+                  "value": "NotRequired",
+                  "label": ""
                 }
               ]
             },
@@ -23471,20 +23471,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "certificateTranslationNotRequired",
-                  "label": "certificateTranslationStatus"
+                  "value": "NotRequired",
+                  "label": "My certificate is in English"
                 },
                 {
-                  "value": "certificateTranslationUploadRadio",
-                  "label": "certificateTranslationStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload my certificate translation now"
                 },
                 {
-                  "value": "certificateTranslationStatus",
-                  "label": "certificateTranslationStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload my certificate translation later"
                 },
                 {
-                  "value": "certificateTranslationStatus",
-                  "label": "certificateTranslationStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 }
               ]
             },
@@ -23515,20 +23515,20 @@
               "validations": [],
               "options": [
                 {
-                  "value": "transcriptTranslationNotRequired",
-                  "label": "transcriptTranslationStatus"
+                  "value": "NotRequired",
+                  "label": "My transcript is in English"
                 },
                 {
-                  "value": "transcriptTranslationUploadRadio",
-                  "label": "transcriptTranslationStatus"
+                  "value": "Uploaded",
+                  "label": "I will upload my transcript translation now"
                 },
                 {
-                  "value": "transcriptTranslationStatus",
-                  "label": "transcriptTranslationStatus"
+                  "value": "UploadLater",
+                  "label": "I will upload my transcript translation later"
                 },
                 {
-                  "value": "transcriptTranslationStatus",
-                  "label": "transcriptTranslationStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
                 }
               ]
             },
@@ -23564,7 +23564,9 @@
           "required": false,
           "companion": {
             "fieldRef": "certificateStatus",
-            "whenAttached": "certificateUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         },
         {
@@ -23582,7 +23584,9 @@
           "required": false,
           "companion": {
             "fieldRef": "transcriptStatus",
-            "whenAttached": "transcriptUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         },
         {
@@ -23600,7 +23604,9 @@
           "required": false,
           "companion": {
             "fieldRef": "officialCertTranslStatus",
-            "whenAttached": "officialCertTranslationUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         },
         {
@@ -23618,7 +23624,9 @@
           "required": false,
           "companion": {
             "fieldRef": "officialTranTranslStatus",
-            "whenAttached": "officialTranTranslationUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         },
         {
@@ -23636,7 +23644,9 @@
           "required": false,
           "companion": {
             "fieldRef": "certificateTranslationStatus",
-            "whenAttached": "certificateTranslationUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         },
         {
@@ -23654,7 +23664,9 @@
           "required": false,
           "companion": {
             "fieldRef": "transcriptTranslationStatus",
-            "whenAttached": "transcriptTranslationUploadRadio"
+            "whenAttached": "Uploaded",
+            "whenDeferred": "UploadLater",
+            "whenNotProviding": "NotSending"
           }
         }
       ],

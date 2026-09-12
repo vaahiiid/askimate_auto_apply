@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.114.0] — 2026-09-12
+
+**P108 — the Documentary Evidence radios, read from the live page: six groups, the defer and
+not-providing values named; the fourth value is chosen by nothing, and the one trap around it
+closed; the certificateStatus pairing flagged for Iman.**
+
+### Changed
+
+- Sheffield curated draft 0.2.12: the six education status groups carry their four submitted
+  values and the text beside each, as Vahid read them on 2026-09-12; every companion names
+  `Uploaded` / `UploadLater` / `NotSending`. The capture's values were element ids and would
+  have matched nothing. Set 0.3.10 follows, with a warning not to sign it while the page's own
+  fields are unmapped.
+- `planFill`: a companion the plan itself sets — with the attach, or to the defer value for a
+  handed slot — is never a field with no mapping. A required companion of a handed slot raised
+  `no_mapping` on a repeating page, and the only answer that blocker invites is the mapping
+  `checkUsable` refuses. Fails first.
+- `parseBlueprint` admits an option with an empty label: two of the six groups show no text
+  beside `NotRequired`, and the blueprint records what the page shows.
+
+### Recorded
+
+- The fourth value is unreachable, with tests that say so on the fixture and on the draft: a
+  mapping of it on a companion is refused, and no plan names it.
+- The `certificate` slot is paired with `certificateStatus` from the file input's own handler,
+  not the shared name; what the slot *is* — the radio says *proof of registration*, the draft
+  says *degree certificate* — is flagged for Iman and asserted nowhere.
+- The two unlabelled options are fine because they are chosen by nothing, not because there is
+  nothing to say. His words, in the README.
+
+---
+
 ## [0.113.1] — 2026-09-12
 
 **P107, corrected: CI #204 red on the boundary check.** The run driver compared a step's kind

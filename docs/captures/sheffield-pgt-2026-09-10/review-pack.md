@@ -384,6 +384,23 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 | `other5Desc` | text | other5Desc | `ordinary` | mechanical |
 | `other5` | file | other5 | `ordinary` | mechanical |
 
+## For Iman — flagged, not asserted (P108, 2026-09-12)
+
+- **What the education page's first document slot asks for.** The draft pairs the `certificate`
+  file input with the `certificateStatus` radio group from the input's own handler (its
+  `onchange` ticks `certificateUploadRadio`, the id of that group's *Uploaded* option). But the
+  radio's copy, read by Vahid from the live page, says *I will upload proof of registration
+  now / later* — not *certificate*. The slot is labelled *Degree certificate* in the draft and
+  the handoff reason says "the degree certificate"; neither was read from the page. Please
+  confirm from the page what the slot asks for, and the label and the reason follow your reading.
+  Vahid's rule: *"Do not pair a slot with a radio group by name similarity — pair by what the
+  reviewed markup shows."*
+- **The six status radios' values** are now from Vahid's reading of the live page (0.2.12):
+  `Uploaded` / `UploadLater` / `NotSending` / `NotRequired` on every group. `NotRequired` is
+  named by nothing and chosen by nothing; on two groups it has no text beside it, recorded as
+  an empty label. The language page's group (`languageCertificateStatus`) still carries the
+  capture's ids, not values.
+
 ## Not in this sitting
 
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,

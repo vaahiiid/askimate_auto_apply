@@ -324,9 +324,17 @@ export function planFill(
       },
     };
   };
+  // The companions this plan sets itself: with the attach when the slot is
+  // mapped to a document, and to the defer value when the slot is the
+  // student's own act (ADR-0107). Neither is a field with no mapping — a
+  // companion is mapped by nothing, so a `no_mapping` blocker on one could
+  // only be answered by the one thing `checkUsable` refuses (P108).
   const companionFields = new Set(
     [...companionOf.entries()]
-      .filter(([slot]) => mappingFor(mappingSet, slot)?.source.kind === "document")
+      .filter(([slot, companion]) => {
+        const source = mappingFor(mappingSet, slot)?.source.kind;
+        return source === "document" || (source === "student_handoff" && companion?.whenDeferred !== undefined);
+      })
       .map(([, companion]) => companion?.fieldRef ?? ""),
   );
 
@@ -499,6 +507,7 @@ export function planFill(
     const resolution = resolveField(profile, fieldKey);
 
     for (const field of fields) {
+      if (companionFields.has(field.fieldRef)) continue;
       if (mappingFor(mappingSet, field.fieldRef) === undefined && isRequired(field)) {
         blockers.push({
           kind: "no_mapping",

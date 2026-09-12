@@ -1138,3 +1138,88 @@ describe("a slot's companion handed with the slot, and a control pressed to load
     if (!submitting.usable) expect(submitting.refusal.kind).toBe("options_after_invalid");
   });
 });
+
+describe("the option a companion does not name (P108) — a fourth value is chosen by nothing", () => {
+  // Sheffield's Documentary Evidence radios, read by Vahid from the live page
+  // on 2026-09-12: four options per group — Uploaded, UploadLater, NotSending,
+  // NotRequired. The blueprint names three. His instruction on the fourth:
+  // *"Whatever the blueprint does with it, we never choose it. Check that
+  // naming only whenDeferred and whenNotProviding leaves a third value
+  // reachable, and if it does, close that."* The fixture's fourth option is
+  // "english" — the same shape as *My certificate is in English*.
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const FOURTH = "english";
+  const QUALIFICATIONS = [
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+  ];
+  const WITH_ONE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
+  const everyText = (plan: ReturnType<typeof planFill>): string =>
+    JSON.stringify([plan.instructions, plan.handoffs, plan.blockers, plan.uploads]);
+
+  it("REFUSES the fourth value mapped as a constant on the companion — any mapping of a companion is refused, and this one is not the 'not providing' one", () => {
+    const fourth = checkUsable(
+      {
+        ...SET,
+        mappings: [
+          ...SET.mappings,
+          { fieldRef: "qualification_certificate_status", source: { kind: "constant", value: FOURTH, classification: "application_metadata", rationale: "x" } },
+        ],
+      },
+      BLUEPRINT,
+    );
+    expect(fourth.usable).toBe(false);
+    if (!fourth.usable) {
+      expect(fourth.refusal.kind).toBe("document_companion_invalid");
+      expect(fourth.refusal.detail).toContain("a companion follows its slot");
+    }
+  });
+
+  it("plans the handed slot's companion as the DEFER value and nothing else — the fourth value appears nowhere in the plan", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, WITH_ONE);
+    const onCompanion = plan.instructions.filter((i) => i.fieldRef === "qualification_certificate_status");
+    expect(onCompanion.map((i) => textOf(i.value))).toEqual(["later"]);
+    expect(everyText(plan)).not.toContain(FOURTH);
+  });
+
+  it("plans the attached slot's companion as the ATTACH value and nothing else — the fourth value appears nowhere in the plan", () => {
+    const check = checkUsable(GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT, check.mappingSet, WITH_ONE);
+    expect(plan.uploads.map((u) => u.companion?.text)).toEqual(["now"]);
+    expect(plan.instructions.some((i) => i.fieldRef === "passport_status")).toBe(false);
+    expect(everyText(plan)).not.toContain(FOURTH);
+  });
+
+  it("does NOT block on a REQUIRED companion the deferral fills — the plan sets it, so it is not a field with no mapping", () => {
+    // Sheffield's radios are required in effect: P105 showed that an entry
+    // saved with two of them unanswered is dropped without an error. A
+    // reviewer who marks them so must not turn a handed slot into a blocker
+    // that only a mapping could answer — and a mapping of a companion is
+    // refused. The only honest answer to that blocker would be the one thing
+    // the rules forbid, so the blocker must not be raised.
+    const required: ApplicationBlueprint = {
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) =>
+            field.fieldRef === "qualification_certificate_status"
+              ? { ...field, validations: [{ kind: "required" as const, source: "dom_attribute" as const }] }
+              : field,
+          ),
+        })),
+      })),
+    };
+    const check = checkUsable(SET, required);
+    expect(check.usable, check.usable ? "" : check.refusal.detail).toBe(true);
+    if (!check.usable) expect.unreachable("usable");
+    const plan = planFill(required, check.mappingSet, WITH_ONE);
+    expect(plan.blockers.filter((b) => b.fieldRef === "qualification_certificate_status")).toEqual([]);
+    expect(plan.instructions.filter((i) => i.fieldRef === "qualification_certificate_status").map((i) => textOf(i.value))).toEqual(["later"]);
+    expect(everyText(plan)).not.toContain(FOURTH);
+  });
+});

@@ -186,6 +186,69 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(refused?.fieldRef).toBe("corrCountry");
   });
 
+  it("name the six Documentary Evidence groups as Vahid read them, and the fourth value is chosen by nothing (P108)", () => {
+    // His reading of the live page, 2026-09-12: four values per group —
+    // Uploaded, UploadLater, NotSending, NotRequired — the same across all six.
+    // *"So for all six: whenDeferred is UploadLater, whenNotProviding is
+    // NotSending."* NotRequired is a fourth value: *"Whatever the blueprint
+    // does with it, we never choose it."*
+    const education = blueprint.pages.find((p) => p.url?.includes("education.do") === true);
+    if (education === undefined) expect.unreachable("education page");
+    const groups = education.sections.flatMap((s) => s.fields).filter((f) => f.fieldRef.endsWith("Status"));
+    expect(groups.map((g) => g.fieldRef)).toEqual([
+      "certificateStatus",
+      "transcriptStatus",
+      "officialCertTranslStatus",
+      "officialTranTranslStatus",
+      "certificateTranslationStatus",
+      "transcriptTranslationStatus",
+    ]);
+    for (const group of groups) {
+      expect(new Set(group.options?.map((o) => o.value)), group.fieldRef).toEqual(new Set(["Uploaded", "UploadLater", "NotSending", "NotRequired"]));
+    }
+    expect(education.requiredDocuments.map((d) => d.companion)).toEqual(
+      groups.map((g) => ({ fieldRef: g.fieldRef, whenAttached: "Uploaded", whenDeferred: "UploadLater", whenNotProviding: "NotSending" })),
+    );
+    // The two middle groups show NO text beside NotRequired. Recorded as
+    // read. That is fine because the option is chosen by nothing — not
+    // because there is nothing to say.
+    const unlabelled = groups.filter((g) => g.options?.some((o) => o.value === "NotRequired" && o.label === ""));
+    expect(unlabelled.map((g) => g.fieldRef)).toEqual(["officialCertTranslStatus", "officialTranTranslStatus"]);
+    // Named by nothing: not by a companion, not by a mapping.
+    expect(JSON.stringify(education.requiredDocuments)).not.toContain("NotRequired");
+    expect(JSON.stringify(mappingSet.mappings)).not.toContain("NotRequired");
+  });
+
+  it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const withOne = withConfirmed([
+      ...PROFILE_ENTRIES,
+      [
+        "education.prior_qualifications",
+        [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" }],
+      ],
+    ]);
+    const plan = planFill(blueprint, check.mappingSet, withOne);
+    const radios = plan.instructions.filter((i) => i.fieldRef.endsWith("Status") && i.item !== undefined);
+    expect(radios.map((i) => [i.fieldRef, textOf(i.value), i.defers])).toEqual([
+      ["certificateStatus", "UploadLater", "certificate"],
+      ["transcriptStatus", "UploadLater", "transcript"],
+      ["officialCertTranslStatus", "UploadLater", "officialCertTranslation"],
+      ["officialTranTranslStatus", "UploadLater", "officialTranTranslation"],
+      ["certificateTranslationStatus", "UploadLater", "certificateTranslation"],
+      ["transcriptTranslationStatus", "UploadLater", "transcriptTranslation"],
+    ]);
+    // What the student is told quotes the page — including the one that
+    // says "proof of registration" where the slot says "degree certificate",
+    // which is why that pairing is flagged for Iman and not asserted here.
+    const told = plan.handoffs.filter((h) => h.deferred !== undefined).map((h) => h.deferred?.displayText);
+    expect(told).toContain("I will upload proof of registration later");
+    expect(told).toContain("I will upload my transcript translation later");
+    expect(JSON.stringify([plan.instructions, plan.handoffs, plan.uploads, plan.blockers])).not.toContain("NotRequired");
+    expect(JSON.stringify([plan.instructions, plan.handoffs, plan.uploads, plan.blockers])).not.toContain("NotSending");
+  });
+
   it("render the block as decided: the quote on disability, nothing quoted on ethnic origin", () => {
     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page9") };
     const onPage = new Set(page.pages.flatMap((p) => p.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))));
