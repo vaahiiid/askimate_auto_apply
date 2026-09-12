@@ -19,6 +19,24 @@ not shipped artefacts.
 
 ---
 
+## [0.110.1] — 2026-09-12
+
+**P103 — the education page after a save, observed: the P99 condition closed; a save pressed is
+not a save read.** Records only.
+
+### Recorded
+
+- Vahid's observation that `education.do?new=true` opens empty after a save closes the condition
+  P99 set: the repeat's continuation is the page's own URL, not a fifth gap. His caveat is kept
+  verbatim, and the per-item walk is shown to depend on it holding at every count; the second
+  observation is asked for.
+- The evidence radios accept *later* and *not providing* without a file. Whether the page saves
+  with a radio unanswered is unobserved, and bears on ADR-0105's handed-with-its-slot shape.
+- **Blocker 22:** after the advance control is pressed the runner reads nothing back, so a save
+  the portal refused on the same page is reported as saved. Proposal recorded; not built.
+
+---
+
 ## [0.110.0] — 2026-09-11
 
 **P102 — the institution box observed: a typeahead's entries may follow another field (found,

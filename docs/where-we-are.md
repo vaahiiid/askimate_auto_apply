@@ -4906,6 +4906,40 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P103 — the education page after a save: a condition closed, and a save that is only pressed
+
+He saved one qualification, came back to *Your Details*, typed the new-entry URL into the
+address bar and got an empty form. That is the condition P99 set and P98's shape rested on, met
+and closed in his words, and the draft does not change: the repeating page is reached by its
+own URL per item, with no *add another* control to press on another page. He added the caveat
+himself — one observation, not a property shown at every count — and it turns out the built
+shape does lean on it at every count. Each item is its own piece of work at the page's URL, the
+runner fills and presses save and reports the item done, and it reads nothing back. If a later
+opening of that URL ever showed the previous entry, the runner would type over it and save it
+again, and the portal would hold one qualification where the run reported two. One more
+observation closes that: a second save, a third opening, and *Your Details* listing two.
+
+The radios beside the slots take *later* and *not providing* without a file, so a
+qualification saves with no document attached — which is what option B needs, and he says so.
+What his save could not show is whether the page saves with a radio left unanswered, because
+he answered all four. That bears directly on ADR-0105, where the runner sets neither the slot
+nor its companion and leaves both to the student: if the form will not save without an answer,
+the runner cannot save the page at all under that shape, and the ADR has a sequencing question
+to answer rather than a rule to bend.
+
+The third observation looked like the smallest and was the largest. The save took him to *Your
+Details*; the runner does not care where a save lands, since each item is reached by URL. But
+following that through the code showed what it does after the press: nothing. The click
+resolves when the control is pressed, the page is reported succeeded, and the transmissions
+are joined to it. A save the portal refused on the same page — a required radio unanswered,
+say — is reported as saved, which is exactly the outcome the code's own comment says must not
+happen. Raised as blocker 22 with a proposal, and not built: what a saved page looks like is
+the reviewer's vocabulary on the blueprint, and its shape is his to decide.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P102 — the institution box, observed: a typeahead whose entries follow another field
 
 He watched the institution box load and sent what it does: a GET per keystroke, carrying the

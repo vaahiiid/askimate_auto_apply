@@ -330,11 +330,15 @@ page the tool read is **`education.do?new=true`** — a *new entry* URL, read as
 and `summary.do` is the page it returns to. So the continuation control is on `summary.do`, as
 he says, **and the shape as built does not need it**: a repeating page is reached each time
 through its own URL (ADR-0103 gap 3, "its own *new entry* URL or *add another* control"), and
-`?new=true` is that URL. Not a fifth gap, on one condition the next read settles: **after one
-qualification is saved, opening `education.do?new=true` directly must open an empty form**, not
-the saved entry. If it opens the saved entry, the continuation lives only behind the link on
-`summary.do`, and that is a gap — a control pressed on another page — to raise then. The draft
-is not bent either way: `page7` carries `repeats` with no `addAnother`.
+`?new=true` is that URL. ~~Not a fifth gap, on one condition the next read settles: after one
+qualification is saved, opening `education.do?new=true` directly must open an empty form, not
+the saved entry.~~ **Condition met — Vahid, 2026-09-12 (P103):** *"I filled one qualification,
+pressed Save and Continue, was returned to Your Details, then typed education.do?new=true
+straight into the address bar and got an empty form."* His closing, in his words: *"The
+repeat's continuation does not live behind the link on summary.do — the new-entry URL works on
+its own, and the built shape walks to a repeating page's own URL per item. Not a fifth gap."*
+The draft stays as it was: `page7` carries `repeats` with no `addAnother`. His caveat, and what
+depends on it, are under *The education page after a save* below.
 
 **The document slots.** *"Four slots, not six … all four asterisked … the two translation groups
 have a fourth option the others do not: 'My certificate is in English' / 'My transcript is in
@@ -490,8 +494,47 @@ with each part of it:
   if the mapping names the submitted value, the escape is named by its value too — so it waits
   for that decision rather than being built twice.
 
-Still to come from him: the dropdown markup copy, and the education page reopening after a
-save.
+**The education page after a save — Vahid, 2026-09-12 (P103).** Three observations from one
+save, each with what was done with it.
+
+- **The new-entry URL opens empty after a save.** Closes the P99 condition, above. His caveat,
+  verbatim, because it is what he did rather than what he proved: *"I saved one qualification
+  and reopened once. I did not save a second and reopen a third time, so 'the URL always opens
+  empty' is an inference from one observation, not a property I have shown holds at every
+  count."* **Something downstream does depend on it holding for every item.** A repeating page
+  is offered to the runner once per item, each as its own work at the page's own URL; the runner
+  fills, presses the save, and reports the item done. It reads nothing back. If the second
+  opening of `?new=true` ever showed the first entry instead of an empty form, the runner would
+  type over it and save — one qualification in the portal, two reported — and nothing built
+  would notice. So the second observation is worth having: save a second qualification, reopen
+  `education.do?new=true` a third time, and check that *Your Details* lists two.
+- **The Documentary Evidence radios accept *later* and *not providing* without a file.** He chose
+  those for all four, and the qualification saved with no document attached. Recorded as he
+  reads it: for blocker 21's option B, the student attaching their own certificates does not
+  stop the page being saved, and the run can complete the page and leave the documents to them.
+  One thing his save did not show, because he answered every radio: **whether the page saves
+  with a radio left unanswered.** It matters for ADR-0105's shape, where a slot's companion
+  radio is handed to the student *with* the slot and the runner sets neither. If the form
+  requires an answer to each asterisked radio before it saves, the runner cannot save the page
+  while leaving the radio to the student, and that is a sequencing question for ADR-0105 to
+  answer — not built around. One more save settles it: leave one radio unanswered and press
+  Save and Continue.
+- **The save returned him to *Your Details*, not to the page.** The runner does not expect to
+  remain: each item is reached by the page's own URL, so where the save lands is not consulted.
+  But checking that exposed the real gap, and it is not about landing. **After the save is
+  pressed, nothing reads what came back.** The click resolves when the control is pressed; the
+  runner then reports the page succeeded, and joins the transmissions to it. A save the portal
+  refused — a validation error rendered on the same page, a required radio unanswered — is
+  reported as saved. The code's own comment says this is what must not happen (*"Stopping at the
+  last field would report success over an application the university has no record of"*), and
+  the press is treated as the save. Raised as **blocker 22** in the state document, with the
+  proposal: the blueprint names how a saved page looks (the URL it lands on, or an error
+  locator that must be absent), the runner reads that after the press, and reports *refused*
+  or *uncertain* rather than *succeeded* when it does not hold. Not built: what counts as
+  "saved" is the reviewer's vocabulary, and the shape is his to decide.
+
+Still to come from him: the dropdown markup copy; the second save and reopen; the save with a
+radio unanswered.
 
 ## What step 4 still needs
 
