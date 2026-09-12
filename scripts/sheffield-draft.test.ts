@@ -253,6 +253,39 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus")).toBe(false);
   });
 
+  it("carry the twenty-three groups of personal, contact and nationality as Vahid read them — the case the page's, the five companions three values, NotRequired absent (P110)", () => {
+    const options = new Map(
+      blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).map((f) => [f.fieldRef, f.options?.map((o) => o.value) ?? []]),
+    );
+    // personal.do submits capitalised; nationality.do lower-case. *"Same
+    // concept, different token, same portal. Any rule that normalises case
+    // would be wrong on one of them."*
+    expect(options.get("sex")).toEqual(["Female", "Male", "Other"]);
+    for (const group of ["takenCourseAtShefUni", "appliedBefore", "nameChanged"]) expect(options.get(group), group).toEqual(["Yes", "No"]);
+    for (const group of [
+      "livedOutsideCountry", "alwaysUKResident", "alwaysEUResident", "britishPassport", "indefinateVisa", "refugeeStatus",
+      "migrantWorker", "spouseOfUKCitizen", "euPassport", "spouseOfEUCitizen", "livingInUK", "previousStudentVisa",
+    ]) expect(options.get(group), group).toEqual(["yes", "no"]);
+    expect(options.get("applicationLocation")).toEqual(["Inside UK", "Outside UK"]);
+    // The value and the text beside it disagree in a way a reviewer reading
+    // the value alone would invert. Recorded so that they cannot.
+    const contact = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "corrContactDateType");
+    expect(contact?.options).toEqual([
+      { value: "Always", label: "Always" },
+      { value: "After", label: "From this date:" },
+      { value: "Before", label: "To this date:" },
+    ]);
+    // The five nationality companions: three values, no NotRequired — the
+    // token is present on education and language and absent here.
+    for (const group of ["passportScanStatus", "visaScanStatus", "utilityBillScanStatus", "proofOfUKSpouseStatus", "refugeeProofStatus"]) {
+      expect(options.get(group), group).toEqual(["Uploaded", "UploadLater", "NotSending"]);
+    }
+    // No slot on nationality has a companion yet: the pairing waits on the
+    // file inputs' own handler markup, not on the names.
+    const nationality = blueprint.pages.find((p) => p.url?.includes("nationality.do") === true);
+    expect(nationality?.requiredDocuments.map((doc) => doc.companion)).toEqual([undefined, undefined, undefined, undefined, undefined]);
+  });
+
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);

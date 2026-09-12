@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P110 — three pages of radios, and a "yes" the runner read as a tick
+
+He ran the snippet on personal, contact and nationality, and every radio group on the three pages now carries the value the portal submits. The reading was mostly a records task, until one of its facts met the runner: the twelve yes-or-no groups on nationality submit *yes* and *no* in lower case, and the runner, told *yes*, did not look for the option whose value is *yes*. It read the word as a boolean and ticked whichever member of the group its locator found first. On a fixture group built to that shape, with *no* first, it ticked *no* and the read-back said so. The value is now tried first, always, in the portal's case, and the boolean shortcut survives only for a lone radio.
+
+The four things he flagged are recorded rather than absorbed. The case of *yes* and *no* differs by page on the same form, so nothing normalises, and the draft test pins both cases as read. Three of the five nationality *not providing* options are two claims in one — an intent and a fact about what the student has — which makes the reason for never choosing them stronger, not weaker. No nationality companion offers *NotRequired*, one more reason the token is nobody's vocabulary. And on contact, the value *After* is shown as *From this date:* and *Before* as *To this date:*, which a reviewer reading values alone would invert; the draft carries both and the review pack says which to read.
+
+The five nationality slots still have no companion. Their groups' values are known, but which group accompanies which file input is not, and the rule is to pair from the markup. He offered to read the file inputs' handlers, and the snippet for that is in the README.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P109 — the language page's radios, and a token that means three things
 
 He read the language page the same way: the certificate group offers the same four values as education, and the yes-or-no about previous English-medium education submits *Yes* and *No*. The draft carries both. He gave two caveats on his own method and both are honoured: the label strings his selector returned were a parent's text repeated, so none of them is recorded as the page's words, and the labels beside the values are the capture's per-option read from two days earlier, joined by the meaning of the value token — the test says exactly that. He offered to get the exact wording properly if told what to run, and a read-only console snippet is in the README for it, which also settles the twenty-three groups on three other pages that still carry the capture's element ids.

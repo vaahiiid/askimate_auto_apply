@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -378,15 +378,15 @@
               "validations": [],
               "options": [
                 {
-                  "value": "genderF",
+                  "value": "Female",
                   "label": "Female"
                 },
                 {
-                  "value": "genderM",
+                  "value": "Male",
                   "label": "Male"
                 },
                 {
-                  "value": "genderX",
+                  "value": "Other",
                   "label": "Other"
                 }
               ]
@@ -1010,11 +1010,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "takenCourseAtShefUniYes",
+                  "value": "Yes",
                   "label": "Yes"
                 },
                 {
-                  "value": "takenCourseAtShefUniNo",
+                  "value": "No",
                   "label": "No"
                 }
               ]
@@ -1033,11 +1033,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "appliedBeforeYes",
+                  "value": "Yes",
                   "label": "Yes"
                 },
                 {
-                  "value": "appliedBeforeNo",
+                  "value": "No",
                   "label": "No"
                 }
               ]
@@ -1110,11 +1110,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "nameChangedYes",
+                  "value": "Yes",
                   "label": "Yes"
                 },
                 {
-                  "value": "nameChangedNo",
+                  "value": "No",
                   "label": "No"
                 }
               ]
@@ -2584,16 +2584,16 @@
               "validations": [],
               "options": [
                 {
-                  "value": "corrContactDateTypeAlways",
-                  "label": "corrContactDateType"
+                  "value": "Always",
+                  "label": "Always"
                 },
                 {
-                  "value": "corrContactDateTypeAfter",
-                  "label": "corrContactDateType"
+                  "value": "After",
+                  "label": "From this date:"
                 },
                 {
-                  "value": "corrContactDateTypeBefore",
-                  "label": "corrContactDateType"
+                  "value": "Before",
+                  "label": "To this date:"
                 }
               ]
             },
@@ -9494,11 +9494,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "livedOutsideCountryYes",
+                  "value": "yes",
                   "label": "livedOutsideCountry"
                 },
                 {
-                  "value": "livedOutsideCountryNo",
+                  "value": "no",
                   "label": "livedOutsideCountry"
                 }
               ]
@@ -9517,11 +9517,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "alwaysUKResidentYes",
+                  "value": "yes",
                   "label": "alwaysUKResident"
                 },
                 {
-                  "value": "alwaysUKResidentNo",
+                  "value": "no",
                   "label": "alwaysUKResident"
                 }
               ]
@@ -10049,11 +10049,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "alwaysEUResident",
+                  "value": "yes",
                   "label": "alwaysEUResident"
                 },
                 {
-                  "value": "alwaysEUResident",
+                  "value": "no",
                   "label": "alwaysEUResident"
                 }
               ]
@@ -18380,11 +18380,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "britishPassportYes",
+                  "value": "yes",
                   "label": "britishPassport"
                 },
                 {
-                  "value": "britishPassport",
+                  "value": "no",
                   "label": "britishPassport"
                 }
               ]
@@ -18403,11 +18403,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "indefinateVisaYes",
+                  "value": "yes",
                   "label": "indefinateVisa"
                 },
                 {
-                  "value": "indefinateVisa",
+                  "value": "no",
                   "label": "indefinateVisa"
                 }
               ]
@@ -18426,11 +18426,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "refugeeStatusYes",
+                  "value": "yes",
                   "label": "refugeeStatus"
                 },
                 {
-                  "value": "refugeeStatus",
+                  "value": "no",
                   "label": "refugeeStatus"
                 }
               ]
@@ -18449,11 +18449,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "migrantWorker",
+                  "value": "yes",
                   "label": "migrantWorker"
                 },
                 {
-                  "value": "migrantWorker",
+                  "value": "no",
                   "label": "migrantWorker"
                 }
               ]
@@ -18472,11 +18472,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "spouseOfUKCitizenYes",
+                  "value": "yes",
                   "label": "spouseOfUKCitizen"
                 },
                 {
-                  "value": "spouseOfUKCitizen",
+                  "value": "no",
                   "label": "spouseOfUKCitizen"
                 }
               ]
@@ -18495,11 +18495,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "euPassport",
+                  "value": "yes",
                   "label": "euPassport"
                 },
                 {
-                  "value": "euPassport",
+                  "value": "no",
                   "label": "euPassport"
                 }
               ]
@@ -18518,11 +18518,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "spouseOfEUCitizen",
+                  "value": "yes",
                   "label": "spouseOfEUCitizen"
                 },
                 {
-                  "value": "spouseOfEUCitizen",
+                  "value": "no",
                   "label": "spouseOfEUCitizen"
                 }
               ]
@@ -18560,11 +18560,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "livingInUKY",
+                  "value": "yes",
                   "label": "livingInUK"
                 },
                 {
-                  "value": "livingInUKN",
+                  "value": "no",
                   "label": "livingInUK"
                 }
               ]
@@ -18583,11 +18583,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "previousStudentVisaY",
+                  "value": "yes",
                   "label": "previousStudentVisa"
                 },
                 {
-                  "value": "previousStudentVisaN",
+                  "value": "no",
                   "label": "previousStudentVisa"
                 }
               ]
@@ -19001,11 +19001,11 @@
               "validations": [],
               "options": [
                 {
-                  "value": "applicationLocationUK",
+                  "value": "Inside UK",
                   "label": "Inside the United Kingdom"
                 },
                 {
-                  "value": "applicationLocationNonUK",
+                  "value": "Outside UK",
                   "label": "Outside the United Kingdom"
                 }
               ]
@@ -19273,16 +19273,16 @@
               "validations": [],
               "options": [
                 {
-                  "value": "passportScanStatus",
+                  "value": "Uploaded",
                   "label": "passportScanStatus"
                 },
                 {
-                  "value": "passportScanStatus",
+                  "value": "UploadLater",
                   "label": "passportScanStatus"
                 },
                 {
-                  "value": "passportScanStatus",
-                  "label": "passportScanStatus"
+                  "value": "NotSending",
+                  "label": "I will not be providing my passport scan"
                 }
               ]
             },
@@ -19313,15 +19313,15 @@
               "validations": [],
               "options": [
                 {
-                  "value": "visaScanStatus",
+                  "value": "Uploaded",
                   "label": "visaScanStatus"
                 },
                 {
-                  "value": "visaScanStatus",
+                  "value": "UploadLater",
                   "label": "visaScanStatus"
                 },
                 {
-                  "value": "visaScanStatus",
+                  "value": "NotSending",
                   "label": "visaScanStatus"
                 }
               ]
@@ -19353,16 +19353,16 @@
               "validations": [],
               "options": [
                 {
-                  "value": "utilityBillScanStatus",
+                  "value": "Uploaded",
                   "label": "utilityBillScanStatus"
                 },
                 {
-                  "value": "utilityBillScanStatus",
+                  "value": "UploadLater",
                   "label": "utilityBillScanStatus"
                 },
                 {
-                  "value": "utilityBillScanStatus",
-                  "label": "utilityBillScanStatus"
+                  "value": "NotSending",
+                  "label": "I will not provide or do not have a utility bill to send"
                 }
               ]
             },
@@ -19393,15 +19393,15 @@
               "validations": [],
               "options": [
                 {
-                  "value": "proofOfUKSpouseStatus",
+                  "value": "Uploaded",
                   "label": "proofOfUKSpouseStatus"
                 },
                 {
-                  "value": "proofOfUKSpouseStatus",
+                  "value": "UploadLater",
                   "label": "proofOfUKSpouseStatus"
                 },
                 {
-                  "value": "proofOfUKSpouseStatus",
+                  "value": "NotSending",
                   "label": "proofOfUKSpouseStatus"
                 }
               ]
@@ -19433,15 +19433,15 @@
               "validations": [],
               "options": [
                 {
-                  "value": "refugeeProofStatus",
+                  "value": "Uploaded",
                   "label": "refugeeProofStatus"
                 },
                 {
-                  "value": "refugeeProofStatus",
+                  "value": "UploadLater",
                   "label": "refugeeProofStatus"
                 },
                 {
-                  "value": "refugeeProofStatus",
+                  "value": "NotSending",
                   "label": "refugeeProofStatus"
                 }
               ]

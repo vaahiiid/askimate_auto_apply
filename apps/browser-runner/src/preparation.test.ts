@@ -264,6 +264,39 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue({ strategy: "id", value: "nationality" })).toBe("");
   }, 30_000);
 
+  // ── P110: a radio is set by VALUE, and "yes" is a value ───────────────
+
+  it("chooses the radio whose VALUE is \"yes\" — not the first one the locator finds", async () => {
+    // Sheffield's nationality.do, read by Vahid on 2026-09-12: twelve groups
+    // submit "yes" / "no". The old rule read the text "yes" as "tick this
+    // radio" — a boolean — and ticked whichever member the locator resolved
+    // to first. Here that is "no".
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fill({ strategy: "name", value: "lived_outside" }, confirmedText("yes"));
+    expect(await session.readValue({ strategy: "name", value: "lived_outside" })).toBe("yes");
+    await session.fill({ strategy: "name", value: "lived_outside" }, confirmedText("no"));
+    expect(await session.readValue({ strategy: "name", value: "lived_outside" })).toBe("no");
+  }, 30_000);
+
+  it("REFUSES \"Yes\" on a group that offers \"yes\" — the case is the portal's, and nothing is chosen", async () => {
+    // personal.do submits "Yes" / "No"; nationality.do submits "yes" / "no".
+    // *"Any rule that normalises case would be wrong on one of them."*
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await expect(
+      session.fill({ strategy: "name", value: "lived_outside" }, confirmedText("Yes")),
+    ).rejects.toThrow(OptionNotAvailableError);
+    expect(await session.readValue({ strategy: "name", value: "lived_outside" })).toBe("");
+  }, 30_000);
+
+  it("still ticks a LONE radio told \"true\" — the boolean shortcut is for a radio that is not a group", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fill({ strategy: "id", value: "agreeTerms" }, confirmedText("true"));
+    expect(await session.readValue({ strategy: "id", value: "agreeTerms" })).toBe("agreed");
+  }, 30_000);
+
   // ── P94 (ADR-0103, gap 1) ─────────────────────────────────────────────
 
   it("waits for an option the page loads AFTER another field is set, then selects it", async () => {

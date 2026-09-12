@@ -489,17 +489,24 @@ export class PlaywrightPreparationSession implements FillableSession {
     const type = await target.getAttribute("type");
     if (type === "radio") {
       // P93: a radio GROUP is found by name and set by VALUE — the option
-      // whose value is the text, and no other. "true" on a lone radio ticks
-      // it, as before; anything else must name an option the group offers.
-      if (text === "true" || text === "yes" || text === "on") {
-        await target.check();
-        return;
-      }
+      // whose value is the text, and no other, the case the portal's.
+      //
+      // P110: the VALUE is tried first, always. The old rule read "yes" as
+      // "tick this radio" — a boolean — before looking at values, and on a
+      // group that SUBMITS "yes" / "no" (Sheffield's nationality.do has
+      // twelve, read by Vahid on 2026-09-12) it ticked whichever member the
+      // locator resolved to first. "true" / "on" / "yes" tick a LONE radio,
+      // as before; on a group they must be a value the group offers.
       const name = await target.getAttribute("name");
+      const members = target.page().locator(`input[type="radio"][name="${cssEscape(name ?? "")}"]`);
       const group = target
         .page()
         .locator(`input[type="radio"][name="${cssEscape(name ?? "")}"][value="${cssEscape(text)}"]`);
       if ((await group.count()) === 0) {
+        if ((text === "true" || text === "yes" || text === "on") && (await members.count()) <= 1) {
+          await target.check();
+          return;
+        }
         const available = await target
           .page()
           .locator(`input[type="radio"][name="${cssEscape(name ?? "")}"]`)

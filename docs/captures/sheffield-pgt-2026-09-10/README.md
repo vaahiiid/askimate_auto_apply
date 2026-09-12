@@ -693,6 +693,70 @@ contact (`corrContactDateType`), nationality (`livedOutsideCountry`, `alwaysUKRe
 whose values the capture repeats three times over). The snippet above, run once on each of those
 three pages, settles all of them at once.
 
+**Personal, contact and nationality, read with the snippet — Vahid, 2026-09-12 (P110).** All
+twenty-three groups now carry their submitted values in the curated draft (0.2.14), and the set
+(0.3.12) follows. `personal.do`: `sex` = *Female* / *Male* / *Other*; the three yes-or-no groups
+submit **`Yes` / `No`**. `contact.do`: `corrContactDateType` = *Always* / *After* / *Before*.
+`nationality.do`: twelve yes-or-no groups submit **`yes` / `no`**; `applicationLocation` =
+*Inside UK* / *Outside UK*; the five document companions each offer *Uploaded* / *UploadLater* /
+*NotSending* and **no `NotRequired`**. Labels were recorded only where he gave the exact text
+(`sex`, the *Yes* / *No* pairs, `corrContactDateType`, `applicationLocation`, and the two
+*not providing* texts he quoted in full); where he gave shorthand — *"now/later"*, *"same
+shape"*, a truncated sentence — the draft keeps its placeholder, the field's name, rather than
+his summary as the page's words. The snippet's raw output would settle those.
+
+**Found on the way, and fixed, fails first: the runner read `yes` as a tick, not a value.**
+Setting a radio, it tried `"true"` / `"yes"` / `"on"` as *tick this radio* before looking at
+values, and ticked whichever member the name locator resolved to first. On a group that submits
+`yes` / `no` with *no* first — the fixture built for the test, and by his reading the shape of
+twelve groups on `nationality.do` — told *yes* it ticked *no*, and the read-back said so. The
+value is now tried first, always, in the portal's case; the boolean shortcut survives only for a
+lone radio. Told *Yes* on a group that offers *yes*, it refuses and chooses nothing.
+
+Three things he asked to be handled rather than absorbed, and one more he flagged:
+
+- **The yes-or-no case is not consistent across the form.** *"Same concept, different token,
+  same portal. Any rule that normalises case would be wrong on one of them."* Checked: the
+  usable-set check matches an offered value exactly; the runner's radio locator matches the
+  `value` attribute exactly and, after the fix above, normalises nothing; the one
+  case-insensitive comparison in the mapping check (`formSays`) compares quoted *words* for a
+  refusal's text, never a value. The draft test asserts the two cases as read. What is NOT
+  closed: a `constant` on a radio is not checked against the group's option list at review
+  time — only refusals and companions are — so a wrongly-cased constant would be caught at the
+  fill, refused with nothing chosen, not at review. Raised, not built.
+- **Three of the five nationality `NotSending` options say *"I will not provide OR DO NOT
+  HAVE"*.** Two claims in one option: an intent and a fact about what the student possesses.
+  Under ADR-0107 it is never ours to choose; recorded here because that ADR's reason — *a claim
+  about the student's intent* — is on this portal not the whole of it: on these three it is
+  also a claim about what they have. The reason for never choosing it is stronger, not weaker.
+- **No nationality companion offers `NotRequired`.** Present on education and language, absent
+  here. *"Another reason nothing may reason about that token generically."* The draft test
+  asserts the five groups offer exactly the three.
+- **`corrContactDateType`: the value and the text disagree.** *After* is shown as *"From this
+  date:"*, *Before* as *"To this date:"*. *"A reviewer reading the value alone could easily map
+  these the wrong way round."* The draft carries both, the test pins them, and the review pack
+  says to map from the text beside the value, never the value alone.
+
+**What settles the nationality pairing — his offer taken up.** The five slots still carry no
+`companion`: the groups' values are known, but which group accompanies which file input is
+not, and the rule is to pair from the markup, not the names. The same evidence used on
+education — the file input's own handler naming its *upload now* radio — would settle it, and
+his snippet's `id` column (not transcribed above) is the other half. On `nationality.do`, in
+the Console, read-only:
+
+```js
+copy(JSON.stringify({
+  files: [...document.querySelectorAll('input[type="file"]')].map(i => ({
+    name: i.name, id: i.id, onchange: i.getAttribute('onchange'), onclick: i.getAttribute('onclick'),
+  })),
+  radios: [...document.querySelectorAll('input[type="radio"]')].map(i => ({ name: i.name, value: i.value, id: i.id })),
+}, null, 1))
+```
+
+If each file input's handler names a radio id, and that id is in one of the five groups, the
+pairing is the markup's; if the handlers name nothing, it is a reviewer's call from the page,
+flagged as such.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

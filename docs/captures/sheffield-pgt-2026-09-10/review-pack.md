@@ -407,6 +407,14 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   you are a UK applicant* (who the applicant is). It is never chosen and nothing acts on the
   token. If a mapping is ever proposed that treats it as one thing, it is wrong on two pages.
 
+- **`corrContactDateType` on contact: map from the text, not the value.** The value `After` is
+  shown as *From this date:* and `Before` as *To this date:* (Vahid's live read, 2026-09-12).
+  A mapping written from the value alone inverts the meaning. The draft (0.2.14) carries both.
+- **The yes-or-no case differs by page.** `personal.do` submits `Yes` / `No`; `nationality.do`
+  submits `yes` / `no`. A constant carries that page's case exactly; nothing normalises.
+- **Nationality's five document slots have no companion yet.** Their groups' values are known;
+  the slot-to-group pairing waits on the file inputs' handler markup (README, P110).
+
 ## Not in this sitting
 
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,

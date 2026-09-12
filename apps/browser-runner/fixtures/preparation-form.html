@@ -42,6 +42,15 @@
   <label for="passport">Passport photo page</label>
   <input type="file" id="passport" name="passport" accept=".pdf,.jpg">
 
+  <!-- P110: a yes-or-no group that SUBMITS "yes" and "no" as its values, "no" first —
+       Sheffield's nationality.do has twelve of these. -->
+  <fieldset id="livedOutside">
+    <legend>Have you lived outside your country of nationality?</legend>
+    <input type="radio" id="livedOutsideNo" name="lived_outside" value="no"><label for="livedOutsideNo">No</label>
+    <input type="radio" id="livedOutsideYes" name="lived_outside" value="yes"><label for="livedOutsideYes">Yes</label>
+  </fieldset>
+  <input type="radio" id="agreeTerms" name="agree_terms" value="agreed"><label for="agreeTerms">I agree</label>
+
   <label for="declaration">I declare that the information given is true and complete</label>
   <input type="checkbox" id="declaration" name="declaration">
 

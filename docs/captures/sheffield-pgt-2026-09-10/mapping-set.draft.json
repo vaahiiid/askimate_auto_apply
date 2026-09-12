@@ -30,13 +30,15 @@
     "",
     "Education (page7), P108 (2026-09-12): the six Documentary Evidence radios' values are now in the blueprint (0.2.12) from Vahid's reading of the live page — whenAttached Uploaded, whenDeferred UploadLater, whenNotProviding NotSending on every slot; NotRequired is the fourth value and is named by nothing. With the defer value named, the page is NO LONGER one that nothing fills: each qualification's six radios are set to UploadLater by the runner while the qualification's own fields (institution, degree, subject, dates, grade) still wait on the reviewer. DO NOT SIGN this set while that is so — a run would save a qualification that says only 'later' six times. The certificate slot's companion is paired with certificateStatus from the file input's own handler (onchange ticks certificateUploadRadio, the id of that group's Uploaded option), not from the name; the radio's copy says 'proof of registration', so what the slot IS is Iman's to settle from the page (README, P108).",
     "",
-    "Language (page6), P109 (2026-09-12): the certificate group's values are in the blueprint (0.2.13) from Vahid's live reading — Uploaded / UploadLater / NotSending / NotRequired, the same shape as education — and its companion names the three; previousEnglishEducation submits Yes / No. Nothing on this page is mapped, so its companion is left as the form has it. NotRequired here reads 'We do not require a certificate to be uploaded if you are a UK appl[icant]…' — a claim about who the applicant is: the third distinct meaning of that one token on this form, and never ours to choose. Twenty-three radio groups on personal, contact and nationality still carry the capture's element ids as values; no mapping names one, and none may until each page is read the same way."
+    "Language (page6), P109 (2026-09-12): the certificate group's values are in the blueprint (0.2.13) from Vahid's live reading — Uploaded / UploadLater / NotSending / NotRequired, the same shape as education — and its companion names the three; previousEnglishEducation submits Yes / No. Nothing on this page is mapped, so its companion is left as the form has it. NotRequired here reads 'We do not require a certificate to be uploaded if you are a UK appl[icant]…' — a claim about who the applicant is: the third distinct meaning of that one token on this form, and never ours to choose. Twenty-three radio groups on personal, contact and nationality still carry the capture's element ids as values; no mapping names one, and none may until each page is read the same way.",
+    "",
+    "Personal, contact, nationality (pages 3-5), P110 (2026-09-12): every radio group's values are now in the blueprint (0.2.14) from Vahid's reading with the snippet. The yes-or-no groups do NOT agree on case across the form — personal.do submits Yes / No, nationality.do yes / no — so a constant on one must carry that page's case exactly; the runner sets a radio by value and normalises nothing. corrContactDateType: the value 'After' is shown as 'From this date:' and 'Before' as 'To this date:' — map from the text beside the value, never from the value alone. The five nationality document slots still carry no companion: their groups' values are known (Uploaded / UploadLater / NotSending, no NotRequired) but the slot-to-group pairing waits on the file inputs' own handler markup, which Vahid offered to read."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.13",
+  "blueprintVersion": "0.2.14",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

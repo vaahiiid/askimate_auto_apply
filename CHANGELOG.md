@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.115.0] — 2026-09-12
+
+**P110 — personal, contact and nationality read with the snippet: twenty-three groups' values
+in the draft; the runner read `yes` as a tick, not a value (found, fixed, fails first).**
+
+### Fixed
+
+- The runner set a radio told `"true"` / `"yes"` / `"on"` by ticking the member its locator
+  found first, before looking at values. On a group that submits `yes` / `no` with *no* first
+  it ticked *no*. The value is tried first, always, in the portal's case; the boolean shortcut
+  survives only for a lone radio; told `Yes` on a group offering `yes` it refuses and chooses
+  nothing. Three runner tests on a fixture group, the first red before the fix.
+
+### Changed
+
+- Sheffield curated draft 0.2.14: every radio group on the three pages carries its submitted
+  values from Vahid's reading; labels only where he gave the exact text. Set 0.3.12 follows.
+- The preparation fixture form carries a `yes` / `no` radio group with *no* first, and a lone
+  radio, for the tests above; the end-to-end demo now observes eleven fields on it, not eight.
+
+### Recorded
+
+- The yes-or-no case differs by page (`Yes` / `No`, `yes` / `no`); nothing normalises, and a
+  wrongly-cased constant is caught at the fill, not at review — raised.
+- Three nationality *not providing* options are two claims in one; no nationality companion
+  offers `NotRequired`; `corrContactDateType`'s value and text disagree (*After* / *From this
+  date:*), pinned so a reviewer cannot invert them.
+- The nationality slot-to-companion pairing waits on the file inputs' handler markup; the
+  snippet that reads it is in the README.
+
+---
+
 ## [0.114.1] — 2026-09-12
 
 **P109 — the language page's radios, read live; NotRequired's third meaning.** Records and the
