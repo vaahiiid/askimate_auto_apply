@@ -219,6 +219,11 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
       repeats: {
         fieldKey: "education.prior_qualifications",
         addAnother: { strategy: "id", value: "addQualificationBtn" },
+        // ADR-0106: the page lists what was saved; one more entry is the save.
+        recorded: {
+          url: `${GATED_PORTAL_ORIGIN}/education`,
+          entryLocator: { strategy: "css", value: "#qualifications li.qualification" },
+        },
       },
       sections: [
         {
@@ -653,6 +658,8 @@ export const GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT: ApplicationBlueprint = {
           acceptedFormats: [".pdf", ".jpg", ".png"],
           required: true,
           companion: { fieldRef: "passport_status", whenAttached: "now" },
+          // ADR-0106: what the page shows, reopened, when the passport is held.
+          recorded: { strategy: "id", value: "passportHeld" },
         },
       ],
       advanceControl: { strategy: "role", value: "button:Save and continue" },

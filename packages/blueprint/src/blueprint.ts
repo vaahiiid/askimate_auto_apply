@@ -271,6 +271,15 @@ export interface RequiredDocument {
    * document, and with no document mapped it is left as the form has it.
    */
   readonly companion?: { readonly fieldRef: string; readonly whenAttached: string };
+  /**
+   * What the page shows, reopened after a save, when a file is held in this
+   * slot — a filename, a *remove* link, a *provided* mark (ADR-0106). A file
+   * input reads back empty by HTML's rule, so this is the only way a runner
+   * can see the file was kept; without it a page the runner attached to is
+   * reported *uncertain*, and no transmission is recorded. Named by the
+   * reviewer from the saved state, never from an empty form.
+   */
+  readonly recorded?: FieldLocator;
 }
 
 /** One page in the flow. */
@@ -292,7 +301,17 @@ export interface BlueprintPage {
    * for each, pressing `addAnother` first when the page has one; the preview
    * lists each entry. `advanceControl` saves ONE item.
    */
-  readonly repeats?: { readonly fieldKey: string; readonly addAnother?: FieldLocator };
+  readonly repeats?: {
+    readonly fieldKey: string;
+    readonly addAnother?: FieldLocator;
+    /**
+     * Where the saved entries are listed and what one entry is (ADR-0106).
+     * A new-entry form reopens empty by design, so the listing is what shows
+     * an item exists: the runner counts entries before and after each save,
+     * and one more is the save. Without it every item is *uncertain*.
+     */
+    readonly recorded?: { readonly url: string; readonly entryLocator: FieldLocator };
+  };
 }
 
 /** A point where only the student can act (brief §7). */

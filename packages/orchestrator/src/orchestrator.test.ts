@@ -461,6 +461,10 @@ class RecordingSession implements ApplicationSession {
     return Promise.resolve();
   }
 
+  public count(_locator: FieldLocator): Promise<number> {
+    return Promise.resolve(0);
+  }
+
   public fill(locator: FieldLocator, value: ConfirmedValue<string>): Promise<void> {
     if (locator.value === this.#failOn && this.#failWith !== null) {
       return Promise.reject(this.#failWith);

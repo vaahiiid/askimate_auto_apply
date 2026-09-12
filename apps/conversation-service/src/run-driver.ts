@@ -5943,6 +5943,11 @@ function workPayloadFor(
   const { page, item } = input.page;
   const at = atOrigin(page.url ?? "", entry.portalOrigin);
   if (at === null || hostOf(at) !== portalHost) return null;
+  // ADR-0106: a repeating page's listing is a page of the same portal, rebased
+  // onto the deployed origin exactly as the form is; one elsewhere is not work.
+  const listingAt =
+    page.repeats?.recorded === undefined ? null : atOrigin(page.repeats.recorded.url, entry.portalOrigin);
+  if (page.repeats?.recorded !== undefined && (listingAt === null || hostOf(listingAt) !== portalHost)) return null;
 
   // The control that saves this page. A blueprint page with fields to fill and
   // no way to save them is a blueprint a specialist should look at, not a page
@@ -5994,6 +5999,19 @@ function workPayloadFor(
               ...(page.repeats.addAnother === undefined
                 ? {}
                 : { addAnother: { strategy: page.repeats.addAnother.strategy, value: page.repeats.addAnother.value } }),
+              // ADR-0106: where the saved entries are listed, so the runner can
+              // see that this one exists after its save.
+              ...(page.repeats.recorded === undefined || listingAt === null
+                ? {}
+                : {
+                    recorded: {
+                      url: listingAt,
+                      entryLocator: {
+                        strategy: page.repeats.recorded.entryLocator.strategy,
+                        value: page.repeats.recorded.entryLocator.value,
+                      },
+                    },
+                  }),
             },
           }),
     },
@@ -6103,6 +6121,7 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
               text: upload.companion.text,
             },
           }),
+      ...(upload.recorded === undefined ? {} : { recorded: { strategy: upload.recorded.strategy, value: upload.recorded.value } }),
     })),
   };
 }

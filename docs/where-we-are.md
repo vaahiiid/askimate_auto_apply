@@ -4906,6 +4906,38 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P105 — a page is saved when the portal shows it; the three read-backs, built
+
+He accepted the price and said build it in the order set, and it is built the way the sheet
+priced it. After the advance press the runner no longer says saved because it pressed. A page
+filled once is reopened and every field it filled is read back through the locators already
+reviewed, compared on the redacted shape the executor recorded at the fill, so a value the
+portal changed is a value it did not keep and nothing is held in the clear. A page filled per
+item is counted on its listing, before the fill and after the save, because the new-entry form
+opens empty by design; the blueprint names the listing, and the claim rebases it onto the
+deployed origin as it does the form — found when the journey refused its own listing as another
+host. A slot the runner attached to must show the marker the blueprint names for a held file,
+because a file input reads back empty by HTML's rule. Anything not seen is uncertain under a new
+failure code, no transmission is recorded for it, and the wire refuses a transmission beside it.
+Eight tests failed before the fix and pass after; the older test that reported a transmission
+on a slot with no marker now names the marker and sees it, which is the change in one line.
+
+The fixture portal grew the three shapes so the journey could walk them rather than fake them:
+its pages re-render what they hold, its education page lists what was saved, its documents page
+shows the held file. The journey passes end to end through the real runner.
+
+His repeat of the failed save settled the cause — the unanswered radios — and he asked for the
+consequence to be made explicit rather than left to be noticed: ADR-0105 as built hands the
+radio to the student with its slot, and on this page that is the state that does not save. So
+under ADR-0106 every qualification on Sheffield reads uncertain until that is decided, and it is
+put up as blocker 23 with the options priced — the runner answering the radio with a reviewer-
+named statement about when, or the whole page handed to the student — and not decided in the
+same breath, as he asked.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P104 — blocker 22 met on the real portal, and what its cure costs
 
 The gap P103 found in the code happened to him the same day, and it was worse than the shape I

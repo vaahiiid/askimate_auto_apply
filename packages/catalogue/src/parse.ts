@@ -357,6 +357,8 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
     const held = record(value, at);
     return { fieldRef: text(held, "fieldRef", at), whenAttached: text(held, "whenAttached", at) };
   });
+  // ADR-0106: what the page shows when a file is held here.
+  const recorded = optionalWith(source, "recorded", path, readLocator);
   return {
     fieldRef: text(source, "fieldRef", path),
     label: text(source, "label", path),
@@ -365,6 +367,7 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
     required: flag(source, "required", path),
     ...(requiredWhen === undefined ? {} : { requiredWhen }),
     ...(companion === undefined ? {} : { companion }),
+    ...(recorded === undefined ? {} : { recorded }),
   };
 }
 
@@ -386,7 +389,16 @@ function readPage(value: unknown, path: string): BlueprintPage {
       fail(`${at}.fieldKey`, `is not an ordinary field and may not be mapped to a form`);
     }
     const addAnother = optionalWith(block, "addAnother", at, readLocator);
-    return { fieldKey, ...(addAnother === undefined ? {} : { addAnother }) };
+    // ADR-0106: where the saved entries are listed, and what one entry is.
+    const recorded = optionalWith(block, "recorded", at, (value, where) => {
+      const listing = record(value, where);
+      return { url: text(listing, "url", where), entryLocator: readLocator(listing["entryLocator"], `${where}.entryLocator`) };
+    });
+    return {
+      fieldKey,
+      ...(addAnother === undefined ? {} : { addAnother }),
+      ...(recorded === undefined ? {} : { recorded }),
+    };
   });
   return {
     pageRef: text(source, "pageRef", path),

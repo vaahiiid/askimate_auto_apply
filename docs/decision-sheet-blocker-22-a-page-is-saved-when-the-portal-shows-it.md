@@ -1,6 +1,14 @@
 # Decision sheet — a page is saved when the portal shows it, not when a control is pressed
 
-**For:** Vahid · **Prepared:** 2026-09-12 · **What it costs, before anything is built.**
+**For:** Vahid · **Prepared:** 2026-09-12 · ~~**What it costs, before anything is built.**~~
+**✅ DECIDED — Vahid Mohammadi, 2026-09-12:** *"Your cost answer: accepted. Nine looks per
+application on a portal with nothing to read is the honest price and I would rather pay it than
+report a success we cannot see. Build the three phases in the order you set: reopen-and-read,
+the listing count, the slot marker."* Built in P105, all three; see
+[ADR-0106](./decisions/0106-a-page-is-saved-when-the-portal-shows-it.md). The cause of his
+failed save is settled: the unanswered radios (a repeat with all four answered saved). The
+network trace was not needed — the status code changes nothing built — and was not asked for
+again. ADR-0105's revisit is [blocker 23](./decision-sheet-blocker-23-a-companion-the-page-will-not-save-without.md).
 Companion to [blocker 19](./decision-sheet-blocker-19-how-a-runner-is-signed-in.md),
 [blocker 20](./decision-sheet-article-9-fields-a-portal-asks-for.md) and
 [blocker 21](./decision-sheet-blocker-21-a-document-per-item-of-a-repeating-page.md). Recorded as

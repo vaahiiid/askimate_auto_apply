@@ -59,6 +59,8 @@ export interface ApplicationSession {
   click(locator: FieldLocator): Promise<void>;
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
   readValue(locator: FieldLocator): Promise<string>;
+  /** How many elements a locator matches on the current page; zero when none (ADR-0106). */
+  count(locator: FieldLocator): Promise<number>;
   currentUrl(): Promise<string>;
 }
 

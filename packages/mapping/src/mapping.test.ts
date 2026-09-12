@@ -624,6 +624,9 @@ describe("a document slot's companion (P93, gap 4)", () => {
     const stored = toStoredPlan(plan);
     if (!stored.ok) expect.unreachable(stored.refusal);
     expect(rehydratePlan(stored.plan).uploads[0]?.companion?.text).toBe("now");
+    // ADR-0106: and the marker a held file shows, from the slot's own declaration.
+    expect(plan.uploads[0]?.recorded).toEqual({ strategy: "id", value: "passportHeld" });
+    expect(rehydratePlan(stored.plan).uploads[0]?.recorded).toEqual({ strategy: "id", value: "passportHeld" });
   });
 });
 

@@ -31,7 +31,7 @@
  */
 
 import type { ClaimedWork, WireTransmission } from "@askimate/aas-contracts";
-import { executePlan, failures } from "@askimate/aas-execution";
+import { countRecorded, executePlan, failures, verifyRecorded } from "@askimate/aas-execution";
 import type { ApplicationSession, DocumentSource } from "@askimate/aas-execution";
 import { rehydratePlan } from "@askimate/aas-mapping";
 import type { StoredFillPlan } from "@askimate/aas-mapping";
@@ -94,6 +94,28 @@ export async function fillApplication(
     return { kind: "failed", failure: "portal_drift" };
   }
 
+  // ── A repeating page's listing, counted BEFORE the save (ADR-0106) ─────
+  //
+  // The new-entry form reopens empty by design, so what shows an item exists
+  // is the listing growing by one. Counted first, on the same host as the
+  // form — a listing elsewhere is a blueprint out of date with the portal.
+  const listing = work.repeat?.recorded;
+  let before: number | null = null;
+  if (listing !== undefined) {
+    let where: URL;
+    try {
+      where = new URL(listing.url);
+    } catch {
+      return { kind: "failed", failure: "portal_drift" };
+    }
+    if (where.host !== work.portalHost) return { kind: "failed", failure: "portal_drift" };
+    try {
+      before = await countRecorded(deps.session, { url: where.toString(), entryLocator: listing.entryLocator });
+    } catch {
+      return { kind: "failed", failure: "runner_fault" };
+    }
+  }
+
   try {
     await deps.session.goto(target.toString());
   } catch {
@@ -135,9 +157,10 @@ export async function fillApplication(
     }
   }
 
+  const plan = rehydratePlan(toStoredPlan(wire));
   const report = await executePlan(
     deps.session,
-    rehydratePlan(toStoredPlan(wire)),
+    plan,
     // Each upload the plan references is asked for here, one at a time, at
     // the moment `executePlan` reaches it (ADR-0099). A refusal from the
     // plane, a hash that does not match, or a record the gate refuses is a
@@ -187,6 +210,25 @@ export async function fillApplication(
     // happened on a university's system is not this process's to assert.
     return { kind: "uncertain", failure: "runner_fault" };
   }
+
+  // ── Saved means SEEN (ADR-0106) ────────────────────────────────────────
+  //
+  // The press went through. That is not the save: on the first real form a
+  // page saved with two radios unanswered drew no error and recorded nothing.
+  // So the page is reopened and read back, or its listing counted, or its
+  // slot's marker looked for — and what is not seen makes the page uncertain,
+  // with no transmission recorded for it. A person then looks, which is the
+  // honest price of not reporting a success nobody can see.
+  const seen = await verifyRecorded(deps.session, {
+    plan,
+    report,
+    formUrl: target.toString(),
+    repeating: work.repeat !== undefined,
+    ...(listing === undefined || before === null
+      ? {}
+      : { listing: { url: listing.url, entryLocator: listing.entryLocator, before } }),
+  });
+  if (!seen.recorded) return { kind: "uncertain", failure: "not_recorded" };
 
   // ── What left, with the page that carried it (ADR-0069, P73) ──────────
   //
@@ -299,6 +341,7 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
         strategy: locator.strategy,
         value: locator.value,
       })),
+      ...(upload.recorded === undefined ? {} : { recorded: { strategy: upload.recorded.strategy, value: upload.recorded.value } }),
       ...(upload.companion === undefined
         ? {}
         : {

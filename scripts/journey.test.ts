@@ -1404,6 +1404,11 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
           index,
           count: 2,
           addAnother: { strategy: "id", value: "addQualificationBtn" },
+          // ADR-0106: where the runner sees that this item exists after its save.
+          recorded: {
+            url: `${portal.baseUrl}/education`,
+            entryLocator: { strategy: "css", value: "#qualifications li.qualification" },
+          },
         });
         expect(entry.plan?.instructions.map((instruction) => instruction.fieldRef)).toEqual([
           "qualification_level",

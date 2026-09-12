@@ -135,6 +135,8 @@ export interface UploadInstruction {
     readonly locators: readonly FieldLocator[];
     readonly text: string;
   };
+  /** What the page shows when a file is held in this slot (ADR-0106); absent, the slot cannot be seen. */
+  readonly recorded?: FieldLocator;
 }
 
 /**
@@ -281,6 +283,12 @@ export function planFill(
       .filter((document) => document.companion !== undefined)
       .map((document) => [document.fieldRef, document.companion] as const),
   );
+  // ADR-0106: what each slot shows when a file is held in it.
+  const recordedOf = new Map(
+    allRequiredDocuments(blueprint).flatMap((document) =>
+      document.recorded === undefined ? [] : [[document.fieldRef, document.recorded] as const],
+    ),
+  );
   // ADR-0105: which field is which slot's companion, for a handoff handed with its slot.
   const slotOfCompanion = new Map(
     allRequiredDocuments(blueprint).flatMap((document) =>
@@ -379,11 +387,13 @@ export function planFill(
       case "document": {
         const companion = companionOf.get(field.fieldRef);
         const companionField = companion === undefined ? undefined : fieldsByRef.get(companion.fieldRef);
+        const recorded = recordedOf.get(field.fieldRef);
         uploads.push({
           fieldRef: field.fieldRef,
           label: field.label,
           documentRef: mapping.source.documentRef,
           locators: field.locators,
+          ...(recorded === undefined ? {} : { recorded: { strategy: recorded.strategy, value: recorded.value } }),
           ...(companion === undefined || companionField === undefined
             ? {}
             : {

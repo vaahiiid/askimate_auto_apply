@@ -28,4 +28,6 @@ export type {
   ExecutionOutcome,
   ExecutionReport,
 } from "./execute.js";
+export type { RecordedCheck, RecordedListing } from "./verify.js";
+export { countRecorded, verifyRecorded } from "./verify.js";
 export { executePlan, failures } from "./execute.js";

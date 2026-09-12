@@ -305,6 +305,8 @@ export interface TransportedUpload {
     readonly locators: readonly FillLocator[];
     readonly text: string;
   };
+  /** What the page shows when a file is held in this slot (ADR-0106); absent, the slot cannot be seen. */
+  readonly recorded?: FillLocator;
 }
 
 export interface TransportedPlan {
@@ -459,6 +461,15 @@ export const WORK_FAILURES = [
    * account may already exist — the intervention says so.
    */
   "second_factor_met",
+  /**
+   * The save was pressed and the portal does not show the thing (ADR-0106).
+   * The reopened page did not hold what was typed, a repeating page's listing
+   * did not grow, or a slot shows no file. Reported only with `uncertain`:
+   * the press went through, and what the portal kept is for a person to see.
+   * Vahid, 2026-09-12: a qualification saved with two radios unanswered drew
+   * no error and was not recorded.
+   */
+  "not_recorded",
 ] as const;
 export type WorkFailure = (typeof WORK_FAILURES)[number];
 
@@ -549,14 +560,31 @@ export interface RepeatTargets {
   readonly index: number;
   readonly count: number;
   readonly addAnother?: FillLocator;
+  /**
+   * Where the saved entries are listed, and what one entry is (ADR-0106): the
+   * runner counts them before and after the save, and one more is the save.
+   * A new-entry form reopens empty by design, so it is the listing that
+   * shows the thing exists. The URL is the blueprint's, reviewed as `formUrl`
+   * is — never a portal's text.
+   */
+  readonly recorded?: RecordedListing;
+}
+
+/** A listing of a repeating page's saved entries (ADR-0106). */
+export interface RecordedListing {
+  readonly url: string;
+  readonly entryLocator: FillLocator;
 }
 
 /**
  * COMPILE-TIME: the repeat exemption above cannot carry text either — two
- * counts and a locator, and nothing else can be added to it unnoticed.
+ * counts, a locator and a listing, and nothing else can be added to it
+ * unnoticed.
  */
 type OpenRepeat = {
-  [K in keyof RepeatTargets]-?: NonNullable<RepeatTargets[K]> extends number | FillLocator ? never : K;
+  [K in keyof RepeatTargets]-?: NonNullable<RepeatTargets[K]> extends number | FillLocator | RecordedListing
+    ? never
+    : K;
 }[keyof RepeatTargets];
 export type NO_REPEAT_FIELD_IS_FREE_TEXT = AssertNever<OpenRepeat>;
 
@@ -599,12 +627,27 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
   if (kind === "execute" && record["repeat"] !== undefined) {
     const held = record["repeat"];
     if (typeof held !== "object" || held === null) return null;
-    const { index, count, addAnother } = held as Record<string, unknown>;
+    const { index, count, addAnother, recorded } = held as Record<string, unknown>;
     if (!Number.isInteger(index) || !Number.isInteger(count)) return null;
     if ((index as number) < 0 || (count as number) < 1 || (index as number) >= (count as number)) return null;
     const control = addAnother === undefined ? null : parseLocator(addAnother);
     if (addAnother !== undefined && control === null) return null;
-    repeat = { index: index as number, count: count as number, ...(control === null ? {} : { addAnother: control }) };
+    // ADR-0106: the listing, exactly a URL and a locator.
+    let listing: RecordedListing | null = null;
+    if (recorded !== undefined) {
+      if (typeof recorded !== "object" || recorded === null) return null;
+      const { url, entryLocator } = recorded as Record<string, unknown>;
+      if (!nonEmpty(url)) return null;
+      const entry = parseLocator(entryLocator);
+      if (entry === null) return null;
+      listing = { url, entryLocator: entry };
+    }
+    repeat = {
+      index: index as number,
+      count: count as number,
+      ...(control === null ? {} : { addAnother: control }),
+      ...(listing === null ? {} : { recorded: listing }),
+    };
   }
   if (kind === "execute") {
     if (plan === null || advanceLocator === null) return null;
@@ -809,12 +852,16 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       // nowhere to put the answer.
       const companion = parseCompanion(held["companion"]);
       if (companion === false) return null;
+      // ADR-0106: the marker a held file shows, a locator and nothing else.
+      const recorded = held["recorded"] === undefined ? null : parseLocator(held["recorded"]);
+      if (held["recorded"] !== undefined && recorded === null) return null;
       uploads.push({
         fieldRef: held["fieldRef"],
         label: held["label"],
         documentRef: held["documentRef"],
         locators,
         ...(companion === undefined ? {} : { companion }),
+        ...(recorded === null ? {} : { recorded }),
       });
     }
   }

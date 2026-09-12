@@ -105,6 +105,7 @@ function session(over: Partial<ApplicationSession> = {}): ApplicationSession & {
       return Promise.resolve();
     },
     readValue: () => Promise.resolve("Niloofar"),
+    count: () => Promise.resolve(0),
     currentUrl: () => Promise.resolve(url),
     ...over,
   };
@@ -287,15 +288,26 @@ describe("a page that carries a document (ADR-0069, P73)", () => {
     });
   }
 
-  it("reports the transmission WITH the box it went into, once the page is saved", async () => {
+  /** A recorded-marker on the slot: what the page shows when a file is held. */
+  const WITH_RECORDED_UPLOAD: ClaimedWork = {
+    ...WITH_UPLOAD,
+    plan: {
+      ...WITH_UPLOAD.plan!,
+      uploads: WITH_UPLOAD.plan!.uploads.map((upload) => ({ ...upload, recorded: { strategy: "id", value: "passportHeld" } })),
+    },
+  };
+
+  it("reports the transmission WITH the box it went into, once the page is saved AND the file is seen there (ADR-0106)", async () => {
     const attached: { documentId: string; bytes: number }[] = [];
     const live = session({
       attach: (_locator, documentId, contents) => {
         attached.push({ documentId, bytes: contents.length });
         return Promise.resolve();
       },
+      // The reopened page shows the held file by the slot's marker.
+      count: () => Promise.resolve(1),
     });
-    const outcome = await fillApplication(WITH_UPLOAD, {
+    const outcome = await fillApplication(WITH_RECORDED_UPLOAD, {
       session: live,
       now: () => NOW,
       documents: documents(),
@@ -332,5 +344,116 @@ describe("a page that carries a document (ADR-0069, P73)", () => {
       challenge: unchallenged,
     });
     expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
+  });
+
+  // ── ADR-0106: a page is saved when the portal shows it ─────────────────
+
+  it("reports UNCERTAIN, not_recorded, and NO transmission when the slot names nothing to see the file by", async () => {
+    // Vahid, 2026-09-12: a save the portal dropped silently. A file input reads
+    // back empty by HTML's rule, so without a marker nothing can show the file
+    // was kept — and a transmission record for a dropped file is the worst case.
+    const live = session({ attach: () => Promise.resolve(), count: () => Promise.resolve(1) });
+    const outcome = await fillApplication(WITH_UPLOAD, { session: live, now: () => NOW, documents: documents(), challenge: unchallenged });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded" });
+  });
+
+  it("reports the transmission when the reopened page shows the file by its marker, and UNCERTAIN when it does not", async () => {
+    const shown = session({ attach: () => Promise.resolve(), count: () => Promise.resolve(1) });
+    const seen = await fillApplication(WITH_RECORDED_UPLOAD, { session: shown, now: () => NOW, documents: documents(), challenge: unchallenged });
+    expect(seen.kind).toBe("succeeded");
+    expect(seen.kind === "succeeded" ? seen.transmissions?.length : 0).toBe(1);
+
+    const dropped = session({ attach: () => Promise.resolve(), count: () => Promise.resolve(0) });
+    const unseen = await fillApplication(WITH_RECORDED_UPLOAD, { session: dropped, now: () => NOW, documents: documents(), challenge: unchallenged });
+    expect(unseen).toEqual({ kind: "uncertain", failure: "not_recorded" });
+  });
+});
+
+describe("a page is saved when the portal shows it, not when a control was pressed (ADR-0106)", () => {
+  /** A session whose page holds the value while typing, and afterwards what `afterSave` says. */
+  function reopening(afterSave: string, extra: Partial<ApplicationSession> = {}) {
+    const visited: string[] = [];
+    let saved = false;
+    const live = session({
+      goto: (to) => {
+        visited.push(to);
+        return Promise.resolve();
+      },
+      click: (locator) => {
+        if (locator.value === "button:Save and continue") saved = true;
+        return Promise.resolve();
+      },
+      readValue: () => Promise.resolve(saved ? afterSave : "Niloofar"),
+      ...extra,
+    });
+    return { live, visited };
+  }
+
+  it("reopens the page after the save and reads every filled value back before reporting it saved", async () => {
+    const { live, visited } = reopening("Niloofar");
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "succeeded",
+    });
+    // The form URL twice: once to fill, once to see.
+    expect(visited).toEqual([FORM, FORM]);
+  });
+
+  it("reports UNCERTAIN, not_recorded — never succeeded — when the reopened page does not hold what was typed", async () => {
+    // The press went through and nothing complained; the portal simply did not
+    // keep it. Vahid's second qualification, 2026-09-12.
+    const { live } = reopening("");
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "uncertain",
+      failure: "not_recorded",
+    });
+  });
+
+  it("reports UNCERTAIN when the reopened page holds something ELSE — a value the portal changed is not a value it kept", async () => {
+    const { live } = reopening("Niloufar");
+    expect(await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "uncertain",
+      failure: "not_recorded",
+    });
+  });
+
+  const LISTING = { url: "https://portal.test/education", entryLocator: { strategy: "css" as const, value: "#qualifications li" } };
+  const ITEM: ClaimedWork = { ...WORK, formUrl: "https://portal.test/education", repeat: { index: 1, count: 2, recorded: LISTING } };
+
+  it("counts a repeating page's listing before and after: one more entry is the save, the same number is not", async () => {
+    let entries = 1;
+    const grows = session({
+      count: () => Promise.resolve(entries),
+      click: () => {
+        entries += 1;
+        return Promise.resolve();
+      },
+    });
+    expect(await fillApplication(ITEM, { session: grows, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "succeeded",
+    });
+
+    const stays = session({ count: () => Promise.resolve(1) });
+    expect(await fillApplication(ITEM, { session: stays, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "uncertain",
+      failure: "not_recorded",
+    });
+  });
+
+  it("reports UNCERTAIN for a repeating page that names no listing — a new-entry form reopens empty by design", async () => {
+    const item: ClaimedWork = { ...WORK, formUrl: "https://portal.test/education", repeat: { index: 0, count: 1 } };
+    expect(await fillApplication(item, { session: session(), now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "uncertain",
+      failure: "not_recorded",
+    });
+  });
+
+  it("refuses a listing on another host as drift, before anything is typed", async () => {
+    const elsewhere: ClaimedWork = { ...ITEM, repeat: { index: 1, count: 2, recorded: { ...LISTING, url: "https://other.test/education" } } };
+    const live = session();
+    expect(await fillApplication(elsewhere, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged })).toEqual({
+      kind: "failed",
+      failure: "portal_drift",
+    });
+    expect(live.typed).toEqual([]);
   });
 });

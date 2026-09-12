@@ -144,6 +144,8 @@ export interface FillableSession extends ReadOnlySession {
    * actually took.
    */
   readValue(locator: FieldLocator): Promise<string>;
+  /** How many elements a locator matches on the current page; zero when none (ADR-0106). */
+  count(locator: FieldLocator): Promise<number>;
 }
 
 /**

@@ -549,10 +549,30 @@ failed is not known — two radios is his guess and he says so — and the sheet
 things that would settle it. This also answers the *save with a radio unanswered* question
 asked above, with the worst answer: it does not refuse, it drops the entry.
 
-Still to come from him: the dropdown markup copy; the second save and reopen (now with the
-repeat of the failing entry, radios answered, and the save request's status from the Network
-tab); `personal.do` reopened after a save; the *Previous Education* markup on `summary.do`; and
-blocker 22's shape, in his words.
+**The cause settled, and blocker 22 decided — Vahid, 2026-09-12 (P105).** The second entry was
+*"completely different from the first"*, so not a duplicate; repeated with all four evidence
+radios answered, it saved and shows as *Previous Education 2*. **The cause of the silent
+failure is the unanswered radios.** The network trace was not captured and is not needed: the
+status code would change nothing built. Blocker 22 is decided in his words
+([ADR-0106](../../decisions/0106-a-page-is-saved-when-the-portal-shows-it.md)) and the three
+read-backs are built. On this portal that means: the pages filled once are reopened and read
+back with no vocabulary; the education page needs its listing named — the *Previous Education*
+section of `summary.do`, from a copy of its markup, still to come — and until then every
+qualification reads *uncertain*; the slots the runner attaches to on `nationality.do` and
+`documents.do` need a marker each, from the saved state, which is one upload of a synthetic file
+on a test account and a copy of the slot as it then looks.
+
+**And what it makes of ADR-0105, made explicit at his request.** The shape chosen for blocker
+21's option B and completed in ADR-0105 — the runner sets neither the slot nor its companion
+radio — is, on this page, exactly the state he produced by hand: radios unanswered, save
+pressed, nothing recorded, no error. Under ADR-0106 that is caught as *uncertain* rather than
+reported as a success; it is not resolved. Raised as
+[blocker 23](../../decision-sheet-blocker-23-a-companion-the-page-will-not-save-without.md),
+with the options priced, for him to decide on its own.
+
+Still to come from him: the dropdown markup copy; `personal.do` reopened after a save (whether
+it shows the saved values — the first read-back's shape on this portal); the *Previous
+Education* markup on `summary.do`; and blocker 23, in his words.
 
 ## What step 4 still needs
 

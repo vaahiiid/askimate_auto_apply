@@ -2359,6 +2359,7 @@ components:
               runner_fault,
               captcha_met,
               second_factor_met,
+              not_recorded,
             ]
           description: >-
             Required exactly when the outcome is not `succeeded`, and refused
@@ -2369,6 +2370,12 @@ components:
             plane STOPS a run on, naming which was met: a portal asked for
             something the plan assumed absent and only a person can pass. They
             are never re-offered as work.
+
+            `not_recorded` (ADR-0106) is reported only with `uncertain`: the
+            save was pressed and the portal does not show the thing — the
+            reopened page did not hold what was typed, a repeating page's
+            listing did not grow, or a slot shows no file. No transmission may
+            accompany it.
         transmissions:
           type: array
           maxItems: 20

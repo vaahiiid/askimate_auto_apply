@@ -790,3 +790,71 @@ describe("a work report that names what left (ADR-0069, P73)", () => {
     ).toBeNull();
   });
 });
+
+describe("what shows a page was saved crosses the wire as locators and a URL, and nothing else (ADR-0106)", () => {
+  const plan = {
+    blueprintId: "bp",
+    blueprintVersion: "1.0.0",
+    mappingSetId: "ms",
+    instructions: [
+      {
+        fieldRef: "level",
+        label: "Level",
+        inputType: "text",
+        locators: [{ strategy: "id", value: "level" }],
+        value: { kind: "confirmed", fieldKey: "education.prior_qualifications[0].level", text: "MSc", provenance: { source: "student_stated", confirmedAt: "2026-09-10T09:00:00Z" } },
+      },
+    ],
+    uploads: [
+      {
+        fieldRef: "passport_upload",
+        label: "Upload your passport",
+        documentRef: "passport",
+        locators: [{ strategy: "label", value: "Upload your passport" }],
+        recorded: { strategy: "id", value: "passportHeld" },
+      },
+    ],
+  };
+  const work = {
+    leaseId: "wl_1",
+    expiresAt: "2026-09-10T09:02:00Z",
+    runId: "run_1",
+    caseId: "case_1",
+    studentRef: "stu",
+    kind: "execute",
+    portalHost: "apply.example.test",
+    email: "n@example.test",
+    approach: "student_chosen",
+    formUrl: "https://apply.example.test/education",
+    advanceLocator: { strategy: "role", value: "button:Save" },
+    plan,
+    repeat: {
+      index: 1,
+      count: 2,
+      recorded: { url: "https://apply.example.test/summary", entryLocator: { strategy: "css", value: "#education li" } },
+    },
+  };
+
+  it("carries a repeating page's listing and a slot's marker", () => {
+    const parsed = parseClaimedWork(work);
+    expect(parsed?.repeat).toEqual(work.repeat);
+    expect(parsed?.plan?.uploads[0]?.recorded).toEqual({ strategy: "id", value: "passportHeld" });
+  });
+
+  it("refuses a listing that is not a URL and a locator, and a marker that is not a locator", () => {
+    expect(parseClaimedWork({ ...work, repeat: { index: 1, count: 2, recorded: { url: "", entryLocator: { strategy: "css", value: "li" } } } })).toBeNull();
+    expect(parseClaimedWork({ ...work, repeat: { index: 1, count: 2, recorded: { url: "https://apply.example.test/summary" } } })).toBeNull();
+    expect(parseClaimedWork({ ...work, repeat: { index: 1, count: 2, recorded: "https://apply.example.test/summary" } })).toBeNull();
+    expect(parseClaimedWork({ ...work, plan: { ...plan, uploads: [{ ...plan.uploads[0], recorded: "passportHeld" }] } })).toBeNull();
+  });
+
+  it("names `not_recorded` as a failure a runner may report, and only with uncertainty", () => {
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded" })).toEqual({
+      leaseId: "wl_1",
+      outcome: "uncertain",
+      failure: "not_recorded",
+    });
+    // A transmission beside it is a disclosure nobody saw happen: refused.
+    expect(parseWorkReport({ leaseId: "wl_1", outcome: "uncertain", failure: "not_recorded", transmissions: [] })).toBeNull();
+  });
+});

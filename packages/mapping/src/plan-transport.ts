@@ -137,6 +137,8 @@ export interface StoredUpload {
     readonly locators: readonly FieldLocator[];
     readonly text: string;
   };
+  /** What the page shows when a file is held here (ADR-0106). */
+  readonly recorded?: FieldLocator;
 }
 
 export interface StoredFillPlan {
@@ -208,6 +210,7 @@ export function toStoredPlan(
             value: locator.value,
           })),
           ...(upload.companion === undefined ? {} : { companion: copyCompanion(upload.companion) }),
+          ...(upload.recorded === undefined ? {} : { recorded: { strategy: upload.recorded.strategy, value: upload.recorded.value } }),
         }),
       ),
       credentials: plan.credentials.map((credential) => ({ ...credential })),
@@ -297,6 +300,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
       label: upload.label,
       documentRef: upload.documentRef,
       ...(upload.companion === undefined ? {} : { companion: copyCompanion(upload.companion) }),
+      ...(upload.recorded === undefined ? {} : { recorded: { strategy: upload.recorded.strategy, value: upload.recorded.value } }),
       locators: upload.locators.map((locator) => ({
         strategy: locator.strategy,
         value: locator.value,

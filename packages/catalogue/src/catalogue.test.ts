@@ -17,7 +17,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { GATED_PORTAL_BLUEPRINT, GATED_PORTAL_MAPPING_SET } from "@askimate/aas-mapping/fixtures/gated";
+import { GATED_PORTAL_BLUEPRINT, GATED_PORTAL_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT } from "@askimate/aas-mapping/fixtures/gated";
 import { PROFILE_FIELD_KEYS } from "@askimate/aas-profile";
 
 import { canonicalText, contentHash, labelledHash } from "./canonical.js";
@@ -267,7 +267,16 @@ describe("parsing rebuilds rather than casts", () => {
     expect(page?.repeats).toEqual({
       fieldKey: "education.prior_qualifications",
       addAnother: { strategy: "id", value: "addQualificationBtn" },
+      // ADR-0106: where the saved entries are listed.
+      recorded: {
+        url: "https://gated.portal.test/education",
+        entryLocator: { strategy: "css", value: "#qualifications li.qualification" },
+      },
     });
+    const withDocuments = parseReviewedEntry(JSON.parse(documentOf({ ...ENTRY, blueprint: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT })));
+    if (!withDocuments.ok) expect.unreachable(withDocuments.refusal.detail);
+    const documents = withDocuments.value.blueprint.pages.find((candidate) => candidate.pageRef === "page-documents");
+    expect(documents?.requiredDocuments[0]?.recorded).toEqual({ strategy: "id", value: "passportHeld" });
 
     const broken = JSON.parse(documentOf()) as Record<string, unknown>;
     const pages = (broken["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];

@@ -569,6 +569,16 @@ export class PlaywrightPreparationSession implements FillableSession {
   }
 
   /**
+   * How many elements a locator matches now (ADR-0106): a listing's entries,
+   * or the marker a held file shows. Zero, never a throw, when nothing does —
+   * "not there" is the answer the caller is asking for.
+   */
+  public async count(locator: FieldLocator): Promise<number> {
+    const target = toPlaywrightLocator(this.#requirePage(), locator);
+    return target === null ? 0 : await target.count();
+  }
+
+  /**
    * Fields the portal stored differently from what was typed.
    *
    * Normalisation, usually — and worth a specialist's eye, because it is also

@@ -19,6 +19,36 @@ not shipped artefacts.
 
 ---
 
+## [0.111.0] — 2026-09-12
+
+**P105 — ADR-0106: a page is saved when the portal shows it, not when a control was pressed.
+Blocker 22 decided by Vahid; the three read-backs built, each failing first; blocker 23 raised.**
+
+### Added
+
+- ADR-0106, Accepted, in his words, with the cost he accepted before building.
+- After the advance press the runner sees before it says saved: a page filled once is reopened
+  and every filled value read back, compared on the redacted shape recorded at the fill; a
+  repeating page's listing (`repeats.recorded`) is counted before and after, one more being the
+  save; a slot the runner attached to must show the marker the blueprint names
+  (`requiredDocuments[].recorded`). Anything not seen is `uncertain` with the new `not_recorded`
+  failure, and no transmission is recorded; the wire refuses a transmission beside it.
+- `ApplicationSession.count`; `verifyRecorded` and `countRecorded` in the execution package; the
+  listing and the marker cross the wire as a URL and locators and nothing else, and the listing is
+  rebased onto the deployed origin at the claim as the form is.
+- The fixture portal's pages re-render what they hold after a save, its education page lists what
+  was saved, its documents page shows a held file's marker; the fixture blueprint names both.
+  The journey walks all three shapes.
+- Decision sheet for blocker 23 — ADR-0105's handed-with-its-slot companion on a page that will
+  not save without it — with the options priced; not decided.
+
+### Changed
+
+- A page whose slot names no marker is no longer reported saved with a transmission: the P73
+  test now names the marker and sees it.
+
+---
+
 ## [0.110.2] — 2026-09-12
 
 **P104 — blocker 22 met on the real portal; its shape restated by Vahid; the cost answered before

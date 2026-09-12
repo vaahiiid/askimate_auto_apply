@@ -214,32 +214,45 @@ const VERIFY_PAGE = (error: string | null): string =>
 </form>`,
   );
 
-const APPLY_PAGE = (error: string | null): string =>
+/** `selected` when the held value is this option's (ADR-0106: a saved page shows what it holds). */
+const selectedIf = (held: string | undefined, value: string): string => (held === value ? " selected" : "");
+const valueAttr = (held: string | undefined): string => (held === undefined || held.length === 0 ? "" : ` value="${escapeHtml(held)}"`);
+
+// ADR-0106: reopened after a save, the page shows what the portal holds — as
+// a server-rendered form does — so a runner can read its values back. Before
+// a save it is empty, as it always was.
+const APPLY_PAGE = (error: string | null, held?: PortalApplication): string =>
   page(
     "Your application",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/apply" id="applicationForm">
   <label for="givenName">First name</label>
-  <input type="text" id="givenName" name="given_name" required maxlength="50">
+  <input type="text" id="givenName" name="given_name" required maxlength="50"${valueAttr(held?.givenName)}>
 
   <label for="familyName">Last name</label>
-  <input type="text" id="familyName" name="family_name" required maxlength="50">
+  <input type="text" id="familyName" name="family_name" required maxlength="50"${valueAttr(held?.familyName)}>
 
   <label for="dob">Date of birth</label>
   <input type="text" id="dob" name="date_of_birth" required pattern="\\d{2}/\\d{2}/\\d{4}"
-         placeholder="DD/MM/YYYY">
+         placeholder="DD/MM/YYYY"${valueAttr(held?.dateOfBirth)}>
 
   <label for="nationality">Nationality</label>
   <select id="nationality" name="nationality" required>
     <option value="">Please select</option>
-    <option value="IR">Iran (Islamic Republic of)</option>
-    <option value="IQ">Iraq</option>
-    <option value="GB">United Kingdom</option>
+    <option value="IR"${selectedIf(held?.nationality, "IR")}>Iran (Islamic Republic of)</option>
+    <option value="IQ"${selectedIf(held?.nationality, "IQ")}>Iraq</option>
+    <option value="GB"${selectedIf(held?.nationality, "GB")}>United Kingdom</option>
   </select>
 
   <label for="passportCountry">Country that issued your passport</label>
   <select id="passportCountry" name="passport_country" required>
-    <option value="">Choose a nationality first</option>
+${
+  held === undefined || held.passportCountry.length === 0
+    ? '    <option value="">Choose a nationality first</option>'
+    : (PASSPORT_COUNTRIES[held.nationality] ?? [])
+        .map((entry) => `    <option value="${escapeHtml(entry.value)}"${selectedIf(held.passportCountry, entry.value)}>${escapeHtml(entry.label)}</option>`)
+        .join("\n")
+}
   </select>
 
   <button type="submit" id="continueBtn">Save and continue</button>
@@ -290,7 +303,7 @@ const PASSPORT_COUNTRIES: Record<string, readonly { readonly value: string; read
  * personal details are in. A portal that let you skip to page two would not
  * exercise the thing this fixture exists to exercise.
  */
-const STUDY_PAGE = (error: string | null): string =>
+const STUDY_PAGE = (error: string | null, held?: PortalApplication): string =>
   page(
     "Your course",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
@@ -298,23 +311,29 @@ const STUDY_PAGE = (error: string | null): string =>
   <label for="studyLevel">Level of study</label>
   <select id="studyLevel" name="study_level" required>
     <option value="">Please select</option>
-    <option value="pg">Postgraduate</option>
-    <option value="ug">Undergraduate</option>
+    <option value="pg"${selectedIf(held?.studyLevel, "pg")}>Postgraduate</option>
+    <option value="ug"${selectedIf(held?.studyLevel, "ug")}>Undergraduate</option>
   </select>
 
   <label for="course">Course</label>
-  <input type="text" id="course" name="course_name" autocomplete="off">
+  <input type="text" id="course" name="course_name" autocomplete="off"${valueAttr(COURSES.find((course) => course.code === held?.courseCode)?.name)}>
   <ul id="courseOptions" role="listbox"></ul>
-  <input type="hidden" id="courseCode" name="course_code" value="">
+  <input type="hidden" id="courseCode" name="course_code" value="${escapeHtml(held?.courseCode ?? "")}">
 
   <label for="startDate">Start date</label>
   <button type="button" id="showStartDatesBtn">Show start dates</button>
   <select id="startDate" name="start_date" required>
-    <option value="">Show the start dates first</option>
+${
+  held === undefined || held.startDate.length === 0
+    ? '    <option value="">Show the start dates first</option>'
+    : (START_DATES[held.courseCode] ?? [])
+        .map((entry) => `    <option value="${escapeHtml(entry.value)}"${selectedIf(held.startDate, entry.value)}>${escapeHtml(entry.label)}</option>`)
+        .join("\n")
+}
   </select>
 
   <label for="statement">Why do you want to study this course?</label>
-  <textarea id="statement" name="personal_statement" maxlength="4000" required></textarea>
+  <textarea id="statement" name="personal_statement" maxlength="4000" required>${escapeHtml(held?.personalStatement ?? "")}</textarea>
 
   <button type="submit" id="studyContinueBtn">Save and continue</button>
 </form>
@@ -478,21 +497,28 @@ const COURSES: readonly { readonly code: string; readonly name: string; readonly
  * documents page has, and the shape `setInputFiles` posts. Reachable only once
  * page two is saved, as page two is only once page one is.
  */
-const DOCUMENTS_PAGE = (error: string | null): string =>
+const DOCUMENTS_PAGE = (error: string | null, held?: PortalApplication): string =>
   page(
     "Your documents",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/documents" id="documentsForm" enctype="multipart/form-data">
   <label for="passport">Upload your passport</label>
   <input type="file" id="passport" name="passport" required accept=".pdf,.jpg,.png">
+  ${
+    // ADR-0106: a file input reads back empty by HTML's rule; what shows a
+    // held file is the page saying so. The blueprint names this marker.
+    held?.passport === null || held?.passport === undefined
+      ? ""
+      : `<p id="passportHeld">Held: ${escapeHtml(held.passport.filename)}</p>`
+  }
   <!-- P93 (gap 4): the companion the real form has — a status the applicant
        must set beside the file. Sheffield ticks it from the file input's own
        script on sixteen slots and not on the seventeenth; this page is the
        seventeenth, so the runner's second act is what the save depends on. -->
   <fieldset>
     <legend>Passport status</legend>
-    <input type="radio" id="passportNow" name="passportStatus" value="now"><label for="passportNow">I am uploading it now</label>
-    <input type="radio" id="passportLater" name="passportStatus" value="later"><label for="passportLater">I will upload it later</label>
+    <input type="radio" id="passportNow" name="passportStatus" value="now"${held?.passportStatus === "now" ? " checked" : ""}><label for="passportNow">I am uploading it now</label>
+    <input type="radio" id="passportLater" name="passportStatus" value="later"${held?.passportStatus === "later" ? " checked" : ""}><label for="passportLater">I will upload it later</label>
   </fieldset>
 
   <button type="submit" id="documentsContinueBtn">Save and continue</button>
@@ -762,7 +788,7 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && path === "/apply") {
-        send(response, 200, APPLY_PAGE(null));
+        send(response, 200, APPLY_PAGE(null, applications.get(signedInAs)));
         return;
       }
 
@@ -900,7 +926,7 @@ export async function startFixturePortal(
           send(response, 302, "", { location: "/apply" });
           return;
         }
-        send(response, 200, STUDY_PAGE(null));
+        send(response, 200, STUDY_PAGE(null, applications.get(signedInAs)));
         return;
       }
 
@@ -952,7 +978,7 @@ export async function startFixturePortal(
           send(response, 302, "", { location: "/study" });
           return;
         }
-        send(response, 200, DOCUMENTS_PAGE(null));
+        send(response, 200, DOCUMENTS_PAGE(null, held));
         return;
       }
 

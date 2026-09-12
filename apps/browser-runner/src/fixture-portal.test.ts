@@ -294,6 +294,10 @@ describe("the application form remembers, and the review page shows it", () => {
     // two reachable, and a runner that lost track of which pages it had done
     // would either stall or re-save one it had already saved.
     expect(accepted.headers.get("location")).toBe("/study");
+    // ADR-0106: reopened after the save, page one shows what it holds.
+    const pageOneAgain = await (await fetch(`${portal.baseUrl}/apply`, { headers: { cookie: signedIn } })).text();
+    expect(pageOneAgain).toContain('value="Niloofar"');
+    expect(pageOneAgain).toContain('<option value="IR" selected>');
 
     // The review is not reachable until page two is saved either.
     const early = await fetch(`${portal.baseUrl}/review`, {
@@ -396,6 +400,11 @@ describe("the application form remembers, and the review page shows it", () => {
     const review = await (await fetch(`${portal.baseUrl}/review`, { headers: { cookie } })).text();
     expect(review).toContain("passport.pdf");
     expect(review).not.toContain("%PDF");
+    // ADR-0106: reopened, the page shows the held file by its marker and the
+    // radio as saved — what a runner reads back before it says "saved".
+    const reopened = await (await fetch(`${portal.baseUrl}/documents`, { headers: { cookie } })).text();
+    expect(reopened).toContain('<p id="passportHeld">Held: passport.pdf</p>');
+    expect(reopened).toContain('value="now" checked');
 
     const empty = await fetch(`${portal.baseUrl}/documents`, {
       method: "POST",
