@@ -19,6 +19,25 @@ not shipped artefacts.
 
 ---
 
+## [0.110.2] — 2026-09-12
+
+**P104 — blocker 22 met on the real portal; its shape restated by Vahid; the cost answered before
+building.** Records only.
+
+### Added
+
+- `docs/decision-sheet-blocker-22-a-page-is-saved-when-the-portal-shows-it.md`: his observation
+  and shape verbatim; what exists (`uncertain` end to end, no transmission on an uncertain page);
+  three read-backs and what each costs at run time, to the reviewer and to build; the price on a
+  portal with nothing to read; the two observations that would settle why the save failed.
+
+### Recorded
+
+- Blocker 22 restated in the state document in his words; the capture README carries the
+  observation and the list of what is still to come from him.
+
+---
+
 ## [0.110.1] — 2026-09-12
 
 **P103 — the education page after a save, observed: the P99 condition closed; a save pressed is

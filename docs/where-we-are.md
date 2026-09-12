@@ -4906,6 +4906,35 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P104 — blocker 22 met on the real portal, and what its cure costs
+
+The gap P103 found in the code happened to him the same day, and it was worse than the shape I
+had proposed for it. He saved a second qualification with two of the evidence radios unanswered
+and got no error, no complaint, and a summary page listing one qualification. The entry was
+dropped without a word. An error locator would have found nothing and passed; a landing URL
+would have matched and passed. His correction is the right one and it is now the shape of the
+blocker: the signal is not on the page that was saved, it is that the thing exists afterwards.
+A page is reported saved when the portal shows the thing, named on the blueprint where a
+reviewer can see how, and uncertain where nobody can — and uncertain is a specialist's problem
+rather than a silent success.
+
+He asked what that costs before it is built, and the sheet answers against what already exists
+rather than against nothing. The uncertain outcome is built end to end: the ledger leaves the
+intent open, the next claim stops on it, a person resumes or abandons, and no transmission is
+written for an uncertain page. So the rule itself costs no machinery; it costs a person's look
+per page nobody could verify. What makes that number small is a read-back that costs the
+reviewer nothing — reopen the page and read its own fields back, which holds on most
+server-rendered forms — leaving the reviewer to name, once per portal, a listing to count for a
+repeating page and a marker for each slot the runner attaches to. On a portal that offers
+nothing to read, every page is a look, nine on Sheffield, and that is the honest price of not
+writing transmission records for files the portal dropped. Three phases, each fails first,
+none touching the gates. Why his save failed is not known, two radios is his guess and he says
+so, and two specific observations would settle it rather than a third guess.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P103 — the education page after a save: a condition closed, and a save that is only pressed
 
 He saved one qualification, came back to *Your Details*, typed the new-entry URL into the

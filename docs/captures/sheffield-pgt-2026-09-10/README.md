@@ -533,8 +533,26 @@ save, each with what was done with it.
   or *uncertain* rather than *succeeded* when it does not hold. Not built: what counts as
   "saved" is the reviewer's vocabulary, and the shape is his to decide.
 
-Still to come from him: the dropdown markup copy; the second save and reopen; the save with a
-radio unanswered.
+**Blocker 22 met on the real portal — Vahid, 2026-09-12 (P104).** He filled a second
+qualification with two of the four evidence radios unanswered and pressed Save and Continue:
+*"no error. The page did not complain. And summary.do shows Previous Education 1 and nothing
+else. The second qualification was not saved."* His correction of P103's proposal: an error
+locator and a landing URL would both have passed, so *"the reliable signal is not on the page
+that was saved. It is that the thing is there afterwards."* His shape for blocker 22 and his
+cost question are answered in
+[`decision-sheet-blocker-22-a-page-is-saved-when-the-portal-shows-it.md`](../../decision-sheet-blocker-22-a-page-is-saved-when-the-portal-shows-it.md):
+the `uncertain` outcome is already built end to end and costs a specialist's look per page; a
+reopen-and-read of the page's own fields costs the reviewer nothing and covers most non-repeating
+pages; a listing count per repeating page and a marker per attached slot are named vocabulary;
+a portal with nothing to read is a look per page, and that is the honest price. Why his save
+failed is not known — two radios is his guess and he says so — and the sheet names the two
+things that would settle it. This also answers the *save with a radio unanswered* question
+asked above, with the worst answer: it does not refuse, it drops the entry.
+
+Still to come from him: the dropdown markup copy; the second save and reopen (now with the
+repeat of the failing entry, radios answered, and the save request's status from the Network
+tab); `personal.do` reopened after a save; the *Previous Education* markup on `summary.do`; and
+blocker 22's shape, in his words.
 
 ## What step 4 still needs
 
