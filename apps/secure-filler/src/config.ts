@@ -20,10 +20,33 @@ export interface FillAgentConfig {
   readonly cacheUrl: string | undefined;
   readonly kmsKeyId: string | undefined;
   readonly kmsRegion: string;
+  /** Outside production only; the same bytes as the Secure Service's (P121). */
+  readonly localMasterKey: Buffer | undefined;
   readonly production: boolean;
 }
 
 export const DEFAULT_KMS_REGION = "eu-west-2";
+
+/**
+ * `AAS_SECURE_LOCAL_MASTER_KEY` (P121): 64 hex characters — the 32-byte master
+ * a local provider wraps data keys with, outside production only. Set to the
+ * SAME value in the Secure Service and the Fill Agent, or this agent cannot
+ * open what the service put in the cache. Never printed, never logged.
+ */
+export function readLocalMasterKey(r: Reader): Buffer | undefined {
+  const hex = r.optionalString("AAS_SECURE_LOCAL_MASTER_KEY");
+  if (hex === undefined) return undefined;
+  if (r.production) {
+    r.refuse("AAS_SECURE_LOCAL_MASTER_KEY", "is not read in production; the data keys are wrapped by KMS there (ADR-0034)");
+    return undefined;
+  }
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+    r.refuse("AAS_SECURE_LOCAL_MASTER_KEY", "must be exactly 64 hex characters (32 bytes)");
+    return undefined;
+  }
+  return Buffer.from(hex, "hex");
+}
+
 
 export function fillAgentConfigFrom(
   env: Readonly<Record<string, string | undefined>>,
@@ -59,6 +82,7 @@ export function fillAgentConfigFrom(
       cacheUrl,
       kmsKeyId,
       kmsRegion: r.optionalString("AAS_SECURE_KMS_REGION", DEFAULT_KMS_REGION) ?? DEFAULT_KMS_REGION,
+      localMasterKey: readLocalMasterKey(r),
       production: r.production,
     };
   });

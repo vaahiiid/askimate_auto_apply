@@ -121,13 +121,30 @@ export class KmsDataKeyProvider implements DataKeyProvider {
  * message — but THIS is the control, and it is the one a mutation now breaks.
  * ═══════════════════════════════════════════════════════════════════════════
  */
+/**
+ * The provider a process runs with.
+ *
+ * `localMasterKey` (P121): outside production, the Secure Service and the Fill
+ * Agent each build a `LocalDataKeyProvider`, and a provider built without a
+ * master key makes a random one. Two processes, two keys — the envelope the
+ * Secure Service put in the shared cache was wrapped with a key the agent did
+ * not have, and every fill answered `secret_unavailable` after the use had
+ * already been authorised and the handle spent. The in-process journey shared
+ * ONE provider between its two vaults, which is why it could not see this. A
+ * deployment that runs the two as processes without KMS hands both the same
+ * 32 bytes; the local-stack script generates them once.
+ */
 export function keyProviderFor(
-  input: { readonly keyId: string | undefined; readonly region: string },
+  input: {
+    readonly keyId: string | undefined;
+    readonly region: string;
+    readonly localMasterKey?: Buffer;
+  },
   environment: string | undefined,
 ): DataKeyProvider {
   const provider: DataKeyProvider =
     input.keyId === undefined
-      ? new LocalDataKeyProvider()
+      ? new LocalDataKeyProvider(input.localMasterKey)
       : new KmsDataKeyProvider({ keyId: input.keyId, region: input.region });
   assertVaultIsProductionGrade(provider, environment);
   return provider;

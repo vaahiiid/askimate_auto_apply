@@ -4,15 +4,17 @@
 # Postgres and a Redis you already run — migrated, started, checked, stopped.
 #
 #   scripts/local-stack.sh start     create the two databases if absent, migrate
-#                                    both, start the five processes, wait until
-#                                    each says it is up, print where they are
+#                                    both, build the student page and the secure
+#                                    control, start the five processes, wait
+#                                    until each says it is up, print where they are
 #   scripts/local-stack.sh status    which are running, and whether they answer
 #   scripts/local-stack.sh stop      SIGTERM each, wait for an orderly exit
 #
 # Configuration, all by environment, all optional except where a value names
 # something only you know:
 #
-#   AAS_LOCAL_DIR                  state: env files, pids, logs      (.local-stack)
+#   AAS_LOCAL_DIR                  state: env files, pids, logs, the two built
+#                                  browser bundles                  (.local-stack)
 #   AAS_LOCAL_ADMIN_DATABASE_URL   a Postgres admin URL, used to create the two
 #                                  databases and never printed
 #                                  (postgresql://postgres@127.0.0.1:5432/postgres)
@@ -27,7 +29,8 @@
 #   AAS_CHROMIUM_PATH              optional; Playwright's Chromium otherwise
 #
 # What this is NOT: production. The dev session route is mounted, the vault's
-# keys are wrapped by a local provider, the service identities are plain
+# keys are wrapped by a local master key both secure-plane processes are handed
+# (never by KMS), the service identities are plain
 # strings on loopback, and NODE_ENV is unset — every one of which the processes
 # refuse under NODE_ENV=production (docs/deployables.md). It exists so that a
 # reviewed entry can be run against a portal from one machine, which is item 9
@@ -70,13 +73,28 @@ session_secret() {
   cat "$file"
 }
 
+master_key() {
+  # The local master key BOTH secure-plane processes wrap and unwrap data keys
+  # with (P121). Without KMS each process would make its own, and the Fill
+  # Agent could not open the envelope the Secure Service put in the cache:
+  # the use authorised, the handle spent, the password never typed. Generated
+  # once, mode 600, never printed.
+  local file="$DIR/master.key"
+  if [ ! -f "$file" ]; then
+    umask 077
+    node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > "$file"
+  fi
+  cat "$file"
+}
+
 write_env() {
   # One env file per process, mode 600. Nothing here is a production
   # credential; the session secret is generated once and lives only in $DIR.
-  local conversation_db secure_db secret
+  local conversation_db secure_db secret master
   conversation_db="$(database_url "${PREFIX}_conversation")"
   secure_db="$(database_url "${PREFIX}_secure")"
   secret="$(session_secret)"
+  master="$(master_key)"
   local catalogue_lines="AAS_CATALOGUE=$CATALOGUE"
   if [ "$CATALOGUE" = "registry" ]; then
     [ -n "${AAS_CATALOGUE_DIR:-}" ] || { echo "AAS_LOCAL_CATALOGUE=registry needs AAS_CATALOGUE_DIR" >&2; exit 2; }
@@ -94,6 +112,7 @@ AAS_SECURE_SERVICE_TOKEN=conversation-service
 AAS_SERVICE_CERT_SECURE=secure-service
 AAS_SERVICE_CERT_RUNNER=browser-runner
 AAS_DEV_SESSION=1
+AAS_PUBLIC_DIR=$DIR/public
 $catalogue_lines
 ${AAS_PORTAL_ORIGINS:+AAS_PORTAL_ORIGINS=$AAS_PORTAL_ORIGINS}
 ENV
@@ -107,6 +126,8 @@ AAS_CONVERSATION_SERVICE_TOKEN=secure-service
 AAS_SERVICE_CERT_CONVERSATION=conversation-service
 AAS_SERVICE_CERT_AGENT=secure-filler
 AAS_ENVELOPE_CACHE_URL=$REDIS_URL
+AAS_SECURE_LOCAL_MASTER_KEY=$master
+AAS_SECURE_ASSET_DIR=$DIR/secure-assets
 ENV
   cat > "$DIR/secure-filler.env" <<ENV
 AAS_PORT=$AGENT_PORT
@@ -114,6 +135,7 @@ AAS_SECURE_INTERNAL_URL=$SECURE_URL
 AAS_SECURE_SERVICE_TOKEN=secure-filler
 AAS_SERVICE_CERT_RUNNER=browser-runner
 AAS_ENVELOPE_CACHE_URL=$REDIS_URL
+AAS_SECURE_LOCAL_MASTER_KEY=$master
 ENV
   cat > "$DIR/browser-runner.env" <<ENV
 AAS_CONVERSATION_INTERNAL_URL=$CONVERSATION_URL
@@ -130,8 +152,16 @@ AAS_WORKER_HOLDER=worker-local-1
 AAS_SECURE_INTERNAL_URL=$SECURE_URL
 AAS_SECURE_SERVICE_TOKEN=conversation-service
 $catalogue_lines
+${AAS_PORTAL_ORIGINS:+AAS_PORTAL_ORIGINS=$AAS_PORTAL_ORIGINS}
 ENV
 }
+# The worker's catalogue lines above carry the SAME origins as the service's.
+# Found by P121's journey through these processes: without it the worker's
+# catalogue served the fixture blueprint at its observed host while the
+# service's served it at the origin named here; the worker's tick rebuilt a
+# preview that differed from the one the student had authorised and voided
+# their yes as `content_changed`, every five seconds — the second opinion
+# ADR-0041 forbids, produced by two env files.
 
 run_with_env() {
   # Runs a command with exactly the process's env file plus PATH and HOME:
@@ -170,6 +200,8 @@ cmd_start() {
   echo "migrating"
   run_with_env conversation-service apps/conversation-service/src/bin.ts migrate
   run_with_env secure-service apps/secure-service/src/bin.ts migrate
+  echo "building the student page and the secure control"
+  "$ROOT/node_modules/.bin/tsx" scripts/local-stack-assets.ts "$DIR/public" "$DIR/secure-assets"
   for app in $APPS; do
     : > "$DIR/$app.log"
     nohup env -i PATH="$PATH" HOME="${HOME:-/}" ${PLAYWRIGHT_BROWSERS_PATH:+PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH"} \
@@ -178,7 +210,9 @@ cmd_start() {
     echo $! > "$DIR/$app.pid"
   done
   wait_for "the conversation service" "curl -fsS $CONVERSATION_URL/healthz" 90
+  wait_for "the student page"         "curl -fsS $CONVERSATION_URL/journey.js" 30
   wait_for "the secure service"       "curl -fsS $SECURE_URL/healthz" 90
+  wait_for "the secure control"       "curl -fsS $SECURE_URL/control.js" 30
   wait_for "the fill agent"           "curl -fsS $AGENT_URL/healthz" 90
   wait_for "the runner's browser"     "curl -fsS $CDP_URL/json/version" 90
   wait_for "the worker"               "grep -q 'worker running' $DIR/worker.log" 90
@@ -190,7 +224,7 @@ up:
   runner                polling $CONVERSATION_URL, browser CDP at $CDP_URL
   worker                advancing runs
   catalogue             $CATALOGUE${AAS_CATALOGUE_DIR:+ ($AAS_CATALOGUE_DIR)}
-  state                 $DIR  (env files 600, logs, pids)
+  state                 $DIR  (env files 600, logs, pids, public/, secure-assets/)
 SUMMARY
 }
 

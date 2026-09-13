@@ -15,6 +15,7 @@
  * version still serving during a rolling deploy.
  */
 
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import type { Server } from "node:http";
 
 import pg from "pg";
@@ -189,7 +190,7 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       // Written as one predicate because the per-endpoint split belongs to the
       // deployment's mesh policy rather than to this app.
       authoriseService: (req) => {
-        const presented = req.header("x-service-cert");
+        const presented = req.header(SERVICE_CERTIFICATE_HEADER);
         return presented === config.serviceCertSecure || presented === config.serviceCertRunner;
       },
       // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made

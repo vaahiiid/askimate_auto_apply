@@ -232,6 +232,33 @@ describe("choosing the data key provider (ADR-0055)", () => {
     expect(keyProviderFor({ keyId: undefined, region: "eu-west-2" }, undefined).kind).toBe("local");
   });
 
+  it("two local providers unwrap each other's keys ONLY when built from the same master (P121)", async () => {
+    // What the five real processes found: the Secure Service and the Fill
+    // Agent each made a random master, and the agent could not open what the
+    // service had wrapped. Same bytes in both, and it can.
+    const { randomBytes } = await import("node:crypto");
+    const master = randomBytes(32);
+    const service = new LocalDataKeyProvider(master);
+    const agent = new LocalDataKeyProvider(master);
+    const stranger = new LocalDataKeyProvider();
+    const minted = await service.generateDataKey();
+    expect(await agent.decryptDataKey(minted.wrapped)).toEqual(minted.plaintext);
+    expect(await stranger.decryptDataKey(minted.wrapped), "a different master unwraps nothing").toBeNull();
+  });
+
+  it("builds the local provider from a configured master key, so two processes can share one", async () => {
+    const { randomBytes } = await import("node:crypto");
+    const { keyProviderFor } = await import("./kms-key-provider.js");
+    const master = randomBytes(32);
+    const one = keyProviderFor({ keyId: undefined, region: "eu-west-2", localMasterKey: master }, undefined);
+    const two = keyProviderFor({ keyId: undefined, region: "eu-west-2", localMasterKey: master }, undefined);
+    expect(one.kind).toBe("local");
+    const minted = await one.generateDataKey();
+    expect(await two.decryptDataKey(minted.wrapped)).toEqual(minted.plaintext);
+    // Still refused in production: a shared local key is two hosts' compromise instead of one.
+    expect(() => keyProviderFor({ keyId: undefined, region: "eu-west-2", localMasterKey: master }, "production")).toThrow(/REFUSING TO START/);
+  });
+
   it("chooses KMS when a key is configured", async () => {
     const { keyProviderFor } = await import("./kms-key-provider.js");
     expect(

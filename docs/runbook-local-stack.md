@@ -1,14 +1,18 @@
 # Runbook: the local stack — the five deployables on one machine
 
-**Date:** 2026-09-13 (P120) · **Proved by:** `scripts/local-stack.test.ts`, which runs the script
-below against a real Postgres and Redis, checks every endpoint, and stops it · **For:** item 9 of
+**Date:** 2026-09-13 (P120; P121) · **Proved by:** `scripts/local-stack.test.ts`, which runs the
+script below against a real Postgres and Redis, checks every endpoint, and stops it; and
+`scripts/local-stack-journey.test.ts`, which drives one whole application through the five
+processes it started — HTTP, the real frame, the worker's clock, the runner's browser, the
+handover — and reads the portal · **For:** item 9 of
 [`distance-to-a-reviewed-sheffield-run.md`](./distance-to-a-reviewed-sheffield-run.md).
 
 One script stands up the Conversation Service, the Secure Interaction Service, the Fill Agent,
 the Automation Runner and the Background Worker on one machine, against a Postgres and a Redis
 you already run, with both databases created and migrated, and tells you where each is. It is
 **not production** and refuses to be: the dev session route is mounted, the vault's data keys
-are wrapped by a local provider, the service identities are plain strings on loopback, and
+are wrapped by one local master key both secure-plane processes are handed (never KMS), the
+service identities are plain strings on loopback, and
 `NODE_ENV` is unset — each of which the processes refuse under `NODE_ENV=production`
 ([`deployables.md`](./deployables.md)).
 
@@ -38,33 +42,39 @@ scripts/local-stack.sh stop
 ```
 
 `start` creates `aas_local_conversation` and `aas_local_secure` if they are absent, runs each
-plane's own migration command, writes one env file per process (mode 600) into `.local-stack/`,
-starts the five with `nohup`, logs each to `.local-stack/<app>.log`, and waits until:
+plane's own migration command, builds the student page and the secure control into
+`.local-stack/public/` and `.local-stack/secure-assets/` (`scripts/local-stack-assets.ts`, the
+same two builders the browser tests use), writes one env file per process (mode 600) into
+`.local-stack/`, starts the five with `nohup`, logs each to `.local-stack/<app>.log`, and waits
+until:
 
 | Process | Where | Up when |
 |---|---|---|
-| Conversation Service | `http://127.0.0.1:<base>` | `GET /healthz` answers |
-| Secure Interaction Service | `http://127.0.0.1:<base+1>` | `GET /healthz` answers |
+| Conversation Service | `http://127.0.0.1:<base>` | `GET /healthz` answers, and `GET /journey.js` (the student's page) |
+| Secure Interaction Service | `http://127.0.0.1:<base+1>` | `GET /healthz` answers, and `GET /control.js` (the frame's control) |
 | Fill Agent | `http://127.0.0.1:<base+2>` | `GET /healthz` answers |
 | Automation Runner | polls the Conversation Service; its browser listens at `http://127.0.0.1:<base+9>` | `GET /json/version` answers at the CDP endpoint |
 | Background Worker | listens on nothing | its log says `worker running` |
 
-The admin URL and the session secret are never printed; the secret is generated once into
-`.local-stack/session.secret` (mode 600) and reused. `stop` sends `SIGTERM` to each and waits
+The admin URL, the session secret and the local master key are never printed; the secret and
+the key are generated once into `.local-stack/session.secret` and `.local-stack/master.key`
+(mode 600) and reused. The key is handed to the Secure Service and the Fill Agent alike
+(`AAS_SECURE_LOCAL_MASTER_KEY`), because a data key wrapped by one process must be unwrapped
+by the other. `stop` sends `SIGTERM` to each and waits
 for an orderly exit — the runner's waits for a turn in flight, so up to a minute.
 
 ## Every setting
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `AAS_LOCAL_DIR` | `.local-stack` | env files, pids, logs, the secret |
+| `AAS_LOCAL_DIR` | `.local-stack` | env files, pids, logs, the session secret, the master key, the two built bundles |
 | `AAS_LOCAL_ADMIN_DATABASE_URL` | `postgresql://postgres@127.0.0.1:5432/postgres` | used to create the two databases; the same server and credentials become each plane's database URL |
 | `AAS_LOCAL_REDIS_URL` | `redis://127.0.0.1:6379` | the shared envelope cache |
 | `AAS_LOCAL_PORT_BASE` | `4870` | conversation = base, secure = base+1, agent = base+2, runner's browser CDP = base+9 |
 | `AAS_LOCAL_DB_PREFIX` | `aas_local` | `<prefix>_conversation`, `<prefix>_secure` |
 | `AAS_LOCAL_CATALOGUE` | `fixtures` | `fixtures` serves the gated test portal; `registry` serves reviewed entries |
 | `AAS_CATALOGUE_DIR` | — | required with `registry`: `entries/*.json` and `approvals.json` (ADR-0057) |
-| `AAS_PORTAL_ORIGINS` | — | optional `blueprintId=origin` pairs: which instance of a portal to run against, a deployment fact outside the reviewed artefact |
+| `AAS_PORTAL_ORIGINS` | — | optional `blueprintId=origin` pairs: which instance of a portal to run against, a deployment fact outside the reviewed artefact. Written into the Conversation Service's env file AND the Worker's: the two must serve one catalogue (ADR-0041), and P121 found what happens when they do not |
 | `AAS_CHROMIUM_PATH` | Playwright's | the runner's browser |
 
 ## The Sheffield variant — what changes, and what this repository cannot do
@@ -100,8 +110,39 @@ launches its browser listening at the host and port the URL names, refuses a URL
 and `apps/browser-runner/src/main.test.ts` starts the real entry point and asks the endpoint
 for `/json/version` — red before the fix, green after.
 
+## Found by driving the journey through it (P121)
+
+The stack that P120 proved answered on every endpoint, and could not have taken a student from
+a conversation to a filled form. Five things stood in the way, each invisible to the journey
+that builds every plane in one process, each proved red before its fix:
+
+1. **The worker's catalogue was not the service's.** Its env file did not carry
+   `AAS_PORTAL_ORIGINS`; its tick rebuilt a preview that differed from the one the student had
+   authorised and voided the yes as `content_changed` every five seconds. The case log showed
+   `AuthorisationCaptured`, `AuthorisationVoided`, and the case back at authorisation.
+2. **No page, no frame.** Nothing served the student's page or the secure control, so the
+   password box had nowhere to mount. Both are built and served now.
+3. **The Fill Agent's certificate went under the wrong header.** It wrote `x-aas-service`; the
+   Secure Service reads `x-service-cert`; every in-process test had added the right one by hand
+   in a fetch wrapper. One constant now, `SERVICE_CERTIFICATE_HEADER`, at every hop.
+4. **`__name` under `tsx`, at a second door.** P80 shimmed the session classes; the account
+   creation and sign-in open their contexts through `openSensitiveContext`, which had no shim,
+   so the runner process threw on its first challenge read and reported the account UNCERTAIN.
+5. **Two local master keys.** Each secure-plane process made its own random master, so after the
+   Secure Service had authorised the use and spent the handle, the Fill Agent could not open the
+   envelope: `secret_unavailable`, nothing typed. `AAS_SECURE_LOCAL_MASTER_KEY`, the same bytes
+   in both, generated once by the script.
+
+And one thing observed, not fixed: a failed account creation is re-claimed about twice a second
+once the secret is spent, refused `already_spent` each time, without limit and without asking
+the student again (blocker 26 in `state-of-the-system.md`).
+
 ## Reading what happened
 
+- `AAS_LOCAL_STACK_KEEP=1 pnpm exec vitest run --project chromium scripts/local-stack-journey.test.ts`
+  drives the journey and leaves the stack, its state directory and both databases in place for
+  reading by hand; the test's own failure message carries the five logs, the intent ledger, any
+  intervention with its reason, the portal's record and the last things the student was told.
 - `.local-stack/<app>.log` — each process's own lines; the runner logs turn kinds, never an
   error object (a page's text or a URL with a token could be in one).
 - `pnpm run interventions` — stopped runs waiting for a person, against the conversation

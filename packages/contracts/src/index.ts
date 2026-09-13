@@ -117,6 +117,9 @@ export type {
 export { parseFrameInbound, parseFrameOutbound, secureControlPath } from "./frame.js";
 export { SECURE_HOLD_CEILING_SECONDS } from "./vocabulary.js";
 
+// ── How one deployable tells another who it is (P121) ────────────────────
+export { SERVICE_CERTIFICATE_HEADER } from "./identity.js";
+
 export type { SseResumeFrame } from "./sse.js";
 export {
   SSE_EVENT_NAME,

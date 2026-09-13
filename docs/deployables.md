@@ -136,6 +136,7 @@ drain and expiry sweep in-process.
 | `AAS_ENVELOPE_CACHE_URL` | **in production** | `redis://` or `rediss://`. Absent outside production means the in-memory cache. |
 | `AAS_SECURE_KMS_KEY_ID` | **in production** | absent outside production means `LocalDataKeyProvider`. |
 | `AAS_SECURE_KMS_REGION` | with the key id | |
+| `AAS_SECURE_LOCAL_MASTER_KEY` | outside production, when the Fill Agent is a separate process | 64 hex characters, **the same value in both processes**; refused in production. Without it each process makes its own master and the agent cannot open what this service put in the cache (P121). |
 | `AAS_SECURE_ASSET_DIR` | no | `control.js` / `control.css`. |
 
 **Startup checks.** Configuration → `assertVaultIsProductionGrade(provider,
@@ -162,6 +163,7 @@ types it into the runner's browser over CDP. It holds no database.
 | `AAS_SERVICE_CERT_RUNNER` | yes | the certificate the Runner presents. |
 | `AAS_ENVELOPE_CACHE_URL` | **in production** | **the same cache as the Secure Service.** |
 | `AAS_SECURE_KMS_KEY_ID` / `_REGION` | **in production** | **the same key.** |
+| `AAS_SECURE_LOCAL_MASTER_KEY` | outside production | **the same 64 hex characters as the Secure Service's** (P121); refused in production. |
 
 **Why the cache is not optional in production.** The Secure Service `put`s the
 envelope and this process `take`s it. They are different deployables. With

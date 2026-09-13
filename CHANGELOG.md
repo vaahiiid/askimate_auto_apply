@@ -19,6 +19,59 @@ not shipped artefacts.
 
 ---
 
+## [0.119.0] — 2026-09-13
+
+**P121 — the journey through the five real processes the local-stack script starts; five
+defects the in-process journey could not see, each found by that journey and fixed red-first.**
+
+### Fixed
+
+- The Fill Agent presented its certificate to the Secure Service under `x-aas-service`; the
+  Secure Service's entry point reads `x-service-cert`. Every in-process test that put the two
+  together added the right header in a fetch wrapper by hand, so the two real processes had
+  never once authorised a use. One constant, `SERVICE_CERTIFICATE_HEADER` in
+  `@askimate/aas-contracts`, is now read and written at every service-to-service hop; the three
+  wrappers are gone; `apps/secure-filler/src/authorise.test.ts` asserts the header on the wire.
+- The Secure Service and the Fill Agent each built a `LocalDataKeyProvider` with a random master
+  key outside production, so the agent could not open the envelope the service had put in the
+  shared cache: the use authorised, the handle spent, `secret_unavailable`, no password typed.
+  `AAS_SECURE_LOCAL_MASTER_KEY` (64 hex characters, the same in both, refused in production) is
+  read by both; `keyProviderFor` takes the bytes; the local-stack script generates them once.
+- The account-creation and sign-in paths open their browser contexts through
+  `openSensitiveContext`, which carried none of P80's `__name` shim; under `tsx`, the launcher the
+  runbook uses, the runner threw on its first `detectChallenge` and reported the account creation
+  UNCERTAIN. The shim now sits at that door; `sensitive-under-tsx.test.ts` runs the real path
+  under `tsx`, red before the fix.
+- `scripts/local-stack.sh`: the Background Worker's env file did not carry `AAS_PORTAL_ORIGINS`,
+  so the worker's catalogue served the fixture blueprint at its observed host while the
+  Conversation Service's served it at the named origin; the worker's tick rebuilt a preview that
+  differed from the one the student had authorised and voided their yes as `content_changed`,
+  every five seconds (ADR-0041's second opinion, produced by two env files). Both carry it now.
+- `scripts/local-stack.sh` served no student page and no secure control, so the password frame
+  could nowhere mount; `scripts/local-stack-assets.ts` builds both into the state directory and
+  the script serves them (`AAS_PUBLIC_DIR`, `AAS_SECURE_ASSET_DIR`) and waits for each.
+- `scripts/local-stack.test.ts` listened on 4880–4889, which two other suites (4881, 4882) also
+  use when the whole census runs at once; moved to 4950–4959. The new journey sits at 4960–4969.
+
+### Added
+
+- `scripts/local-stack-journey.test.ts`: the whole journey against the five processes the script
+  starts — the student's requests over HTTP, the password through the real frame from the Secure
+  Service process in a Chromium of its own, the Worker process moving the run past the yes on its
+  own clock, the Runner process creating the account and filling the fixture portal with the Fill
+  Agent process typing over CDP, the handover confirmed twice, the run finished ready to submit,
+  nothing submitted, the password in no process's log and no row. Its failure message carries the
+  five logs, the intent ledger, any intervention and the last things the student was told;
+  `AAS_LOCAL_STACK_KEEP=1` leaves the stack and databases in place for reading by hand.
+
+### Recorded
+
+- Blocker 26: a failed account creation is re-claimed without limit or backoff, about twice a
+  second once the secret is spent, and can then never succeed. Observed on this journey; decision
+  Vahid's.
+
+---
+
 ## [0.118.0] — 2026-09-13
 
 **P120 — the local-stack runbook (distance item 9), proved; and the runner's CDP endpoint,

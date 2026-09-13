@@ -131,6 +131,10 @@ const DATABASE_BACKED = [
   // that the runbook works on a machine with those two; a run without them
   // would report green over the proof.
   "scripts/local-stack.test.ts",
+  // P121: the same five processes, driven through the whole journey — HTTP,
+  // the real frame, the worker's clock, the runner's browser. The claim is
+  // about the entry points, which only exist as processes.
+  "scripts/local-stack-journey.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

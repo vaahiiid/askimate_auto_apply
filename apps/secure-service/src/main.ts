@@ -17,6 +17,7 @@
  *   aas-secure-service migrate    apply pending migrations, then exit
  */
 
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import type { Server } from "node:http";
 
 import pg from "pg";
@@ -76,7 +77,7 @@ export async function start(options: StartOptions): Promise<RunningService | nul
     // Before the database, before the cache, before anything listens: a
     // production deployment with a local master key stops here.
     const keys: DataKeyProvider = keyProviderFor(
-      { keyId: config.kmsKeyId, region: config.kmsRegion },
+      { keyId: config.kmsKeyId, region: config.kmsRegion, ...(config.localMasterKey === undefined ? {} : { localMasterKey: config.localMasterKey }) },
       options.env["NODE_ENV"],
     );
 
@@ -120,7 +121,7 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       parentOrigin: config.parentOrigin,
       logger,
       authoriseService: (req) => {
-        const presented = req.header("x-service-cert");
+        const presented = req.header(SERVICE_CERTIFICATE_HEADER);
         return (
           presented === config.serviceCertConversation || presented === config.serviceCertAgent
         );

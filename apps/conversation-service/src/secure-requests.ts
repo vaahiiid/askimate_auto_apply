@@ -33,6 +33,8 @@
  * — a step the student could see and never complete.
  */
 
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
+
 /** What the Secure Interaction Service is asked for. Metadata only. */
 export interface SecureRequestInput {
   readonly studentRef: string;
@@ -92,7 +94,7 @@ export function httpSecureRequestOpener(
   const doFetch = options.fetch ?? globalThis.fetch;
   const headers = {
     "content-type": "application/json",
-    ...(options.serviceToken === undefined ? {} : { "x-service-cert": options.serviceToken }),
+    ...(options.serviceToken === undefined ? {} : { [SERVICE_CERTIFICATE_HEADER]: options.serviceToken }),
   };
 
   return {

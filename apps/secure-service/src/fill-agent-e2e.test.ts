@@ -154,16 +154,14 @@ beforeAll(async () => {
     authorise: httpUseAuthoriser({
       baseUrl: SECURE,
       serviceToken: AGENT_CERT,
-      fetch: ((input: string, init?: RequestInit) => {
-        // The agent presents its own certificate, not the runner's.
-        const headers = { ...(init?.headers as Record<string, string>), "x-service-cert": AGENT_CERT };
-        return recordingFetch(input, { ...init, headers });
-      }) as unknown as typeof globalThis.fetch,
+      // The agent presents its own certificate, not the runner's — with the
+      // header the Secure Service reads (P121: no longer added here by hand).
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
     }),
     connect: (endpoint: string) => chromium.connectOverCDP(endpoint),
     now: () => new Date(),
     logger: new SecureLogger((line) => logLines.push(line)),
-    authoriseService: (req) => req.header("x-aas-service") === RUNNER_CERT,
+    authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
   });
   agentServer = await new Promise<Server>((resolve) => {
     const listening = agentApp.listen(AGENT_PORT, "127.0.0.1", () => resolve(listening));

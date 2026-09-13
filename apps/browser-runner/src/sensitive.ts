@@ -96,6 +96,21 @@ export async function openSensitiveContext(
     userAgent: options.userAgent,
   });
 
+  // ── esbuild helper shim (P80, and P121 for THIS door) ─────────────────
+  //
+  // Functions passed to `page.evaluate()` are serialised and re-evaluated in
+  // the page. `tsx` — the launcher the runbook starts the runner with — is
+  // esbuild, which rewrites named functions to call a `__name` helper that
+  // exists in the Node module scope and not in the page. P80 shimmed it in
+  // the session classes; the account-creation and sign-in paths open their
+  // contexts HERE, and the runner process threw `__name is not defined` on
+  // its first `detectChallenge` while every in-process test stayed green
+  // (vitest's transform injects no helper). Every context this function
+  // opens carries the shim, so no door the runner uses is left without it.
+  await context.addInitScript({
+    content: "globalThis.__name = globalThis.__name || function (f) { return f; };",
+  });
+
   // ── Make tracing unavailable, not merely unused ─────────────────────────
   //
   // Replacing the methods rather than trusting nobody calls them. A future

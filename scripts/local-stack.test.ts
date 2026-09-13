@@ -23,7 +23,9 @@ import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aa
 
 const ROOT = join(import.meta.dirname, "..");
 const REDIS_URL = process.env["AAS_TEST_REDIS_URL"] ?? "redis://127.0.0.1:56379";
-const PORT_BASE = 4880;
+// 4950–4959: a range no other suite listens on. 4880 collided with two suites
+// on 4881 and 4882 when the whole census ran at once (found in P121).
+const PORT_BASE = 4950;
 const PREFIX = "aas_localstack_test";
 
 const HAVE_DATABASE = await databaseReachable();
@@ -121,6 +123,13 @@ describeIfBoth("the local stack, started by its own script", () => {
     // finding: the entry point did not open this port before).
     const version = await fetch(`http://127.0.0.1:${String(PORT_BASE + 9)}/json/version`);
     expect(version.status).toBe(200);
+    // P121's finding: the API answering is not the stack being usable. The
+    // student's page and the secure control the frame runs are built into the
+    // state directory and served — without them no password could be taken.
+    const page = await fetch(`http://127.0.0.1:${String(PORT_BASE)}/`);
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("journey.js");
+    expect(await status(`http://127.0.0.1:${String(PORT_BASE + 1)}/control.js`)).toBe(200);
 
     const checked = await script("status", dir);
     expect(checked.code, checked.output).toBe(0);

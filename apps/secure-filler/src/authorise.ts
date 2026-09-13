@@ -28,6 +28,7 @@
  */
 
 import type { SecretFillRequest } from "@askimate/aas-contracts";
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 
 /** Granted, or refused with a reason that names nothing about the secret. */
 export type UseAuthorisation =
@@ -59,7 +60,7 @@ export function httpUseAuthoriser(
           "content-type": "application/json",
           ...(options.serviceToken === undefined
             ? {}
-            : { "x-aas-service": options.serviceToken }),
+            : { [SERVICE_CERTIFICATE_HEADER]: options.serviceToken }),
         },
         // Exactly the fields `UseSecretRequest` declares, and no more. The
         // browser endpoint and the locator are the agent's business; the

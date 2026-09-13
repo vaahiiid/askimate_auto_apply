@@ -304,19 +304,15 @@ beforeAll(async () => {
     authorise: httpUseAuthoriser({
       baseUrl: SECURE,
       serviceToken: AGENT_CERT,
-      fetch: ((input: string, init?: RequestInit) =>
-        recordingFetch(input, {
-          ...init,
-          headers: {
-            ...(init?.headers as Record<string, string>),
-            "x-service-cert": AGENT_CERT,
-          },
-        })) as unknown as typeof globalThis.fetch,
+      // P121: the authoriser presents the agent's certificate under the header
+      // the Secure Service reads. This wrapper used to add it by hand, which is
+      // how a mismatch the real processes had went unseen here.
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
     }),
     connect: (endpoint: string) => chromium.connectOverCDP(endpoint),
     now: () => new Date(),
     logger: new SecureLogger((line) => logLines.push(line)),
-    authoriseService: (req) => req.header("x-aas-service") === RUNNER_CERT,
+    authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
   });
   agentServer = await new Promise<Server>((resolve) => {
     const listening = agentApp.listen(AGENT_PORT, "127.0.0.1", () => resolve(listening));

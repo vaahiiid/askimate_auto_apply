@@ -30,6 +30,7 @@
  * there keeps the composer shut. Failing closed is the direction of the error.
  */
 
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import type { DeliveryOutcome, OutboxRow } from "./lifecycle-outbox.js";
 
 export interface InternalAppendOptions {
@@ -76,7 +77,7 @@ export function internalAppend(options: InternalAppendOptions) {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          "x-service-cert": options.serviceCertificate,
+          [SERVICE_CERTIFICATE_HEADER]: options.serviceCertificate,
         },
         body: JSON.stringify(bodyFor(row)),
         signal: timeout.signal,

@@ -152,18 +152,16 @@ beforeAll(async () => {
     authorise: httpUseAuthoriser({
       baseUrl: SECURE,
       serviceToken: AGENT_CERT,
-      fetch: ((input: string, init?: RequestInit) => {
-        const headers = {
-          ...(init?.headers as Record<string, string>),
-          "x-service-cert": AGENT_CERT,
-        };
-        return recordingFetch(input, { ...init, headers });
-      }) as unknown as typeof globalThis.fetch,
+      // The agent presents its OWN certificate, with the header the Secure
+      // Service reads. Until P121 this wrapper added `x-service-cert` by hand
+      // — the authoriser sent `x-aas-service` — and the mismatch the real
+      // processes have always had was invisible here.
+      fetch: recordingFetch as unknown as typeof globalThis.fetch,
     }),
     connect: (endpoint: string) => chromium.connectOverCDP(endpoint),
     now: () => new Date(),
     logger: new SecureLogger((line) => logLines.push(line)),
-    authoriseService: (req) => req.header("x-aas-service") === RUNNER_CERT,
+    authoriseService: (req) => req.header("x-service-cert") === RUNNER_CERT,
   });
   agentServer = await new Promise<Server>((resolve) => {
     const listening = agentApp.listen(AGENT_PORT, "127.0.0.1", () => resolve(listening));

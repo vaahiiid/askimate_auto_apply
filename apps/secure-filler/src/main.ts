@@ -7,6 +7,7 @@
  */
 
 import type { Server } from "node:http";
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 
 import { chromium } from "playwright";
 
@@ -39,7 +40,7 @@ export async function start(options: StartOptions): Promise<RunningAgent> {
   const config = fillAgentConfigFrom(options.env);
 
   const keys: DataKeyProvider = keyProviderFor(
-    { keyId: config.kmsKeyId, region: config.kmsRegion },
+    { keyId: config.kmsKeyId, region: config.kmsRegion, ...(config.localMasterKey === undefined ? {} : { localMasterKey: config.localMasterKey }) },
     options.env["NODE_ENV"],
   );
 
@@ -68,7 +69,7 @@ export async function start(options: StartOptions): Promise<RunningAgent> {
     logger: new SecureLogger((line) => {
       options.log(line);
     }),
-    authoriseService: (req) => req.header("x-aas-service") === config.serviceCertRunner,
+    authoriseService: (req) => req.header(SERVICE_CERTIFICATE_HEADER) === config.serviceCertRunner,
   });
 
   const server: Server = await new Promise((resolve) => {

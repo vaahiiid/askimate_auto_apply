@@ -135,5 +135,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-13, P121: item 9 strengthened — the five processes the script starts now carry the
+  whole journey (`scripts/local-stack-journey.test.ts`), which found five defects between them
+  the in-process journey could not see (the worker's origins, no page served, the certificate
+  header, `__name` under `tsx`, two local master keys), all fixed red-first. The count is
+  unchanged: nine open of ten.
 - 2026-09-13, P120: item 9 done (the local-stack runbook, proved); the runner's CDP endpoint
   found unserved from the real entry point and fixed.

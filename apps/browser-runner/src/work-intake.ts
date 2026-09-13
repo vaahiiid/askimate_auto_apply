@@ -31,6 +31,7 @@
  */
 
 import type { ClaimedWork, WorkDocument, WireTransmission, WorkFailure, WorkReport } from "@askimate/aas-contracts";
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import { parseClaimedWork, parseWorkDocument } from "@askimate/aas-contracts";
 
 /** What the runner does with a unit of work once it has one. */
@@ -89,7 +90,7 @@ export function httpWorkIntake(options: WorkIntakeOptions): WorkIntake {
   const doFetch = options.fetch ?? globalThis.fetch;
   const headers = {
     "content-type": "application/json",
-    ...(options.serviceToken === undefined ? {} : { "x-service-cert": options.serviceToken }),
+    ...(options.serviceToken === undefined ? {} : { [SERVICE_CERTIFICATE_HEADER]: options.serviceToken }),
   };
 
   return {

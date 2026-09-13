@@ -41,6 +41,7 @@
  */
 
 import type { FieldLocator } from "@askimate/aas-blueprint";
+import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import type { AuditSafeText } from "@askimate/aas-domain";
 import { auditLabel } from "@askimate/aas-domain";
 import type {
@@ -147,7 +148,7 @@ export async function fillSecret(input: {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(input.serviceToken === undefined ? {} : { "x-aas-service": input.serviceToken }),
+        ...(input.serviceToken === undefined ? {} : { [SERVICE_CERTIFICATE_HEADER]: input.serviceToken }),
       },
       body: JSON.stringify(request),
     });
