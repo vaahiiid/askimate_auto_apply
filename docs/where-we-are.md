@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P115 — nothing normalised, on one page
+
+He ran the comparison on the personal page and reported shape, not content: six fields came back, the two free-text ones as typed, the four selects as their option values, no whitespace gained or lost, no case changed. That is what the runner's read-back would find on this page, so the first way of seeing works as built here, and no vocabulary gap comes out of it. His classification of the selects is right for the comparison the runner makes: it compares against the option value it chose, so a code or a month name matches by construction, and only free text can be normalised.
+
+The contact page is still wanted, for two free-text fields. The UK postcode is the likeliest thing on the form to be upper-cased or re-spaced, and the draft currently types it as one value into what the capture read as two boxes of four characters, which the read-back will settle either way. And the e-mail is asked twice and could be lower-cased. Same comparison, same rule: which fields differ and how, never the values.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P114 — a filled form, and what a filled form cannot say
 
 He saved the personal page, reopened it by URL, and every field he filled was there. That is the precondition of ADR-0106's first way of seeing, met on this portal: a page filled once can be reopened and read back, and nothing on the blueprint has to say so. He kept his limit in view, that he looked at a filled form and did not compare field by field, and offered to run whatever would settle the difference if it matters.

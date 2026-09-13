@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.115.5] — 2026-09-13
+
+**P115 — the comparison on `personal.do`: nothing normalised (Vahid, 2026-09-13).** Records only.
+
+### Recorded
+
+- Six fields compared by shape, none differing from what was typed or chosen; selects read back
+  as their option values, which is what the runner compares against. Phase one of ADR-0106
+  works as built on this page. The contact page is still asked for: the postcode (likeliest to
+  be normalised, and typed as one value into what the capture read as two boxes) and the
+  twice-asked e-mail.
+
+---
+
 ## [0.115.4] — 2026-09-13
 
 **P114 — `personal.do` reopens filled after a save (Vahid, 2026-09-13): ADR-0106's first phase

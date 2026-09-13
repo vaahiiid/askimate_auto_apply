@@ -943,6 +943,33 @@ on this page and phase one works as built. If something does, that is a vocabula
 in a run's `uncertain`. The same comparison on `contact.do` would settle the postcode boxes,
 which are the likeliest to be normalised.
 
+**The comparison on `personal.do` — Vahid, 2026-09-13 (P115). Nothing was normalised.** Six
+fields came back with a value; he compared shape, not content, and reported no values:
+
+```
+titleCode   len 3, all upper  — a select's option value, a code; not something typed
+forename    len 6, mixed case — as typed
+surname     len 8, mixed case — as typed
+dobDay      len 2            — as chosen
+dobMonth    len 7            — a month NAME, the option's own value
+dobYear     len 4            — as chosen
+```
+
+*"No trailing or leading whitespace anywhere, no case change on either free-text field. The
+date reads back select by select as option values, as you expected. So phase one works as built
+on this portal for the personal page. No vocabulary gap from this read."* His two
+classifications are right for the comparison the runner makes: a select is compared against the
+option value the runner chose, so a code or a month name stored as the option's value matches by
+construction; only a free-text field can be normalised, and neither was. The runner's own
+read-back would report the same on this page: every value kept, the page recorded.
+
+**The contact page: yes, still wanted.** Two reasons, both free text. The UK postcode is the
+likeliest field on the form to be upper-cased or re-spaced on save, and the draft's mapping
+types it as one value into a box the capture read as two (`corrPostcode` + `corrPostcode2`,
+maxlength 4 each — noted in the dependency table above and not yet reconciled); what comes back
+settles both the normalisation and the split. And the e-mail is asked twice and could be
+lower-cased. The same comparison, the same rule: only the fields that differ and how, no values.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
