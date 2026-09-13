@@ -172,12 +172,22 @@ export interface BlueprintField {
   };
   /**
    * Where a typeahead's entries are found as the applicant types (ADR-0103,
-   * gap 2). Required when `inputType` is `typeahead`, refused otherwise. The
-   * runner types the mapped text, waits a bounded time for the ONE entry whose
-   * text equals it exactly, and chooses that entry; no entry, or more than
-   * one, fails with what was offered. Choosing is a fill, not an advance.
+   * gap 2). Required when `inputType` is `typeahead`, refused otherwise.
+   *
+   * ADR-0109: a mapping to a typeahead names the VALUE the form submits — the
+   * entry's `data-value` — and the reviewer records, in this field's
+   * `options`, the text each value reads as. The runner types that text,
+   * waits a bounded time for the ONE entry that reads exactly it AND carries
+   * the value, and chooses that entry; no such entry, or more than one, fails
+   * with what was offered. Two entries that read the same are told apart by
+   * value, which is what the rule is for. Choosing is a fill, not an advance.
+   *
+   * `escapeValue` names the entry that is the form's escape rather than an
+   * answer — *Not in list* — by its value, so that no mapping may name it and
+   * the runner never chooses it, whatever it reads as. On the first real form
+   * the escape's value is its own label, which is why the guard is on value.
    */
-  readonly typeahead?: { readonly optionLocator: FieldLocator };
+  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly escapeValue?: string };
   /**
    * The canonical profile field this maps to.
    *

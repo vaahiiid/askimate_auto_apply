@@ -376,6 +376,9 @@ ${
           offered.forEach(function (course) {
             var entry = document.createElement("li");
             entry.setAttribute("role", "option");
+            // ADR-0109: each entry carries the value the form submits, as the
+            // first real form's Tom Select entries do.
+            entry.setAttribute("data-value", course.code);
             entry.textContent = course.name;
             entry.addEventListener("click", function () {
               box.value = course.name;
@@ -916,12 +919,17 @@ export async function startFixturePortal(
         const typed = (url.searchParams.get("q") ?? "").trim().toLowerCase();
         // P102: for the level chosen, and nothing for none.
         const level = url.searchParams.get("level") ?? "";
+        // P118: the list ends with the form's escape, as the first real form's
+        // institution search does — and its value is its own label.
         const offered =
           typed.length === 0 || level.length === 0
             ? []
-            : COURSES.filter((course) => course.level === level && course.name.toLowerCase().startsWith(typed)).map(
-                ({ code, name }) => ({ code, name }),
-              );
+            : [
+                ...COURSES.filter((course) => course.level === level && course.name.toLowerCase().startsWith(typed)).map(
+                  ({ code, name }) => ({ code, name }),
+                ),
+                { code: "Not in list", name: "Not in list" },
+              ];
         setTimeout(() => {
           response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(offered));
         }, 300);

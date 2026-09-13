@@ -317,9 +317,14 @@ function readField(value: unknown, path: string): BlueprintField {
     const press = optionalWith(block, "press", at, readLocator);
     return { fieldRef: text(block, "fieldRef", at), ...(press === undefined ? {} : { press }) };
   });
-  const typeahead = optionalWith(source, "typeahead", path, (held, at) => ({
-    optionLocator: readLocator(record(held, at)["optionLocator"], `${at}.optionLocator`),
-  }));
+  const typeahead = optionalWith(source, "typeahead", path, (held, at) => {
+    const block = record(held, at);
+    const escapeValue = optionalText(block, "escapeValue", at);
+    return {
+      optionLocator: readLocator(block["optionLocator"], `${at}.optionLocator`),
+      ...(escapeValue === undefined ? {} : { escapeValue }),
+    };
+  });
   const mapsTo = optionalText(source, "mapsTo", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
   // — and refused absent by `checkUsable`, not by the parser.

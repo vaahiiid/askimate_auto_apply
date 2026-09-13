@@ -338,6 +338,64 @@ describe("the Sheffield drafts, under the real checks", () => {
     });
   });
 
+  it("record the institution box's entries by value and its escape, so a mapping can name one of two identical texts and never the escape (P118, ADR-0109)", () => {
+    const box = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "institution-ts-control");
+    expect(box?.inputType).toBe("typeahead");
+    expect(box?.typeahead?.escapeValue).toBe("Not in list");
+    expect(box?.options?.filter((o) => o.label === "Sheffield International College").map((o) => o.value)).toEqual(["SCH40484", "SHE0512"]);
+    expect(box?.options?.find((o) => o.value === "Not in list")?.label).toBe("Not in list");
+    // The institution box's entries follow the country box (P102), so naming
+    // one means the country box is mapped too — and under ADR-0109 a mapped
+    // typeahead records its entries. The country box's are the captured
+    // `<select id="institutionCountry">`'s (P101: value for value, label for
+    // label); the draft records them on the box when it is mapped, and this
+    // test does the same in memory, so that what it exercises is the rule.
+    const countrySelect = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "institutionCountry");
+    const countryEntries = (countrySelect?.options ?? []).filter((o) => o.value.length > 0);
+    expect(countryEntries.length).toBeGreaterThan(200);
+    const withCountryEntries = {
+      ...blueprint,
+      pages: blueprint.pages.map((p) => ({
+        ...p,
+        sections: p.sections.map((s) => ({
+          ...s,
+          fields: s.fields.map((f) => (f.fieldRef === "institutionCountry-ts-control" ? { ...f, options: countryEntries } : f)),
+        })),
+      })),
+    };
+    // Under the rule, a reviewed constant can name the SECOND of the two: the
+    // plan carries its value and the text the runner types.
+    const constant = (fieldRef: string, value: string) => ({
+      fieldRef,
+      source: { kind: "constant" as const, value, classification: "application_metadata" as const, rationale: "test" },
+    });
+    const naming = (value: string) => ({
+      ...asIfReviewed,
+      mappings: [...asIfReviewed.mappings, constant("institutionCountry-ts-control", "UNITED KINGDOM"), constant("institution-ts-control", value)],
+    });
+    const second = checkUsable(naming("SHE0512"), withCountryEntries);
+    expect(second.usable, second.usable ? "" : second.refusal.detail).toBe(true);
+    if (second.usable) {
+      const plan = planFill(withCountryEntries, second.mappingSet, withConfirmed([...PROFILE_ENTRIES, ["education.prior_qualifications", [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" }]]]));
+      const chosen = plan.instructions.find((i) => i.fieldRef === "institution-ts-control");
+      expect(chosen === undefined ? "" : textOf(chosen.value)).toBe("SHE0512");
+      expect(chosen?.typeahead?.text).toBe("Sheffield International College");
+      expect(chosen?.typeahead?.escapeValue).toBe("Not in list");
+      const country = plan.instructions.find((i) => i.fieldRef === "institutionCountry-ts-control");
+      expect(country === undefined ? "" : textOf(country.value)).toBe("UNITED KINGDOM");
+      expect(country?.typeahead?.text).toBe("United Kingdom");
+    }
+    // The text as the value: refused. The escape, by its value, which is its own label: refused.
+    expect(checkUsable(naming("Sheffield International College"), withCountryEntries).usable).toBe(false);
+    const escape = checkUsable(naming("Not in list"), withCountryEntries);
+    expect(escape.usable).toBe(false);
+    if (!escape.usable) expect(escape.refusal.detail).toContain("escape");
+    // And on the draft as committed, the country box records no entries yet,
+    // so a mapping to the institution box is refused until it does.
+    const asCommitted = checkUsable(naming("SHE0512"), blueprint);
+    expect(asCommitted.usable).toBe(false);
+  });
+
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);

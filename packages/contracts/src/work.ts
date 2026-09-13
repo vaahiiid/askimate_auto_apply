@@ -273,8 +273,8 @@ export interface TransportedInstruction {
   readonly value: TransportedValue;
   /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier; and the control pressed to load them (ADR-0105), a locator. */
   readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FillLocator };
-  /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator. */
-  readonly typeahead?: { readonly optionLocator: FillLocator };
+  /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator; the text typed for the value and the escape's value (ADR-0109). */
+  readonly typeahead?: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string };
   /** Which item of a repeating page this is (ADR-0103, gap 3): two counts. */
   readonly item?: { readonly index: number; readonly count: number };
 }
@@ -801,12 +801,16 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       optionsAfter = { fieldRef: named, ...(press === null ? {} : { press }) };
     }
     const entries = held["typeahead"];
-    let typeahead: { readonly optionLocator: FillLocator } | undefined;
+    let typeahead: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string } | undefined;
     if (entries !== undefined) {
       if (typeof entries !== "object" || entries === null) return null;
-      const optionLocator = parseLocator((entries as Record<string, unknown>)["optionLocator"]);
+      const block = entries as Record<string, unknown>;
+      const optionLocator = parseLocator(block["optionLocator"]);
       if (optionLocator === null) return null;
-      typeahead = { optionLocator };
+      if (typeof block["text"] !== "string") return null;
+      const escapeValue = block["escapeValue"];
+      if (escapeValue !== undefined && !nonEmpty(escapeValue)) return null;
+      typeahead = { optionLocator, text: block["text"], ...(escapeValue === undefined ? {} : { escapeValue }) };
     }
     const itemRaw = held["item"];
     let item: { readonly index: number; readonly count: number } | undefined;

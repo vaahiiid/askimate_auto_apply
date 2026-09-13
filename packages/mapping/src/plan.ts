@@ -88,11 +88,14 @@ export interface FillInstruction {
    */
   readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
   /**
-   * Where the entries of a typeahead are found (ADR-0103, gap 2). The runner
-   * types the text, waits for the one entry that reads exactly it, and
-   * chooses that entry — a fill, not an advance.
+   * Where the entries of a typeahead are found (ADR-0103, gap 2), the text the
+   * reviewer recorded for the value this instruction names (ADR-0109), and the
+   * value of the form's escape, if the reviewer named one. The runner types
+   * `text`, waits for the one entry that reads exactly it AND carries the
+   * value, and chooses that entry — a fill, not an advance; it never chooses
+   * the escape.
    */
-  readonly typeahead?: { readonly optionLocator: FieldLocator };
+  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string };
   /**
    * Which item of a repeating page this instruction belongs to (ADR-0103,
    * gap 3): the page is filled `count` times, and this is fill `index`. Absent
@@ -616,11 +619,21 @@ export function planFill(
   const hidden = hiddenFields(blueprint, instructions, repeated);
   const shown = (fieldRef: string): boolean => repeated.has(fieldRef) || !hidden.has(fieldRef);
 
+  // ADR-0109: a typeahead instruction names the value; the runner types the
+  // text the reviewer recorded for it. `checkUsable` held that every value a
+  // mapped typeahead can name is among its entries, so the text is found;
+  // were it not, the runner would type nothing and choose nothing.
+  const withText = (instruction: FillInstruction): FillInstruction => {
+    if (instruction.typeahead === undefined) return instruction;
+    const text = optionLabelOf(fieldsByRef.get(instruction.fieldRef), textOf(instruction.value)) ?? "";
+    return { ...instruction, typeahead: { ...instruction.typeahead, text } };
+  };
+
   return {
     blueprintId: String(blueprint.blueprintId),
     blueprintVersion: blueprint.version,
     mappingSetId: mappingSet.mappingSetId,
-    instructions: instructions.filter((instruction) => shown(instruction.fieldRef)),
+    instructions: instructions.filter((instruction) => shown(instruction.fieldRef)).map(withText),
     uploads: uploads.filter((upload) => shown(upload.fieldRef)),
     handoffs,
     credentials,
@@ -717,8 +730,20 @@ function instructionShape(
         }),
     ...(field.typeahead === undefined
       ? {}
-      : { typeahead: { optionLocator: { strategy: field.typeahead.optionLocator.strategy, value: field.typeahead.optionLocator.value } } }),
+      : {
+          typeahead: {
+            optionLocator: { strategy: field.typeahead.optionLocator.strategy, value: field.typeahead.optionLocator.value },
+            // Filled in from the field's entries once the value is known.
+            text: "",
+            ...(field.typeahead.escapeValue === undefined ? {} : { escapeValue: field.typeahead.escapeValue }),
+          },
+        }),
   };
+}
+
+/** The text a field's entries record for `value`, if any. */
+function optionLabelOf(field: BlueprintField | undefined, value: string): string | undefined {
+  return field?.options?.find((option) => option.value === value)?.label;
 }
 
 /** Whether the plan can proceed to a fill. */

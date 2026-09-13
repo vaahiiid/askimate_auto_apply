@@ -424,7 +424,8 @@ Three things follow, and the draft (0.2.10, set 0.3.7) carries the first:
   (`#institution-ts-dropdown …`, the id from `<select id="institution">`) **on his report that
   it is the same widget and the library's id rule, not from a copy** — see below for what
   would confirm it.
-- **The runner matches an entry by the text it shows, never by `data-value`.** Confirmed in
+- ~~**The runner matches an entry by the text it shows, never by `data-value`.**~~ Superseded by
+  ADR-0109 (P118): the runner now requires the text AND the value. As it stood: Confirmed in
   the code and proven against a fixture that carries his shape (`preparation.test.ts`, P101):
   typing *United Kingdom* chooses the entry and the form then holds `UNITED KINGDOM`; naming
   `MYANMAR` or `IRAN` finds no entry and chooses nothing; the long Myanmar label is matched
@@ -490,7 +491,9 @@ with each part of it:
   removed. What fits is the reviewer naming the escape on the blueprint, as the press is named:
   the usable-set check refuses a constant equal to it, the runner refuses to choose it whatever
   the text's source, and the not-listed case is a handoff to `unlistedInstitution` or to the
-  student. **Not built yet, deliberately**: its shape follows the value-versus-text decision —
+  student. ~~**Not built yet, deliberately**~~ — built in P118 under ADR-0109: the escape is
+  named by value on the blueprint, refused by the usable-set check and by the runner. As it
+  stood: its shape follows the value-versus-text decision —
   if the mapping names the submitted value, the escape is named by its value too — so it waits
   for that decision rather than being built twice.
 
@@ -1070,6 +1073,46 @@ drift and a mislabelled copy. If they disagree, the codes of 2026-09-11 may be o
 layers, and the question becomes which layer a mapping would have to name — the posted one —
 and whether *that* one holds across days, which is the same day-later read, on the `<select>`.
 Either way the day-later read stands; this makes it answer one question instead of two.
+
+**Reading two settles it, and the decision is taken — Vahid, 2026-09-13 (P118,
+[ADR-0109](../../decisions/0109-a-typeahead-mapping-names-the-value-the-form-submits.md)).**
+The `<select>` the institution box fronts, after choosing: `institutionCode | selected=SHEFFIELD
+| options: (blank), SHEFFIELD:University of Sheffield` — one option, the chosen one, added by
+the widget, and its value the dropdown's value. *"The layer hypothesis is out. Which means the
+earlier copy was from a different box, and I sent the wrong one … That is my error and it
+should be recorded as mine, not as Sheffield's instability."* Recorded as his. Reading three,
+the network response, is not needed: the form never posts what the JSON says, only what the
+`<select>` holds, and one and two agree. The day-later read stays worth doing for drift, on the
+`<select>`.
+
+**The decision, in his words:** *"Take it back off hold … Name the value. The duplicates are
+SCH40484 and SHE0512, distinguishable only by value."* His two conditions built exactly: the
+mapping names the value **and** the reviewer records the text it reads as — now the typeahead
+field's own `options` — and both must match at the fill; the preview shows the student the
+text, never the code. What his question about the escape did to the guard: *"a value equal to
+its own label is not the clean sentinel 9004 would have been"* — so the guard is on value, and
+an escape whose value is its own label is refused exactly as a coded one: by the usable-set
+check for any constant or option-rule target equal to it, and by the runner before anything is
+typed, for confirmed values and constants alike. P102's open case — the escape chosen when the
+text names it — is closed, and the fixture's escape now has its own label as its value to
+prove it on the harder shape.
+
+**The draft (0.2.17, set 0.3.17).** The institution box carries the eleven entries he read for
+*Sheff* with the United Kingdom chosen, value and text, and `escapeValue: "Not in list"`. The
+draft test shows a reviewed constant naming `SHE0512` planning that value with the text
+*Sheffield International College* to type, the text named as the value refused, and the escape
+refused — with the country box's entries, which the institution box follows, copied in memory
+from the captured `<select id="institutionCountry">` (the draft as committed records none on
+the box, and the test shows a mapping to the institution box refused until it does). No mapping
+to the box is authored: a qualification's institution is a free-text
+profile part, and the rule requires an option rule onto the recorded entries — partial, like the
+country map — which is the reviewer's to write; a student whose institution is not among them
+is a handoff, never the escape. The country box's entries are the captured `<select>`'s and are
+recorded on the box when it is mapped.
+
+**The doubled `institutionCountry` option list in his output** is read as his selector
+matching twice or the console truncating, as he suggested; nothing is read into it, and the
+exact list is not needed now.
 
 ## What step 4 still needs
 

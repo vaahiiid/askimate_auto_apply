@@ -40,13 +40,15 @@
     "",
     "Education (page7), P113 (2026-09-13): the repeating page's listing is named (ADR-0106) from Vahid's read of summary.do with two qualifications saved — each entry's heading is an h5 reading exactly 'Previous Education N' inside div.homepageInfomation (misspelled on the page; kept as written) inside div.homepageBlock, both wrappers shared by every section. The entry locator is text-shaped by necessity — the structure counts sections — and exact to the number: h5:text-matches('^Previous Education [0-9]+$'). A qualification is saved when that count grows by one.",
     "",
-    "Contact (page4), P116 (2026-09-13): the UK postcode is two boxes — corrPostcode and corrPostcode2 both came back from Vahid's read-back, three characters each for his — so the single-value mapping was wrong and is replaced by the uk_postcode format on each box, split at the postcode's own seam (inward = last three, outward = the rest), never at 3+3. Nothing on this page was normalised by the portal: e-mail, address, town and postcode came back exactly as typed, case included. The permanent-address fields (perm*) stay unmapped, as before."
+    "Contact (page4), P116 (2026-09-13): the UK postcode is two boxes — corrPostcode and corrPostcode2 both came back from Vahid's read-back, three characters each for his — so the single-value mapping was wrong and is replaced by the uk_postcode format on each box, split at the postcode's own seam (inward = last three, outward = the rest), never at 3+3. Nothing on this page was normalised by the portal: e-mail, address, town and postcode came back exactly as typed, case included. The permanent-address fields (perm*) stay unmapped, as before.",
+    "",
+    "Education (page7), P118 (2026-09-13, ADR-0109): a mapping to a typeahead names the VALUE the form submits, and the blueprint records what each value reads as. The institution box (institution-ts-control) now carries the eleven entries Vahid read for 'Sheff' with the United Kingdom chosen — the two 'Sheffield International College' entries are SCH40484 and SHE0512 — and its escape by value, 'Not in list', whose value is its own label. No mapping to the box is authored: a qualification's institution is a free-text profile part, and a mapping must reach the box through an option rule onto these entries (partial, like the country map), which is the reviewer's to write; a student whose institution is not among them is a handoff, never the escape. The country box's entries are the captured <select>'s and are recorded on the box when it is mapped."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.16",
+  "blueprintVersion": "0.2.17",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

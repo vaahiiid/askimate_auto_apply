@@ -664,6 +664,56 @@ export function checkUsable(
   const typeaheadProblems = allFields(blueprint).filter(
     (field) => (field.inputType === "typeahead") !== (field.typeahead !== undefined),
   );
+  // ADR-0109: a mapping to a typeahead names the value the form submits, and
+  // the field's `options` say what each value reads as. So a mapped typeahead
+  // records its entries; its mapping is a constant that is one of them, or an
+  // option rule whose every target is one of them; and neither may be the
+  // escape — *"a mapping must never resolve to it by accident"* (Vahid).
+  const namedValuesProblems: string[] = [];
+  const namedValuesFields: string[] = [];
+  for (const field of allFields(blueprint)) {
+    if (field.inputType !== "typeahead") continue;
+    const mapping = mappingFor(mappingSet, field.fieldRef);
+    if (mapping === undefined) continue;
+    const source = mapping.source;
+    if (source.kind !== "constant" && source.kind !== "profile_field") continue;
+    if (field.options === undefined || field.options.length === 0) {
+      namedValuesFields.push(field.fieldRef);
+      namedValuesProblems.push(`${field.fieldRef} records no entries, so no mapping to it can name a value the form submits`);
+      continue;
+    }
+    const named: readonly string[] = source.kind === "constant" ? [source.value] : (optionTargetsOf(source.format) ?? []);
+    if (source.kind === "profile_field" && optionTargetsOf(source.format) === null) {
+      namedValuesFields.push(field.fieldRef);
+      namedValuesProblems.push(
+        `${field.fieldRef} is mapped from a profile field without an option rule onto its entries — free text is never the value a typeahead submits`,
+      );
+      continue;
+    }
+    const escape = field.typeahead?.escapeValue;
+    const problems = named.flatMap((value) =>
+      escape !== undefined && value === escape
+        ? [`${field.fieldRef} would name "${value}", which is the form's escape, not an answer`]
+        : formOffers(field, value)
+          ? []
+          : [`${field.fieldRef} would name "${value}", which is not among the entries the reviewer recorded`],
+    );
+    if (problems.length > 0) {
+      namedValuesFields.push(field.fieldRef);
+      namedValuesProblems.push(...problems);
+    }
+  }
+  if (namedValuesProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "typeahead_invalid",
+        fieldRefs: [...new Set(namedValuesFields)],
+        detail: `A typeahead is chosen by the value the form submits (ADR-0109): ${namedValuesProblems.join("; ")}.`,
+      },
+    };
+  }
+
   if (typeaheadProblems.length > 0) {
     return {
       usable: false,
@@ -831,10 +881,17 @@ function hasOptions(field: BlueprintField): boolean {
   );
 }
 
+/** The values an option rule can produce, or null when the rule is not one (through `part`). */
+function optionTargetsOf(rule: FormatRule): readonly string[] | null {
+  if (rule.kind === "option") return Object.values(rule.options);
+  if (rule.kind === "part") return rule.then === undefined ? null : optionTargetsOf(rule.then);
+  return null;
+}
+
 /** Whether the form itself offers `value` as something to choose on this field. */
 function formOffers(field: BlueprintField, value: string): boolean {
   if (field.inputType === "checkbox") return value === "true";
-  if (field.inputType === "select" || field.inputType === "radio" || field.inputType === "multiselect") {
+  if (field.inputType === "select" || field.inputType === "radio" || field.inputType === "multiselect" || field.inputType === "typeahead") {
     return (field.options ?? []).some((option) => option.value === value);
   }
   return false;

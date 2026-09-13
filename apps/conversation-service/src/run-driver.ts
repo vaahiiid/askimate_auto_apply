@@ -6119,6 +6119,8 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
                 strategy: instruction.typeahead.optionLocator.strategy,
                 value: instruction.typeahead.optionLocator.value,
               },
+              text: instruction.typeahead.text,
+              ...(instruction.typeahead.escapeValue === undefined ? {} : { escapeValue: instruction.typeahead.escapeValue }),
             },
           }),
       ...(instruction.item === undefined ? {} : { item: { index: instruction.item.index, count: instruction.item.count } }),

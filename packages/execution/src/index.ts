@@ -26,8 +26,7 @@ export type {
   DocumentSource,
   ExecutionContext,
   ExecutionOutcome,
-  ExecutionReport,
-} from "./execute.js";
+  ExecutionReport, TypeaheadEntries } from "./execute.js";
 export type { RecordedCheck, RecordedListing } from "./verify.js";
 export { countRecorded, verifyRecorded } from "./verify.js";
 export { executePlan, failures } from "./execute.js";

@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.117.0] — 2026-09-13
+
+**P118 — ADR-0109: a typeahead mapping names the value the form submits (decided by Vahid,
+2026-09-13); the reviewer records the text; both must match at the fill; the preview shows the
+text; the escape is named by value and never chosen.**
+
+### Added
+
+- ADR-0109, Accepted, in his words. `typeahead.escapeValue` on the blueprint; a typeahead's
+  `options` as the reviewer's record of value and text.
+- The usable-set check: a mapped typeahead without entries, a value not among them, a profile
+  field without an option rule onto them, or any value equal to the escape — refused.
+- The plan carries the text beside the entries' locator; the contract and the wire carry it;
+  the runner types the text and chooses the ONE entry that reads it AND carries the value, and
+  refuses the escape by value before typing. Fifteen tests red before the build; P102's open
+  escape case closed.
+
+### Changed
+
+- The fixture portal's course entries carry `data-value` and its list ends with an escape whose
+  value is its own label; the fixture blueprint records the entries; its course constant names
+  the value. The runner's fixture form's escape likewise. Sheffield draft 0.2.17 records the
+  institution box's eleven entries and its escape; set 0.3.17.
+
+### Recorded
+
+- P117's contradiction resolved by his reading of the `<select>`: the earlier copy was from a
+  different box, his error, recorded as his. Reading three not needed.
+
+---
+
 ## [0.116.1] — 2026-09-13
 
 **P117 — the institution dropdown read live: the duplicates carry different values, and every

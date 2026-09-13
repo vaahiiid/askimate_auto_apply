@@ -18,6 +18,7 @@
 
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import type { FieldLocator } from "@askimate/aas-blueprint";
+import type { TypeaheadEntries } from "@askimate/aas-execution";
 
 import type { FlowSignal } from "./observe-script.js";
 
@@ -124,13 +125,15 @@ export interface FillableSession extends ReadOnlySession {
    */
   awaitOption(locator: FieldLocator, value: string): Promise<void>;
   /**
-   * Types a confirmed value into a typeahead and chooses the one entry whose
-   * text equals it exactly (ADR-0103, gap 2). Choosing is a fill, not an
-   * advance: the entry is not on the click allow-list and need not be.
+   * Types `entries.text` into a typeahead and chooses the one entry that
+   * reads exactly it AND carries the confirmed value (ADR-0103 gap 2;
+   * ADR-0109). The escape named by `entries.escapeValue` is never chosen.
+   * Choosing is a fill, not an advance: the entry is not on the click
+   * allow-list and need not be.
    */
-  fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
+  fillTypeahead(locator: FieldLocator, entries: TypeaheadEntries, value: ConfirmedValue<string>): Promise<void>;
   /** The same for a reviewed constant, kept apart for the reason `fillConstant` is. */
-  fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void>;
+  fillTypeaheadConstant(locator: FieldLocator, entries: TypeaheadEntries, value: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   /** Uploads a document by vault ID. The runner never sees the vault itself. */
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;

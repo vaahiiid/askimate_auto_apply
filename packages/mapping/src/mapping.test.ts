@@ -738,8 +738,14 @@ describe("a typeahead (P95, gap 2)", () => {
     const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
     const course = plan.instructions.find((i) => i.fieldRef === "course");
     expect(course?.inputType).toBe("typeahead");
-    expect(course?.typeahead).toEqual({ optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } });
-    expect(course === undefined ? "" : textOf(course.value)).toBe("MSc Example Studies");
+    // ADR-0109 (P118): the instruction names the VALUE; the text to type is
+    // the one the reviewer recorded for it, carried beside the entries.
+    expect(course?.typeahead).toEqual({
+      optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
+      text: "MSc Example Studies",
+      escapeValue: "Not in list",
+    });
+    expect(course === undefined ? "" : textOf(course.value)).toBe("PG-EX-2026");
     expect(plan.instructions.find((i) => i.fieldRef === "personal_statement")?.typeahead).toBeUndefined();
   });
 
@@ -782,6 +788,8 @@ describe("a typeahead (P95, gap 2)", () => {
     const back = rehydratePlan(stored.plan);
     expect(back.instructions.find((i) => i.fieldRef === "course")?.typeahead).toEqual({
       optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
+      text: "MSc Example Studies",
+      escapeValue: "Not in list",
     });
   });
 });
@@ -1221,5 +1229,116 @@ describe("the option a companion does not name (P108) — a fourth value is chos
     expect(plan.blockers.filter((b) => b.fieldRef === "qualification_certificate_status")).toEqual([]);
     expect(plan.instructions.filter((i) => i.fieldRef === "qualification_certificate_status").map((i) => textOf(i.value))).toEqual(["later"]);
     expect(everyText(plan)).not.toContain(FOURTH);
+  });
+});
+
+describe("a typeahead mapping names the value the form submits (P118, ADR-0109)", () => {
+  // Vahid, 2026-09-13: *"Name the value. The duplicates are SCH40484 and
+  // SHE0512, distinguishable only by value."* His two conditions: the
+  // mapping names the value AND the reviewer records the text it reads as,
+  // and both must match at the fill; the preview shows the student the text,
+  // never the code. The fixture's course box carries its entries as
+  // `options` (value = what the form submits, label = what is shown) and
+  // names its escape by value.
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const courseAs = (source: MappingSet["mappings"][number]["source"]): MappingSet => ({
+    ...SET,
+    mappings: SET.mappings.map((m) => (m.fieldRef === "course" ? { ...m, source } : m)),
+  });
+  const constant = (value: string): MappingSet["mappings"][number]["source"] => ({
+    kind: "constant",
+    value,
+    classification: "application_metadata",
+    rationale: "x",
+  });
+
+  it("plans the VALUE, and carries the text the reviewer recorded for it — the runner needs both", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(BLUEPRINT, check.mappingSet, COMPLETE_PROFILE);
+    const course = plan.instructions.find((i) => i.fieldRef === "course");
+    expect(course === undefined ? "" : textOf(course.value)).toBe("PG-EX-2026");
+    expect(course?.typeahead).toEqual({
+      optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
+      text: "MSc Example Studies",
+      escapeValue: "Not in list",
+    });
+    const stored = toStoredPlan(plan);
+    if (!stored.ok) expect.unreachable(stored.refusal);
+    expect(rehydratePlan(stored.plan).instructions.find((i) => i.fieldRef === "course")?.typeahead?.text).toBe("MSc Example Studies");
+  });
+
+  it("REFUSES a typeahead mapping that names a value the field's entries do not hold — the text is not the value", () => {
+    // The text the applicant reads, named as the value: not offered.
+    const byText = checkUsable(courseAs(constant("MSc Example Studies")), BLUEPRINT);
+    expect(byText.usable).toBe(false);
+    if (!byText.usable) {
+      expect(byText.refusal.kind).toBe("typeahead_invalid");
+      expect(byText.refusal.detail).toContain("MSc Example Studies");
+    }
+    const unknown = checkUsable(courseAs(constant("PG-NOPE")), BLUEPRINT);
+    expect(unknown.usable).toBe(false);
+  });
+
+  it("REFUSES the ESCAPE, named by value — even where the escape's value is its own label", () => {
+    // Sheffield's list ends with "Not in list", whose value IS "Not in list"
+    // (Vahid, 2026-09-13). *"A value equal to its own label is not the clean
+    // sentinel 9004 would have been."* The guard compares values, so it holds.
+    const escape = checkUsable(courseAs(constant("Not in list")), BLUEPRINT);
+    expect(escape.usable).toBe(false);
+    if (!escape.usable) {
+      expect(escape.refusal.kind).toBe("typeahead_invalid");
+      expect(escape.refusal.detail).toContain("escape");
+    }
+  });
+
+  it("REFUSES a typeahead mapped from a profile field without an option rule onto the entries — free text is never the value", () => {
+    const text = checkUsable(
+      courseAs({ kind: "profile_field", fieldKey: "study.personal_statement", format: { kind: "text" } }),
+      BLUEPRINT,
+    );
+    expect(text.usable).toBe(false);
+    if (!text.usable) expect(text.refusal.kind).toBe("typeahead_invalid");
+    // An option rule whose every target is an entry: accepted. One target
+    // that is the escape: refused.
+    const onto = checkUsable(
+      courseAs({
+        kind: "profile_field",
+        fieldKey: "study.personal_statement",
+        format: { kind: "option", options: { "Because it is the course I want.": "PG-EX-2026" } },
+      }),
+      BLUEPRINT,
+    );
+    expect(onto.usable, onto.usable ? "" : onto.refusal.detail).toBe(true);
+    const ontoEscape = checkUsable(
+      courseAs({
+        kind: "profile_field",
+        fieldKey: "study.personal_statement",
+        format: { kind: "option", options: { "Because it is the course I want.": "Not in list" } },
+      }),
+      BLUEPRINT,
+    );
+    expect(ontoEscape.usable).toBe(false);
+  });
+
+  it("REFUSES a mapped typeahead that records no entries at all", () => {
+    const withoutOptions: ApplicationBlueprint = {
+      ...BLUEPRINT,
+      pages: BLUEPRINT.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          fields: section.fields.map((field) => {
+            if (field.fieldRef !== "course") return field;
+            const { options: _options, ...rest } = field;
+            return rest;
+          }),
+        })),
+      })),
+    };
+    const check = checkUsable(SET, withoutOptions);
+    expect(check.usable).toBe(false);
+    if (!check.usable) expect(check.refusal.kind).toBe("typeahead_invalid");
   });
 });

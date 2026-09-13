@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -21716,11 +21716,58 @@
                 "optionLocator": {
                   "strategy": "css",
                   "value": "#institution-ts-dropdown [role=\"option\"][data-selectable]"
-                }
+                },
+                "escapeValue": "Not in list"
               },
               "optionsAfter": {
                 "fieldRef": "institutionCountry-ts-control"
-              }
+              },
+              "options": [
+                {
+                  "value": "SHEFFIELD",
+                  "label": "University of Sheffield"
+                },
+                {
+                  "value": "SCH40189",
+                  "label": "Sheffield College"
+                },
+                {
+                  "value": "UNI1182",
+                  "label": "Sheffield Hallam University"
+                },
+                {
+                  "value": "UNI9147",
+                  "label": "Sheffield Hallam University / City University Hong Kong"
+                },
+                {
+                  "value": "SCH40484",
+                  "label": "Sheffield International College"
+                },
+                {
+                  "value": "SHE0512",
+                  "label": "Sheffield International College"
+                },
+                {
+                  "value": "UNI7760",
+                  "label": "Sheffield School of Nursing"
+                },
+                {
+                  "value": "UNI24866",
+                  "label": "Sheffield and North Trent College of Nursing and Midwifery"
+                },
+                {
+                  "value": "SHE0600",
+                  "label": "University of Sheffield International College"
+                },
+                {
+                  "value": "UNI7619",
+                  "label": "University of Sheffield's Institute of Work Psychology"
+                },
+                {
+                  "value": "Not in list",
+                  "label": "Not in list"
+                }
+              ]
             },
             {
               "fieldRef": "unlistedInstitution",

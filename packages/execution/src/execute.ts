@@ -29,6 +29,13 @@ import type { FillPlan } from "@askimate/aas-mapping";
 import { textOf } from "@askimate/aas-mapping";
 
 /** What the orchestrator needs a session to be able to do. */
+/** A typeahead's entries, the text to type for the value, and the escape never to choose (ADR-0109). */
+export interface TypeaheadEntries {
+  readonly optionLocator: FieldLocator;
+  readonly text: string;
+  readonly escapeValue?: string;
+}
+
 export interface ApplicationSession {
   goto(url: string): Promise<void>;
   fill(locator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
@@ -49,13 +56,15 @@ export interface ApplicationSession {
    */
   awaitOption(locator: FieldLocator, value: string): Promise<void>;
   /**
-   * Types a confirmed value into a typeahead and chooses the ONE entry, found
-   * by `optionLocator`, whose text equals it exactly (ADR-0103, gap 2). No
-   * entry, or more than one, fails with what was offered; nothing is chosen.
+   * Types `entries.text` into a typeahead and chooses the ONE entry, found by
+   * `entries.optionLocator`, that reads exactly that text AND carries the
+   * confirmed value the form submits (ADR-0103 gap 2; ADR-0109). No such
+   * entry, or more than one, fails with what was offered; the escape named by
+   * `entries.escapeValue` is refused whatever it reads as; nothing is chosen.
    */
-  fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void>;
+  fillTypeahead(locator: FieldLocator, entries: TypeaheadEntries, value: ConfirmedValue<string>): Promise<void>;
   /** The same for a reviewed constant — kept apart from `fillTypeahead` for the reason `fillConstant` is. */
-  fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void>;
+  fillTypeaheadConstant(locator: FieldLocator, entries: TypeaheadEntries, value: string): Promise<void>;
   click(locator: FieldLocator): Promise<void>;
   attach(locator: FieldLocator, documentId: string, contents: Uint8Array): Promise<void>;
   readValue(locator: FieldLocator): Promise<string>;
@@ -217,7 +226,7 @@ export async function executePlan(
       if (instruction.typeahead !== undefined) {
         // A typeahead is typed into and chosen from (ADR-0103, gap 2). The
         // two kinds stay apart here too.
-        const entries = instruction.typeahead.optionLocator;
+        const entries = instruction.typeahead;
         if (instruction.value.kind === "confirmed") {
           await session.fillTypeahead(locator, entries, instruction.value.value);
         } else {

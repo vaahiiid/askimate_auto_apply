@@ -26,6 +26,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { FieldLocator } from "@askimate/aas-blueprint";
+import type { TypeaheadEntries } from "@askimate/aas-execution";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import { unwrapConfirmed } from "@askimate/aas-domain";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
@@ -361,38 +362,49 @@ export class PlaywrightPreparationSession implements FillableSession {
     await this.#type(locator, unwrapConfirmed(value));
   }
 
-  public async fillTypeahead(
-    locator: FieldLocator,
-    optionLocator: FieldLocator,
-    value: ConfirmedValue<string>,
-  ): Promise<void> {
-    await this.#chooseTypeahead(locator, optionLocator, unwrapConfirmed(value));
+  public async fillTypeahead(locator: FieldLocator, entries: TypeaheadEntries, value: ConfirmedValue<string>): Promise<void> {
+    await this.#chooseTypeahead(locator, entries, unwrapConfirmed(value));
   }
 
-  public async fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
-    await this.#chooseTypeahead(locator, optionLocator, text);
+  public async fillTypeaheadConstant(locator: FieldLocator, entries: TypeaheadEntries, value: string): Promise<void> {
+    await this.#chooseTypeahead(locator, entries, value);
   }
 
   /**
-   * A typeahead (ADR-0103, gap 2): type the text, wait — bounded — for the
-   * ONE entry whose text equals it exactly, choose that entry.
+   * A typeahead (ADR-0103, gap 2; ADR-0109): type the text the reviewer
+   * recorded for the value, wait — bounded — for the ONE entry that reads
+   * exactly that text AND carries the value the form submits, choose it.
    *
    * The Tom Select boxes on the first real form: the visible input searches,
-   * the entries appear beneath it, and the `<select>` behind is set by the
-   * choice. Three refusals, all with what the list offered: no entry reads
-   * exactly the text; more than one does; or the entry reads as a submission
-   * control — a fill never presses one. Nothing is chosen in any of them.
-   * The click is not an advance and the allow-list is not consulted for it,
-   * because the entry is the answer, not a control.
+   * the entries appear beneath it with a `data-value` each, and the
+   * `<select>` behind is set by the choice. Vahid, 2026-09-13: *"the mapping
+   * names the value AND the reviewer records the text it reads as, and both
+   * must match at the fill."* Two entries that read the same — his
+   * *Sheffield International College* twice — are told apart by value. Four
+   * refusals, nothing chosen in any: the value is the form's escape (by
+   * value, whatever the text — on that form the escape's value is its own
+   * label); no entry reads the text and carries the value; more than one
+   * does; or the entry reads as a submission control. The click is not an
+   * advance and the allow-list is not consulted for it, because the entry is
+   * the answer, not a control.
    */
-  async #chooseTypeahead(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
+  async #chooseTypeahead(locator: FieldLocator, entries: TypeaheadEntries, value: string): Promise<void> {
+    if (entries.escapeValue !== undefined && value === entries.escapeValue) {
+      throw new ClickRefusedError({
+        allowed: false,
+        locator: entries.optionLocator,
+        reason: `Refusing to choose the form's escape entry: a student whose answer is not listed is a handoff, not a match (ADR-0109).`,
+      });
+    }
     const box = await this.#resolve([locator]);
-    await box.fill(text);
+    await box.fill(entries.text);
 
     const page = this.#requirePage();
-    const entries = toPlaywrightLocator(page, optionLocator);
-    if (entries === null) throw new LocatorNotFoundError([optionLocator]);
-    const exact = entries.filter({ hasText: new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`) });
+    const offered = toPlaywrightLocator(page, entries.optionLocator);
+    if (offered === null) throw new LocatorNotFoundError([entries.optionLocator]);
+    const exact = offered
+      .filter({ hasText: new RegExp(`^\\s*${escapeRegExp(entries.text)}\\s*$`) })
+      .and(page.locator(`[data-value="${cssEscape(value)}"]`));
 
     // Bounded by attempts, not by a clock: the session's clock is injectable
     // and a test's may stand still.
@@ -402,13 +414,15 @@ export class PlaywrightPreparationSession implements FillableSession {
       matches = await exact.count();
     }
     if (matches !== 1) {
-      const offered = (await entries.allTextContents()).map((entry) => ({ value: entry.trim(), label: "" }));
-      throw new OptionNotAvailableError(locator, text, offered);
+      const shown = await offered.evaluateAll((elements) =>
+        elements.map((element) => ({ value: (element.getAttribute("data-value") ?? "").trim(), label: (element.textContent ?? "").trim() })),
+      );
+      throw new OptionNotAvailableError(locator, value, shown);
     }
-    if (looksLikeSubmission(text)) {
+    if (looksLikeSubmission(entries.text)) {
       throw new ClickRefusedError({
         allowed: false,
-        locator: optionLocator,
+        locator: entries.optionLocator,
         reason: `Refusing to choose a typeahead entry that reads as a submission control.`,
       });
     }

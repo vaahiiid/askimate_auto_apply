@@ -370,7 +370,17 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
               // By id: the label "Course" is also a word in the statement's label.
               locators: [{ strategy: "id", value: "course" }],
               validations: [{ kind: "required", source: "dom_attribute" }],
-              typeahead: { optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } },
+              // ADR-0109: the entries the reviewer recorded — value = what the
+              // form submits, label = what is shown — and the escape by value.
+              // On the first real form the escape's value is its own label.
+              typeahead: { optionLocator: { strategy: "css", value: "#courseOptions [role=option]" }, escapeValue: "Not in list" },
+              options: [
+                { value: "PG-EX-2026", label: "MSc Example Studies" },
+                { value: "PG-EX-2026-PT", label: "MSc Example Studies (part-time)" },
+                { value: "PG-OT-2026", label: "MA Other Studies" },
+                { value: "UG-EX-2026", label: "BSc Example Studies" },
+                { value: "Not in list", label: "Not in list" },
+              ],
               // P102: the entries arrive for what is typed AND the level chosen,
               // so the level comes first. The wait is the typeahead's own.
               optionsAfter: { fieldRef: "study_level" },
@@ -576,11 +586,13 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
       fieldRef: "course",
       source: {
         kind: "constant",
-        value: "MSc Example Studies",
+        // ADR-0109: the VALUE the form submits for the course this entry is
+        // for; the blueprint records that it reads "MSc Example Studies".
+        value: "PG-EX-2026",
         classification: "application_metadata",
         rationale:
-          "The course this entry is for, as the portal's course search names it; identical for " +
-          "every applicant to it. The entry chosen must read exactly this.",
+          "The course this entry is for, by the value the portal's course search submits; identical " +
+          "for every applicant to it. The entry chosen must read as the blueprint records and carry this value.",
       },
     },
     {

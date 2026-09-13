@@ -423,17 +423,17 @@ class RecordingSession implements ApplicationSession {
   /** Typeahead choices, with whether the text was the student's (P95). */
   public readonly chosen: { locator: FieldLocator; optionLocator: FieldLocator; text: string; confirmed: boolean }[] = [];
 
-  public fillTypeahead(locator: FieldLocator, optionLocator: FieldLocator, value: ConfirmedValue<string>): Promise<void> {
+  public fillTypeahead(locator: FieldLocator, entries: { optionLocator: FieldLocator }, value: ConfirmedValue<string>): Promise<void> {
     this.acts.push(`choose ${locator.value}`);
     const text = (value as unknown as { value: string }).value;
-    this.chosen.push({ locator, optionLocator, text, confirmed: true });
+    this.chosen.push({ locator, optionLocator: entries.optionLocator, text, confirmed: true });
     this.filled.push({ locator, text, confirmed: true });
     return Promise.resolve();
   }
 
-  public fillTypeaheadConstant(locator: FieldLocator, optionLocator: FieldLocator, text: string): Promise<void> {
+  public fillTypeaheadConstant(locator: FieldLocator, entries: { optionLocator: FieldLocator }, text: string): Promise<void> {
     this.acts.push(`choose ${locator.value}`);
-    this.chosen.push({ locator, optionLocator, text, confirmed: false });
+    this.chosen.push({ locator, optionLocator: entries.optionLocator, text, confirmed: false });
     this.filled.push({ locator, text, confirmed: false });
     return Promise.resolve();
   }
@@ -755,7 +755,7 @@ describe("executing a plan", () => {
         ...base,
         instructions: base.instructions.map((instruction) =>
           instruction === constant || instruction === confirmed
-            ? { ...instruction, inputType: "typeahead", typeahead: { optionLocator: ENTRIES } }
+            ? { ...instruction, inputType: "typeahead", typeahead: { optionLocator: ENTRIES, text: "entry" } }
             : instruction,
         ),
       },
@@ -796,7 +796,7 @@ describe("executing a plan", () => {
             ? {
                 ...i,
                 inputType: "typeahead",
-                typeahead: { optionLocator: ENTRIES },
+                typeahead: { optionLocator: ENTRIES, text: "entry" },
                 optionsAfter: { fieldRef: earlier.fieldRef, ...(press === undefined ? {} : { press }) },
               }
             : i,

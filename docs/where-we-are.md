@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P118 — name the value
+
+He read the select behind the institution box, and its one option carried the same value the dropdown had shown. The layer hypothesis was out, which meant the earlier copy had been from a different box and he had sent the wrong one twice. He asked for that to be recorded as his error and not as the portal's instability, and it is. Then he took the decision back off hold in his own words: name the value. The two entries that read *Sheffield International College* are distinguishable only by it.
+
+His two conditions are built exactly as he set them. The mapping names the value the form submits, and the reviewer records, on the typeahead field itself, the text each value reads as; the runner types that text and chooses the one entry that reads it and carries the value, so neither alone finds anything and two entries that read the same are told apart. The preview shows the student the text, never the code. His question about the escape changed the guard's shape: on this form the escape's value is its own label, not a clean sentinel, so the guard is on value, refused at review for any constant or option target equal to it and refused by the runner before anything is typed. The open case from P102, the escape chosen when the text names it, is closed on a fixture whose escape has the harder shape. The Sheffield draft records the institution box's eleven entries and its escape, and no mapping to it is signed, because a student's institution is free text and the rule requires an option rule onto recorded entries, which is the reviewer's to write.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P117 — the codes moved, and the decision is held
 
 He read the institution dropdown with the values beside each entry, and the question that had been waiting was answered: the two entries that read *Sheffield International College* carry different values, so a rule that names the value could tell them apart and a rule that names the text could not. Then he compared it with a copy he had taken from the same box two days earlier, same country, same typed text, and every value was different while the order and the text were identical. He offered two explanations, a mislabelled copy from a different box or a lookup that returns different identifiers at different times, and chose neither.

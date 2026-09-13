@@ -355,106 +355,88 @@ describe("filling a fixture portal", () => {
   const ENTRIES: FieldLocator = { strategy: "css", value: '#birthCountryOptions [role="option"][data-selectable]' };
   const CODE: FieldLocator = { strategy: "id", value: "birthCountryCode" };
 
-  it("types into a typeahead, waits for the ONE entry that reads exactly the text, and chooses it", async () => {
+  // ── ADR-0109 (P118): a typeahead entry is chosen by its TEXT and its VALUE, both ──
+  //
+  // Vahid, 2026-09-13: *"the mapping names the value AND the reviewer records
+  // the text it reads as, and both must match at the fill."* The runner types
+  // the text, waits for the ONE entry that reads exactly it AND carries the
+  // value the form will submit, and chooses that entry. The value alone
+  // finds nothing; the text alone finds nothing; the escape is refused by
+  // value whatever it reads as.
+  const entries = (text: string, escapeValue?: string) => ({ optionLocator: ENTRIES, text, ...(escapeValue === undefined ? {} : { escapeValue }) });
+
+  it("types the text and chooses the ONE entry that reads it AND carries the value", async () => {
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);
-    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Iran"));
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Iran"), confirmedText("IRAN"));
     expect(await session.readValue(BIRTH_COUNTRY)).toBe("Iran");
-    expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen='Iran']" })).toBe("Iran");
-  }, 30_000);
-
-  it("refuses when no entry reads exactly the text, naming what was offered — and chooses nothing", async () => {
-    const session = await openSession();
-    await session.goto(`${baseUrl}/apply`);
-    // "Ira" offers Iran and Iraq: neither IS the text, so neither is chosen.
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ira"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ira"))).rejects.toThrow(/Iraq/);
-    // "Atlantis" offers nothing.
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Atlantis"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    // "Ital" offers ONE entry, Italy — and it is not the text, so it is not
-    // chosen: the nearest entry is never the answer (P97's M7b).
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ital"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    // "Ireland" offers TWO entries that both read exactly it: neither is
-    // chosen, because "the one entry" is the rule (P97's M7).
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ireland"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    expect(await session.readValue({ strategy: "css", value: "#birthCountry[data-chosen]" }).catch(() => "none")).toBe("none");
-  }, 30_000);
-
-  // ── P101: what the runner matches, against the Tom Select markup Vahid copied ──
-
-  it("matches an entry by the text it shows, not by the value the form submits", async () => {
-    // Vahid's copy of the live country box: "United Kingdom" shows, the form
-    // submits "UNITED KINGDOM"; "Myanmar (Burma) [The Republic of the Union
-    // of Myanmar]" shows, the form submits "MYANMAR". The mapped text is what
-    // the applicant would read and type.
-    const session = await openSession();
-    await session.goto(`${baseUrl}/apply`);
-    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("United Kingdom"));
-    expect(await session.readValue(BIRTH_COUNTRY)).toBe("United Kingdom");
-    // Choosing the entry is what makes the form hold the submitted value.
-    expect(await session.readValue(CODE)).toBe("UNITED KINGDOM");
-  }, 30_000);
-
-  it("does NOT match an entry by its submitted value, and the case of the text is part of the text", async () => {
-    const session = await openSession();
-    await session.goto(`${baseUrl}/apply`);
-    // The value the form submits is not something an applicant reads; a
-    // mapping naming it would find no entry, and nothing is chosen.
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("MYANMAR"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    // Nor does "IRAN" read as "Iran": exact means exact.
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("IRAN"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
-    expect(await session.readValue(CODE)).toBe("");
-    // The long label IS matched, when it is the text.
-    await session.fillTypeahead(
-      BIRTH_COUNTRY,
-      ENTRIES,
-      confirmedText("Myanmar (Burma) [The Republic of the Union of Myanmar]"),
-    );
+    expect(await session.readValue(CODE)).toBe("IRAN");
+    // The long label with its short value (Vahid's copy of the live country box).
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Myanmar (Burma) [The Republic of the Union of Myanmar]"), confirmedText("MYANMAR"));
     expect(await session.readValue(CODE)).toBe("MYANMAR");
   }, 30_000);
 
+  it("tells two entries that READ the same apart by their values — the case the decision was made for", async () => {
+    // "Ireland" twice, as Sheffield's list reads "Sheffield International
+    // College" twice (SCH40484, SHE0512). Text alone chose nothing (P97's
+    // M7); text and value choose the one named.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Ireland"), confirmedText("IRELAND-2"));
+    expect(await session.readValue(CODE)).toBe("IRELAND-2");
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Ireland"), confirmedText("IRELAND"));
+    expect(await session.readValue(CODE)).toBe("IRELAND");
+  }, 30_000);
+
+  it("refuses when the text and the value do not name the SAME entry, or either names none — and chooses nothing", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    // Text of one entry, value of another: no entry has both.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Iran"), confirmedText("IRAQ"))).rejects.toThrow(OptionNotAvailableError);
+    // The value as the text, or the text as the value: exact means exact, on each.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("IRAN"), confirmedText("IRAN"))).rejects.toThrow(OptionNotAvailableError);
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Iran"), confirmedText("Iran"))).rejects.toThrow(OptionNotAvailableError);
+    // "Ira" offers Iran and Iraq; neither reads "Ira". "Atlantis" offers nothing.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Ira"), confirmedText("IRAN"))).rejects.toThrow(/Iraq/);
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Atlantis"), confirmedText("ATLANTIS"))).rejects.toThrow(OptionNotAvailableError);
+    // "Ital" offers ONE entry, Italy, and it is not the text: never the nearest.
+    await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Ital"), confirmedText("ITALY"))).rejects.toThrow(OptionNotAvailableError);
+    expect(await session.readValue(CODE)).toBe("");
+  }, 60_000); // six bounded waits, each the runner's own five seconds
+
+  it("REFUSES the form's ESCAPE by its value, whatever it reads as — closing P102's OPEN case", async () => {
+    // Sheffield's institution list ends with "Not in list", whose value is
+    // its own label. Named on the blueprint as the escape, it is never
+    // chosen: not when the text names it, not when the value does.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await expect(
+      session.fillTypeahead(BIRTH_COUNTRY, entries("Not in list", "Not in list"), confirmedText("Not in list")),
+    ).rejects.toThrow(ClickRefusedError);
+    expect(await session.readValue(CODE)).toBe("");
+    // The same words as a reviewed constant: the same refusal.
+    await expect(
+      session.fillTypeaheadConstant(BIRTH_COUNTRY, entries("Not in list", "Not in list"), "Not in list"),
+    ).rejects.toThrow(ClickRefusedError);
+    expect(await session.readValue(CODE)).toBe("");
+  }, 30_000);
+
   it("refuses a list wait on a typeahead's box — it offers entries for what is typed, not a list to wait on (P102)", async () => {
-    // Why the execution does not wait on a typeahead before typing: the box
-    // is a text input, and a list wait on it finds no list.
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);
     await expect(session.awaitOption(BIRTH_COUNTRY, "Iran")).rejects.toThrow(OptionNotAvailableError);
   }, 30_000);
 
-  it("today, an entry that is the form's ESCAPE is chosen like any other when the text names it — OPEN (P102)", async () => {
-    // Sheffield's institution list ends with "Not in list": an escape the form
-    // offers, not an institution. Nothing in the runner tells it from one —
-    // exact text is the only rule — so a text that names it chooses it. Held
-    // here as observed, until the escape is named on the blueprint.
-    const session = await openSession();
-    await session.goto(`${baseUrl}/apply`);
-    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Not in list"));
-    expect(await session.readValue(CODE)).toBe("NOT-IN-LIST");
-  }, 30_000);
-
   it("is not put off by the state classes an entry carries", async () => {
     // "Iran" is rendered `class="option selected"` and the second "Ireland"
     // `class="option active"`: the locator names role and selectable mark,
-    // so the class is not consulted — one is chosen, two are still refused.
+    // so the class is not consulted.
     const session = await openSession();
     await session.goto(`${baseUrl}/apply`);
-    await session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Iran"));
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Iran"), confirmedText("IRAN"));
     expect(await session.readValue(CODE)).toBe("IRAN");
-    await expect(session.fillTypeahead(BIRTH_COUNTRY, ENTRIES, confirmedText("Ireland"))).rejects.toThrow(
-      OptionNotAvailableError,
-    );
+    await session.fillTypeahead(BIRTH_COUNTRY, entries("Ireland"), confirmedText("IRELAND-2"));
+    expect(await session.readValue(CODE)).toBe("IRELAND-2");
   }, 30_000);
 
   it("attaches a document", async () => {

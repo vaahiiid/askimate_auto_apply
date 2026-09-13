@@ -225,13 +225,21 @@ describe("a course search the applicant types into (P95)", () => {
     // P102: the search takes the level, as the first real form's institution
     // search takes the country. Nothing is offered for no level, or another.
     const offered = await (await fetch(`${portal.baseUrl}/courses?q=MSc&level=pg`, { headers: { cookie: signedIn } })).json();
+    // P118 (ADR-0109): the list ends with the form's escape, as the first
+    // real form's does — and its value is its own label.
     expect(offered).toEqual([
       { code: "PG-EX-2026", name: "MSc Example Studies" },
       { code: "PG-EX-2026-PT", name: "MSc Example Studies (part-time)" },
+      { code: "Not in list", name: "Not in list" },
     ]);
     expect(html).toContain('<select id="studyLevel" name="study_level" required>');
     expect(await (await fetch(`${portal.baseUrl}/courses?q=MSc`, { headers: { cookie: signedIn } })).json()).toEqual([]);
-    expect(await (await fetch(`${portal.baseUrl}/courses?q=MSc&level=ug`, { headers: { cookie: signedIn } })).json()).toEqual([]);
+    // For another level no course is offered — only the escape, which ends
+    // every answered search here. (Whether the first real form offers its
+    // escape for a search that matches nothing was not observed.)
+    expect(await (await fetch(`${portal.baseUrl}/courses?q=MSc&level=ug`, { headers: { cookie: signedIn } })).json()).toEqual([
+      { code: "Not in list", name: "Not in list" },
+    ]);
     expect(await (await fetch(`${portal.baseUrl}/courses?q=&level=pg`, { headers: { cookie: signedIn } })).json()).toEqual([]);
   });
 });

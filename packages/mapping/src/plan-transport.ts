@@ -88,8 +88,8 @@ export interface StoredFillInstruction {
   readonly value: StoredFillValue;
   /** The field this one's options follow (ADR-0103, gap 1), and the control pressed to load them (ADR-0105). */
   readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
-  /** Where a typeahead's entries are found (ADR-0103, gap 2). */
-  readonly typeahead?: { readonly optionLocator: FieldLocator };
+  /** Where a typeahead's entries are found (ADR-0103, gap 2), the text typed for the value, and the escape (ADR-0109). */
+  readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string };
   /** Which item of a repeating page this is (ADR-0103, gap 3). */
   readonly item?: { readonly index: number; readonly count: number };
 }
@@ -115,13 +115,19 @@ function copyOptionsAfter(
       };
 }
 
-/** A typeahead's entry locator, copied field by field. */
+/** A typeahead's entry locator, text and escape, copied field by field. */
 function copyTypeahead(
-  typeahead: { readonly optionLocator: FieldLocator } | undefined,
-): { readonly typeahead?: { readonly optionLocator: FieldLocator } } {
+  typeahead: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string } | undefined,
+): { readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string } } {
   return typeahead === undefined
     ? {}
-    : { typeahead: { optionLocator: { strategy: typeahead.optionLocator.strategy, value: typeahead.optionLocator.value } } };
+    : {
+        typeahead: {
+          optionLocator: { strategy: typeahead.optionLocator.strategy, value: typeahead.optionLocator.value },
+          text: typeahead.text,
+          ...(typeahead.escapeValue === undefined ? {} : { escapeValue: typeahead.escapeValue }),
+        },
+      };
 }
 
 /** An upload, as a reference: which box, which document, where. No bytes, no id, no hash. */

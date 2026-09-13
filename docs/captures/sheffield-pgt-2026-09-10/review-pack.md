@@ -433,6 +433,12 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   format, split at the postcode's own seam and never at 3+3. The portal stores the postcode
   exactly as typed, case included; nothing here canonicalises it.
 
+- **A mapping to the institution box names the VALUE** (ADR-0109, Vahid's decision of
+  2026-09-13): the box carries its entries — value and the text each reads as — and its escape
+  `Not in list` by value. The two *Sheffield International College* entries are `SCH40484` and
+  `SHE0512`. A mapping reaches the box through an option rule onto these entries, never free
+  text, never the escape; the preview shows the student the text.
+
 ## Not in this sitting
 
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,

@@ -257,7 +257,10 @@ describe("parsing rebuilds rather than casts", () => {
       .flatMap((section) => section.fields)
       .find((candidate) => candidate.fieldRef === "course");
     expect(field?.inputType).toBe("typeahead");
-    expect(field?.typeahead).toEqual({ optionLocator: { strategy: "css", value: "#courseOptions [role=option]" } });
+    expect(field?.typeahead).toEqual({
+      optionLocator: { strategy: "css", value: "#courseOptions [role=option]" },
+      escapeValue: "Not in list",
+    });
   });
 
   it("round-trips a page's repeats (P96), and refuses a list that is not one", () => {

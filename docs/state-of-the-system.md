@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,545 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,550 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -137,6 +137,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P90** | The plan honours `visibleWhen` | Recorded by discovery since the blueprint schema existed, read by nothing until now: a field's condition, and its section's, is evaluated at plan time against the plan's own values, to a fixed point. A field the form hides for these answers is neither filled nor missing — dropped from instructions, blockers and uploads, listed under `hidden`, and not a violation in the validator. Sheffield's two postcode boxes were both planned with one hidden on the page; the international one is now absent for a UK address, and an unmapped required field on a hidden branch no longer blocks. Fail-first on a synthetic address page and on the Sheffield draft |
 | **P91** | The entry page read; the AUTH questions answered from it; the registration and login locators authored | Vahid's signed-out read of the entry page and the reset page, three pages, zero failed, recorded unedited. From the capture: AUTH 1 yes, 3 none offered, 6 no CAPTCHA on those pages (tags refused), 8 yes by design; 2 and 5 settled for what the pages show and open for what follows a submit; 4 and 7 not settled by any page read, and not inferred. The curated draft carries the login URL and locators and a registration page first in the walk; the mapping set sends the e-mail from the profile and the passwords to the Secure Plane. The eight facts are recorded with `unobserved` on 4 and 5, and the chooser refuses on exactly those — the design holding: what settles them is Vahid's own account of registering and signing in. Two tool defects the draft showed, fixed fail-first: `password` inputs came back unknown; buttons came back as fields |
+| **P118** | ADR-0109: a typeahead mapping names the value the form submits — decided by Vahid, 2026-09-13, after his reading of the `<select>` settled P117's contradiction as his own mislabelled copy: *"Name the value."* Both conditions built: the reviewer records the text as the field's `options`, and the runner chooses the ONE entry that reads that text AND carries the value; the preview shows the text | The usable-set check refuses a mapped typeahead without entries, a value not among them, free text, and the escape by value — which holds where the escape's value is its own label, as on Sheffield. The runner refuses the escape before typing, for confirmed values and constants alike; P102's open case closed. Two entries that read the same are told apart by value, proved on the fixture. Fifteen tests red before the build. Sheffield draft 0.2.17 records the institution box's eleven entries and its escape | A mapping to the institution box waits on the reviewer; the country box's entries are the captured `<select>`'s; his day-later read on the `<select>` tests drift |
 | **P117** | The institution dropdown read live (Vahid, 2026-09-13): eleven entries with values; the two identical *Sheffield International College* entries carry different values, so they are distinguishable by value and not by text; but every value differs from his 2026-09-11 copy with order and text identical | *"Hold the value-versus-text decision. It is not answerable on this evidence."* Held. The earlier copy never entered the record (P102: *"still to arrive"*), so nothing recorded is contradicted. Nothing names either box; the *Not in list* escape stays behind the decision. Offered: a same-sitting read of three layers — dropdown value, posted `<select>` value, search response — to separate a layer difference from drift, before his day-later read | His day-later read, and the three-layer read if he takes it |
 | **P116** | The contact page read back (Vahid, 2026-09-13): ten fields, nothing normalised, the postcode stored exactly as typed; the UK postcode is two boxes, and the mapping that typed it as one was wrong | New `uk_postcode` format (`outward` / `inward`): split at the postcode's own seam, never 3+3; refuses a non-postcode; case left as written. Set 0.3.16 maps both boxes; a non-UK address hides both. Five shapes and seven non-postcodes, red first. His two passing observations checked against the capture: `confirmEmail` and `corrTelephone` are the captured names | The `perm*` boxes stay unmapped; the repeating page's listing is counted by a test on his shape, not yet by a run |
 | **P115** | The field-by-field comparison on `personal.do` (Vahid, 2026-09-13): six fields, shape compared, nothing normalised, no values reported | *"Phase one works as built on this portal for the personal page. No vocabulary gap from this read."* A select is compared against the option value the runner chose, so codes and month names match by construction; the two free-text fields came back as typed | The contact page still wanted: the postcode — likeliest to be normalised, and mapped as one value into what the capture read as two boxes — and the e-mail asked twice |
@@ -353,6 +354,7 @@ amended, and the amendment is always a later ADR that says so.
 | 0106 | A page is saved when the portal shows it, not when a control was pressed | Accepted · decides blocker 22; decided by Vahid, 2026-09-12; built in P105 |
 | 0107 | A handed slot's companion says "later": a statement about when, never a claim about the document | Accepted · decides blocker 23 (A); decided by Vahid, 2026-09-12; amends 0105's companion half; built in P106 |
 | 0108 | What the student owes the portal is a record on the case, closed by their word, and nobody claims to chase them | Accepted · decides blocker 24 (A); decided by Vahid, 2026-09-12; built in P107 |
+| 0109 | A typeahead mapping names the value the form submits; the reviewer records the text; both must match at the fill; the preview shows the text; the escape is named by value and never chosen | Accepted · decides the value-versus-text question; decided by Vahid, 2026-09-13; built in P118 |
 | 0104 | A repeating page's documents are the student's own act, said under each entry; a condition inside a repeat is answered per item | Accepted · blocker 21 decided by Vahid, 2026-09-11 (B, with the per-item condition; A an option, not the end state); built in P98 |
 | 0103 | The blueprint says what the form does between fields | Accepted · the four schema gaps under Vahid's "Take the four schema gaps"; gap 4 built, 1–3 to follow; continues 0017, 0069 and 0102 |
 
@@ -528,7 +530,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,545 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,550 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -541,24 +543,24 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,545 tests**, by the workspace they live in. Generated — run
+**2,550 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 413 | `packages/mapping` | 66 |
+| `apps/conversation-service` | 413 | `packages/account` | 66 |
 | `packages/domain` | 377 | `packages/conversation` | 52 |
-| `scripts` | 312 | `packages/preparation` | 52 |
-| `apps/browser-runner` | 299 | `packages/profile` | 51 |
+| `scripts` | 313 | `packages/preparation` | 52 |
+| `apps/browser-runner` | 298 | `packages/profile` | 51 |
 | `packages/case-store` | 145 | `packages/disclosure` | 47 |
 | `packages/orchestrator` | 122 | `packages/catalogue` | 46 |
 | `packages/documents` | 100 | `packages/extraction` | 27 |
 | `packages/contracts` | 90 | `packages/interview` | 22 |
-| `apps/secure-service` | 68 | `packages/requirements` | 22 |
-| `packages/secrets` | 67 | `apps/worker` | 21 |
-| `packages/account` | 66 | everything else | 80 |
+| `packages/mapping` | 71 | `packages/requirements` | 22 |
+| `apps/secure-service` | 68 | `apps/worker` | 21 |
+| `packages/secrets` | 67 | everything else | 80 |
 
 <!-- census:end -->
 
