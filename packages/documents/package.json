@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-documents",
-  "version": "0.115.3",
+  "version": "0.115.4",
   "private": true,
   "type": "module",
   "exports": {

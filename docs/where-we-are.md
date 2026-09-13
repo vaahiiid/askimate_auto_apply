@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P114 — a filled form, and what a filled form cannot say
+
+He saved the personal page, reopened it by URL, and every field he filled was there. That is the precondition of ADR-0106's first way of seeing, met on this portal: a page filled once can be reopened and read back, and nothing on the blueprint has to say so. He kept his limit in view, that he looked at a filled form and did not compare field by field, and offered to run whatever would settle the difference if it matters.
+
+It matters, and the reason is in how the read-back works. The runner does not look at a filled form; it records what it typed as a redacted shape and requires the value read back to match that shape exactly. A value the portal stores differently from what was typed reads as not kept, and the page reads uncertain, every run, until the blueprint can say what the portal is expected to store, which it cannot yet. A filled form cannot tell an exact echo from a normalised one; a comparison can. So the record asks for one comparison, field by field, reporting only which fields differ and the kind of difference and never the values, which are personal data on a real account.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P113 — a count in the page's own words
 
 He read the summary page with two qualifications saved. Each entry is an h5 reading exactly *Previous Education N*, with no class and no id, inside two wrapper divs that every section on the page shares, one of them misspelled on the page and kept as written. He asked whether a text-shaped locator is acceptable here, since P82 removed a text-shaped heuristic once, or whether something structural is wanted.

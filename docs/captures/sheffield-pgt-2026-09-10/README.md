@@ -909,6 +909,40 @@ almost certainly every section's. His two points, and the answer to his question
   that page is mapped at all (its four required fields have no profile field, P89). One more
   read, then; not now.
 
+**`personal.do` reopened after a save — Vahid, 2026-09-13 (P114).** *"The fields come back
+filled with what I entered. So reopen-and-read works on this portal's non-repeating pages, and
+ADR-0106's first phase has something to read on Sheffield. I saved it and reopened it by URL,
+and every field I filled was there."* His limit, kept: *"I looked at the page, I did not compare
+field by field against what I typed. So 'the values came back' is my reading of a filled form,
+not a check that each one is exactly what I entered."*
+
+**What this settles.** The first way of seeing in ADR-0106 — a page filled once is reopened at
+its own URL and every filled value read back — has a page to read on this portal: the form
+comes back populated, not blank, so the read-back reads values rather than an empty form. That
+needs no vocabulary on the blueprint and nothing was changed; the P105 note above (*"the pages
+filled once are reopened and read back with no vocabulary"*) now rests on an observation.
+
+**Why his limit matters, and what it decides.** The runner's comparison is not a look at a
+filled form. It is exact: what was typed is recorded at the fill as a redacted shape (length and
+digest), and the value read back after the reopen must match that shape. **A value the portal
+stores differently from what was typed reads as not kept**, the page reads `uncertain`, no
+transmission is recorded for it, and a specialist looks. So if Sheffield normalises anything on
+`personal.do` — upper-cases a name, trims a space, re-renders a value — the page would read
+`uncertain` on every run, honestly and uselessly, until the blueprint learns to expect it, and
+that vocabulary does not exist yet. His reading of a filled form cannot tell that apart from an
+exact echo. The run's own read-back would tell, at the cost of one uncertain page per run.
+
+**What settles it — one comparison, no values pasted.** On `personal.do` reopened after the
+save, compare each field's stored value against what was typed, field by field, and report
+**only the fields that differ and the kind of difference** (*"postcode came back upper-cased"*,
+*"trailing space gone"*, *"date shows as 02 not 2"*), never the values: they are personal data
+on a real account and are not to enter this record. The date is three selects and reads back as
+option values, so it is compared select by select. If nothing differs, the read-back will echo
+on this page and phase one works as built. If something does, that is a vocabulary gap to raise
+— *a value the portal is expected to store as X* — and it is better found in his comparison than
+in a run's `uncertain`. The same comparison on `contact.do` would settle the postcode boxes,
+which are the likeliest to be normalised.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

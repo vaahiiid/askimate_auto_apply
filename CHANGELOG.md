@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.115.4] — 2026-09-13
+
+**P114 — `personal.do` reopens filled after a save (Vahid, 2026-09-13): ADR-0106's first phase
+has something to read on Sheffield.** Records only.
+
+### Recorded
+
+- His report and his limit, verbatim: the form came back populated; he did not compare field by
+  field. Why the limit matters: the read-back compares exactly, on the redacted shape recorded at
+  the fill, so a value the portal normalises reads as not kept and the page as `uncertain` on
+  every run. What settles it: a field-by-field comparison reporting only which fields differ and
+  how, never the values.
+
+---
+
 ## [0.115.3] — 2026-09-13
 
 **P113 — the Previous Education listing named from Vahid's read of `summary.do`; a text-shaped
