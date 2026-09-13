@@ -36,9 +36,16 @@ export interface RunningRunner {
 export async function start(options: StartOptions): Promise<RunningRunner> {
   const config = runnerConfigFrom(options.env);
 
+  // P120: the browser is launched LISTENING at the CDP endpoint this process
+  // declares to the Fill Agent (`AAS_BROWSER_CDP_URL`). Found writing the
+  // local-stack runbook: every test that drove a runner injected a browser
+  // launched with a remote-debugging port, and the entry point's own launch
+  // opened none — the agent would have dialled an endpoint nothing served.
+  const endpoint = new URL(config.browserCdpUrl);
   const browser = await (options.launch?.(config) ??
     chromium.launch({
       ...(config.chromiumPath === undefined ? {} : { executablePath: config.chromiumPath }),
+      args: [`--remote-debugging-port=${endpoint.port}`, `--remote-debugging-address=${endpoint.hostname}`],
     }));
 
   // eslint-disable-next-line no-restricted-syntax -- composition root: an entry point is where the real clock is made

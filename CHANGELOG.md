@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.118.0] — 2026-09-13
+
+**P120 — the local-stack runbook (distance item 9), proved; and the runner's CDP endpoint,
+found unserved from the real entry point, fixed red-first.**
+
+### Fixed
+
+- The Automation Runner's entry point launched Chromium with no remote-debugging port, so the
+  CDP endpoint it declares to the Fill Agent (`AAS_BROWSER_CDP_URL`) was served by nothing; every
+  test that drove a runner had injected a browser with one. The browser now listens at the host
+  and port the URL names; a URL with no port is refused at startup. `main.test.ts` starts the
+  real entry point and asks the endpoint for `/json/version`.
+
+### Added
+
+- `scripts/local-stack.sh start|status|stop` and `scripts/local-stack-db.ts`: the five
+  deployables on one machine against a Postgres and a Redis, both databases created and
+  migrated, each process waited for at its own endpoint, env files at mode 600, nothing
+  configured printed. `scripts/local-stack.test.ts` proves it against the fixture catalogue.
+  `docs/runbook-local-stack.md`: every setting, the Sheffield variant, what it does not settle.
+
+---
+
 ## [0.117.1] — 2026-09-13
 
 **P119 — the distance to an end-to-end run against a reviewed Sheffield entry, read from the

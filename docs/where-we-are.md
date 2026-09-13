@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P120 — one machine, five processes, and a port that was never opened
+
+Item 9 of the distance list was mine, so it went first: one script that stands the five deployables up on a machine against a Postgres and a Redis the operator already runs, creates and migrates both databases, starts each process with exactly its own environment, waits until each answers where it should, and stops them cleanly. A test runs it against the fixture catalogue and checks every endpoint, so the runbook is proved rather than described; the Sheffield variant is the same script with a reviewed entry's directory, run from a machine that can reach the portal.
+
+Writing it found something the tests had hidden. The runner's entry point declares a CDP endpoint to the Fill Agent, the agent dials it whenever a student's password is to be typed, and every test that had ever driven a runner injected a browser launched with a remote-debugging port. The entry point's own launch opened none. From the deployable as it would actually start, the first credential fill would have dialled an endpoint nothing served. The browser now listens at the host and port the URL names, a URL with no port is refused at startup, and a test starts the real entry point and asks the endpoint for its version, red before the fix and green after. Nine of the ten items stand; the declared-but-unreachable surface is four.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P119 — how far it is, written down
 
 He asked two things of every report from here: the declared-but-unreachable number, which had dropped out of several, and the distance to an end-to-end run against a reviewed Sheffield entry, not the whole blocker list, because he had lost track of how close it was and would rather know than assume. The second is its own piece of work, and it was read from the repository rather than from memory.

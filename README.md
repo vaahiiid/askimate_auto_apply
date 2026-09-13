@@ -19,7 +19,7 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 |---|---|
 | **Phase** | P73 — one intent per document attached, and the record of what left (ADR-0069's third layer) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,550 passing · 130 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,555 passing · 132 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 101 ADRs · all 101 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
@@ -322,6 +322,7 @@ pnpm install
 pnpm run verify        # everything CI runs: typecheck · lint · boundaries · reachability · tests
 pnpm run test:watch    # tests on change
 pnpm run walkthrough   # drive one case end to end
+scripts/local-stack.sh start   # the five deployables on this machine, against your Postgres and Redis — docs/runbook-local-stack.md
 ```
 
 ### Why `typecheck` is part of the test suite, not just a build step

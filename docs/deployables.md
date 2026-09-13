@@ -187,7 +187,7 @@ real browser (ADR-0045, and the supervisor loop from P16).
 | `AAS_RUNNER_HOLDER` | yes | which runner this is, for an operator reading the lease table. Never a credential. |
 | `AAS_AGENT_INTERNAL_URL` | yes | the Fill Agent, for a credential it must never itself hold. |
 | `AAS_RUNNER_SERVICE_TOKEN_AGENT` | yes | its identity to the agent. |
-| `AAS_BROWSER_CDP_URL` | yes | its own browser's CDP endpoint, as the agent will dial it. |
+| `AAS_BROWSER_CDP_URL` | yes | its own browser's CDP endpoint, as the agent will dial it. **P120:** the entry point launches the browser listening at the host and port this names, and refuses a URL with no port — before P120 the launch opened no port and the endpoint was served by nothing. |
 | `AAS_CHROMIUM_PATH` | no | |
 | `AAS_RUNNER_IDLE_MS` / `_BUSY_MS` | no | supervisor intervals. |
 

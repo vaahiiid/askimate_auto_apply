@@ -90,11 +90,15 @@ In the order they bite, each with who holds it and the evidence.
    registering a synthetic applicant on Sheffield's real form — the fabricated-account option the
    gap analysis of 2026-08-26 advised against — or admitting a run onto his existing test
    account, which no path today offers as a start. **His decision**, and blocker 4 as it stands.
-9. **Where it runs.** This environment cannot reach `sheffield.ac.uk`. The five processes exist
-   as `pnpm start:*` scripts and the journey runs them in-process against a fixture, but there
-   is no runbook for standing the whole stack up on one machine — Postgres, Redis, the two
-   planes, the agent, the runner, the worker — pointed at the real portal with a reviewed
-   entry. **Mine**, and not waiting on anything above.
+9. ~~**Where it runs.**~~ **Done, P120.** `scripts/local-stack.sh` stands the five processes up
+   on one machine against a Postgres and a Redis, migrated, and checks each; proved by
+   `scripts/local-stack.test.ts` against the fixture catalogue; the Sheffield variant is
+   `AAS_LOCAL_CATALOGUE=registry` with the reviewed entry's directory
+   ([`runbook-local-stack.md`](./runbook-local-stack.md)). Found on the way: the runner's entry
+   point launched its browser with no remote-debugging port, so the CDP endpoint it declared to
+   the Fill Agent was served by nothing — every credential fill from the real deployable would
+   have failed at the password. Fixed, red first. This environment still cannot reach
+   `sheffield.ac.uk`; the script runs from a machine that can.
 10. **Part 2 is unread.** The eleven observed pages are Part 1; the course choice is Part 2, and
     the blueprint has no page for it and no submission model. Run A ends at the end of Part 1,
     which is where it should end today; a reading of Part 2 with Part 1 complete on his account
@@ -127,4 +131,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: ten items* — this file's list, by count, with what moved.
+- *Distance to Run A: nine items open of ten* — this file's list, by count, with what moved.
+
+## What moved
+
+- 2026-09-13, P120: item 9 done (the local-stack runbook, proved); the runner's CDP endpoint
+  found unserved from the real entry point and fixed.

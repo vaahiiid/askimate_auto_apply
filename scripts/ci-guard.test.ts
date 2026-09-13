@@ -126,6 +126,11 @@ const DATABASE_BACKED = [
   // a real log. Its central claim — that a reload reconstructs the screen
   // because the page kept nothing — is only checkable against a real server.
   "apps/conversation-service/src/student-client.test.ts",
+  // P120: the local-stack script starting the five deployables as real child
+  // processes against a real Postgres and Redis, migrated. Its whole claim is
+  // that the runbook works on a machine with those two; a run without them
+  // would report green over the proof.
+  "scripts/local-stack.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

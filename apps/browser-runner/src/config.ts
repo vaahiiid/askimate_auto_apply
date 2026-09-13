@@ -49,13 +49,31 @@ export function runnerConfigFrom(env: Readonly<Record<string, string | undefined
       }
     }
 
+    // P120: the browser this process launches LISTENS at this endpoint — the
+    // entry point derives the remote-debugging address and port from it — so
+    // a URL with no port names nothing the Fill Agent could dial.
+    const browserCdpUrl = r.string("AAS_BROWSER_CDP_URL");
+    const cdpPort = (() => {
+      try {
+        return new URL(browserCdpUrl).port;
+      } catch {
+        return "";
+      }
+    })();
+    if (cdpPort.length === 0) {
+      r.refuse(
+        "AAS_BROWSER_CDP_URL",
+        "must be an http URL naming a port: the runner launches its browser listening there, and the Fill Agent dials it.",
+      );
+    }
+
     return {
       conversationInternalUrl: r.url("AAS_CONVERSATION_INTERNAL_URL", { httpsInProduction: true }),
       serviceToken: r.string("AAS_RUNNER_SERVICE_TOKEN"),
       holder: r.string("AAS_RUNNER_HOLDER"),
       agentInternalUrl: r.url("AAS_AGENT_INTERNAL_URL", { httpsInProduction: true }),
       agentServiceToken: r.string("AAS_RUNNER_SERVICE_TOKEN_AGENT"),
-      browserCdpUrl: r.string("AAS_BROWSER_CDP_URL"),
+      browserCdpUrl,
       chromiumPath: r.optionalString("AAS_CHROMIUM_PATH"),
       idleIntervalMs: r.optionalInt("AAS_RUNNER_IDLE_MS", 0, { min: 10 }) || undefined,
       busyIntervalMs: r.optionalInt("AAS_RUNNER_BUSY_MS", 0, { min: 10 }) || undefined,
