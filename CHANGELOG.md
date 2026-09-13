@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.117.1] — 2026-09-13
+
+**P119 — the distance to an end-to-end run against a reviewed Sheffield entry, read from the
+repository and written down; blocker 25 raised.** Records only.
+
+### Recorded
+
+- `docs/distance-to-a-reviewed-sheffield-run.md`: ten items between here and the fill run, in
+  the order they bite, each with who holds it and the evidence; three more for the product; what
+  is not on the path and why. Kept current from here, and quoted by count in every report with
+  the declared-but-unreachable number.
+- Blocker 25: the institution box cannot be mapped by rule from a free-text profile field.
+
+---
+
 ## [0.117.0] — 2026-09-13
 
 **P118 — ADR-0109: a typeahead mapping names the value the form submits (decided by Vahid,

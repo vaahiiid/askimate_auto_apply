@@ -18,6 +18,11 @@ against a real portal**, the difference is the point of the exercise.
 
 ---
 
+> **2026-09-13 (P119):** the distance from here to an end-to-end run against a reviewed
+> Sheffield entry is kept, item by item, in
+> [`distance-to-a-reviewed-sheffield-run.md`](./distance-to-a-reviewed-sheffield-run.md). The
+> eighteen areas below are the frame; that file is the current answer.
+
 ## The short version
 
 **Five things block it. Four are yours; one is mine and waits on access.**

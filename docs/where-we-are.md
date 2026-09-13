@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P119 — how far it is, written down
+
+He asked two things of every report from here: the declared-but-unreachable number, which had dropped out of several, and the distance to an end-to-end run against a reviewed Sheffield entry, not the whole blocker list, because he had lost track of how close it was and would rather know than assume. The second is its own piece of work, and it was read from the repository rather than from memory.
+
+The answer is ten items for the fill run, in the order they bite, in a file that is kept current from now on. The first is one that nothing else can precede: on five of the eleven pages the captured labels are placeholders, so which fields Sheffield marks mandatory was never read, and a run today would save those pages empty. The second is that the employment page blocks the plan outright, four required fields with no profile field to map, and the route out is his to choose. Then the nationality and language pages, unmapped; the education page's own fields, one of which cannot be mapped by rule at all, raised as blocker 25; the review; a robots file never read; the account and how a run enters it; a local-stack runbook that is mine to write; and Part 2, unread. What is not on the path is said too, with why: Bedrock, the vault's bucket, the policy document, the AskiMate integration. The declared-but-unreachable surface is four, and both numbers now travel with every report.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P118 — name the value
 
 He read the select behind the institution box, and its one option carried the same value the dropdown had shown. The layer hypothesis was out, which meant the earlier copy had been from a different box and he had sent the wrong one twice. He asked for that to be recorded as his error and not as the portal's instability, and it is. Then he took the decision back off hold in his own words: name the value. The two entries that read *Sheffield International College* are distinguishable only by it.
