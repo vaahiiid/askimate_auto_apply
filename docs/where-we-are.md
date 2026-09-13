@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P117 — the codes moved, and the decision is held
+
+He read the institution dropdown with the values beside each entry, and the question that had been waiting was answered: the two entries that read *Sheffield International College* carry different values, so a rule that names the value could tell them apart and a rule that names the text could not. Then he compared it with a copy he had taken from the same box two days earlier, same country, same typed text, and every value was different while the order and the text were identical. He offered two explanations, a mislabelled copy from a different box or a lookup that returns different identifiers at different times, and chose neither.
+
+He then did the thing this project keeps asking for and withdrew his own argument. He had argued for naming the value because values outlast text; on this evidence he could not say that, because the one thing he had observed was a value that did not outlast two days. The decision is held, in his words, and nothing in the draft names either box, so nothing waits on it. One fact from the repository: the earlier copy never arrived here, so nothing recorded is contradicted, and the record cannot examine the copy that would settle it. He asked whether there is a better way than waiting a day. There is one to do before it, not instead of it: read the same entry from three layers in one sitting, the dropdown's value, the value the form actually posts through its select, and the search response, so that a difference between layers is separated from a difference over time, and the day-later read answers one question instead of two.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P116 — two boxes, and a seam that is the postcode's own
 
 He ran the same comparison on the contact page. Ten fields came back exactly as typed, the e-mail not lower-cased because he had typed it lower, the postcode not upper-cased because he had typed it lower. The portal stores a postcode as entered, and he noted why that is worth knowing on its own: nothing downstream should expect Sheffield to canonicalise one. Nothing built does, and the read-back compares what was typed, so this is the good case.

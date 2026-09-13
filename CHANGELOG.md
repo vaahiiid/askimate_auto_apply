@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.116.1] — 2026-09-13
+
+**P117 — the institution dropdown read live: the duplicates carry different values, and every
+value differs from his copy of two days earlier; the value-versus-text decision held on his
+instruction.** Records only.
+
+### Recorded
+
+- The eleven entries with their `data-value`s; the two *Sheffield International College*
+  entries distinguishable by value. Against his 2026-09-11 copy, every value differs with the
+  order and text identical; his two hypotheses, neither chosen. The earlier copy never entered
+  the repository, so nothing recorded is contradicted. The decision is held in his words. A
+  same-sitting three-layer read (dropdown value, the posted `<select>` value, the search
+  response) is offered before the day-later read, to separate a layer difference from drift.
+
+---
+
 ## [0.116.0] — 2026-09-13
 
 **P116 — the contact page read back: nothing normalised; the UK postcode is two boxes, and the

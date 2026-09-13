@@ -1011,6 +1011,66 @@ this portal"* — his summary. Precisely: the non-repeating read-back is confirm
 with nothing normalised; the repeating page's listing is named from his read of `summary.do`
 (P113) and counted by a runner test on that shape, not yet by a run against the portal.
 
+**The institution dropdown, read live — Vahid, 2026-09-13 (P117). The duplicates are
+distinguishable, and the codes are not what they were.** Eleven entries for *Sheff* with the
+United Kingdom chosen, each with its `data-value`:
+
+```
+SHEFFIELD    University of Sheffield
+SCH40189     Sheffield College
+UNI1182      Sheffield Hallam University
+UNI9147      Sheffield Hallam University / City University Hong Kong
+SCH40484     Sheffield International College
+SHE0512      Sheffield International College
+UNI7760      Sheffield School of Nursing
+UNI24866     Sheffield and North Trent College of Nursing and Midwifery
+SHE0600      University of Sheffield International College
+UNI7619      University of Sheffield's Institute of Work Psychology
+Not in list  Not in list
+```
+
+*"The duplicates carry different values, SCH40484 and SHE0512, so the two identical entries
+are distinguishable. That was the question."* Answered: under a value-naming rule the two
+*Sheffield International College* entries could be told apart; under text-only they cannot.
+
+**And the values have moved.** Against a copy he took from the same box on 2026-09-11 —
+same country, same typed text — every value differs and the order and the text are identical:
+`0159` → `SHEFFIELD`, `1CB` → `SCH40189`, `ZWM` → `SCH40484`, `ZDW` → `SHE0512`, and *Not in
+list* `9004` → its own label. His two candidates, neither chosen: the earlier copy was taken
+from a different box on the same page and mislabelled (*"the likelier and it is my mistake if
+so"*), or Sheffield's lookup returns different identifiers at different times.
+
+**One fact from this repository.** The earlier copy never entered the record: P102 above ends
+*"the copy is still to arrive"*, and no file here holds `0159`, `1CB`, `ZWM`, `ZDW` or `9004`.
+So nothing recorded is contradicted; the contradiction is between two of his copies, and the
+first is the one the record cannot examine. That is not a resolution — it is why the day-later
+read is his to make and not something the record can substitute for.
+
+**The value-versus-text decision is held, on his instruction.** In his words: *"I argued for
+naming the value because values outlast text. On this evidence I cannot say that. I have one
+box, read twice, with entirely different values and identical text. Until that is explained,
+the claim that the code is the stable thing is not supported by anything I have observed — it
+is what I expected, which is exactly the kind of reasoning this project keeps catching. So:
+hold the value-versus-text decision. It is not answerable on this evidence."* Held. Nothing in
+the draft or the set names either box, so nothing waits on it; the *Not in list* escape (P102)
+stays unbuilt behind it, as before. The runner still matches an entry by the text it shows.
+
+**A better way than waiting a day — not instead of it, before it.** The day-later read tests
+one hypothesis, drift over time. The other, a copy from a different layer or box, can be tested
+in one sitting, and it separates the two: if the identifiers differ *by layer today*, an
+earlier copy from another layer explains everything without drift or a mislabelled box. Three
+reads of the same entry, same country, same typed text, all read-only:
+
+1. The dropdown's `data-value` — what he read today.
+2. The `<select>` the box fronts, after choosing one entry: `[...document.querySelector('#institution').options].map(o => [o.value, o.text])` (the id the draft names; if the select is `#institutionCode` on the page, that). **This is the value the form posts**, and the only one a value-naming rule could name.
+3. The search response itself: DevTools → Network → the `ajax/institution/search.app?name=Sheff…` request → Response. The identifiers in that JSON, beside each name.
+
+If all three agree today, the layer hypothesis is out and the day-later read decides between
+drift and a mislabelled copy. If they disagree, the codes of 2026-09-11 may be one of these
+layers, and the question becomes which layer a mapping would have to name — the posted one —
+and whether *that* one holds across days, which is the same day-later read, on the `<select>`.
+Either way the day-later read stands; this makes it answer one question instead of two.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and
