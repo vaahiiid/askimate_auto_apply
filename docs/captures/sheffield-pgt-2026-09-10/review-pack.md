@@ -424,6 +424,10 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   then the pairing is not in the draft, and whether attaching a file on this page ticks its own
   radio is unknown.
 
+- **The education page's listing** (0.2.16): `summary.do`, entries counted by the `h5` reading
+  exactly *Previous Education N* inside `div.homepageInfomation` — the class misspelled on the
+  page and kept as written. Text-shaped by necessity: the wrappers are every section's.
+
 ## Not in this sitting
 
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,

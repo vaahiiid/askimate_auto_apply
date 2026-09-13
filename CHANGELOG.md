@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.115.3] — 2026-09-13
+
+**P113 — the Previous Education listing named from Vahid's read of `summary.do`; a text-shaped
+locator, exact to the number, and why that is the right one here.**
+
+### Changed
+
+- Sheffield curated draft 0.2.16: the education page's `repeats.recorded` names `summary.do`
+  and the entry as `div.homepageInfomation > h5:text-matches("^Previous Education [0-9]+$")` —
+  the wrapper class misspelled on the page and kept as written. Set 0.3.15 follows.
+
+### Recorded
+
+- His question answered: text-shaped is acceptable here and is the right shape — P82 removed an
+  unreviewed heuristic, not a reviewer-named locator; structure counts sections. The match is
+  exact to the number, never a substring. Proved on the fixture form built to his reading: the
+  locator counts two, structure four, a substring three. The number is matched as `[0-9]+`,
+  not `\d+`: a backslash in a CSS string is a hex escape, and the first attempt counted zero.
+- Employment's listing is its own read, when that page is mapped; the mechanism is general.
+
+---
+
 ## [0.115.2] — 2026-09-13
 
 **P112 — the nationality uploads are not on an international student's path, settled by

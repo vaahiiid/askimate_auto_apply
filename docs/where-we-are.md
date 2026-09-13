@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P113 — a count in the page's own words
+
+He read the summary page with two qualifications saved. Each entry is an h5 reading exactly *Previous Education N*, with no class and no id, inside two wrapper divs that every section on the page shares, one of them misspelled on the page and kept as written. He asked whether a text-shaped locator is acceptable here, since P82 removed a text-shaped heuristic once, or whether something structural is wanted.
+
+Text-shaped is acceptable and is the right shape. P82 removed an unreviewed guess in a tool, a substring on the word *code* that decided what a field was; this is a locator a reviewer names in the page's own words and signs into a hash-bound blueprint, and the label strategy has been text from the start. Structure would count the wrong thing, as he said himself: the wrappers are every section's. What matters is that the match is exact to the number and never a substring, and the vocabulary already says it, because the css strategy is Playwright's selector engine and its anchored text-match does exactly that. The draft names the listing that way, and a runner test on a fixture built to his reading proves the locator counts two entries where structure counts four sections and a substring counts three headings. Employment's listing is its own read, when that page is mapped at all; the mechanism is already general and nothing is built differently on the answer.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P112 — five slots on a path our students do not take
 
 He read the function that governs the nationality uploads, and the contradiction from P111 dissolved into something more useful than a pairing. All five file inputs are in the DOM and all five are hidden, each shown only on a claim of UK status — a British passport, indefinite leave, a UK spouse, refugee status — and with nationality and residence set to Iran none appeared. The passport slot on that page is for a British passport holder proving fee status, not for an international student's passport scan. The draft had carried the five as ordinary slots, and one earlier note spoke of the slots the runner attaches to on that page as if a run would. Nothing was ever mapped to them, so no plan attached to one, but the description was wrong and would have gone to Iman as a path to review.

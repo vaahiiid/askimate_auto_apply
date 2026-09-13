@@ -876,6 +876,39 @@ system fills; whether their handlers fire is Sheffield's defect on a path our st
 take, and nothing built depends on the answer. It is not asked for. If it is ever wanted, that
 read is the way, and the claim is never saved.
 
+**The Previous Education listing, read from `summary.do` with two qualifications saved —
+Vahid, 2026-09-13 (P113).** Each entry's heading is an `h5` whose text is exactly *Previous
+Education N*, with no class and no id, inside `div.homepageInfomation` (misspelled on the page,
+*"use it as written, not as it should be"*) inside `div.homepageBlock`, and both wrappers are
+almost certainly every section's. His two points, and the answer to his question:
+
+- **Is a text-shaped locator acceptable here?** Yes, and it is the *right* one. What P82
+  removed was an unreviewed heuristic in a tool — a substring on "code" that guessed a field's
+  kind — not a locator a reviewer names in the page's own words and signs into a hash-bound
+  blueprint; the `label` strategy has been text-shaped from the start. And structure would
+  count the wrong thing, as he said: the wrappers are every section's. What matters is that the
+  text is matched **exactly, to the number**, not as a substring — a substring would count the
+  section's own title if it is an `h5`, or a heading that merely contains the words. The
+  vocabulary already says it: the `css` strategy is Playwright's selector engine, whose
+  `:text-matches("regex")` is an anchored, case-sensitive match on the element's text. The
+  draft (0.2.16) names the listing on the education page as
+  `{ url: …/summary.do, entryLocator: { css: div.homepageInfomation > h5:text-matches("^Previous Education [0-9]+$") } }`,
+  and a qualification is saved when the count grows by one (ADR-0106). Proved on the fixture
+  form, built to his reading — four sections in the same two wrappers, one `h5` reading
+  *Previous Education* with no number, one *Relevant Employment 1*: the locator counts two; the
+  structural count is four; a substring counts three. Nothing structural is needed from him.
+  One thing found while proving it: the number is matched as `[0-9]+`, not `\d+`, because a
+  backslash inside a CSS string is a hex escape (`\d` is a carriage return to the selector
+  engine), and a backslash crosses JSON, TypeScript and CSS under three different rules — the
+  first attempt counted zero. A locator a reviewer signs should carry no character whose meaning
+  depends on which layer reads it.
+- **Employment.** He has not checked whether an employment entry reads *Relevant Employment N*
+  in the same wrapper. The listing mechanism is already general — one `recorded` per repeating
+  page, a URL and an entry locator, counted before and after the save — so nothing is built
+  differently on the answer; the employment page's own `recorded` will need its own read, when
+  that page is mapped at all (its four required fields have no profile field, P89). One more
+  read, then; not now.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

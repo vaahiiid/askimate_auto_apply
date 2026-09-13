@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,541 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,543 tests, 130 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the fifteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -137,6 +137,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P90** | The plan honours `visibleWhen` | Recorded by discovery since the blueprint schema existed, read by nothing until now: a field's condition, and its section's, is evaluated at plan time against the plan's own values, to a fixed point. A field the form hides for these answers is neither filled nor missing — dropped from instructions, blockers and uploads, listed under `hidden`, and not a violation in the validator. Sheffield's two postcode boxes were both planned with one hidden on the page; the international one is now absent for a UK address, and an unmapped required field on a hidden branch no longer blocks. Fail-first on a synthetic address page and on the Sheffield draft |
 | **P91** | The entry page read; the AUTH questions answered from it; the registration and login locators authored | Vahid's signed-out read of the entry page and the reset page, three pages, zero failed, recorded unedited. From the capture: AUTH 1 yes, 3 none offered, 6 no CAPTCHA on those pages (tags refused), 8 yes by design; 2 and 5 settled for what the pages show and open for what follows a submit; 4 and 7 not settled by any page read, and not inferred. The curated draft carries the login URL and locators and a registration page first in the walk; the mapping set sends the e-mail from the profile and the passwords to the Secure Plane. The eight facts are recorded with `unobserved` on 4 and 5, and the chooser refuses on exactly those — the design holding: what settles them is Vahid's own account of registering and signing in. Two tool defects the draft showed, fixed fail-first: `password` inputs came back unknown; buttons came back as fields |
+| **P113** | The Previous Education listing read from `summary.do` (Vahid, 2026-09-13): an `h5` reading exactly *Previous Education N*, no class, no id, in wrappers every section shares. His question — text-shaped or structural? — answered: text-shaped, exact to the number, is the right one here | Draft 0.2.16 names the listing with `:text-matches("^Previous Education [0-9]+$")` under the misspelled wrapper class kept as written; a runner test on a fixture built to his reading proves the count is the entries (2), not the sections (4) or a substring (3). P82 removed an unreviewed heuristic, not a reviewer-named locator; the `label` strategy was always text | Employment's listing is one more read when that page is mapped; the mechanism is already general |
 | **P112** | The nationality uploads settled by Vahid's read of `showHideDocumentUploads()` (2026-09-13): all five hidden, each shown only on a claim of UK status; *"a path our students do not take"*. The draft had carried them as five ordinary slots; corrected in 0.2.15 before Iman's review | `visibleWhen` on four file inputs from the function's own reads; the fifth is a disjunction the vocabulary cannot say — recorded, not bent. Test: the four hidden in a plan for an international student, nothing mapped to any of the five, no upload or blocker names one. Sheffield's handlers name absent ids and the container names differ from the input names — his finding, not concluded from. His question answered: a read without saving would be enough and is not needed | The condition vocabulary has no *or*; raised, not built. The companions are moot for the path |
 | **P111** | The nationality handlers read live (Vahid, 2026-09-13): five `onchange`s each tick `<slot>UploadRadio` by id, and no radio on the page carried such an id. Reported by him as a contradiction, not resolved; recorded the same way | The intent is recorded verbatim; the five companions are NOT in the draft, because the id-to-group step is name similarity until a radio is seen with the id, and because a handler naming an absent id throws — so whether the page ticks anything on attach is unknown. The runner would need only name and value, both read. Four console reads that settle it are in the README | His reading; then either five companions and the two-acts sentence stands, or a reviewer's pairing flagged as such and the sentence corrected to eleven of seventeen |
 | **P110** | Personal, contact and nationality read with the snippet (Vahid, 2026-09-12): twenty-three groups' values in the draft (0.2.14); found and fixed, fails first: the runner read `yes` as *tick this radio* before looking at values, and on a `yes` / `no` group with *no* first ticked *no* | The value is tried first, always, in the portal's case; the boolean shortcut is for a lone radio only; `Yes` on a group offering `yes` is refused with nothing chosen. Recorded: the case differs by page and nothing normalises; three *not providing* options are two claims in one; `NotRequired` is absent on nationality; `corrContactDateType`'s *After* reads *From this date:* — pinned for Iman. Nationality's five slots carry no companion until the file inputs' handlers are read | A constant on a radio is not checked against the group at review time, only at the fill — raised; the handler read is his offer, taken up |
@@ -523,7 +524,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,541 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,543 tests · 130 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -536,7 +537,7 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,541 tests**, by the workspace they live in. Generated — run
+**2,543 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
@@ -545,8 +546,8 @@ being able to see it (ADR-0084).
 |---|---|---|---|
 | `apps/conversation-service` | 413 | `packages/mapping` | 66 |
 | `packages/domain` | 377 | `packages/conversation` | 52 |
-| `scripts` | 311 | `packages/preparation` | 52 |
-| `apps/browser-runner` | 298 | `packages/profile` | 49 |
+| `scripts` | 312 | `packages/preparation` | 52 |
+| `apps/browser-runner` | 299 | `packages/profile` | 49 |
 | `packages/case-store` | 145 | `packages/disclosure` | 47 |
 | `packages/orchestrator` | 122 | `packages/catalogue` | 46 |
 | `packages/documents` | 100 | `packages/extraction` | 27 |

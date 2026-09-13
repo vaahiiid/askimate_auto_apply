@@ -297,6 +297,22 @@ describe("filling a fixture portal", () => {
     expect(await session.readValue({ strategy: "id", value: "agreeTerms" })).toBe("agreed");
   }, 30_000);
 
+  // ── P113: a listing counted by its numbered heading, exactly ──────────
+
+  it("counts the entries whose heading reads exactly \"Previous Education N\" — not the section title, not another section, not a substring", async () => {
+    // Sheffield's summary.do, read by Vahid on 2026-09-13: the wrappers are
+    // every section's, so structure counts sections; what is specific is the
+    // h5's own text, and that it is numbered. A text-shaped locator, named by
+    // the reviewer in the page's words, exact to the number — not a guess.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Education [0-9]+$")' })).toBe(2);
+    // The structural count is the wrong thing, as he said: it counts sections.
+    expect(await session.count({ strategy: "css", value: "div.homepageInfomation" })).toBe(4);
+    // And a substring would count the unnumbered title too.
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:has-text("Previous Education")' })).toBe(3);
+  }, 30_000);
+
   // ── P94 (ADR-0103, gap 1) ─────────────────────────────────────────────
 
   it("waits for an option the page loads AFTER another field is set, then selects it", async () => {

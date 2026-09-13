@@ -318,6 +318,19 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.filter((b) => slots.includes(b.fieldRef))).toEqual([]);
   });
 
+  it("name the education page's listing on summary.do by its numbered heading, exactly (P113, ADR-0106)", () => {
+    // Vahid's read, 2026-09-13: the h5 has no class and no id; its wrappers
+    // are every section's. The locator names the page's own words and the
+    // number, and nothing else; the misspelled wrapper class is kept as
+    // written. The runner test on the same shape proves the count is the
+    // entries and not the title, the sections, or a substring.
+    const education = blueprint.pages.find((p) => p.pageRef === "page7");
+    expect(education?.repeats?.recorded).toEqual({
+      url: "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+      entryLocator: { strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Education [0-9]+$")' },
+    });
+  });
+
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
