@@ -286,6 +286,38 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(nationality?.requiredDocuments.map((doc) => doc.companion)).toEqual([undefined, undefined, undefined, undefined, undefined]);
   });
 
+  it("treat nationality's five document slots as off an international student's path — shown only on a claim of UK status (P112)", () => {
+    // Vahid read showHideDocumentUploads() from the live page, 2026-09-13:
+    // each upload is revealed by a British passport, indefinite leave, a UK
+    // spouse or refugee status, and with Iran as nationality and residence
+    // none appeared. *"Whatever the draft says about five slots on
+    // nationality, it is describing a path our students do not take."*
+    const fields = new Map(blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).map((f) => [f.fieldRef, f]));
+    expect(fields.get("passportScan")?.visibleWhen).toEqual({ whenFieldRef: "britishPassport", operator: "equals", value: "yes" });
+    expect(fields.get("visaScan")?.visibleWhen).toEqual({ whenFieldRef: "indefinateVisa", operator: "equals", value: "yes" });
+    expect(fields.get("proofOfUKSpouse")?.visibleWhen).toEqual({ whenFieldRef: "spouseOfUKCitizen", operator: "equals", value: "yes" });
+    expect(fields.get("refugeeProof")?.visibleWhen).toEqual({ whenFieldRef: "refugeeStatus", operator: "equals", value: "yes" });
+    // The fifth is shown on britishPassport OR indefinateVisa — a disjunction
+    // the condition vocabulary cannot say — so it carries no condition and is
+    // an optional unmapped field the plan passes over. Recorded, not bent.
+    expect(fields.get("utilityBillScan")?.visibleWhen).toBeUndefined();
+    // On a plan for an international student none of the UK-status radios is
+    // answered, so the four are hidden — as the page hides them — and nothing
+    // is mapped to any of the five.
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, PROFILE);
+    const hidden = new Map(plan.hidden.map((h) => [h.fieldRef, h.whenFieldRef]));
+    expect(hidden.get("passportScan")).toBe("britishPassport");
+    expect(hidden.get("visaScan")).toBe("indefinateVisa");
+    expect(hidden.get("proofOfUKSpouse")).toBe("spouseOfUKCitizen");
+    expect(hidden.get("refugeeProof")).toBe("refugeeStatus");
+    const slots = ["passportScan", "visaScan", "utilityBillScan", "proofOfUKSpouse", "refugeeProof"];
+    expect(mappingSet.mappings.filter((m) => slots.includes(m.fieldRef))).toEqual([]);
+    expect(plan.uploads.filter((u) => slots.includes(u.fieldRef))).toEqual([]);
+    expect(plan.blockers.filter((b) => slots.includes(b.fieldRef))).toEqual([]);
+  });
+
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);

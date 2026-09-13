@@ -820,6 +820,62 @@ they are found nowhere even after the blocks are shown, the handlers are dead an
 nothing on attach; the pairing is then a reviewer's call from the page, flagged as such, and the
 sentence above is corrected to *eleven of seventeen*.
 
+**The nationality uploads, settled by reading the function itself — Vahid, 2026-09-13 (P112).**
+All five file inputs exist in the DOM and all five are hidden. `showHideDocumentUploads()` reads
+four radios and shows five containers:
+
+```
+britishPassportYes.checked        -> shows passportScan
+indefinateVisaYes.checked         -> shows visaScan
+britishPassport OR indefinateVisa -> shows utilityBillScan
+spouseOfUKCitizenYes.checked      -> shows ukSpouseProof
+refugeeStatusYes.checked          -> shows refugeeStatusProof
+```
+
+**These five slots are not on an international student's path.** In his words: *"Every one of
+them is revealed by a claim of UK status: a British passport, indefinite leave, marriage to a UK
+citizen, or refugee status. I set nationality and permanent residence to Iran, answered the visa
+questions, and none appeared. That is the page working as designed. So for the applicant
+AskiMate is built for, the nationality page has no document slots. The passport slot on that
+page is for British passport holders proving fee status, not for an international student's
+passport scan. Whatever the draft says about five slots on nationality, it is describing a path
+our students do not take."*
+
+**What the draft said, and the correction.** The curated draft carried the five as ordinary
+`requiredDocuments` with no condition — five slots a reviewer would read as the student's, and
+P105's note above speaks of *"the slots the runner attaches to on `nationality.do`"* as if a run
+would. Nothing was mapped to them, so no plan ever attached to one, but the description was
+wrong and would have gone to Iman as if it were a path to review. Corrected in 0.2.15, from the
+function's own reads and not from the names: `visibleWhen` on four of the five file inputs —
+`passportScan` when `britishPassport` = `yes`, `visaScan` when `indefinateVisa` = `yes`,
+`proofOfUKSpouse` when `spouseOfUKCitizen` = `yes`, `refugeeProof` when `refugeeStatus` = `yes`.
+The fifth, `utilityBillScan`, is shown on `britishPassport` **or** `indefinateVisa`, a
+disjunction the condition vocabulary cannot express (`FieldCondition` names one field); it
+carries no condition, is an optional unmapped field the plan passes over, and the gap is
+recorded here rather than bent into an `equals`. The five `requiredDocuments` entries stay —
+the form has them — but the draft test now asserts the four are hidden in a plan for an
+international student, that nothing is mapped to any of the five, and that no upload or blocker
+names one. The status radio groups' own visibility was not read (the file inputs were) and
+carries no condition. The five companions are moot for the path and stay out.
+
+**Sheffield's own handler names ids that do not exist.** His second finding, verbatim: *"The
+function shows containers named ukSpouseProof and refugeeStatusProof. The file inputs are named
+proofOfUKSpouse and refugeeProof. And the onchange handlers on those inputs tick
+passportScanUploadRadio and friends, ids that came back NONE FOUND across the whole document."*
+He does not conclude the handlers are dead, because he read the page with the blocks hidden;
+what he can say is that the ids are absent in the state an international applicant sees, and
+the function's container names do not match the input names. Recorded as his; the two-acts
+sentence above stays qualified for these five, and it no longer matters for the path.
+
+**Whether to read the shown state at all.** He asked whether reading it without saving is
+enough, since the read means claiming a British passport on a real application form, which he
+would rather not save. The answer: reading without saving would be enough for the DOM question
+— the function runs client-side on a radio change, and a page left without *Save and Continue*
+records nothing — **and the read is not needed.** These five slots are off the path this
+system fills; whether their handlers fire is Sheffield's defect on a path our students do not
+take, and nothing built depends on the answer. It is not asked for. If it is ever wanted, that
+read is the way, and the claim is never saved.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

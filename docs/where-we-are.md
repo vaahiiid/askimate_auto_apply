@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P112 — five slots on a path our students do not take
+
+He read the function that governs the nationality uploads, and the contradiction from P111 dissolved into something more useful than a pairing. All five file inputs are in the DOM and all five are hidden, each shown only on a claim of UK status — a British passport, indefinite leave, a UK spouse, refugee status — and with nationality and residence set to Iran none appeared. The passport slot on that page is for a British passport holder proving fee status, not for an international student's passport scan. The draft had carried the five as ordinary slots, and one earlier note spoke of the slots the runner attaches to on that page as if a run would. Nothing was ever mapped to them, so no plan attached to one, but the description was wrong and would have gone to Iman as a path to review.
+
+It is corrected from the function's own reads, not from the names: four file inputs carry the condition that shows them, and the draft test asserts they are hidden in a plan for an international student, that nothing is mapped to any of the five, and that no upload or blocker names one. The fifth is shown on one radio or another, a disjunction the condition vocabulary cannot say, so it carries no condition and the gap is written down rather than bent into an *equals*. His second finding — that Sheffield's own handlers name ids absent from the document in that state, and that the function's container names differ from the input names — is recorded as his and not concluded from. He asked whether reading the shown state without saving would be enough, since the read means claiming a British passport on a real form. It would be, and it is not needed: nothing built depends on the answer.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P111 — a handler that names what is not there
 
 He read the five nationality file inputs' handlers. Each one, on change, ticks an element by id — the slot's own name with *UploadRadio* after it — which is the construction-level evidence the pairing rule asks for. And then the contradiction, which he reported rather than resolved: no radio on the page carried any such id. He offered a guess, marked it as a guess, and stopped, because going further would have been guessing about the portal's rendering rather than reading it.

@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.115.2] — 2026-09-13
+
+**P112 — the nationality uploads are not on an international student's path, settled by
+Vahid's read of the page's own function; the draft corrected before it reaches Iman.**
+
+### Changed
+
+- Sheffield curated draft 0.2.15: `visibleWhen` on four of the five nationality file inputs,
+  from `showHideDocumentUploads()`'s own reads — each shown only on a `yes` to a UK-status
+  radio. The fifth is shown on a disjunction the condition vocabulary cannot say; it carries
+  none, and the gap is recorded. Set 0.3.14 says nothing on the page is to be mapped to a
+  document for an international student.
+
+### Recorded
+
+- His finding, verbatim, that the five are for UK-status applicants proving fee status, and
+  that with Iran as nationality and residence none appeared. The draft test asserts the four
+  are hidden in a plan for an international student, nothing is mapped to any of the five, and
+  no upload or blocker names one.
+- Sheffield's own handlers name ids absent from the document in that state, and the function's
+  container names differ from the input names — his, not concluded from.
+- His question answered: reading the shown state without saving would be enough, and it is not
+  needed; the read is not asked for.
+
+---
+
 ## [0.115.1] — 2026-09-13
 
 **P111 — the nationality handlers read live: the pairing's intent recorded, the contradiction

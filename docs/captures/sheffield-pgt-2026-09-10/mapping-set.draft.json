@@ -34,13 +34,15 @@
     "",
     "Personal, contact, nationality (pages 3-5), P110 (2026-09-12): every radio group's values are now in the blueprint (0.2.14) from Vahid's reading with the snippet. The yes-or-no groups do NOT agree on case across the form — personal.do submits Yes / No, nationality.do yes / no — so a constant on one must carry that page's case exactly; the runner sets a radio by value and normalises nothing. corrContactDateType: the value 'After' is shown as 'From this date:' and 'Before' as 'To this date:' — map from the text beside the value, never from the value alone. The five nationality document slots still carry no companion: their groups' values are known (Uploaded / UploadLater / NotSending, no NotRequired) but the slot-to-group pairing waits on the file inputs' own handler markup, which Vahid offered to read.",
     "",
-    "Nationality (page5), P111 (2026-09-13): each of the five file inputs carries onchange: document.getElementById('<slot>UploadRadio').checked=true, and no radio on the page carried such an id when Vahid read it. The handler names the intent; the DOM as read does not show which group the id belongs to, and if it belongs to nothing the handler throws and the page ticks nothing on attach. The five companions stay out of the blueprint until one more reading settles which (README, P111). When they go in, the runner needs only the group's name and the value Uploaded — both read — not the id."
+    "Nationality (page5), P111 (2026-09-13): each of the five file inputs carries onchange: document.getElementById('<slot>UploadRadio').checked=true, and no radio on the page carried such an id when Vahid read it. The handler names the intent; the DOM as read does not show which group the id belongs to, and if it belongs to nothing the handler throws and the page ticks nothing on attach. The five companions stay out of the blueprint until one more reading settles which (README, P111). When they go in, the runner needs only the group's name and the value Uploaded — both read — not the id.",
+    "",
+    "Nationality (page5), P112 (2026-09-13): the five document slots are NOT on an international student's path. showHideDocumentUploads(), read by Vahid from the live page, shows each upload only on a claim of UK status — a British passport, indefinite leave, marriage to a UK citizen, refugee status — and with nationality and residence set to Iran none appeared. The blueprint (0.2.15) carries visibleWhen on four of the five file inputs from the function's own reads (yes on britishPassport / indefinateVisa / spouseOfUKCitizen / refugeeStatus); utilityBillScan is shown on britishPassport OR indefinateVisa, which the condition vocabulary cannot say, so it carries none and the plan treats it as an optional unmapped field, passed over. No slot on this page is to be mapped for an international student; a document mapped to one would be attached into a hidden block. The five companions are moot for the path and stay out."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.14",
+  "blueprintVersion": "0.2.15",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

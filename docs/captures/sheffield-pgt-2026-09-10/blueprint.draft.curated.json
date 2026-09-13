@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -19297,7 +19297,12 @@
                   "value": "passportScan"
                 }
               ],
-              "validations": []
+              "validations": [],
+              "visibleWhen": {
+                "whenFieldRef": "britishPassport",
+                "operator": "equals",
+                "value": "yes"
+              }
             },
             {
               "fieldRef": "visaScanStatus",
@@ -19337,7 +19342,12 @@
                   "value": "visaScan"
                 }
               ],
-              "validations": []
+              "validations": [],
+              "visibleWhen": {
+                "whenFieldRef": "indefinateVisa",
+                "operator": "equals",
+                "value": "yes"
+              }
             },
             {
               "fieldRef": "utilityBillScanStatus",
@@ -19417,7 +19427,12 @@
                   "value": "proofOfUKSpouse"
                 }
               ],
-              "validations": []
+              "validations": [],
+              "visibleWhen": {
+                "whenFieldRef": "spouseOfUKCitizen",
+                "operator": "equals",
+                "value": "yes"
+              }
             },
             {
               "fieldRef": "refugeeProofStatus",
@@ -19457,7 +19472,12 @@
                   "value": "refugeeProof"
                 }
               ],
-              "validations": []
+              "validations": [],
+              "visibleWhen": {
+                "whenFieldRef": "refugeeStatus",
+                "operator": "equals",
+                "value": "yes"
+              }
             }
           ]
         }

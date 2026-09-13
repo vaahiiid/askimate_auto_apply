@@ -412,7 +412,12 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   A mapping written from the value alone inverts the meaning. The draft (0.2.14) carries both.
 - **The yes-or-no case differs by page.** `personal.do` submits `Yes` / `No`; `nationality.do`
   submits `yes` / `no`. A constant carries that page's case exactly; nothing normalises.
-- **Nationality's five document slots have no companion yet.** Their groups' values are known,
+- **Nationality's five document slots are not on an international student's path** (Vahid's
+  read of `showHideDocumentUploads()`, 2026-09-13): each is shown only on a claim of UK status.
+  The draft (0.2.15) carries the condition on four of the five; the fifth is a disjunction the
+  vocabulary cannot say and is recorded as such. **Nothing on this page is to be mapped to a
+  document for an international student.** Their rows below stay because the form has them.
+- ~~**Nationality's five document slots have no companion yet.**~~ Moot for the path; as it stood: Their groups' values are known,
   and each file input's `onchange` ticks an id of the form `<slot>UploadRadio` (Vahid's live
   read, 2026-09-13) — but no radio on the page carried that id when read. Whether the id is on a
   radio in one of the five groups, or on nothing, is one more reading away (README, P111). Until
