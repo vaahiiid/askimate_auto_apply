@@ -428,6 +428,11 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   exactly *Previous Education N* inside `div.homepageInfomation` — the class misspelled on the
   page and kept as written. Text-shaped by necessity: the wrappers are every section's.
 
+- **The UK postcode on contact is two boxes** (Vahid's read-back, 2026-09-13): `corrPostcode`
+  takes the outward code, `corrPostcode2` the inward, each through the new `uk_postcode`
+  format, split at the postcode's own seam and never at 3+3. The portal stores the postcode
+  exactly as typed, case included; nothing here canonicalises it.
+
 ## Not in this sitting
 
 - The four schema gaps (order-and-wait on the education chain, the typeahead, repeatable entries,

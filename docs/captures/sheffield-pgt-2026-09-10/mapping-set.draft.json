@@ -38,10 +38,12 @@
     "",
     "Nationality (page5), P112 (2026-09-13): the five document slots are NOT on an international student's path. showHideDocumentUploads(), read by Vahid from the live page, shows each upload only on a claim of UK status — a British passport, indefinite leave, marriage to a UK citizen, refugee status — and with nationality and residence set to Iran none appeared. The blueprint (0.2.15) carries visibleWhen on four of the five file inputs from the function's own reads (yes on britishPassport / indefinateVisa / spouseOfUKCitizen / refugeeStatus); utilityBillScan is shown on britishPassport OR indefinateVisa, which the condition vocabulary cannot say, so it carries none and the plan treats it as an optional unmapped field, passed over. No slot on this page is to be mapped for an international student; a document mapped to one would be attached into a hidden block. The five companions are moot for the path and stay out.",
     "",
-    "Education (page7), P113 (2026-09-13): the repeating page's listing is named (ADR-0106) from Vahid's read of summary.do with two qualifications saved — each entry's heading is an h5 reading exactly 'Previous Education N' inside div.homepageInfomation (misspelled on the page; kept as written) inside div.homepageBlock, both wrappers shared by every section. The entry locator is text-shaped by necessity — the structure counts sections — and exact to the number: h5:text-matches('^Previous Education [0-9]+$'). A qualification is saved when that count grows by one."
+    "Education (page7), P113 (2026-09-13): the repeating page's listing is named (ADR-0106) from Vahid's read of summary.do with two qualifications saved — each entry's heading is an h5 reading exactly 'Previous Education N' inside div.homepageInfomation (misspelled on the page; kept as written) inside div.homepageBlock, both wrappers shared by every section. The entry locator is text-shaped by necessity — the structure counts sections — and exact to the number: h5:text-matches('^Previous Education [0-9]+$'). A qualification is saved when that count grows by one.",
+    "",
+    "Contact (page4), P116 (2026-09-13): the UK postcode is two boxes — corrPostcode and corrPostcode2 both came back from Vahid's read-back, three characters each for his — so the single-value mapping was wrong and is replaced by the uk_postcode format on each box, split at the postcode's own seam (inward = last three, outward = the rest), never at 3+3. Nothing on this page was normalised by the portal: e-mail, address, town and postcode came back exactly as typed, case included. The permanent-address fields (perm*) stay unmapped, as before."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.16",
@@ -211,10 +213,30 @@
         "fieldKey": "contact.address",
         "format": {
           "kind": "part",
-          "path": "postalCode"
+          "path": "postalCode",
+          "then": {
+            "kind": "uk_postcode",
+            "part": "outward"
+          }
         }
       },
-      "note": "UK Post Code: (* UK only) — shown when the country is the United Kingdom."
+      "note": "UK Post Code: (* UK only) — the FIRST of two boxes (maxlength 4), shown when the country is the United Kingdom. The outward code, split at the postcode's own seam (P116: Vahid's read-back showed two boxes, and 'must not assume 3+3'). The portal stores it as typed, case included."
+    },
+    {
+      "fieldRef": "corrPostcode2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "contact.address",
+        "format": {
+          "kind": "part",
+          "path": "postalCode",
+          "then": {
+            "kind": "uk_postcode",
+            "part": "inward"
+          }
+        }
+      },
+      "note": "The SECOND UK postcode box (maxlength 4): the inward code — a digit and two letters, always three characters. Hidden with the first when the country is not the United Kingdom."
     },
     {
       "fieldRef": "corrIntlPostcode",

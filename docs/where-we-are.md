@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P116 — two boxes, and a seam that is the postcode's own
+
+He ran the same comparison on the contact page. Ten fields came back exactly as typed, the e-mail not lower-cased because he had typed it lower, the postcode not upper-cased because he had typed it lower. The portal stores a postcode as entered, and he noted why that is worth knowing on its own: nothing downstream should expect Sheffield to canonicalise one. Nothing built does, and the read-back compares what was typed, so this is the good case.
+
+The postcode also settled a question the capture had left open. Both postcode boxes came back, so the field is genuinely two boxes of four characters, and the draft's mapping that typed the whole postcode into the first was wrong. It is corrected with a rule the vocabulary did not have, one half of a UK postcode, and his instruction is its whole design: the two halves are not both three characters in general, his happen to be, so the split is at the postcode's own seam, the inward code always the last three characters and the outward code the rest, never a fixed three and three. A value that is not a UK postcode is refused rather than split at a guess, and for a non-UK address the two boxes are hidden by the country and neither filled nor a blocker. His two passing observations were checked against the capture rather than his word, as he asked: the confirm box and the telephone box are there under the names the draft uses.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P115 — nothing normalised, on one page
 
 He ran the comparison on the personal page and reported shape, not content: six fields came back, the two free-text ones as typed, the four selects as their option values, no whitespace gained or lost, no case changed. That is what the runner's read-back would find on this page, so the first way of seeing works as built here, and no vocabulary gap comes out of it. His classification of the selects is right for the comparison the runner makes: it compares against the option value it chose, so a code or a month name matches by construction, and only free text can be normalised.

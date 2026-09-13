@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.116.0] — 2026-09-13
+
+**P116 — the contact page read back: nothing normalised; the UK postcode is two boxes, and the
+mapping that typed it as one is corrected with a rule that never assumes 3+3.**
+
+### Added
+
+- `FormatRule` `uk_postcode` with `part: outward | inward`: whitespace removed, the inward code
+  the last three characters (a digit and two letters), the outward code the rest (two to four),
+  case left as written; anything else refused rather than split at a guessed seam. Parsed by
+  the catalogue. Five postcode shapes and seven non-postcodes, red before the rule.
+
+### Changed
+
+- Sheffield set 0.3.16: `corrPostcode` takes the outward code and the new `corrPostcode2`
+  mapping the inward, both hidden for a non-UK country; the draft test pins the split and that
+  a French address fills neither and blocks on neither.
+
+### Recorded
+
+- Ten fields on `contact.do` came back exactly as typed, case included — the portal stores a
+  postcode as entered and will not provide a canonical one. His two passing observations
+  checked against the capture: `confirmEmail` and `corrTelephone` are the captured names.
+
+---
+
 ## [0.115.5] — 2026-09-13
 
 **P115 — the comparison on `personal.do`: nothing normalised (Vahid, 2026-09-13).** Records only.

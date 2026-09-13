@@ -124,7 +124,9 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(typed.get("dobYear")).toBe("1999");
     expect(typed.get("confirmEmail")).toBe("niloofar.hosseini@example.com");
     expect(typed.get("corrCountry")).toBe("UNITED KINGDOM");
-    expect(typed.get("corrPostcode")).toBe("S10 2TN");
+    // P116: the UK postcode is two boxes, split at the postcode's own seam.
+    expect(typed.get("corrPostcode")).toBe("S10");
+    expect(typed.get("corrPostcode2")).toBe("2TN");
     // P90: the international postcode box is hidden for a UK address, so it
     // is neither filled nor missing — the form does not show it.
     expect(typed.has("corrIntlPostcode")).toBe(false);
@@ -184,6 +186,11 @@ describe("the Sheffield drafts, under the real checks", () => {
     const plan = planFill(blueprint, check.mappingSet, elsewhere);
     const refused = plan.blockers.find((b) => b.kind === "render_refused");
     expect(refused?.fieldRef).toBe("corrCountry");
+    // P116: a French postcode is not a UK one, and the two UK boxes are hidden
+    // for a non-UK country — so they are neither filled nor a blocker.
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("corrPostcode");
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("corrPostcode2");
+    expect(plan.hidden.map((h) => h.fieldRef)).toEqual(expect.arrayContaining(["corrPostcode", "corrPostcode2"]));
   });
 
   it("name the six Documentary Evidence groups as Vahid read them, and the fourth value is chosen by nothing (P108)", () => {

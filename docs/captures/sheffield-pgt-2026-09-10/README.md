@@ -970,6 +970,47 @@ maxlength 4 each — noted in the dependency table above and not yet reconciled)
 settles both the normalisation and the split. And the e-mail is asked twice and could be
 lower-cased. The same comparison, the same rule: only the fields that differ and how, no values.
 
+**The comparison on `contact.do` — Vahid, 2026-09-13 (P116). Nothing was normalised, and the
+postcode is two boxes.** Ten fields came back with a value, compared by shape, none differing
+from what he typed: `email` and `confirmEmail` (both all lower, identical in length),
+`corrAddress1`, `corrTown`, `corrPostcode` and `corrPostcode2` (each three characters, lower),
+and the four `perm*` counterparts. *"No case change, no trimming, no re-spacing. The e-mail was
+not lower-cased — I typed it lower-case and it came back lower-case. The postcode was not
+upper-cased; I typed it lower and it stayed lower. So: the portal stores the postcode exactly
+as entered, including case. A student who types their postcode in lower case gets it back in
+lower case. That is worth knowing for its own sake — if anything downstream expects a canonical
+postcode, Sheffield will not provide one."* Recorded as a property of this portal; nothing built
+canonicalises a postcode, and the read-back compares what was typed, so this is the good case.
+
+**The postcode split, settled and corrected.** *"corrPostcode and corrPostcode2 both came back,
+each three characters. So it is genuinely two boxes, not one field the capture misread, and the
+draft's mapping that types it as one value is wrong."* It was: the set typed the whole postcode
+into a box of `maxlength` 4. Corrected in 0.3.16 with a format rule the vocabulary did not have:
+`uk_postcode`, `part: outward | inward`, applied after `part: postalCode` on each box. His
+instruction — *"a UK postcode's two halves are not both three characters in general — mine
+happens to be. Whatever the mapping does must not assume 3+3"* — is the rule's whole design: the
+inward code is the last three characters, a digit and two letters, always; the outward code is
+the rest, two to four; whitespace is removed before the split and case is left as the student
+wrote it. A value that is not a UK postcode is refused, never split at a guessed seam — and for
+a non-UK address the two boxes are hidden by the country, so a French postcode is neither
+filled nor a blocker. Proved on five shapes (`S10 2TN`, `SW1A 1AA`, `sw1a1aa`, `M1 1AE`, a
+padded `ec1a 1bb`) and seven non-postcodes, red before the rule existed. The `perm*` boxes
+stay unmapped, as before.
+
+**His two passing observations, checked against the capture rather than his word.** Both
+names are in the capture of 2026-09-10: the confirm box is `confirmEmail` (label *Confirm
+E-Mail:\**), and `corrTelephone` is on the page (*Telephone Number:*, maxlength 20, unmapped).
+The curated draft and the set use `confirmEmail`, as the capture has it. `emailConfirm` appears
+in no capture; his read of it is most likely a misreading, as he allowed, and nothing is changed
+on his word alone. `corrTelephone` appearing in one read and not another is not explained by
+anything captured; it carries no condition in the draft and is optional, so nothing depends on
+it either way.
+
+*"Phase one of ADR-0106 now has both a non-repeating page and a repeating page confirmed on
+this portal"* — his summary. Precisely: the non-repeating read-back is confirmed on two pages
+with nothing normalised; the repeating page's listing is named from his read of `summary.do`
+(P113) and counted by a runner test on that shape, not yet by a run against the portal.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

@@ -552,7 +552,7 @@ function uniqueFieldRefs(pages: readonly BlueprintPage[], path: string): readonl
 function readFormatRule(value: unknown, path: string): FormatRule {
   const source = record(value, path);
   const kind = oneOf(source, "kind", path, [
-    "text", "uppercase", "date", "part", "option", "number", "money_amount", "money_currency",
+    "text", "uppercase", "date", "part", "option", "number", "money_amount", "money_currency", "uk_postcode",
   ] as const);
 
   switch (kind) {
@@ -572,6 +572,8 @@ function readFormatRule(value: unknown, path: string): FormatRule {
       }
       return { kind, options: rebuilt };
     }
+    case "uk_postcode":
+      return { kind, part: oneOf(source, "part", path, ["outward", "inward"] as const) };
     case "text":
     case "uppercase":
     case "number":

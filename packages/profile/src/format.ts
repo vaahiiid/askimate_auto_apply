@@ -69,6 +69,15 @@ export type FormatRule =
    * value with no entry is REFUSED — never approximated. See below.
    */
   | { readonly kind: "option"; readonly options: Readonly<Record<string, string>> }
+  /**
+   * One half of a UK postcode, for a portal that asks for it as two boxes
+   * (Sheffield's contact page, P116). The inward code is the last three
+   * characters — a digit and two letters — and the outward code is the rest,
+   * two to four; the seam is the postcode's own, never a fixed 3+3. Case is
+   * left as the student wrote it: the portal stores what is typed, and
+   * whether to canonicalise is not this rule's to decide.
+   */
+  | { readonly kind: "uk_postcode"; readonly part: "outward" | "inward" }
   /** A number, as digits. */
   | { readonly kind: "number" }
   /** Money, as a decimal amount with no currency symbol. */
@@ -189,6 +198,23 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
       return typeof value === "number"
         ? String(value)
         : { kind: "rule_does_not_fit", detail: `"number" needs a number, got ${typeName(value)}.` };
+
+    case "uk_postcode": {
+      if (typeof value !== "string") {
+        return { kind: "rule_does_not_fit", detail: `"uk_postcode" needs a string, got ${typeName(value)}.` };
+      }
+      const compact = value.replace(/\s+/g, "");
+      // Outward: a letter, then one to three letters or digits. Inward: a
+      // digit and two letters. Five to seven characters in all.
+      const seam = /^([A-Za-z][A-Za-z0-9]{1,3})([0-9][A-Za-z]{2})$/.exec(compact);
+      if (seam === null || seam[1] === undefined || seam[2] === undefined) {
+        return {
+          kind: "rule_does_not_fit",
+          detail: `"uk_postcode" needs a UK postcode — an outward code of two to four characters and an inward code of a digit and two letters — and the value is not one.`,
+        };
+      }
+      return rule.part === "outward" ? seam[1] : seam[2];
+    }
 
     case "money_amount": {
       const money = value as { amountMinorUnits?: unknown } | null;

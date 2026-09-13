@@ -98,6 +98,40 @@ describe("rendering a confirmed value for a portal", () => {
     expect(unwrapConfirmed(year.value)).toBe("2022");
   });
 
+  it("splits a UK postcode into the two boxes a portal asks for, at the postcode's own seam and never at 3+3 (P116)", () => {
+    // Sheffield's contact page takes the UK postcode as two boxes of four
+    // (Vahid's read-back, 2026-09-13: both came back, each three characters
+    // for his). His instruction: *"a UK postcode's two halves are not both
+    // three characters in general — mine happens to be. Whatever the mapping
+    // does must not assume 3+3."* The inward code is always the last three
+    // characters — a digit and two letters; the outward code is the rest,
+    // two to four. Case is the student's: the portal stores what is typed.
+    const cases: readonly [string, string, string][] = [
+      ["S10 2TN", "S10", "2TN"],
+      ["SW1A 1AA", "SW1A", "1AA"],
+      ["sw1a1aa", "sw1a", "1aa"],
+      ["M1 1AE", "M1", "1AE"],
+      [" ec1a 1bb ", "ec1a", "1bb"],
+    ];
+    for (const [typed, outward, inward] of cases) {
+      const address = confirmed("contact.address", { line1: "1 Example Road", city: "Sheffield", postalCode: typed, countryCode: "GB" });
+      const first = renderConfirmed(address, { kind: "part", path: "postalCode", then: { kind: "uk_postcode", part: "outward" } });
+      const second = renderConfirmed(address, { kind: "part", path: "postalCode", then: { kind: "uk_postcode", part: "inward" } });
+      if (!first.rendered || !second.rendered) expect.unreachable(`${typed} is a UK postcode`);
+      expect(unwrapConfirmed(first.value), typed).toBe(outward);
+      expect(unwrapConfirmed(second.value), typed).toBe(inward);
+    }
+  });
+
+  it("REFUSES to split what is not a UK postcode, rather than guessing a seam", () => {
+    for (const typed of ["12345", "S10", "", "S10 2T", "69001", "SW1A 1AAA", "S10-2TN"]) {
+      const address = confirmed("contact.address", { line1: "1 Example Road", city: "Lyon", postalCode: typed, countryCode: "FR" });
+      const result = renderConfirmed(address, { kind: "part", path: "postalCode", then: { kind: "uk_postcode", part: "outward" } });
+      expect(result.rendered, JSON.stringify(typed)).toBe(false);
+      if (!result.rendered) expect(result.refusal.kind).toBe("rule_does_not_fit");
+    }
+  });
+
   it("refuses a part the value does not have, rather than writing nothing", () => {
     const name = confirmed("identity.given_name", "Niloofar");
     const result = renderConfirmed(name, { kind: "part", path: "subject" });
