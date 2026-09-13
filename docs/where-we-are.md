@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P111 — a handler that names what is not there
+
+He read the five nationality file inputs' handlers. Each one, on change, ticks an element by id — the slot's own name with *UploadRadio* after it — which is the construction-level evidence the pairing rule asks for. And then the contradiction, which he reported rather than resolved: no radio on the page carried any such id. He offered a guess, marked it as a guess, and stopped, because going further would have been guessing about the portal's rendering rather than reading it.
+
+The record does the same. The five handlers are in it verbatim, and the five companions are not in the draft, for two reasons. The step from the id to a group is, as read, name similarity, which is the step his rule forbids. And a handler that calls `getElementById` on an id the document does not hold throws, so if the DOM he read is the DOM at the moment a file is chosen, attaching a file on this page ticks nothing, and the sentence in the capture notes that says the page does the second act itself on sixteen of seventeen slots is false for these five. That would not break the design, since the runner sets the companion by name and value and reads it back so that the page's script is relied on for nothing, but the record should say which it is, and today it cannot. Four read-only console steps that settle it are in the README, with what each outcome means.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P110 — three pages of radios, and a "yes" the runner read as a tick
 
 He ran the snippet on personal, contact and nationality, and every radio group on the three pages now carries the value the portal submits. The reading was mostly a records task, until one of its facts met the runner: the twelve yes-or-no groups on nationality submit *yes* and *no* in lower case, and the runner, told *yes*, did not look for the option whose value is *yes*. It read the word as a boolean and ticked whichever member of the group its locator found first. On a fixture group built to that shape, with *no* first, it ticked *no* and the read-back said so. The value is now tried first, always, in the portal's case, and the boolean shortcut survives only for a lone radio.

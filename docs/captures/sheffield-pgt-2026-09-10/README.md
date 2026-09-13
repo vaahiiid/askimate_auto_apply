@@ -757,6 +757,69 @@ If each file input's handler names a radio id, and that id is in one of the five
 pairing is the markup's; if the handlers name nothing, it is a reviewer's call from the page,
 flagged as such.
 
+**The nationality handlers, read live — Vahid, 2026-09-13 (P111). A contradiction, reported and
+not resolved.** The five file inputs each carry an `onchange` that ticks one element by id:
+
+```
+passportScan      onchange: document.getElementById('passportScanUploadRadio').checked=true
+visaScan          onchange: document.getElementById('visaScanUploadRadio').checked=true
+utilityBillScan   onchange: document.getElementById('utilityBillScanUploadRadio').checked=true
+proofOfUKSpouse   onchange: document.getElementById('proofOfUKSpouseUploadRadio').checked=true
+refugeeProof      onchange: document.getElementById('refugeeProofUploadRadio').checked=true
+```
+
+*"So the pairing is named by the markup, by construction rather than by name similarity: each
+file input ticks the id of its own group's Uploaded option."* And the contradiction, in his
+words: *"none of the five status radio groups came back with an id. Every one read id= empty.
+The only radio on the page carrying an id at all was refugeeStatusYes. So the handlers name
+element ids that are not present in the DOM as I read it."* His guess, marked as a guess: the
+upload blocks are governed by `showHideDocumentUploads()` and the inputs carrying those ids are
+in a part not rendered until the radios above are answered — though the file inputs themselves
+were present. *"I did not investigate further because I would be guessing about the portal's
+rendering rather than reading it."*
+
+**What is recorded, and what is not.** The five handlers are recorded here verbatim: the intent
+is unambiguous, and he said he would record it. **The draft does not yet carry the five
+`companion` entries**, for one reason that is his rule and one that is the runner's:
+
+- The markup, as read, completes only half the pairing. The file input names an id; no radio in
+  the DOM carries it. That `passportScanUploadRadio` is the *Uploaded* option of the group
+  named `passportScanStatus` is what the naming convention suggests, and nothing read shows it.
+  The last step is name similarity, which is the step his rule forbids. One more reading closes
+  it (below).
+- **What the handler does today is the more important unknown.** `getElementById` on an id the
+  DOM does not hold returns `null`, and `null.checked = true` throws — so, if the DOM he read is
+  the DOM at the moment a file is chosen, **attaching a file on this page ticks nothing**, and
+  the sentence above (*"the page does the second one itself on sixteen of the seventeen
+  slots"*) is false for these five. That would not break the design — the runner sets the
+  companion to *Uploaded* by name and value after the attach, and reads it back, precisely so
+  that the page's own script is relied on for nothing — but the record should say which it is,
+  and today it cannot.
+
+His point stands and is the reason the second question is not blocking: *"the id is not the
+thing the runner matches on anyway — it matches the value."* Once the pairing is settled, the
+runner needs the group's `name` and the value `Uploaded`, both of which he read; the ids are
+the page's business.
+
+**What settles it — one console session on `nationality.do`, read-only, in this order:**
+
+1. `showHideDocumentUploads.toString()` — the function's own source, which says what it shows
+   and hides and by which ids or classes. Paste it whole.
+2. `[...document.querySelectorAll('[id$="UploadRadio"]')].map(e => ({ id: e.id, name: e.name, value: e.value, type: e.type }))`
+   — whether ANY element with such an id exists anywhere in the DOM, hidden or not
+   (`querySelectorAll` finds hidden elements; it does not find what is not in the document).
+3. If (2) is empty: answer the radios above the uploads the way that reveals them (he has done
+   this before on his own account), then run (2) again, and the P110 radio snippet again with
+   one more column — `hidden: i.offsetParent === null` — so a radio that is in the DOM but not
+   shown is told apart from one that is absent.
+4. `document.getElementById('passportScanUploadRadio')` — `null` or an element, at the end.
+
+If (2) or (3) finds the five ids on radios whose `name` is one of the five groups, the pairing
+is the markup's, the draft carries the five companions, and the two-acts sentence stands. If
+they are found nowhere even after the blocks are shown, the handlers are dead and the page ticks
+nothing on attach; the pairing is then a reviewer's call from the page, flagged as such, and the
+sentence above is corrected to *eleven of seventeen*.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

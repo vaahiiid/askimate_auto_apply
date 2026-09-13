@@ -412,8 +412,12 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
   A mapping written from the value alone inverts the meaning. The draft (0.2.14) carries both.
 - **The yes-or-no case differs by page.** `personal.do` submits `Yes` / `No`; `nationality.do`
   submits `yes` / `no`. A constant carries that page's case exactly; nothing normalises.
-- **Nationality's five document slots have no companion yet.** Their groups' values are known;
-  the slot-to-group pairing waits on the file inputs' handler markup (README, P110).
+- **Nationality's five document slots have no companion yet.** Their groups' values are known,
+  and each file input's `onchange` ticks an id of the form `<slot>UploadRadio` (Vahid's live
+  read, 2026-09-13) — but no radio on the page carried that id when read. Whether the id is on a
+  radio in one of the five groups, or on nothing, is one more reading away (README, P111). Until
+  then the pairing is not in the draft, and whether attaching a file on this page ticks its own
+  radio is unknown.
 
 ## Not in this sitting
 

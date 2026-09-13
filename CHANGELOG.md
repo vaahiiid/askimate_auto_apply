@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.115.1] — 2026-09-13
+
+**P111 — the nationality handlers read live: the pairing's intent recorded, the contradiction
+reported and not resolved.** Records only.
+
+### Recorded
+
+- Each of the five nationality file inputs ticks `<slot>UploadRadio` by id on change; no radio
+  on the page carried such an id when read. Vahid's report, his guess marked as a guess, and
+  his reason for stopping, verbatim. The five companions stay out of the draft: the last step
+  of the pairing is name similarity until a radio is seen carrying the id, and whether the page
+  ticks anything on attach is unknown — if the id is on nothing, the handler throws.
+- The four console reads that settle it, in order, and what each outcome means for the draft
+  and for the "sixteen of seventeen" sentence. Set 0.3.13 carries the note.
+
+---
+
 ## [0.115.0] — 2026-09-12
 
 **P110 — personal, contact and nationality read with the snippet: twenty-three groups' values
