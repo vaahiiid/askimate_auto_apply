@@ -124,6 +124,9 @@ export const FIELD_CATEGORY = {
   "education.highest_qualification": "ordinary",
   "education.prior_qualifications": "ordinary",
   "education.english_language_test": "ordinary",
+  // ADR-0111: employment is not an Article 9 category; the duties text is the
+  // student's own, as the personal statement is.
+  "employment.history": "ordinary",
   "study.personal_statement": "ordinary",
   "study.intended_start": "ordinary",
   "finance.available_funds": "ordinary",

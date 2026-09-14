@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.18");
+    expect(blueprint.version).toBe("0.2.19");
   });
 
   it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
@@ -142,11 +142,12 @@ describe("the Sheffield drafts, under the real checks", () => {
       "ethnicOriginCode",
     ]);
     // With an empty profile the mapped fields want values (the interview's
-    // job); the four employment fields have no mapping because the registry
-    // has no field for them (P89, raised); and since P126 the forty-four
-    // fields the third read marked mandatory on nationality, language and
-    // education have no mapping either — items 3, 4 and 5 of the distance
-    // list, which item 1's answer made visible. The six education companions
+    // job); the four employment fields are mapped since P129 (ADR-0111) and
+    // their page repeats over employment.history, so an EMPTY profile — no
+    // list at all — reports them as value_unavailable, not no_mapping; and
+    // since P126 the forty-four fields the third read marked mandatory on
+    // nationality, language and education have no mapping — items 3, 4 and 5
+    // of the distance list, which item 1's answer made visible. The six education companions
     // the read also marked are not here: a handed slot's companion is the
     // student's own act (ADR-0107). NOTHING else blocks: no covered control,
     // no unclassified field, no refused render.
@@ -154,16 +155,13 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
       "alwaysEUResident", "alwaysUKResident", "awardingBody", "britishPassport", "certificateNumber", "certificateNumber2",
       "dateOfAward.day", "dateOfAward.month", "dateOfAward.year", "degree",
-      "duties", "employerDetails",
       "endDateMonth", "endDateYear", "euPassport", "firstLanguage",
       "highestQualification(ENGLISH_LANGUAGE_STUDY)", "highestQualification(FOUNDATION_LEVEL)", "highestQualification(SCHOOL_LEVEL)",
       "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)", "highestQualification(UNIVERSITY_LEVEL)", "highestQualificationOther",
       "indefinateVisa", "languageCertificate", "languageCertificateStatus", "listeningScore", "livedOutsideCountry", "livingInUK",
       "migrantWorker", "overallScore", "overallScoreComponent", "passportNumber",
-      "position",
       "previousEducationLanguage", "previousEnglishEducation", "previousStudentVisa", "qualificationLevel", "readingScore",
       "refugeeStatus", "speakingScore", "spouseOfEUCitizen", "spouseOfUKCitizen", "startDateMonth", "startDateYear",
-      "startMonth",
       "title", "unlistedDegree", "writingScore",
     ]);
   });
@@ -187,10 +185,92 @@ describe("the Sheffield drafts, under the real checks", () => {
     // is neither filled nor missing — the form does not show it.
     expect(typed.has("corrIntlPostcode")).toBe(false);
     expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
-    // Four employment fields and forty-four observed-mandatory fields on the
-    // three unmapped pages (P126); nothing else.
-    expect(plan.blockers).toHaveLength(48);
-    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["no_mapping"]));
+    // Forty-four observed-mandatory fields on the three unmapped pages (P126)
+    // have no mapping; the four required employment fields are mapped (P129)
+    // and, with no employment list confirmed, unavailable. Nothing else.
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(44);
+    expect(plan.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
+      "duties", "employerDetails", "position", "startMonth",
+    ]);
+  });
+
+  it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
+    expect(blueprint.version).toBe("0.2.19");
+    expect(mappingSet.version).toBe("0.3.19");
+    const employment = blueprint.pages.find((p) => p.pageRef === "page8");
+    expect(employment?.repeats?.fieldKey).toBe("employment.history");
+    expect(employment?.title).toBe("Employment history");
+    const withJobs = withConfirmed([
+      ...PROFILE_ENTRIES,
+      ["employment.history", [
+        {
+          employer: "Example Employer Ltd",
+          employerAddress: "1 Example Street, Sheffield, S1 1AA",
+          position: "Research Assistant",
+          startDate: { year: 2022, month: 9 },
+          end: { kind: "ended", date: { year: 2024, month: 6 } },
+          duties: "Ran the lab's weekly analysis.",
+        },
+        {
+          employer: "Second Employer",
+          employerAddress: "2 Other Road, Leeds",
+          position: "Analyst",
+          startDate: { year: 2024, month: 7 },
+          end: { kind: "current" },
+          duties: "Ongoing.",
+        },
+      ]],
+    ]);
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, withJobs);
+    expect(plan.repeats.find((r) => r.pageRef === "page8")?.count).toBe(2);
+    const typed = (index: number) =>
+      Object.fromEntries(plan.instructions.filter((i) => i.item?.index === index && ["startMonth", "startYear", "endMonth", "endYear", "position", "employerDetails", "duties"].includes(i.fieldRef)).map((i) => [i.fieldRef, textOf(i.value)]));
+    expect(typed(0)).toEqual({
+      startMonth: "September", startYear: "2022", endMonth: "June", endYear: "2024",
+      position: "Research Assistant",
+      employerDetails: "Example Employer Ltd\n1 Example Street, Sheffield, S1 1AA",
+      duties: "Ran the lab's weekly analysis.",
+    });
+    // The current job: the end-date boxes are left empty because the student
+    // said the job continues — their statement, not a blank we inferred.
+    expect(typed(1)).toEqual({
+      startMonth: "July", startYear: "2024", endMonth: "", endYear: "",
+      position: "Analyst",
+      employerDetails: "Second Employer\n2 Other Road, Leeds",
+      duties: "Ongoing.",
+    });
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("position");
+  });
+
+  it("complete the employment page with NO entries when the student confirmed none, and say so plainly in the preview (P129, ADR-0111)", () => {
+    // Vahid, 2026-09-14: "A student with nothing to add should see that we
+    // knew and chose to leave it empty, not wonder whether we forgot."
+    const none = withConfirmed([...PROFILE_ENTRIES, ["employment.history", []]]);
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, none);
+    expect(plan.repeats.find((r) => r.pageRef === "page8")?.count).toBe(0);
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("position");
+    expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("position");
+    // Confirmed-empty is not unavailable: the same page with NO list at all
+    // blocks on its required fields, as any unasked value does.
+    const unasked = planFill(blueprint, check.mappingSet, PROFILE);
+    expect(unasked.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
+      "duties", "employerDetails", "position", "startMonth",
+    ]);
+    // The preview says it, inside the yes.
+    const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page8") };
+    const onPage = new Set(page.pages.flatMap((p) => p.sections.flatMap((s) => s.fields.map((f) => f.fieldRef))));
+    const pageOnly = { ...asIfReviewed, mappings: asIfReviewed.mappings.filter((m) => onPage.has(m.fieldRef)) };
+    const pageCheck = checkUsable(pageOnly, page);
+    if (!pageCheck.usable) expect.unreachable(pageCheck.refusal.kind);
+    const pagePlan = planFill(page, pageCheck.mappingSet, none);
+    const preview = buildPreview(page, pagePlan, new Map(), { portalHost: "www.sheffield.ac.uk" });
+    if (!preview.built) expect.unreachable(preview.refusal.kind);
+    expect(renderPreview(preview.preview)).toContain("Employment history: none — the page is left as it is");
+    expect(preview.preview.repeats).toEqual([{ title: "Employment history", fieldKey: "employment.history", count: 0 }]);
   });
 
   it("carry the registration and login the entry page showed, the passwords to the Secure Plane (P91)", () => {

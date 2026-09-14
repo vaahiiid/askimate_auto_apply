@@ -246,3 +246,61 @@ describe("rendering one item of a list-valued field (P96)", () => {
     if (!notList.rendered) expect(notList.refusal.kind).toBe("not_a_list");
   });
 });
+
+describe("an employment entry, rendered for a portal (ADR-0111)", () => {
+  const job = confirmed("employment.history", [
+    {
+      employer: "Example Employer Ltd",
+      employerAddress: "1 Example Street, Sheffield, S1 1AA",
+      position: "Research Assistant",
+      startDate: { year: 2022, month: 9 },
+      end: { kind: "ended", date: { year: 2024, month: 6 } },
+      duties: "Ran the lab's weekly analysis.",
+    },
+    {
+      employer: "Second Employer",
+      employerAddress: "2 Other Road, Leeds",
+      position: "Analyst",
+      startDate: { year: 2024, month: 7 },
+      end: { kind: "current" },
+      duties: "Ongoing.",
+    },
+  ]);
+  const MONTHS = { "1": "January", "2": "February", "3": "March", "4": "April", "5": "May", "6": "June", "7": "July", "8": "August", "9": "September", "10": "October", "11": "November", "12": "December" };
+
+  it("renders a start month by the portal's own names through part-then-option, and the year as digits", () => {
+    const month = renderConfirmedItem(job, 0, { kind: "part", path: "startDate", then: { kind: "part", path: "month", then: { kind: "option", options: MONTHS } } });
+    const year = renderConfirmedItem(job, 0, { kind: "part", path: "startDate", then: { kind: "part", path: "year", then: { kind: "number" } } });
+    if (!month.rendered || !year.rendered) expect.unreachable("both parts exist");
+    expect(unwrapConfirmed(month.value)).toBe("September");
+    expect(unwrapConfirmed(year.value)).toBe("2022");
+  });
+
+  it("JOINS the employer's name and address for a portal that asks for both in one box, in order, with the separator given", () => {
+    const both = renderConfirmedItem(job, 0, { kind: "join", parts: ["employer", "employerAddress"], separator: "\n" });
+    if (!both.rendered) expect.unreachable("both parts exist");
+    expect(unwrapConfirmed(both.value)).toBe("Example Employer Ltd\n1 Example Street, Sheffield, S1 1AA");
+  });
+
+  it("refuses a join with a part the value does not have, rather than writing the rest", () => {
+    const result = renderConfirmedItem(job, 0, { kind: "join", parts: ["employer", "referee"], separator: ", " });
+    expect(result.rendered).toBe(false);
+    if (!result.rendered) expect(result.refusal.kind).toBe("no_such_part");
+  });
+
+  it("leaves an end date EMPTY for a job the student said is current — the absence is theirs, and never a blank we inferred", () => {
+    // `end` is always present: either an ended date or the student's statement
+    // that the job continues. A rule into the date, told to leave the field
+    // empty when there is none, renders "" for the current job and the month
+    // for the ended one. Without that instruction the current job refuses.
+    const rule = { kind: "part", path: "end", then: { kind: "part", path: "date", absent: "leave_empty", then: { kind: "part", path: "month", then: { kind: "option", options: MONTHS } } } } as const;
+    const ended = renderConfirmedItem(job, 0, rule);
+    const current = renderConfirmedItem(job, 1, rule);
+    if (!ended.rendered || !current.rendered) expect.unreachable("both render");
+    expect(unwrapConfirmed(ended.value)).toBe("June");
+    expect(unwrapConfirmed(current.value)).toBe("");
+    const strict = renderConfirmedItem(job, 1, { kind: "part", path: "end", then: { kind: "part", path: "date", then: { kind: "part", path: "month" } } });
+    expect(strict.rendered).toBe(false);
+    if (!strict.rendered) expect(strict.refusal.kind).toBe("no_such_part");
+  });
+});

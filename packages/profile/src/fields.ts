@@ -48,6 +48,42 @@ export interface LanguageTestResult {
   readonly certificateNumber?: string;
 }
 
+/** A month of a year, for a date that has no day — a job's start or end. */
+export interface YearMonth {
+  readonly year: number;
+  /** 1 to 12. */
+  readonly month: number;
+}
+
+/**
+ * One job (ADR-0111). Designed for the general case rather than one portal:
+ * Sheffield asks a start date, a title, the employer's name and address and
+ * the duties; others ask an end date, whether it was full or part time, and a
+ * reference contact.
+ *
+ * `end` is never a blank. Vahid, 2026-09-14: *"A student who leaves a field
+ * empty has told us nothing, and treating that as 'still working there' is
+ * exactly the silent inference this system exists not to make."* A job that
+ * continues is the student's statement, `{ kind: "current" }`.
+ *
+ * `referee` is a third party's personal data, held only when the student gives
+ * it, with `guardian.*` as the precedent — and by his word only a name and a
+ * role: *"do not collect [email and phone] at all until a portal we actually
+ * support asks for them… Hold what we need when we need it."*
+ */
+export interface EmploymentEntry {
+  readonly employer: string;
+  /** As the student gives it; a portal that wants it split asks through a mapping, never through us. */
+  readonly employerAddress: string;
+  readonly position: string;
+  readonly startDate: YearMonth;
+  readonly end: { readonly kind: "ended"; readonly date: YearMonth } | { readonly kind: "current" };
+  readonly basis?: "full_time" | "part_time";
+  /** The student's own words, confirmed verbatim; a portal's cap is the field's `maxlength`, never a trim here. */
+  readonly duties: string;
+  readonly referee?: { readonly name: string; readonly role?: string };
+}
+
 export interface Address {
   readonly line1: string;
   readonly line2?: string;
@@ -93,6 +129,9 @@ export interface ProfileFieldTypes {
   "education.prior_qualifications": readonly Qualification[];
   "education.english_language_test": LanguageTestResult;
 
+  // ── Employment (ADR-0111) ────────────────────────────────────────────────
+  "employment.history": readonly EmploymentEntry[];
+
   // ── Study intent ────────────────────────────────────────────────────────
   "study.personal_statement": string;
   "study.intended_start": string;
@@ -126,6 +165,7 @@ export type ProfileFieldKey = keyof ProfileFieldTypes;
  */
 export const LIST_VALUED_FIELD_KEYS = [
   "education.prior_qualifications",
+  "employment.history",
   "immigration.previous_uk_visas",
   "immigration.previous_visa_refusals",
 ] as const satisfies readonly ProfileFieldKey[];
@@ -149,6 +189,7 @@ export const PROFILE_FIELD_KEYS = [
   "education.highest_qualification",
   "education.prior_qualifications",
   "education.english_language_test",
+  "employment.history",
   "study.personal_statement",
   "study.intended_start",
   "finance.available_funds",
@@ -203,6 +244,7 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "education.highest_qualification": "Highest qualification",
   "education.prior_qualifications": "Previous qualifications",
   "education.english_language_test": "English language test result",
+  "employment.history": "Employment history",
   "study.personal_statement": "Personal statement",
   "study.intended_start": "Intended start",
   "finance.available_funds": "Funds available for your studies",

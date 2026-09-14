@@ -181,3 +181,14 @@ describe("driving the interview", () => {
     expect(missingFields(profile, ["identity.given_name", "identity.family_name"])).toEqual([]);
   });
 });
+
+describe("employment history is a registry group of its own (ADR-0111)", () => {
+  it("is a list-valued, ordinary field with a label, so a page may repeat over it and a form may take it", async () => {
+    const fields = await import("./fields.js");
+    const categories = await import("./categories.js");
+    expect(fields.PROFILE_FIELD_KEYS).toContain("employment.history");
+    expect(fields.LIST_VALUED_FIELD_KEYS).toContain("employment.history");
+    expect(fields.FIELD_LABELS["employment.history"]).toBe("Employment history");
+    expect(categories.categoryOf("employment.history")).toBe("ordinary");
+  });
+});

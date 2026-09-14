@@ -494,6 +494,22 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 | `other5Desc` | text | Document Description: | `ordinary` | mechanical |
 | `other5` | file | File: | `ordinary` | mechanical |
 
+## Employment mappings — set 0.3.19 (P129, 2026-09-14), the next sitting's
+
+Decided by Vahid (ADR-0111): the registry holds `employment.history`, and `page8` repeats over
+it. Seven mappings, per job; the section is optional on the portal's own words, and a student who
+confirmed no jobs fills the page zero times with the preview saying so.
+
+| field | source | rule |
+|---|---|---|
+| `startMonth` | `employment.history` | `startDate` → `month` → option, 1 → *January* … 12 → *December* |
+| `startYear` | `employment.history` | `startDate` → `year` → number |
+| `endMonth` | `employment.history` | `end` → `date` (**left empty when the job is current**) → `month` → option |
+| `endYear` | `employment.history` | `end` → `date` (left empty when current) → `year` → number |
+| `position` | `employment.history` | `position` |
+| `employerDetails` | `employment.history` | `employer` and `employerAddress` joined, name on the first line |
+| `duties` | `employment.history` | `duties`, verbatim; the 4,000 cap is the page's |
+
 ## For Iman — flagged, not asserted (P126, 2026-09-14)
 
 - **Language's eighteen marked of twenty** and **`unlistedDegree`'s mark** — see the fifty

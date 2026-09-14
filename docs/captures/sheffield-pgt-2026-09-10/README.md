@@ -1196,7 +1196,35 @@ eighteen of twenty, and `unlistedDegree`'s.
 > need to complete this section."*
 
 So `employment.do`'s four stars apply per job, once one is added; a student with none completes
-Part 1 without the page. Decided on this fact: ADR-0111.
+Part 1 without the page. Decided on this fact: ADR-0111, built in P129 — the curated draft 0.2.19
+titles the page *Employment history* and repeats it over `employment.history`; set 0.3.19 maps
+`startMonth`, `startYear`, `endMonth`, `endYear`, `position`, `employerDetails` and `duties` per
+job.
+
+### What to capture for the listing (ADR-0106's `recorded`), same sitting as item 5
+
+The runner knows a job was saved because the count of entries on `summary.do` grew by one; that
+needs the heading of one saved entry, and his account shows none. His decision: *"I will save one
+by hand and delete it after."* In order:
+
+1. On `employment.do?new=true`, enter one throwaway job with values that are nobody's — for
+   example employer *Example Employer Ltd, 1 Example Street, Sheffield*, position *Test
+   Assistant*, start *January 2020*, duties *Throwaway entry for a tool read; delete after.* —
+   and save it. Note whether the page came back empty afterwards and whether it offered an
+   *add another* control, and what that control is called.
+2. Run the attached read in its normal mode (navigation is fine here; the listing is saved) on
+   two URLs, in this order: `https://www.sheffield.ac.uk/postgradapplication/summary.do` and
+   `https://www.sheffield.ac.uk/postgradapplication/employment.do?new=true`. The
+   capture's `pages/001.html` holds the listing with the entry's heading and wrapper — the
+   throwaway values will be in it, which is why they are nobody's — and `pages/002.html` shows
+   whether the new-entry form opens empty.
+3. Say in the message the heading's text as shown (education's was *Previous Education 1*) and
+   its element, if visible in the page; the entry locator is authored from the capture, exact to
+   the number as P113's was.
+4. Delete the throwaway job on the portal, and say that it is gone.
+
+What it gives: `page8.repeats.recorded` on the draft, and each employment save counted rather
+than *uncertain*.
 
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 

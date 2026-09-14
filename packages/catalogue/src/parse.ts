@@ -560,7 +560,7 @@ function uniqueFieldRefs(pages: readonly BlueprintPage[], path: string): readonl
 function readFormatRule(value: unknown, path: string): FormatRule {
   const source = record(value, path);
   const kind = oneOf(source, "kind", path, [
-    "text", "uppercase", "date", "part", "option", "number", "money_amount", "money_currency", "uk_postcode",
+    "text", "uppercase", "date", "part", "join", "option", "number", "money_amount", "money_currency", "uk_postcode",
   ] as const);
 
   switch (kind) {
@@ -568,7 +568,21 @@ function readFormatRule(value: unknown, path: string): FormatRule {
       return { kind, pattern: oneOf(source, "pattern", path, DATE_PATTERNS) };
     case "part": {
       const then = optionalWith(source, "then", path, readFormatRule);
-      return { kind, path: text(source, "path", path), ...(then === undefined ? {} : { then }) };
+      const absent = source["absent"] === undefined ? undefined : oneOf(source, "absent", path, ["leave_empty"] as const);
+      return {
+        kind,
+        path: text(source, "path", path),
+        ...(then === undefined ? {} : { then }),
+        ...(absent === undefined ? {} : { absent }),
+      };
+    }
+    case "join": {
+      const parts = list(source, "parts", path, (part, at) => {
+        if (typeof part !== "string" || part.length === 0) fail(at, "expected a part name");
+        return part;
+      });
+      if (parts.length === 0) fail(`${path}.parts`, "expected at least one part");
+      return { kind, parts, separator: text(source, "separator", path) };
     }
     case "option": {
       const options = record(source["options"], `${path}.options`);

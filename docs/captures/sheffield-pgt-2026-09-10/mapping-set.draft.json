@@ -42,13 +42,15 @@
     "",
     "Contact (page4), P116 (2026-09-13): the UK postcode is two boxes — corrPostcode and corrPostcode2 both came back from Vahid's read-back, three characters each for his — so the single-value mapping was wrong and is replaced by the uk_postcode format on each box, split at the postcode's own seam (inward = last three, outward = the rest), never at 3+3. Nothing on this page was normalised by the portal: e-mail, address, town and postcode came back exactly as typed, case included. The permanent-address fields (perm*) stay unmapped, as before.",
     "",
-    "Education (page7), P118 (2026-09-13, ADR-0109): a mapping to a typeahead names the VALUE the form submits, and the blueprint records what each value reads as. The institution box (institution-ts-control) now carries the eleven entries Vahid read for 'Sheff' with the United Kingdom chosen — the two 'Sheffield International College' entries are SCH40484 and SHE0512 — and its escape by value, 'Not in list', whose value is its own label. No mapping to the box is authored: a qualification's institution is a free-text profile part, and a mapping must reach the box through an option rule onto these entries (partial, like the country map), which is the reviewer's to write; a student whose institution is not among them is a handoff, never the escape. The country box's entries are the captured <select>'s and are recorded on the box when it is mapped."
+    "Education (page7), P118 (2026-09-13, ADR-0109): a mapping to a typeahead names the VALUE the form submits, and the blueprint records what each value reads as. The institution box (institution-ts-control) now carries the eleven entries Vahid read for 'Sheff' with the United Kingdom chosen — the two 'Sheffield International College' entries are SCH40484 and SHE0512 — and its escape by value, 'Not in list', whose value is its own label. No mapping to the box is authored: a qualification's institution is a free-text profile part, and a mapping must reach the box through an option rule onto these entries (partial, like the country map), which is the reviewer's to write; a student whose institution is not among them is a handoff, never the escape. The country box's entries are the captured <select>'s and are recorded on the box when it is mapped.",
+    "",
+    "Employment (page8), P129 (2026-09-14, ADR-0111): the registry now holds employment.history — decided by Vahid: 'employment goes into the registry as a new group' — and the page repeats over it, as education does. The four required fields and the start year and end date are mapped per job: the start month by the select's English names, the year as digits, the end date left EMPTY for a job the student said is current (part … absent: leave_empty — their statement, not our inference), the employer's name and address joined into the one textarea, the duties verbatim. A student who confirmed NO jobs fills the page zero times and the preview says so; a student never asked stays unavailable and blocks. The listing on summary.do for a saved job (ADR-0106's `recorded`) waits on Vahid's read with one throwaway job saved; until then every employment item is uncertain at the save."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.18",
+  "blueprintVersion": "0.2.19",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -251,6 +253,160 @@
         }
       },
       "note": "The international postcode box, shown when the country is not the United Kingdom. Both boxes carry the same part; the plan honours the blueprint's visibleWhen (P90), so only the box the form shows is filled."
+    },
+    {
+      "fieldRef": "startMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "startDate",
+          "then": {
+            "kind": "part",
+            "path": "month",
+            "then": {
+              "kind": "option",
+              "options": {
+                "1": "January",
+                "2": "February",
+                "3": "March",
+                "4": "April",
+                "5": "May",
+                "6": "June",
+                "7": "July",
+                "8": "August",
+                "9": "September",
+                "10": "October",
+                "11": "November",
+                "12": "December"
+              }
+            }
+          }
+        }
+      },
+      "note": "Start Date:* — the month select's values are the English names, 'January'…'December'; the entry's start month (1–12) maps onto them. Per job (the page repeats over employment.history, ADR-0111)."
+    },
+    {
+      "fieldRef": "startYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "startDate",
+          "then": {
+            "kind": "part",
+            "path": "year",
+            "then": {
+              "kind": "number"
+            }
+          }
+        }
+      },
+      "note": "The year select's values are the four digits. Unstarred on the page; mapped because a start month without its year is not a start date."
+    },
+    {
+      "fieldRef": "endMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "end",
+          "then": {
+            "kind": "part",
+            "path": "date",
+            "absent": "leave_empty",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "January",
+                  "2": "February",
+                  "3": "March",
+                  "4": "April",
+                  "5": "May",
+                  "6": "June",
+                  "7": "July",
+                  "8": "August",
+                  "9": "September",
+                  "10": "October",
+                  "11": "November",
+                  "12": "December"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "End Date: — optional on the page. Left EMPTY for a job the student said is current (end.kind = current has no date): their statement, never a blank we inferred (ADR-0111)."
+    },
+    {
+      "fieldRef": "endYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "end",
+          "then": {
+            "kind": "part",
+            "path": "date",
+            "absent": "leave_empty",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As endMonth."
+    },
+    {
+      "fieldRef": "position",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "position"
+        }
+      },
+      "note": "Job Title / Position held:* — maxlength 200 on the page."
+    },
+    {
+      "fieldRef": "employerDetails",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "join",
+          "parts": [
+            "employer",
+            "employerAddress"
+          ],
+          "separator": "\n"
+        }
+      },
+      "note": "Name and address of employer:* — one textarea; the entry holds them apart and they are joined here, the name on the first line, the address as the student gave it after it."
+    },
+    {
+      "fieldRef": "duties",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "employment.history",
+        "format": {
+          "kind": "part",
+          "path": "duties"
+        }
+      },
+      "note": "Brief Overview of Duties(Max 4000 characters):* — the student's own words, verbatim. The 4,000 cap is the page's; nothing here trims."
     },
     {
       "fieldRef": "ratherNotSay",

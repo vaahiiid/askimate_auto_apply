@@ -76,6 +76,21 @@ describe("a rehydrated value is the value that was confirmed", () => {
     expect(provenanceOf(name as never).confirmedAt).toEqual(NOW);
   });
 
+  it("round-trips an employment entry — a start month and year, an end that is a date or 'current', a referee's name and role (ADR-0111)", () => {
+    const entry = {
+      employer: "Example Employer Ltd",
+      employerAddress: "1 Example Street, Sheffield",
+      position: "Research Assistant",
+      startDate: { year: 2022, month: 9 },
+      end: { kind: "current" as const },
+      basis: "part_time" as const,
+      duties: "Ran the lab's weekly analysis.",
+      referee: { name: "Dr A. Example", role: "Principal Investigator" },
+    };
+    const encoded = encodeValue([entry]);
+    expect(decodeValue(JSON.parse(JSON.stringify(encoded)))).toEqual([entry]);
+  });
+
   it("brings a Date back as a Date, not as a string", () => {
     // The silent defect: `JSON.parse(JSON.stringify(profile))` typechecks,
     // passes a shallow equality test, and then throws the first time anything

@@ -69,16 +69,15 @@ In the order they bite, each with who holds it and the evidence.
    draft, the fourteen excluded (mine, on his word to stop), and the thirteen read from the
    screenshots at review — the pack's own fallback since it was written. Nothing can be mapped
    for a page whose mandatory set is unknown, so this is first.
-2. **The employment page blocks the plan today.** Four required fields — start date, position,
-   employer, duties — and the profile registry has no employment field, so `planFill` raises
-   `no_mapping` on all four and `isComplete` is false: no run can be claimed. **Decided by Vahid,
-   2026-09-14 (ADR-0111):** *"employment goes into the registry as a new group"*, one entry per
-   job, the page repeating as education does, and a page filled zero times said plainly. The
-   section is optional in the portal's own words on `summary.do` (*"If you do not have any
-   relevant employment then you do not need to complete this section"*), so no student is stuck
-   and the handoff route was never needed. **The shape is proposed in the ADR and awaits his
-   confirmation; then the build (mine), then Iman.** Two things the build needs from him: the
-   `summary.do` listing for a saved job, and the add-another control.
+2. ~~**The employment page blocks the plan today.**~~ **Done, P129.** Decided by Vahid, 2026-09-14
+   (ADR-0111): *"employment goes into the registry as a new group"*, one entry per job, the page
+   repeating as education does, a page filled zero times said plainly; the shape confirmed by him
+   with the referee narrowed to a name and a role. Built: `employment.history` in the registry,
+   `page8` repeating over it (draft 0.2.19), the four required fields and the dates mapped per
+   job (set 0.3.19), the empty page's line in the preview. The section is optional in the
+   portal's own words on `summary.do`, so no student is stuck. What remains is his read of the
+   `summary.do` listing with one throwaway job saved (same sitting as item 5; until then each
+   employment save is *uncertain*), and Iman's review (item 6).
 3. **The nationality page: seventy-two fields, none mapped, and the registry holds part of what
    it asks.** Funding nationality, country of birth, permanent residence and the immigration
    yes/no questions map onto `identity.nationality`, `identity.country_of_birth` and the two
@@ -169,10 +168,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: seven items open of ten* — this file's list, by count, with what moved.
+- *Distance to Run A: six items open of ten* — this file's list, by count, with what moved.
 
 ## What moved
 
+- 2026-09-14, P129: item 2 done — the shape confirmed by Vahid (referee narrowed), the registry
+  group built with two format rules, the page repeating, the four fields mapped, the empty page
+  said plainly and pinned. The `summary.do` listing is his throwaway save, same sitting as item
+  5. Six open of ten.
 - 2026-09-14, P128: item 2 decided by Vahid — a registry group for employment, the page
   repeating, the empty page said plainly (ADR-0111); the shape proposed for his confirmation,
   nothing built. The optional section, from `summary.do` in the portal's words, corrects P127's

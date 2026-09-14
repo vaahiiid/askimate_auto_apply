@@ -19,6 +19,34 @@ not shipped artefacts.
 
 ---
 
+## [0.127.0] — 2026-09-14
+
+**P129 — ADR-0111 built: `employment.history` in the registry, the employment page repeating
+over it, the four fields mapped per job, the empty page said plainly (distance item 2 done).**
+
+### Added
+
+- `employment.history`, a list-valued ordinary registry field of `EmploymentEntry` — employer,
+  address as given, position, start month and year, an end that is a date or `current`, an
+  optional basis, duties verbatim, an optional referee of a name and a role (no email or phone,
+  by Vahid's word).
+- Format rules: `part … absent: "leave_empty"` renders the empty string when a part is absent
+  by the student's own statement; `join` renders several parts into one box. Both parsed by the
+  catalogue.
+- Curated draft 0.2.19: `page8` titled *Employment history*, repeating over the group; set
+  0.3.19 maps `startMonth`, `startYear`, `endMonth`, `endYear`, `position`, `employerDetails`
+  (name and address joined) and `duties` per job.
+- Tests: the entry rendered and round-tripped; the page filled twice with the current job's end
+  boxes empty; filled zero times from a confirmed empty list with the preview line inside the
+  yes; unasked stays unavailable.
+
+### Recorded
+
+- ADR-0111: his confirmation, his two reasons, the referee change, and what was built; the
+  distance list's item 2 done, six open of ten; what to capture on `summary.do`.
+
+---
+
 ## [0.126.0] — 2026-09-14
 
 **P128 — ADR-0111: employment history is a registry group (decided by Vahid); the shape

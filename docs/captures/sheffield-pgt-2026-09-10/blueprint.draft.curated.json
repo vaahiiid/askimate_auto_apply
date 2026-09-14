@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -24073,7 +24073,7 @@
     },
     {
       "pageRef": "page8",
-      "title": "Employment — one job; the applicant adds one entry per job",
+      "title": "Employment history",
       "url": "https://www.sheffield.ac.uk/postgradapplication/employment.do",
       "sections": [
         {
@@ -24932,7 +24932,10 @@
         "strategy": "id",
         "value": "saveBtn"
       },
-      "nextPageRef": "page9"
+      "nextPageRef": "page9",
+      "repeats": {
+        "fieldKey": "employment.history"
+      }
     },
     {
       "pageRef": "page9",

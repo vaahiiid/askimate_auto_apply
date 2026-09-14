@@ -60,8 +60,24 @@ export type FormatRule =
    * writes the wrong date of birth into a visa-relevant application.
    */
   | { readonly kind: "date"; readonly pattern: DatePattern }
-  /** One part of a structured value, e.g. a qualification's subject. */
-  | { readonly kind: "part"; readonly path: string; readonly then?: FormatRule }
+  /**
+   * One part of a structured value, e.g. a qualification's subject.
+   *
+   * `absent: "leave_empty"` renders the EMPTY string when the value has no
+   * such part, instead of refusing — for a part whose absence is itself the
+   * student's statement: a job with `end: { kind: "current" }` has no end
+   * date, and the portal's end-date boxes are left empty because of what they
+   * said, not because of what we inferred (ADR-0111). Without it a missing
+   * part refuses, as it always has.
+   */
+  | { readonly kind: "part"; readonly path: string; readonly then?: FormatRule; readonly absent?: "leave_empty" }
+  /**
+   * Several parts of a structured value, each as text, joined in order with
+   * the separator given — for a portal that asks for the employer's name and
+   * address in one box (ADR-0111). A part the value does not have refuses the
+   * whole, never the rest.
+   */
+  | { readonly kind: "join"; readonly parts: readonly string[]; readonly separator: string }
   /**
    * A dropdown or radio option.
    *
@@ -234,6 +250,7 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
     case "part": {
       const container = value as Record<string, unknown> | null;
       if (container === null || typeof container !== "object" || !(rule.path in container)) {
+        if (rule.absent === "leave_empty") return "";
         return {
           kind: "no_such_part",
           detail: `The confirmed value has no part "${rule.path}".`,
@@ -241,6 +258,23 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
       }
       const part = container[rule.path];
       return applyRule(part, rule.then ?? { kind: "text" });
+    }
+
+    case "join": {
+      const container = value as Record<string, unknown> | null;
+      if (container === null || typeof container !== "object") {
+        return { kind: "rule_does_not_fit", detail: `"join" needs a structured value, got ${typeName(value)}.` };
+      }
+      const pieces: string[] = [];
+      for (const path of rule.parts) {
+        if (!(path in container)) {
+          return { kind: "no_such_part", detail: `The confirmed value has no part "${path}".` };
+        }
+        const piece = applyRule(container[path], { kind: "text" });
+        if (typeof piece !== "string") return piece;
+        pieces.push(piece);
+      }
+      return pieces.join(rule.separator);
     }
 
     case "option": {
