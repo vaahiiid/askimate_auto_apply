@@ -99,7 +99,14 @@ In the order they bite, each with who holds it and the evidence.
    rule: no mapping may name an option the capture does not hold). **P127:** the attached tool
    opened each page fresh, so that state was lost before the read; `--as-is` now reads his own
    open tab as it stands, proved on the fixture's dependent list, red first. The steps, in order,
-   are in the 2026-09-10 capture README under *Item 5*. The institution box is the
+   are in the 2026-09-10 capture README under *Item 5*. **P132: read, as it stood** — the
+   grade list (system 7's nine), Sheffield's four grading systems by numeric id, the subject
+   results of one search by search-then-select, and the chosen institution's value on the hidden
+   select, all in the draft (0.2.21) from observation
+   (`docs/captures/sheffield-pgt-2026-09-14-education-dependent/`). **Found by it:** the registry's
+   `Qualification` has no start or end date, and the page's four date selects are marked
+   mandatory — the page cannot be filled from the profile as it stands, whatever is mapped.
+   **Raised as blocker 27**, his decision, the same shape as item 2. The institution box is the
    hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
@@ -172,6 +179,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P132: item 5's read taken as it stood — the grade list and the whole education
+  chain from observation, folded into the draft 0.2.21; the subject results' two trailing-space
+  values and one duplicate recorded; no mapping authored because the registry's `Qualification`
+  has no start or end date and the page's four date selects are mandatory — blocker 27, his
+  decision. `degree`'s marker seen in one read and not the other, flagged. Six open of ten,
+  unchanged.
 - 2026-09-14, P130: the employment listing named from his throwaway save (draft 0.2.20, set
   0.3.20); the new-entry URL confirmed as the way in; the summary found to omit duties, which
   under ADR-0106 §2's count-only verification changes nothing today and rules out a listing

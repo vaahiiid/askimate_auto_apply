@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -21929,6 +21929,10 @@
                 {
                   "value": "",
                   "label": "(blank — the portal's \"please select\" entry)"
+                },
+                {
+                  "value": "SHEFFIELD",
+                  "label": "University of Sheffield"
                 }
               ],
               "optionsAfter": {
@@ -22293,12 +22297,352 @@
               "validations": [],
               "options": [
                 {
-                  "value": "Enter a search",
-                  "label": "Enter a search"
+                  "value": "Select subject...",
+                  "label": "Select subject..."
                 },
                 {
                   "value": "Not in list",
                   "label": "Not in list"
+                },
+                {
+                  "value": "Agri Marketing and Business Ad",
+                  "label": "Agri Marketing and Business Ad"
+                },
+                {
+                  "value": "Applied Business",
+                  "label": "Applied Business"
+                },
+                {
+                  "value": "GCE Applied Business Advanced ",
+                  "label": "GCE Applied Business Advanced"
+                },
+                {
+                  "value": "BUSINESS MANAGEMENT AND TRAVEL",
+                  "label": "BUSINESS MANAGEMENT AND TRAVEL"
+                },
+                {
+                  "value": "Business Studies With Humaniti",
+                  "label": "Business Studies With Humaniti"
+                },
+                {
+                  "value": "BUSINESS AND ACCOUNTING",
+                  "label": "BUSINESS AND ACCOUNTING"
+                },
+                {
+                  "value": "Business Administration",
+                  "label": "Business Administration"
+                },
+                {
+                  "value": "Business Economics",
+                  "label": "Business Economics"
+                },
+                {
+                  "value": "BUSINESS WITH ENGLISH",
+                  "label": "BUSINESS WITH ENGLISH"
+                },
+                {
+                  "value": "Business Environment",
+                  "label": "Business Environment"
+                },
+                {
+                  "value": "Business Management",
+                  "label": "Business Management"
+                },
+                {
+                  "value": "Business Organisation",
+                  "label": "Business Organisation"
+                },
+                {
+                  "value": "Business Policies",
+                  "label": "Business Policies"
+                },
+                {
+                  "value": "Business and Professional Stud",
+                  "label": "Business and Professional Stud"
+                },
+                {
+                  "value": "Small Business Systems",
+                  "label": "Small Business Systems"
+                },
+                {
+                  "value": "Business Studies",
+                  "label": "Business Studies"
+                },
+                {
+                  "value": "BUSINESS TECHNOLOGY",
+                  "label": "BUSINESS TECHNOLOGY"
+                },
+                {
+                  "value": "Business and Travel",
+                  "label": "Business and Travel"
+                },
+                {
+                  "value": "Business Administration with Travel & Tourism",
+                  "label": "Business Administration with Travel & Tourism"
+                },
+                {
+                  "value": "Business Management in Maritim",
+                  "label": "Business Management in Maritim"
+                },
+                {
+                  "value": "Business, Administration & Fin",
+                  "label": "Business, Administration & Fin"
+                },
+                {
+                  "value": "business studies and economics",
+                  "label": "business studies and economics"
+                },
+                {
+                  "value": "Business and Enterprise",
+                  "label": "Business and Enterprise"
+                },
+                {
+                  "value": "Business and Finance",
+                  "label": "Business and Finance"
+                },
+                {
+                  "value": "Business Information Systems",
+                  "label": "Business Information Systems"
+                },
+                {
+                  "value": "BUSINESS AND LAW",
+                  "label": "BUSINESS AND LAW"
+                },
+                {
+                  "value": "BUSINESS WITH MATHEMATICS",
+                  "label": "BUSINESS WITH MATHEMATICS"
+                },
+                {
+                  "value": "Business Skills",
+                  "label": "Business Skills"
+                },
+                {
+                  "value": "Business Analytics And Change Management",
+                  "label": "Business Analytics And Change Management"
+                },
+                {
+                  "value": "Business and Hospitality",
+                  "label": "Business and Hospitality"
+                },
+                {
+                  "value": "Business Improvement",
+                  "label": "Business Improvement"
+                },
+                {
+                  "value": "Business, Legal and Language S",
+                  "label": "Business, Legal and Language S"
+                },
+                {
+                  "value": "Business and Logistics",
+                  "label": "Business and Logistics"
+                },
+                {
+                  "value": "Business and Marketing",
+                  "label": "Business and Marketing"
+                },
+                {
+                  "value": "Business",
+                  "label": "Business"
+                },
+                {
+                  "value": "Business and Social Science",
+                  "label": "Business and Social Science"
+                },
+                {
+                  "value": "Business Support",
+                  "label": "Business Support"
+                },
+                {
+                  "value": "Business Travel",
+                  "label": "Business Travel"
+                },
+                {
+                  "value": "Computing and Business",
+                  "label": "Computing and Business"
+                },
+                {
+                  "value": "Digital Business Services",
+                  "label": "Digital Business Services"
+                },
+                {
+                  "value": "Economics and Business",
+                  "label": "Economics and Business"
+                },
+                {
+                  "value": "European Business Studies",
+                  "label": "European Business Studies"
+                },
+                {
+                  "value": "Events and Business Management",
+                  "label": "Events and Business Management"
+                },
+                {
+                  "value": "Financial and Business Managem",
+                  "label": "Financial and Business Managem"
+                },
+                {
+                  "value": "Chemistry with Business Administration",
+                  "label": "Chemistry with Business Administration"
+                },
+                {
+                  "value": "FASHION BUSINESS",
+                  "label": "FASHION BUSINESS"
+                },
+                {
+                  "value": "Fashion Business and Retail",
+                  "label": "Fashion Business and Retail"
+                },
+                {
+                  "value": "Information Tech. & Business",
+                  "label": "Information Tech. & Business"
+                },
+                {
+                  "value": "Business, Law & Social Science",
+                  "label": "Business, Law & Social Science"
+                },
+                {
+                  "value": "Business Law",
+                  "label": "Business Law"
+                },
+                {
+                  "value": "Logistics with Business Manage",
+                  "label": "Logistics with Business Manage"
+                },
+                {
+                  "value": "Legal Services: Business, Finance And Employment",
+                  "label": "Legal Services: Business, Finance And Employment"
+                },
+                {
+                  "value": "Music Business",
+                  "label": "Music Business"
+                },
+                {
+                  "value": "Business and Management Studies",
+                  "label": "Business and Management Studies"
+                },
+                {
+                  "value": "Internatinal Business, Economics",
+                  "label": "Internatinal Business, Economics"
+                },
+                {
+                  "value": "Transport and other Business and Admin Studies",
+                  "label": "Transport and other Business and Admin Studies"
+                },
+                {
+                  "value": "OCR National Certificate in Business",
+                  "label": "OCR National Certificate in Business"
+                },
+                {
+                  "value": "OCR National Diploma in Business",
+                  "label": "OCR National Diploma in Business"
+                },
+                {
+                  "value": "OCR National Ext.Dip. Business",
+                  "label": "OCR National Ext.Dip. Business"
+                },
+                {
+                  "value": "Business Studies and Economics",
+                  "label": "Business Studies and Economics"
+                },
+                {
+                  "value": "Business & Finance",
+                  "label": "Business & Finance"
+                },
+                {
+                  "value": "Accounting & Financial Mgt & Business Studies",
+                  "label": "Accounting & Financial Mgt & Business Studies"
+                },
+                {
+                  "value": "Business Studies and Information Management",
+                  "label": "Business Studies and Information Management"
+                },
+                {
+                  "value": "Business Studies and Japanese Studies",
+                  "label": "Business Studies and Japanese Studies"
+                },
+                {
+                  "value": "Business Admin & Mod Langs",
+                  "label": "Business Admin & Mod Langs"
+                },
+                {
+                  "value": "Personal and Business Finance",
+                  "label": "Personal and Business Finance"
+                },
+                {
+                  "value": "Professional Business Services",
+                  "label": "Professional Business Services"
+                },
+                {
+                  "value": "Retail Business",
+                  "label": "Retail Business"
+                },
+                {
+                  "value": "Reformed Applied Business",
+                  "label": "Reformed Applied Business"
+                },
+                {
+                  "value": "French and Business Studies",
+                  "label": "French and Business Studies"
+                },
+                {
+                  "value": "German and Business Studies",
+                  "label": "German and Business Studies"
+                },
+                {
+                  "value": "Spanish and Business Studies",
+                  "label": "Spanish and Business Studies"
+                },
+                {
+                  "value": "Russian and Business Studies",
+                  "label": "Russian and Business Studies"
+                },
+                {
+                  "value": "Skills for Business: Customer ",
+                  "label": "Skills for Business: Customer"
+                },
+                {
+                  "value": "Skills for Business",
+                  "label": "Skills for Business"
+                },
+                {
+                  "value": "Skills for Business: Enterpris",
+                  "label": "Skills for Business: Enterpris"
+                },
+                {
+                  "value": "Skills for Business: Finance",
+                  "label": "Skills for Business: Finance"
+                },
+                {
+                  "value": "Skills for Business: Human Res",
+                  "label": "Skills for Business: Human Res"
+                },
+                {
+                  "value": "Skills for Business: IT",
+                  "label": "Skills for Business: IT"
+                },
+                {
+                  "value": "Skills for Business: Retail",
+                  "label": "Skills for Business: Retail"
+                },
+                {
+                  "value": "Skills for Business: Sales and",
+                  "label": "Skills for Business: Sales and"
+                },
+                {
+                  "value": "Sports Coaching and Business M",
+                  "label": "Sports Coaching and Business M"
+                },
+                {
+                  "value": "Chinese Studies and Business Studies",
+                  "label": "Chinese Studies and Business Studies"
+                },
+                {
+                  "value": "Korean Studies and Business Studies",
+                  "label": "Korean Studies and Business Studies"
+                },
+                {
+                  "value": "Business Administration",
+                  "label": "Business Administration"
                 }
               ],
               "optionsAfter": {
@@ -23537,7 +23881,27 @@
               "options": [
                 {
                   "value": "",
-                  "label": "Enter your institution to see grades"
+                  "label": "Select a grading system..."
+                },
+                {
+                  "value": "Not in list",
+                  "label": "Not in list"
+                },
+                {
+                  "value": "7",
+                  "label": "UK Bachelors Degree (BA, BSc)"
+                },
+                {
+                  "value": "8",
+                  "label": "UK Masters Degree (MA, MSc)"
+                },
+                {
+                  "value": "9",
+                  "label": "UK Research Degree"
+                },
+                {
+                  "value": "81",
+                  "label": "UK Medical Degree (MBBS, MBChB)"
                 }
               ],
               "optionsAfter": {
@@ -23562,8 +23926,40 @@
               "validations": [],
               "options": [
                 {
-                  "value": "",
-                  "label": "(blank — the portal's \"please select\" entry)"
+                  "value": "Select your grade...",
+                  "label": "Select your grade..."
+                },
+                {
+                  "value": "Still waiting for grade",
+                  "label": "Still waiting for grade"
+                },
+                {
+                  "value": "Failed to complete course",
+                  "label": "Failed to complete course"
+                },
+                {
+                  "value": "1st",
+                  "label": "1st"
+                },
+                {
+                  "value": "2.1",
+                  "label": "2.1"
+                },
+                {
+                  "value": "2.2",
+                  "label": "2.2"
+                },
+                {
+                  "value": "3rd",
+                  "label": "3rd"
+                },
+                {
+                  "value": "Pass",
+                  "label": "Pass"
+                },
+                {
+                  "value": "Fail",
+                  "label": "Fail"
                 }
               ],
               "optionsAfter": {

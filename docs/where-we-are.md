@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P132 — the list four reads could not get
+
+He ran item 5's read as it stood — United Kingdom, University of Sheffield, the first real grading system, *business* searched — and `--as-is` did what it was built for: nothing was navigated and the chosen state survived into the file, which was not true of the first four attempts. The grade list arrived: system 7's six grades and two non-grades, values as labels. Sheffield's four grading systems are there by numeric id with the *Not in list* escape, per institution as he said. The subject results arrived by search-then-select, eighty-seven for one word, in the shape the draft has modelled since P100 — a plain select filled after a press, not a typeahead — with two values carrying a trailing space the label hides and one value listed twice, both of which an exact-value mapping has to know. And the hidden select behind the institution typeahead holds the chosen entry's value, `SHEFFIELD`, which is the value P118 recorded on the typeahead entry, so the rule and the select agree. The chain `institutionCountry → institutionCode → gradingSystemId → grade` is now in the curated draft from observation rather than inference, and the `optionsAfter` links it has carried since P94 stand as observed. His caveat is the record's: the grade list is per grading system, and another system is another read.
+
+What the read found is the reason no mapping is authored. The registry's `Qualification` holds a level, a subject, an institution, a country, a completion year, a grade and a grade scale, and no start or end date; the page's four date selects are marked mandatory in every read of it. So a qualification cannot be saved from the profile as it stands, whatever else is mapped, and what the profile collects is a product decision — the same shape as item 2, raised as blocker 27 for him with the two routes named and neither taken. One more thing, flagged rather than settled: `degree` and `unlistedDegree` came back unlabelled and unmarked where the third read had them marked, and the file has no markup, so the draft keeps the marks and the pack asks Iman to look at the row in both states. Six of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P131 — the markup, and two things carried rather than absorbed
 
 He committed the summary page as captured, checked for his surname and e-mail first, and asked whether the employment listing's shape is actually education's. It is: section F is the same `div.homepageBlock` with its `h2`, the same `div.homepageInfomation`, and inside it the section's sentence, one `h5` reading *Previous Employment 1*, the entry's table of four rows, and the *Edit* and *Delete* links — education's section E, row for row, with the other heading. The locator authored on his word stands on the page and the draft is not corrected. The runner's own `count` is now run against the captured file rather than a fixture in its shape: one employment entry, two education entries, none for a section that has no numbered heading.

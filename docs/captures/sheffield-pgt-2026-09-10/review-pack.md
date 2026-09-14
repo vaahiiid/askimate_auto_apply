@@ -148,6 +148,10 @@ those fields carry their names; 79 right rather than 93 with 14 wrong. Vahid, 20
   list* shares a row with the `degree` select, and the row's `*` was attached to both. The
   star is the select's; the box is conditional. Please confirm and strike the mark on the box
   if so.
+- **`degree`'s star was seen once and not seen once** (P132). The third read marked `degree`
+  and `unlistedDegree`; the read of the page as it stood with an institution and a grading
+  system chosen marked neither and labelled neither. The draft keeps the marks. The page
+  decides: please look at the *Qualification* row in both states.
 
 | page | field | label (from the row) |
 |---|---|---|

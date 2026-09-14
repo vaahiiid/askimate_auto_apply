@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.130.0] — 2026-09-14
+
+**P132 — item 5's read as it stood: the grade list and the education chain from observation,
+folded into the draft; the registry's `Qualification` has no dates — blocker 27.**
+
+### Changed
+
+- Curated draft 0.2.21: `institutionCode`, `gradingSystemId`, `grade` and `subject` carry the
+  options observed with United Kingdom, University of Sheffield, grading system 7 and a
+  *business* search; set 0.3.21 re-bound. Pinned in `scripts/sheffield-draft.test.ts`.
+
+### Recorded
+
+- The capture README: the grade list, the search results' trailing spaces and duplicate, the
+  chain from observation, the per-institution and per-system caveats, the `degree` marker seen
+  once and not seen once.
+- Blocker 27: `Qualification` has no start or end date and the page's four date selects are
+  mandatory; his decision. Distance item 5 updated; the review pack's flag.
+
+---
+
 ## [0.129.0] — 2026-09-14
 
 **P131 — the employment listing's shape confirmed from the committed markup; ADR-0106's limit

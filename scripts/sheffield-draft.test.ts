@@ -129,7 +129,53 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.20");
+    expect(blueprint.version).toBe("0.2.21");
+  });
+
+  it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
+    // Vahid's read of education.do?new=true as it stood (--as-is, 645da1f):
+    // United Kingdom, University of Sheffield, "UK Bachelors Degree (BA,
+    // BSc)", and "business" searched. The chain institutionCountry →
+    // institutionCode → gradingSystemId → grade is written from what the
+    // page held, not inferred.
+    const education = blueprint.pages.find((p) => p.pageRef === "page7");
+    const field = (ref: string) => education?.sections.flatMap((s) => s.fields).find((f) => f.fieldRef === ref);
+    const values = (ref: string) => field(ref)?.options?.map((o) => o.value) ?? [];
+    expect(values("institutionCountry")).toContain("UNITED KINGDOM");
+    // The hidden select behind the typeahead holds the chosen entry's value —
+    // the same value the recorded typeahead entry carries (P118, ADR-0109).
+    expect(values("institutionCode")).toEqual(["", "SHEFFIELD"]);
+    expect(field("institution-ts-control")?.options?.find((o) => o.label === "University of Sheffield")?.value).toBe("SHEFFIELD");
+    expect(field("institutionCode")?.optionsAfter?.fieldRef).toBe("institutionCountry");
+    // Sheffield's four grading systems, by numeric id, and the escape.
+    expect(field("gradingSystemId")?.optionsAfter?.fieldRef).toBe("institutionCode");
+    expect(field("gradingSystemId")?.options?.map((o) => [o.value, o.label])).toEqual([
+      ["", "Select a grading system..."],
+      ["Not in list", "Not in list"],
+      ["7", "UK Bachelors Degree (BA, BSc)"],
+      ["8", "UK Masters Degree (MA, MSc)"],
+      ["9", "UK Research Degree"],
+      ["81", "UK Medical Degree (MBBS, MBChB)"],
+    ]);
+    // The grades of system 7: six grades and two non-grades, values as labels.
+    expect(field("grade")?.optionsAfter?.fieldRef).toBe("gradingSystemId");
+    expect(values("grade")).toEqual([
+      "Select your grade...", "Still waiting for grade", "Failed to complete course", "1st", "2.1", "2.2", "3rd", "Pass", "Fail",
+    ]);
+    // One search's results: eighty-five entries after the two placeholders;
+    // two values carry a trailing space the label hides — exact match means
+    // the value, space included.
+    expect(field("subject")?.optionsAfter?.press?.value).toBe("subjectSearchButton");
+    expect(values("subject")).toHaveLength(87);
+    expect(values("subject").slice(0, 2)).toEqual(["Select subject...", "Not in list"]);
+    expect(values("subject")).toContain("GCE Applied Business Advanced ");
+    expect(field("subject")?.options?.find((o) => o.value === "GCE Applied Business Advanced ")?.label).toBe("GCE Applied Business Advanced");
+    // The four date selects are marked mandatory, and the registry's
+    // Qualification has no start or end date to fill them from (blocker 27).
+    for (const ref of ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear"]) {
+      expect(field(ref)?.validations.some((v) => v.kind === "required" && v.source === "observed_marker"), ref).toBe(true);
+    }
+    expect(mappingSet.mappings.some((m) => ["startDateMonth", "degree", "grade", "subject"].includes(m.fieldRef))).toBe(false);
   });
 
   it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
@@ -195,8 +241,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.20");
-    expect(mappingSet.version).toBe("0.3.20");
+    expect(blueprint.version).toBe("0.2.21");
+    expect(mappingSet.version).toBe("0.3.21");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
