@@ -1,0 +1,3506 @@
+{
+  "blueprintId": "bp-sheffield-pgt-september-direct",
+  "version": "0.1.0",
+  "status": "draft",
+  "institutionName": "University of Sheffield",
+  "courseName": "MSc Management and International Business",
+  "intake": "2027-09",
+  "route": "direct_portal",
+  "authentication": {
+    "required": true,
+    "accountCreationRequired": true,
+    "notes": "account_creation: 1 signal(s) — e.g. page text contains \"register\" (https://www.sheffield.ac.uk/postgradapplication/education.do?new=true)\n\nReviewer's note from the run: Observed from a session a person signed in to by hand (attached inspection, P79). The registration and login pages themselves were not observed by this run, and the registration and login boxes are authored by a person from their captures."
+  },
+  "pages": [
+    {
+      "pageRef": "page1",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true",
+      "sections": [
+        {
+          "sectionRef": "page1.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sectionRef": "page1.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "institutionCountry",
+              "label": "Select the country the institution is based in:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "institutionCountry"
+                },
+                {
+                  "strategy": "id",
+                  "value": "institutionCountry"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "AFGHANISTAN",
+                  "label": "Afghanistan"
+                },
+                {
+                  "value": "ALBANIA",
+                  "label": "Albania"
+                },
+                {
+                  "value": "ALGERIA",
+                  "label": "Algeria"
+                },
+                {
+                  "value": "AMERICAN SAMOA",
+                  "label": "American Samoa"
+                },
+                {
+                  "value": "ANDORRA",
+                  "label": "Andorra"
+                },
+                {
+                  "value": "ANGOLA",
+                  "label": "Angola"
+                },
+                {
+                  "value": "ANGUILLA",
+                  "label": "Anguilla"
+                },
+                {
+                  "value": "ANTIGUA AND BARBUDA",
+                  "label": "Antigua And Barbuda"
+                },
+                {
+                  "value": "ARGENTINA",
+                  "label": "Argentina"
+                },
+                {
+                  "value": "ARMENIA",
+                  "label": "Armenia"
+                },
+                {
+                  "value": "ARUBA",
+                  "label": "Aruba"
+                },
+                {
+                  "value": "AUSTRALIA",
+                  "label": "Australia"
+                },
+                {
+                  "value": "AUSTRIA",
+                  "label": "Austria"
+                },
+                {
+                  "value": "AZERBAIJAN",
+                  "label": "Azerbaijan"
+                },
+                {
+                  "value": "AZORES",
+                  "label": "Azores"
+                },
+                {
+                  "value": "BAHAMAS",
+                  "label": "Bahamas"
+                },
+                {
+                  "value": "BAHRAIN",
+                  "label": "Bahrain"
+                },
+                {
+                  "value": "BALEARIC ISLANDS",
+                  "label": "Balearic Islands"
+                },
+                {
+                  "value": "BANGLADESH",
+                  "label": "Bangladesh"
+                },
+                {
+                  "value": "BARBADOS",
+                  "label": "Barbados"
+                },
+                {
+                  "value": "BELARUS",
+                  "label": "Belarus"
+                },
+                {
+                  "value": "BELGIUM",
+                  "label": "Belgium"
+                },
+                {
+                  "value": "BELIZE",
+                  "label": "Belize"
+                },
+                {
+                  "value": "BENIN",
+                  "label": "Benin"
+                },
+                {
+                  "value": "BERMUDA",
+                  "label": "Bermuda"
+                },
+                {
+                  "value": "BHUTAN",
+                  "label": "Bhutan"
+                },
+                {
+                  "value": "BOLIVIA",
+                  "label": "Bolivia"
+                },
+                {
+                  "value": "BOSNIA AND HERZEGOVINA",
+                  "label": "Bosnia and Herzegovina"
+                },
+                {
+                  "value": "BOTSWANA",
+                  "label": "Botswana"
+                },
+                {
+                  "value": "BRAZIL",
+                  "label": "Brazil"
+                },
+                {
+                  "value": "BRITISH INDIAN OCEAN TERRITORY",
+                  "label": "British Indian Ocean Territory"
+                },
+                {
+                  "value": "BRITISH VIRGIN ISLANDS",
+                  "label": "British Virgin Islands"
+                },
+                {
+                  "value": "BRUNEI",
+                  "label": "Brunei"
+                },
+                {
+                  "value": "BULGARIA",
+                  "label": "Bulgaria"
+                },
+                {
+                  "value": "BURKINA-FASO",
+                  "label": "Burkina-Faso"
+                },
+                {
+                  "value": "BURUNDI",
+                  "label": "Burundi"
+                },
+                {
+                  "value": "CAMBODIA",
+                  "label": "Cambodia"
+                },
+                {
+                  "value": "CAMEROON",
+                  "label": "Cameroon"
+                },
+                {
+                  "value": "CANADA",
+                  "label": "Canada"
+                },
+                {
+                  "value": "CANARY ISLANDS",
+                  "label": "Canary Islands"
+                },
+                {
+                  "value": "CAPE VERDE ISLANDS",
+                  "label": "Cape Verde Islands"
+                },
+                {
+                  "value": "CAYMAN ISLANDS",
+                  "label": "Cayman Islands"
+                },
+                {
+                  "value": "CENTRAL AFRICAN REPUBLIC",
+                  "label": "Central African Republic"
+                },
+                {
+                  "value": "CEUTA",
+                  "label": "Ceuta"
+                },
+                {
+                  "value": "CHAD",
+                  "label": "Chad"
+                },
+                {
+                  "value": "CHANNEL ISLANDS (THE)",
+                  "label": "Channel Islands (The)"
+                },
+                {
+                  "value": "CHILE",
+                  "label": "Chile"
+                },
+                {
+                  "value": "CHINA",
+                  "label": "China"
+                },
+                {
+                  "value": "CHRISTMAS ISLAND",
+                  "label": "Christmas Island"
+                },
+                {
+                  "value": "COCOS ISLANDS",
+                  "label": "Cocos Islands"
+                },
+                {
+                  "value": "COLOMBIA",
+                  "label": "Colombia"
+                },
+                {
+                  "value": "COMOROS",
+                  "label": "Comoros"
+                },
+                {
+                  "value": "CONGO",
+                  "label": "Congo"
+                },
+                {
+                  "value": "CONGO (DEMOCRATIC REPUBLIC)",
+                  "label": "Congo (Democratic Republic)"
+                },
+                {
+                  "value": "COOK ISLANDS",
+                  "label": "Cook Islands"
+                },
+                {
+                  "value": "COSTA RICA",
+                  "label": "Costa Rica"
+                },
+                {
+                  "value": "COTE D'IVORIE",
+                  "label": "Cote d'Ivorie"
+                },
+                {
+                  "value": "CRETE",
+                  "label": "Crete"
+                },
+                {
+                  "value": "CROATIA",
+                  "label": "Croatia"
+                },
+                {
+                  "value": "CUBA",
+                  "label": "Cuba"
+                },
+                {
+                  "value": "CYPRUS",
+                  "label": "Cyprus"
+                },
+                {
+                  "value": "CYPRUS (EUROPEAN UNION)",
+                  "label": "Cyprus (European Union)"
+                },
+                {
+                  "value": "CZECH REPUBLIC",
+                  "label": "Czech Republic"
+                },
+                {
+                  "value": "DENMARK",
+                  "label": "Denmark"
+                },
+                {
+                  "value": "DJIBOUTI",
+                  "label": "Djibouti"
+                },
+                {
+                  "value": "DOMINICA",
+                  "label": "Dominica"
+                },
+                {
+                  "value": "DOMINICAN REPUBLIC",
+                  "label": "Dominican Republic"
+                },
+                {
+                  "value": "DUBAI",
+                  "label": "Dubai"
+                },
+                {
+                  "value": "EAST TIMOR",
+                  "label": "East Timor"
+                },
+                {
+                  "value": "ECUADOR",
+                  "label": "Ecuador"
+                },
+                {
+                  "value": "EGYPT",
+                  "label": "Egypt"
+                },
+                {
+                  "value": "EL SALVADOR",
+                  "label": "El Salvador"
+                },
+                {
+                  "value": "EQUATORIAL GUINEA",
+                  "label": "Equatorial Guinea"
+                },
+                {
+                  "value": "ERITREA",
+                  "label": "Eritrea"
+                },
+                {
+                  "value": "ESTONIA",
+                  "label": "Estonia"
+                },
+                {
+                  "value": "ESWATINI",
+                  "label": "Eswatini"
+                },
+                {
+                  "value": "ETHIOPIA",
+                  "label": "Ethiopia"
+                },
+                {
+                  "value": "FALKLAND ISLANDS",
+                  "label": "Falkland Islands"
+                },
+                {
+                  "value": "FAROE ISLANDS",
+                  "label": "Faroe Islands"
+                },
+                {
+                  "value": "FIJI",
+                  "label": "Fiji"
+                },
+                {
+                  "value": "FINLAND",
+                  "label": "Finland"
+                },
+                {
+                  "value": "FRANCE",
+                  "label": "France"
+                },
+                {
+                  "value": "FRENCH GUIANA",
+                  "label": "French Guiana"
+                },
+                {
+                  "value": "FRENCH POLYNESIA",
+                  "label": "French Polynesia"
+                },
+                {
+                  "value": "GABON",
+                  "label": "Gabon"
+                },
+                {
+                  "value": "GAMBIA",
+                  "label": "Gambia"
+                },
+                {
+                  "value": "GEORGIA",
+                  "label": "Georgia"
+                },
+                {
+                  "value": "GERMANY",
+                  "label": "Germany"
+                },
+                {
+                  "value": "GHANA",
+                  "label": "Ghana"
+                },
+                {
+                  "value": "GIBRALTAR",
+                  "label": "Gibraltar"
+                },
+                {
+                  "value": "GREECE",
+                  "label": "Greece"
+                },
+                {
+                  "value": "GREENLAND",
+                  "label": "Greenland"
+                },
+                {
+                  "value": "GRENADA",
+                  "label": "Grenada"
+                },
+                {
+                  "value": "GUADELOUPE",
+                  "label": "Guadeloupe"
+                },
+                {
+                  "value": "GUAM",
+                  "label": "Guam"
+                },
+                {
+                  "value": "GUATEMALA",
+                  "label": "Guatemala"
+                },
+                {
+                  "value": "GUERNSEY",
+                  "label": "Guernsey"
+                },
+                {
+                  "value": "GUINEA",
+                  "label": "Guinea"
+                },
+                {
+                  "value": "GUINEA (EQUATORIAL)",
+                  "label": "Guinea (Equatorial)"
+                },
+                {
+                  "value": "GUINEA-BISSAU",
+                  "label": "Guinea-Bissau"
+                },
+                {
+                  "value": "GUYANA",
+                  "label": "Guyana"
+                },
+                {
+                  "value": "HAITI",
+                  "label": "Haiti"
+                },
+                {
+                  "value": "HOLY SEE",
+                  "label": "Holy See"
+                },
+                {
+                  "value": "HONDURAS",
+                  "label": "Honduras"
+                },
+                {
+                  "value": "HONG KONG",
+                  "label": "Hong Kong (Special Administrative Region)"
+                },
+                {
+                  "value": "HUNGARY",
+                  "label": "Hungary"
+                },
+                {
+                  "value": "ICELAND",
+                  "label": "Iceland"
+                },
+                {
+                  "value": "INDIA",
+                  "label": "India"
+                },
+                {
+                  "value": "INDONESIA",
+                  "label": "Indonesia"
+                },
+                {
+                  "value": "IRAN",
+                  "label": "Iran"
+                },
+                {
+                  "value": "IRAQ",
+                  "label": "Iraq"
+                },
+                {
+                  "value": "IRELAND",
+                  "label": "Ireland"
+                },
+                {
+                  "value": "ISLE OF MAN (THE)",
+                  "label": "Isle of Man (The)"
+                },
+                {
+                  "value": "ISRAEL",
+                  "label": "Israel"
+                },
+                {
+                  "value": "ITALY",
+                  "label": "Italy"
+                },
+                {
+                  "value": "JAMAICA",
+                  "label": "Jamaica"
+                },
+                {
+                  "value": "JAPAN",
+                  "label": "Japan"
+                },
+                {
+                  "value": "JAVA",
+                  "label": "Java"
+                },
+                {
+                  "value": "JERSEY",
+                  "label": "Jersey"
+                },
+                {
+                  "value": "JORDAN",
+                  "label": "Jordan"
+                },
+                {
+                  "value": "KAZAKHSTAN",
+                  "label": "Kazakhstan"
+                },
+                {
+                  "value": "KENYA",
+                  "label": "Kenya"
+                },
+                {
+                  "value": "KIRIBATI",
+                  "label": "Kiribati"
+                },
+                {
+                  "value": "KOSOVO",
+                  "label": "Kosovo"
+                },
+                {
+                  "value": "KUWAIT",
+                  "label": "Kuwait"
+                },
+                {
+                  "value": "KYRGYZSTAN",
+                  "label": "Kyrgyzstan"
+                },
+                {
+                  "value": "LAOS",
+                  "label": "Laos"
+                },
+                {
+                  "value": "LATVIA",
+                  "label": "Latvia"
+                },
+                {
+                  "value": "LEBANON",
+                  "label": "Lebanon"
+                },
+                {
+                  "value": "LESOTHO",
+                  "label": "Lesotho"
+                },
+                {
+                  "value": "LIBERIA",
+                  "label": "Liberia"
+                },
+                {
+                  "value": "LIBYA",
+                  "label": "Libya"
+                },
+                {
+                  "value": "LIECHTENSTEIN",
+                  "label": "Liechtenstein"
+                },
+                {
+                  "value": "LITHUANIA",
+                  "label": "Lithuania"
+                },
+                {
+                  "value": "LUXEMBOURG",
+                  "label": "Luxembourg"
+                },
+                {
+                  "value": "MACAO",
+                  "label": "Macao (Special Administrative Region)"
+                },
+                {
+                  "value": "MACEDONIA",
+                  "label": "Macedonia"
+                },
+                {
+                  "value": "MADAGASCAR",
+                  "label": "Madagascar"
+                },
+                {
+                  "value": "MADEIRA",
+                  "label": "Madeira"
+                },
+                {
+                  "value": "MALAWI",
+                  "label": "Malawi"
+                },
+                {
+                  "value": "MALAYSIA",
+                  "label": "Malaysia"
+                },
+                {
+                  "value": "MALDIVES",
+                  "label": "Maldives"
+                },
+                {
+                  "value": "MALI",
+                  "label": "Mali"
+                },
+                {
+                  "value": "MALTA",
+                  "label": "Malta"
+                },
+                {
+                  "value": "MARSHALL ISLANDS",
+                  "label": "Marshall Islands"
+                },
+                {
+                  "value": "MARTINIQUE",
+                  "label": "Martinique"
+                },
+                {
+                  "value": "MAURITANIA",
+                  "label": "Mauritania"
+                },
+                {
+                  "value": "MAURITIUS",
+                  "label": "Mauritius"
+                },
+                {
+                  "value": "MAYOTTE",
+                  "label": "Mayotte"
+                },
+                {
+                  "value": "MELILLA",
+                  "label": "Melilla"
+                },
+                {
+                  "value": "MEXICO",
+                  "label": "Mexico"
+                },
+                {
+                  "value": "MICRONESIA, (FEDERATED STATES OF)",
+                  "label": "Micronesia, (Federated States of)"
+                },
+                {
+                  "value": "MOLDOVA",
+                  "label": "Moldova"
+                },
+                {
+                  "value": "MONACO",
+                  "label": "Monaco"
+                },
+                {
+                  "value": "MONGOLIA",
+                  "label": "Mongolia"
+                },
+                {
+                  "value": "MONTENEGRO",
+                  "label": "Montenegro"
+                },
+                {
+                  "value": "MONTSERRAT",
+                  "label": "Montserrat"
+                },
+                {
+                  "value": "MOROCCO",
+                  "label": "Morocco"
+                },
+                {
+                  "value": "MOZAMBIQUE",
+                  "label": "Mozambique"
+                },
+                {
+                  "value": "MYANMAR",
+                  "label": "Myanmar (Burma) [The Republic of the Union of Myanmar]"
+                },
+                {
+                  "value": "NAMIBIA",
+                  "label": "Namibia"
+                },
+                {
+                  "value": "NAURU",
+                  "label": "Nauru"
+                },
+                {
+                  "value": "NEPAL",
+                  "label": "Nepal"
+                },
+                {
+                  "value": "NETHERLANDS",
+                  "label": "Netherlands"
+                },
+                {
+                  "value": "NETHERLANDS ANTILLES",
+                  "label": "Netherlands Antilles"
+                },
+                {
+                  "value": "NEW CALEDONIA",
+                  "label": "New Caledonia"
+                },
+                {
+                  "value": "NEW ZEALAND",
+                  "label": "New Zealand"
+                },
+                {
+                  "value": "NICARAGUA",
+                  "label": "Nicaragua"
+                },
+                {
+                  "value": "NIGER",
+                  "label": "Niger"
+                },
+                {
+                  "value": "NIGERIA",
+                  "label": "Nigeria"
+                },
+                {
+                  "value": "NIUE",
+                  "label": "Niue"
+                },
+                {
+                  "value": "NORFOLK ISLAND",
+                  "label": "Norfolk Island"
+                },
+                {
+                  "value": "NORTH KOREA",
+                  "label": "North Korea"
+                },
+                {
+                  "value": "NORWAY",
+                  "label": "Norway"
+                },
+                {
+                  "value": "NOT KNOWN",
+                  "label": "Not Known"
+                },
+                {
+                  "value": "OMAN",
+                  "label": "Oman"
+                },
+                {
+                  "value": "PAKISTAN",
+                  "label": "Pakistan"
+                },
+                {
+                  "value": "PALAU",
+                  "label": "Palau"
+                },
+                {
+                  "value": "PALESTINE",
+                  "label": "Palestine"
+                },
+                {
+                  "value": "PANAMA",
+                  "label": "Panama"
+                },
+                {
+                  "value": "PAPUA NEW GUINEA",
+                  "label": "Papua New Guinea"
+                },
+                {
+                  "value": "PARAGUAY",
+                  "label": "Paraguay"
+                },
+                {
+                  "value": "PERU",
+                  "label": "Peru"
+                },
+                {
+                  "value": "PHILIPPINES",
+                  "label": "Philippines"
+                },
+                {
+                  "value": "PITCAIRN ISLANDS",
+                  "label": "Pitcairn Islands"
+                },
+                {
+                  "value": "POLAND",
+                  "label": "Poland"
+                },
+                {
+                  "value": "PORTUGAL",
+                  "label": "Portugal"
+                },
+                {
+                  "value": "PUERTO RICO",
+                  "label": "Puerto Rico"
+                },
+                {
+                  "value": "QATAR",
+                  "label": "Qatar"
+                },
+                {
+                  "value": "REUNION",
+                  "label": "Reunion"
+                },
+                {
+                  "value": "ROMANIA",
+                  "label": "Romania"
+                },
+                {
+                  "value": "RUSSIA",
+                  "label": "Russia"
+                },
+                {
+                  "value": "RWANDA",
+                  "label": "Rwanda"
+                },
+                {
+                  "value": "SAMOA",
+                  "label": "Samoa"
+                },
+                {
+                  "value": "SAN MARINO",
+                  "label": "San Marino"
+                },
+                {
+                  "value": "SAO TOME & PRINCIPE",
+                  "label": "Sao Tome & Principe"
+                },
+                {
+                  "value": "SAUDI ARABIA",
+                  "label": "Saudi Arabia"
+                },
+                {
+                  "value": "SENEGAL",
+                  "label": "Senegal"
+                },
+                {
+                  "value": "SERBIA",
+                  "label": "Serbia"
+                },
+                {
+                  "value": "SEYCHELLES",
+                  "label": "Seychelles"
+                },
+                {
+                  "value": "SIERRA LEONE",
+                  "label": "Sierra Leone"
+                },
+                {
+                  "value": "SINGAPORE",
+                  "label": "Singapore"
+                },
+                {
+                  "value": "SLOVAKIA",
+                  "label": "Slovakia"
+                },
+                {
+                  "value": "SLOVENIA",
+                  "label": "Slovenia"
+                },
+                {
+                  "value": "SOLOMON ISLANDS",
+                  "label": "Solomon Islands"
+                },
+                {
+                  "value": "SOMALIA",
+                  "label": "Somalia"
+                },
+                {
+                  "value": "SOUTH AFRICA",
+                  "label": "South Africa"
+                },
+                {
+                  "value": "SOUTH GEORGIA & THE SOUTH SANDWICH IS",
+                  "label": "South Georgia & the South Sandwich Is"
+                },
+                {
+                  "value": "SOUTH KOREA",
+                  "label": "South Korea"
+                },
+                {
+                  "value": "SOUTH SUDAN",
+                  "label": "South Sudan"
+                },
+                {
+                  "value": "SPAIN",
+                  "label": "Spain"
+                },
+                {
+                  "value": "SRI LANKA",
+                  "label": "Sri Lanka"
+                },
+                {
+                  "value": "ST KITTS NEVIS",
+                  "label": "St Kitts Nevis"
+                },
+                {
+                  "value": "ST LUCIA",
+                  "label": "St Lucia"
+                },
+                {
+                  "value": "ST MARTIN (NORTH)",
+                  "label": "St Martin (North)"
+                },
+                {
+                  "value": "ST MARTIN (SOUTH)",
+                  "label": "St Martin (South)"
+                },
+                {
+                  "value": "ST PIERRE AND MIQUELON",
+                  "label": "St Pierre and Miquelon"
+                },
+                {
+                  "value": "ST VINCENT & THE GRENADINES",
+                  "label": "St Vincent & the Grenadines"
+                },
+                {
+                  "value": "STATELESS",
+                  "label": "Stateless"
+                },
+                {
+                  "value": "SUDAN",
+                  "label": "Sudan"
+                },
+                {
+                  "value": "SURINAME",
+                  "label": "Suriname"
+                },
+                {
+                  "value": "SWEDEN",
+                  "label": "Sweden"
+                },
+                {
+                  "value": "SWITZERLAND",
+                  "label": "Switzerland"
+                },
+                {
+                  "value": "SYRIA",
+                  "label": "Syria"
+                },
+                {
+                  "value": "TAIWAN",
+                  "label": "Taiwan"
+                },
+                {
+                  "value": "TAJIKISTAN",
+                  "label": "Tajikistan"
+                },
+                {
+                  "value": "TANZANIA",
+                  "label": "Tanzania"
+                },
+                {
+                  "value": "THAILAND",
+                  "label": "Thailand"
+                },
+                {
+                  "value": "TOGO",
+                  "label": "Togo"
+                },
+                {
+                  "value": "TOKELAU",
+                  "label": "Tokelau"
+                },
+                {
+                  "value": "TONGA",
+                  "label": "Tonga"
+                },
+                {
+                  "value": "TRINIDAD & TOBAGO",
+                  "label": "Trinidad & Tobago"
+                },
+                {
+                  "value": "TUNISIA",
+                  "label": "Tunisia"
+                },
+                {
+                  "value": "TURKEY",
+                  "label": "Turkey"
+                },
+                {
+                  "value": "TURKMENISTAN",
+                  "label": "Turkmenistan"
+                },
+                {
+                  "value": "TURKS & CAICOS ISLANDS",
+                  "label": "Turks & Caicos Islands"
+                },
+                {
+                  "value": "TUVALU",
+                  "label": "Tuvalu"
+                },
+                {
+                  "value": "UGANDA",
+                  "label": "Uganda"
+                },
+                {
+                  "value": "UKRAINE",
+                  "label": "Ukraine"
+                },
+                {
+                  "value": "UNITED ARAB EMIRATES",
+                  "label": "United Arab Emirates"
+                },
+                {
+                  "value": "UNITED STATES",
+                  "label": "United States of America"
+                },
+                {
+                  "value": "URUGUAY",
+                  "label": "Uruguay"
+                },
+                {
+                  "value": "UZBEKISTAN",
+                  "label": "Uzbekistan"
+                },
+                {
+                  "value": "VANUATU",
+                  "label": "Vanuatu"
+                },
+                {
+                  "value": "VATICAN CITY",
+                  "label": "Vatican City"
+                },
+                {
+                  "value": "VENEZUELA",
+                  "label": "Venezuela"
+                },
+                {
+                  "value": "VIETNAM",
+                  "label": "Vietnam"
+                },
+                {
+                  "value": "VIRGIN IS (BRITISH)",
+                  "label": "Virgin Is (British)"
+                },
+                {
+                  "value": "VIRGIN IS (US)",
+                  "label": "Virgin Is (US)"
+                },
+                {
+                  "value": "WALLIS AND FUTUNA",
+                  "label": "Wallis and Futuna"
+                },
+                {
+                  "value": "WESTERN SAHARA",
+                  "label": "Western Sahara"
+                },
+                {
+                  "value": "YEMEN (REPUBLIC OF)",
+                  "label": "Yemen (Republic of)"
+                },
+                {
+                  "value": "ZAMBIA",
+                  "label": "Zambia"
+                },
+                {
+                  "value": "ZIMBABWE",
+                  "label": "Zimbabwe"
+                },
+                {
+                  "value": "UNITED KINGDOM",
+                  "label": "United Kingdom"
+                }
+              ]
+            },
+            {
+              "fieldRef": "institutionCountry-ts-control",
+              "label": "",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "id",
+                  "value": "institutionCountry-ts-control"
+                },
+                {
+                  "strategy": "placeholder",
+                  "value": ""
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "institutionCode",
+              "label": "institutionCode",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "institutionCode"
+                },
+                {
+                  "strategy": "id",
+                  "value": "institution"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "SHEFFIELD",
+                  "label": "University of Sheffield"
+                }
+              ]
+            },
+            {
+              "fieldRef": "institution-ts-control",
+              "label": "Search for an institution...",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "id",
+                  "value": "institution-ts-control"
+                },
+                {
+                  "strategy": "placeholder",
+                  "value": "Search for an institution..."
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "unlistedInstitution",
+              "label": "unlistedInstitution",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "unlistedInstitution"
+                },
+                {
+                  "strategy": "id",
+                  "value": "unlistedInstitution"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "95",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "degree",
+              "label": "degree",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "degree"
+                },
+                {
+                  "strategy": "id",
+                  "value": "degree"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "Select qualification...",
+                  "label": "Select qualification..."
+                },
+                {
+                  "value": "",
+                  "label": "Not in list"
+                },
+                {
+                  "value": "BA",
+                  "label": "BA"
+                },
+                {
+                  "value": "BEd",
+                  "label": "BEd"
+                },
+                {
+                  "value": "BEng",
+                  "label": "BEng"
+                },
+                {
+                  "value": "BMedSci",
+                  "label": "BMedSci"
+                },
+                {
+                  "value": "BSc",
+                  "label": "BSc"
+                },
+                {
+                  "value": "CERT HE",
+                  "label": "Certificate of Higher Ed"
+                },
+                {
+                  "value": "DClinPsy",
+                  "label": "DClinPsy"
+                },
+                {
+                  "value": "DIP",
+                  "label": "Diploma of Higher Ed"
+                },
+                {
+                  "value": "DMedSci",
+                  "label": "DMedSci"
+                },
+                {
+                  "value": "EdD",
+                  "label": "EdD"
+                },
+                {
+                  "value": "LLB",
+                  "label": "LLB"
+                },
+                {
+                  "value": "LLM",
+                  "label": "LLM"
+                },
+                {
+                  "value": "MA",
+                  "label": "MA"
+                },
+                {
+                  "value": "MD",
+                  "label": "MD"
+                },
+                {
+                  "value": "MArch",
+                  "label": "MArch"
+                },
+                {
+                  "value": "MB,ChB",
+                  "label": "MB,ChB"
+                },
+                {
+                  "value": "MBA",
+                  "label": "MBA"
+                },
+                {
+                  "value": "MBBS",
+                  "label": "MBBS"
+                },
+                {
+                  "value": "MChem",
+                  "label": "MChem"
+                },
+                {
+                  "value": "MClinDent",
+                  "label": "MClinDent"
+                },
+                {
+                  "value": "MCOMP",
+                  "label": "MComp"
+                },
+                {
+                  "value": "MEd",
+                  "label": "MEd"
+                },
+                {
+                  "value": "MEng",
+                  "label": "MEng"
+                },
+                {
+                  "value": "MMath",
+                  "label": "MMath"
+                },
+                {
+                  "value": "MMedSci",
+                  "label": "MMedSci"
+                },
+                {
+                  "value": "MMet",
+                  "label": "MMet"
+                },
+                {
+                  "value": "MMus",
+                  "label": "MMus"
+                },
+                {
+                  "value": "MPHARM(UG)",
+                  "label": "MPharm (UG)"
+                },
+                {
+                  "value": "MPHIL",
+                  "label": "MPHIL"
+                },
+                {
+                  "value": "MPHYS",
+                  "label": "MPHYS"
+                },
+                {
+                  "value": "MSc",
+                  "label": "MSc"
+                },
+                {
+                  "value": "MSc(Eng)",
+                  "label": "MSc(Eng)"
+                },
+                {
+                  "value": "MSc(Res)",
+                  "label": "MSc(Res)"
+                },
+                {
+                  "value": "MSCI (UG)",
+                  "label": "MSci (UG)"
+                },
+                {
+                  "value": "NCUKPGD",
+                  "label": "NCUK Grad Dip"
+                },
+                {
+                  "value": "NCUKPMP",
+                  "label": "NCUK PMP"
+                },
+                {
+                  "value": "NCUKEAP",
+                  "label": "NCUK EAP"
+                },
+                {
+                  "value": "PG Cert",
+                  "label": "PG Cert"
+                },
+                {
+                  "value": "PG DIP",
+                  "label": "PG Diploma"
+                },
+                {
+                  "value": "PGCE",
+                  "label": "PGCE"
+                },
+                {
+                  "value": "PHD",
+                  "label": "PHD"
+                }
+              ]
+            },
+            {
+              "fieldRef": "unlistedDegree",
+              "label": "unlistedDegree",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "unlistedDegree"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "28",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "subjectSearch",
+              "label": "Search:",
+              "labelSource": "row_text",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "subjectSearch"
+                },
+                {
+                  "strategy": "id",
+                  "value": "subjectSearch"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "subject",
+              "label": "Results:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "subject"
+                },
+                {
+                  "strategy": "id",
+                  "value": "subject"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "Select subject...",
+                  "label": "Select subject..."
+                },
+                {
+                  "value": "Not in list",
+                  "label": "Not in list"
+                },
+                {
+                  "value": "Agri Marketing and Business Ad",
+                  "label": "Agri Marketing and Business Ad"
+                },
+                {
+                  "value": "Applied Business",
+                  "label": "Applied Business"
+                },
+                {
+                  "value": "GCE Applied Business Advanced ",
+                  "label": "GCE Applied Business Advanced"
+                },
+                {
+                  "value": "BUSINESS MANAGEMENT AND TRAVEL",
+                  "label": "BUSINESS MANAGEMENT AND TRAVEL"
+                },
+                {
+                  "value": "Business Studies With Humaniti",
+                  "label": "Business Studies With Humaniti"
+                },
+                {
+                  "value": "BUSINESS AND ACCOUNTING",
+                  "label": "BUSINESS AND ACCOUNTING"
+                },
+                {
+                  "value": "Business Administration",
+                  "label": "Business Administration"
+                },
+                {
+                  "value": "Business Economics",
+                  "label": "Business Economics"
+                },
+                {
+                  "value": "BUSINESS WITH ENGLISH",
+                  "label": "BUSINESS WITH ENGLISH"
+                },
+                {
+                  "value": "Business Environment",
+                  "label": "Business Environment"
+                },
+                {
+                  "value": "Business Management",
+                  "label": "Business Management"
+                },
+                {
+                  "value": "Business Organisation",
+                  "label": "Business Organisation"
+                },
+                {
+                  "value": "Business Policies",
+                  "label": "Business Policies"
+                },
+                {
+                  "value": "Business and Professional Stud",
+                  "label": "Business and Professional Stud"
+                },
+                {
+                  "value": "Small Business Systems",
+                  "label": "Small Business Systems"
+                },
+                {
+                  "value": "Business Studies",
+                  "label": "Business Studies"
+                },
+                {
+                  "value": "BUSINESS TECHNOLOGY",
+                  "label": "BUSINESS TECHNOLOGY"
+                },
+                {
+                  "value": "Business and Travel",
+                  "label": "Business and Travel"
+                },
+                {
+                  "value": "Business Administration with Travel & Tourism",
+                  "label": "Business Administration with Travel & Tourism"
+                },
+                {
+                  "value": "Business Management in Maritim",
+                  "label": "Business Management in Maritim"
+                },
+                {
+                  "value": "Business, Administration & Fin",
+                  "label": "Business, Administration & Fin"
+                },
+                {
+                  "value": "business studies and economics",
+                  "label": "business studies and economics"
+                },
+                {
+                  "value": "Business and Enterprise",
+                  "label": "Business and Enterprise"
+                },
+                {
+                  "value": "Business and Finance",
+                  "label": "Business and Finance"
+                },
+                {
+                  "value": "Business Information Systems",
+                  "label": "Business Information Systems"
+                },
+                {
+                  "value": "BUSINESS AND LAW",
+                  "label": "BUSINESS AND LAW"
+                },
+                {
+                  "value": "BUSINESS WITH MATHEMATICS",
+                  "label": "BUSINESS WITH MATHEMATICS"
+                },
+                {
+                  "value": "Business Skills",
+                  "label": "Business Skills"
+                },
+                {
+                  "value": "Business Analytics And Change Management",
+                  "label": "Business Analytics And Change Management"
+                },
+                {
+                  "value": "Business and Hospitality",
+                  "label": "Business and Hospitality"
+                },
+                {
+                  "value": "Business Improvement",
+                  "label": "Business Improvement"
+                },
+                {
+                  "value": "Business, Legal and Language S",
+                  "label": "Business, Legal and Language S"
+                },
+                {
+                  "value": "Business and Logistics",
+                  "label": "Business and Logistics"
+                },
+                {
+                  "value": "Business and Marketing",
+                  "label": "Business and Marketing"
+                },
+                {
+                  "value": "Business",
+                  "label": "Business"
+                },
+                {
+                  "value": "Business and Social Science",
+                  "label": "Business and Social Science"
+                },
+                {
+                  "value": "Business Support",
+                  "label": "Business Support"
+                },
+                {
+                  "value": "Business Travel",
+                  "label": "Business Travel"
+                },
+                {
+                  "value": "Computing and Business",
+                  "label": "Computing and Business"
+                },
+                {
+                  "value": "Digital Business Services",
+                  "label": "Digital Business Services"
+                },
+                {
+                  "value": "Economics and Business",
+                  "label": "Economics and Business"
+                },
+                {
+                  "value": "European Business Studies",
+                  "label": "European Business Studies"
+                },
+                {
+                  "value": "Events and Business Management",
+                  "label": "Events and Business Management"
+                },
+                {
+                  "value": "Financial and Business Managem",
+                  "label": "Financial and Business Managem"
+                },
+                {
+                  "value": "Chemistry with Business Administration",
+                  "label": "Chemistry with Business Administration"
+                },
+                {
+                  "value": "FASHION BUSINESS",
+                  "label": "FASHION BUSINESS"
+                },
+                {
+                  "value": "Fashion Business and Retail",
+                  "label": "Fashion Business and Retail"
+                },
+                {
+                  "value": "Information Tech. & Business",
+                  "label": "Information Tech. & Business"
+                },
+                {
+                  "value": "Business, Law & Social Science",
+                  "label": "Business, Law & Social Science"
+                },
+                {
+                  "value": "Business Law",
+                  "label": "Business Law"
+                },
+                {
+                  "value": "Logistics with Business Manage",
+                  "label": "Logistics with Business Manage"
+                },
+                {
+                  "value": "Legal Services: Business, Finance And Employment",
+                  "label": "Legal Services: Business, Finance And Employment"
+                },
+                {
+                  "value": "Music Business",
+                  "label": "Music Business"
+                },
+                {
+                  "value": "Business and Management Studies",
+                  "label": "Business and Management Studies"
+                },
+                {
+                  "value": "Internatinal Business, Economics",
+                  "label": "Internatinal Business, Economics"
+                },
+                {
+                  "value": "Transport and other Business and Admin Studies",
+                  "label": "Transport and other Business and Admin Studies"
+                },
+                {
+                  "value": "OCR National Certificate in Business",
+                  "label": "OCR National Certificate in Business"
+                },
+                {
+                  "value": "OCR National Diploma in Business",
+                  "label": "OCR National Diploma in Business"
+                },
+                {
+                  "value": "OCR National Ext.Dip. Business",
+                  "label": "OCR National Ext.Dip. Business"
+                },
+                {
+                  "value": "Business Studies and Economics",
+                  "label": "Business Studies and Economics"
+                },
+                {
+                  "value": "Business & Finance",
+                  "label": "Business & Finance"
+                },
+                {
+                  "value": "Accounting & Financial Mgt & Business Studies",
+                  "label": "Accounting & Financial Mgt & Business Studies"
+                },
+                {
+                  "value": "Business Studies and Information Management",
+                  "label": "Business Studies and Information Management"
+                },
+                {
+                  "value": "Business Studies and Japanese Studies",
+                  "label": "Business Studies and Japanese Studies"
+                },
+                {
+                  "value": "Business Admin & Mod Langs",
+                  "label": "Business Admin & Mod Langs"
+                },
+                {
+                  "value": "Personal and Business Finance",
+                  "label": "Personal and Business Finance"
+                },
+                {
+                  "value": "Professional Business Services",
+                  "label": "Professional Business Services"
+                },
+                {
+                  "value": "Retail Business",
+                  "label": "Retail Business"
+                },
+                {
+                  "value": "Reformed Applied Business",
+                  "label": "Reformed Applied Business"
+                },
+                {
+                  "value": "French and Business Studies",
+                  "label": "French and Business Studies"
+                },
+                {
+                  "value": "German and Business Studies",
+                  "label": "German and Business Studies"
+                },
+                {
+                  "value": "Spanish and Business Studies",
+                  "label": "Spanish and Business Studies"
+                },
+                {
+                  "value": "Russian and Business Studies",
+                  "label": "Russian and Business Studies"
+                },
+                {
+                  "value": "Skills for Business: Customer ",
+                  "label": "Skills for Business: Customer"
+                },
+                {
+                  "value": "Skills for Business",
+                  "label": "Skills for Business"
+                },
+                {
+                  "value": "Skills for Business: Enterpris",
+                  "label": "Skills for Business: Enterpris"
+                },
+                {
+                  "value": "Skills for Business: Finance",
+                  "label": "Skills for Business: Finance"
+                },
+                {
+                  "value": "Skills for Business: Human Res",
+                  "label": "Skills for Business: Human Res"
+                },
+                {
+                  "value": "Skills for Business: IT",
+                  "label": "Skills for Business: IT"
+                },
+                {
+                  "value": "Skills for Business: Retail",
+                  "label": "Skills for Business: Retail"
+                },
+                {
+                  "value": "Skills for Business: Sales and",
+                  "label": "Skills for Business: Sales and"
+                },
+                {
+                  "value": "Sports Coaching and Business M",
+                  "label": "Sports Coaching and Business M"
+                },
+                {
+                  "value": "Chinese Studies and Business Studies",
+                  "label": "Chinese Studies and Business Studies"
+                },
+                {
+                  "value": "Korean Studies and Business Studies",
+                  "label": "Korean Studies and Business Studies"
+                },
+                {
+                  "value": "Business Administration",
+                  "label": "Business Administration"
+                }
+              ]
+            },
+            {
+              "fieldRef": "unlistedSubject",
+              "label": "If your subject is not in the list please enter it here:",
+              "labelSource": "row_text",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "unlistedSubject"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "58",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "startDateMonth",
+              "label": "Start:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "startDateMonth"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "Jan",
+                  "label": "Jan"
+                },
+                {
+                  "value": "Feb",
+                  "label": "Feb"
+                },
+                {
+                  "value": "Mar",
+                  "label": "Mar"
+                },
+                {
+                  "value": "Apr",
+                  "label": "Apr"
+                },
+                {
+                  "value": "May",
+                  "label": "May"
+                },
+                {
+                  "value": "June",
+                  "label": "June"
+                },
+                {
+                  "value": "July",
+                  "label": "July"
+                },
+                {
+                  "value": "Aug",
+                  "label": "Aug"
+                },
+                {
+                  "value": "Sept",
+                  "label": "Sept"
+                },
+                {
+                  "value": "Oct",
+                  "label": "Oct"
+                },
+                {
+                  "value": "Nov",
+                  "label": "Nov"
+                },
+                {
+                  "value": "Dec",
+                  "label": "Dec"
+                }
+              ]
+            },
+            {
+              "fieldRef": "startDateYear",
+              "label": "Start:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "startDateYear"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2030",
+                  "label": "2030"
+                },
+                {
+                  "value": "2029",
+                  "label": "2029"
+                },
+                {
+                  "value": "2028",
+                  "label": "2028"
+                },
+                {
+                  "value": "2027",
+                  "label": "2027"
+                },
+                {
+                  "value": "2026",
+                  "label": "2026"
+                },
+                {
+                  "value": "2025",
+                  "label": "2025"
+                },
+                {
+                  "value": "2024",
+                  "label": "2024"
+                },
+                {
+                  "value": "2023",
+                  "label": "2023"
+                },
+                {
+                  "value": "2022",
+                  "label": "2022"
+                },
+                {
+                  "value": "2021",
+                  "label": "2021"
+                },
+                {
+                  "value": "2020",
+                  "label": "2020"
+                },
+                {
+                  "value": "2019",
+                  "label": "2019"
+                },
+                {
+                  "value": "2018",
+                  "label": "2018"
+                },
+                {
+                  "value": "2017",
+                  "label": "2017"
+                },
+                {
+                  "value": "2016",
+                  "label": "2016"
+                },
+                {
+                  "value": "2015",
+                  "label": "2015"
+                },
+                {
+                  "value": "2014",
+                  "label": "2014"
+                },
+                {
+                  "value": "2013",
+                  "label": "2013"
+                },
+                {
+                  "value": "2012",
+                  "label": "2012"
+                },
+                {
+                  "value": "2011",
+                  "label": "2011"
+                },
+                {
+                  "value": "2010",
+                  "label": "2010"
+                },
+                {
+                  "value": "2009",
+                  "label": "2009"
+                },
+                {
+                  "value": "2008",
+                  "label": "2008"
+                },
+                {
+                  "value": "2007",
+                  "label": "2007"
+                },
+                {
+                  "value": "2006",
+                  "label": "2006"
+                },
+                {
+                  "value": "2005",
+                  "label": "2005"
+                },
+                {
+                  "value": "2004",
+                  "label": "2004"
+                },
+                {
+                  "value": "2003",
+                  "label": "2003"
+                },
+                {
+                  "value": "2002",
+                  "label": "2002"
+                },
+                {
+                  "value": "2001",
+                  "label": "2001"
+                },
+                {
+                  "value": "2000",
+                  "label": "2000"
+                },
+                {
+                  "value": "1999",
+                  "label": "1999"
+                },
+                {
+                  "value": "1998",
+                  "label": "1998"
+                },
+                {
+                  "value": "1997",
+                  "label": "1997"
+                },
+                {
+                  "value": "1996",
+                  "label": "1996"
+                },
+                {
+                  "value": "1995",
+                  "label": "1995"
+                },
+                {
+                  "value": "1994",
+                  "label": "1994"
+                },
+                {
+                  "value": "1993",
+                  "label": "1993"
+                },
+                {
+                  "value": "1992",
+                  "label": "1992"
+                },
+                {
+                  "value": "1991",
+                  "label": "1991"
+                },
+                {
+                  "value": "1990",
+                  "label": "1990"
+                },
+                {
+                  "value": "1989",
+                  "label": "1989"
+                },
+                {
+                  "value": "1988",
+                  "label": "1988"
+                },
+                {
+                  "value": "1987",
+                  "label": "1987"
+                },
+                {
+                  "value": "1986",
+                  "label": "1986"
+                },
+                {
+                  "value": "1985",
+                  "label": "1985"
+                },
+                {
+                  "value": "1984",
+                  "label": "1984"
+                },
+                {
+                  "value": "1983",
+                  "label": "1983"
+                },
+                {
+                  "value": "1982",
+                  "label": "1982"
+                },
+                {
+                  "value": "1981",
+                  "label": "1981"
+                },
+                {
+                  "value": "1980",
+                  "label": "1980"
+                },
+                {
+                  "value": "1979",
+                  "label": "1979"
+                },
+                {
+                  "value": "1978",
+                  "label": "1978"
+                },
+                {
+                  "value": "1977",
+                  "label": "1977"
+                },
+                {
+                  "value": "1976",
+                  "label": "1976"
+                },
+                {
+                  "value": "1975",
+                  "label": "1975"
+                },
+                {
+                  "value": "1974",
+                  "label": "1974"
+                },
+                {
+                  "value": "1973",
+                  "label": "1973"
+                },
+                {
+                  "value": "1972",
+                  "label": "1972"
+                },
+                {
+                  "value": "1971",
+                  "label": "1971"
+                },
+                {
+                  "value": "1970",
+                  "label": "1970"
+                },
+                {
+                  "value": "1969",
+                  "label": "1969"
+                },
+                {
+                  "value": "1968",
+                  "label": "1968"
+                },
+                {
+                  "value": "1967",
+                  "label": "1967"
+                },
+                {
+                  "value": "1966",
+                  "label": "1966"
+                },
+                {
+                  "value": "1965",
+                  "label": "1965"
+                },
+                {
+                  "value": "1964",
+                  "label": "1964"
+                },
+                {
+                  "value": "1963",
+                  "label": "1963"
+                },
+                {
+                  "value": "1962",
+                  "label": "1962"
+                },
+                {
+                  "value": "1961",
+                  "label": "1961"
+                },
+                {
+                  "value": "1960",
+                  "label": "1960"
+                },
+                {
+                  "value": "1959",
+                  "label": "1959"
+                },
+                {
+                  "value": "1958",
+                  "label": "1958"
+                },
+                {
+                  "value": "1957",
+                  "label": "1957"
+                }
+              ]
+            },
+            {
+              "fieldRef": "endDateMonth",
+              "label": "End:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "endDateMonth"
+                },
+                {
+                  "strategy": "id",
+                  "value": "endDateMonth"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "Jan",
+                  "label": "Jan"
+                },
+                {
+                  "value": "Feb",
+                  "label": "Feb"
+                },
+                {
+                  "value": "Mar",
+                  "label": "Mar"
+                },
+                {
+                  "value": "Apr",
+                  "label": "Apr"
+                },
+                {
+                  "value": "May",
+                  "label": "May"
+                },
+                {
+                  "value": "June",
+                  "label": "June"
+                },
+                {
+                  "value": "July",
+                  "label": "July"
+                },
+                {
+                  "value": "Aug",
+                  "label": "Aug"
+                },
+                {
+                  "value": "Sept",
+                  "label": "Sept"
+                },
+                {
+                  "value": "Oct",
+                  "label": "Oct"
+                },
+                {
+                  "value": "Nov",
+                  "label": "Nov"
+                },
+                {
+                  "value": "Dec",
+                  "label": "Dec"
+                }
+              ]
+            },
+            {
+              "fieldRef": "endDateYear",
+              "label": "End:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "endDateYear"
+                },
+                {
+                  "strategy": "id",
+                  "value": "endDateYear"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2030",
+                  "label": "2030"
+                },
+                {
+                  "value": "2029",
+                  "label": "2029"
+                },
+                {
+                  "value": "2028",
+                  "label": "2028"
+                },
+                {
+                  "value": "2027",
+                  "label": "2027"
+                },
+                {
+                  "value": "2026",
+                  "label": "2026"
+                },
+                {
+                  "value": "2025",
+                  "label": "2025"
+                },
+                {
+                  "value": "2024",
+                  "label": "2024"
+                },
+                {
+                  "value": "2023",
+                  "label": "2023"
+                },
+                {
+                  "value": "2022",
+                  "label": "2022"
+                },
+                {
+                  "value": "2021",
+                  "label": "2021"
+                },
+                {
+                  "value": "2020",
+                  "label": "2020"
+                },
+                {
+                  "value": "2019",
+                  "label": "2019"
+                },
+                {
+                  "value": "2018",
+                  "label": "2018"
+                },
+                {
+                  "value": "2017",
+                  "label": "2017"
+                },
+                {
+                  "value": "2016",
+                  "label": "2016"
+                },
+                {
+                  "value": "2015",
+                  "label": "2015"
+                },
+                {
+                  "value": "2014",
+                  "label": "2014"
+                },
+                {
+                  "value": "2013",
+                  "label": "2013"
+                },
+                {
+                  "value": "2012",
+                  "label": "2012"
+                },
+                {
+                  "value": "2011",
+                  "label": "2011"
+                },
+                {
+                  "value": "2010",
+                  "label": "2010"
+                },
+                {
+                  "value": "2009",
+                  "label": "2009"
+                },
+                {
+                  "value": "2008",
+                  "label": "2008"
+                },
+                {
+                  "value": "2007",
+                  "label": "2007"
+                },
+                {
+                  "value": "2006",
+                  "label": "2006"
+                },
+                {
+                  "value": "2005",
+                  "label": "2005"
+                },
+                {
+                  "value": "2004",
+                  "label": "2004"
+                },
+                {
+                  "value": "2003",
+                  "label": "2003"
+                },
+                {
+                  "value": "2002",
+                  "label": "2002"
+                },
+                {
+                  "value": "2001",
+                  "label": "2001"
+                },
+                {
+                  "value": "2000",
+                  "label": "2000"
+                },
+                {
+                  "value": "1999",
+                  "label": "1999"
+                },
+                {
+                  "value": "1998",
+                  "label": "1998"
+                },
+                {
+                  "value": "1997",
+                  "label": "1997"
+                },
+                {
+                  "value": "1996",
+                  "label": "1996"
+                },
+                {
+                  "value": "1995",
+                  "label": "1995"
+                },
+                {
+                  "value": "1994",
+                  "label": "1994"
+                },
+                {
+                  "value": "1993",
+                  "label": "1993"
+                },
+                {
+                  "value": "1992",
+                  "label": "1992"
+                },
+                {
+                  "value": "1991",
+                  "label": "1991"
+                },
+                {
+                  "value": "1990",
+                  "label": "1990"
+                },
+                {
+                  "value": "1989",
+                  "label": "1989"
+                },
+                {
+                  "value": "1988",
+                  "label": "1988"
+                },
+                {
+                  "value": "1987",
+                  "label": "1987"
+                },
+                {
+                  "value": "1986",
+                  "label": "1986"
+                },
+                {
+                  "value": "1985",
+                  "label": "1985"
+                },
+                {
+                  "value": "1984",
+                  "label": "1984"
+                },
+                {
+                  "value": "1983",
+                  "label": "1983"
+                },
+                {
+                  "value": "1982",
+                  "label": "1982"
+                },
+                {
+                  "value": "1981",
+                  "label": "1981"
+                },
+                {
+                  "value": "1980",
+                  "label": "1980"
+                },
+                {
+                  "value": "1979",
+                  "label": "1979"
+                },
+                {
+                  "value": "1978",
+                  "label": "1978"
+                },
+                {
+                  "value": "1977",
+                  "label": "1977"
+                },
+                {
+                  "value": "1976",
+                  "label": "1976"
+                },
+                {
+                  "value": "1975",
+                  "label": "1975"
+                },
+                {
+                  "value": "1974",
+                  "label": "1974"
+                },
+                {
+                  "value": "1973",
+                  "label": "1973"
+                },
+                {
+                  "value": "1972",
+                  "label": "1972"
+                },
+                {
+                  "value": "1971",
+                  "label": "1971"
+                },
+                {
+                  "value": "1970",
+                  "label": "1970"
+                },
+                {
+                  "value": "1969",
+                  "label": "1969"
+                },
+                {
+                  "value": "1968",
+                  "label": "1968"
+                },
+                {
+                  "value": "1967",
+                  "label": "1967"
+                },
+                {
+                  "value": "1966",
+                  "label": "1966"
+                },
+                {
+                  "value": "1965",
+                  "label": "1965"
+                },
+                {
+                  "value": "1964",
+                  "label": "1964"
+                },
+                {
+                  "value": "1963",
+                  "label": "1963"
+                },
+                {
+                  "value": "1962",
+                  "label": "1962"
+                },
+                {
+                  "value": "1961",
+                  "label": "1961"
+                },
+                {
+                  "value": "1960",
+                  "label": "1960"
+                },
+                {
+                  "value": "1959",
+                  "label": "1959"
+                },
+                {
+                  "value": "1958",
+                  "label": "1958"
+                },
+                {
+                  "value": "1957",
+                  "label": "1957"
+                }
+              ]
+            },
+            {
+              "fieldRef": "awardDateMonth",
+              "label": "Date of Award:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "awardDateMonth"
+                },
+                {
+                  "strategy": "id",
+                  "value": "awardDateMonth"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "Jan",
+                  "label": "Jan"
+                },
+                {
+                  "value": "Feb",
+                  "label": "Feb"
+                },
+                {
+                  "value": "Mar",
+                  "label": "Mar"
+                },
+                {
+                  "value": "Apr",
+                  "label": "Apr"
+                },
+                {
+                  "value": "May",
+                  "label": "May"
+                },
+                {
+                  "value": "June",
+                  "label": "June"
+                },
+                {
+                  "value": "July",
+                  "label": "July"
+                },
+                {
+                  "value": "Aug",
+                  "label": "Aug"
+                },
+                {
+                  "value": "Sept",
+                  "label": "Sept"
+                },
+                {
+                  "value": "Oct",
+                  "label": "Oct"
+                },
+                {
+                  "value": "Nov",
+                  "label": "Nov"
+                },
+                {
+                  "value": "Dec",
+                  "label": "Dec"
+                }
+              ]
+            },
+            {
+              "fieldRef": "awardDateYear",
+              "label": "Date of Award:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "awardDateYear"
+                },
+                {
+                  "strategy": "id",
+                  "value": "awardDateYear"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2030",
+                  "label": "2030"
+                },
+                {
+                  "value": "2029",
+                  "label": "2029"
+                },
+                {
+                  "value": "2028",
+                  "label": "2028"
+                },
+                {
+                  "value": "2027",
+                  "label": "2027"
+                },
+                {
+                  "value": "2026",
+                  "label": "2026"
+                },
+                {
+                  "value": "2025",
+                  "label": "2025"
+                },
+                {
+                  "value": "2024",
+                  "label": "2024"
+                },
+                {
+                  "value": "2023",
+                  "label": "2023"
+                },
+                {
+                  "value": "2022",
+                  "label": "2022"
+                },
+                {
+                  "value": "2021",
+                  "label": "2021"
+                },
+                {
+                  "value": "2020",
+                  "label": "2020"
+                },
+                {
+                  "value": "2019",
+                  "label": "2019"
+                },
+                {
+                  "value": "2018",
+                  "label": "2018"
+                },
+                {
+                  "value": "2017",
+                  "label": "2017"
+                },
+                {
+                  "value": "2016",
+                  "label": "2016"
+                },
+                {
+                  "value": "2015",
+                  "label": "2015"
+                },
+                {
+                  "value": "2014",
+                  "label": "2014"
+                },
+                {
+                  "value": "2013",
+                  "label": "2013"
+                },
+                {
+                  "value": "2012",
+                  "label": "2012"
+                },
+                {
+                  "value": "2011",
+                  "label": "2011"
+                },
+                {
+                  "value": "2010",
+                  "label": "2010"
+                },
+                {
+                  "value": "2009",
+                  "label": "2009"
+                },
+                {
+                  "value": "2008",
+                  "label": "2008"
+                },
+                {
+                  "value": "2007",
+                  "label": "2007"
+                },
+                {
+                  "value": "2006",
+                  "label": "2006"
+                },
+                {
+                  "value": "2005",
+                  "label": "2005"
+                },
+                {
+                  "value": "2004",
+                  "label": "2004"
+                },
+                {
+                  "value": "2003",
+                  "label": "2003"
+                },
+                {
+                  "value": "2002",
+                  "label": "2002"
+                },
+                {
+                  "value": "2001",
+                  "label": "2001"
+                },
+                {
+                  "value": "2000",
+                  "label": "2000"
+                },
+                {
+                  "value": "1999",
+                  "label": "1999"
+                },
+                {
+                  "value": "1998",
+                  "label": "1998"
+                },
+                {
+                  "value": "1997",
+                  "label": "1997"
+                },
+                {
+                  "value": "1996",
+                  "label": "1996"
+                },
+                {
+                  "value": "1995",
+                  "label": "1995"
+                },
+                {
+                  "value": "1994",
+                  "label": "1994"
+                },
+                {
+                  "value": "1993",
+                  "label": "1993"
+                },
+                {
+                  "value": "1992",
+                  "label": "1992"
+                },
+                {
+                  "value": "1991",
+                  "label": "1991"
+                },
+                {
+                  "value": "1990",
+                  "label": "1990"
+                },
+                {
+                  "value": "1989",
+                  "label": "1989"
+                },
+                {
+                  "value": "1988",
+                  "label": "1988"
+                },
+                {
+                  "value": "1987",
+                  "label": "1987"
+                },
+                {
+                  "value": "1986",
+                  "label": "1986"
+                },
+                {
+                  "value": "1985",
+                  "label": "1985"
+                },
+                {
+                  "value": "1984",
+                  "label": "1984"
+                },
+                {
+                  "value": "1983",
+                  "label": "1983"
+                },
+                {
+                  "value": "1982",
+                  "label": "1982"
+                },
+                {
+                  "value": "1981",
+                  "label": "1981"
+                },
+                {
+                  "value": "1980",
+                  "label": "1980"
+                },
+                {
+                  "value": "1979",
+                  "label": "1979"
+                },
+                {
+                  "value": "1978",
+                  "label": "1978"
+                },
+                {
+                  "value": "1977",
+                  "label": "1977"
+                },
+                {
+                  "value": "1976",
+                  "label": "1976"
+                },
+                {
+                  "value": "1975",
+                  "label": "1975"
+                },
+                {
+                  "value": "1974",
+                  "label": "1974"
+                },
+                {
+                  "value": "1973",
+                  "label": "1973"
+                },
+                {
+                  "value": "1972",
+                  "label": "1972"
+                },
+                {
+                  "value": "1971",
+                  "label": "1971"
+                },
+                {
+                  "value": "1970",
+                  "label": "1970"
+                },
+                {
+                  "value": "1969",
+                  "label": "1969"
+                },
+                {
+                  "value": "1968",
+                  "label": "1968"
+                },
+                {
+                  "value": "1967",
+                  "label": "1967"
+                },
+                {
+                  "value": "1966",
+                  "label": "1966"
+                },
+                {
+                  "value": "1965",
+                  "label": "1965"
+                },
+                {
+                  "value": "1964",
+                  "label": "1964"
+                },
+                {
+                  "value": "1963",
+                  "label": "1963"
+                },
+                {
+                  "value": "1962",
+                  "label": "1962"
+                },
+                {
+                  "value": "1961",
+                  "label": "1961"
+                },
+                {
+                  "value": "1960",
+                  "label": "1960"
+                },
+                {
+                  "value": "1959",
+                  "label": "1959"
+                },
+                {
+                  "value": "1958",
+                  "label": "1958"
+                },
+                {
+                  "value": "1957",
+                  "label": "1957"
+                }
+              ]
+            },
+            {
+              "fieldRef": "gradingSystemId",
+              "label": "Grading System:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "gradingSystemId"
+                },
+                {
+                  "strategy": "id",
+                  "value": "gradingSystems"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": "Select a grading system..."
+                },
+                {
+                  "value": "Not in list",
+                  "label": "Not in list"
+                },
+                {
+                  "value": "7",
+                  "label": "UK Bachelors Degree (BA, BSc)"
+                },
+                {
+                  "value": "8",
+                  "label": "UK Masters Degree (MA, MSc)"
+                },
+                {
+                  "value": "9",
+                  "label": "UK Research Degree"
+                },
+                {
+                  "value": "81",
+                  "label": "UK Medical Degree (MBBS, MBChB)"
+                }
+              ]
+            },
+            {
+              "fieldRef": "grade",
+              "label": "grade",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "grade"
+                },
+                {
+                  "strategy": "id",
+                  "value": "grades"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "Select your grade...",
+                  "label": "Select your grade..."
+                },
+                {
+                  "value": "Still waiting for grade",
+                  "label": "Still waiting for grade"
+                },
+                {
+                  "value": "Failed to complete course",
+                  "label": "Failed to complete course"
+                },
+                {
+                  "value": "1st",
+                  "label": "1st"
+                },
+                {
+                  "value": "2.1",
+                  "label": "2.1"
+                },
+                {
+                  "value": "2.2",
+                  "label": "2.2"
+                },
+                {
+                  "value": "3rd",
+                  "label": "3rd"
+                },
+                {
+                  "value": "Pass",
+                  "label": "Pass"
+                },
+                {
+                  "value": "Fail",
+                  "label": "Fail"
+                }
+              ]
+            },
+            {
+              "fieldRef": "unlistedGrade",
+              "label": "unlistedGrade",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "unlistedGrade"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "29",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "unlistedGradeDescription",
+              "label": "Unlisted grade description:",
+              "labelSource": "row_text",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "unlistedGradeDescription"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "79",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "highestEducationLevel",
+              "label": "Please tick here if this is this the highest qualification level you have taken:",
+              "inputType": "checkbox",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Please tick here if this is this the highest qualification level you have taken:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "highestEducationLevel"
+                },
+                {
+                  "strategy": "id",
+                  "value": "highestLevel"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "certificateStatus",
+              "label": "Proof of Registration This is any document showing you are a student at the institution for example a document confirming your registration or a certificate of study.",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "certificateStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload proof of registration now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload proof of registration later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                },
+                {
+                  "value": "NotRequired",
+                  "label": "Not required"
+                }
+              ]
+            },
+            {
+              "fieldRef": "certificate",
+              "label": "certificate",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "certificate"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "transcriptStatus",
+              "label": "Most Recent Transcript This is a breakdown of the marks/scores you received most recently, for example at the end of your previous year of study.",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "transcriptStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload my transcript now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload my transcript later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                },
+                {
+                  "value": "NotRequired",
+                  "label": "Not required"
+                }
+              ]
+            },
+            {
+              "fieldRef": "transcript",
+              "label": "transcript",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "transcript"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "officialCertTranslStatus",
+              "label": "Final Academic Certificate This is the certificate you received after passing your qualification. This document should include a signature or stamp from the institution. Please note that if you are of",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "officialCertTranslStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload my final certificate now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload my final certificate later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                },
+                {
+                  "value": "NotRequired",
+                  "label": "-"
+                }
+              ]
+            },
+            {
+              "fieldRef": "officialCertTranslation",
+              "label": "officialCertTranslation",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "officialCertTranslation"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "officialTranTranslStatus",
+              "label": "Final Academic Transcript This is a breakdown of the marks/scores you received after passing your qualification.This document should include a signature or stamp from the institution.Please note that ",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "officialTranTranslStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload my final transcript now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload my final transcript later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                },
+                {
+                  "value": "NotRequired",
+                  "label": "-"
+                }
+              ]
+            },
+            {
+              "fieldRef": "officialTranTranslation",
+              "label": "officialTranTranslation",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "officialTranTranslation"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "certificateTranslationStatus",
+              "label": "Final Academic Certificate Translation This is an official translation of the certificate you received after passing your qualification. This document should include a signature or stamp from the tran",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "certificateTranslationStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "NotRequired",
+                  "label": "My certificate is in English"
+                },
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload my certificate translation now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload my certificate translation later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                }
+              ]
+            },
+            {
+              "fieldRef": "certificateTranslation",
+              "label": "certificateTranslation",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "certificateTranslation"
+                }
+              ],
+              "validations": []
+            },
+            {
+              "fieldRef": "transcriptTranslationStatus",
+              "label": "Final Academic Transcript Translation This is an official translation of the transcript you received after passing your qualification. This document should include a signature or stamp from the transl",
+              "labelSource": "row_text",
+              "inputType": "radio",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "transcriptTranslationStatus"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "NotRequired",
+                  "label": "My transcript is in English"
+                },
+                {
+                  "value": "Uploaded",
+                  "label": "I will upload my transcript translation now"
+                },
+                {
+                  "value": "UploadLater",
+                  "label": "I will upload my transcript translation later"
+                },
+                {
+                  "value": "NotSending",
+                  "label": "I will not be providing this document"
+                }
+              ]
+            },
+            {
+              "fieldRef": "transcriptTranslation",
+              "label": "transcriptTranslation",
+              "inputType": "file",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "transcriptTranslation"
+                }
+              ],
+              "validations": []
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [
+        {
+          "fieldRef": "certificate",
+          "label": "certificate",
+          "acceptedFormats": [],
+          "required": false
+        },
+        {
+          "fieldRef": "transcript",
+          "label": "transcript",
+          "acceptedFormats": [],
+          "required": false
+        },
+        {
+          "fieldRef": "officialCertTranslation",
+          "label": "officialCertTranslation",
+          "acceptedFormats": [],
+          "required": false
+        },
+        {
+          "fieldRef": "officialTranTranslation",
+          "label": "officialTranTranslation",
+          "acceptedFormats": [],
+          "required": false
+        },
+        {
+          "fieldRef": "certificateTranslation",
+          "label": "certificateTranslation",
+          "acceptedFormats": [],
+          "required": false
+        },
+        {
+          "fieldRef": "transcriptTranslation",
+          "label": "transcriptTranslation",
+          "acceptedFormats": [],
+          "required": false
+        }
+      ],
+      "advanceControl": {
+        "strategy": "id",
+        "value": "saveBtn"
+      }
+    }
+  ],
+  "handoffPoints": [],
+  "provenance": {
+    "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-14T17-46-48-430Z",
+    "discoveredAt": "2026-09-14T17:46:48.430Z",
+    "observedUrls": [
+      "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true"
+    ],
+    "unobservedClaims": [
+      "STATED (https://sheffield.ac.uk/postgraduate/taught/apply/applying, retrieved 2026-09-10): the form is in two parts; Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked * that must all be completed before Part 2 opens",
+      "STATED (same source, 2026-09-10): Part 2 is course selection — up to three courses per application",
+      "STATED (same source, 2026-09-10): supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form",
+      "STATED (same source, 2026-09-10): the application is submitted only when Submit Application is clicked, and incomplete sections are prompted back at that point",
+      "STATED (same source, 2026-09-10): no application fee for PGT master's",
+      "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
+      "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
+      "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
+      "ANSWERED (Vahid's direct statement, 2026-09-11): student_chosen — he typed the password he chose at registration; Sheffield did not email one. Not portal_issued, whatever the sibling /arpform/login.app form states",
+      "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+      "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+      "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
+      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE OFFERED on the entry page (signed-out read, 2026-09-11): e-mail and password, and a reset page",
+      "AUTH 4 — Must the email be verified before the form is reachable? NO — observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I entered an email and a password on the New Applicants form, pressed Start Application, and went straight into the form. No email had to be opened, no link clicked.' Sheffield's behaviour, not a property of direct portals",
+      "AUTH 5 — Is MFA or a one-time code required, and where? NO — none on the pages read (2026-09-10, 2026-09-11), and observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.' This entry only",
+      "AUTH 6 — Is a CAPTCHA present, and where? NONE on the three entry pages or the eleven form pages read; caveat: tag manager was refused, so a tag-injected one could not have loaded; Vahid saw none with tags allowed",
+      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+      "AUTH 8 — Can control be handed back cleanly?"
+    ]
+  },
+  "observedSignals": [
+    {
+      "kind": "account_creation",
+      "evidence": "page text contains \"register\"",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true"
+    },
+    {
+      "kind": "conditional_field",
+      "evidence": "institutionCountry-ts-control carries a conditional attribute",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true"
+    },
+    {
+      "kind": "conditional_field",
+      "evidence": "institution-ts-control carries a conditional attribute",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true"
+    }
+  ]
+}
