@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.124.0] — 2026-09-14
+
+**P126 — the third read folded into the curated draft; item 1 closed with thirteen carried into
+item 6, on Vahid's word to stop.**
+
+### Changed
+
+- `blueprint.draft.curated.json` 0.2.18: on nationality, language, education, marketing and
+  documents, 79 labels from the row (`labelSource: "row_text"`) and 50 `required` validations
+  from the visible marker (`observed_marker`); fourteen wrong labels excluded, thirteen unread
+  fields left as their names. `mapping-set.draft.json` 0.3.18 re-bound, unchanged otherwise.
+- `review-pack.md`: the thirteen listed on their own with page and field, their rows marked;
+  the fifty markers tabled; two flagged as the author's reading (language's eighteen of twenty,
+  `unlistedDegree`); the six education companions' marks noted.
+- `scripts/sheffield-draft.test.ts`: pins the fold (79, 50, the fourteen, the thirteen, the
+  two carried marks, version 0.2.18) and the plan's forty-eight `no_mapping` blockers by name.
+
+### Recorded
+
+- Vahid's words on the ceiling and on refusing rather than guessing, in the third read's README
+  and the distance list; item 1 closed with thirteen carried into item 6; seven open of ten.
+
+---
+
 ## [0.123.0] — 2026-09-14
 
 **P125 — Vahid's third read: 93 of 149 labelled, 50 marked; the ceiling of reading by

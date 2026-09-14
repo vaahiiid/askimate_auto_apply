@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P126 — stop, in his words, and the fold
+
+He stopped the reads, and for the reason rather than the count: *"The third rule produced nine header labels and no right label on the page it was written for. A fourth rule would be written without the markup and tested by a fifth read, exactly as the first three were. That is the shape to stop at, not a number."* He asked for two things recorded in his words, and they are, in the third read's README and on the distance list: the ceiling is 106 of 149 because 43 fields have no question of their own, and the 13 between 93 and 106 are not a tool failure but markup a positional rule cannot reach, which nobody reading later should take as work left undone; and that refusing was right on the fourteen, because a wrong label is worse than none, a reviewer confirming it having nothing to notice, and 79 right is better than 93 with 14 wrong.
+
+Then the fold. The curated draft is at 0.2.18 and carries, on the five pages, the seventy-nine row-text labels with their source named, the fifty markers as `required` with source `observed_marker`, the fourteen excluded so their names stand, and the thirteen as their names. The mapping set is re-bound to it as 0.3.18 and changed in nothing else. The draft test pins every one of those numbers and names, and it showed what the fold means for the plan: with an empty profile, forty-four observed-mandatory fields on nationality, language and education now stand as `no_mapping` beside employment's four, which is items 3, 4 and 5 of the distance list made visible by item 1's answer, and exactly what the list said would happen once the mandatory set was known. The six education companions the read also marked are not among them, because a handed slot's companion is the student's own act and the plan says *later* for it.
+
+The review pack is revised as he asked. The thirteen are a list of their own with the page and the field name, before the two hundred and sixteen rows rather than buried in them, with his words above it; their rows in the tables are marked so they look different from the rest. The fifty markers are tabled for confirmation, and two of them are flagged as mine to a reviewer and not his: language's eighteen marked of twenty, which reads as the test block's own rule rather than eighteen universal questions, and `unlistedDegree`, marked by a star that belongs to the select it shares a row with. Item 1 is closed with thirteen carried into item 6. Seven of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P125 — the ceiling of reading by position
 
 The third read came in at ninety-three labelled and fifty marked, and he asked two things and a third: what the fifty-six still unlabelled are and whether any of them matter; whether the four wrong labels are fixed or changed to something else also wrong; and whether to stop, because he would rather be told the ceiling now than find it with me on the sixth read.

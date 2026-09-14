@@ -99,3 +99,31 @@ pack's `required` section has said since it was written — the fallback, not a 
 fifty markers the file carries are for confirmation, not discovery, with two to look at
 harder: language's eighteen of twenty (the test block's own rule, on the evidence) and
 `unlistedDegree`.
+
+## Decided by Vahid, 2026-09-14 — stop, and what the record says
+
+*"Stop. Agreed, and for the reason you gave rather than the count. The third rule produced nine
+header labels and no right label on the page it was written for. A fourth rule would be written
+without the markup and tested by a fifth read, exactly as the first three were. That is the
+shape to stop at, not a number."*
+
+Recorded in his words, as he asked: *"the ceiling is 106 of 149 because 43 fields have no
+question of their own, and the 13 between 93 and 106 are not a tool failure. They are markup a
+positional rule cannot reach. Anyone reading this later should not take it as work left
+undone."*
+
+And on the fourteen: *"Refusing rather than guessing was the right call on the fourteen. A
+wrong label is worse than none, because a reviewer confirming it has nothing to notice — and 79
+right is better than 93 with 14 wrong."*
+
+## Folded into the curated draft (P126)
+
+`../sheffield-pgt-2026-09-10/blueprint.draft.curated.json` 0.2.18 carries, on the five pages,
+the 79 row-text labels (`labelSource: "row_text"`), the 50 markers (`required`, source
+`observed_marker`), the fourteen excluded (their names stand), and the thirteen as their names.
+The mapping set is re-bound to 0.2.18 as 0.3.18, unchanged otherwise. The review pack lists the
+thirteen on their own with the page and the field name, marks their rows, and carries the two
+flags above as the author's, not Vahid's. `scripts/sheffield-draft.test.ts` pins all of it:
+79, 50, the fourteen unlabelled, the thirteen unlabelled, the two flagged marks carried, and
+the plan's blockers — forty-four observed-mandatory fields on the three unmapped pages now
+stand beside employment's four as `no_mapping`, which is items 3, 4 and 5 made visible.

@@ -90,6 +90,48 @@ describe("the Sheffield drafts, under the real checks", () => {
     if (!check.usable) expect(check.refusal.kind).toBe("not_reviewed");
   });
 
+  it("carry the third read's row-text labels and observed markers on the five pages — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen unread left as their names (P126)", () => {
+    // Vahid, 2026-09-14: "the ceiling is 106 of 149 because 43 fields have no
+    // question of their own, and the 13 between 93 and 106 are not a tool
+    // failure. They are markup a positional rule cannot reach." And: "79
+    // right is better than 93 with 14 wrong."
+    const five = ["page5", "page6", "page7", "page10", "page11"];
+    const fields = blueprint.pages.filter((p) => five.includes(p.pageRef)).flatMap((p) => p.sections.flatMap((s) => s.fields));
+    expect(fields).toHaveLength(144);
+    const rowText = fields.filter((f) => f.labelSource === "row_text");
+    expect(rowText).toHaveLength(79);
+    for (const f of rowText) expect(f.label, f.fieldRef).not.toBe(f.fieldRef);
+    const marked = fields.filter((f) => f.validations.some((v) => v.kind === "required" && v.source === "observed_marker"));
+    expect(marked).toHaveLength(50);
+    // The fourteen the third rule got wrong are not carried: no label from
+    // the row, and the field's name stands.
+    const WRONG = [
+      "institutionCode", "unlistedInstitution", "unlistedDegree", "grade", "unlistedGrade",
+      "previousCountry1", "dateFromDay1", "dateFromMonth1", "dateFromYear1", "dateToDay1", "dateToMonth1", "dateToYear1",
+      "otherInst1", "otherInstCourse1",
+    ];
+    for (const ref of WRONG) {
+      const f = fields.find((x) => x.fieldRef === ref);
+      expect(f?.labelSource, ref).toBeUndefined();
+      expect(f?.label, ref).toBe(ref);
+    }
+    // The thirteen read from the screenshots at review: unlabelled here, by
+    // name, and never a label the file did not carry.
+    const THIRTEEN = [
+      "fundingNationality", "secondFundingNationality", "countryOfBirth", "permanentResidence", "ukPermanentResidence",
+      "dateEnteredUKDay", "dateEnteredUKMonth", "dateEnteredUKYear", "yearsOnStudentVisa", "monthsOnStudentVisa", "applicationLocation",
+      "previousEnglishEducation", "languageCertificateStatus",
+    ];
+    for (const ref of THIRTEEN) {
+      const f = fields.find((x) => x.fieldRef === ref);
+      expect(f?.labelSource, ref).toBeUndefined();
+    }
+    // The two marks flagged for Iman are carried as observed, not dropped.
+    expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
+    expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
+    expect(blueprint.version).toBe("0.2.18");
+  });
+
   it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     expect(check.usable, check.usable ? "" : JSON.stringify(check.refusal).slice(0, 300)).toBe(true);
@@ -100,15 +142,29 @@ describe("the Sheffield drafts, under the real checks", () => {
       "ethnicOriginCode",
     ]);
     // With an empty profile the mapped fields want values (the interview's
-    // job), and the four employment fields have no mapping because the
-    // registry has no field for them (P89, raised) — and NOTHING else blocks:
-    // no covered control, no unclassified field, no refused render.
+    // job); the four employment fields have no mapping because the registry
+    // has no field for them (P89, raised); and since P126 the forty-four
+    // fields the third read marked mandatory on nationality, language and
+    // education have no mapping either — items 3, 4 and 5 of the distance
+    // list, which item 1's answer made visible. The six education companions
+    // the read also marked are not here: a handed slot's companion is the
+    // student's own act (ADR-0107). NOTHING else blocks: no covered control,
+    // no unclassified field, no refused render.
     expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
     expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
-      "duties",
-      "employerDetails",
+      "alwaysEUResident", "alwaysUKResident", "awardingBody", "britishPassport", "certificateNumber", "certificateNumber2",
+      "dateOfAward.day", "dateOfAward.month", "dateOfAward.year", "degree",
+      "duties", "employerDetails",
+      "endDateMonth", "endDateYear", "euPassport", "firstLanguage",
+      "highestQualification(ENGLISH_LANGUAGE_STUDY)", "highestQualification(FOUNDATION_LEVEL)", "highestQualification(SCHOOL_LEVEL)",
+      "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)", "highestQualification(UNIVERSITY_LEVEL)", "highestQualificationOther",
+      "indefinateVisa", "languageCertificate", "languageCertificateStatus", "listeningScore", "livedOutsideCountry", "livingInUK",
+      "migrantWorker", "overallScore", "overallScoreComponent", "passportNumber",
       "position",
+      "previousEducationLanguage", "previousEnglishEducation", "previousStudentVisa", "qualificationLevel", "readingScore",
+      "refugeeStatus", "speakingScore", "spouseOfEUCitizen", "spouseOfUKCitizen", "startDateMonth", "startDateYear",
       "startMonth",
+      "title", "unlistedDegree", "writingScore",
     ]);
   });
 
@@ -131,7 +187,10 @@ describe("the Sheffield drafts, under the real checks", () => {
     // is neither filled nor missing — the form does not show it.
     expect(typed.has("corrIntlPostcode")).toBe(false);
     expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
-    expect(plan.blockers.map((b) => b.kind)).toEqual(["no_mapping", "no_mapping", "no_mapping", "no_mapping"]);
+    // Four employment fields and forty-four observed-mandatory fields on the
+    // three unmapped pages (P126); nothing else.
+    expect(plan.blockers).toHaveLength(48);
+    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["no_mapping"]));
   });
 
   it("carry the registration and login the entry page showed, the passwords to the Secure Plane (P91)", () => {
@@ -252,12 +311,15 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(JSON.stringify(companions)).not.toContain("NotRequired");
     expect(JSON.stringify(mappingSet.mappings)).not.toContain("NotRequired");
     // Nothing on the language page is mapped, so its companion is left as the
-    // form has it: no instruction on it, no blocker for it.
+    // form has it: no instruction on it. Since P126 it carries the third
+    // read's observed marker — the row's `*` — and, unmapped, it is a
+    // blocker until Iman confirms the mark and the page is mapped; the mark
+    // is flagged for him in the review pack, never dropped here.
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(blueprint, check.mappingSet, PROFILE);
     expect(plan.instructions.some((i) => i.fieldRef === "languageCertificateStatus")).toBe(false);
-    expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(plan.blockers.find((b) => b.fieldRef === "languageCertificateStatus")?.kind).toBe("no_mapping");
   });
 
   it("carry the twenty-three groups of personal, contact and nationality as Vahid read them — the case the page's, the five companions three values, NotRequired absent (P110)", () => {

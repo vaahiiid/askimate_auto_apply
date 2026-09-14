@@ -1177,6 +1177,19 @@ nothing under `/postgradapplication/`. No crawl-delay, so the one-second floor i
 evaluation found the matcher reporting a non-matching `Allow` as its reason when nothing matched;
 fixed in P122.
 
+## The curated draft 0.2.18 — the five pages' labels and markers folded in (P126, 2026-09-14)
+
+From Vahid's third attached read (`../sheffield-pgt-2026-09-14-third-read/`, its README for the
+counts and the ceiling): on nationality, language, education, marketing and documents the draft
+now carries 79 labels read from the control's row (`labelSource: "row_text"`) and 50 `required`
+validations from the visible `*` (source `observed_marker`). Fourteen labels the read got wrong
+are excluded and those fields keep their names, by his word — *"79 right is better than 93 with
+14 wrong"*. Thirteen fields whose question no positional rule can reach are left as their
+names and listed in the review pack for Iman to read from the screenshots, by his word too —
+*"not a tool failure… markup a positional rule cannot reach"*. Set 0.3.18 re-binds to it,
+unchanged otherwise. Two marks are flagged in the pack as the author's reading: language's
+eighteen of twenty, and `unlistedDegree`'s.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

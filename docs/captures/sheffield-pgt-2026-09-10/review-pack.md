@@ -1,6 +1,6 @@
 # Review pack — Sheffield PGT, the curated draft and the equal-opportunities mapping set
 
-**For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · generated from `blueprint.draft.curated.json` (0.2.2) and `mapping-set.draft.json` (0.2.0; the equal-opportunities page is this sitting's; its personal and contact mappings, added in P89, are the second sitting's)
+**For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · **Revised:** 2026-09-14 (P126: the five pages' labels and markers from the third attached read, and the thirteen to read from the screenshots) · generated from `blueprint.draft.curated.json` (0.2.2; the five pages' labels and `observed_marker` validations from 0.2.18) and `mapping-set.draft.json` (0.2.0; the equal-opportunities page is this sitting's; its personal and contact mappings, added in P89, are the second sitting's)
 
 What this sitting is, and is not. It is the review ADR-0102 requires before either artefact can be
 used: every field classified (`ordinary` or `special_category`), and the one page's mapping set
@@ -22,6 +22,41 @@ a category, and the signature is yours.
 | judgement rows | **23** |
 | mechanical rows | 193 |
 | total | 216 |
+| of which read from the screenshots | **13** (listed next) |
+
+## Thirteen fields to read from the screenshots (P126, 2026-09-14)
+
+The five pages' labels and mandatory markers now come from Vahid's attached reads of
+2026-09-14 (three reads; the third is `../sheffield-pgt-2026-09-14-third-read/`), and are in the
+draft with their sources named: `labelSource: "row_text"` on a label read from the row, and a
+`required` validation with source `observed_marker` where the row carried the `*`. These
+thirteen are the exception. Their question is where no positional rule can read it, so the
+draft carries only their names, and **they are the one part of this sitting that cannot be
+confirmed from the file**: read each from the screenshot, and record its question and whether
+it is starred.
+
+Vahid, 2026-09-14: *"the ceiling is 106 of 149 because 43 fields have no question of their own,
+and the 13 between 93 and 106 are not a tool failure. They are markup a positional rule cannot
+reach. Anyone reading this later should not take it as work left undone."*
+
+| page | field | type | why the file does not carry it |
+|---|---|---|---|
+| page5 | `fundingNationality` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `secondFundingNationality` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `countryOfBirth` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `permanentResidence` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `ukPermanentResidence` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `dateEnteredUKDay` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `dateEnteredUKMonth` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `dateEnteredUKYear` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `yearsOnStudentVisa` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `monthsOnStudentVisa` | select | the page's top questions; the question is not in the control's row nor in a row above it |
+| page5 | `applicationLocation` | radio | the page's top questions; the question is not in the control's row nor in a row above it |
+| page6 | `previousEnglishEducation` | radio | marked in its row, the question after the controls |
+| page6 | `languageCertificateStatus` | radio | marked in its row, the question after the controls |
+
+Their rows in the tables below are marked **read from the screenshot** so they look different
+from the rest; their classification stands as proposed.
 
 ## The two refusals, and what the student will read
 
@@ -85,7 +120,82 @@ Authored from the `*` in the captured label; source `specialist_noted`; confirm 
 | page8 | `employerDetails` | Name and address of employer:* |
 | page8 | `duties` | Brief Overview of Duties(Max 4000 characters):* |
 
-The five pages whose labels were not read carry no asterisks in the draft; theirs are read from the screenshots and added at review.
+The five pages' asterisks were read on 2026-09-14 and are below as `observed_marker`; the
+thirteen fields above are the ones whose star, if any, is read from the screenshot.
+
+### The fifty `required` validations from the observed markers (P126, 2026-09-14)
+
+Read by the attached tool from the visible `*` in the control's row, source `observed_marker`;
+confirm each against the screenshot. A wrong label is worse than none — a reviewer confirming
+it has nothing to notice — so fourteen labels the third read got wrong (a help sentence taken
+with the next question; a column header taken as a question) are **not** in the draft, and
+those fields carry their names; 79 right rather than 93 with 14 wrong. Vahid, 2026-09-14:
+*"79 right is better than 93 with 14 wrong."*
+
+**Two of the fifty are flagged by the author of this revision, not asserted:**
+
+- **Language: eighteen of twenty marked.** Everything about a test — the qualification, its
+  title, the three-part date of award, both certificate numbers, the awarding body, the six
+  scores, the certificate and its companion — carries the `*`. That reads as the test block's
+  own rule, mandatory once a test is entered, rather than eighteen questions every applicant
+  must answer. Please read it as one condition, not eighteen, and say which.
+- **`unlistedDegree` marked.** The text box that appears when the qualification is *Not in
+  list* shares a row with the `degree` select, and the row's `*` was attached to both. The
+  star is the select's; the box is conditional. Please confirm and strike the mark on the box
+  if so.
+
+| page | field | label (from the row) |
+|---|---|---|
+| page5 | `livedOutsideCountry` | Have you been living outside of this country during the last 3 years? |
+| page5 | `alwaysUKResident` | Have you always lived in the UK ? |
+| page5 | `alwaysEUResident` | Have you always lived in the EU? |
+| page5 | `britishPassport` | Do you have a British passport? |
+| page5 | `indefinateVisa` | Do you have indefinite leave to enter or remain in the UK? |
+| page5 | `refugeeStatus` | Do you hold refugee status? |
+| page5 | `migrantWorker` | Are you a migrant worker? |
+| page5 | `spouseOfUKCitizen` | Are you the spouse/civil partner of a UK citizen? |
+| page5 | `euPassport` | Do you have an EU passport? |
+| page5 | `spouseOfEUCitizen` | Are you the spouse/civil partner of an EU citizen? |
+| page5 | `passportNumber` | Please enter your passport number below. This is required in order to comply with UK immi… |
+| page5 | `livingInUK` | Are you currently living in the UK? |
+| page5 | `previousStudentVisa` | Have you previously studied in the United Kingdom on a Student Visa? |
+| page5 | `qualificationLevel` | What is the highest qualification level you have studied in the United Kingdom? |
+| page5 | `highestQualification(ENGLISH_LANGUAGE_STUDY)` | What level is your English Language Course? Please refer to your course provider to find … |
+| page5 | `highestQualification(SCHOOL_LEVEL)` | Please select the qualification you studied: |
+| page5 | `highestQualification(FOUNDATION_LEVEL)` | Please select the qualification you studied: |
+| page5 | `highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)` | Please select the qualification you studied: |
+| page5 | `highestQualification(UNIVERSITY_LEVEL)` | Please select the qualification you studied: |
+| page5 | `highestQualificationOther` | Please provide details of the qualification you studied for: |
+| page6 | `firstLanguage` | What is your first language? |
+| page6 | `previousEnglishEducation` | *(name only — read from the screenshot)* |
+| page6 | `previousEducationLanguage` | Please enter the language you were educated in: |
+| page6 | `title` | Qualification Title: |
+| page6 | `dateOfAward.day` | Date of Award: |
+| page6 | `dateOfAward.month` | Date of Award: |
+| page6 | `dateOfAward.year` | Date of Award: |
+| page6 | `certificateNumber` | Certificate Number : |
+| page6 | `certificateNumber2` | UKVI Reference Number : |
+| page6 | `awardingBody` | Awarding Body: |
+| page6 | `overallScore` | Grade/Score: |
+| page6 | `overallScoreComponent` | Overall Grade/Score: |
+| page6 | `listeningScore` | Listening Score: |
+| page6 | `readingScore` | Reading Score: |
+| page6 | `writingScore` | Writing Score: |
+| page6 | `speakingScore` | Speaking Score: |
+| page6 | `languageCertificateStatus` | *(name only — read from the screenshot)* |
+| page6 | `languageCertificate` | Please tell us how you will provide your test certificate: |
+| page7 | `degree` | Qualification: |
+| page7 | `unlistedDegree` | unlistedDegree |
+| page7 | `startDateMonth` | Start: |
+| page7 | `startDateYear` | Start: |
+| page7 | `endDateMonth` | End: |
+| page7 | `endDateYear` | End: |
+| page7 | `certificateStatus` | Proof of Registration This is any document showing you are a student at the institution f… |
+| page7 | `transcriptStatus` | Most Recent Transcript This is a breakdown of the marks/scores you received most recently… |
+| page7 | `officialCertTranslStatus` | Final Academic Certificate This is the certificate you received after passing your qualif… |
+| page7 | `officialTranTranslStatus` | Final Academic Transcript This is a breakdown of the marks/scores you received after pass… |
+| page7 | `certificateTranslationStatus` | Final Academic Certificate Translation This is an official translation of the certificate… |
+| page7 | `transcriptTranslationStatus` | Final Academic Transcript Translation This is an official translation of the transcript y… |
 
 ## Every field, by page
 
@@ -172,17 +282,17 @@ No fields (navigation page).
 
 | field | type | label | proposed | needs |
 |---|---|---|---|---|
-| `fundingNationality` | select | fundingNationality | `ordinary` | **judgement** — nationality is not racial or ethnic origin under the statute's list. Proposed ordinary. Confirm. |
-| `secondFundingNationality` | select | secondFundingNationality | `ordinary` | **judgement** — as fundingNationality. |
-| `countryOfBirth` | select | countryOfBirth | `ordinary` | **judgement** — country of birth is not ethnic origin. Proposed ordinary. Confirm. |
-| `permanentResidence` | select | permanentResidence | `ordinary` | **judgement** — residence is not ethnic origin. Proposed ordinary. Confirm. |
-| `ukPermanentResidence` | select | ukPermanentResidence | `ordinary` | mechanical |
-| `livedOutsideCountry` | radio | livedOutsideCountry | `ordinary` | mechanical |
-| `alwaysUKResident` | radio | alwaysUKResident | `ordinary` | mechanical |
-| `dateEnteredUKDay` | select | dateEnteredUKDay | `ordinary` | mechanical |
-| `dateEnteredUKMonth` | select | dateEnteredUKMonth | `ordinary` | mechanical |
-| `dateEnteredUKYear` | select | dateEnteredUKYear | `ordinary` | mechanical |
-| `alwaysEUResident` | radio | alwaysEUResident | `ordinary` | mechanical |
+| `fundingNationality` | select | fundingNationality | `ordinary` | **read from the screenshot** — **judgement** — nationality is not racial or ethnic origin under the statute's list. Proposed ordinary. Confirm. |
+| `secondFundingNationality` | select | secondFundingNationality | `ordinary` | **read from the screenshot** — **judgement** — as fundingNationality. |
+| `countryOfBirth` | select | countryOfBirth | `ordinary` | **read from the screenshot** — **judgement** — country of birth is not ethnic origin. Proposed ordinary. Confirm. |
+| `permanentResidence` | select | permanentResidence | `ordinary` | **read from the screenshot** — **judgement** — residence is not ethnic origin. Proposed ordinary. Confirm. |
+| `ukPermanentResidence` | select | ukPermanentResidence | `ordinary` | **read from the screenshot** — mechanical |
+| `livedOutsideCountry` | radio | Have you been living outside of this country during the last 3 years? | `ordinary` | mechanical · marked `*` |
+| `alwaysUKResident` | radio | Have you always lived in the UK ? | `ordinary` | mechanical · marked `*` |
+| `dateEnteredUKDay` | select | dateEnteredUKDay | `ordinary` | **read from the screenshot** — mechanical |
+| `dateEnteredUKMonth` | select | dateEnteredUKMonth | `ordinary` | **read from the screenshot** — mechanical |
+| `dateEnteredUKYear` | select | dateEnteredUKYear | `ordinary` | **read from the screenshot** — mechanical |
+| `alwaysEUResident` | radio | Have you always lived in the EU? | `ordinary` | mechanical · marked `*` |
 | `previousCountry1` | select | previousCountry1 | `ordinary` | mechanical |
 | `dateFromDay1` | select | dateFromDay1 | `ordinary` | mechanical |
 | `dateFromMonth1` | select | dateFromMonth1 | `ordinary` | mechanical |
@@ -211,39 +321,39 @@ No fields (navigation page).
 | `dateToDay4` | select | dateToDay4 | `ordinary` | mechanical |
 | `dateToMonth4` | select | dateToMonth4 | `ordinary` | mechanical |
 | `dateToYear4` | select | dateToYear4 | `ordinary` | mechanical |
-| `britishPassport` | radio | britishPassport | `ordinary` | mechanical |
-| `indefinateVisa` | radio | indefinateVisa | `ordinary` | mechanical |
-| `refugeeStatus` | radio | refugeeStatus | `ordinary` | **judgement** — immigration status is not an Article 9 category; sensitive in other ways, already in the ordinary flow (the sheet names it). Proposed ordinary. Confirm. |
-| `migrantWorker` | radio | migrantWorker | `ordinary` | mechanical |
-| `spouseOfUKCitizen` | radio | spouseOfUKCitizen | `ordinary` | mechanical |
-| `euPassport` | radio | euPassport | `ordinary` | mechanical |
-| `spouseOfEUCitizen` | radio | spouseOfEUCitizen | `ordinary` | mechanical |
-| `passportNumber` | text | passportNumber | `ordinary` | mechanical |
-| `livingInUK` | radio | livingInUK | `ordinary` | mechanical |
-| `previousStudentVisa` | radio | previousStudentVisa | `ordinary` | mechanical |
-| `qualificationLevel` | select | qualificationLevel | `ordinary` | mechanical |
-| `highestQualification(ENGLISH_LANGUAGE_STUDY)` | select | highestQualification(ENGLISH_LANGUAGE_STUDY) | `ordinary` | mechanical |
-| `highestQualification(SCHOOL_LEVEL)` | select | highestQualification(SCHOOL_LEVEL) | `ordinary` | mechanical |
-| `highestQualification(FOUNDATION_LEVEL)` | select | highestQualification(FOUNDATION_LEVEL) | `ordinary` | mechanical |
-| `highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)` | select | highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL) | `ordinary` | mechanical |
-| `highestQualification(UNIVERSITY_LEVEL)` | select | highestQualification(UNIVERSITY_LEVEL) | `ordinary` | mechanical |
-| `highestQualificationOther` | text | highestQualificationOther | `ordinary` | mechanical |
-| `yearsOnStudentVisa` | select | yearsOnStudentVisa | `ordinary` | mechanical |
-| `monthsOnStudentVisa` | select | monthsOnStudentVisa | `ordinary` | mechanical |
-| `applicationLocation` | radio | applicationLocation | `ordinary` | mechanical |
-| `visaExpiryDay` | select | visaExpiryDay | `ordinary` | mechanical |
-| `visaExpiryMonth` | select | visaExpiryMonth | `ordinary` | mechanical |
-| `visaExpiryYear` | select | visaExpiryYear | `ordinary` | mechanical |
-| `passportScanStatus` | radio | passportScanStatus | `ordinary` | mechanical |
-| `passportScan` | file | passportScan | `ordinary` | mechanical |
-| `visaScanStatus` | radio | visaScanStatus | `ordinary` | mechanical |
-| `visaScan` | file | visaScan | `ordinary` | mechanical |
-| `utilityBillScanStatus` | radio | utilityBillScanStatus | `ordinary` | mechanical |
-| `utilityBillScan` | file | utilityBillScan | `ordinary` | mechanical |
-| `proofOfUKSpouseStatus` | radio | proofOfUKSpouseStatus | `ordinary` | mechanical |
-| `proofOfUKSpouse` | file | proofOfUKSpouse | `ordinary` | mechanical |
-| `refugeeProofStatus` | radio | refugeeProofStatus | `ordinary` | **judgement** — as refugeeStatus. |
-| `refugeeProof` | file | refugeeProof | `ordinary` | mechanical |
+| `britishPassport` | radio | Do you have a British passport? | `ordinary` | mechanical · marked `*` |
+| `indefinateVisa` | radio | Do you have indefinite leave to enter or remain in the UK? | `ordinary` | mechanical · marked `*` |
+| `refugeeStatus` | radio | Do you hold refugee status? | `ordinary` | **judgement** — immigration status is not an Article 9 category; sensitive in other ways, already in the ordinary flow (the sheet names it). Proposed ordinary. Confirm. · marked `*` |
+| `migrantWorker` | radio | Are you a migrant worker? | `ordinary` | mechanical · marked `*` |
+| `spouseOfUKCitizen` | radio | Are you the spouse/civil partner of a UK citizen? | `ordinary` | mechanical · marked `*` |
+| `euPassport` | radio | Do you have an EU passport? | `ordinary` | mechanical · marked `*` |
+| `spouseOfEUCitizen` | radio | Are you the spouse/civil partner of an EU citizen? | `ordinary` | mechanical · marked `*` |
+| `passportNumber` | text | Please enter your passport number below. This is required in order to comply with UK immi… | `ordinary` | mechanical · marked `*` |
+| `livingInUK` | radio | Are you currently living in the UK? | `ordinary` | mechanical · marked `*` |
+| `previousStudentVisa` | radio | Have you previously studied in the United Kingdom on a Student Visa? | `ordinary` | mechanical · marked `*` |
+| `qualificationLevel` | select | What is the highest qualification level you have studied in the United Kingdom? | `ordinary` | mechanical · marked `*` |
+| `highestQualification(ENGLISH_LANGUAGE_STUDY)` | select | What level is your English Language Course? Please refer to your course provider to find … | `ordinary` | mechanical · marked `*` |
+| `highestQualification(SCHOOL_LEVEL)` | select | Please select the qualification you studied: | `ordinary` | mechanical · marked `*` |
+| `highestQualification(FOUNDATION_LEVEL)` | select | Please select the qualification you studied: | `ordinary` | mechanical · marked `*` |
+| `highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)` | select | Please select the qualification you studied: | `ordinary` | mechanical · marked `*` |
+| `highestQualification(UNIVERSITY_LEVEL)` | select | Please select the qualification you studied: | `ordinary` | mechanical · marked `*` |
+| `highestQualificationOther` | text | Please provide details of the qualification you studied for: | `ordinary` | mechanical · marked `*` |
+| `yearsOnStudentVisa` | select | yearsOnStudentVisa | `ordinary` | **read from the screenshot** — mechanical |
+| `monthsOnStudentVisa` | select | monthsOnStudentVisa | `ordinary` | **read from the screenshot** — mechanical |
+| `applicationLocation` | radio | applicationLocation | `ordinary` | **read from the screenshot** — mechanical |
+| `visaExpiryDay` | select | If you are currently studying in the UK please enter the expiry date of your current visa… | `ordinary` | mechanical |
+| `visaExpiryMonth` | select | If you are currently studying in the UK please enter the expiry date of your current visa… | `ordinary` | mechanical |
+| `visaExpiryYear` | select | If you are currently studying in the UK please enter the expiry date of your current visa… | `ordinary` | mechanical |
+| `passportScanStatus` | radio | Passport Scan If you hold a full UK passport please provide a scan of your passport: | `ordinary` | mechanical |
+| `passportScan` | file | Passport Scan If you hold a full UK passport please provide a scan of your passport: | `ordinary` | mechanical |
+| `visaScanStatus` | radio | Indefinite Leave Passport Scan If you have 'indefinite leave to enter or remain' in the U… | `ordinary` | mechanical |
+| `visaScan` | file | Indefinite Leave Passport Scan If you have 'indefinite leave to enter or remain' in the U… | `ordinary` | mechanical |
+| `utilityBillScanStatus` | radio | Utility Bill Scan If you hold a full UK passport or have permanent leave to remain please… | `ordinary` | mechanical |
+| `utilityBillScan` | file | Utility Bill Scan If you hold a full UK passport or have permanent leave to remain please… | `ordinary` | mechanical |
+| `proofOfUKSpouseStatus` | radio | Proof of UK Spouse If you are the spouse of a UK citizen please select how you will provi… | `ordinary` | mechanical |
+| `proofOfUKSpouse` | file | Proof of UK Spouse If you are the spouse of a UK citizen please select how you will provi… | `ordinary` | mechanical |
+| `refugeeProofStatus` | radio | Proof of Refugee Status If you have refugee status please select how you will provide pro… | `ordinary` | **judgement** — as refugeeStatus. |
+| `refugeeProof` | file | Proof of Refugee Status If you have refugee status please select how you will provide pro… | `ordinary` | mechanical |
 
 ### page6 — English language
 
@@ -251,25 +361,25 @@ No fields (navigation page).
 
 | field | type | label | proposed | needs |
 |---|---|---|---|---|
-| `firstLanguage` | text | firstLanguage | `ordinary` | **judgement** — language can indicate ethnic origin but is not itself in the list. Proposed ordinary. Confirm. |
-| `previousEnglishEducation` | radio | previousEnglishEducation | `ordinary` | mechanical |
-| `previousEducationLanguage` | text | previousEducationLanguage | `ordinary` | **judgement** — as firstLanguage. |
-| `englishQualTypeCode` | select | englishQualTypeCode | `ordinary` | mechanical |
-| `title` | text | title | `ordinary` | mechanical |
-| `dateOfAward.day` | select | dateOfAward.day | `ordinary` | mechanical |
-| `dateOfAward.month` | select | dateOfAward.month | `ordinary` | mechanical |
-| `dateOfAward.year` | select | dateOfAward.year | `ordinary` | mechanical |
-| `certificateNumber` | text | certificateNumber | `ordinary` | mechanical |
-| `certificateNumber2` | text | certificateNumber2 | `ordinary` | mechanical |
-| `awardingBody` | text | awardingBody | `ordinary` | mechanical |
-| `overallScore` | text | overallScore | `ordinary` | mechanical |
-| `overallScoreComponent` | text | overallScoreComponent | `ordinary` | mechanical |
-| `listeningScore` | text | listeningScore | `ordinary` | mechanical |
-| `readingScore` | text | readingScore | `ordinary` | mechanical |
-| `writingScore` | text | writingScore | `ordinary` | mechanical |
-| `speakingScore` | text | speakingScore | `ordinary` | mechanical |
-| `languageCertificateStatus` | radio | certificateStatus | `ordinary` | mechanical |
-| `languageCertificate` | file | certificate | `ordinary` | mechanical |
+| `firstLanguage` | text | What is your first language? | `ordinary` | **judgement** — language can indicate ethnic origin but is not itself in the list. Proposed ordinary. Confirm. · marked `*` |
+| `previousEnglishEducation` | radio | previousEnglishEducation | `ordinary` | **read from the screenshot** — mechanical · marked `*` |
+| `previousEducationLanguage` | text | Please enter the language you were educated in: | `ordinary` | **judgement** — as firstLanguage. · marked `*` |
+| `englishQualTypeCode` | select | Qualification: | `ordinary` | mechanical |
+| `title` | text | Qualification Title: | `ordinary` | mechanical · marked `*` |
+| `dateOfAward.day` | select | Date of Award: | `ordinary` | mechanical · marked `*` |
+| `dateOfAward.month` | select | Date of Award: | `ordinary` | mechanical · marked `*` |
+| `dateOfAward.year` | select | Date of Award: | `ordinary` | mechanical · marked `*` |
+| `certificateNumber` | text | Certificate Number : | `ordinary` | mechanical · marked `*` |
+| `certificateNumber2` | text | UKVI Reference Number : | `ordinary` | mechanical · marked `*` |
+| `awardingBody` | text | Awarding Body: | `ordinary` | mechanical · marked `*` |
+| `overallScore` | text | Grade/Score: | `ordinary` | mechanical · marked `*` |
+| `overallScoreComponent` | text | Overall Grade/Score: | `ordinary` | mechanical · marked `*` |
+| `listeningScore` | text | Listening Score: | `ordinary` | mechanical · marked `*` |
+| `readingScore` | text | Reading Score: | `ordinary` | mechanical · marked `*` |
+| `writingScore` | text | Writing Score: | `ordinary` | mechanical · marked `*` |
+| `speakingScore` | text | Speaking Score: | `ordinary` | mechanical · marked `*` |
+| `languageCertificateStatus` | radio | certificateStatus | `ordinary` | **read from the screenshot** — mechanical · marked `*` |
+| `languageCertificate` | file | Please tell us how you will provide your test certificate: | `ordinary` | mechanical · marked `*` |
 
 (The two are `certificateStatus` and `certificate` on the page and in the tool's draft; the curated
 draft renames them because the education page uses the same two names, and a fieldRef names one
@@ -281,38 +391,38 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 
 | field | type | label | proposed | needs |
 |---|---|---|---|---|
-| `institutionCountry` | select | institutionCountry | `ordinary` | mechanical |
+| `institutionCountry` | select | Select the country the institution is based in: | `ordinary` | mechanical |
 | `institutionCountry-ts-control` | typeahead | institutionCountry-ts-control | `ordinary` | mechanical |
 | `institutionCode` | select | institutionCode | `ordinary` | mechanical |
 | `institution-ts-control` | typeahead | Search for an institution... | `ordinary` | mechanical |
 | `unlistedInstitution` | text | unlistedInstitution | `ordinary` | mechanical |
-| `degree` | select | degree | `ordinary` | mechanical |
-| `unlistedDegree` | text | unlistedDegree | `ordinary` | mechanical |
-| `subjectSearch` | text | subjectSearch | `ordinary` | mechanical |
-| `subject` | select | subject | `ordinary` | mechanical |
-| `unlistedSubject` | text | unlistedSubject | `ordinary` | mechanical |
-| `startDateMonth` | select | startDateMonth | `ordinary` | mechanical |
-| `startDateYear` | select | startDateYear | `ordinary` | mechanical |
-| `endDateMonth` | select | endDateMonth | `ordinary` | mechanical |
-| `endDateYear` | select | endDateYear | `ordinary` | mechanical |
-| `awardDateMonth` | select | awardDateMonth | `ordinary` | mechanical |
-| `awardDateYear` | select | awardDateYear | `ordinary` | mechanical |
-| `gradingSystemId` | select | gradingSystemId | `ordinary` | mechanical |
+| `degree` | select | Qualification: | `ordinary` | mechanical · marked `*` |
+| `unlistedDegree` | text | unlistedDegree | `ordinary` | mechanical · marked `*` |
+| `subjectSearch` | text | Search: | `ordinary` | mechanical |
+| `subject` | select | Results: | `ordinary` | mechanical |
+| `unlistedSubject` | text | If your subject is not in the list please enter it here: | `ordinary` | mechanical |
+| `startDateMonth` | select | Start: | `ordinary` | mechanical · marked `*` |
+| `startDateYear` | select | Start: | `ordinary` | mechanical · marked `*` |
+| `endDateMonth` | select | End: | `ordinary` | mechanical · marked `*` |
+| `endDateYear` | select | End: | `ordinary` | mechanical · marked `*` |
+| `awardDateMonth` | select | Date of Award: | `ordinary` | mechanical |
+| `awardDateYear` | select | Date of Award: | `ordinary` | mechanical |
+| `gradingSystemId` | select | Grading System: | `ordinary` | mechanical |
 | `grade` | select | grade | `ordinary` | mechanical |
 | `unlistedGrade` | text | unlistedGrade | `ordinary` | mechanical |
-| `unlistedGradeDescription` | text | unlistedGradeDescription | `ordinary` | mechanical |
+| `unlistedGradeDescription` | text | Unlisted grade description: | `ordinary` | mechanical |
 | `highestEducationLevel` | checkbox | Please tick here if this is this the highest qualification level you have taken: | `ordinary` | mechanical |
-| `certificateStatus` | radio | certificateStatus | `ordinary` | mechanical |
+| `certificateStatus` | radio | Proof of Registration This is any document showing you are a student at the institution f… | `ordinary` | mechanical · marked `*` |
 | `certificate` | file | certificate | `ordinary` | mechanical |
-| `transcriptStatus` | radio | transcriptStatus | `ordinary` | mechanical |
+| `transcriptStatus` | radio | Most Recent Transcript This is a breakdown of the marks/scores you received most recently… | `ordinary` | mechanical · marked `*` |
 | `transcript` | file | transcript | `ordinary` | mechanical |
-| `officialCertTranslStatus` | radio | officialCertTranslStatus | `ordinary` | mechanical |
+| `officialCertTranslStatus` | radio | Final Academic Certificate This is the certificate you received after passing your qualif… | `ordinary` | mechanical · marked `*` |
 | `officialCertTranslation` | file | officialCertTranslation | `ordinary` | mechanical |
-| `officialTranTranslStatus` | radio | officialTranTranslStatus | `ordinary` | mechanical |
+| `officialTranTranslStatus` | radio | Final Academic Transcript This is a breakdown of the marks/scores you received after pass… | `ordinary` | mechanical · marked `*` |
 | `officialTranTranslation` | file | officialTranTranslation | `ordinary` | mechanical |
-| `certificateTranslationStatus` | radio | certificateTranslationStatus | `ordinary` | mechanical |
+| `certificateTranslationStatus` | radio | Final Academic Certificate Translation This is an official translation of the certificate… | `ordinary` | mechanical · marked `*` |
 | `certificateTranslation` | file | certificateTranslation | `ordinary` | mechanical |
-| `transcriptTranslationStatus` | radio | transcriptTranslationStatus | `ordinary` | mechanical |
+| `transcriptTranslationStatus` | radio | Final Academic Transcript Translation This is an official translation of the transcript y… | `ordinary` | mechanical · marked `*` |
 | `transcriptTranslation` | file | transcriptTranslation | `ordinary` | mechanical |
 
 ### page8 — Employment — one job; the applicant adds one entry per job
@@ -373,16 +483,26 @@ field in the whole blueprint — the parser refuses a repeat since P93. The loca
 
 | field | type | label | proposed | needs |
 |---|---|---|---|---|
-| `other1Desc` | text | other1Desc | `ordinary` | mechanical |
-| `other1` | file | other1 | `ordinary` | mechanical |
-| `other2Desc` | text | other2Desc | `ordinary` | mechanical |
-| `other2` | file | other2 | `ordinary` | mechanical |
-| `other3Desc` | text | other3Desc | `ordinary` | mechanical |
-| `other3` | file | other3 | `ordinary` | mechanical |
-| `other4Desc` | text | other4Desc | `ordinary` | mechanical |
-| `other4` | file | other4 | `ordinary` | mechanical |
-| `other5Desc` | text | other5Desc | `ordinary` | mechanical |
-| `other5` | file | other5 | `ordinary` | mechanical |
+| `other1Desc` | text | Document Description: | `ordinary` | mechanical |
+| `other1` | file | File: | `ordinary` | mechanical |
+| `other2Desc` | text | Document Description: | `ordinary` | mechanical |
+| `other2` | file | File: | `ordinary` | mechanical |
+| `other3Desc` | text | Document Description: | `ordinary` | mechanical |
+| `other3` | file | File: | `ordinary` | mechanical |
+| `other4Desc` | text | Document Description: | `ordinary` | mechanical |
+| `other4` | file | File: | `ordinary` | mechanical |
+| `other5Desc` | text | Document Description: | `ordinary` | mechanical |
+| `other5` | file | File: | `ordinary` | mechanical |
+
+## For Iman — flagged, not asserted (P126, 2026-09-14)
+
+- **Language's eighteen marked of twenty** and **`unlistedDegree`'s mark** — see the fifty
+  observed markers above. Both flags are the author's reading of the file, offered to a
+  reviewer; neither is Vahid's.
+- **The education page's six companions are marked** (`certificateStatus`, `transcriptStatus`,
+  `officialCertTranslStatus`, `officialTranTranslStatus`, `certificateTranslationStatus`,
+  `transcriptTranslationStatus`): the radio must be answered even when the slot is the
+  student's own act, which is what ADR-0107 plans (*later*). Confirm the star is the radio's.
 
 ## For Iman — flagged, not asserted (P108, 2026-09-12)
 

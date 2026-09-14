@@ -37,7 +37,14 @@ challenge stop, resume and handover all built and proved on the fixture portal a
 
 In the order they bite, each with who holds it and the evidence.
 
-1. **Which fields are mandatory on five pages is not in the record.** The draft marks `required`
+1. ~~**Which fields are mandatory on five pages is not in the record.**~~ **Closed, P126, with
+   thirteen carried into item 6.** Three attached reads on 2026-09-14; the curated draft (0.2.18)
+   carries 79 row-text labels and 50 observed markers on the five pages; thirteen fields whose
+   question no positional rule can reach are Iman's to read from the screenshots, listed in the
+   pack. Vahid, 2026-09-14: *"the ceiling is 106 of 149 because 43 fields have no question of
+   their own, and the 13 between 93 and 106 are not a tool failure. They are markup a positional
+   rule cannot reach. Anyone reading this later should not take it as work left undone."* The
+   history: the draft marked `required`
    only where the DOM said so or a specialist noted it: personal (3), contact (6), employment (4),
    registration (3). On nationality (72 fields), language (19), education (33), marketing (10) and
    documents (10) the captured labels are the field names — placeholders — so the asterisks
@@ -95,7 +102,10 @@ In the order they bite, each with who holds it and the evidence.
 6. **Review.** Iman signs the blueprint and the mapping set; the loader refuses a draft, an
    unreviewed set, and an approval signed by its author (blocker 2). Three items are flagged for
    him in the review pack: what the education page's first slot asks for, the contact page's
-   *After* / *Before* texts, and the postcode's two boxes. **Iman.**
+   *After* / *Before* texts, and the postcode's two boxes. **Carried from item 1 (P126):** the
+   thirteen fields read from the screenshots — nationality's eleven top questions and two
+   language radios — listed on their own in the pack; the fifty observed markers to confirm,
+   two flagged (language's eighteen of twenty, `unlistedDegree`). **Iman.**
 7. **`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
    fill run does not read it at all today.** Corrected 2026-09-14: ADR-0091's reading, obeying
    and pacing live in the discovery CLI (ADR-0014's read-only run); the Automation Runner's fill
@@ -153,10 +163,17 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: eight items open of ten* — this file's list, by count, with what moved.
+- *Distance to Run A: seven items open of ten* — this file's list, by count, with what moved.
 
 ## What moved
 
+- 2026-09-14, P126: item 1 closed with thirteen carried into item 6, on Vahid's word to stop
+  (*"for the reason you gave rather than the count"*). The third read folded into the curated
+  draft 0.2.18 — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen as
+  their names — the set re-bound as 0.3.18, the review pack revised with the thirteen listed on
+  their own and two marks flagged. The draft test now shows forty-four observed-mandatory fields
+  on the three unmapped pages as `no_mapping` beside employment's four: items 3, 4 and 5 made
+  visible. Seven open of ten.
 - 2026-09-14, P125: item 1's third read — 93 of 149, 50 marked — read from the file and the
   ceiling stated: forty-three unlabelled by right, thirteen that matter unreachable by rules
   over rows, fourteen labels wrong in two new shapes (a help sentence taken with the next
