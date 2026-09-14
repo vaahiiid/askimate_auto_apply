@@ -106,7 +106,8 @@ In the order they bite, each with who holds it and the evidence.
    (`docs/captures/sheffield-pgt-2026-09-14-education-dependent/`). **Found by it:** the registry's
    `Qualification` has no start or end date, and the page's four date selects are marked
    mandatory — the page cannot be filled from the profile as it stands, whatever is mapped.
-   **Raised as blocker 27**, his decision, the same shape as item 2. The institution box is the
+   **Blocker 27, decided by Vahid (ADR-0112):** the dates go into `Qualification`; the shape
+   proposed, awaiting his confirmation, then the build (mine). The institution box is the
    hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
@@ -179,6 +180,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P133: blocker 27 decided — a qualification has dates (ADR-0112), the shape
+  proposed for his confirmation with the award date held on its own; nothing built. Six open
+  of ten, unchanged.
 - 2026-09-14, P132: item 5's read taken as it stood — the grade list and the whole education
   chain from observation, folded into the draft 0.2.21; the subject results' two trailing-space
   values and one duplicate recorded; no mapping authored because the registry's `Qualification`

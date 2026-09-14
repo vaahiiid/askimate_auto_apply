@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.131.0] — 2026-09-14
+
+**P133 — ADR-0112: a qualification has dates (blocker 27 decided by Vahid); the shape proposed
+for his confirmation, with the award date held on its own; nothing built.**
+
+### Recorded
+
+- ADR-0112 in his words, the proposed shape (`start`, an `end` that is always a date with the
+  student's claim about it, an optional `award`, `completionYear` removed), and the answer to
+  his award-date question with its reasons.
+- His two instructions carried: the subject values' trailing spaces and duplicate are his to
+  remember at mapping time; the *Qualification* row's star is unsettled until someone looks at
+  the screen. Blocker 27 marked decided; distance item 5 and index rows.
+
+---
+
 ## [0.130.0] — 2026-09-14
 
 **P132 — item 5's read as it stood: the grade list and the education chain from observation,

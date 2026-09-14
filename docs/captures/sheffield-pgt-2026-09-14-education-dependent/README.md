@@ -43,7 +43,10 @@ part. Two things a mapping must know:
   same are told apart by value" (ADR-0109) does not apply when the values are the same too.
 
 Several values are the portal's own truncations (*Business Studies With Humaniti*, *Agri
-Marketing and Business Ad*); they are recorded as the form has them.
+Marketing and Business Ad*); they are recorded as the form has them. Vahid, 2026-09-14, on the
+trailing spaces and the duplicate: *"Both recorded, both mine to remember when a mapping is
+authored. The trailing space is the kind of thing that works in testing and fails once, quietly,
+on the one student who picked that subject."*
 
 ## 3 · The chain, from observation
 
@@ -76,7 +79,8 @@ label), which shows the unlisted-grade boxes; nothing here names it.
   settled here: the observer's P125 refusals explain the unlisted box's lost label and nothing
   else, so the row itself read differently with an institution chosen. The draft keeps the third
   read's marks on both, and the review pack flags them for Iman: the star was seen once and not
-  seen once, and the page decides.
+  seen once, and the page decides. Vahid, 2026-09-14: *"Do not let a later phase resolve it by
+  picking the more convenient reading — it is unsettled until someone looks at the screen."*
 
 ## Ten marked
 

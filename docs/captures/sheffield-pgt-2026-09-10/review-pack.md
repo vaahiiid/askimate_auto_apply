@@ -151,7 +151,9 @@ those fields carry their names; 79 right rather than 93 with 14 wrong. Vahid, 20
 - **`degree`'s star was seen once and not seen once** (P132). The third read marked `degree`
   and `unlistedDegree`; the read of the page as it stood with an institution and a grading
   system chosen marked neither and labelled neither. The draft keeps the marks. The page
-  decides: please look at the *Qualification* row in both states.
+  decides: please look at the *Qualification* row in both states. Vahid, 2026-09-14: *"it is
+  unsettled until someone looks at the screen"* — no later phase resolves it by picking the more
+  convenient reading.
 
 | page | field | label (from the row) |
 |---|---|---|
