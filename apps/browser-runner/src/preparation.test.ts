@@ -182,7 +182,17 @@ describe("filling a fixture portal", () => {
       join(import.meta.dirname, "..", "fixtures", "preparation-form.html"),
       "utf8",
     );
+    // Sheffield's summary.do as captured on 2026-09-14 with one throwaway job
+    // saved (P131) — the real listing, not a fixture in its shape.
+    const sheffieldSummary = readFileSync(
+      join(import.meta.dirname, "..", "..", "..", "docs", "captures", "sheffield-pgt-2026-09-14-employment", "001.html"),
+      "utf8",
+    );
     server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/sheffield-summary") {
+        res.writeHead(200, { "content-type": "text/html" }).end(sheffieldSummary);
+        return;
+      }
       if (req.method === "POST" && req.url === "/apply/save") {
         saved.push(req.url);
         res.writeHead(204).end();
@@ -311,6 +321,22 @@ describe("filling a fixture portal", () => {
     expect(await session.count({ strategy: "css", value: "div.homepageInfomation" })).toBe(4);
     // And a substring would count the unnumbered title too.
     expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:has-text("Previous Education")' })).toBe(3);
+  }, 30_000);
+
+  it("counts the employment listing on Sheffield's summary.do AS CAPTURED — the same shape as education's, exact to the number (P131)", async () => {
+    // The page Vahid committed (ebac18d): section F is div.homepageBlock >
+    // div.homepageInfomation > h5 "Previous Employment 1", the entry's table,
+    // its Edit and Delete links — education's shape with the other heading.
+    // The locator the curated draft (0.2.20) carries, run by the runner's own
+    // count against the real markup rather than a fixture in its shape.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/sheffield-summary`);
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Employment [0-9]+$")' })).toBe(1);
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Education [0-9]+$")' })).toBe(2);
+    // A section with no numbered heading counts nothing — and the section
+    // title, an h2, is never an entry.
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Language [0-9]+$")' })).toBe(0);
+    expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:has-text("Relevant Employment")' })).toBe(0);
   }, 30_000);
 
   // ── P94 (ADR-0103, gap 1) ─────────────────────────────────────────────

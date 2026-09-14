@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P131 — the markup, and two things carried rather than absorbed
+
+He committed the summary page as captured, checked for his surname and e-mail first, and asked whether the employment listing's shape is actually education's. It is: section F is the same `div.homepageBlock` with its `h2`, the same `div.homepageInfomation`, and inside it the section's sentence, one `h5` reading *Previous Employment 1*, the entry's table of four rows, and the *Edit* and *Delete* links — education's section E, row for row, with the other heading. The locator authored on his word stands on the page and the draft is not corrected. The runner's own `count` is now run against the captured file rather than a fixture in its shape: one employment entry, two education entries, none for a section that has no numbered heading.
+
+Two things he asked to have carried, not absorbed. The first is a limit of ADR-0106 as he decided it and is not reopening: a repeating page's entries are counted, never read back, so nothing confirms a saved job's values — not the summary, not the new-entry form, which reopens empty — and the count is the whole of the verification; it becomes possible only when a portal offers an edit view of a saved entry, and not before. Stated in the ADR in his words, and in the standing account's list of known gaps. And the markup adds the fact that makes the sentence's second half live: Sheffield does offer that edit view, `employment.do?update=1` beside every saved entry, education's too. So a value read-back is possible there in principle. It is not built and it is not decided, and the record says both. The second is the mechanism behind the fifth marker: one star marks every control in its row, so the marked count is an upper bound and not a count of separately-required fields, and the review pack now says so in his words where the fifty are tabled, so Iman reads them as rows.
+
+Two smaller things from the markup, noted where they belong: the *Add new employment details* link is the bare page URL rather than `?new=true`, and employment's *Delete* asks for no confirmation where education's does. Six of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P130 — counted, not read
 
 He saved one throwaway job on his own account, read `summary.do` and the new-entry form, and deleted it; section F reads *No employment information entered* again. The heading is *Previous Employment 1*, the same shape as education's, and the curated draft now names the listing the way P113 named education's — an `h5` reading exactly that, inside the same wrapper, exact to the number — so each employment save is counted rather than uncertain. The wrapper is taken on his word that the shape is the same, because the commit carries the draft and the run record and not the capture's HTML, and the record says so. The new-entry URL opens empty after a save, so it is the way in and nothing else is needed; the summary carries an *Add new employment details* link as education's does.

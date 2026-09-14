@@ -93,6 +93,24 @@ names the second and third, once per portal, from a copy of the saved state.
 - Nothing here touches the transmission gate, the authorisation content hash, or the
   mandatory-review categories.
 
+## A known limit, stated — 2026-09-14
+
+Vahid, on reading the employment listing (P130–P131), in his words, carried here rather than
+left to be rediscovered:
+
+> *"That nothing confirms a saved job's values at all — not the summary, not the new-entry form,
+> which reopens empty. The count is the whole of the verification. That follows from ADR-0106 as
+> I decided it and I am not reopening it, but it should be stated in the record as a known limit
+> rather than left to be rediscovered: a repeating page's entries are counted, never read back.
+> If a portal ever offers an edit view of a saved entry, that is when it becomes possible, and
+> not before."*
+
+So, as a limit of §2: **a repeating page's entries are counted, never read back.** Nothing
+confirms a saved entry's values. Sheffield's `summary.do`, as captured, does offer an edit view
+of a saved entry (`employment.do?update=N`, `education.do?update=N`), so a value read-back is
+possible there in principle; it is not built, and building it is a decision that has not been
+made. The summary's own listing could never serve: it omits a job's duties.
+
 ## What was deliberately not done
 
 - No heuristic for "this looks like an error" — his correction rules it out, and it is the kind

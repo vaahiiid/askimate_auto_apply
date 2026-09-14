@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.129.0] — 2026-09-14
+
+**P131 — the employment listing's shape confirmed from the committed markup; ADR-0106's limit
+stated in Vahid's words; the review pack's markers read as rows.**
+
+### Added
+
+- `apps/browser-runner/src/preparation.test.ts`: the runner's `count` against Sheffield's
+  captured `summary.do` — one *Previous Employment N*, two *Previous Education N*, none where a
+  section has no numbered heading.
+
+### Recorded
+
+- ADR-0106, a known limit in his words: a repeating page's entries are counted, never read
+  back; possible only when a portal offers an edit view, and Sheffield does (`?update=N`) —
+  not built, not decided. The same in the standing account's known gaps.
+- The review pack's fifty markers: an upper bound, read as rows, in his words.
+- The employment capture README: the markup's shape, the edit view, the bare add link, the
+  unconfirmed delete.
+
+---
+
 ## [0.128.0] — 2026-09-14
 
 **P130 — the employment listing named from Vahid's throwaway save; the new-entry URL the way

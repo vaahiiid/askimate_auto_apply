@@ -23,10 +23,37 @@ the listing's markup is comes from his words, marked below where it does.
 His read: *"Previous Employment 1"*, exactly as the page shows it — *"Same shape as Previous
 Education 1"*. The curated draft (0.2.20) names the listing on `page8` the way P113 named
 education's: `summary.do`, one entry per `h5` reading exactly *Previous Employment N* inside
-`div.homepageInfomation`, exact to the number. The `h5` and its wrapper are education's, taken
-on his word that the shape is the same; the page's HTML would prove it and is not in the commit.
-`scripts/sheffield-draft.test.ts` pins the locator. Each employment save is now counted rather
-than *uncertain*.
+`div.homepageInfomation`, exact to the number. `scripts/sheffield-draft.test.ts` pins the
+locator. Each employment save is now counted rather than *uncertain*.
+
+**Confirmed from the markup (`001.html`, committed ebac18d, P131).** Section F is
+`div.homepageBlock` > `h2` *F. Relevant Employment* > `div.homepageInfomation`, whose direct
+children are the section's sentence, then one `h5` *Previous Employment 1*, then a
+`table.dataTable` of four rows, then `div.homepageUpdateSubLinks` with *Edit* and *Delete*; the
+block ends with `div.homepageUpdateLinks` and the *Add new employment details* link. Education's
+section E has exactly that shape with *Previous Education N*. So the locator authored on his
+word stands on the page, and the draft is not corrected. `apps/browser-runner/src/preparation.test.ts`
+serves this file to the runner's own `count` and gets 1 for employment, 2 for education, and 0
+for the numbered heading of a section that has none.
+
+Three more things the markup carries, none of which he could have seen from the page's text:
+
+- **The portal offers an edit view of a saved entry:** the *Edit* link is
+  `employment.do?update=1` (education's, `education.do?update=2`). This is the thing his rule
+  names as the condition for a value read-back of a saved entry — *"If a portal ever offers an
+  edit view of a saved entry, that is when it becomes possible, and not before"* — so it is now
+  possible in principle. It is **not built and not decided**; ADR-0106 §2 stands as he decided it,
+  and the count remains the whole verification. Recorded so it is not rediscovered.
+- **The *Add new employment details* link is the bare `employment.do`**, not `?new=true`;
+  education's is `education.do?new=true`. Both openings he tried returned an empty form; the
+  draft's page URL is the bare one.
+- **Employment's *Delete* has no confirmation** (`employment.do?delete=1`, no `onclick`);
+  education's asks *Are you sure you want to delete this course?*. Nothing in this system deletes
+  anything on a portal, so it changes nothing; noted because a person deleting a throwaway entry
+  by hand gets no second chance here.
+
+He checked the file for his surname and e-mail before committing: zero matches. It carries his
+account's education entries as saved (synthetic, P113) and the throwaway job.
 
 ## What the summary lists — and does not
 

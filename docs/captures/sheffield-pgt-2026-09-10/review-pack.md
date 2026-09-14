@@ -126,7 +126,12 @@ thirteen fields above are the ones whose star, if any, is read from the screensh
 ### The fifty `required` validations from the observed markers (P126, 2026-09-14)
 
 Read by the attached tool from the visible `*` in the control's row, source `observed_marker`;
-confirm each against the screenshot. A wrong label is worse than none — a reviewer confirming
+confirm each against the screenshot. **Read them as rows, not fields.** One star marks every
+control in its row — a date asked as a month and a year under one star marks both; `unlistedDegree`
+took the star of the `degree` select it shares a row with — so, in Vahid's words (2026-09-14),
+*"the marked count is an upper bound, not a count of separately-required fields."* Where several
+of the fifty share a row, the star is the row's, and which of them the portal enforces on its own
+is yours to read from the page. A wrong label is worse than none — a reviewer confirming
 it has nothing to notice — so fourteen labels the third read got wrong (a help sentence taken
 with the next question; a column header taken as a question) are **not** in the draft, and
 those fields carry their names; 79 right rather than 93 with 14 wrong. Vahid, 2026-09-14:

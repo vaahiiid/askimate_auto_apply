@@ -1230,8 +1230,12 @@ than *uncertain*.
 Employment 1*, the same shape as education's; the draft (0.2.20) carries the locator. The
 new-entry URL is the way in; no add-another control. The summary lists a job's dates, title and
 employer and not its duties — and under ADR-0106 §2 a per-item page is counted, never read back
-by value, so nothing confirms a saved job's values today. Five marked on the form: the fifth is
-`startYear`, by the star of the row it shares with the month.
+by value, so nothing confirms a saved job's values today; stated as a known limit in ADR-0106 at
+his word. Five marked on the form: the fifth is `startYear`, by the star of the row it shares
+with the month. **The markup (P131, `../sheffield-pgt-2026-09-14-employment/001.html`)** confirms
+the listing's shape is education's, and shows an *Edit* link per saved entry
+(`employment.do?update=N`) — the edit view his rule names as the condition for a value read-back,
+now known to exist; not built, not decided.
 
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
