@@ -136,14 +136,27 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     const isChoice = (node: Element): boolean => /^(radio|checkbox)$/i.test(node.getAttribute("type") ?? "");
     const own =
       previous === null || isChoice(element) || isChoice(previous) ? "" : textBetween(row, previous, element);
+    // Own words that run to more than one sentence are the previous control's
+    // help and this one's question together (Sheffield's education page puts
+    // a sentence of help after each control), and which sentence is the
+    // question is not decidable from position. A wrong label is worse than
+    // none — the third read of 2026-09-14 carried five — so: no label, and
+    // the marker still read from the row.
+    // Own words that END as a statement are that help sentence alone: the
+    // control after it has no question of its own.
+    if (/[.!?]\s+\S/.test(own) || /\.\s*$/.test(own)) return hasMarker(row, own) ? { text: "", marked: true } : undefined;
     // 2. The row's question: its text before the first control. A date asked
     //    as three selects shares it.
     const question = textBetween(row, null, first);
     // 3. A question ROW: the nearest preceding row or block with words and no
     //    controls of its own, when this row carries none before its first
-    //    control (the nationality page's top selects sit under such rows).
+    //    control — and only when the row holds one control or one group.
+    //    One question row asks one thing; a row above seven selects of
+    //    seven names is a column header, and the third read took two of
+    //    those as questions.
+    const names = new Set(controls.map((control) => control.getAttribute("name") ?? ""));
     let heading = "";
-    if (question.length === 0) {
+    if (question.length === 0 && names.size <= 1) {
       for (let above = row.previousElementSibling; above !== null; above = above.previousElementSibling) {
         if ([...above.querySelectorAll("input, select, textarea")].some(isControl)) break;
         const words = (above.textContent ?? "").replace(/\s+/g, " ").trim();

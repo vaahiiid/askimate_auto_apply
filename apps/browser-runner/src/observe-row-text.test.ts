@@ -42,12 +42,22 @@ const PAGE = `<!doctype html><html><body>
   <tr><td><label for="nationalInsurance">National Insurance number</label><font>*</font></td><td><input type="text" id="nationalInsurance" name="nationalInsurance"></td></tr>
   <tr><td><label for="gradeNote"></label>Grade, as shown on the certificate</td><td><input type="text" id="gradeNote" name="gradeNote"></td></tr>
   <tr><td>Select the country the institution is based in: <select name="institutionCountry"><option>Iran</option></select>
+          This is the country of the institution that awarded your qualification.
           Select the institution: <select name="institutionCode"><option>Sharif</option></select>
+          This is the name of the institution that awarded your qualification. Type in the full name.
           If it is not listed, enter it here: <input type="text" name="unlistedInstitution"></td></tr>
+  <tr><td>Grading System: <select name="gradingSystemId"><option>Percentage</option></select>
+          Please select the grading method used by the institution.
+          <select name="grade"><option>70</option></select></td></tr>
   <tr><td>What is your nationality for funding purposes?<font>*</font></td></tr>
   <tr><td><select name="fundingNationality"><option value="">-</option><option value="IR:O">Iranian</option></select></td></tr>
-  <tr><td>How many years have you held a Student Visa?</td></tr>
-  <tr><td><select name="yearsOnStudentVisa"><option>0</option></select> <select name="monthsOnStudentVisa"><option>0</option></select></td></tr>
+  <tr><th>Country</th><th>From</th><th>To</th></tr>
+  <tr><td><select name="previousCountry1"><option value="">-</option><option value="IR:O">Iran</option></select></td>
+      <td><select name="dateFromMonth1"><option>1</option></select> <select name="dateFromYear1"><option>2020</option></select></td>
+      <td><select name="dateToMonth1"><option>1</option></select> <select name="dateToYear1"><option>2021</option></select></td></tr>
+  <tr><td>Proof of Registration This is any document showing you are a student at the institution.<font>*</font></td></tr>
+  <tr><td><input type="radio" name="certificateStatus" value="Uploaded"> I will upload proof of registration now
+          <input type="radio" name="certificateStatus" value="NotSending"> I will not be providing this document</td></tr>
 </table>
 <div id="uploads" style="display:none">
   <table>
@@ -123,23 +133,48 @@ describe("the observer, on a page in the shape Vahid described", () => {
     expect(grade?.context).toBe("Grade, as shown on the certificate");
   });
 
-  it("labels each control in a row that asks several things by its OWN words, not the row's first question", () => {
+  it("labels the first control in a row that asks several things by the row's question, and REFUSES a later control whose own words run to more than one sentence", () => {
     // The 2026-09-14 re-read gave the education page's institution box and
     // its unlisted-institution box the country question, because the rule
     // took the row's text before its first control for every control in it.
+    // The third read (bd4fa2b) then gave them the PREVIOUS control's help
+    // sentence with their own question after it — "This is the country of
+    // the institution that awarded your qualification. Please select the
+    // institution…" — because Sheffield puts a sentence of help after each
+    // control, and the text between two controls is that help plus the next
+    // question. Which sentence is the question is not decidable from
+    // position, and a wrong label is worse than none: no label, and the
+    // marker still read from the row.
     expect(field("institutionCountry")?.context).toBe("Select the country the institution is based in:");
-    expect(field("institutionCode")?.context).toBe("Select the institution:");
-    expect(field("unlistedInstitution")?.context).toBe("If it is not listed, enter it here:");
+    expect(field("institutionCode")?.context).toBeUndefined();
+    expect(field("unlistedInstitution")?.context).toBeUndefined();
+    expect(field("gradingSystemId")?.context).toBe("Grading System:");
+    expect(field("grade")?.context).toBeUndefined();
   });
 
-  it("reads a question ROW above a row that holds only controls, marker included; several controls share it", () => {
+  it("reads a question ROW above a row that holds one control or one group, marker included", () => {
     // The re-read left the nationality page's top selects unlabelled and
     // unmarked: their question is a row of its own above the control's row.
     expect(field("fundingNationality")?.context).toBe("What is your nationality for funding purposes?");
     expect(field("fundingNationality")?.marked).toBe(true);
-    expect(field("yearsOnStudentVisa")?.context).toBe("How many years have you held a Student Visa?");
-    expect(field("monthsOnStudentVisa")?.context).toBe("How many years have you held a Student Visa?");
-    expect(field("yearsOnStudentVisa")?.marked).toBeUndefined();
+    const statuses = observation.forms[0]?.fields.filter((f) => f.name === "certificateStatus") ?? [];
+    expect(statuses.map((s) => s.context)).toEqual([
+      "Proof of Registration This is any document showing you are a student at the institution.",
+      "Proof of Registration This is any document showing you are a student at the institution.",
+    ]);
+    expect(statuses.map((s) => s.marked)).toEqual([true, true]);
+  });
+
+  it("does NOT take a row above as the question of a row holding controls of several names — that row is a column header", () => {
+    // The third read labelled the first previous-country block's seven
+    // selects "Country From To", and the marketing page's first
+    // other-institution pair "Institution Course Applied For": the header
+    // row of a table, taken as a question because it was the nearest row
+    // above with words and no controls. One question row asks one thing.
+    for (const name of ["previousCountry1", "dateFromMonth1", "dateFromYear1", "dateToMonth1", "dateToYear1"]) {
+      expect(field(name)?.context, name).toBeUndefined();
+      expect(field(name)?.marked, name).toBeUndefined();
+    }
   });
 
   it("gives a radio its own words from the text after it, and the group the row's question", () => {

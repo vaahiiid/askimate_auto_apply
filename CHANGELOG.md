@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.123.0] — 2026-09-14
+
+**P125 — Vahid's third read: 93 of 149 labelled, 50 marked; the ceiling of reading by
+position stated; the observer refuses two shapes it got wrong rather than guessing.**
+
+### Changed
+
+- The observer gives no label, marker kept, where a control's own words run to more than one
+  sentence or end as a statement (the previous control's help sentence, on Sheffield's
+  education page), and takes a question row above only for a row holding one control or one
+  group (a row above seven selects is a column header). The fixture carries both shapes in the
+  third read's own texts, red first.
+
+### Recorded
+
+- `docs/captures/sheffield-pgt-2026-09-14-third-read/README.md`: the counts by page against
+  the re-read, the fifty-six unlabelled sorted into forty-three with no question of their own
+  and thirteen that matter, the fourteen wrong labels in two shapes, one correction of P124's
+  record (`subject`), the ceiling and the recommendation to stop.
+
+---
+
 ## [0.122.0] — 2026-09-14
 
 **P124 — Vahid's re-read with the row-text observer: 76 of 149 labelled, 42 marked, item 1

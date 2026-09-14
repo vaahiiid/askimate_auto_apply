@@ -52,8 +52,16 @@ In the order they bite, each with who holds it and the evidence.
    marked, and not closed by it** — the seventy-three unlabelled are named in that README and
    include nationality's top selects, its dates and all four previous-country blocks, whose
    question is in a row above, not in theirs. P124 reads a control's own words, the row's
-   question, and the question row above. **His third read** is what closes it; then the draft.
-   Nothing can be mapped for a page whose mandatory set is unknown, so this is first.
+   question, and the question row above. **Third read the same day
+   (`docs/captures/sheffield-pgt-2026-09-14-third-read/`): 93 labelled, 50 marked, and the
+   ceiling of reading by position** — forty-three of the fifty-six unlabelled have no question
+   of their own; the thirteen that matter (nationality's eleven top questions, two language
+   radios) sit where no rule over rows can look, and nationality's markers did not move between
+   reads. Fourteen labels the third rule got wrong are named, and the observer now refuses
+   those shapes rather than guessing. **What closes it:** the read folded into the curated
+   draft, the fourteen excluded (mine, on his word to stop), and the thirteen read from the
+   screenshots at review — the pack's own fallback since it was written. Nothing can be mapped
+   for a page whose mandatory set is unknown, so this is first.
 2. **The employment page blocks the plan today.** Four required fields — start date, position,
    employer, duties — and the profile registry has no employment field, so `planFill` raises
    `no_mapping` on all four and `isComplete` is false: no run can be claimed. Two routes, neither
@@ -149,6 +157,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P125: item 1's third read — 93 of 149, 50 marked — read from the file and the
+  ceiling stated: forty-three unlabelled by right, thirteen that matter unreachable by rules
+  over rows, fourteen labels wrong in two new shapes (a help sentence taken with the next
+  question; a column header taken as a question), both now refused by the observer, red first.
+  The recommendation is to stop the reads and give the thirteen to Iman's screenshot read.
+  Eight open of ten, unchanged.
 - 2026-09-14, P124: item 1 re-read with the row-text observer and found not closed — 76 of 149
   labelled, 42 marked, the seventy-three named, four labels wrong (a row asking several
   things), the companions' "later" options carrying a comment node's markup. His six console
