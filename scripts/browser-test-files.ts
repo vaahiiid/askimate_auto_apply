@@ -44,6 +44,7 @@ export const BROWSER_TEST_FILES: readonly string[] = [
   "apps/browser-runner/src/main.test.ts",
   "apps/browser-runner/src/inspection.test.ts",
   "apps/browser-runner/src/lwc-observe.test.ts",
+  "apps/browser-runner/src/observe-row-text.test.ts",
   "apps/browser-runner/src/lwc-shadow.test.ts",
   "apps/browser-runner/src/preparation.test.ts",
   "apps/browser-runner/src/secret-fill.test.ts",

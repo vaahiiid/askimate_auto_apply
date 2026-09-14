@@ -242,7 +242,7 @@ const VALIDATION_KINDS: readonly FieldValidation["kind"][] = [
   "required", "maxlength", "minlength", "pattern", "min", "max", "accept",
 ];
 const VALIDATION_SOURCES: readonly FieldValidation["source"][] = [
-  "dom_attribute", "observed_error", "specialist_noted",
+  "dom_attribute", "observed_error", "observed_marker", "specialist_noted",
 ];
 const CONDITION_OPERATORS: readonly FieldCondition["operator"][] = [
   "equals", "not_equals", "is_checked", "is_not_empty", "in",
@@ -332,9 +332,12 @@ function readField(value: unknown, path: string): BlueprintField {
     source["dataCategory"] === undefined
       ? undefined
       : oneOf(source, "dataCategory", path, ["ordinary", "special_category"] as const);
+  const labelSource =
+    source["labelSource"] === undefined ? undefined : oneOf(source, "labelSource", path, ["row_text"] as const);
   return {
     fieldRef: text(source, "fieldRef", path),
     label: text(source, "label", path),
+    ...(labelSource === undefined ? {} : { labelSource }),
     inputType: oneOf(source, "inputType", path, INPUT_TYPES),
     ...(dataCategory === undefined ? {} : { dataCategory }),
     locators: list(source, "locators", path, readLocator),

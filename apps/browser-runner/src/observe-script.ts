@@ -61,16 +61,81 @@ export interface RawObservation {
  * anything from this module.
  */
 export const OBSERVE_SCRIPT = (): RawObservation => {
+  // P123: a tied label with no words is no label. Sheffield's 2026-09-14 read
+  // carried one (education, an empty `<label for>`), and an empty string
+  // would have out-ranked both the row's question and the field's name.
+  const words = (value: string | null | undefined): string | undefined => {
+    const trimmed = (value ?? "").trim();
+    return trimmed.length === 0 ? undefined : trimmed;
+  };
   const labelFor = (element: Element): string | undefined => {
     const id = element.getAttribute("id");
     if (id !== null) {
       const explicit = document.querySelector(`label[for="${CSS.escape(id)}"]`);
-      if (explicit?.textContent != null) return explicit.textContent.trim();
+      const text = words(explicit?.textContent);
+      if (text !== undefined) return text;
     }
-    const wrapping = element.closest("label");
-    if (wrapping?.textContent != null) return wrapping.textContent.trim();
-    const aria = element.getAttribute("aria-label");
-    return aria ?? undefined;
+    const wrapping = words(element.closest("label")?.textContent);
+    if (wrapping !== undefined) return wrapping;
+    return words(element.getAttribute("aria-label"));
+  };
+
+  // ── P123: what the row says, when the markup ties nothing to the control ──
+  //
+  // Sheffield's five unlabelled pages put the question in the row's first
+  // cell and a bare `<font>*</font>` beside it, tied to no input; the label
+  // resolution above found nothing and the draft carried field names as
+  // labels, so the mandatory set of those pages could not be read. The row's
+  // text before its FIRST control is the question every control in the row
+  // answers (a date asked as three selects shares one); other controls'
+  // contents are excluded so a country list does not become a question.
+  // Recorded as `context`, never as `label`: it is a judgement from position,
+  // and the draft says so (`labelSource: "row_text"`).
+  const isControl = (node: Element): boolean =>
+    node.matches("input:not([type=hidden]), select, textarea");
+  const rowOf = (element: Element): Element | null => {
+    const row = element.closest("tr");
+    if (row !== null) return row;
+    const block = element.closest("li, p, dl, fieldset, div");
+    // A block with a paragraph of text is a section, not a row.
+    if (block !== null && (block.textContent ?? "").trim().length <= 400) return block;
+    return null;
+  };
+  const contextFor = (element: Element): { readonly text: string; readonly marked: boolean } | undefined => {
+    const row = rowOf(element);
+    if (row === null) return undefined;
+    const first = [...row.querySelectorAll("input, select, textarea")].find(isControl) ?? element;
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    let raw = "";
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      // Document order: once a text node no longer precedes the first
+      // control, nothing after it does either.
+      if ((first.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING) === 0) break;
+      const parent = node.parentElement;
+      if (parent === null || parent.closest("select, textarea, option, script, style") !== null) continue;
+      raw += `${node.textContent ?? ""} `;
+    }
+    const collapsed = raw.replace(/\s+/g, " ").trim();
+    // The marker: `*` on its own in a marker element anywhere in the row, or
+    // ending the question. Stripped from the text; kept as a fact.
+    const markerElement = [...row.querySelectorAll("font, span, abbr, b, strong, em, sup, i")].some(
+      (node) => (node.textContent ?? "").trim() === "*" && node.querySelector("input, select, textarea") === null,
+    );
+    const marked = markerElement || /\*\s*$/.test(collapsed) || /\*/.test(collapsed);
+    const text = collapsed.replace(/\s*\*\s*/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+    if (text.length === 0) return marked ? { text, marked } : undefined;
+    return { text, marked };
+  };
+  const textAfterOf = (element: Element): string | undefined => {
+    let node: ChildNode | null = element.nextSibling;
+    let text = "";
+    while (node !== null) {
+      if (node instanceof Element && (isControl(node) || node.matches("br") || node.tagName === "BR")) break;
+      text += node.textContent ?? "";
+      node = node.nextSibling;
+    }
+    const trimmed = text.replace(/\s+/g, " ").trim().slice(0, 80);
+    return trimmed.length === 0 ? undefined : trimmed;
   };
 
   const readField = (element: Element): ObservedField => {
@@ -113,6 +178,18 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     const accept = attr("accept");
     if (accept !== undefined) field["accept"] = accept;
     if (options !== undefined) field["options"] = options;
+
+    // P123: only where the markup tied nothing — a tied label is the truth and
+    // the row is not consulted for it; the marker is read from the row either way.
+    const context = contextFor(element);
+    if (context !== undefined) {
+      if (label === undefined && context.text.length > 0) field["context"] = context.text;
+      if (context.marked) field["marked"] = true;
+    }
+    if (type === "radio" || type === "checkbox") {
+      const after = textAfterOf(element);
+      if (after !== undefined) field["textAfter"] = after;
+    }
 
     return field as unknown as ObservedField;
   };

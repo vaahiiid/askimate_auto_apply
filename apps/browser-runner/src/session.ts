@@ -43,6 +43,17 @@ export interface ObservedField {
   readonly accept?: string;
   /** A radio or checkbox input's `value` attribute — what the form submits when it is chosen (P88). */
   readonly value?: string;
+  /**
+   * P123: the question text of the control's ROW, read when the markup ties no
+   * label to the control — the text before the row's first control, other
+   * controls' contents excluded, whitespace collapsed, the marker stripped.
+   * A judgement from position, not a tie in the markup; carried as such.
+   */
+  readonly context?: string;
+  /** P123: the row carries a visible mandatory marker (`*`) that no attribute expresses. */
+  readonly marked?: boolean;
+  /** P123: the text right after a radio or checkbox, up to the next control — its own option's words. */
+  readonly textAfter?: string;
   readonly options?: readonly { readonly value: string; readonly label: string }[];
 }
 

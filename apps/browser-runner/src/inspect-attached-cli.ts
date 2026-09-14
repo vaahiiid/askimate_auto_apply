@@ -227,6 +227,11 @@ async function main(): Promise<void> {
   process.stdout.write(`Pages failed       ${String(failed.length)}\n`);
   process.stdout.write(`Navigations refused ${String(session.refusedNavigations.length)}\n`);
   process.stdout.write(`Requests refused    ${String(session.blockedRequests().length)}\n`);
+  // P123: how much of the draft's labelling is a read of the row rather than
+  // a tie in the markup, and how many rows carry a visible mandatory marker.
+  const drafted = blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields));
+  process.stdout.write(`Labels from row text ${String(drafted.filter((field) => field.labelSource === "row_text").length)} of ${String(drafted.length)}\n`);
+  process.stdout.write(`Marked mandatory     ${String(drafted.filter((field) => field.validations.some((v) => v.kind === "required" && v.source === "observed_marker")).length)}\n`);
   if (session.refusedNavigations.length > 0) {
     process.stdout.write(
       `\nA page sent this run somewhere off its list — most often the login page, which\n` +

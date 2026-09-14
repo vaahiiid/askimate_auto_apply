@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P123 — the asterisks were never in the markup
+
+He read the five unlabelled pages with the attached tool, from his own account, and committed the draft. It came back as the first read had: the label as the field's name on 139 of 149 fields, no asterisk, nothing required. He had predicted it before I opened the file, and he asked for it said plainly rather than worked around: the tool's own observer is what produced the placeholder labels the first time, because the markup ties no label to any input on these pages. That is what the file shows, and item 1 is not closed by it.
+
+What closes it is the tool reading what a person reads. The observer resolved a label through `label[for]`, a wrapping label or `aria-label`, and Sheffield puts the question in the row's first cell and a bare `<font>*</font>` beside it, tied to nothing. The observer now reads, for a control the markup ties nothing to, the text of its row before the row's first control, so a date asked as three selects shares one question and a country list is never mistaken for one; it records it as the label with `labelSource: "row_text"`, because a label read from position is a judgement the reviewer confirms, not a tie in the markup. A visible asterisk in the row becomes a `required` validation with its own source, `observed_marker`, distinct from an attribute read off the element. A radio's own words are the text after it and the group takes the row's question. A row that names no question keeps the field's name, unlabelled and unmarked. An empty tied label, which the education page carried on its country box, is no label. All of it is proved on a fixture in the shape he described, since Sheffield's markup is not in this repository, and the attached read's summary now prints how many labels came from row text and how many rows carry the marker, so the next read says at once whether it got the asterisks.
+
+Three console outputs of the nationality page never reached me; the paste was lost between the browser and the message each time, which is why he used the tool. His observations from them are held in the capture README as his, unconfirmed, until the re-read carries the same facts. The re-read is his next move and is cheap: the same command after pulling main.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P122 — the account is his, the data is not
 
 He decided item 8, and he decided it against the option the list had carried since P119. A synthetic applicant registered on Sheffield's real form is, in his words, a fake person in a real university's admissions system, a record Sheffield would hold about someone who does not exist, created by us, which they did not agree to hold. The first live run enters his own existing account. He drew a line inside the decision that the record keeps: the profile typed under that account is synthetic and the account is his, two decisions, and he answered only the second. ADR-0110 carries his words and the answer to his question about what depends on it downstream: the account's address is the profile's confirmed e-mail, so the synthetic profile must carry his real one; his real password crosses the secure box once, as the resume path already does; the handover's reset item would be a real reset of his real password unless he waives it; and nothing in the system reads or checks whether a profile is true.

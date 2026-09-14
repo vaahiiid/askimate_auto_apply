@@ -43,9 +43,13 @@ In the order they bite, each with who holds it and the evidence.
    documents (10) the captured labels are the field names — placeholders — so the asterisks
    Sheffield puts on mandatory fields were never read, and every field there stands as optional.
    A run would pass them over and save the page empty; Sheffield's own statement is that Part 2
-   opens only when every mandatory field of Part 1 is complete. **His read:** the labels with
-   their asterisks on those five pages, the same snippet shape as before, then the draft.
-   Nothing can be mapped for a page whose mandatory set is unknown, so this is first.
+   opens only when every mandatory field of Part 1 is complete. **Read once, 2026-09-14
+   (`docs/captures/sheffield-pgt-2026-09-14-five-pages/`), and not closed by it:** the attached
+   tool's observer tied no label and saw no asterisk, because the markup ties nothing. P123 made
+   the observer read the row's question and the bare `*`, with their sources named
+   (`labelSource: "row_text"`, `observed_marker`). **His re-read** with the updated tool is
+   what closes it; then the draft. Nothing can be mapped for a page whose mandatory set is
+   unknown, so this is first.
 2. **The employment page blocks the plan today.** Four required fields — start date, position,
    employer, duties — and the profile registry has no employment field, so `planFill` raises
    `no_mapping` on all four and `isComplete` is false: no run can be claimed. Two routes, neither
@@ -141,6 +145,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P123: item 1 read once with the attached tool and found not closed by it — the
+  observer resolves labels only through markup ties, and these pages tie none. The observer now
+  reads the row's question and the visible marker with their sources named; his re-read closes
+  the item. Eight open of ten, unchanged.
 - 2026-09-14, P122: item 8 done — the start path onto an account the student already holds,
   built and proved through the five processes (ADR-0110). Item 7: his read of
   `www.sheffield.ac.uk/robots.txt` evaluated by the runner's own matcher — every observed path

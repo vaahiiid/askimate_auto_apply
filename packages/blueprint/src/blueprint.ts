@@ -119,12 +119,16 @@ export interface FieldValidation {
    *
    *   dom_attribute    — read off the element. Reliable.
    *   observed_error   — inferred from an error the portal produced. Reliable.
+   *   observed_marker  — a visible mandatory marker (`*`) in the control's row,
+   *                      read by the observer where no attribute expresses it
+   *                      (P123; Sheffield's `<font>*</font>`). A read of the
+   *                      page as shown, for the reviewer to confirm.
    *   specialist_noted — a human recorded it during review.
    *
    * No `inferred_by_model` member exists. A validation rule the AI guessed at
    * is not a validation rule.
    */
-  readonly source: "dom_attribute" | "observed_error" | "specialist_noted";
+  readonly source: "dom_attribute" | "observed_error" | "observed_marker" | "specialist_noted";
 }
 
 /** One field on one page. */
@@ -133,6 +137,12 @@ export interface BlueprintField {
   readonly fieldRef: string;
   /** The label the student sees. Used to explain what is being asked. */
   readonly label: string;
+  /**
+   * P123: `row_text` when the observer read the label from the row's text
+   * because the markup tied no label to the control — a judgement from
+   * position the reviewer confirms. Absent when the markup tied it.
+   */
+  readonly labelSource?: "row_text";
   readonly inputType: FieldInputType;
   /** The reviewer's classification. Absent on a draft; refused absent at review (ADR-0102). */
   readonly dataCategory?: FieldDataCategory;

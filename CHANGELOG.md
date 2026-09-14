@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.121.0] — 2026-09-14
+
+**P123 — the observer reads the row's question and the visible mandatory marker where the
+markup ties nothing; Vahid's read of the five unlabelled pages recorded as not closing item 1.**
+
+### Added
+
+- `ObservedField.context`, `marked` and `textAfter`: the row's question text before the row's
+  first control (other controls' contents excluded), whether the row carries a bare `*`, and a
+  radio's or checkbox's own words after it. Discovery labels an untied field from `context`
+  with `labelSource: "row_text"`, names a radio group by the row's question and its options by
+  their own words, and records the marker as `required` with source `observed_marker`.
+- `BlueprintField.labelSource` (`"row_text"`) and the validation source `observed_marker`, in
+  the type and the catalogue parser.
+- The attached read's summary prints `Labels from row text N of M` and `Marked mandatory K`.
+- `apps/browser-runner/src/observe-row-text.test.ts`: a fixture in the shape Vahid described —
+  the question in the row's first cell, `<font>*</font>` tied to nothing, a date as three
+  selects, a row with only a country list, a hidden upload block, an empty tied label.
+
+### Fixed
+
+- A tied label with no words no longer out-ranks the row's question and the field's name; the
+  2026-09-14 read carried one on the education page's country box.
+
+### Recorded
+
+- `docs/captures/sheffield-pgt-2026-09-14-five-pages/README.md`: what the read shows, why it
+  does not close item 1, what to run again; his console observations held as his.
+
+---
+
 ## [0.120.0] — 2026-09-14
 
 **P122 — ADR-0110 built: a run may start on an account the student already holds; his

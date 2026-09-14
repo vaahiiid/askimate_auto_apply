@@ -63,6 +63,10 @@ export function inputTypeOf(field: ObservedField): FieldInputType {
 export function validationsOf(field: ObservedField): readonly FieldValidation[] {
   const validations: FieldValidation[] = [];
   if (field.required) validations.push({ kind: "required", source: "dom_attribute" });
+  // P123: a visible marker the markup does not express as an attribute. Its
+  // own source, so a reviewer can tell an asterisk read off the row from an
+  // attribute read off the element.
+  else if (field.marked === true) validations.push({ kind: "required", source: "observed_marker" });
   if (field.maxLength !== undefined) {
     validations.push({ kind: "maxlength", value: String(field.maxLength), source: "dom_attribute" });
   }
@@ -97,28 +101,33 @@ export function sectionFrom(form: ObservedForm, pageRef: string): BlueprintSecti
   // and the curation had to merge them by hand. Grouped here, in the first
   // input's place, each option carrying the value observed — "on" when the
   // markup declares none, which is what the browser submits.
-  const groups = new Map<string, { field: Record<string, unknown>; required: boolean }>();
+  const groups = new Map<string, { field: Record<string, unknown>; required: boolean; marked: boolean }>();
   const fields: BlueprintField[] = [];
   form.fields.forEach((field, index) => {
     if (field.type === "radio" && field.name !== undefined) {
       const value = field.value ?? "on";
-      const option = { value, label: field.label ?? value };
+      // P123: an option's own words are the text right after its input when
+      // the markup ties no label to it; never the row's question.
+      const option = { value, label: field.label ?? field.textAfter ?? value };
       const group = groups.get(field.name);
       if (group !== undefined) {
         (group.field["options"] as { value: string; label: string }[]).push(option);
         group.required = group.required || field.required;
-        group.field["validations"] = validationsOf({ ...field, required: group.required });
+        group.marked = group.marked || field.marked === true;
+        group.field["validations"] = validationsOf({ ...field, required: group.required, marked: group.marked });
         return;
       }
       const grouped: Record<string, unknown> = {
         fieldRef: field.name,
-        label: field.name,
+        // P123: the row's question names the group where the markup does not.
+        label: field.context ?? field.name,
+        ...(field.context === undefined ? {} : { labelSource: "row_text" }),
         inputType: "radio",
         locators: [{ strategy: "name", value: field.name }],
         validations: validationsOf({ ...field, required: field.required }),
         options: [option],
       };
-      groups.set(field.name, { field: grouped, required: field.required });
+      groups.set(field.name, { field: grouped, required: field.required, marked: field.marked === true });
       fields.push(grouped as unknown as BlueprintField);
       return;
     }
@@ -137,7 +146,11 @@ function fieldFrom(field: ObservedField, index: number, form: ObservedForm, page
     const fieldRef = field.name ?? field.id ?? `${pageRef}.form${String(form.formIndex)}.field${String(index)}`;
     const blueprintField: Record<string, unknown> = {
       fieldRef,
-      label: field.label ?? field.placeholder ?? fieldRef,
+      label: field.label ?? field.placeholder ?? field.context ?? fieldRef,
+      // P123: said where the label is a judgement from the row's position.
+      ...(field.label === undefined && field.placeholder === undefined && field.context !== undefined
+        ? { labelSource: "row_text" }
+        : {}),
       inputType: inputTypeOf(field),
       locators: locatorsOf(field),
       validations: validationsOf(field),
