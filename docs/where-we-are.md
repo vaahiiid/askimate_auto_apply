@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P122 — the account is his, the data is not
+
+He decided item 8, and he decided it against the option the list had carried since P119. A synthetic applicant registered on Sheffield's real form is, in his words, a fake person in a real university's admissions system, a record Sheffield would hold about someone who does not exist, created by us, which they did not agree to hold. The first live run enters his own existing account. He drew a line inside the decision that the record keeps: the profile typed under that account is synthetic and the account is his, two decisions, and he answered only the second. ADR-0110 carries his words and the answer to his question about what depends on it downstream: the account's address is the profile's confirmed e-mail, so the synthetic profile must carry his real one; his real password crosses the secure box once, as the resume path already does; the handover's reset item would be a real reset of his real password unless he waives it; and nothing in the system reads or checks whether a profile is true.
+
+The start path does not exist yet and it is mine. Sized against the code rather than by feel: the orchestrator already holds the whole sign-in path (ADR-0101 §3) and already models an account as something that can exist without our having made it. What is missing is a way for the student to say so before the yes, a case event that records it, the driver deriving an account from that event as it derives one from a completed creation intent, one condition in the orchestrator so that an account with no recorded session is treated as not signed in, and the preview saying signed in rather than created. One phase, in the shape P72 took; not large, so it is built without a further ask.
+
+One thing found while writing his robots.txt instruction. ADR-0091 reads, obeys and keeps `robots.txt` and paces requests, and every one of those lives in the discovery CLI, under ADR-0014's read-only run. The Automation Runner's fill path, the one Run A uses, reads no robots.txt and paces nothing. The distance list had said since P119 that the run reads it before the browser opens; that was true of discovery and not of the run in question, and the list now says so. His read of the public file still settles the question early; P123 puts the reading, the refusal and the one-second floor into the runner, because he set both as preconditions of any run against a live site and the run that matters does not have them.
+
+Item 10 is held by his word: not before Run A has happened once. Items 1, 2 and 5 are his next reads in that order, and the item 1 snippet is in the capture README.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P121 — the five processes, driven through the whole journey
 
 P120 stood the five processes up and checked that each answered. P121 asked them to do the work: the student's requests over HTTP to the Conversation Service process, the password through the real frame from the Secure Service process in a Chromium the test launches for the student, the Worker process moving the run past the yes on its own clock with no request from the student, the Runner process creating the account and filling the fixture portal in the browser it launched, the Fill Agent process typing the password over CDP, the handover confirmed twice, the run finished ready to submit and nothing submitted. The test reads and asks; it performs nothing, drains nothing and advances nothing itself. It is green, in about forty seconds, and it took five defects to get there — each one invisible to the in-process journey, and each proved red before its fix.

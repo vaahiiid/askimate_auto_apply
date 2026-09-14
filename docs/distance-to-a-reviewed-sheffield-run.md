@@ -80,16 +80,21 @@ In the order they bite, each with who holds it and the evidence.
    unreviewed set, and an approval signed by its author (blocker 2). Three items are flagged for
    him in the review pack: what the education page's first slot asks for, the contact page's
    *After* / *Before* texts, and the postcode's two boxes. **Iman.**
-7. **`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository.** The run
-   reads it before the browser opens and obeys it; if it disallows the form's path the run
-   refuses and nothing above matters. It is a public URL: **one read by Vahid**, pasted whole,
-   settles it early rather than on the day.
-8. **The account, and how the run enters it.** A fresh run registers a new applicant through the
-   Secure Plane with a password the student chooses (ADR-0101); signing in to an existing
-   account is the *resume* path only (P72), not a start. So Run A on the live portal means
-   registering a synthetic applicant on Sheffield's real form — the fabricated-account option the
-   gap analysis of 2026-08-26 advised against — or admitting a run onto his existing test
-   account, which no path today offers as a start. **His decision**, and blocker 4 as it stands.
+7. **`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
+   fill run does not read it at all today.** Corrected 2026-09-14: ADR-0091's reading, obeying
+   and pacing live in the discovery CLI (ADR-0014's read-only run); the Automation Runner's fill
+   path has no robots check and no pacing floor. The sentence this item carried in P119, that
+   the run reads it before the browser opens, was true of discovery and not of Run A. Two halves:
+   **his read** of the public file, pasted whole with its status line, settles early whether the
+   form's paths are allowed; **P123 (mine)** puts the same reading, refusal and one-second floor
+   into the runner before it opens the portal, so the run obeys it rather than the operator.
+8. **The account, and how the run enters it.** **Decided by Vahid, 2026-09-14 (ADR-0110):**
+   *"the run enters my existing account. Not a fresh synthetic applicant."* The start path onto
+   an existing account is **P122, mine**: the student declares the account before the yes, the
+   case records it, and ADR-0101 §3's sign-in path runs from the start. Open until P122 lands;
+   what it needs from him afterwards is nothing but the password through the box on the day.
+   His distinction is on the record: the profile is synthetic, the account is his, and only the
+   second is decided here.
 9. ~~**Where it runs.**~~ **Done, P120.** `scripts/local-stack.sh` stands the five processes up
    on one machine against a Postgres and a Redis, migrated, and checks each; proved by
    `scripts/local-stack.test.ts` against the fixture catalogue; the Sheffield variant is
@@ -100,9 +105,10 @@ In the order they bite, each with who holds it and the evidence.
    have failed at the password. Fixed, red first. This environment still cannot reach
    `sheffield.ac.uk`; the script runs from a machine that can.
 10. **Part 2 is unread.** The eleven observed pages are Part 1; the course choice is Part 2, and
-    the blueprint has no page for it and no submission model. Run A ends at the end of Part 1,
-    which is where it should end today; a reading of Part 2 with Part 1 complete on his account
-    is what extends it. **His read**, when Part 1 is complete on his account.
+    the blueprint has no page for it and no submission model. Run A ends at the end of Part 1.
+    **Vahid, 2026-09-14:** *"not now. Run A ends at the end of Part 1 and I am not extending it
+    before it has happened once."* Not on Run A's path by his word; kept here so the count stays
+    honest about what Run A is.
 
 **Not on Run A's path, and why:** Bedrock (blocker 3) — the profile can be confirmed through the
 service's own page with the deterministic client, as the journey does; the vault's bucket
@@ -135,6 +141,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P122 (records): item 8 decided by Vahid — his own existing account, never a
+  synthetic applicant (ADR-0110); the start path is mine, P122. Item 7 corrected: the fill run
+  reads no robots.txt today; P123 puts ADR-0091's reading into the runner. Item 10 held by his
+  word. Items 1, 2 and 5 are his next reads, in that order; the item 1 snippet is in the capture
+  README. The count is unchanged until P122 lands: nine open of ten.
 - 2026-09-13, P121: item 9 strengthened — the five processes the script starts now carry the
   whole journey (`scripts/local-stack-journey.test.ts`), which found five defects between them
   the in-process journey could not see (the worker's origins, no page served, the certificate

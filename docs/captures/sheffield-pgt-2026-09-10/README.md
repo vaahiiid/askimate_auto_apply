@@ -1114,6 +1114,59 @@ recorded on the box when it is mapped.
 matching twice or the console truncating, as he suggested; nothing is read into it, and the
 exact list is not needed now.
 
+## Item 1 of the distance list — the mandatory markers on five pages (snippet, 2026-09-14)
+
+Run on each of `nationality.do`, `language.app`, `education.do?new=true`, `marketing.do` and
+`documents.do`, with the page as it opens (nothing saved, nothing changed), and paste the whole
+output for each. It prints names, ids, types and the text around each control; it prints no
+value typed into any box.
+
+```js
+copy(JSON.stringify({
+  page: location.pathname + location.search,
+  stars: [...document.querySelectorAll('body *')]
+    .filter(e => e.children.length === 0 && /\*/.test(e.textContent ?? ''))
+    .slice(0, 60)
+    .map(e => ({ tag: e.tagName, class: e.className, text: (e.textContent ?? '').trim().slice(0, 100) })),
+  controls: [...document.querySelectorAll('input, select, textarea')]
+    .filter(c => !['hidden', 'submit', 'button', 'image'].includes(c.type))
+    .map(c => {
+      const cell = c.closest('td, dd');
+      const row = c.closest('tr, li, p, fieldset, .form-group, .row, dl');
+      return {
+        name: c.name, id: c.id, tag: c.tagName.toLowerCase(), type: c.type,
+        required: c.required || c.getAttribute('aria-required') === 'true',
+        labels: [...(c.labels ?? [])].map(l => l.innerText.trim()),
+        labelFor: c.id ? (document.querySelector(`label[for="${CSS.escape(c.id)}"]`)?.innerText ?? '').trim() : '',
+        cellBefore: (cell?.previousElementSibling?.innerText ?? '').trim().slice(0, 140),
+        rowText: (row?.innerText ?? '').trim().slice(0, 200),
+      };
+    }),
+}, null, 1))
+```
+
+What is read from it: for each control, whether the label text that belongs to it carries the
+portal's `*` (`labels`, `labelFor`, `cellBefore`, and `rowText` as the fallback where the markup
+ties nothing to the input), and the page's own legend line under `stars`. The result becomes a
+`required` validation with source `specialist_noted` on each marked field, for Iman to confirm —
+the same shape the thirteen fields on personal, contact and employment already carry.
+
+## Item 7 — `robots.txt`, what to paste (2026-09-14)
+
+From any machine that reaches the site:
+
+```bash
+curl -sS -i -L https://www.sheffield.ac.uk/robots.txt
+```
+
+Paste the whole output: the status line and headers (so a redirect or a non-200 is visible) and
+the body verbatim, plus the date. It is evaluated here against the eleven observed paths under
+`/postgradapplication/` with the runner's own matcher (`decideAgainstRobots`, ADR-0091), which
+reads the group addressed to the token `askimate-aas-discovery` or the `*` group, and the file is
+kept beside this capture as the evidence ADR-0091 asks for. Found while writing this: the fill
+run does not read `robots.txt` today — ADR-0091's reading lives in the discovery CLI — and P123
+puts it into the runner.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

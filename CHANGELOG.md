@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.119.1] — 2026-09-14
+
+**P122 (records) — ADR-0110: the first live run enters Vahid's own account; a synthetic
+applicant is refused; the start path onto an existing account is mine.** Records only.
+
+### Recorded
+
+- ADR-0110, in Vahid's words, 2026-09-14: distance item 8 and blocker 4 decided; the profile is
+  synthetic and the account is his, two decisions, only the second answered; what depends on it
+  downstream, answered.
+- Distance item 7 corrected: the fill run reads no `robots.txt` today — ADR-0091's reading,
+  refusal and pacing live in the discovery CLI. P123 puts them into the runner. Item 10 held by
+  his word. The item 1 snippet and the item 7 instruction are in the capture README.
+
+---
+
 ## [0.119.0] — 2026-09-13
 
 **P121 — the journey through the five real processes the local-stack script starts; five
