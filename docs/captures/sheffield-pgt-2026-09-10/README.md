@@ -1190,6 +1190,14 @@ names and listed in the review pack for Iman to read from the screenshots, by hi
 unchanged otherwise. Two marks are flagged in the pack as the author's reading: language's
 eighteen of twenty, and `unlistedDegree`'s.
 
+## Employment is optional — `summary.do`, in the portal's words (Vahid, 2026-09-14)
+
+> *"No employment information entered. If you do not have any relevant employment then you do not
+> need to complete this section."*
+
+So `employment.do`'s four stars apply per job, once one is added; a student with none completes
+Part 1 without the page. Decided on this fact: ADR-0111.
+
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
 The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*

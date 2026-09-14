@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.126.0] — 2026-09-14
+
+**P128 — ADR-0111: employment history is a registry group (decided by Vahid); the shape
+proposed for his confirmation; nothing built.**
+
+### Recorded
+
+- ADR-0111 in his words: a registry group for employment, one entry per job, for the general
+  case; `employment.do` repeating as education does; a page filled zero times said plainly. The
+  optional section from `summary.do` in the portal's words, correcting P127. The proposed shape
+  of `employment.history` and what the build needs from him beyond the confirmation.
+- Distance item 2 decided, the build waiting on the shape; state, journal and index rows.
+
+---
+
 ## [0.125.0] — 2026-09-14
 
 **P127 — `--as-is`: the attached read takes the person's own open tab as it stands, for a page

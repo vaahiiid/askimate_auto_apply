@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P128 — the product, not the page
+
+He decided item 2 and began with the fact that shapes it, from `summary.do` in the portal's words: *"No employment information entered. If you do not have any relevant employment then you do not need to complete this section."* The section is optional, the four stars apply only once someone adds a job, a student with no work history is not stuck, and the handoff route was never needed to make the page passable — so the record's line that whether an entry is required was not in the record is corrected, and the decision became one about what the product is. His reasoning is in ADR-0111 in his words: nearly every postgraduate form asks for work history, and handing it to the student at Sheffield hands it to them at Manchester, which makes fill-once-apply-to-many untrue of the part of the form that often carries a borderline application.
+
+Three things are decided and none is built. A registry group for employment, one entry per job, designed for the general case rather than Sheffield's four fields; the page marked repeating the way education is, so that one entry per job is not discovered again at fill time; and a page filled zero times said plainly in the preview, so that a student with nothing to add sees that we knew and chose to leave it empty. He asked for the shape before the build, and it is proposed in the ADR: `employment.history`, each entry the employer and its address as the student gives it, the position, a start month and year with no day we never had, an end that is either a date or the student's statement that the job continues, an optional basis, the duties text under the portal's cap and never trimmed, and an optional referee named for what it is — a third party's personal data, with the guardian fields as precedent. One consequence is written down because it is easy to get wrong: a confirmed empty list and an unasked one are different things, and only the first fills the page zero times; the preview's zero-count line from P96 already sits inside the hash and reads as he asked once the page is titled *Employment history*. Two things the build will need from him beyond the confirmation, both in the ADR: the `summary.do` listing for a saved job, which his account cannot show because it holds none, and the add-another control. Seven of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P127 — the read that would have thrown away the thing it was for
 
 He took item 5 next and asked what to do on the page before running the read. Writing the steps found that the read could not be taken as the tool stood. The education page's grade list loads only after an institution is chosen, and its grades after a grading system; the attached tool opens each page in a tab of its own and navigates to it, so every choice made by hand is gone before the observer runs, and a fresh `education.do?new=true` says *Enter your institution to see grades* and nothing else. The instruction "choose an institution, then run the read" would have produced the same empty list a fourth time.

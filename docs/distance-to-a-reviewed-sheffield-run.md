@@ -71,11 +71,14 @@ In the order they bite, each with who holds it and the evidence.
    for a page whose mandatory set is unknown, so this is first.
 2. **The employment page blocks the plan today.** Four required fields — start date, position,
    employer, duties — and the profile registry has no employment field, so `planFill` raises
-   `no_mapping` on all four and `isComplete` is false: no run can be claimed. Two routes, neither
-   taken: registry fields for employment (a product decision about what the profile collects,
-   raised in P89), or the four mapped as `student_handoff` — the student fills that page — which
-   the existing vocabulary allows and the reviewer can sign now. **His decision** on the route,
-   then Iman.
+   `no_mapping` on all four and `isComplete` is false: no run can be claimed. **Decided by Vahid,
+   2026-09-14 (ADR-0111):** *"employment goes into the registry as a new group"*, one entry per
+   job, the page repeating as education does, and a page filled zero times said plainly. The
+   section is optional in the portal's own words on `summary.do` (*"If you do not have any
+   relevant employment then you do not need to complete this section"*), so no student is stuck
+   and the handoff route was never needed. **The shape is proposed in the ADR and awaits his
+   confirmation; then the build (mine), then Iman.** Two things the build needs from him: the
+   `summary.do` listing for a saved job, and the add-another control.
 3. **The nationality page: seventy-two fields, none mapped, and the registry holds part of what
    it asks.** Funding nationality, country of birth, permanent residence and the immigration
    yes/no questions map onto `identity.nationality`, `identity.country_of_birth` and the two
@@ -170,6 +173,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P128: item 2 decided by Vahid — a registry group for employment, the page
+  repeating, the empty page said plainly (ADR-0111); the shape proposed for his confirmation,
+  nothing built. The optional section, from `summary.do` in the portal's words, corrects P127's
+  "not in the record". Seven open of ten until the build lands.
 - 2026-09-14, P127: item 5's read was not runnable as the tool stood — it navigates, and the
   grade list an institution loads is gone on navigation. `--as-is` reads the person's own open
   tab in place; proved red-first on the fixture's passport list and through the real command
