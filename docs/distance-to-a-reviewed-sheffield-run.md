@@ -94,7 +94,10 @@ In the order they bite, each with who holds it and the evidence.
    captured `<select>`'s 255, copied); degree, subject, the three dates and the grade are selects
    with option maps from the `Qualification` parts, and the grade list arrives only after an
    institution is chosen, so **his read** of that list with an institution set comes first (P94's
-   rule: no mapping may name an option the capture does not hold). The institution box is the
+   rule: no mapping may name an option the capture does not hold). **P127:** the attached tool
+   opened each page fresh, so that state was lost before the read; `--as-is` now reads his own
+   open tab as it stands, proved on the fixture's dependent list, red first. The steps, in order,
+   are in the 2026-09-10 capture README under *Item 5*. The institution box is the
    hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
@@ -167,6 +170,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P127: item 5's read was not runnable as the tool stood — it navigates, and the
+  grade list an institution loads is gone on navigation. `--as-is` reads the person's own open
+  tab in place; proved red-first on the fixture's passport list and through the real command
+  under tsx, where the adopted tab needed the `__name` shim by hand. His steps for the education
+  page written. Item 2 answered from the registry: the four employment fields are new facts
+  about a student, held under no other name — his decision. Seven open of ten, unchanged.
 - 2026-09-14, P126: item 1 closed with thirteen carried into item 6, on Vahid's word to stop
   (*"for the reason you gave rather than the count"*). The third read folded into the curated
   draft 0.2.18 — 79 labels, 50 markers, the fourteen wrong labels excluded, the thirteen as

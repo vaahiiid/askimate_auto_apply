@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.125.0] — 2026-09-14
+
+**P127 — `--as-is`: the attached read takes the person's own open tab as it stands, for a page
+whose lists load only after a choice (distance item 5).**
+
+### Added
+
+- `PlaywrightAttachedInspection.adopt(url)`: finds the one open tab at the URL in the person's
+  context (none or several refused; a URL off the run's list refused), never navigates or
+  closes it, and reads it; the `__name` shim put in by hand because `addInitScript` reaches a
+  tab only on its next navigation. `close()` closes only the tab the session opened.
+- `pnpm run inspect:attached … --as-is <url>`: reads in place, prints `read in place, not
+  navigated`, and records `readInPlace: true` in `run.json`.
+- Tests: the fixture's passport list (loaded after the nationality) is in an in-place read and
+  the page's own state survives it; the refusals; the real command under tsx with `--as-is`.
+
+### Recorded
+
+- The runbook's `--as-is` paragraph; the education page's steps for item 5, in order, in the
+  2026-09-10 capture README; item 2's four fields read against the registry for his decision.
+
+---
+
 ## [0.124.0] — 2026-09-14
 
 **P126 — the third read folded into the curated draft; item 1 closed with thirteen carried into

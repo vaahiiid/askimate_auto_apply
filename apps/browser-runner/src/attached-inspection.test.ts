@@ -149,6 +149,50 @@ describe("attached inspection reads a form behind a login (P79)", () => {
     expect(portal.application("person@example.test")?.givenName).toBe("Niloofar");
   }, 60_000);
 
+  it("reads the person's OWN tab as it stands, never navigating it — the list another field loaded is in the read (P127)", async () => {
+    // Distance item 5: the education page's grade list arrives only after an
+    // institution is chosen. A read that navigates opens the page fresh and
+    // the list is gone. Here the person chooses the nationality in THEIR tab
+    // and waits for the passport-country list (P94); the tool adopts that
+    // tab and reads it as it stands.
+    const page = theirs.pages()[0] ?? (await theirs.newPage());
+    await page.goto(`${portal.baseUrl}/apply`);
+    await page.selectOption("#nationality", "IR");
+    await page.waitForSelector('#passportCountry option[value="IR"]', { state: "attached" });
+    await page.evaluate(() => {
+      (globalThis as { __stillHere?: number }).__stillHere = 1;
+    });
+    const tabsBefore = theirs.pages().length;
+    const session = await attach([`${portal.baseUrl}/apply`]);
+    try {
+      await session.adopt(`${portal.baseUrl}/apply`);
+      const observation = await session.observe();
+      const passport = observation.forms.flatMap((f) => f.fields).find((f) => f.name === "passport_country");
+      expect(passport?.options?.map((o) => o.value), "the list the nationality loaded, read as it stands").toContain("IR");
+      // Not navigated: the page's own state survived the read.
+      expect(await page.evaluate(() => (globalThis as { __stillHere?: number }).__stillHere)).toBe(1);
+      expect(session.blockedLog.portalAttemptedWrite).toBe(false);
+    } finally {
+      await session.close();
+    }
+    // Their tab is still theirs, still open, still on the page.
+    expect(page.isClosed()).toBe(false);
+    expect(theirs.pages().length).toBe(tabsBefore);
+    expect(page.url()).toBe(`${portal.baseUrl}/apply`);
+  }, 60_000);
+
+  it("refuses to adopt a tab that is not open at the URL, or is off the list", async () => {
+    const page = theirs.pages()[0] ?? (await theirs.newPage());
+    await page.goto(`${portal.baseUrl}/apply`);
+    const session = await attach([`${portal.baseUrl}/apply`]);
+    try {
+      await expect(session.adopt(`${portal.baseUrl}/review`)).rejects.toThrow(/not on this attached run's list/);
+      await expect(session.adopt(`${portal.baseUrl}/apply?other=1`)).rejects.toThrow(/no open tab/);
+    } finally {
+      await session.close();
+    }
+  }, 60_000);
+
   it("records a redirect to the login page as a refused navigation — the login boundary, as a finding", async () => {
     // A SECOND browser, signed in to nothing. Attached inspection must not
     // see the form there; what it sees instead is the bounce, and it says so.
@@ -284,10 +328,65 @@ describe("through the REAL command, under tsx — not vitest's transform", () =>
       expect(refs).toEqual(expect.arrayContaining(["given_name", "family_name", "date_of_birth", "nationality"]));
       const html = await readFile(join(runDir, "pages", "001.html"), "utf8");
       expect(html).toContain('name="given_name"');
+
+      // ── `--as-is` under the real transform (P127) ─────────────────────
+      // The adopted tab is one the person opened before the tool attached,
+      // so the `addInitScript` shim never ran in it; under tsx the read must
+      // still not meet `__name is not defined`. The person's tab holds the
+      // passport list the nationality loaded, and the draft must carry it.
+      const person = theirs.pages()[0] ?? (await theirs.newPage());
+      await person.goto(`${portal.baseUrl}/apply`);
+      await person.selectOption("#nationality", "IR");
+      await person.waitForSelector('#passportCountry option[value="IR"]', { state: "attached" });
+      const asIsRoot = await mkdtemp(join(tmpdir(), "aas-attached-cli-as-is-"));
+      try {
+        const asIs = await new Promise<{ status: number | null; out: string }>((done) => {
+          const child = spawn(
+            process.execPath,
+            [
+              "--import",
+              "tsx",
+              resolve(root, "apps", "browser-runner", "src", "inspect-attached-cli.ts"),
+              targetFile,
+              "--cdp",
+              CDP,
+              "--out",
+              asIsRoot,
+              "--as-is",
+              `${portal.baseUrl}/apply`,
+            ],
+            { cwd: root, env: { ...process.env } },
+          );
+          let out = "";
+          child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+          child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+          const timer = setTimeout(() => child.kill(), 120_000);
+          child.on("close", (status) => {
+            clearTimeout(timer);
+            done({ status, out });
+          });
+        });
+        expect(asIs.out, asIs.out).not.toContain("__name is not defined");
+        expect(asIs.out).toContain("read in place");
+        expect(asIs.out).toContain("Pages read         1 of 1");
+        expect(asIs.status, asIs.out).toBe(0);
+        const asIsDir = (await readdir(asIsRoot)).map((name) => join(asIsRoot, name)).find((dir) => existsSync(join(dir, "run.json")));
+        if (asIsDir === undefined) expect.unreachable(`no run directory written under ${asIsRoot}`);
+        const asIsDraft = JSON.parse(await readFile(join(asIsDir, "blueprint.draft.json"), "utf8")) as {
+          pages: { sections: { fields: { fieldRef: string; options?: { value: string }[] }[] }[] }[];
+        };
+        const passport = asIsDraft.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "passport_country");
+        expect(passport?.options?.map((o) => o.value)).toContain("IR");
+        const run = JSON.parse(await readFile(join(asIsDir, "run.json"), "utf8")) as { readInPlace?: boolean };
+        expect(run.readInPlace).toBe(true);
+        expect(person.isClosed()).toBe(false);
+      } finally {
+        await rm(asIsRoot, { recursive: true, force: true });
+      }
     } finally {
       await rm(outRoot, { recursive: true, force: true });
     }
-  }, 180_000);
+  }, 240_000);
 });
 
 describe("the capture is scrubbed of the person's values", () => {

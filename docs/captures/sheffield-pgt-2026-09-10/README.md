@@ -1190,6 +1190,45 @@ names and listed in the review pack for Iman to read from the screenshots, by hi
 unchanged otherwise. Two marks are flagged in the pack as the author's reading: language's
 eighteen of twenty, and `unlistedDegree`'s.
 
+## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
+
+The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*
+until an institution is set, and `grade` fills after a grading system is chosen (both recorded as
+`optionsAfter` in the draft). P94's rule stands — no mapping may name an option the capture does
+not hold — so the lists must be captured with the page in that state, and a normal read opens the
+page fresh. The tool now reads a tab as it stands (`--as-is`, P127). On the page, in this order,
+with nothing saved:
+
+1. `git pull`, then start Chromium with the debugging port and sign in as before.
+2. Open `https://www.sheffield.ac.uk/postgradapplication/education.do?new=true` in one tab and no
+   other tab at that URL. Leave the address bar's URL as it is; you will paste it exactly.
+3. **Country of the institution:** in the country box choose the country of the institution Run A's
+   synthetic profile will name. If that is not decided (blocker 25), choose *United Kingdom* and
+   say so; the list is per institution, so a second read follows when it is.
+4. **Institution:** type the name in the institution box and choose it from the entries. If the
+   country is the UK, *University of Sheffield* (its entries are already recorded from P118).
+5. **Wait** until the *Grading System* list shows real entries in place of *Enter your institution
+   to see grades*. Choose the first real grading system, and wait until the *Grade* list fills.
+   Do not choose a grade.
+6. **Subject:** type one word (for instance *Management*) in the subject search box and press its
+   *Search* button, so the *Results* list fills. Do not choose a result.
+7. Touch nothing else: no qualification, no dates, no tick, no upload radio, and never *Save*.
+8. With the tab left on the page, run:
+
+   ```bash
+   pnpm run inspect:attached sheffield-pgt-2026-09 --cdp http://127.0.0.1:9223 --out <dir> \
+     --as-is "https://www.sheffield.ac.uk/postgradapplication/education.do?new=true"
+   ```
+
+   The tool prints `read in place, not navigated`, and the run record carries `readInPlace: true`.
+   If it says there is no open tab at the URL, the address bar's URL differs from the one typed —
+   copy it from the bar and re-run.
+9. Say in the message which country, institution, grading system and search word you chose. The
+   read records the lists, not the choices, and the HTML capture has every input value removed.
+
+What the read gives: the grading systems of that institution, the grades of one of them, and one
+subject search's results, as option values and labels the draft can carry and a mapping can name.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

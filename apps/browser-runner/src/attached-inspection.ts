@@ -84,6 +84,8 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
   #browser: Browser | null = null;
   #context: BrowserContext | null = null;
   #page: Page | null = null;
+  /** The tab this session opened — the only one it may close. */
+  #ownTab: Page | null = null;
   #guard: ((route: Route) => Promise<void>) | null = null;
   #shotCount = 0;
 
@@ -184,7 +186,42 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
 
     // Our own tab, in THEIR context — which is what carries the session.
     session.#page = await context.newPage();
+    session.#ownTab = session.#page;
     return session;
+  }
+
+  /**
+   * Reads the person's OWN tab as it stands, without navigating it (P127).
+   *
+   * Distance item 5: the education page's grade list arrives only after an
+   * institution is chosen, and `goto` opens the page fresh — every choice the
+   * person made in their tab is gone before the read. This finds the one open
+   * tab at `url`, refuses none or several, and makes it the page the next
+   * `observe()`, `html()` and `screenshot()` read. It is never closed by this
+   * session and never navigated by it. The `__name` shim is put in by hand,
+   * because `addInitScript` reaches a tab only on its next navigation and
+   * this one must not have one (P80, the same failure by another door).
+   */
+  public async adopt(url: string): Promise<void> {
+    if (!this.#navigable(url)) {
+      throw new Error(`Refusing to read ${url}: not on this attached run's list.`);
+    }
+    const context = this.#context;
+    if (context === null) throw new Error("Session is not open.");
+    const wanted = url.split("#")[0] ?? url;
+    const open = context.pages().filter((page) => page !== this.#ownTab && page.url().split("#")[0] === wanted);
+    if (open.length === 0) {
+      throw new Error(
+        `There is no open tab at ${url} to read as it stands. Open the page in your browser, ` +
+          `make the choices the read needs, leave the tab on that page, and re-run.`,
+      );
+    }
+    const page = open[0];
+    if (open.length > 1 || page === undefined) {
+      throw new Error(`Found ${String(open.length)} open tabs at ${url}; close all but the one to read, and re-run.`);
+    }
+    await page.evaluate("globalThis.__name = globalThis.__name || function (f) { return f; };");
+    this.#page = page;
   }
 
   #navigable(url: string): boolean {
@@ -297,7 +334,8 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
    * keeps running with their session in it; closing it is theirs to do.
    */
   public async close(): Promise<void> {
-    if (this.#page !== null) await this.#page.close().catch(() => undefined);
+    if (this.#ownTab !== null) await this.#ownTab.close().catch(() => undefined);
+    this.#ownTab = null;
     if (this.#context !== null && this.#guard !== null) {
       await this.#context.unroute("**/*", this.#guard).catch(() => undefined);
     }

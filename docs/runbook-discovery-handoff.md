@@ -194,6 +194,22 @@ pnpm run inspect:attached sheffield --cdp http://127.0.0.1:9222 \
   "<url of Part 1>" "<url of Part 2>" "<url of the documents section>"
 ```
 
+**Reading a page as you left it (`--as-is`, P127).** Some lists on a page load only after a
+choice — Sheffield's education page fills its grading systems after an institution is chosen,
+and its grades after a grading system. A normal run opens each page fresh, so those lists are
+gone before the read. With `--as-is` the tool reads **your own open tab** at each URL exactly as
+it stands: it navigates nothing, closes nothing, and the tab stays yours. Open the page, make the
+choices the read needs, leave the tab on that page (one tab at that URL, the URL copied from the
+address bar), then:
+
+```bash
+pnpm run inspect:attached sheffield --cdp http://127.0.0.1:9222 --as-is "<url as shown>"
+```
+
+The read carries the lists as they stand, not your selections: the tool records option lists,
+not which option is chosen, and the HTML capture has every input value removed. Say in the
+message which choices you made, because the file cannot. The run record says `readInPlace: true`.
+
 Run `git pull` first: the tool is in this repository, and a fix lands here, not in your browser.
 Pass the pages in the order you would read them, as URLs copied from the address bar once signed
 in. No crawl: it reads exactly those, at least two seconds apart, and it refuses any page not on

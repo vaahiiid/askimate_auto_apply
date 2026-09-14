@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P127 — the read that would have thrown away the thing it was for
+
+He took item 5 next and asked what to do on the page before running the read. Writing the steps found that the read could not be taken as the tool stood. The education page's grade list loads only after an institution is chosen, and its grades after a grading system; the attached tool opens each page in a tab of its own and navigates to it, so every choice made by hand is gone before the observer runs, and a fresh `education.do?new=true` says *Enter your institution to see grades* and nothing else. The instruction "choose an institution, then run the read" would have produced the same empty list a fourth time.
+
+So the tool reads a tab as it stands. With `--as-is` the session finds the person's own open tab at the URL — refusing none and refusing several, because which of two tabs is the right one is not a guess this session makes — and makes it the page the observer reads, navigating nothing and closing nothing; the tab is theirs before, during and after. The shape P80 found came back through another door: the `__name` shim the session installs with `addInitScript` reaches a tab only on its next navigation, and this tab must not have one, so the shim is put in by hand before the read. Proved red-first on the fixture: the person chooses a nationality in their tab, the passport-country list loads, the tool adopts the tab and the list is in the read while a marker on the page's window survives it; and through the real command under tsx, which is where the shim would have failed. The runbook carries the paragraph and the education page's steps are written in order, ending with what he must say in the message because the file cannot: the read records lists, not choices.
+
+Item 2 he asked to see before deciding, and it is read from the registry rather than from memory. The four are `startMonth`, `position`, `employerDetails` and `duties` — the start of a job, its title, the employer's name and address, and up to four thousand characters of what the job involved — and the registry holds nothing of a student's working life under any name: its nearest keys are a qualification's institution and dates, which are education, and the personal statement, which is prose. Four new facts, so a product decision and his. Two things beside it for the decision: the page is one entry per job and the draft does not yet mark it repeating, and whether Part 2 opens with no employment entry at all is not in the record. Seven of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P126 — stop, in his words, and the fold
 
 He stopped the reads, and for the reason rather than the count: *"The third rule produced nine header labels and no right label on the page it was written for. A fourth rule would be written without the markup and tested by a fifth read, exactly as the first three were. That is the shape to stop at, not a number."* He asked for two things recorded in his words, and they are, in the third read's README and on the distance list: the ceiling is 106 of 149 because 43 fields have no question of their own, and the 13 between 93 and 106 are not a tool failure but markup a positional rule cannot reach, which nobody reading later should take as work left undone; and that refusing was right on the fourteen, because a wrong label is worse than none, a reviewer confirming it having nothing to notice, and 79 right is better than 93 with 14 wrong.

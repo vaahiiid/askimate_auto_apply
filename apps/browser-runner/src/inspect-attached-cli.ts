@@ -1,7 +1,11 @@
 /**
  * Attached inspection of a form a person has signed in to (P79).
  *
- *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 [--out <dir>] <url> [url ...]
+ *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 [--out <dir>] [--as-is] <url> [url ...]
+ *
+ * With `--as-is` it reads the person's OWN open tab at each URL as it stands —
+ * no navigation, so what they chose on the page (and every list a choice
+ * loaded) is in the read (P127, distance item 5).
  *
  * The person launches Chromium with a remote-debugging port and signs in to
  * the portal by hand. This attaches to that browser, opens one tab in their
@@ -67,7 +71,10 @@ function usage(root: string): void {
     `Usage: pnpm run inspect:attached <target> --cdp <endpoint> <url> [url ...]\n\n` +
       `  <endpoint>   the browser's remote-debugging address, e.g. http://127.0.0.1:9222\n` +
       `  <url>        the signed-in pages to read, in order. No crawl: only these.\n` +
-      `  --out <dir>  where to write the run (default: inspection-runs/ in this checkout)\n\n` +
+      `  --out <dir>  where to write the run (default: inspection-runs/ in this checkout)\n` +
+      `  --as-is      read YOUR open tab at each url as it stands, without navigating it —\n` +
+      `               for a page whose lists load only after a choice (open the page, make\n` +
+      `               the choices, leave the tab on it, then run)\n\n` +
       `Targets:\n` +
       listTargets(root)
         .map((name) => `  ${name}\n`)
@@ -85,7 +92,9 @@ async function main(): Promise<void> {
   const cdp = cdpIndex === -1 ? undefined : args[cdpIndex + 1];
   const outIndex = args.indexOf("--out");
   const outRoot = outIndex === -1 ? resolve(root, "inspection-runs") : resolve(args[outIndex + 1] ?? "");
-  const taken = new Set([0, cdpIndex, cdpIndex + 1, outIndex, outIndex + 1]);
+  const asIsIndex = args.indexOf("--as-is");
+  const asIs = asIsIndex !== -1;
+  const taken = new Set([0, cdpIndex, cdpIndex + 1, outIndex, outIndex + 1, asIsIndex]);
   const urls = args.filter((_, index) => !taken.has(index));
 
   if (typed === undefined || cdp === undefined || urls.length === 0) {
@@ -117,7 +126,11 @@ async function main(): Promise<void> {
       `every request that is not a GET is refused and recorded. It is yours again on exit.\n` +
       `Nothing here creates, fills, clicks, uploads or submits. Paced at ${String(delayMs)}ms.\n` +
       `robots.txt is NOT applied to this mode — this is your own session, not a crawl —\n` +
-      `and the run record says so.\n\n`,
+      `and the run record says so.\n` +
+      (asIs
+        ? `\n--as-is: each page is read in place from YOUR open tab, as it stands. Nothing is\n` +
+          `navigated; the tab stays yours and stays open.\n\n`
+        : `\n`),
   );
 
   const session = await PlaywrightAttachedInspection.open({
@@ -139,8 +152,13 @@ async function main(): Promise<void> {
       await pause(delayMs);
       process.stdout.write(`  → ${url}\n`);
       try {
-        await session.goto(url);
-        await session.settle(20_000);
+        if (asIs) {
+          await session.adopt(url);
+          process.stdout.write(`     read in place, not navigated\n`);
+        } else {
+          await session.goto(url);
+          await session.settle(20_000);
+        }
         const observation = await session.observe();
         observations.push(observation);
         visited.push(observation.url);
@@ -204,6 +222,10 @@ async function main(): Promise<void> {
         urls,
         visited,
         failed,
+        // P127: true when each page was read from the person's own open tab as
+        // it stood, with no navigation — so a list another field loaded is a
+        // fact of the page as they left it, not of the page as it opens.
+        readInPlace: asIs,
         // Method, URL, which rule refused it and why: "Requests refused 1" on
         // the terminal is answerable from the record, without a second run.
         blockedRequests: session.blockedLog.entries.map((entry) => ({
