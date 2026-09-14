@@ -27,6 +27,7 @@ export {
   describePlan,
   describeSecureChannel,
   describeSignInResume,
+  describeSignInStart,
   holdsASecret,
   mintCredentialUnder,
 } from "./authentication.js";

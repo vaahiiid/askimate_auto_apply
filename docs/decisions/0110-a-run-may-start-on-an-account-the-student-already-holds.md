@@ -1,7 +1,7 @@
 # ADR-0110 — A run may start on an account the student already holds; the first live run enters Vahid's own account, and never a synthetic applicant
 
 **Status:** Accepted · 2026-09-14 · decides item 8 of the distance list and blocker 4 · continues 0101 (§3, the resume path) and 0050
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-14. To be built in P122.
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-14. Built in P122.
 
 ## Context
 
@@ -37,6 +37,13 @@ And the distinction he drew, so that it is in the record as two decisions and no
 On the same day, on item 10: *"Part 2: not now. Run A ends at the end of Part 1 and I am not
 extending it before it has happened once."*
 
+And later the same day, on the handover checklist item the consequences below had raised:
+
+> *"Waive it for an account the student created themselves. Asking someone to reset their own
+> password to prove they can receive mail at an address they chose and already signed in with
+> is a check that proves nothing and costs them a real password. Keep it for an account we
+> created on their behalf, where the address was never tested."*
+
 ## What this decides, and what it does not
 
 1. **A run may start on an account the student already holds.** The student says so, before
@@ -62,11 +69,13 @@ extending it before it has happened once."*
   a password the student chose: single use, typed by the Fill Agent over CDP, never held by the
   Conversation Plane (ADR-0034, 0042). The hard stop — no design stores a portal password —
   is untouched.
-- **The handover checklist applies as it stands** (ADR-0050): on a portal that never verified the
-  address, the student proves they receive mail at it through the portal's own reset, and
-  separately confirms they can sign in. On his own account that reset is a real reset of his real
-  password. If he wants the reset item waived for an account the student made themselves, that
-  is a further decision; nothing here assumes it.
+- **The handover checklist, for an account the student made: no address proof.** Decided in his
+  words above. ADR-0050's substitute — the reset on a portal that never verified the address — is
+  for an account we made; an account the student made and signs in with has already established
+  what either proof would. Read as covering both address proofs, the reset and the portal's own
+  verification, for that reason; the three items that remain (told where it is, we retain no
+  access, they confirm they can sign in) still apply, and the case still cannot conclude without
+  them. An account we create on the student's behalf keeps the checklist ADR-0050 gave it.
 - **Sheffield's record.** Part 1 under his account will hold statements that are not true about
   him. Nothing in the system reads or checks the truth of a profile; the preview shows exactly
   what will be typed, and his yes covers it. The refusals on the equal-opportunities page stand,
@@ -75,16 +84,26 @@ extending it before it has happened once."*
 - **Unchanged:** the case binding at the transmission gate, the authorisation content hash, the
   mandatory-review categories, the account creation path for a student who has no account.
 
-## Consequences for the build (P122)
+## What was built (P122)
 
-- A student decision, `existing_account`, available while the run awaits the yes; refused after
-  the yes and refused once an account exists on the case.
-- A case event recording the declaration, from which the driver derives a `PortalAccount` at
-  stage *active* with the confirmed e-mail and the plan the entry's observed authentication
-  gives — the same shape `accountCreated` builds after a `create_portal_account` intent, without
-  the intent.
-- The orchestrator treats a run with an account and *no recorded session* as not signed in, so
-  the resume path opens: `request_secret` for `portal_sign_in`, then `sign_in`, then `execute`.
-- The preview says the account will be signed in to, not created.
-- Proved on the fixture portal, through the five real processes (`scripts/local-stack.sh`),
-  with the account made on the portal beforehand and declared by the student.
+- A student decision, `existing_account` (contracts, OpenAPI), accepted while the run awaits the
+  yes where the portal needs an account and none exists on the case; `refused` after the yes,
+  `not_asked` where the portal needs no account or one exists; offered on the student's page at
+  the authorise step.
+- A case event, `PortalAccountDeclared` `{portalHost, declaredAt}`, carrying no address; the
+  case folds it once. The driver derives the account from it as it derives one from a completed
+  creation intent (`accountDeclared` mirrors `accountCreated`): stage *active* from the
+  declaration, `createdBy: "student"`, the confirmed e-mail, no wait for the portal's
+  verification.
+- No orchestrator change was needed for the flow: with an account and no live session the
+  existing resume path (ADR-0101 §3) opens `request_secret` for `portal_sign_in`, then `sign_in`,
+  then `execute`. What changed is the wording: the box and the step say it is a start for an
+  account the student holds, not a resume of one we signed in to.
+- The handover checklist drops both address proofs for `createdBy: "student"` (his waiver);
+  the fixture journey confirms the account back with one confirmation, not two.
+- Proved on the fixture portal through the five real processes
+  (`scripts/local-stack-existing-account.test.ts`): the account made on the portal beforehand
+  with a password only the student knows, declared before the yes, signed in to by the Runner
+  process with the Fill Agent typing over CDP, the form filled, no creation intent ever opened,
+  the portal holding exactly the one account. And in the driver against a real database, and
+  in the orchestrator, account and domain packages.

@@ -55,4 +55,5 @@ export const BROWSER_TEST_FILES: readonly string[] = [
   "apps/secure-service/src/fill-agent-e2e.test.ts",
   "scripts/journey.test.ts",
   "scripts/local-stack-journey.test.ts",
+  "scripts/local-stack-existing-account.test.ts",
 ];

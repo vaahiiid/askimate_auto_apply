@@ -10418,3 +10418,104 @@ describeIfDatabase("re-pointing a run after the yes stops at the yes again (P74)
     }
   }, 120_000);
 });
+
+describeIfDatabase("a run that starts on an account the student already holds (ADR-0110)", () => {
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00A10";
+  const secure = opener();
+  const SIGN_IN_HANDLE = `sh_${"9".repeat(32)}`;
+  let runId = "";
+
+  async function events(): Promise<readonly { kind: string; request_id: string | null }[]> {
+    const rows = await pool.query<{ kind: string; request_id: string | null }>(
+      "SELECT kind, request_id FROM conversation_events WHERE conversation_id = $1 ORDER BY ordinal",
+      [conversation],
+    );
+    return rows.rows;
+  }
+
+  it("is declared before the yes, once; the run then asks for the sign-in password, creates nothing, and hands the sign-in to a runner", async () => {
+    // Vahid, 2026-09-14: *"the run enters my existing account. Not a fresh
+    // synthetic applicant."* The path: the student says the account is theirs
+    // while the run awaits the yes; after the yes, ADR-0101 §3's sign-in path
+    // runs from the start.
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.step).toBe("authorise");
+
+      const declare = (): ReturnType<RunDriver["recordDecision"]> =>
+        instance.driver.recordDecision({
+          conversationId: conversation,
+          runId,
+          decision: { kind: "existing_account" },
+        });
+      expect(await declare()).toEqual({ ok: true });
+      // Once: the account did not become theirs twice.
+      expect(await declare()).toEqual({ ok: false, reason: "not_asked" });
+
+      // On the case, as a fact of the student's, carrying no address.
+      const declared = await pool.query<{ event: { type: string; portalHost: string } }>(
+        "SELECT event FROM case_events WHERE case_id = $1 AND event->>'type' = 'PortalAccountDeclared'",
+        [`case_${conversation.toLowerCase()}`],
+      );
+      expect(declared.rows).toHaveLength(1);
+      expect(declared.rows[0]?.event.portalHost).toBe("gated.portal.test");
+      expect(JSON.stringify(declared.rows[0]?.event)).not.toContain("@");
+
+      // After the yes: the sign-in ask, said as a start and not as a resume.
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      expect((await declare()).ok, "too late once the yes is given").toBe(false);
+      const asking = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!asking.ok) expect.unreachable(`advance refused: ${asking.refusal.kind}`);
+      expect(asking.position.step).toBe("request_secret");
+      expect(asking.position.phase).toBe("awaiting_secret");
+      expect(secure.opens).toHaveLength(1);
+      const opened = secure.opens.at(-1);
+      expect(opened?.purpose).toBe("portal_sign_in");
+      expect(opened?.targetHost).toBe("gated.portal.test");
+      expect(opened?.explanation).toContain("already have an account");
+      expect(opened?.explanation).not.toContain("signed out");
+
+      // Nothing was started on our side: no creation intent, ever.
+      const intents = await pool.query<{ action: string }>(
+        "SELECT action FROM workflow_action_intents WHERE run_id = $1",
+        [runId],
+      );
+      expect(intents.rows).toEqual([]);
+
+      // The password arrives; the work is a sign-in with the login form.
+      const request = (await events()).at(-1)?.request_id;
+      if (request === null || request === undefined) expect.unreachable("a request");
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: request, handle: SIGN_IN_HANDLE },
+      });
+      const typed = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
+      expect(typed.position.step).toBe("sign_in");
+      expect(typed.position.phase).toBe("filling");
+
+      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      const work = await instance.driver.claimWork({ holder: "runner-c", leaseSeconds: 60, sessions: [] });
+      if (work === null) expect.unreachable("the sign-in is work");
+      expect(work.runId).toBe(runId);
+      expect(work.kind).toBe("sign_in");
+      expect(work.secretHandle).toBe(SIGN_IN_HANDLE);
+      expect(work.login?.url).toBe("https://gated.portal.test/login");
+      expect(work.registration).toBeUndefined();
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});

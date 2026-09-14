@@ -15,7 +15,7 @@ not read the code.
 AAS takes a student who has explicitly decided to apply to a specific university course and carries
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
-the sixth, a research build, was removed in P53 (ADR-0086). **2,575 tests, 137 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
+the sixth, a research build, was removed in P53 (ADR-0086). **2,595 tests, 139 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the eighteen files that launch a browser run serially, everything else in parallel.
 One hundred and one architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
@@ -137,7 +137,7 @@ mapping review, Bedrock credentials and an account, and all four are with you.
 | **P89** | The personal and contact pages mapped as far as the registry reaches | The Sheffield mapping set is one draft for the whole blueprint and now carries personal and contact: names, the date of birth as three selects (three new date-part patterns, `D`/`MMMM`/`YYYY`, fail-first), the e-mail twice, the address parts, and the country as a partial option map of eight captured names that refuses any other rather than approximate. A confirmed fixture profile fills them under the real checks. **Raised, not decided:** employment's four required fields have no profile field — the registry collects no employment history — so the plan blocks on them until Vahid decides what the profile collects |
 | **P90** | The plan honours `visibleWhen` | Recorded by discovery since the blueprint schema existed, read by nothing until now: a field's condition, and its section's, is evaluated at plan time against the plan's own values, to a fixed point. A field the form hides for these answers is neither filled nor missing — dropped from instructions, blockers and uploads, listed under `hidden`, and not a violation in the validator. Sheffield's two postcode boxes were both planned with one hidden on the page; the international one is now absent for a UK address, and an unmapped required field on a hidden branch no longer blocks. Fail-first on a synthetic address page and on the Sheffield draft |
 | **P91** | The entry page read; the AUTH questions answered from it; the registration and login locators authored | Vahid's signed-out read of the entry page and the reset page, three pages, zero failed, recorded unedited. From the capture: AUTH 1 yes, 3 none offered, 6 no CAPTCHA on those pages (tags refused), 8 yes by design; 2 and 5 settled for what the pages show and open for what follows a submit; 4 and 7 not settled by any page read, and not inferred. The curated draft carries the login URL and locators and a registration page first in the walk; the mapping set sends the e-mail from the profile and the passwords to the Secure Plane. The eight facts are recorded with `unobserved` on 4 and 5, and the chooser refuses on exactly those — the design holding: what settles them is Vahid's own account of registering and signing in. Two tool defects the draft showed, fixed fail-first: `password` inputs came back unknown; buttons came back as fields |
-| **P122** | Records: ADR-0110, decided by Vahid, 2026-09-14 — the first live run enters his own existing account, never a synthetic applicant; the profile is synthetic and the account is his, two decisions, only the second answered. Distance item 7 corrected: ADR-0091's robots reading, refusal and pacing live in the discovery CLI, and the fill run has none; P123 builds them into the runner. Item 10 held by his word | The start path onto an existing account is sized against the code as one phase in P72's shape: a decision before the yes, a case event, the driver deriving the account from it, one orchestrator condition, the preview's wording — P122 builds it. Distance to Run A: nine items open of ten | Items 1, 2 and 5 are his reads, in that order; P122 and P123 are mine |
+| **P122** | ADR-0110 built: a run may start on an account the student already holds — decided by Vahid, 2026-09-14 (*"the run enters my existing account. Not a fresh synthetic applicant."*), the profile synthetic and the account his, two decisions. `existing_account` decision before the yes; `PortalAccountDeclared` on the case; the driver derives the account from it; ADR-0101 §3's sign-in path runs from the start with its own wording; the handover drops both address proofs for an account the student made (his waiver, in his words). Proved through the five real processes on the fixture, the account registered beforehand, no creation intent ever opened. Item 7: his robots.txt read evaluated by the runner's matcher — every observed path allowed, the `/user/*` disallows path rules; the matcher's false "Allowed by" reason found and fixed red-first | The in-process journey shares one key provider and adds headers by hand; the process journey does neither, and the existing-account variant runs the same way. The fill run still reads no robots.txt of its own (P123). Distance to Run A: eight items open of ten | Items 1, 2 and 5 are his reads; P123 is mine |
 | **P121** | The journey through the five real processes the local-stack script starts (`scripts/local-stack-journey.test.ts`): HTTP, the real frame from the Secure Service process, the Worker's own clock past the yes, the Runner process creating the account and filling the fixture portal with the Fill Agent typing over CDP, the handover, ready to submit, nothing submitted. Five defects found by it and fixed red-first: the Worker's env without the portal origins (the yes voided as `content_changed` every tick); no page or control served; the Fill Agent's certificate under `x-aas-service` against a Secure Service reading `x-service-cert`, masked by three test wrappers; `__name` under `tsx` at the sensitive-context door; two random local master keys in the two secure-plane processes | Every one of the five was invisible to `scripts/journey.test.ts`, which builds the planes in one process, shares one key provider between its vaults and added the header by hand. `SERVICE_CERTIFICATE_HEADER` at every hop; `AAS_SECURE_LOCAL_MASTER_KEY` read by both processes, refused in production; the shim at `openSensitiveContext`; the script builds and serves both bundles and gives the Worker the origins. Blocker 26 raised. Distance to Run A: nine items open of ten | The same processes, pointed at a reviewed entry from a machine that reaches the portal; blocker 26 |
 | **P120** | The local-stack runbook (distance item 9): `scripts/local-stack.sh` stands the five deployables up on one machine, migrated, and checks each; proved by a test against the fixture; the Sheffield variant documented. Found on the way, fixed red-first: the runner's entry point launched its browser with no remote-debugging port, so the CDP endpoint it declared to the Fill Agent was served by nothing | From the real deployable, every credential fill would have failed at the password. The browser now listens where `AAS_BROWSER_CDP_URL` says; a portless URL is refused; `main.test.ts` starts the real entry point. Distance to Run A: nine items open of ten | The script runs from a machine that reaches the portal; the rest of the distance list stands |
 | **P119** | The distance to an end-to-end run against a reviewed Sheffield entry, read from the repository and written down (`docs/distance-to-a-reviewed-sheffield-run.md`): ten items for the fill run, three more for the product; blocker 25 raised — the institution box cannot be mapped by rule from a free-text profile field | Vahid, 2026-09-13: *"I have lost track of how close that is, and I would rather know than assume."* The record's own numbers: five pages whose mandatory fields were never read (placeholder labels); the employment page blocking the plan (`no_mapping` on four); nationality and language unmapped; the education page's grade list unread with an institution set; review; `robots.txt` never read; the account and how a run enters it; no local-stack runbook (mine); Part 2 unread. Every report from here carries the declared-but-unreachable number and the distance count | The reads are his; the runbook is mine; blocker 25 is his to decide |
@@ -505,7 +505,7 @@ open rather than quietly answered.
 | **1** | **Real portal discovery** — a scoped, read-only run against the University of Sheffield's public PGT application pages (*"Sheffield target confirmed"*, Vahid, 2026-09-10; `targets/sheffield-pgt-2026-09.json`, course and intake supplied 2026-09-11, not run as a crawl — read through attached inspection, P81) | You — the environment's network access is Trusted and refuses `sheffield.ac.uk`; the run needs Custom with that domain, or another machine | *Everything portal-facing.* Nothing downstream is real until this exists. The earlier target (Ulster Birmingham / QA HE): 103 discovery runs saw zero file inputs because the application is behind a login |
 | **2** | **Specialist review** of the blueprint, then a mapping set reviewed by a second person | You, and Iman Behravan as approver (Vahid, 2026-09-10: *"author Vahid Mohammadi, approver Iman Behravan"*) | Any real fill. `checkExecutable` refuses a draft; `checkUsable` refuses an unreviewed mapping set; the loader refuses an approval signed by its author |
 | **3** | **Bedrock credentials**, then four model IDs | You, then me | The interview, interpretation, extraction and navigation workloads. The adapter is built and idle — and **not wired**: `wiring.ts` constructs `DeterministicModelClient` in every path, so the service has no code that builds a Bedrock client with or without credentials (found P79). Credentials are necessary and not sufficient |
-| **4** | **An account** — **decided by Vahid, 2026-09-14 (ADR-0110):** the first live run enters his own existing account; a synthetic applicant on the real form is refused. The start path onto an existing account is P122 (mine) | Me, P122 | The controlled live run, until P122 lands |
+| **4** | **An account** — **decided by Vahid, 2026-09-14 (ADR-0110), built in P122:** the first live run enters his own existing account; a synthetic applicant on the real form is refused; the start path onto an existing account exists and is proved through the five processes | Closed | — |
 | **5** | ~~**B5 — hold or pass through**~~ | — | **Decided A — hold and reuse, 2026-09-07 (ADR-0078).** Documents are stored and reused; a student is never asked for the same document twice |
 | **6** | ~~**B1 — twelve retention determinations**~~ | — | **All twelve answered, 2026-09-07 (ADR-0078).** Eleven periods set in schedule `1.2026-09-07`; row 12 (`bank_statement`) stays unresolved and blocking by ADR-0021 |
 | **7** | ~~**B2 — the ADR-0022 lawful basis**~~ | — | **Answered 2026-09-08 by Vahid Mohammadi (ADR-0087).** Four determinations, review 2027-09-08. Ten of seventy (type, purpose) pairs now pass both storage gates. The one pair ADR-0087 left open — `other / audit_evidence` — was **decided-refused** on the same day (ADR-0088). The vault still does not open — what remains is transport, an implementation and a deployable, none of which is a decision |
@@ -537,7 +537,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,575 tests · 137 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,595 tests · 139 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
@@ -550,25 +550,25 @@ different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7
 
 <!-- census:begin — generated by `pnpm run census`, do not edit by hand -->
 
-**2,575 tests**, by the workspace they live in. Generated — run
+**2,595 tests**, by the workspace they live in. Generated — run
 `pnpm run census` after changing the suite. The rows and *everything else* sum to the total
 exactly; the figure this replaced was approximate and had drifted 136 tests without anyone
 being able to see it (ADR-0084).
 
 | Area | Tests | Area | Tests |
 |---|---|---|---|
-| `apps/conversation-service` | 413 | `packages/conversation` | 52 |
-| `packages/domain` | 377 | `packages/preparation` | 52 |
-| `scripts` | 323 | `packages/profile` | 51 |
-| `apps/browser-runner` | 301 | `packages/disclosure` | 47 |
+| `apps/conversation-service` | 414 | `packages/conversation` | 52 |
+| `packages/domain` | 378 | `packages/preparation` | 52 |
+| `scripts` | 334 | `packages/profile` | 51 |
+| `apps/browser-runner` | 302 | `packages/disclosure` | 47 |
 | `packages/case-store` | 145 | `packages/catalogue` | 46 |
-| `packages/orchestrator` | 122 | `packages/extraction` | 27 |
+| `packages/orchestrator` | 127 | `packages/extraction` | 27 |
 | `packages/documents` | 100 | `apps/secure-filler` | 22 |
 | `packages/contracts` | 90 | `packages/interview` | 22 |
 | `apps/secure-service` | 72 | `packages/requirements` | 22 |
 | `packages/mapping` | 71 | `apps/worker` | 21 |
 | `packages/secrets` | 69 | everything else | 64 |
-| `packages/account` | 66 |  |  |
+| `packages/account` | 67 |  |  |
 
 <!-- census:end -->
 

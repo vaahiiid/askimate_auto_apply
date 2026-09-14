@@ -1200,3 +1200,20 @@ describe("decide — handoffs", () => {
     expect(decision.accepted).toBe(true);
   });
 });
+
+describe("the account the student declared (ADR-0110)", () => {
+  it("is carried once, from the first declaration, and carries no address", () => {
+    const first = new Date("2026-09-14T09:00:00Z");
+    const derived = fold(
+      buildLog([
+        OPENED,
+        { type: "PortalAccountDeclared", portalHost: "gated.portal.test", declaredAt: first },
+        // A second word keeps the first: the account did not become theirs twice.
+        { type: "PortalAccountDeclared", portalHost: "gated.portal.test", declaredAt: new Date("2026-09-14T09:05:00Z") },
+      ]),
+    );
+    expect(derived.declaredAccount).toEqual({ portalHost: "gated.portal.test", declaredAt: first });
+    expect(JSON.stringify(derived.declaredAccount)).not.toContain("@");
+    expect(fold(buildLog([OPENED])).declaredAccount).toBeUndefined();
+  });
+});

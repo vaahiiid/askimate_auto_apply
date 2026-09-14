@@ -234,3 +234,23 @@ describe("the delay between requests", () => {
     expect(crawlDelayMs(absent, 0)).toBe(MINIMUM_CRAWL_DELAY_MS);
   });
 });
+
+describe("a path no rule matches (P122)", () => {
+  it("is allowed with NO rule named — a non-matching Allow is not reported as the winner", () => {
+    const body = "User-agent: *\nAllow: /core/*.css$\nDisallow: /admin/\n";
+    const groups = parseRobots(body);
+    const policy: RobotsPolicy = {
+      kind: "fetched",
+      host: "example.test",
+      fetchedAt: new Date("2026-09-14T00:00:00Z"),
+      statusCode: 200,
+      body,
+      groups,
+      applicable: groupFor(groups),
+    };
+    const decision = decideAgainstRobots(policy, "https://example.test/apply/personal.do");
+    expect(decision.allowed).toBe(true);
+    expect(decision.rule, "before the fix this was the Allow for /core/*.css$").toBeNull();
+    expect(decision.reason).toContain("No rule");
+  });
+});

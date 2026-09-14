@@ -252,6 +252,17 @@ const CHECKLIST_LABELS: Readonly<Record<keyof HandoverChecklist, string>> = {
 function applicableItems(input: {
   readonly approach: AuthenticationApproach;
   /**
+   * ADR-0110 — Vahid, 2026-09-14: *"waive it for an account the student
+   * created themselves. Asking someone to reset their own password to prove
+   * they can receive mail at an address they chose and already signed in
+   * with is a check that proves nothing and costs them a real password. Keep
+   * it for an account we created on their behalf, where the address was never
+   * tested."* Read as covering both address proofs — the reset, and the
+   * portal's own verification — because both establish what the student's
+   * signing in with that address already establishes.
+   */
+  readonly createdBy?: PortalAccount["createdBy"];
+  /**
    * Did discovery observe that this portal verifies the email address?
    *
    * From `ObservedPortalAuthentication.emailVerificationRequired`, which cannot
@@ -265,6 +276,8 @@ function applicableItems(input: {
     "askimateRetainsNoAccess",
     "studentConfirmedAccess",
   ];
+
+  if (input.createdBy === "student" && input.approach !== "generated_ephemeral") return always;
 
   const items: (keyof HandoverChecklist)[] = input.portalVerifiesEmail
     ? ["emailVerifiedByPortal", ...always]
@@ -305,10 +318,13 @@ export function checkHandoverComplete(input: {
   readonly plan: AuthenticationPlan;
   readonly completedAt: Date;
   readonly presentedText: string;
+  /** Who made the account; absent means us (ADR-0110). */
+  readonly createdBy?: PortalAccount["createdBy"];
 }): HandoverCheck {
   const outstanding = applicableItems({
     approach: input.plan.approach,
     portalVerifiesEmail: input.plan.basedOn.emailVerificationRequired === true,
+    ...(input.createdBy === undefined ? {} : { createdBy: input.createdBy }),
   })
     .filter((key) => !input.checklist[key])
     .map((key) => CHECKLIST_LABELS[key]);
@@ -354,6 +370,7 @@ function outstandingKeys(account: PortalAccount): readonly (keyof HandoverCheckl
   const applicable = applicableItems({
     approach: account.authentication.approach,
     portalVerifiesEmail: account.authentication.basedOn.emailVerificationRequired === true,
+    createdBy: account.createdBy,
   });
   const checklist = account.handover?.checklist;
   if (checklist === undefined) return applicable;

@@ -84,6 +84,8 @@ export interface ApplicationCase {
    * have said they did it. Empty for a case that deferred nothing.
    */
   readonly ownActs: readonly OwnAct[];
+  /** ADR-0110: the student said the portal account already exists and is theirs. */
+  readonly declaredAccount?: { readonly portalHost: string; readonly declaredAt: Date };
   readonly openHandoffToken?: string;
   /**
    * What the open handoff is waiting for.
@@ -156,6 +158,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let priorCaseId: CaseId | undefined = first.priorCaseId;
   let reapplication: ApplicationCase["reapplication"];
   const ownActs = new Map<string, OwnAct>();
+  let declaredAccount: ApplicationCase["declaredAccount"];
 
   const tasks = new Map<string, Task>();
   const activeTriggers = new Set<ReviewTrigger>();
@@ -289,6 +292,12 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         break;
       }
 
+      case "PortalAccountDeclared":
+        // Once. A second declaration keeps the first: the account did not
+        // become theirs twice.
+        declaredAccount ??= { portalHost: event.portalHost, declaredAt: event.declaredAt };
+        break;
+
       case "SubmissionAttempted":
         submissionAttempted = true;
         break;
@@ -346,6 +355,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     submissionAttempted,
     // ADR-0108: what the student owes, in the order it was recorded.
     ownActs: [...ownActs.values()],
+    ...(declaredAccount === undefined ? {} : { declaredAccount }),
     createdAt: first.occurredAt,
     updatedAt: last.occurredAt,
   };

@@ -88,13 +88,13 @@ In the order they bite, each with who holds it and the evidence.
    **his read** of the public file, pasted whole with its status line, settles early whether the
    form's paths are allowed; **P123 (mine)** puts the same reading, refusal and one-second floor
    into the runner before it opens the portal, so the run obeys it rather than the operator.
-8. **The account, and how the run enters it.** **Decided by Vahid, 2026-09-14 (ADR-0110):**
-   *"the run enters my existing account. Not a fresh synthetic applicant."* The start path onto
-   an existing account is **P122, mine**: the student declares the account before the yes, the
-   case records it, and ADR-0101 §3's sign-in path runs from the start. Open until P122 lands;
-   what it needs from him afterwards is nothing but the password through the box on the day.
-   His distinction is on the record: the profile is synthetic, the account is his, and only the
-   second is decided here.
+8. ~~**The account, and how the run enters it.**~~ **Done, P122.** Decided by Vahid, 2026-09-14
+   (ADR-0110): *"the run enters my existing account. Not a fresh synthetic applicant."* Built:
+   the student says the account is theirs before the yes, the case records it, and ADR-0101
+   §3's sign-in path runs from the start; the handover asks one confirmation, not a reset of a
+   password that was always theirs. Proved through the five real processes on the fixture. What
+   it needs from him on the day is the password through the box, once. His distinction is on
+   the record: the profile is synthetic, the account is his, and only the second is decided.
 9. ~~**Where it runs.**~~ **Done, P120.** `scripts/local-stack.sh` stands the five processes up
    on one machine against a Postgres and a Redis, migrated, and checks each; proved by
    `scripts/local-stack.test.ts` against the fixture catalogue; the Sheffield variant is
@@ -137,10 +137,17 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: nine items open of ten* — this file's list, by count, with what moved.
+- *Distance to Run A: eight items open of ten* — this file's list, by count, with what moved.
 
 ## What moved
 
+- 2026-09-14, P122: item 8 done — the start path onto an account the student already holds,
+  built and proved through the five processes (ADR-0110). Item 7: his read of
+  `www.sheffield.ac.uk/robots.txt` evaluated by the runner's own matcher — every observed path
+  allowed by no rule matching, the `/user/*` disallows path rules that do not reach the form,
+  no crawl-delay so the one-second floor is ours; the matcher was found reporting a
+  non-matching `Allow` as its reason and fixed red-first. The fill run's own reading is P123.
+  Eight open of ten.
 - 2026-09-14, P122 (records): item 8 decided by Vahid — his own existing account, never a
   synthetic applicant (ADR-0110); the start path is mine, P122. Item 7 corrected: the fill run
   reads no robots.txt today; P123 puts ADR-0091's reading into the runner. Item 10 held by his

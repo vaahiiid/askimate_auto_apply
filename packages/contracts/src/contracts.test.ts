@@ -458,6 +458,10 @@ describe("the wire vocabulary is internally coherent", () => {
     });
     expect(parseStudentDecision({ kind: "attached_myself" })).toBeNull();
     expect(parseStudentDecision({ kind: "attached_myself", item: "" })).toBeNull();
+    // ADR-0110: the student saying the account already exists and is theirs.
+    // No hash and nothing else: a statement about their own account.
+    expect(parseStudentDecision({ kind: "existing_account" })).toEqual({ kind: "existing_account" });
+    expect(parseStudentDecision({ kind: "existing_account", contentHash: "sha256:abc" })).toEqual({ kind: "existing_account" });
   });
 
   it("takes a CANCELLATION with no hash, and ignores one sent anyway", () => {

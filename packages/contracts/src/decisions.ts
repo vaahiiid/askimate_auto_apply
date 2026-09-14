@@ -60,6 +60,7 @@ export const STUDENT_DECISIONS = [
   "confirm_value",
   "cancel",
   "attached_myself",
+  "existing_account",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -132,6 +133,15 @@ export type StudentDecision =
        */
       readonly kind: "attached_myself";
       readonly item: string;
+    }
+  /**
+   * ADR-0110. The student says the portal account already exists and is
+   * theirs. No hash — a statement about their own account, not agreement to
+   * something shown — accepted only while the run awaits the yes and no
+   * account exists on the case.
+   */
+  | {
+      readonly kind: "existing_account";
     };
 
 function readString(body: unknown, field: string): string | null {
@@ -154,7 +164,7 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   // A cancellation names no content, and a hash sent with one is IGNORED
   // rather than stored — the same rule every other parser here follows about
   // fields a caller might send hopefully.
-  if (kind === "cancel") return { kind };
+  if (kind === "cancel" || kind === "existing_account") return { kind };
   if (kind === "attached_myself") {
     const item = readString(body, "item");
     return item === null ? null : { kind, item };

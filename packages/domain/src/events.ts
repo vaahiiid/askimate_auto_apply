@@ -301,6 +301,21 @@ export interface OwnActDone {
   readonly doneAt: Date;
 }
 
+/**
+ * The student says the portal account already exists and is theirs (ADR-0110).
+ *
+ * A fact of the student's, not work of ours: no intent, no creation. The
+ * address is not carried here — an account's e-mail is the profile's confirmed
+ * `contact.email` (product rule 7), read at fold time, so the case log gains
+ * no personal data by this event. Recorded before the yes; the run then takes
+ * ADR-0101 §3's sign-in path from the start.
+ */
+export interface PortalAccountDeclared {
+  readonly type: "PortalAccountDeclared";
+  readonly portalHost: string;
+  readonly declaredAt: Date;
+}
+
 /** One thing the student owes, as the case carries it (ADR-0108). */
 export interface OwnAct {
   readonly key: string;
@@ -451,6 +466,7 @@ export type CaseEventPayload =
   | AuthorisationVoided
   | OwnActRecorded
   | OwnActDone
+  | PortalAccountDeclared
   | SubmissionAttempted
   | SubmissionSucceeded
   | SubmissionFailed

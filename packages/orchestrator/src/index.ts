@@ -16,6 +16,7 @@ export type {
 export {
   IllegalSecretTransitionError,
   accountCreated,
+  accountDeclared,
   accountWorkOf,
   attachmentIdentity,
   attachmentIntentTarget,

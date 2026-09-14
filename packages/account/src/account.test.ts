@@ -874,3 +874,35 @@ describe("finishing a case", () => {
     ]);
   });
 });
+
+describe("an account the student made themselves (ADR-0110)", () => {
+  // Vahid, 2026-09-14: *"waive it for an account the student created
+  // themselves. Asking someone to reset their own password to prove they can
+  // receive mail at an address they chose and already signed in with is a
+  // check that proves nothing and costs them a real password. Keep it for an
+  // account we created on their behalf, where the address was never tested."*
+  it("owes no address proof at handover; an account we made still does", () => {
+    const theirsDone: HandoverChecklist = {
+      ...NOTHING_DONE,
+      studentInformed: true,
+      askimateRetainsNoAccess: true,
+      studentConfirmedAccess: true,
+    };
+    const theirs = checkHandoverComplete({
+      checklist: theirsDone,
+      plan: planWith("student_chosen"),
+      completedAt: LATER,
+      presentedText: "",
+      createdBy: "student",
+    });
+    expect(theirs.complete).toBe(true);
+
+    const ours = checkHandoverComplete({
+      checklist: theirsDone,
+      plan: planWith("student_chosen"),
+      completedAt: LATER,
+      presentedText: "",
+    });
+    expect(ours.complete).toBe(false);
+  });
+});

@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { proposeValue, studentId, unwrapConfirmed } from "@askimate/aas-domain";
+import { outstandingHandoverItems } from "@askimate/aas-account";
 import type { ObservedPortalAuthentication } from "@askimate/aas-account";
 import { newInterview } from "@askimate/aas-interview";
 import {
@@ -26,7 +27,7 @@ import {
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 import type { ConfirmedProfile } from "@askimate/aas-profile";
 
-import { accountCreated, beginRun } from "./run.js";
+import { accountCreated, accountDeclared, beginRun } from "./run.js";
 import type { HandoverEvidence, RunState } from "./run.js";
 
 const NOW = new Date("2026-08-31T10:00:00Z");
@@ -267,5 +268,63 @@ describe("where the account stands", () => {
       askimateRetainsNoAccess: true,
     });
     expect(stageWith(facts)).toBe(stageWith(facts));
+  });
+});
+
+describe("the account the student declared (ADR-0110)", () => {
+  const DECLARED_AT = new Date("2026-09-14T09:00:00Z");
+
+  it("is theirs, made by them, active from the declaration, with the confirmed e-mail", () => {
+    const state = stateWith({ profile: withEmail(EMAIL), observed: OBSERVED });
+    const after = accountDeclared(state, { accountId: "acct-1", declaredAt: DECLARED_AT, now: NOW });
+    if (after?.account === undefined) expect.unreachable("an account should have been derived");
+    expect(after.account.createdBy).toBe("student");
+    expect(after.account.createdAt).toEqual(DECLARED_AT);
+    expect(after.account.stage).toBe("active");
+    expect(unwrapConfirmed(after.account.email)).toBe(EMAIL);
+    expect(after.account.authentication.approach).toBe("student_chosen");
+  });
+
+  it("does not wait for the portal's e-mail verification: they sign in with the address, so it works", () => {
+    const verifying: ObservedPortalAuthentication = { ...OBSERVED, emailVerificationRequired: true };
+    const after = accountDeclared(
+      stateWith({ profile: withEmail(EMAIL), observed: verifying }),
+      { accountId: "acct-1", declaredAt: DECLARED_AT, now: NOW },
+    );
+    expect(after?.account?.stage).toBe("active");
+  });
+
+  it("owes no address proof at handover — Vahid's waiver, 2026-09-14", () => {
+    // *"waive it for an account the student created themselves ... Keep it for
+    // an account we created on their behalf, where the address was never tested."*
+    for (const observed of [OBSERVED, { ...OBSERVED, emailVerificationRequired: true }]) {
+      const after = accountDeclared(
+        stateWith({ profile: withEmail(EMAIL), observed }),
+        { accountId: "acct-1", declaredAt: DECLARED_AT, now: NOW },
+      );
+      if (after?.account === undefined) expect.unreachable("an account should have been derived");
+      const outstanding = outstandingHandoverItems(after.account);
+      expect(outstanding.join("; ")).not.toContain("reset flow");
+      expect(outstanding.join("; ")).not.toContain("verified the student's own email");
+      expect(outstanding.join("; ")).toContain("confirmed they can sign in");
+    }
+    // And an account WE made still owes the substitute proof (ADR-0050 stands).
+    const ours = accountCreated(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }), { accountId: "acct-2", now: NOW });
+    if (ours?.account === undefined) expect.unreachable("an account should have been produced");
+    expect(outstandingHandoverItems(ours.account).join("; ")).toContain("reset flow");
+  });
+
+  it("is due back once the application is filled, as any account is", () => {
+    const after = accountDeclared(stateWith({ profile: withEmail(EMAIL), observed: OBSERVED }), {
+      accountId: "acct-1",
+      declaredAt: DECLARED_AT,
+      now: NOW,
+      handover: { raised: [], completed: [], askimateRetainsNoAccess: false, applicationFilled: true, runStopped: false },
+    });
+    expect(after?.account?.stage).toBe("handover_due");
+  });
+
+  it("cannot be declared without a confirmed e-mail, exactly as it could not be created", () => {
+    expect(accountDeclared(stateWith({ profile: emptyProfile(STUDENT, NOW), observed: OBSERVED }), { accountId: "acct-1", declaredAt: DECLARED_AT, now: NOW })).toBeNull();
   });
 });

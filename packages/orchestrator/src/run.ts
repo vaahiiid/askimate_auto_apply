@@ -50,6 +50,7 @@ import {
   chooseApproach,
   describeSecureChannel,
   describeSignInResume,
+  describeSignInStart,
   outstandingHandoverItems,
   renderAccountCreationRequest,
   renderHandover,
@@ -755,9 +756,13 @@ function secretRequestFor(
     studentRef: state.inputs.studentRef,
     purpose,
     target: { host: portalHost, caseRef: state.inputs.caseId },
+    // ADR-0110: the box's own words match the step's — a start for an account
+    // the student holds already, a resume for one the run signed in to before.
     explanation:
       purpose === "portal_sign_in"
-        ? describeSignInResume(portalHost)
+        ? state.account?.createdBy === "student"
+          ? describeSignInStart(portalHost)
+          : describeSignInResume(portalHost)
         : describeSecureChannel(portalHost),
     singleUse: true,
     // Five minutes. Long enough to think of a password and type it twice,
@@ -820,12 +825,17 @@ function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
   }
 
   const portalHost = account.portalHost;
+  // ADR-0110: for an account the student holds already, this is the START
+  // of the run and is said so; the resume wording would tell them they had
+  // been signed out of something nothing had signed in to.
+  const theirs = account.createdBy === "student";
+  const ask = theirs ? describeSignInStart(portalHost) : describeSignInResume(portalHost);
   const secret = signInSecretOf(state);
   if (secret?.lifecycle === "secret_requested") {
     // The box is open. Asking again would replace it under their fingers.
     return {
       kind: "request_secret",
-      say: describeSignInResume(portalHost),
+      say: ask,
       request: secretRequestFor(state, portalHost, "portal_sign_in"),
     };
   }
@@ -835,14 +845,16 @@ function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
       portalHost,
       email: unwrapConfirmed(account.email),
       approach,
-      say: `Signing back in to ${portalHost} now, then carrying on where I left off.`,
+      say: theirs
+        ? `Signing in to your account on ${portalHost} now, then filling in the application.`
+        : `Signing back in to ${portalHost} now, then carrying on where I left off.`,
     };
   }
   // None yet, or the last one is settled — spent on a sign-in that did not
   // hold, expired, or cancelled. Each of those is this one condition again.
   return {
     kind: "request_secret",
-    say: describeSignInResume(portalHost),
+    say: ask,
     request: secretRequestFor(state, portalHost, "portal_sign_in"),
   };
 }
@@ -1300,6 +1312,69 @@ export function accountCreated(
  *                               to" is exactly what it exists to catch.
  *   active                      usable for the application, and not yet theirs.
  */
+/**
+ * The account the student DECLARED (ADR-0110): theirs already, made by them.
+ *
+ * The same shape `accountCreated` builds after a completed creation intent,
+ * without the intent: `createdBy: "student"`, no wait for the portal's e-mail
+ * verification (they sign in with the address, so it works), and the handover
+ * checklist without the address proofs (his waiver, in `applicableItems`).
+ * Null where the profile holds no confirmed e-mail, exactly as creation would.
+ */
+export function accountDeclared(
+  state: RunState,
+  input: {
+    readonly accountId: string;
+    readonly declaredAt: Date;
+    readonly now: Date;
+    readonly handover?: HandoverEvidence;
+  },
+): RunState | null {
+  const plan = planFor(state);
+  if (!("rejected" in plan)) return null;
+
+  const email = resolveField(state.profile, "contact.email");
+  if (isFieldUnavailable(email)) return null;
+
+  const portalHost =
+    state.account?.portalHost ?? hostOf(state.inputs.blueprint.authentication.loginUrl);
+  const evidence = input.handover ?? NO_HANDOVER_EVIDENCE;
+  const checklist = handoverChecklistFrom(evidence, plan);
+  const presentedText = renderHandover({
+    institutionName: state.inputs.blueprint.institutionName,
+    portalHost,
+    email: unwrapConfirmed(email),
+    approach: plan.approach,
+    leftToStudent: studentsOwnActs(state),
+  });
+  const handover = checkHandoverComplete({
+    checklist,
+    plan,
+    completedAt: input.now,
+    presentedText,
+    createdBy: "student",
+  });
+
+  return withAccount(state, {
+    accountId: input.accountId,
+    caseId: state.inputs.caseId,
+    studentRef: state.inputs.studentRef,
+    portalHost,
+    email,
+    stage: handover.complete
+      ? "handed_over"
+      : evidence.applicationFilled || evidence.runStopped === true
+        ? "handover_due"
+        : "active",
+    handover: handover.complete
+      ? handover.handover
+      : { checklist, approach: plan.approach, completedAt: input.now, presentedText },
+    authentication: plan,
+    createdBy: "student",
+    createdAt: input.declaredAt,
+  });
+}
+
 function stageFrom(
   plan: AuthenticationPlan,
   evidence: HandoverEvidence,

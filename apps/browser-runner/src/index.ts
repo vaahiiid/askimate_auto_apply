@@ -118,3 +118,14 @@ export { runnerPerformer } from "./performer.js";
 export type { RunnerPerformerDeps } from "./performer.js";
 export { SessionHold } from "./session-hold.js";
 export type { SessionHoldOptions } from "./session-hold.js";
+
+// ── robots.txt, as the run reads it (ADR-0091) — for the Sheffield file's own test ──
+export type { RobotsDecision, RobotsGroup, RobotsPolicy, RobotsRule } from "./robots.js";
+export {
+  MINIMUM_CRAWL_DELAY_MS,
+  ROBOTS_AGENT_TOKEN,
+  crawlDelayMs,
+  decideAgainstRobots,
+  groupFor,
+  parseRobots,
+} from "./robots.js";

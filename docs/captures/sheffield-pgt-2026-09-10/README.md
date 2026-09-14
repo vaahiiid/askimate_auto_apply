@@ -1167,6 +1167,16 @@ kept beside this capture as the evidence ADR-0091 asks for. Found while writing 
 run does not read `robots.txt` today — ADR-0091's reading lives in the discovery CLI — and P123
 puts it into the runner.
 
+**Read by Vahid 2026-09-13, pasted whole 2026-09-14** (body only; the status line was not
+pasted, so it is evaluated as a fetched 200): kept verbatim as `robots.txt` beside this file and
+evaluated by the runner's matcher in `scripts/sheffield-robots.test.ts`. Every one of the eleven
+observed paths and `forgottenPassword.do` is allowed, because no rule matches them — not because
+an Allow won. The three Drupal disallows he pointed at (`/user/login`, `/user/register`,
+`/user/password`) are live in the matcher and are path rules: they refuse those paths and reach
+nothing under `/postgradapplication/`. No crawl-delay, so the one-second floor is ours. The
+evaluation found the matcher reporting a non-matching `Allow` as its reason when nothing matched;
+fixed in P122.
+
 ## What step 4 still needs
 
 1. ~~The course and the intake year~~ — supplied by Vahid, 2026-09-11: MSc Management and

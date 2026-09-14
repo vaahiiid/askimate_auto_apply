@@ -251,6 +251,12 @@ export function decideAgainstRobots(policy: RobotsPolicy, url: string): RobotsDe
   let winnerLength = -1;
   for (const rule of group.rules) {
     const length = matchLength(rule, pathOf(url));
+    // A rule that does not match is not a candidate. Before P122 a
+    // non-matching Allow could become the "winner" at length -1 when nothing
+    // matched, and the decision then read "Allowed by …" naming a rule that
+    // had nothing to do with the path — the outcome right, the evidence
+    // false. Found by evaluating Sheffield's file against the form's paths.
+    if (length < 0) continue;
     if (length < winnerLength) continue;
     // Equal length: `Allow` wins, per RFC 9309 §2.2.2.
     if (length === winnerLength && rule.kind !== "allow") continue;

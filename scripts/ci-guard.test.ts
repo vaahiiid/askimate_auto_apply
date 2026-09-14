@@ -135,6 +135,8 @@ const DATABASE_BACKED = [
   // the real frame, the worker's clock, the runner's browser. The claim is
   // about the entry points, which only exist as processes.
   "scripts/local-stack-journey.test.ts",
+  // P122: the same processes, on an account the student already holds (ADR-0110).
+  "scripts/local-stack-existing-account.test.ts",
 ] as const;
 
 describe("CI still runs the database-backed security suites", () => {

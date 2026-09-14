@@ -19,6 +19,46 @@ not shipped artefacts.
 
 ---
 
+## [0.120.0] — 2026-09-14
+
+**P122 — ADR-0110 built: a run may start on an account the student already holds; his
+robots.txt read evaluated by the runner's matcher, and the matcher's false "Allowed by" fixed.**
+
+### Added
+
+- `existing_account`, a student decision (contracts, OpenAPI, the student's page at the
+  authorise step): the portal account already exists and is theirs. Accepted while the run
+  awaits the yes where an account is needed and none exists; `refused` after the yes;
+  `not_asked` where the portal needs no account or one exists. Recorded on the case as
+  `PortalAccountDeclared` `{portalHost, declaredAt}`, folded once, carrying no address.
+- `accountDeclared` in the orchestrator, mirroring `accountCreated` from the case event rather
+  than a completed intent: stage *active* from the declaration, `createdBy: "student"`, no wait
+  for the portal's verification. The driver derives it wherever it would derive a created one.
+- The sign-in ask and step say it is a start for an account the student holds
+  (`describeSignInStart`), not a resume of one we signed in to.
+- `scripts/local-stack-existing-account.test.ts`: the journey through the five real processes
+  with the account registered on the fixture portal beforehand, declared before the yes, signed
+  in to by the Runner process, the form filled, one handover confirmation, no creation intent.
+- `scripts/sheffield-robots.test.ts` and `docs/captures/sheffield-pgt-2026-09-10/robots.txt`:
+  Vahid's read of the site's robots.txt, kept verbatim and evaluated by the runner's matcher —
+  every observed path allowed by no rule matching; the `/user/*` disallows live and confined to
+  their paths; no crawl-delay.
+
+### Changed
+
+- The handover checklist owes no address proof for an account the student made themselves
+  (`createdBy: "student"`): neither the reset nor the portal's verification. Vahid, 2026-09-14,
+  in ADR-0110. An account we make keeps ADR-0050's checklist.
+
+### Fixed
+
+- `decideAgainstRobots` reported a non-matching `Allow` rule as the winning rule when no rule
+  matched a path, so the decision read "Allowed by …" naming a rule with nothing to do with the
+  path. The outcome was right; the reason, which the run keeps as evidence, was false. A rule
+  that does not match is no longer a candidate. Found by the Sheffield evaluation, red first.
+
+---
+
 ## [0.119.1] — 2026-09-14
 
 **P122 (records) — ADR-0110: the first live run enters Vahid's own account; a synthetic

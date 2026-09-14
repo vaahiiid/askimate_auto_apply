@@ -1662,6 +1662,7 @@ components:
         - $ref: "#/components/schemas/HashedStudentDecision"
         - $ref: "#/components/schemas/CancelDecision"
         - $ref: "#/components/schemas/AttachedMyselfDecision"
+        - $ref: "#/components/schemas/ExistingAccountDecision"
 
     HashedStudentDecision:
       type: object
@@ -1728,6 +1729,22 @@ components:
             text: { type: string, maxLength: 200 }
             displayText: { type: string, maxLength: 200 }
         done: { type: boolean }
+
+    ExistingAccountDecision:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      description: >-
+        ADR-0110. The student says the portal account already exists and is
+        theirs. No hash — a statement about their own account, not agreement to
+        something shown. Accepted only while the run awaits the yes and no
+        account exists on the case (`refused` after the yes; `not_asked` where
+        the portal needs no account or one exists). The run then signs in to it
+        after the yes, through the secure box, instead of creating one.
+      properties:
+        kind:
+          type: string
+          enum: [existing_account]
 
     CancelDecision:
       type: object

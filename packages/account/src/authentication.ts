@@ -600,6 +600,19 @@ export function describeSignInResume(portalHost: string): string {
   );
 }
 
+/**
+ * The same ask at the START of a run, for an account the student already holds
+ * (ADR-0110). Not "signed out" and not "a second time": nothing has happened yet.
+ */
+export function describeSignInStart(portalHost: string): string {
+  return (
+    `You told me you already have an account on ${portalHost}, so I will sign in to it rather ` +
+    `than create one. I will show you a password box; what you type there goes straight to the ` +
+    `part of me that fills in forms. It is used once, to sign in, and then it is gone: not saved, ` +
+    `not written to any log, and the part of me you are talking to right now never gets to see it.`
+  );
+}
+
 export function describeSecureChannel(portalHost: string): string {
   return (
     `This portal asks you to choose your own password. I will show you a password box in this ` +

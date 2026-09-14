@@ -134,6 +134,7 @@ import type { WorkDocument,
 import type { FillPlan, MappingSet, StoredFillPlan } from "@askimate/aas-mapping";
 import {
   accountCreated,
+  accountDeclared,
   accountWorkOf,
   attachmentIntentTarget,
   awaitsStudentAuthorisation,
@@ -2029,6 +2030,30 @@ export class RunDriver {
    * including the deliberate absence of a "retry it" branch, which is what
    * stops an unverifiable half-creation becoming a second university account.
    */
+  /**
+   * ADR-0110: the account the student DECLARED, from the case log. The same
+   * derivation as a created one — `accountDeclared` mirrors `accountCreated` —
+   * from a case event rather than a completed intent, because we did nothing.
+   */
+  async #withAccountIfDeclared(
+    state: RunState,
+    input: { readonly record: WorkflowRunRecord; readonly handover: HandoverEvidence },
+    now: Date,
+  ): Promise<RunState> {
+    const events = await this.#options.stores.cases.read(input.record.caseId);
+    if (events.length === 0) return state;
+    const declared = fold(events).declaredAccount;
+    if (declared === undefined) return state;
+    return (
+      accountDeclared(state, {
+        accountId: `acct_${input.record.runId}`,
+        declaredAt: declared.declaredAt,
+        now,
+        handover: input.handover,
+      }) ?? state
+    );
+  }
+
   async #withAccountIfCreated(
     state: RunState,
     input: { readonly record: WorkflowRunRecord; readonly handover: HandoverEvidence },
@@ -2043,7 +2068,9 @@ export class RunDriver {
       ...(found?.intent === undefined ? {} : { intent: found.intent }),
       ...(found?.completed === undefined ? {} : { completed: found.completed }),
     });
-    if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") return state;
+    if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") {
+      return await this.#withAccountIfDeclared(state, input, now);
+    }
 
     // Derived from the case, not random — the same reasoning as the run id and
     // the case id. A random account id regenerated on the next request would
@@ -2926,6 +2953,35 @@ export class RunDriver {
     // minter of a `ConfirmedValue` — and in the conversation log that recorded
     // the exchange. Nothing about it belongs in the case log, so it returns
     // before `decide` is reached (ADR-0051 §5).
+    if (input.decision.kind === "existing_account") {
+      // ADR-0110. A fact of the student's, before the yes, where an account is
+      // needed and none exists. Refused after the yes (`refused`): the preview
+      // they approved was of a run that would create one. Refused where the
+      // portal needs no account or the case already holds one (`not_asked`).
+      if (!entry.blueprint.authentication.required) return { ok: false, reason: "not_asked" };
+      if (situation.state.account !== undefined || held.declaredAccount !== undefined) {
+        return { ok: false, reason: "not_asked" };
+      }
+      if (held.authorisedContentHash !== undefined) return { ok: false, reason: "refused" };
+      const now = this.#options.now();
+      // Derivable, or it is not declarable: the address is the confirmed e-mail.
+      if (accountDeclared(situation.state, { accountId: "probe", declaredAt: now, now }) === null) {
+        return { ok: false, reason: "refused" };
+      }
+      const loginUrl = entry.blueprint.authentication.loginUrl;
+      const observedHost = loginUrl === undefined ? null : hostOf(loginUrl);
+      if (observedHost === null) return { ok: false, reason: "refused" };
+      const portalHost = deployedHost(entry, observedHost) ?? observedHost;
+      await this.#appendToCase(
+        record.caseId,
+        held.sequence,
+        [{ type: "PortalAccountDeclared", portalHost, declaredAt: now }],
+        { conversationId: input.conversationId, caseId: record.caseId },
+        now,
+      );
+      return { ok: true };
+    }
+
     if (input.decision.kind === "confirm_value") {
       return await this.#confirmValue(input.conversationId, situation.state, input.decision);
     }

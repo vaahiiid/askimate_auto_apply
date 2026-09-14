@@ -392,6 +392,21 @@ function drawPending(): void {
     );
   }
 
+  // ADR-0110: a student who already holds the portal account says so here,
+  // before the yes; the run then signs in to it rather than creating one.
+  // Offered at the authorise step only, because that is when it can be said.
+  if (pending?.decision === "authorise") {
+    panel.append(
+      button(
+        "I already have an account on this portal — sign in to it instead of creating one",
+        () => {
+          void answer("existing_account");
+        },
+        "quiet",
+      ),
+    );
+  }
+
   // ADR-0108: what the student owes, from the case's own record, with the
   // sentence Vahid wanted uncomfortable to read. Their word closes an item;
   // nothing here checks and nothing reminds.
