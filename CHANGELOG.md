@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.128.0] — 2026-09-14
+
+**P130 — the employment listing named from Vahid's throwaway save; the new-entry URL the way
+in; the summary omits duties, which ADR-0106 §2's count-only verification never read anyway.**
+
+### Changed
+
+- Curated draft 0.2.20: `page8.repeats.recorded` — `summary.do`, one entry per `h5` reading
+  exactly *Previous Employment N* in `div.homepageInfomation`; set 0.3.20 re-bound. Pinned in
+  `scripts/sheffield-draft.test.ts`.
+
+### Recorded
+
+- `docs/captures/sheffield-pgt-2026-09-14-employment/README.md`: the heading, the locator and
+  what it rests on; the summary's four lines and the missing duties against ADR-0106 §2; the
+  empty new-entry form and the *Add new employment details* link; the five marked and the
+  fifth as the row's star on the year.
+
+---
+
 ## [0.127.0] — 2026-09-14
 
 **P129 — ADR-0111 built: `employment.history` in the registry, the employment page repeating

@@ -75,9 +75,9 @@ In the order they bite, each with who holds it and the evidence.
    with the referee narrowed to a name and a role. Built: `employment.history` in the registry,
    `page8` repeating over it (draft 0.2.19), the four required fields and the dates mapped per
    job (set 0.3.19), the empty page's line in the preview. The section is optional in the
-   portal's own words on `summary.do`, so no student is stuck. What remains is his read of the
-   `summary.do` listing with one throwaway job saved (same sitting as item 5; until then each
-   employment save is *uncertain*), and Iman's review (item 6).
+   portal's own words on `summary.do`, so no student is stuck. **P130:** his read of the listing
+   with one throwaway job saved names it (*Previous Employment N*, draft 0.2.20), so each save is
+   counted. What remains is Iman's review (item 6).
 3. **The nationality page: seventy-two fields, none mapped, and the registry holds part of what
    it asks.** Funding nationality, country of birth, permanent residence and the immigration
    yes/no questions map onto `identity.nationality`, `identity.country_of_birth` and the two
@@ -172,6 +172,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P130: the employment listing named from his throwaway save (draft 0.2.20, set
+  0.3.20); the new-entry URL confirmed as the way in; the summary found to omit duties, which
+  under ADR-0106 §2's count-only verification changes nothing today and rules out a listing
+  read-back of duties ever; the fifth marker explained as the row's star on the year. Six open
+  of ten, unchanged.
 - 2026-09-14, P129: item 2 done — the shape confirmed by Vahid (referee narrowed), the registry
   group built with two format rules, the page repeating, the four fields mapped, the empty page
   said plainly and pinned. The `summary.do` listing is his throwaway save, same sitting as item

@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.19");
+    expect(blueprint.version).toBe("0.2.20");
   });
 
   it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
@@ -195,11 +195,18 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.19");
-    expect(mappingSet.version).toBe("0.3.19");
+    expect(blueprint.version).toBe("0.2.20");
+    expect(mappingSet.version).toBe("0.3.20");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
+    // P130 (ADR-0106): the listing, from Vahid's read of summary.do with one
+    // throwaway job saved — the heading reads exactly "Previous Employment 1",
+    // the same shape as education's, and the locator is exact to the number.
+    expect(employment?.repeats?.recorded).toEqual({
+      url: "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+      entryLocator: { strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Employment [0-9]+$")' },
+    });
     const withJobs = withConfirmed([
       ...PROFILE_ENTRIES,
       ["employment.history", [

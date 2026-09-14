@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -24934,7 +24934,14 @@
       },
       "nextPageRef": "page9",
       "repeats": {
-        "fieldKey": "employment.history"
+        "fieldKey": "employment.history",
+        "recorded": {
+          "url": "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+          "entryLocator": {
+            "strategy": "css",
+            "value": "div.homepageInfomation > h5:text-matches(\"^Previous Employment [0-9]+$\")"
+          }
+        }
       }
     },
     {

@@ -44,13 +44,15 @@
     "",
     "Education (page7), P118 (2026-09-13, ADR-0109): a mapping to a typeahead names the VALUE the form submits, and the blueprint records what each value reads as. The institution box (institution-ts-control) now carries the eleven entries Vahid read for 'Sheff' with the United Kingdom chosen — the two 'Sheffield International College' entries are SCH40484 and SHE0512 — and its escape by value, 'Not in list', whose value is its own label. No mapping to the box is authored: a qualification's institution is a free-text profile part, and a mapping must reach the box through an option rule onto these entries (partial, like the country map), which is the reviewer's to write; a student whose institution is not among them is a handoff, never the escape. The country box's entries are the captured <select>'s and are recorded on the box when it is mapped.",
     "",
-    "Employment (page8), P129 (2026-09-14, ADR-0111): the registry now holds employment.history — decided by Vahid: 'employment goes into the registry as a new group' — and the page repeats over it, as education does. The four required fields and the start year and end date are mapped per job: the start month by the select's English names, the year as digits, the end date left EMPTY for a job the student said is current (part … absent: leave_empty — their statement, not our inference), the employer's name and address joined into the one textarea, the duties verbatim. A student who confirmed NO jobs fills the page zero times and the preview says so; a student never asked stays unavailable and blocks. The listing on summary.do for a saved job (ADR-0106's `recorded`) waits on Vahid's read with one throwaway job saved; until then every employment item is uncertain at the save."
+    "Employment (page8), P129 (2026-09-14, ADR-0111): the registry now holds employment.history — decided by Vahid: 'employment goes into the registry as a new group' — and the page repeats over it, as education does. The four required fields and the start year and end date are mapped per job: the start month by the select's English names, the year as digits, the end date left EMPTY for a job the student said is current (part … absent: leave_empty — their statement, not our inference), the employer's name and address joined into the one textarea, the duties verbatim. A student who confirmed NO jobs fills the page zero times and the preview says so; a student never asked stays unavailable and blocks. The listing on summary.do for a saved job (ADR-0106's `recorded`) waits on Vahid's read with one throwaway job saved; until then every employment item is uncertain at the save.",
+    "",
+    "Employment (page8), P130 (2026-09-14): the listing is named (ADR-0106) from Vahid's read of summary.do with one throwaway job saved — the heading reads exactly 'Previous Employment 1', the same shape as education's, so the entry locator is the same shape: h5:text-matches('^Previous Employment [0-9]+$') inside div.homepageInfomation. The wrapper is education's, on his word that the shape is the same; the capture's HTML is not in the commit. The summary lists a job's start date, end date, title and employer, and NOT its duties; under ADR-0106 §2 a per-item page is counted, never read back by value, so nothing confirms a saved job's values today, and a listing read-back could never reach duties."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.19",
+  "version": "0.3.20",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.19",
+  "blueprintVersion": "0.2.20",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [

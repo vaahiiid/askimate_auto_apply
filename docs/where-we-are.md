@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P130 — counted, not read
+
+He saved one throwaway job on his own account, read `summary.do` and the new-entry form, and deleted it; section F reads *No employment information entered* again. The heading is *Previous Employment 1*, the same shape as education's, and the curated draft now names the listing the way P113 named education's — an `h5` reading exactly that, inside the same wrapper, exact to the number — so each employment save is counted rather than uncertain. The wrapper is taken on his word that the shape is the same, because the commit carries the draft and the run record and not the capture's HTML, and the record says so. The new-entry URL opens empty after a save, so it is the way in and nothing else is needed; the summary carries an *Add new employment details* link as education's does.
+
+Two things he noticed are worth more than the locator. The summary lists a job's dates, title and employer and not its duties, and he asked whether a page verified by what the listing shows would ever see them. Checked against ADR-0106 as he decided it: a page filled once per item is counted on its listing and never read back by value, because the new-entry form reopens empty — so nothing today confirms a saved job's values at all, and the count is the whole of the verification. His observation does not change that; it rules out one future: a listing read-back could never reach duties, so if a job's values are ever to be confirmed it has to be from the entry's own page, and whether the portal offers one is not in the record. And five fields came back marked where he had filled four starred boxes and the year: the fifth is the year, which shares the *Start Date* row with the month and took the row's star — the mechanism that marked `unlistedDegree` on the education page — which is moot for the fill, since both are mapped and a month without its year is not a date. Six of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P129 — one entry per job, and "none" said out loud
 
 He confirmed the shape and asked for two of its reasons in the ADR rather than in design notes, in his words: the end date is a date or "current" and never a blank, because a student who leaves a field empty has told us nothing and treating that as still working there is exactly the silent inference this system exists not to make; and the referee is a third party's personal data held only when the student gives it, the reference-letter problem from B1 row 4 arriving in a new place. One change with them: the referee's email and phone are not collected at all until a portal we support asks — a name and role says the referee exists, contact details are for someone who has not heard of us, and we hold what we need when we need it. The entry type in the registry carries his words beside its fields.
