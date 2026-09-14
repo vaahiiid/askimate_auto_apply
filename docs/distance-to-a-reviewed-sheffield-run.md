@@ -47,9 +47,13 @@ In the order they bite, each with who holds it and the evidence.
    (`docs/captures/sheffield-pgt-2026-09-14-five-pages/`), and not closed by it:** the attached
    tool's observer tied no label and saw no asterisk, because the markup ties nothing. P123 made
    the observer read the row's question and the bare `*`, with their sources named
-   (`labelSource: "row_text"`, `observed_marker`). **His re-read** with the updated tool is
-   what closes it; then the draft. Nothing can be mapped for a page whose mandatory set is
-   unknown, so this is first.
+   (`labelSource: "row_text"`, `observed_marker`). **Re-read the same day
+   (`docs/captures/sheffield-pgt-2026-09-14-five-pages-relabelled/`): 76 of 149 labelled, 42
+   marked, and not closed by it** — the seventy-three unlabelled are named in that README and
+   include nationality's top selects, its dates and all four previous-country blocks, whose
+   question is in a row above, not in theirs. P124 reads a control's own words, the row's
+   question, and the question row above. **His third read** is what closes it; then the draft.
+   Nothing can be mapped for a page whose mandatory set is unknown, so this is first.
 2. **The employment page blocks the plan today.** Four required fields — start date, position,
    employer, duties — and the profile registry has no employment field, so `planFill` raises
    `no_mapping` on all four and `isComplete` is false: no run can be claimed. Two routes, neither
@@ -145,6 +149,13 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-14, P124: item 1 re-read with the row-text observer and found not closed — 76 of 149
+  labelled, 42 marked, the seventy-three named, four labels wrong (a row asking several
+  things), the companions' "later" options carrying a comment node's markup. His six console
+  observations checked against the file: four held, one half, one corrected (twelve starred
+  yes/no groups, not one — his snippet's name filter). The observer reads a control's own
+  words and the question row above; a comment is never a radio's words. Eight open of ten,
+  unchanged.
 - 2026-09-14, P123: item 1 read once with the attached tool and found not closed by it — the
   observer resolves labels only through markup ties, and these pages tie none. The observer now
   reads the row's question and the visible marker with their sources named; his re-read closes

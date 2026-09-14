@@ -101,28 +101,61 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     if (block !== null && (block.textContent ?? "").trim().length <= 400) return block;
     return null;
   };
-  const contextFor = (element: Element): { readonly text: string; readonly marked: boolean } | undefined => {
-    const row = rowOf(element);
-    if (row === null) return undefined;
-    const first = [...row.querySelectorAll("input, select, textarea")].find(isControl) ?? element;
-    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+  const textBetween = (root: Element, from: Node | null, to: Element): string => {
+    // The text nodes of `root` in document order, after `from` (exclusive)
+    // and before `to`, other controls' contents excluded.
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let raw = "";
     for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-      // Document order: once a text node no longer precedes the first
-      // control, nothing after it does either.
-      if ((first.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING) === 0) break;
+      if ((to.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING) === 0) break;
+      if (from !== null && (from.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) === 0) continue;
       const parent = node.parentElement;
       if (parent === null || parent.closest("select, textarea, option, script, style") !== null) continue;
       raw += `${node.textContent ?? ""} `;
     }
-    const collapsed = raw.replace(/\s+/g, " ").trim();
-    // The marker: `*` on its own in a marker element anywhere in the row, or
-    // ending the question. Stripped from the text; kept as a fact.
-    const markerElement = [...row.querySelectorAll("font, span, abbr, b, strong, em, sup, i")].some(
+    return raw.replace(/\s+/g, " ").trim();
+  };
+  const hasMarker = (root: Element, text: string): boolean =>
+    /\*/.test(text) ||
+    [...root.querySelectorAll("font, span, abbr, b, strong, em, sup, i")].some(
       (node) => (node.textContent ?? "").trim() === "*" && node.querySelector("input, select, textarea") === null,
     );
-    const marked = markerElement || /\*\s*$/.test(collapsed) || /\*/.test(collapsed);
-    const text = collapsed.replace(/\s*\*\s*/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+  const stripMarker = (text: string): string => text.replace(/\s*\*\s*/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+  const contextFor = (element: Element): { readonly text: string; readonly marked: boolean } | undefined => {
+    const row = rowOf(element);
+    if (row === null) return undefined;
+    const controls = [...row.querySelectorAll("input, select, textarea")].filter(isControl);
+    const first = controls[0] ?? element;
+    // 1. The control's OWN words: the text between the previous control in
+    //    the row and this one. A row that asks two things (the education
+    //    page: the country, then the institution) labels each by its own.
+    const index = controls.indexOf(element);
+    const previous = index > 0 ? (controls[index - 1] ?? null) : null;
+    // Not for a radio or checkbox, and not after one: the text between two
+    // choices is the first choice's own words, never a question.
+    const isChoice = (node: Element): boolean => /^(radio|checkbox)$/i.test(node.getAttribute("type") ?? "");
+    const own =
+      previous === null || isChoice(element) || isChoice(previous) ? "" : textBetween(row, previous, element);
+    // 2. The row's question: its text before the first control. A date asked
+    //    as three selects shares it.
+    const question = textBetween(row, null, first);
+    // 3. A question ROW: the nearest preceding row or block with words and no
+    //    controls of its own, when this row carries none before its first
+    //    control (the nationality page's top selects sit under such rows).
+    let heading = "";
+    if (question.length === 0) {
+      for (let above = row.previousElementSibling; above !== null; above = above.previousElementSibling) {
+        if ([...above.querySelectorAll("input, select, textarea")].some(isControl)) break;
+        const words = (above.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (words.length > 0) {
+          heading = words;
+          break;
+        }
+      }
+    }
+    const rawText = own.length > 0 ? own : question.length > 0 ? question : heading;
+    const marked = hasMarker(row, `${own} ${question}`) || (heading.length > 0 && /\*/.test(heading));
+    const text = stripMarker(rawText);
     if (text.length === 0) return marked ? { text, marked } : undefined;
     return { text, marked };
   };
@@ -131,7 +164,11 @@ export const OBSERVE_SCRIPT = (): RawObservation => {
     let text = "";
     while (node !== null) {
       if (node instanceof Element && (isControl(node) || node.matches("br") || node.tagName === "BR")) break;
-      text += node.textContent ?? "";
+      // Text nodes and elements only. A comment's textContent is the markup
+      // the portal switched off — Sheffield's companions each carry a
+      // commented-out "later" radio after the last shown one — and no
+      // student reads it.
+      if (node.nodeType === Node.TEXT_NODE || node instanceof Element) text += node.textContent ?? "";
       node = node.nextSibling;
     }
     const trimmed = text.replace(/\s+/g, " ").trim().slice(0, 80);

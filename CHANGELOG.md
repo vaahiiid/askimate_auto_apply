@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.122.0] — 2026-09-14
+
+**P124 — Vahid's re-read with the row-text observer: 76 of 149 labelled, 42 marked, item 1
+not closed; the observer reads a control's own words and the question row above.**
+
+### Added
+
+- The observer's context rule, per control: its own words (the text between the previous
+  control in the row and itself; not for or after a radio or checkbox), then the row's
+  question before its first control, then the nearest preceding row or block with words and
+  no controls of its own; the marker read from the row or from that question row. Three
+  fixture rows in the shapes the re-read implies: one row asking three things, a starred
+  question row above a lone select, a question row above two selects.
+
+### Fixed
+
+- A comment node after a radio is no longer read as the radio's own words. The re-read
+  carried, on every one of the five companions' "later" options, the markup of a
+  commented-out third radio as the option's label.
+
+### Recorded
+
+- `docs/captures/sheffield-pgt-2026-09-14-five-pages-relabelled/README.md`: the counts by
+  page from the file, the seventy-three unlabelled by name, the four wrong labels, the three
+  shapes inferred, his six console observations checked (four held, one half, one corrected),
+  forty-two against twenty-seven, what it changes for Iman's pack, what to run.
+
+---
+
 ## [0.121.0] — 2026-09-14
 
 **P123 — the observer reads the row's question and the visible mandatory marker where the

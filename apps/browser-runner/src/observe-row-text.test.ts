@@ -41,13 +41,21 @@ const PAGE = `<!doctype html><html><body>
   <tr><td>Your middle name</td><td><input type="text" name="middleName"></td></tr>
   <tr><td><label for="nationalInsurance">National Insurance number</label><font>*</font></td><td><input type="text" id="nationalInsurance" name="nationalInsurance"></td></tr>
   <tr><td><label for="gradeNote"></label>Grade, as shown on the certificate</td><td><input type="text" id="gradeNote" name="gradeNote"></td></tr>
+  <tr><td>Select the country the institution is based in: <select name="institutionCountry"><option>Iran</option></select>
+          Select the institution: <select name="institutionCode"><option>Sharif</option></select>
+          If it is not listed, enter it here: <input type="text" name="unlistedInstitution"></td></tr>
+  <tr><td>What is your nationality for funding purposes?<font>*</font></td></tr>
+  <tr><td><select name="fundingNationality"><option value="">-</option><option value="IR:O">Iranian</option></select></td></tr>
+  <tr><td>How many years have you held a Student Visa?</td></tr>
+  <tr><td><select name="yearsOnStudentVisa"><option>0</option></select> <select name="monthsOnStudentVisa"><option>0</option></select></td></tr>
 </table>
 <div id="uploads" style="display:none">
   <table>
     <tr><td>If you hold a full UK passport please provide a scan of your passport</td>
         <td><input type="file" name="passportScan">
             <input type="radio" name="passportScanStatus" value="Uploaded"> I will upload my passport scan now
-            <input type="radio" name="passportScanStatus" value="NotSending"> I will not be providing my passport scan</td></tr>
+            <input type="radio" name="passportScanStatus" value="NotSending"> I will not be providing my passport scan
+            <!-- <br/> <input type="radio" name="passportScanStatus" value="Later"> I will upload my passport scan later --></td></tr>
   </table>
 </div>
 <input type="submit" value="Save and continue">
@@ -115,6 +123,25 @@ describe("the observer, on a page in the shape Vahid described", () => {
     expect(grade?.context).toBe("Grade, as shown on the certificate");
   });
 
+  it("labels each control in a row that asks several things by its OWN words, not the row's first question", () => {
+    // The 2026-09-14 re-read gave the education page's institution box and
+    // its unlisted-institution box the country question, because the rule
+    // took the row's text before its first control for every control in it.
+    expect(field("institutionCountry")?.context).toBe("Select the country the institution is based in:");
+    expect(field("institutionCode")?.context).toBe("Select the institution:");
+    expect(field("unlistedInstitution")?.context).toBe("If it is not listed, enter it here:");
+  });
+
+  it("reads a question ROW above a row that holds only controls, marker included; several controls share it", () => {
+    // The re-read left the nationality page's top selects unlabelled and
+    // unmarked: their question is a row of its own above the control's row.
+    expect(field("fundingNationality")?.context).toBe("What is your nationality for funding purposes?");
+    expect(field("fundingNationality")?.marked).toBe(true);
+    expect(field("yearsOnStudentVisa")?.context).toBe("How many years have you held a Student Visa?");
+    expect(field("monthsOnStudentVisa")?.context).toBe("How many years have you held a Student Visa?");
+    expect(field("yearsOnStudentVisa")?.marked).toBeUndefined();
+  });
+
   it("gives a radio its own words from the text after it, and the group the row's question", () => {
     const radios = observation.forms[0]?.fields.filter((f) => f.name === "alwaysUKResident") ?? [];
     expect(radios.map((r) => r.textAfter)).toEqual(["yes", "no"]);
@@ -130,6 +157,19 @@ describe("the observer, on a page in the shape Vahid described", () => {
       "I will upload my passport scan now",
       "I will not be providing my passport scan",
     ]);
+  });
+
+  it("does NOT read a commented-out control as a radio's words — the re-read carried one on every companion", () => {
+    // Vahid's re-read (9a3a1db): the five companions' "later" option labels
+    // ended `... later <br/> <input type="radio" name="passportSca` — the
+    // text of a comment node after the radio, which is markup Sheffield
+    // switched off, not a word the student sees.
+    const statuses = observation.forms[0]?.fields.filter((f) => f.name === "passportScanStatus") ?? [];
+    expect(statuses.map((s) => s.textAfter)).toEqual([
+      "I will upload my passport scan now",
+      "I will not be providing my passport scan",
+    ]);
+    expect(statuses).toHaveLength(2);
   });
 });
 
