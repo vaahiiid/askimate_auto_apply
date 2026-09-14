@@ -1,0 +1,980 @@
+{
+  "blueprintId": "bp-sheffield-pgt-september-direct",
+  "version": "0.1.0",
+  "status": "draft",
+  "institutionName": "University of Sheffield",
+  "courseName": "MSc Management and International Business",
+  "intake": "2027-09",
+  "route": "direct_portal",
+  "authentication": {
+    "required": true,
+    "accountCreationRequired": true,
+    "notes": "No authentication signals were observed on the pages visited.\n\nReviewer's note from the run: Observed from a session a person signed in to by hand (attached inspection, P79). The registration and login pages themselves were not observed by this run, and the registration and login boxes are authored by a person from their captures."
+  },
+  "pages": [
+    {
+      "pageRef": "page1",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+      "sections": [
+        {
+          "sectionRef": "page1.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": []
+    },
+    {
+      "pageRef": "page2",
+      "title": "Postgraduate Online Application Form",
+      "url": "https://www.sheffield.ac.uk/postgradapplication/employment.do?new=true",
+      "sections": [
+        {
+          "sectionRef": "page2.form0",
+          "title": "Form 1",
+          "fields": [
+            {
+              "fieldRef": "query",
+              "label": "Search for",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Search for"
+                },
+                {
+                  "strategy": "name",
+                  "value": "query"
+                },
+                {
+                  "strategy": "id",
+                  "value": "searchterms"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "maxlength",
+                  "value": "100",
+                  "source": "dom_attribute"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "sectionRef": "page2.form1",
+          "title": "Form 2",
+          "fields": [
+            {
+              "fieldRef": "startMonth",
+              "label": "Start Date:*",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Start Date:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "startMonth"
+                },
+                {
+                  "strategy": "id",
+                  "value": "startMonth"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "January",
+                  "label": "January"
+                },
+                {
+                  "value": "February",
+                  "label": "February"
+                },
+                {
+                  "value": "March",
+                  "label": "March"
+                },
+                {
+                  "value": "April",
+                  "label": "April"
+                },
+                {
+                  "value": "May",
+                  "label": "May"
+                },
+                {
+                  "value": "June",
+                  "label": "June"
+                },
+                {
+                  "value": "July",
+                  "label": "July"
+                },
+                {
+                  "value": "August",
+                  "label": "August"
+                },
+                {
+                  "value": "September",
+                  "label": "September"
+                },
+                {
+                  "value": "October",
+                  "label": "October"
+                },
+                {
+                  "value": "November",
+                  "label": "November"
+                },
+                {
+                  "value": "December",
+                  "label": "December"
+                }
+              ]
+            },
+            {
+              "fieldRef": "startYear",
+              "label": "Start Date:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "startYear"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2027",
+                  "label": "2027"
+                },
+                {
+                  "value": "2026",
+                  "label": "2026"
+                },
+                {
+                  "value": "2025",
+                  "label": "2025"
+                },
+                {
+                  "value": "2024",
+                  "label": "2024"
+                },
+                {
+                  "value": "2023",
+                  "label": "2023"
+                },
+                {
+                  "value": "2022",
+                  "label": "2022"
+                },
+                {
+                  "value": "2021",
+                  "label": "2021"
+                },
+                {
+                  "value": "2020",
+                  "label": "2020"
+                },
+                {
+                  "value": "2019",
+                  "label": "2019"
+                },
+                {
+                  "value": "2018",
+                  "label": "2018"
+                },
+                {
+                  "value": "2017",
+                  "label": "2017"
+                },
+                {
+                  "value": "2016",
+                  "label": "2016"
+                },
+                {
+                  "value": "2015",
+                  "label": "2015"
+                },
+                {
+                  "value": "2014",
+                  "label": "2014"
+                },
+                {
+                  "value": "2013",
+                  "label": "2013"
+                },
+                {
+                  "value": "2012",
+                  "label": "2012"
+                },
+                {
+                  "value": "2011",
+                  "label": "2011"
+                },
+                {
+                  "value": "2010",
+                  "label": "2010"
+                },
+                {
+                  "value": "2009",
+                  "label": "2009"
+                },
+                {
+                  "value": "2008",
+                  "label": "2008"
+                },
+                {
+                  "value": "2007",
+                  "label": "2007"
+                },
+                {
+                  "value": "2006",
+                  "label": "2006"
+                },
+                {
+                  "value": "2005",
+                  "label": "2005"
+                },
+                {
+                  "value": "2004",
+                  "label": "2004"
+                },
+                {
+                  "value": "2003",
+                  "label": "2003"
+                },
+                {
+                  "value": "2002",
+                  "label": "2002"
+                },
+                {
+                  "value": "2001",
+                  "label": "2001"
+                },
+                {
+                  "value": "2000",
+                  "label": "2000"
+                },
+                {
+                  "value": "1999",
+                  "label": "1999"
+                },
+                {
+                  "value": "1998",
+                  "label": "1998"
+                },
+                {
+                  "value": "1997",
+                  "label": "1997"
+                },
+                {
+                  "value": "1996",
+                  "label": "1996"
+                },
+                {
+                  "value": "1995",
+                  "label": "1995"
+                },
+                {
+                  "value": "1994",
+                  "label": "1994"
+                },
+                {
+                  "value": "1993",
+                  "label": "1993"
+                },
+                {
+                  "value": "1992",
+                  "label": "1992"
+                },
+                {
+                  "value": "1991",
+                  "label": "1991"
+                },
+                {
+                  "value": "1990",
+                  "label": "1990"
+                },
+                {
+                  "value": "1989",
+                  "label": "1989"
+                },
+                {
+                  "value": "1988",
+                  "label": "1988"
+                },
+                {
+                  "value": "1987",
+                  "label": "1987"
+                },
+                {
+                  "value": "1986",
+                  "label": "1986"
+                },
+                {
+                  "value": "1985",
+                  "label": "1985"
+                },
+                {
+                  "value": "1984",
+                  "label": "1984"
+                },
+                {
+                  "value": "1983",
+                  "label": "1983"
+                },
+                {
+                  "value": "1982",
+                  "label": "1982"
+                },
+                {
+                  "value": "1981",
+                  "label": "1981"
+                },
+                {
+                  "value": "1980",
+                  "label": "1980"
+                },
+                {
+                  "value": "1979",
+                  "label": "1979"
+                },
+                {
+                  "value": "1978",
+                  "label": "1978"
+                },
+                {
+                  "value": "1977",
+                  "label": "1977"
+                },
+                {
+                  "value": "1976",
+                  "label": "1976"
+                },
+                {
+                  "value": "1975",
+                  "label": "1975"
+                },
+                {
+                  "value": "1974",
+                  "label": "1974"
+                },
+                {
+                  "value": "1973",
+                  "label": "1973"
+                },
+                {
+                  "value": "1972",
+                  "label": "1972"
+                },
+                {
+                  "value": "1971",
+                  "label": "1971"
+                },
+                {
+                  "value": "1970",
+                  "label": "1970"
+                },
+                {
+                  "value": "1969",
+                  "label": "1969"
+                },
+                {
+                  "value": "1968",
+                  "label": "1968"
+                },
+                {
+                  "value": "1967",
+                  "label": "1967"
+                },
+                {
+                  "value": "1966",
+                  "label": "1966"
+                },
+                {
+                  "value": "1965",
+                  "label": "1965"
+                },
+                {
+                  "value": "1964",
+                  "label": "1964"
+                },
+                {
+                  "value": "1963",
+                  "label": "1963"
+                },
+                {
+                  "value": "1962",
+                  "label": "1962"
+                },
+                {
+                  "value": "1961",
+                  "label": "1961"
+                },
+                {
+                  "value": "1960",
+                  "label": "1960"
+                },
+                {
+                  "value": "1959",
+                  "label": "1959"
+                },
+                {
+                  "value": "1958",
+                  "label": "1958"
+                },
+                {
+                  "value": "1957",
+                  "label": "1957"
+                }
+              ]
+            },
+            {
+              "fieldRef": "endMonth",
+              "label": "End Date:",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "End Date:"
+                },
+                {
+                  "strategy": "name",
+                  "value": "endMonth"
+                },
+                {
+                  "strategy": "id",
+                  "value": "endMonth"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "January",
+                  "label": "January"
+                },
+                {
+                  "value": "February",
+                  "label": "February"
+                },
+                {
+                  "value": "March",
+                  "label": "March"
+                },
+                {
+                  "value": "April",
+                  "label": "April"
+                },
+                {
+                  "value": "May",
+                  "label": "May"
+                },
+                {
+                  "value": "June",
+                  "label": "June"
+                },
+                {
+                  "value": "July",
+                  "label": "July"
+                },
+                {
+                  "value": "August",
+                  "label": "August"
+                },
+                {
+                  "value": "September",
+                  "label": "September"
+                },
+                {
+                  "value": "October",
+                  "label": "October"
+                },
+                {
+                  "value": "November",
+                  "label": "November"
+                },
+                {
+                  "value": "December",
+                  "label": "December"
+                }
+              ]
+            },
+            {
+              "fieldRef": "endYear",
+              "label": "End Date:",
+              "labelSource": "row_text",
+              "inputType": "select",
+              "locators": [
+                {
+                  "strategy": "name",
+                  "value": "endYear"
+                }
+              ],
+              "validations": [],
+              "options": [
+                {
+                  "value": "",
+                  "label": ""
+                },
+                {
+                  "value": "2027",
+                  "label": "2027"
+                },
+                {
+                  "value": "2026",
+                  "label": "2026"
+                },
+                {
+                  "value": "2025",
+                  "label": "2025"
+                },
+                {
+                  "value": "2024",
+                  "label": "2024"
+                },
+                {
+                  "value": "2023",
+                  "label": "2023"
+                },
+                {
+                  "value": "2022",
+                  "label": "2022"
+                },
+                {
+                  "value": "2021",
+                  "label": "2021"
+                },
+                {
+                  "value": "2020",
+                  "label": "2020"
+                },
+                {
+                  "value": "2019",
+                  "label": "2019"
+                },
+                {
+                  "value": "2018",
+                  "label": "2018"
+                },
+                {
+                  "value": "2017",
+                  "label": "2017"
+                },
+                {
+                  "value": "2016",
+                  "label": "2016"
+                },
+                {
+                  "value": "2015",
+                  "label": "2015"
+                },
+                {
+                  "value": "2014",
+                  "label": "2014"
+                },
+                {
+                  "value": "2013",
+                  "label": "2013"
+                },
+                {
+                  "value": "2012",
+                  "label": "2012"
+                },
+                {
+                  "value": "2011",
+                  "label": "2011"
+                },
+                {
+                  "value": "2010",
+                  "label": "2010"
+                },
+                {
+                  "value": "2009",
+                  "label": "2009"
+                },
+                {
+                  "value": "2008",
+                  "label": "2008"
+                },
+                {
+                  "value": "2007",
+                  "label": "2007"
+                },
+                {
+                  "value": "2006",
+                  "label": "2006"
+                },
+                {
+                  "value": "2005",
+                  "label": "2005"
+                },
+                {
+                  "value": "2004",
+                  "label": "2004"
+                },
+                {
+                  "value": "2003",
+                  "label": "2003"
+                },
+                {
+                  "value": "2002",
+                  "label": "2002"
+                },
+                {
+                  "value": "2001",
+                  "label": "2001"
+                },
+                {
+                  "value": "2000",
+                  "label": "2000"
+                },
+                {
+                  "value": "1999",
+                  "label": "1999"
+                },
+                {
+                  "value": "1998",
+                  "label": "1998"
+                },
+                {
+                  "value": "1997",
+                  "label": "1997"
+                },
+                {
+                  "value": "1996",
+                  "label": "1996"
+                },
+                {
+                  "value": "1995",
+                  "label": "1995"
+                },
+                {
+                  "value": "1994",
+                  "label": "1994"
+                },
+                {
+                  "value": "1993",
+                  "label": "1993"
+                },
+                {
+                  "value": "1992",
+                  "label": "1992"
+                },
+                {
+                  "value": "1991",
+                  "label": "1991"
+                },
+                {
+                  "value": "1990",
+                  "label": "1990"
+                },
+                {
+                  "value": "1989",
+                  "label": "1989"
+                },
+                {
+                  "value": "1988",
+                  "label": "1988"
+                },
+                {
+                  "value": "1987",
+                  "label": "1987"
+                },
+                {
+                  "value": "1986",
+                  "label": "1986"
+                },
+                {
+                  "value": "1985",
+                  "label": "1985"
+                },
+                {
+                  "value": "1984",
+                  "label": "1984"
+                },
+                {
+                  "value": "1983",
+                  "label": "1983"
+                },
+                {
+                  "value": "1982",
+                  "label": "1982"
+                },
+                {
+                  "value": "1981",
+                  "label": "1981"
+                },
+                {
+                  "value": "1980",
+                  "label": "1980"
+                },
+                {
+                  "value": "1979",
+                  "label": "1979"
+                },
+                {
+                  "value": "1978",
+                  "label": "1978"
+                },
+                {
+                  "value": "1977",
+                  "label": "1977"
+                },
+                {
+                  "value": "1976",
+                  "label": "1976"
+                },
+                {
+                  "value": "1975",
+                  "label": "1975"
+                },
+                {
+                  "value": "1974",
+                  "label": "1974"
+                },
+                {
+                  "value": "1973",
+                  "label": "1973"
+                },
+                {
+                  "value": "1972",
+                  "label": "1972"
+                },
+                {
+                  "value": "1971",
+                  "label": "1971"
+                },
+                {
+                  "value": "1970",
+                  "label": "1970"
+                },
+                {
+                  "value": "1969",
+                  "label": "1969"
+                },
+                {
+                  "value": "1968",
+                  "label": "1968"
+                },
+                {
+                  "value": "1967",
+                  "label": "1967"
+                },
+                {
+                  "value": "1966",
+                  "label": "1966"
+                },
+                {
+                  "value": "1965",
+                  "label": "1965"
+                },
+                {
+                  "value": "1964",
+                  "label": "1964"
+                },
+                {
+                  "value": "1963",
+                  "label": "1963"
+                },
+                {
+                  "value": "1962",
+                  "label": "1962"
+                },
+                {
+                  "value": "1961",
+                  "label": "1961"
+                },
+                {
+                  "value": "1960",
+                  "label": "1960"
+                },
+                {
+                  "value": "1959",
+                  "label": "1959"
+                },
+                {
+                  "value": "1958",
+                  "label": "1958"
+                },
+                {
+                  "value": "1957",
+                  "label": "1957"
+                }
+              ]
+            },
+            {
+              "fieldRef": "position",
+              "label": "Job Title / Position held:*",
+              "inputType": "text",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Job Title / Position held:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "position"
+                },
+                {
+                  "strategy": "id",
+                  "value": "position"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                },
+                {
+                  "kind": "maxlength",
+                  "value": "200",
+                  "source": "dom_attribute"
+                }
+              ]
+            },
+            {
+              "fieldRef": "employerDetails",
+              "label": "Name and address of employer:*",
+              "inputType": "textarea",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Name and address of employer:*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "employerDetails"
+                },
+                {
+                  "strategy": "id",
+                  "value": "employerDetails"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ]
+            },
+            {
+              "fieldRef": "duties",
+              "label": "Brief Overview of Duties(Max 4000 characters):*",
+              "inputType": "textarea",
+              "locators": [
+                {
+                  "strategy": "label",
+                  "value": "Brief Overview of Duties(Max 4000 characters):*"
+                },
+                {
+                  "strategy": "name",
+                  "value": "duties"
+                },
+                {
+                  "strategy": "id",
+                  "value": "duties"
+                }
+              ],
+              "validations": [
+                {
+                  "kind": "required",
+                  "source": "observed_marker"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "requiredDocuments": [],
+      "advanceControl": {
+        "strategy": "label",
+        "value": "Save and Continue"
+      }
+    }
+  ],
+  "handoffPoints": [],
+  "provenance": {
+    "discoveryRunId": "attached-sheffield-pgt-september-direct-2026-09-14T16-39-57-718Z",
+    "discoveredAt": "2026-09-14T16:39:57.718Z",
+    "observedUrls": [
+      "https://www.sheffield.ac.uk/postgradapplication/summary.do",
+      "https://www.sheffield.ac.uk/postgradapplication/employment.do?new=true"
+    ],
+    "unobservedClaims": [
+      "STATED (https://sheffield.ac.uk/postgraduate/taught/apply/applying, retrieved 2026-09-10): the form is in two parts; Part 1 is personal information, English language ability, previous education and employment, with mandatory fields marked * that must all be completed before Part 2 opens",
+      "STATED (same source, 2026-09-10): Part 2 is course selection — up to three courses per application",
+      "STATED (same source, 2026-09-10): supporting documents — evidence of previous qualifications, a personal statement — are uploaded into the relevant sections of the form",
+      "STATED (same source, 2026-09-10): the application is submitted only when Submit Application is clicked, and incomplete sections are prompted back at that point",
+      "STATED (same source, 2026-09-10): no application fee for PGT master's",
+      "STATED (https://www.sheffield.ac.uk/postgradapplication, retrieved 2026-09-10): this is the entry point to the Postgraduate Online Application Form",
+      "STATED (Vahid, 2026-09-10): all PGT master's start in September; there is no January or February intake",
+      "TO OBSERVE: where the login boundary falls — which pages are reachable without an account, and on which host the form lives",
+      "ANSWERED (Vahid's direct statement, 2026-09-11): student_chosen — he typed the password he chose at registration; Sheffield did not email one. Not portal_issued, whatever the sibling /arpform/login.app form states",
+      "TO OBSERVE, and REPORT BEFORE DECIDING: whether up to three course choices, each submitted separately, is three cases or one case with three targets (ADR-0006; the key is studentId, institutionId, courseId, intake, attemptOrdinal). Do not adapt the model to fit what you expect.",
+      "AUTH 1 — Does the applicant choose their own password at account creation? YES (Vahid, 2026-09-11: 'I typed the password I chose')",
+      "AUTH 2 — Does the portal generate a credential and email it to them? NO (Vahid, 2026-09-11: 'Sheffield did not email me one')",
+      "AUTH 3 — Is there passwordless sign-in — a magic link or emailed code? NONE OFFERED on the entry page (signed-out read, 2026-09-11): e-mail and password, and a reset page",
+      "AUTH 4 — Must the email be verified before the form is reachable? NO — observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I entered an email and a password on the New Applicants form, pressed Start Application, and went straight into the form. No email had to be opened, no link clicked.' Sheffield's behaviour, not a property of direct portals",
+      "AUTH 5 — Is MFA or a one-time code required, and where? NO — none on the pages read (2026-09-10, 2026-09-11), and observed by Vahid, not by a run (his direct statement, 2026-09-11): 'I signed in again later with email and password only and went straight into the form. No code arrived and none was asked for.' This entry only",
+      "AUTH 6 — Is a CAPTCHA present, and where? NONE on the three entry pages or the eleven form pages read; caveat: tag manager was refused, so a tag-injected one could not have loaded; Vahid saw none with tags allowed",
+      "AUTH 7 — Does 'Forgot password' work, and does the reset reach the account's own address?",
+      "AUTH 8 — Can control be handed back cleanly?"
+    ]
+  },
+  "observedSignals": []
+}
