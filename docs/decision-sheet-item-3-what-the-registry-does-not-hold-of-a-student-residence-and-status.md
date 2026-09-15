@@ -75,6 +75,29 @@ passport, not carried into any file (P124). The registry requires a passport num
 student. **Question:** does the profile hold "no passport" as a stated fact, and what does the
 mapping type then? Not answerable until the instruction's words are read off the page.
 
+**Read off the markup, 2026-09-15 (P140,
+[`sheffield-pgt-2026-09-15-passport-row/`](./captures/sheffield-pgt-2026-09-15-passport-row/README.md)).**
+The row: *"Please enter your passport number below. This is required in order to comply with UK
+immigration law."* Its tooltip: *"Enter your passport number if possible. If you don't have a
+passport please enter 'no passport' in the box."* A text box, thirty characters. So the portal
+itself says what to type: the literal `no passport`.
+
+**Proposal (for his decision).** The profile holds *no passport* as a stated fact, and never as an
+absence: today `identity.passport_number`, `identity.passport_expiry` and
+`identity.passport_issuing_country` are three separate values, and a student with no passport
+has none of them — three unavailable values that block, and nothing anywhere that says why.
+(A) Fold the three into one `identity.passport`: `{ kind: "held"; number; expiry: Date;
+issuingCountry } | { kind: "none" }` — the shape of a job's end and a study's kind: absence as a
+statement, in one place, so the three cannot disagree. The mapping then types the number through
+`part number`, and for `kind: none` types the portal's own instruction through a new form of the
+existing `absent` rule — `absent: { type: "no passport" }` — the words quoted from the page into
+the reviewed mapping, never into the profile, so a portal that says something else gets its own
+words. Cost: the personal page's passport mappings, the extraction plan's three scalars and the
+fixtures move to parts of one value. (B) Only the number gets the kind (`{ kind: "number";
+value } | { kind: "none" }`), the expiry and the issuing country left as they are — smaller, but a
+no-passport student still has two unavailable values that block any page mapping them, which is
+the same defect kept. The recommendation is A.
+
 ## What I would choose, and why
 
 Group 1 as (A) and group 2 as (A): both are facts about the student that every UK form asks in
