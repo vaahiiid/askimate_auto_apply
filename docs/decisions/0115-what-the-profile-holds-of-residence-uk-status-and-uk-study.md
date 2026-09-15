@@ -213,6 +213,47 @@ nationality alone — a UK national living abroad is not covered. Set 0.3.25 map
 from `immigration.uk_study`; the five per-level qualification selects stay unmapped, because they
 want the student's qualification in the portal's own list — blocker 25's shape, flagged.
 
+### Why the script was read, and three more things from it — his words, 2026-09-15 (P143)
+
+> *"The rename stands. Your names are better than mine would have been —
+> residence.always_in_residence_country says what it asks, and anyone reading it cold cannot
+> mistake it for a UK question."*
+>
+> *"This is the clearest case yet for reading the script rather than the page. A student resident
+> in Iran would have answered 'have you always lived in Iran' and we would have stored it under
+> always_in_uk. Nobody would have noticed until a form somewhere read that field and meant the
+> UK."*
+
+That is why the script was read, not only what it said: the page's words were true of his own
+account and would have been false of the students this system is for.
+
+**A field on this form whose value the student never gives and we never see.** When
+living-outside is No, the script hides *"Are you currently living in the UK?"* and ticks it
+itself — *yes* for a United Kingdom residence, *no* for any other. On that path the portal's
+answer is the portal's inference from the residence, and `residence.in_uk_now` is not typed at
+all. In his words: *"That is fine as behaviour and it should be visible in the record: there is a
+field on this form whose value the student never gives and we never see. If a later phase reads
+that box back and treats it as the student's answer, it is wrong."* Recorded here, in the draft's
+section title, in the set's note on `livingInUK` (0.3.26) and in the review pack.
+
+**The two things the condition language cannot say are blocker 30**, not a footnote. A condition
+names one controlling field, so the script's *better of two nationalities* is read from the first
+nationality only; and there is no OR across fields, so the study block's rule is written on the
+nationality alone. In his words: *"'neither case is on Run A's path' is true of Run A and not of
+the product. A UK national living abroad is an ordinary student, and the day one arrives the
+condition is silently wrong rather than loudly missing."*
+
+**Sheffield's own bug, dated.** In `nationality.js` as fetched on 2026-09-15, the study block's
+rule tests `livedOutsideCountry == "yes"` against a value the script itself sets to `"Yes"`, so
+that clause never fires: the block is opened by nationality or residence alone, and the draft's
+condition says so. If Sheffield ever fixes it, the block's condition changes under us without
+warning — the kind of thing a blueprint drifts on. Recorded as the portal's, with the date.
+
+**The seven claims and the interview.** The page asks the five UK claims only of a non-UK national
+resident in the UK and the two EU claims only of one resident in the EU; a resident abroad is
+asked none. Not a shape change — his word: *"agreed, Run B, not a shape change"* — and noted in
+ADR-0113, where the interview build is scoped, so the person who builds it reads it there.
+
 ### What the build touched
 
 - `packages/profile`: three groups, their categories (ordinary), labels, persistence.

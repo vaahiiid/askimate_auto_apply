@@ -51,3 +51,13 @@ So, when the interview learns to ask for a list:
 - The same mechanism — a part asked as a field is asked — is what the address, the passport,
   the English test, finance and immigration need too; the coverage gap is one gap, not a
   list-valued one.
+
+## Scope notes for the build, added as they arise
+
+- **The seven UK status claims (ADR-0115), 2026-09-15 (P143).** Sheffield's page asks the five
+  UK claims only of a non-UK national resident in the UK and the two EU claims only of one
+  resident in the EU (`nationality.js`, P142); a resident abroad is asked none. The registry holds
+  all seven for everyone. The interview should ask them only when the residence makes a portal
+  ask — otherwise it asks most students what no portal needs. Vahid: *"agreed, Run B, not a shape
+  change."* The shape is unchanged; the asking is scoped here.
+

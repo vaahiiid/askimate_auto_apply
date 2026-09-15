@@ -548,7 +548,7 @@ suffix and `previousCountryN` uses UPPER-CASE names while `permanentResidence` u
 | field | source | rule |
 |---|---|---|
 | `permanentResidence` | `residence.country` | option, `IR` → *Iran, Islamic Republic of:O* … (partial) |
-| `livingInUK`, `applicationLocation` | `residence.in_uk_now` | option, true → *yes* / *Inside UK*, false → *no* / *Outside UK* |
+| `livingInUK`, `applicationLocation` | `residence.in_uk_now` | option, true → *yes* / *Inside UK*, false → *no* / *Outside UK*. **`livingInUK` is typed only after *yes* to living outside; when the answer is *no* the page hides the question and ticks it itself from the residence** — a box whose value the student never gives (ADR-0115, P143) |
 | `livedOutsideCountry`, `alwaysUKResident`, `alwaysEUResident` | `residence.outside_residence_country_last_three_years`, `residence.always_in_residence_country`, `residence.always_in_eu` | option, true → *yes*, false → *no* — asked, never computed from the history. Two renamed once from `nationality.js` (P142): the page fills both questions with the permanent-residence country's name, *the UK* only when that is the United Kingdom |
 | `dateEnteredUKMonth`, `dateEnteredUKYear` | `residence.uk_entry_date` | `month` → option by the select's own names (*Jan* … *June*, *July* … *Sept* …); `year` → number; **no day** |
 | `previousCountryN` (1–4) | `residence.history` | period *N−1* (**empty beyond what the student listed**) → `countryCode` → option, `IR` → *IRAN:O* … (partial) |
@@ -582,10 +582,14 @@ the four things listed here are done. What is still open, so you are not asked t
    document, the interview asks *"a nationality or country"*). Which form the profile holds is
    for Vahid; the map's keys follow it.
 
-Two limits of the blueprint's condition language, recorded in ADR-0115, that you will see on the
-nationality page: a condition names one controlling field, so the script's *better of two
-nationalities* is read from the first nationality only, and the study block's OR over nationality
-and residence is written on the nationality alone. Neither is on Run A's path.
+Two limits of the blueprint's condition language, **blocker 30** (ADR-0115, P143), that you will
+see on the nationality page: a condition names one controlling field, so the script's *better of
+two nationalities* is read from the first nationality only, and the study block's OR over
+nationality and residence is written on the nationality alone. Vahid: a UK national living abroad
+is an ordinary student, and the day one arrives the condition is silently wrong rather than
+loudly missing. And one thing that is Sheffield's, dated 2026-09-15: the script's own
+`livedOutsideCountry == "yes"` clause never fires (it stores `"Yes"`), so the study block opens
+on nationality or residence alone; if they fix it, the condition drifts under the draft.
 
 Everything else — personal, contact, employment, the education dates, the radios' values, the
 document slots, the residence, status and study mappings, the passport row — is stable.

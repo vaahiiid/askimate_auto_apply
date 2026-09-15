@@ -109,6 +109,18 @@ asked (ADR-0115). The draft (0.2.22) carries the rules as twelve sections with `
 two things the condition language cannot say (one controlling field, no OR across fields) are
 recorded in ADR-0115 rather than approximated silently.
 
+## Two things to hold against this script, dated 2026-09-15
+
+- **The portal's own bug.** `updateSections()` opens the study block on
+  `livedOutsideCountry == "yes"` among other clauses, but the script sets that variable to
+  `"Yes"`, so the clause never fires. The block is opened by nationality (`E`/`O`/`Q`) or
+  residence (`E`/`O`) alone, and the draft's condition says exactly that. If Sheffield fixes the
+  comparison, the block opens for one more case and the draft is wrong until it is re-read.
+- **A field the page answers itself.** When living-outside is No, the script hides *"Are you
+  currently living in the UK?"* and ticks it from the residence (*yes* for `United Kingdom:H`,
+  *no* otherwise). The student never gives that answer and the fill never types it; a read-back
+  of that box is the portal's inference, not the student's statement.
+
 ## What the next step needed, and got
 
 `nationality.js` itself — one file, the site's script, no personal data — saved from the browser

@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.140.0] — 2026-09-15
+
+**P143 — records at Vahid's word: why the script was read; the field the page answers itself;
+Sheffield's dated bug; blocker 30 (the condition language); the interview's scope note; the
+blocker 25 sheet with the nationality vocabulary.**
+
+### Recorded
+
+- ADR-0115 and ADR-0113 addenda; set 0.3.26 (a note only); the review pack; the capture README;
+  `docs/decision-sheet-blocker-25-…md`.
+
+---
+
 ## [0.139.0] — 2026-09-15
 
 **P142 — `nationality.js` read: two residence fields renamed once from the script; the

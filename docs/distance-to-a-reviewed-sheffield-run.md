@@ -187,7 +187,10 @@ this: its profile is confirmed through the service's own store and page by the d
 client, lists included, and the journey does exactly that today. Run B, the student talking to
 AskiMate, meets it on its first required field with no question. Not on Run A's list for that
 reason; on Run B's for the same reason. How it is to be built is decided (ADR-0113, in his
-words): entry by entry, and never from a pasted CV the model summarises.
+words): entry by entry, and never from a pasted CV the model summarises. One scope note for
+that build, from the nationality page's script (P142, recorded in ADR-0113): the seven UK
+status claims are asked by the portal only of a non-UK national resident in the UK or the EU, so
+the interview should ask them only when the residence makes a portal ask.
 
 ## Blocker 25, raised here
 
@@ -208,6 +211,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P143: records at his word — the ADR says why the script was read, not only what
+  it said; the field the page answers itself is on the record; Sheffield's own bug is dated and
+  the drift named; blocker 30 raised for what the condition language cannot say, with his
+  sentence; the interview's scope note where Run B is scoped. The blocker 25 sheet written, the
+  nationality vocabulary answered with it. Five open of ten, unchanged.
 - 2026-09-15, P142: `nationality.js` read from his commit. The two residence fields renamed
   once from the script; the page's show/hide on the draft (0.2.22) as twelve sections; set
   0.3.25's nine mappings (the nationality selects, the UK-study block); the entry-date question

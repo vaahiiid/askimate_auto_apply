@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P143 — handled rather than absorbed
+
+He kept the renames and said why the script was read, which is now in the ADR in his words: a student resident in Iran would have answered "have you always lived in Iran" and we would have stored it under always_in_uk, and nobody would have noticed until a form somewhere read that field and meant the UK. Three things from the read are on the record rather than in a reply. The field the page answers itself — living in the UK, ticked by the script from the residence when the student says they have not lived outside it — is a box whose value the student never gives and this system never types, and a later phase that reads it back as the student's answer is wrong; the set's note says so, and the pack. The two things the condition language cannot say are blocker 30 with his sentence attached: true of Run A and not of the product, and the day a UK national living abroad arrives the condition is silently wrong rather than loudly missing. And Sheffield's own bug is recorded as the portal's, dated, with what it means: the study block opens on nationality or residence alone, and if they fix the comparison the condition drifts under the draft. The note that the interview should ask the seven claims only when the residence makes a portal ask went to ADR-0113, where the person who builds the interview will read it.
+
+The blocker 25 sheet is written. The institution box is one of five places on the form with the same shape — degree, subject, grading system and grade, and the five per-level UK-study selects — where the portal's own list meets the student's words and no rule joins them. Three options: the box as the student's own act; the interview offering the portal's entries and recording the choice on the case, the profile staying portal-free; a reviewed map per institution. B is recommended, with the reviewer's record for Run A and the runner's search for the product. The registry's nationality vocabulary is answered on the same sheet: a code, through a reviewed table, with a word the table does not know refused. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P142 — what the script says, once
 
 He committed nationality.js and it says what the two spans hold: the permanent-residence country's name, "the UK" only when that country is the United Kingdom. So the two fields were asking about the country of permanent residence, not the UK, and both are renamed once, from the script, as he asked, with their labels; their mappings do not change. The script also says who is shown what: the always-lived questions and the entry date only to a resident of the UK or its territories, the seven claims only to a non-UK national resident in the UK or the EU, the passport to every non-UK national, the country blocks and the living-in-the-UK question after "yes" to living outside, the study block to a non-UK national and its details after "yes". The entry-date question from P139 is answered by the page itself: a student who never entered the UK is never shown the boxes.
