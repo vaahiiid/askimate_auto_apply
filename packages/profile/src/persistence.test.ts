@@ -91,6 +91,25 @@ describe("a rehydrated value is the value that was confirmed", () => {
     expect(decodeValue(JSON.parse(JSON.stringify(encoded)))).toEqual([entry]);
   });
 
+  it("round-trips the residence and UK-study groups — a period that is current, a study with a visa expiry that comes back as a Date (ADR-0115)", () => {
+    const history = [
+      { countryCode: "IR", from: { year: 2015, month: 9 }, to: { kind: "ended" as const, date: { year: 2019, month: 8 } } },
+      { countryCode: "GB", from: { year: 2019, month: 9 }, to: { kind: "current" as const } },
+    ];
+    expect(decodeValue(JSON.parse(JSON.stringify(encodeValue(history))))).toEqual(history);
+    const study = {
+      kind: "studied" as const,
+      onStudentVisa: true,
+      highestLevel: "university" as const,
+      qualification: "MSc Data Science",
+      timeOnVisa: { years: 1, months: 3 },
+      currentVisaExpiry: new Date("2027-01-31T00:00:00Z"),
+    };
+    const back = decodeValue(JSON.parse(JSON.stringify(encodeValue(study)))) as typeof study;
+    expect(back).toEqual(study);
+    expect(back.currentVisaExpiry).toBeInstanceOf(Date);
+  });
+
   it("brings a Date back as a Date, not as a string", () => {
     // The silent defect: `JSON.parse(JSON.stringify(profile))` typechecks,
     // passes a shallow equality test, and then throws the first time anything

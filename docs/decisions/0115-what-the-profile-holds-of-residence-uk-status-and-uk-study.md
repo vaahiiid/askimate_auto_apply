@@ -2,7 +2,7 @@
 
 **Status:** Accepted · 2026-09-15 · decides distance item 3's second half (three of its four groups) · continues 0111, 0112 (the shapes of a month-and-year and an explicit end) and 0113 (asked, not inferred)
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-15, from
-[`decision-sheet-item-3-…md`](../decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md). The three shapes below are **proposed and not yet confirmed**; nothing is built until he confirms them. Group 4 (the passport when there is none) waits on his read of the row's words.
+[`decision-sheet-item-3-…md`](../decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md). The three shapes below were proposed 2026-09-15 and **confirmed by him the same day with one change** (the entry date as month and year — see *Confirmed* below); **built in P139**. Group 4 (the passport when there is none) waits on his read of the row's words.
 
 ## Decision
 
@@ -32,7 +32,42 @@ In his words, group by group:
 >
 > **Group 4, the passport instruction:** *"I will read the row and bring you its words."*
 
-## The three shapes — PROPOSED, awaiting his confirmation
+## Confirmed — 2026-09-15, with one change and two reasons
+
+In his words:
+
+> *"The three shapes: confirmed, with one change."*
+>
+> *"The change. residence.uk_entry_date should be month and year, not a full date, and the day
+> the page asks for is the mapping's problem rather than the profile's."*
+>
+> *"Sheffield asks a day because it asks a day, not because anyone knows it. A student who came
+> to the UK in September 2019 knows the month; most do not know the date, and the ones who do
+> are reading it off a visa stamp. Holding a Date means the profile carries a day that in
+> almost every case will be invented at the point of asking — which is the thing we have
+> refused everywhere else."*
+>
+> *"If the portal insists on a day, that is a value we do not hold and it asks the student, the
+> same as any unavailable value. One extra question for the students who reach that page beats
+> a fabricated day for all of them."*
+>
+> *"Everything else stands as proposed. Two things I want to say why on, since a later phase may
+> want to undo them."*
+>
+> *"The three starred yes/no questions asked rather than computed from the history. Computing
+> 'always lived in the UK' from a residence history means a student who gave three periods
+> gets a 'no' that is really 'the list I typed does not say otherwise'. The history is what
+> they remembered; the answer is what they claim. Those are different, and only one of them is
+> signed at the bottom of an application."*
+>
+> *"And the seven status claims each mapping to its own radio with nothing derived. That is
+> already decided but the reason belongs in ADR-0115 too, not only in ADR-0114: a wrong yes
+> opens a document slot the student must refuse or fill."*
+
+So `residence.uk_entry_date` is a `YearMonth`; every day select on the page is unmapped by
+decision, and a portal that insists on a day asks the student for it as any unavailable value.
+
+## The three shapes — as proposed, and confirmed above
 
 All three follow ADR-0111 and 0112: a month-and-year where a form asks one, an explicit kind
 where absence would otherwise be read as a claim, and nothing derived from a postal address or a
@@ -44,7 +79,7 @@ passport's issuer.
 |---|---|---|---|
 | `residence.country` | country code, required | `permanentResidence`, `ukPermanentResidence` | the country of permanent residence — a statement, not the address's country |
 | `residence.in_uk_now` | boolean, required | `livingInUK` (starred), `applicationLocation` | asked, never read off the history |
-| `residence.uk_entry_date` | `Date`, optional | `dateEnteredUK` (day, month, year) | the page asks a day, so a full date; absent claims nothing — the boxes are left empty |
+| `residence.uk_entry_date` | ~~`Date`~~ **`YearMonth`** (his change) | `dateEnteredUK` (month, year; the day unmapped) | a month and a year, never a day; the day the page asks for is the mapping's problem, asked of the student as any unavailable value |
 | `residence.history` | list of `{ countryCode; from: YearMonth; to: { kind: "ended"; date: YearMonth } \| { kind: "current" } }`, required, may be confirmed empty | the four `previousCountry` blocks with from/to dates | one entry per period; a current period is the student's statement; the page's four blocks take the first four |
 
 The three starred yes/no questions — *always lived in the UK*, *always lived in the EU*, *lived
@@ -79,7 +114,40 @@ expressible as a proposal — a new origin, `derived`, naming the field it came 
 interview raises it, the field is asked outright, which is his fallback. The build carries the
 origin; the question is asked; the proposal is the interview's when the interview is built.
 
-### What the build touches, when confirmed
+### Built — P139, 2026-09-15
+
+- `packages/profile`: `ResidencePeriod`, `UkStatusClaims`, `UkStudyLevel`, `UkStudy`; the nine
+  fields (`residence.country`, `residence.in_uk_now`, `residence.uk_entry_date` as `YearMonth`,
+  `residence.history` list-valued, the three asked booleans, `immigration.uk_status`,
+  `immigration.uk_study`), ordinary, labelled; persistence round-trips a current period and a
+  study whose visa expiry comes back as a `Date`.
+- `packages/domain`: the `derived` origin on a proposal, which must name `derivedFrom` — and only
+  a derived proposal may. The interview does not raise it yet (Run B, ADR-0113); the field is
+  asked outright, his fallback.
+- Set 0.3.23: thirty-six mappings on the nationality page from the three groups — the residence
+  selects and radios; the entry date's month and year; the four previous-country blocks from the
+  first four periods of the history, empty beyond what the student listed and the to-date empty
+  for a current period; the seven status radios; `previousStudentVisa` from the study's kind. The
+  country maps are partial (eight countries) for the reviewer to extend. Proved on a synthetic
+  profile in `scripts/sheffield-draft.test.ts`: no day is typed anywhere.
+- **Deliberately unmapped, and why:** every day select (the profile holds no day);
+  `ukPermanentResidence` (a UK region the registry does not hold, off an international
+  student's path); the UK-study block the page shows after *yes* — `qualificationLevel`, the five
+  per-level selects, `highestQualificationOther`, the years and months on the visa, the visa
+  expiry — because the draft has no show/hide for it and mapping a hidden select types into a
+  box the page does not show. Its show/hide is read off the page's own script from his
+  committed `nationality.do` markup, as P112 read `showHideDocumentUploads`, before those
+  mappings are written. Those required fields remain `no_mapping` blockers until then.
+- **One consequence to be aware of, not decided here.** A mapped field with no confirmed value
+  blocks a fill, required on the page or not — a mapped box with no value is a value the student
+  has not given, and the registry has no "optional field", only optional *parts* of a value.
+  So a student who has never entered the UK has no entry date to confirm, and the entry-date
+  boxes block unless the page hides them for a student outside the UK. Whether it does is in
+  the same script read. If the page shows the date to everyone, the field needs a stated
+  "never entered" kind beside the date, as a job's end has "current" — his call, when the read
+  says which.
+
+### What the build touched
 
 - `packages/profile`: three groups, their categories (ordinary), labels, persistence.
 - `packages/domain`: the `derived` origin on a proposal, naming its source field.

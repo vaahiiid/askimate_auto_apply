@@ -121,7 +121,15 @@ export type ExtractionOrigin =
   /** Something the student said in conversation with the agent (ADR-0007). */
   | "conversation"
   /** Something read out of an uploaded document (brief §2.3). */
-  | "document";
+  | "document"
+  /**
+   * Proposed FROM another confirmed field (ADR-0115): a qualification whose
+   * country is the UK proposes "studied in the UK". A proposal the student
+   * confirms, never an answer — Vahid: *"derive it as a proposal the student
+   * confirms, not as an answer."* Carries `derivedFrom`, the field it came
+   * from, so the student is shown what it was read off.
+   */
+  | "derived";
 
 /**
  * A structured value the agent has INTERPRETED but the student has NOT yet
@@ -170,6 +178,8 @@ export interface ProposedValueFields<T> {
    */
   readonly confidence: number;
   readonly documentId?: string;
+  /** The confirmed field a `derived` proposal was read off. Present exactly when the origin is `derived`. */
+  readonly derivedFrom?: string;
 }
 
 export type ProposedValue<T> = Brand<ProposedValueFields<T>, "ProposedValue">;
@@ -186,9 +196,20 @@ export function proposeValue<T>(input: {
   readonly verbatim: string;
   readonly confidence: number;
   readonly documentId?: string;
+  readonly derivedFrom?: string;
 }): ProposedValue<T> {
   if (!(input.confidence >= 0 && input.confidence <= 1)) {
     throw new RangeError(`confidence must be between 0 and 1, received: ${String(input.confidence)}`);
+  }
+  // A derived proposal names its source, and only a derived one does: a
+  // student confirming "studied in the UK" is shown which qualification said
+  // so, and a proposal from conversation or a document has no field to name.
+  if ((input.origin === "derived") !== (input.derivedFrom !== undefined)) {
+    throw new RangeError(
+      input.origin === "derived"
+        ? `A derived proposal must name the field it was derived from.`
+        : `Only a derived proposal names a source field; origin "${input.origin}" cannot.`,
+    );
   }
   return {
     value: input.value,
@@ -196,6 +217,7 @@ export function proposeValue<T>(input: {
     verbatim: input.verbatim,
     confidence: input.confidence,
     ...(input.documentId !== undefined ? { documentId: input.documentId } : {}),
+    ...(input.derivedFrom !== undefined ? { derivedFrom: input.derivedFrom } : {}),
   } as unknown as ProposedValue<T>;
 }
 

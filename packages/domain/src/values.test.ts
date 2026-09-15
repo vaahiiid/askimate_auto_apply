@@ -119,6 +119,27 @@ describe("the wall between model output and form fields", () => {
     expect(provenance.documentId).toBe("doc_abc123");
   });
 
+  it("lets a proposal be DERIVED from another field, and makes it name that field (ADR-0115)", () => {
+    // Vahid: "derive it as a proposal the student confirms, not as an answer."
+    // The origin is what the interview shows beside the question; the source
+    // field is what the student is shown it was read off.
+    const derived = proposeValue({
+      value: { kind: "studied" },
+      origin: "derived",
+      verbatim: "your BSc at the University of Sheffield (United Kingdom)",
+      confidence: 0.9,
+      derivedFrom: "education.prior_qualifications",
+    });
+    expect(unwrapProposed(derived).origin).toBe("derived");
+    expect(unwrapProposed(derived).derivedFrom).toBe("education.prior_qualifications");
+    expect(() =>
+      proposeValue({ value: 1, origin: "derived", verbatim: "x", confidence: 0.5 }),
+    ).toThrow(/must name the field/);
+    expect(() =>
+      proposeValue({ value: 1, origin: "conversation", verbatim: "x", confidence: 0.5, derivedFrom: "identity.nationality" }),
+    ).toThrow(/Only a derived proposal/);
+  });
+
   it("preserves non-string value types", () => {
     const dob = mintConfirmed(new Date("1999-04-02T00:00:00Z"), PROVENANCE);
     expect(unwrapConfirmed(dob).getUTCFullYear()).toBe(1999);

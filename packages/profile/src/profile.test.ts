@@ -8,7 +8,7 @@ import { proposeValue, isFieldUnavailable, studentId, unwrapConfirmed } from "@a
 
 import { applyConfirmation, isDeclined } from "./confirmation.js";
 import type { ConfirmedField } from "./confirmation.js";
-import type { ProfileFieldKey } from "./fields.js";
+import type { ProfileFieldType, ProfileFieldKey } from "./fields.js";
 import {
   confirmField,
   confirmedFieldKeys,
@@ -179,6 +179,28 @@ describe("driving the interview", () => {
     profile = confirmField(profile, confirmed("identity.family_name", "Hosseini" as never), NOW);
 
     expect(missingFields(profile, ["identity.given_name", "identity.family_name"])).toEqual([]);
+  });
+});
+
+describe("residence, UK status and previous UK study are registry groups (ADR-0115)", () => {
+  it("holds the nine fields Vahid confirmed, ordinary, labelled, the history list-valued, the entry date a month and year", async () => {
+    const fields = await import("./fields.js");
+    const categories = await import("./categories.js");
+    for (const key of [
+      "residence.country", "residence.in_uk_now", "residence.uk_entry_date", "residence.history",
+      "residence.always_in_uk", "residence.always_in_eu", "residence.outside_uk_last_three_years",
+      "immigration.uk_status", "immigration.uk_study",
+    ] as const) {
+      expect(fields.PROFILE_FIELD_KEYS, key).toContain(key);
+      expect(categories.categoryOf(key), key).toBe("ordinary");
+      expect(fields.FIELD_LABELS[key].length, key).toBeGreaterThan(0);
+    }
+    expect(fields.LIST_VALUED_FIELD_KEYS).toContain("residence.history");
+    expect(fields.LIST_VALUED_FIELD_KEYS).not.toContain("immigration.uk_status");
+    // The change he made to the proposal: a month and a year, never a day.
+    // Typed here so a Date cannot be confirmed into it.
+    const entry: ProfileFieldType<"residence.uk_entry_date"> = { year: 2019, month: 9 };
+    expect(entry).toEqual({ year: 2019, month: 9 });
   });
 });
 

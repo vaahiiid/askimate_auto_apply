@@ -87,7 +87,12 @@ In the order they bite, each with who holds it and the evidence.
    mandatory here is item 1. **Iman's mapping** for what the registry reaches; **a product
    decision** for what it does not — **the sheet is written (P136):**
    [`decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md`](./decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md),
-   four groups with options and a recommendation each; his answers, in his words.
+   four groups with options and a recommendation each; his answers, in his words. **P139
+   (ADR-0115, confirmed by him with one change):** the registry holds the three groups and
+   set 0.3.23 maps thirty-six of the page's fields from them — no day anywhere, by his change.
+   What still waits: the UK-study block shown after *yes* (its show/hide read off the script
+   in his committed `nationality.do` markup, then mapped), the passport row (group 4, the same
+   read), and Iman's sitting for the partial country maps and the rest.
 4. **The language page: nineteen fields, none mapped.** The registry has
    `education.english_language_test`; the page asks the test type (42 options), the award date
    as three selects, certificate numbers, awarding body and the component scores, and offers a
@@ -198,6 +203,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P139: ADR-0115 built on his confirmation with one change — the entry date as
+  month and year, never a day; his two reasons recorded. Three registry groups, the `derived`
+  origin, set 0.3.23's thirty-six nationality mappings; the unmapped count on the three pages
+  down from forty to twenty-eight. The UK-study block and the passport row wait on his
+  committed markup. Five open of ten, unchanged.
 - 2026-09-15, P138: blocker 28 decided and built the same day (ADR-0116: a cancel is the
   student's stop). A seventh run status; the run stops where it was on the next tick, the
   student told once; the restart is asking to apply again, a fresh box, nothing repeated; the

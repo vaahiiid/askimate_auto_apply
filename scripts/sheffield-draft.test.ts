@@ -227,16 +227,20 @@ describe("the Sheffield drafts, under the real checks", () => {
     // student's own act (ADR-0107). NOTHING else blocks: no covered control,
     // no unclassified field, no refused render.
     expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
+    // P139 (ADR-0115): the twelve nationality radios the registry now
+    // reaches are mapped; what remains on that page is the UK-study block
+    // shown after "yes" (its show/hide unread) and the passport number
+    // (group 4, his read).
     expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
-      "alwaysEUResident", "alwaysUKResident", "awardingBody", "britishPassport", "certificateNumber", "certificateNumber2",
+      "awardingBody", "certificateNumber", "certificateNumber2",
       "dateOfAward.day", "dateOfAward.month", "dateOfAward.year", "degree",
-      "euPassport", "firstLanguage",
+      "firstLanguage",
       "highestQualification(ENGLISH_LANGUAGE_STUDY)", "highestQualification(FOUNDATION_LEVEL)", "highestQualification(SCHOOL_LEVEL)",
       "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)", "highestQualification(UNIVERSITY_LEVEL)", "highestQualificationOther",
-      "indefinateVisa", "languageCertificate", "languageCertificateStatus", "listeningScore", "livedOutsideCountry", "livingInUK",
-      "migrantWorker", "overallScore", "overallScoreComponent", "passportNumber",
-      "previousEducationLanguage", "previousEnglishEducation", "previousStudentVisa", "qualificationLevel", "readingScore",
-      "refugeeStatus", "speakingScore", "spouseOfEUCitizen", "spouseOfUKCitizen",
+      "languageCertificate", "languageCertificateStatus", "listeningScore",
+      "overallScore", "overallScoreComponent", "passportNumber",
+      "previousEducationLanguage", "previousEnglishEducation", "qualificationLevel", "readingScore",
+      "speakingScore",
       "title", "unlistedDegree", "writingScore",
     ]);
   });
@@ -260,19 +264,28 @@ describe("the Sheffield drafts, under the real checks", () => {
     // is neither filled nor missing — the form does not show it.
     expect(typed.has("corrIntlPostcode")).toBe(false);
     expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
-    // Forty observed-mandatory fields on the three unmapped pages (P126)
-    // have no mapping; the four required employment fields (P129) and the
-    // four education date selects (P134) are mapped and, with no list
-    // confirmed, unavailable. Nothing else.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(40);
+    // Twenty-eight observed-mandatory fields on the unmapped parts of the
+    // three pages (P126) have no mapping; the eight employment fields (P129,
+    // P134) and the thirty-six nationality fields (P139) are mapped and, with
+    // nothing confirmed for them, unavailable — required or not: an unmapped
+    // optional box is left alone, a MAPPED one with no value is a value the
+    // student has not given. Nothing else.
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(28);
     expect(plan.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
-      "duties", "employerDetails", "endDateMonth", "endDateYear", "position", "startDateMonth", "startDateYear", "startMonth",
+      "alwaysEUResident", "alwaysUKResident", "applicationLocation", "britishPassport", "dateEnteredUKMonth", "dateEnteredUKYear",
+      "dateFromMonth1", "dateFromMonth2", "dateFromMonth3", "dateFromMonth4", "dateFromYear1", "dateFromYear2",
+      "dateFromYear3", "dateFromYear4", "dateToMonth1", "dateToMonth2", "dateToMonth3", "dateToMonth4",
+      "dateToYear1", "dateToYear2", "dateToYear3", "dateToYear4", "duties", "employerDetails",
+      "endDateMonth", "endDateYear", "euPassport", "indefinateVisa", "livedOutsideCountry", "livingInUK",
+      "migrantWorker", "permanentResidence", "position", "previousCountry1", "previousCountry2", "previousCountry3",
+      "previousCountry4", "previousStudentVisa", "refugeeStatus", "spouseOfEUCitizen", "spouseOfUKCitizen", "startDateMonth",
+      "startDateYear", "startMonth",
     ]);
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.21");
-    expect(mappingSet.version).toBe("0.3.22");
+    expect(mappingSet.version).toBe("0.3.23");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -327,6 +340,68 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("position");
   });
 
+  it("fill the nationality page's residence, status and study from the three registry groups — the day selects untouched, the history's periods into the four blocks, a current period's end empty (P139, ADR-0115)", () => {
+    const withResidence = withConfirmed([
+      ...PROFILE_ENTRIES,
+      ["residence.country", "IR"],
+      ["residence.in_uk_now", true],
+      ["residence.uk_entry_date", { year: 2019, month: 9 }],
+      ["residence.history", [
+        { countryCode: "IR", from: { year: 2015, month: 9 }, to: { kind: "ended", date: { year: 2019, month: 8 } } },
+        { countryCode: "GB", from: { year: 2019, month: 9 }, to: { kind: "current" } },
+      ]],
+      ["residence.always_in_uk", false],
+      ["residence.always_in_eu", false],
+      ["residence.outside_uk_last_three_years", true],
+      ["immigration.uk_status", {
+        british_passport: false, indefinite_leave: false, refugee_status: false, migrant_worker: false,
+        spouse_of_uk_citizen: false, eu_passport: false, spouse_of_eu_citizen: false,
+      }],
+      ["immigration.uk_study", { kind: "none" }],
+    ]);
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, withResidence);
+    const typed = new Map(plan.instructions.map((i) => [i.fieldRef, textOf(i.value)]));
+    expect(typed.get("permanentResidence")).toBe("Iran, Islamic Republic of:O");
+    expect(typed.get("livingInUK")).toBe("yes");
+    expect(typed.get("applicationLocation")).toBe("Inside UK");
+    expect(typed.get("livedOutsideCountry")).toBe("yes");
+    expect(typed.get("alwaysUKResident")).toBe("no");
+    expect(typed.get("alwaysEUResident")).toBe("no");
+    // The entry date: month by the select's own name, the year as digits, and
+    // NO day — the profile holds none, by Vahid's change to the proposal.
+    expect(typed.get("dateEnteredUKMonth")).toBe("Sept");
+    expect(typed.get("dateEnteredUKYear")).toBe("2019");
+    expect(typed.has("dateEnteredUKDay")).toBe(false);
+    // The history's two periods into the first two blocks; the third and
+    // fourth left empty; the current period's end empty; no day anywhere.
+    expect(typed.get("previousCountry1")).toBe("IRAN:O");
+    expect(typed.get("dateFromMonth1")).toBe("Sept");
+    expect(typed.get("dateFromYear1")).toBe("2015");
+    expect(typed.get("dateToMonth1")).toBe("Aug");
+    expect(typed.get("dateToYear1")).toBe("2019");
+    expect(typed.get("previousCountry2")).toBe("UNITED KINGDOM:H");
+    expect(typed.get("dateToMonth2")).toBe("");
+    expect(typed.get("dateToYear2")).toBe("");
+    expect(typed.get("previousCountry3")).toBe("");
+    expect(typed.get("dateFromMonth4")).toBe("");
+    for (const day of ["dateFromDay1", "dateToDay1", "dateFromDay2", "dateToDay2"]) expect(typed.has(day), day).toBe(false);
+    // Seven claims, seven radios, all "no" — and none read off the passport.
+    for (const ref of ["britishPassport", "indefinateVisa", "refugeeStatus", "migrantWorker", "spouseOfUKCitizen", "euPassport", "spouseOfEUCitizen"]) {
+      expect(typed.get(ref), ref).toBe("no");
+    }
+    expect(typed.get("previousStudentVisa")).toBe("no");
+    // Nothing mapped on the page blocks; what still blocks there is the
+    // UK-study block shown after "yes" and the passport number.
+    const stillBlocked = ["qualificationLevel", "highestQualificationOther", "passportNumber",
+      "highestQualification(ENGLISH_LANGUAGE_STUDY)", "highestQualification(FOUNDATION_LEVEL)", "highestQualification(SCHOOL_LEVEL)",
+      "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)", "highestQualification(UNIVERSITY_LEVEL)"];
+    const page5 = blueprint.pages.find((p) => p.pageRef === "page5");
+    const refs = new Set(page5?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? []);
+    expect(plan.blockers.filter((b) => refs.has(b.fieldRef)).map((b) => b.fieldRef).sort()).toEqual([...stillBlocked].sort());
+  });
+
   it("complete the employment page with NO entries when the student confirmed none, and say so plainly in the preview (P129, ADR-0111)", () => {
     // Vahid, 2026-09-14: "A student with nothing to add should see that we
     // knew and chose to leave it empty, not wonder whether we forgot."
@@ -341,7 +416,14 @@ describe("the Sheffield drafts, under the real checks", () => {
     // blocks on its required fields, as any unasked value does.
     const unasked = planFill(blueprint, check.mappingSet, PROFILE);
     expect(unasked.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
-      "duties", "employerDetails", "endDateMonth", "endDateYear", "position", "startDateMonth", "startDateYear", "startMonth",
+      "alwaysEUResident", "alwaysUKResident", "applicationLocation", "britishPassport", "dateEnteredUKMonth", "dateEnteredUKYear",
+      "dateFromMonth1", "dateFromMonth2", "dateFromMonth3", "dateFromMonth4", "dateFromYear1", "dateFromYear2",
+      "dateFromYear3", "dateFromYear4", "dateToMonth1", "dateToMonth2", "dateToMonth3", "dateToMonth4",
+      "dateToYear1", "dateToYear2", "dateToYear3", "dateToYear4", "duties", "employerDetails",
+      "endDateMonth", "endDateYear", "euPassport", "indefinateVisa", "livedOutsideCountry", "livingInUK",
+      "migrantWorker", "permanentResidence", "position", "previousCountry1", "previousCountry2", "previousCountry3",
+      "previousCountry4", "previousStudentVisa", "refugeeStatus", "spouseOfEUCitizen", "spouseOfUKCitizen", "startDateMonth",
+      "startDateYear", "startMonth",
     ]);
     // The preview says it, inside the yes.
     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page8") };

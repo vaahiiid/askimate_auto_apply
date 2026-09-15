@@ -50,10 +50,11 @@
     "",
     "Education (page7), P132 (2026-09-14): the dependent lists are in the blueprint (0.2.21) from Vahid's read of the page AS IT STOOD (--as-is) with United Kingdom, University of Sheffield and the grading system 'UK Bachelors Degree (BA, BSc)' chosen and 'business' searched: institutionCode holds the chosen value SHEFFIELD (the same value P118's typeahead entry carries); gradingSystemId's six options with numeric values (7, 8, 9, 81) and the escape 'Not in list', PER INSTITUTION — Sheffield's; grade's nine for system 7 — 1st, 2.1, 2.2, 3rd, Pass, Fail and the two non-grades 'Still waiting for grade' / 'Failed to complete course' — PER GRADING SYSTEM; subject's 87 for one search word, two values with a trailing space the label hides and one value listed twice. No mapping on this page is authored here: the registry's Qualification has a completion year and no start or end date, and the page's four date selects are marked mandatory — raised as blocker 27, his decision, the same shape as item 2 was. degree and unlistedDegree keep the third read's marks; the as-is read did not see the row's star, and the difference is flagged for the reviewer.",
     "",
-    "Education (page7), P134 (2026-09-15, ADR-0112): Qualification now carries a start and an end as month and year and an optional award date — decided by Vahid: 'add the dates to Qualification. Same reasoning as employment.' The six date selects are mapped per qualification: the start and end months by the selects' three-letter names, the years as digits, the award date left EMPTY when the student has none (part … absent: leave_empty — an absent award claims nothing) and never derived from the end. The page's other fields (institution, degree, subject, grading system, grade) still wait on the reviewer's option maps onto the observed lists (P132) and on blocker 25."
+    "Education (page7), P134 (2026-09-15, ADR-0112): Qualification now carries a start and an end as month and year and an optional award date — decided by Vahid: 'add the dates to Qualification. Same reasoning as employment.' The six date selects are mapped per qualification: the start and end months by the selects' three-letter names, the years as digits, the award date left EMPTY when the student has none (part … absent: leave_empty — an absent award claims nothing) and never derived from the end. The page's other fields (institution, degree, subject, grading system, grade) still wait on the reviewer's option maps onto the observed lists (P132) and on blocker 25.",
+    "Nationality and residence (page5), P139 (2026-09-15, ADR-0115): the three registry groups Vahid confirmed — residence (the country of permanent residence, in the UK now, the entry date as MONTH AND YEAR by his change, a history of periods, three asked booleans), immigration.uk_status (seven claims, all asked, none derived) and immigration.uk_study (none, or studied with its details). Thirty-six mappings: the residence selects and radios, the entry date's month and year, the four previous-country blocks from the first four periods of the history (empty beyond what the student listed; the to-date empty for a current period), the seven status radios, and previousStudentVisa from the study's kind. Deliberately unmapped: every DAY select (the profile holds no day — a day the portal insists on is asked of the student as any unavailable value), ukPermanentResidence (a UK region the registry does not hold; not on an international student's path), and the UK-study block shown after 'yes', which waits on the page's show/hide script from Vahid's committed markup. The country maps are PARTIAL (eight countries), for the reviewer to extend from the captured options."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.21",
@@ -654,6 +655,954 @@
         "kind": "student_handoff",
         "reason": "You attach the transcript translation for each qualification yourself, on the education page (ADR-0104, Vahid's decision of 2026-09-11: the documents of a repeating page are the student's own act)."
       }
+    },
+    {
+      "fieldRef": "permanentResidence",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.country",
+        "format": {
+          "kind": "option",
+          "options": {
+            "GB": "United Kingdom:H",
+            "IR": "Iran, Islamic Republic of:O",
+            "IN": "India:O",
+            "PK": "Pakistan:O",
+            "CN": "China:O",
+            "NG": "Nigeria:O",
+            "TR": "Turkey:O",
+            "US": "United States of America:O"
+          }
+        }
+      },
+      "note": "Country of permanent residence — the portal's own values, with their ':H'/':O' suffix as captured. PARTIAL map (eight countries), as the contact page's; any other refuses to render, for the reviewer to extend from the captured options. A statement, not the address's country (ADR-0115)."
+    },
+    {
+      "fieldRef": "livingInUK",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.in_uk_now",
+        "format": {
+          "kind": "option",
+          "options": {
+            "true": "yes",
+            "false": "no"
+          }
+        }
+      },
+      "note": "Are you currently living in the UK?* — asked, never read off the history (ADR-0115). The page's lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "applicationLocation",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.in_uk_now",
+        "format": {
+          "kind": "option",
+          "options": {
+            "true": "Inside UK",
+            "false": "Outside UK"
+          }
+        }
+      },
+      "note": "Inside/Outside UK — the same fact as livingInUK, in the portal's other words."
+    },
+    {
+      "fieldRef": "livedOutsideCountry",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.outside_uk_last_three_years",
+        "format": {
+          "kind": "option",
+          "options": {
+            "true": "yes",
+            "false": "no"
+          }
+        }
+      },
+      "note": "Have you been living outside of this country during the last 3 years?* — asked, not computed from the history. Vahid: 'The history is what they remembered; the answer is what they claim.'"
+    },
+    {
+      "fieldRef": "alwaysUKResident",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.always_in_uk",
+        "format": {
+          "kind": "option",
+          "options": {
+            "true": "yes",
+            "false": "no"
+          }
+        }
+      },
+      "note": "Have you always lived in the UK?* — asked, not computed (ADR-0115)."
+    },
+    {
+      "fieldRef": "alwaysEUResident",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.always_in_eu",
+        "format": {
+          "kind": "option",
+          "options": {
+            "true": "yes",
+            "false": "no"
+          }
+        }
+      },
+      "note": "Have you always lived in the EU?* — asked, not computed (ADR-0115)."
+    },
+    {
+      "fieldRef": "dateEnteredUKMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.uk_entry_date",
+        "format": {
+          "kind": "part",
+          "path": "month",
+          "then": {
+            "kind": "option",
+            "options": {
+              "1": "Jan",
+              "2": "Feb",
+              "3": "Mar",
+              "4": "Apr",
+              "5": "May",
+              "6": "June",
+              "7": "July",
+              "8": "Aug",
+              "9": "Sept",
+              "10": "Oct",
+              "11": "Nov",
+              "12": "Dec"
+            }
+          }
+        }
+      },
+      "note": "Date entered the UK — month, by the select's own names (Jan … June, July … Sept … Dec, as captured). The profile holds a month and a year, never a day (Vahid, 2026-09-15); dateEnteredUKDay is deliberately unmapped — a day the portal insists on is a value we do not hold and is asked of the student, as any unavailable value."
+    },
+    {
+      "fieldRef": "dateEnteredUKYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.uk_entry_date",
+        "format": {
+          "kind": "part",
+          "path": "year",
+          "then": {
+            "kind": "number"
+          }
+        }
+      },
+      "note": "As dateEnteredUKMonth; the year as digits."
+    },
+    {
+      "fieldRef": "previousCountry1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "0",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "countryCode",
+            "then": {
+              "kind": "option",
+              "options": {
+                "GB": "UNITED KINGDOM:H",
+                "IR": "IRAN:O",
+                "IN": "INDIA:O",
+                "PK": "PAKISTAN:O",
+                "CN": "CHINA:O",
+                "NG": "NIGERIA:O",
+                "TR": "TURKEY:O",
+                "US": "UNITED STATES:O"
+              }
+            }
+          }
+        }
+      },
+      "note": "Previous country 1 — the first period of residence.history, or EMPTY when the student listed fewer (an absent entry claims nothing). The portal's UPPER-CASE names with their suffix, as captured; PARTIAL map, as permanentResidence's."
+    },
+    {
+      "fieldRef": "dateFromMonth1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "0",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "Jan",
+                  "2": "Feb",
+                  "3": "Mar",
+                  "4": "Apr",
+                  "5": "May",
+                  "6": "June",
+                  "7": "July",
+                  "8": "Aug",
+                  "9": "Sept",
+                  "10": "Oct",
+                  "11": "Nov",
+                  "12": "Dec"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "From — month of the first period; the day select is unmapped by decision (the profile holds no day)."
+    },
+    {
+      "fieldRef": "dateFromYear1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "0",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateFromMonth; the year as digits."
+    },
+    {
+      "fieldRef": "dateToMonth1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "0",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "month",
+                "then": {
+                  "kind": "option",
+                  "options": {
+                    "1": "Jan",
+                    "2": "Feb",
+                    "3": "Mar",
+                    "4": "Apr",
+                    "5": "May",
+                    "6": "June",
+                    "7": "July",
+                    "8": "Aug",
+                    "9": "Sept",
+                    "10": "Oct",
+                    "11": "Nov",
+                    "12": "Dec"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "To — month of the first period; left EMPTY for a period the student said is current (to.kind = current has no date): their statement, never a blank we inferred (ADR-0111's rule)."
+    },
+    {
+      "fieldRef": "dateToYear1",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "0",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "year",
+                "then": {
+                  "kind": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateToMonth."
+    },
+    {
+      "fieldRef": "previousCountry2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "1",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "countryCode",
+            "then": {
+              "kind": "option",
+              "options": {
+                "GB": "UNITED KINGDOM:H",
+                "IR": "IRAN:O",
+                "IN": "INDIA:O",
+                "PK": "PAKISTAN:O",
+                "CN": "CHINA:O",
+                "NG": "NIGERIA:O",
+                "TR": "TURKEY:O",
+                "US": "UNITED STATES:O"
+              }
+            }
+          }
+        }
+      },
+      "note": "As previousCountry1, for the second period."
+    },
+    {
+      "fieldRef": "dateFromMonth2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "1",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "Jan",
+                  "2": "Feb",
+                  "3": "Mar",
+                  "4": "Apr",
+                  "5": "May",
+                  "6": "June",
+                  "7": "July",
+                  "8": "Aug",
+                  "9": "Sept",
+                  "10": "Oct",
+                  "11": "Nov",
+                  "12": "Dec"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "From — month of the second period; the day select is unmapped by decision (the profile holds no day)."
+    },
+    {
+      "fieldRef": "dateFromYear2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "1",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateFromMonth; the year as digits."
+    },
+    {
+      "fieldRef": "dateToMonth2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "1",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "month",
+                "then": {
+                  "kind": "option",
+                  "options": {
+                    "1": "Jan",
+                    "2": "Feb",
+                    "3": "Mar",
+                    "4": "Apr",
+                    "5": "May",
+                    "6": "June",
+                    "7": "July",
+                    "8": "Aug",
+                    "9": "Sept",
+                    "10": "Oct",
+                    "11": "Nov",
+                    "12": "Dec"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "To — month of the second period; left EMPTY for a period the student said is current (to.kind = current has no date): their statement, never a blank we inferred (ADR-0111's rule)."
+    },
+    {
+      "fieldRef": "dateToYear2",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "1",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "year",
+                "then": {
+                  "kind": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateToMonth."
+    },
+    {
+      "fieldRef": "previousCountry3",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "2",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "countryCode",
+            "then": {
+              "kind": "option",
+              "options": {
+                "GB": "UNITED KINGDOM:H",
+                "IR": "IRAN:O",
+                "IN": "INDIA:O",
+                "PK": "PAKISTAN:O",
+                "CN": "CHINA:O",
+                "NG": "NIGERIA:O",
+                "TR": "TURKEY:O",
+                "US": "UNITED STATES:O"
+              }
+            }
+          }
+        }
+      },
+      "note": "As previousCountry1, for the third period."
+    },
+    {
+      "fieldRef": "dateFromMonth3",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "2",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "Jan",
+                  "2": "Feb",
+                  "3": "Mar",
+                  "4": "Apr",
+                  "5": "May",
+                  "6": "June",
+                  "7": "July",
+                  "8": "Aug",
+                  "9": "Sept",
+                  "10": "Oct",
+                  "11": "Nov",
+                  "12": "Dec"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "From — month of the third period; the day select is unmapped by decision (the profile holds no day)."
+    },
+    {
+      "fieldRef": "dateFromYear3",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "2",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateFromMonth; the year as digits."
+    },
+    {
+      "fieldRef": "dateToMonth3",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "2",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "month",
+                "then": {
+                  "kind": "option",
+                  "options": {
+                    "1": "Jan",
+                    "2": "Feb",
+                    "3": "Mar",
+                    "4": "Apr",
+                    "5": "May",
+                    "6": "June",
+                    "7": "July",
+                    "8": "Aug",
+                    "9": "Sept",
+                    "10": "Oct",
+                    "11": "Nov",
+                    "12": "Dec"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "To — month of the third period; left EMPTY for a period the student said is current (to.kind = current has no date): their statement, never a blank we inferred (ADR-0111's rule)."
+    },
+    {
+      "fieldRef": "dateToYear3",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "2",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "year",
+                "then": {
+                  "kind": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateToMonth."
+    },
+    {
+      "fieldRef": "previousCountry4",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "3",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "countryCode",
+            "then": {
+              "kind": "option",
+              "options": {
+                "GB": "UNITED KINGDOM:H",
+                "IR": "IRAN:O",
+                "IN": "INDIA:O",
+                "PK": "PAKISTAN:O",
+                "CN": "CHINA:O",
+                "NG": "NIGERIA:O",
+                "TR": "TURKEY:O",
+                "US": "UNITED STATES:O"
+              }
+            }
+          }
+        }
+      },
+      "note": "As previousCountry1, for the fourth period."
+    },
+    {
+      "fieldRef": "dateFromMonth4",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "3",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "Jan",
+                  "2": "Feb",
+                  "3": "Mar",
+                  "4": "Apr",
+                  "5": "May",
+                  "6": "June",
+                  "7": "July",
+                  "8": "Aug",
+                  "9": "Sept",
+                  "10": "Oct",
+                  "11": "Nov",
+                  "12": "Dec"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "From — month of the fourth period; the day select is unmapped by decision (the profile holds no day)."
+    },
+    {
+      "fieldRef": "dateFromYear4",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "3",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "from",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateFromMonth; the year as digits."
+    },
+    {
+      "fieldRef": "dateToMonth4",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "3",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "month",
+                "then": {
+                  "kind": "option",
+                  "options": {
+                    "1": "Jan",
+                    "2": "Feb",
+                    "3": "Mar",
+                    "4": "Apr",
+                    "5": "May",
+                    "6": "June",
+                    "7": "July",
+                    "8": "Aug",
+                    "9": "Sept",
+                    "10": "Oct",
+                    "11": "Nov",
+                    "12": "Dec"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "To — month of the fourth period; left EMPTY for a period the student said is current (to.kind = current has no date): their statement, never a blank we inferred (ADR-0111's rule)."
+    },
+    {
+      "fieldRef": "dateToYear4",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "residence.history",
+        "format": {
+          "kind": "part",
+          "path": "3",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "to",
+            "then": {
+              "kind": "part",
+              "path": "date",
+              "absent": "leave_empty",
+              "then": {
+                "kind": "part",
+                "path": "year",
+                "then": {
+                  "kind": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "As dateToMonth."
+    },
+    {
+      "fieldRef": "britishPassport",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "british_passport",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Do you have a British passport?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "indefinateVisa",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "indefinite_leave",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Do you have indefinite leave to enter or remain in the UK?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "refugeeStatus",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "refugee_status",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Do you hold refugee status?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "migrantWorker",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "migrant_worker",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Are you a migrant worker?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "spouseOfUKCitizen",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "spouse_of_uk_citizen",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Are you the spouse/civil partner of a UK citizen?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "euPassport",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "eu_passport",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Do you have an EU passport?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "spouseOfEUCitizen",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_status",
+        "format": {
+          "kind": "part",
+          "path": "spouse_of_eu_citizen",
+          "then": {
+            "kind": "option",
+            "options": {
+              "true": "yes",
+              "false": "no"
+            }
+          }
+        }
+      },
+      "note": "Are you the spouse/civil partner of an EU citizen?* — the student's own claim, never derived from the passport's issuing country. Vahid: 'a wrong yes opens a document slot the student must refuse or fill.' Lower-case yes/no (P110)."
+    },
+    {
+      "fieldRef": "previousStudentVisa",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "kind",
+          "then": {
+            "kind": "option",
+            "options": {
+              "none": "no",
+              "studied": "yes"
+            }
+          }
+        }
+      },
+      "note": "Have you previously studied in the UK?* — from the kind of immigration.uk_study: 'none' is a statement (ADR-0113). The block the page shows after 'yes' (qualificationLevel, the five per-level selects, highestQualificationOther, years/months on the visa, the visa expiry) is NOT mapped in this set: the draft has no visibleWhen for it, and mapping a hidden select would type into a box the page does not show. Its show/hide is read off the page's own script from Vahid's committed nationality.do markup, as P112 read showHideDocumentUploads, before those mappings are written."
     }
   ]
 }

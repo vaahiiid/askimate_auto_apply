@@ -19,6 +19,25 @@ not shipped artefacts.
 
 ---
 
+## [0.137.0] — 2026-09-15
+
+**P139 — ADR-0115 built on Vahid's confirmation with one change (the entry date as month and
+year, never a day): the residence, UK-status and UK-study registry groups; the `derived`
+origin; set 0.3.23's thirty-six nationality mappings.**
+
+### Added
+
+- `packages/profile`: `ResidencePeriod`, `UkStatusClaims`, `UkStudyLevel`, `UkStudy`; nine
+  fields under `residence.*` and `immigration.*`, ordinary and labelled; `residence.history`
+  list-valued.
+- `packages/domain`: `ExtractionOrigin` gains `derived`, and a derived proposal names
+  `derivedFrom`.
+- Set 0.3.23: the nationality page's residence selects and radios, the entry date's month and
+  year, the four previous-country blocks, the seven status radios, `previousStudentVisa`. Every
+  day select unmapped by decision; the UK-study block waits on the page's show/hide read.
+
+---
+
 ## [0.136.0] — 2026-09-15
 
 **P138 — ADR-0116 built: a cancelled secure box is the student's stop; the run waits where it

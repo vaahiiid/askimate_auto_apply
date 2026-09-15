@@ -107,6 +107,64 @@ export interface EmploymentEntry {
   readonly referee?: { readonly name: string; readonly role?: string };
 }
 
+/**
+ * One period of residence (ADR-0115): a country, from a month, to a month or
+ * "current" — the shape of a job's dates (ADR-0111). A period that continues
+ * is the student's statement, never a blank read as one.
+ */
+export interface ResidencePeriod {
+  readonly countryCode: string;
+  readonly from: YearMonth;
+  readonly to: { readonly kind: "ended"; readonly date: YearMonth } | { readonly kind: "current" };
+}
+
+/**
+ * Seven claims about the student's standing in the UK (ADR-0115), each stated
+ * by them and none derived — not from the passport's issuing country, not from
+ * the address. Vahid: *"a wrong yes opens a document slot the student must
+ * refuse or fill."*
+ */
+export interface UkStatusClaims {
+  readonly british_passport: boolean;
+  readonly indefinite_leave: boolean;
+  readonly refugee_status: boolean;
+  readonly migrant_worker: boolean;
+  readonly spouse_of_uk_citizen: boolean;
+  readonly eu_passport: boolean;
+  readonly spouse_of_eu_citizen: boolean;
+}
+
+/** The level of a student's previous study in the UK, in the registry's words. */
+export type UkStudyLevel =
+  | "english_language"
+  | "school"
+  | "foundation"
+  | "study_abroad_or_exchange"
+  | "university"
+  | "other";
+
+/**
+ * Previous study in the UK (ADR-0115): none, or studied — with whether it was
+ * on a student visa, the highest level, the qualification in the student's
+ * words, the time spent on the visa, and the current visa's expiry when they
+ * are studying now. `none` is a statement, as an empty list is (ADR-0113).
+ *
+ * The expiry is a full date: it is read off the visa, which carries one. The
+ * derivation from a UK qualification is a PROPOSAL the student confirms,
+ * never an answer (the `derived` origin); until the interview raises it, the
+ * field is asked outright.
+ */
+export type UkStudy =
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "studied";
+      readonly onStudentVisa: boolean;
+      readonly highestLevel: UkStudyLevel;
+      readonly qualification?: string;
+      readonly timeOnVisa?: { readonly years: number; readonly months: number };
+      readonly currentVisaExpiry?: Date;
+    };
+
 export interface Address {
   readonly line1: string;
   readonly line2?: string;
@@ -164,9 +222,38 @@ export interface ProfileFieldTypes {
   "finance.funding_source": string;
   "finance.sponsor_name": string;
 
+  // ── Residence (ADR-0115) ────────────────────────────────────────────────
+  /** The country of permanent residence — a statement, not the address's country. */
+  "residence.country": string;
+  /** Asked, never read off the history. */
+  "residence.in_uk_now": boolean;
+  /**
+   * When the student entered the UK, as month and year. Vahid, 2026-09-15:
+   * *"Sheffield asks a day because it asks a day, not because anyone knows
+   * it… Holding a Date means the profile carries a day that in almost every
+   * case will be invented at the point of asking."* A portal that insists on
+   * a day asks the student for it, as any unavailable value.
+   */
+  "residence.uk_entry_date": YearMonth;
+  /** Where they have lived, one period each; may be confirmed empty. */
+  "residence.history": readonly ResidencePeriod[];
+  /**
+   * The three claims a form asks beside the history — asked, not computed
+   * from it. Vahid: *"The history is what they remembered; the answer is what
+   * they claim. Those are different, and only one of them is signed at the
+   * bottom of an application."*
+   */
+  "residence.always_in_uk": boolean;
+  "residence.always_in_eu": boolean;
+  "residence.outside_uk_last_three_years": boolean;
+
   // ── Immigration history ─────────────────────────────────────────────────
   "immigration.previous_uk_visas": readonly string[];
   "immigration.previous_visa_refusals": readonly string[];
+  /** Seven claims, all asked, none derived (ADR-0115). */
+  "immigration.uk_status": UkStatusClaims;
+  /** Previous study in the UK (ADR-0115). */
+  "immigration.uk_study": UkStudy;
 
   // ── Guardian, when the applicant is a minor ─────────────────────────────
   // Present because minors are supported (ADR-0013), collected only when a
@@ -189,6 +276,7 @@ export type ProfileFieldKey = keyof ProfileFieldTypes;
 export const LIST_VALUED_FIELD_KEYS = [
   "education.prior_qualifications",
   "employment.history",
+  "residence.history",
   "immigration.previous_uk_visas",
   "immigration.previous_visa_refusals",
 ] as const satisfies readonly ProfileFieldKey[];
@@ -218,8 +306,17 @@ export const PROFILE_FIELD_KEYS = [
   "finance.available_funds",
   "finance.funding_source",
   "finance.sponsor_name",
+  "residence.country",
+  "residence.in_uk_now",
+  "residence.uk_entry_date",
+  "residence.history",
+  "residence.always_in_uk",
+  "residence.always_in_eu",
+  "residence.outside_uk_last_three_years",
   "immigration.previous_uk_visas",
   "immigration.previous_visa_refusals",
+  "immigration.uk_status",
+  "immigration.uk_study",
   "guardian.given_name",
   "guardian.family_name",
   "guardian.relationship",
@@ -273,8 +370,17 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "finance.available_funds": "Funds available for your studies",
   "finance.funding_source": "How your studies will be funded",
   "finance.sponsor_name": "Sponsor",
+  "residence.country": "Country of permanent residence",
+  "residence.in_uk_now": "Currently living in the UK",
+  "residence.uk_entry_date": "When you entered the UK",
+  "residence.history": "Where you have lived",
+  "residence.always_in_uk": "Always lived in the UK",
+  "residence.always_in_eu": "Always lived in the EU",
+  "residence.outside_uk_last_three_years": "Lived outside the UK in the last three years",
   "immigration.previous_uk_visas": "Previous UK visas",
   "immigration.previous_visa_refusals": "Previous visa refusals",
+  "immigration.uk_status": "Your status in the UK",
+  "immigration.uk_study": "Previous study in the UK",
   "guardian.given_name": "Parent or guardian first name",
   "guardian.family_name": "Parent or guardian last name",
   "guardian.relationship": "Relationship to you",

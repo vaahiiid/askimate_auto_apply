@@ -536,6 +536,33 @@ your option maps onto the observed lists (P132) and on blocker 25.
 | `awardDateMonth` | `education.prior_qualifications` | `award` (**left empty when there is none** — never derived from the end) → `month` → option |
 | `awardDateYear` | `education.prior_qualifications` | `award` (left empty when none) → `year` → number |
 
+## Nationality and residence mappings — set 0.3.23 (P139, 2026-09-15), the next sitting's
+
+Decided by Vahid (ADR-0115, confirmed with one change): the registry holds `residence.*`,
+`immigration.uk_status` and `immigration.uk_study`, and the entry date is a **month and a year,
+never a day** — every day select on this page is unmapped by his decision, and a day the portal
+insists on is asked of the student. Thirty-six mappings. The country maps are PARTIAL (eight
+countries), to extend from the captured options — note the values carry the portal's `:H` / `:O`
+suffix and `previousCountryN` uses UPPER-CASE names while `permanentResidence` uses mixed case.
+
+| field | source | rule |
+|---|---|---|
+| `permanentResidence` | `residence.country` | option, `IR` → *Iran, Islamic Republic of:O* … (partial) |
+| `livingInUK`, `applicationLocation` | `residence.in_uk_now` | option, true → *yes* / *Inside UK*, false → *no* / *Outside UK* |
+| `livedOutsideCountry`, `alwaysUKResident`, `alwaysEUResident` | the three asked booleans | option, true → *yes*, false → *no* — asked, never computed from the history |
+| `dateEnteredUKMonth`, `dateEnteredUKYear` | `residence.uk_entry_date` | `month` → option by the select's own names (*Jan* … *June*, *July* … *Sept* …); `year` → number; **no day** |
+| `previousCountryN` (1–4) | `residence.history` | period *N−1* (**empty beyond what the student listed**) → `countryCode` → option, `IR` → *IRAN:O* … (partial) |
+| `dateFromMonthN`, `dateFromYearN` | `residence.history` | period → `from` → month option / year number; no day |
+| `dateToMonthN`, `dateToYearN` | `residence.history` | period → `to` → `date` (**empty for a current period**) → month option / year number; no day |
+| the seven status radios | `immigration.uk_status` | each claim → option, true → *yes*, false → *no*; nothing derived from the passport |
+| `previousStudentVisa` | `immigration.uk_study` | `kind` → option, *none* → *no*, *studied* → *yes* |
+
+**Not mapped, and why:** `ukPermanentResidence` (a UK region the registry does not hold); the
+UK-study block shown after *yes* — `qualificationLevel`, the five per-level selects,
+`highestQualificationOther`, `yearsOnStudentVisa`, `monthsOnStudentVisa`, the visa expiry —
+until its show/hide is read off the page's script (Vahid's committed markup), because mapping a
+hidden select types into a box the page does not show; `passportNumber` (group 4, his read).
+
 ## For Iman — flagged, not asserted (P126, 2026-09-14)
 
 - **Language's eighteen marked of twenty** and **`unlistedDegree`'s mark** — see the fifty
