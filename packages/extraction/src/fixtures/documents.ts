@@ -31,12 +31,17 @@ export const TRANSCRIPT_TEXT = [
   "Country: Iran",
   "Award: Bachelor of Science",
   "Subject: Industrial Engineering",
+  "Date of entry: September 2018",
+  "Date of completion: June 2022",
   "Year of award: 2022",
   "Overall grade: 17.42",
   "Grading scale: 20-point scale",
   "",
   "This transcript is issued by the Office of the Registrar.",
 ].join("\n");
+
+/** The same transcript, with the award dated to the month (ADR-0112). */
+export const TRANSCRIPT_TEXT_WITH_AWARD_DATE = TRANSCRIPT_TEXT.replace("Year of award: 2022", "Date of award: 12 November 2022");
 
 /** A bank statement. */
 export const BANK_STATEMENT_TEXT = [

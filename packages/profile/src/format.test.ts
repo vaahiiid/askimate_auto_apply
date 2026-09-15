@@ -81,7 +81,7 @@ describe("rendering a confirmed value for a portal", () => {
       subject: "Industrial Engineering",
       institution: "Amirkabir University of Technology",
       countryCode: "IR",
-      completionYear: 2022,
+      start: { year: 2018, month: 9 }, end: { kind: "completed", date: { year: 2022, month: 6 } },
       grade: "17.42",
       gradeScale: "20-point scale",
     });
@@ -89,8 +89,8 @@ describe("rendering a confirmed value for a portal", () => {
     const subject = renderConfirmed(qualification, { kind: "part", path: "subject" });
     const year = renderConfirmed(qualification, {
       kind: "part",
-      path: "completionYear",
-      then: { kind: "number" },
+      path: "end",
+      then: { kind: "part", path: "date", then: { kind: "part", path: "year", then: { kind: "number" } } },
     });
 
     if (!subject.rendered || !year.rendered) expect.unreachable("both parts exist");
@@ -206,8 +206,8 @@ describe("rendering one item of a list-valued field (P96)", () => {
       key: "education.prior_qualifications",
       proposed: proposeValue({
         value: [
-          { level: "BSc", subject: "Maths", institution: "A", countryCode: "IR", completionYear: 2021, grade: "17", gradeScale: "iran_20_point" },
-          { level: "Diploma", subject: "Physics", institution: "B", countryCode: "IR", completionYear: 2017, grade: "19", gradeScale: "iran_20_point" },
+          { level: "BSc", subject: "Maths", institution: "A", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17", gradeScale: "iran_20_point" },
+          { level: "Diploma", subject: "Physics", institution: "B", countryCode: "IR", start: { year: 2013, month: 9 }, end: { kind: "completed", date: { year: 2017, month: 6 } }, grade: "19", gradeScale: "iran_20_point" },
         ],
         origin: "conversation",
         verbatim: "as stated",
@@ -225,7 +225,7 @@ describe("rendering one item of a list-valued field (P96)", () => {
     if (!second.rendered) expect.unreachable(second.refusal.kind);
     expect(unwrapConfirmed(second.value)).toBe("Physics");
     expect(provenanceOf(second.value)).toEqual(provenanceOf(list));
-    const year = renderConfirmedItem(list, 0, { kind: "part", path: "completionYear", then: { kind: "number" } });
+    const year = renderConfirmedItem(list, 0, { kind: "part", path: "end", then: { kind: "part", path: "date", then: { kind: "part", path: "year", then: { kind: "number" } } } });
     if (!year.rendered) expect.unreachable(year.refusal.kind);
     expect(unwrapConfirmed(year.value)).toBe("2021");
   });

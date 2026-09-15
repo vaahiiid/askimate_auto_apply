@@ -106,9 +106,11 @@ In the order they bite, each with who holds it and the evidence.
    (`docs/captures/sheffield-pgt-2026-09-14-education-dependent/`). **Found by it:** the registry's
    `Qualification` has no start or end date, and the page's four date selects are marked
    mandatory — the page cannot be filled from the profile as it stands, whatever is mapped.
-   **Blocker 27, decided by Vahid (ADR-0112):** the dates go into `Qualification`; the shape
-   proposed, awaiting his confirmation, then the build (mine). The institution box is the
-   hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
+   **Blocker 27, decided by Vahid and built (ADR-0112, P134):** `Qualification` carries a start,
+   an end and an award date; the six date selects are mapped per qualification (set 0.3.22) and
+   leave the plan's blockers. What remains of this item is the reviewer's option maps onto the
+   observed lists (degree, grading system, grade, subject, country) and the institution box,
+   which is the hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
    entries for the student to choose. **Raised as blocker 25**, below; his decision.
@@ -180,6 +182,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P134: blocker 27 built — a qualification has dates (ADR-0112, confirmed by Vahid
+  with his reasons and one condition on the extraction); the six education date selects mapped
+  per qualification; the plan's `no_mapping` blockers down to forty, all on the three unmapped
+  pages. Item 5's registry gap closed; blocker 25 and the reviewer's maps remain. Six open of
+  ten, unchanged.
 - 2026-09-14, P133: blocker 27 decided — a qualification has dates (ADR-0112), the shape
   proposed for his confirmation with the award date held on its own; nothing built. Six open
   of ten, unchanged.

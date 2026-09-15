@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.132.0] — 2026-09-15
+
+**P134 — ADR-0112 built: a qualification has dates; the six education date selects mapped per
+qualification; the award date read off a document as month and year or nothing.**
+
+### Changed
+
+- `Qualification`: `start` and `end` (always a date, with the student's claim — completed,
+  expected, discontinued) as month and year; an optional `award`; `completionYear` removed. The
+  seven test files and the gated fixture that carried it moved to the new parts.
+- The transcript extraction plan reads entry, completion and award; the award as month and year
+  or nothing, never a year with a month we chose (his condition), both cases tested.
+- Mapping set 0.3.22: `startDateMonth`, `startDateYear`, `endDateMonth`, `endDateYear`,
+  `awardDateMonth`, `awardDateYear` per qualification; the award boxes empty when there is none.
+- `scripts/sheffield-draft.test.ts`: two qualifications typed per item, the expected end and the
+  empty award; forty `no_mapping` blockers remain, all on the three unmapped pages.
+
+### Recorded
+
+- ADR-0112: his confirmation, his three reasons and his condition in his words; built.
+  Blocker 27 closed; distance item 5's registry gap closed; the review pack's six mappings.
+
+---
+
 ## [0.131.0] — 2026-09-14
 
 **P133 — ADR-0112: a qualification has dates (blocker 27 decided by Vahid); the shape proposed

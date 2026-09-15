@@ -550,7 +550,7 @@ export const GATED_PORTAL_MAPPING_SET: MappingSet = {
       source: {
         kind: "profile_field",
         fieldKey: "education.prior_qualifications",
-        format: { kind: "part", path: "completionYear", then: { kind: "number" } },
+        format: { kind: "part", path: "end", then: { kind: "part", path: "date", then: { kind: "part", path: "year", then: { kind: "number" } } } },
       },
     },
     {

@@ -521,6 +521,21 @@ confirmed no jobs fills the page zero times with the preview saying so.
 | `employerDetails` | `employment.history` | `employer` and `employerAddress` joined, name on the first line |
 | `duties` | `employment.history` | `duties`, verbatim; the 4,000 cap is the page's |
 
+## Education date mappings — set 0.3.22 (P134, 2026-09-15), the next sitting's
+
+Decided by Vahid (ADR-0112): a qualification carries a start and an end as month and year, and
+an award date held on its own. Six mappings, per qualification; the page's other fields wait on
+your option maps onto the observed lists (P132) and on blocker 25.
+
+| field | source | rule |
+|---|---|---|
+| `startDateMonth` | `education.prior_qualifications` | `start` → `month` → option, 1 → *Jan* … 12 → *Dec* |
+| `startDateYear` | `education.prior_qualifications` | `start` → `year` → number |
+| `endDateMonth` | `education.prior_qualifications` | `end` → `date` → `month` → option; the end always carries a date, whether completed, expected or discontinued |
+| `endDateYear` | `education.prior_qualifications` | `end` → `date` → `year` → number |
+| `awardDateMonth` | `education.prior_qualifications` | `award` (**left empty when there is none** — never derived from the end) → `month` → option |
+| `awardDateYear` | `education.prior_qualifications` | `award` (left empty when none) → `year` → number |
+
 ## For Iman — flagged, not asserted (P126, 2026-09-14)
 
 - **Language's eighteen marked of twenty** and **`unlistedDegree`'s mark** — see the fifty

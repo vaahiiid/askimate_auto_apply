@@ -287,8 +287,8 @@ beforeAll(async () => {
     profiles,
     "education.prior_qualifications",
     [
-      { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
-      { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", completionYear: 2017, grade: "19.1", gradeScale: "iran_20_point" },
+      { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" },
+      { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", start: { year: 2013, month: 9 }, end: { kind: "completed", date: { year: 2017, month: 6 } }, grade: "19.1", gradeScale: "iran_20_point" },
     ],
     "as stated",
   );

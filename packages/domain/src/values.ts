@@ -136,7 +136,7 @@ export type ExtractionOrigin =
  *             Polytechnic in 2023, got about 17 out of 20."
  *
  *   Agent:   { qualification: BSc, subject: "Computer Science",
- *              completionYear: 2023, grade: "17/20", scale: iran_20_point }
+ *              end: completed June 2023, grade: "17/20", scale: iran_20_point }
  *
  * That mapping **is a model inference**, with exactly the failure modes
  * document extraction has: a misheard value, the wrong grading scale, a

@@ -26,6 +26,7 @@ import {
   PASSPORT_MISSING_EXPIRY,
   PASSPORT_TEXT,
   TRANSCRIPT_TEXT,
+  TRANSCRIPT_TEXT_WITH_AWARD_DATE,
   bytesOf,
 } from "./fixtures/documents.js";
 
@@ -114,7 +115,8 @@ describe("extracting a transcript", () => {
       subject: "Industrial Engineering",
       institution: "Amirkabir University of Technology",
       countryCode: "Iran",
-      completionYear: 2022,
+      start: { year: 2018, month: 9 },
+      end: { kind: "completed", date: { year: 2022, month: 6 } },
       grade: "17.42",
       gradeScale: "20-point scale",
     });
@@ -123,6 +125,26 @@ describe("extracting a transcript", () => {
     for (const span of fields.verbatim.split("\n")) {
       expect(TRANSCRIPT_TEXT).toContain(span);
     }
+  });
+
+  it("reads the award date as month AND year — or nothing, never a year with a month we chose (ADR-0112)", async () => {
+    // Vahid, 2026-09-15, as a condition: "Reading an award date off a
+    // certificate must give month and year or nothing — never a year with a
+    // month we chose… it works in testing and fails once, quietly, on the
+    // student whose certificate shows only a year."
+    const yearOnly = await textOf("doc-transcript", "academic_transcript", TRANSCRIPT_TEXT);
+    const report = await extractDocument(yearOnly, model);
+    if (report === null) expect.unreachable("there is a plan for transcripts");
+    const value = unwrapProposed(extracted(report)[0]?.proposed as ProposedValue<unknown>).value as { award?: unknown };
+    expect(value.award, "the fixture says 'Year of award: 2022' — a year alone is no award date").toBeUndefined();
+
+    const dated = await textOf("doc-transcript-2", "academic_transcript", TRANSCRIPT_TEXT_WITH_AWARD_DATE);
+    const report2 = await extractDocument(dated, model);
+    if (report2 === null) expect.unreachable("there is a plan for transcripts");
+    const value2 = unwrapProposed(extracted(report2)[0]?.proposed as ProposedValue<unknown>).value as { award?: unknown; start?: unknown; end?: unknown };
+    expect(value2.award).toEqual({ year: 2022, month: 11 });
+    expect(value2.start).toEqual({ year: 2018, month: 9 });
+    expect(value2.end).toEqual({ kind: "completed", date: { year: 2022, month: 6 } });
   });
 
   it("keeps the grade exactly as printed and does not convert it", async () => {

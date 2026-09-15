@@ -19,13 +19,43 @@ export interface Money {
   readonly currency: string;
 }
 
+/** A month of a year, for a date that has no day — a job's or a qualification's start, end or award. */
+export interface YearMonth {
+  readonly year: number;
+  /** 1 to 12. */
+  readonly month: number;
+}
+
+/**
+ * A qualification (ADR-0112). Its dates are a start and an end as month and
+ * year — a qualification has no meaningful day, as a job has none — and an
+ * award date held on its own.
+ *
+ * `end` always carries a date, and the KIND is the student's own claim about
+ * it: finished, still studying with an expected end, or left before finishing.
+ * The third kind was read off the portal rather than imagined: Sheffield's
+ * education page says *"Please also add any qualifications that you did not
+ * complete or failed"* and its grade list carries *Failed to complete course*.
+ *
+ * `award` is the date the certificate carries, and the one date on a form most
+ * likely to be compared against a document — which is what an admissions
+ * office does with the claim. It is never derived from `end` (June finished,
+ * November conferred), and it is optional because an absent award date claims
+ * nothing: the portal's boxes are left empty.
+ *
+ * There is no completion year beside these. Vahid, 2026-09-15: *"beside an end
+ * date it would be a second truth about one fact, and two fields that can
+ * disagree is what this system refuses."*
+ */
 export interface Qualification {
   /** e.g. `Bachelor's degree`, `High school diploma`. */
   readonly level: string;
   readonly subject: string;
   readonly institution: string;
   readonly countryCode: string;
-  readonly completionYear: number;
+  readonly start: YearMonth;
+  readonly end: { readonly kind: "completed" | "expected" | "discontinued"; readonly date: YearMonth };
+  readonly award?: YearMonth;
   /** As awarded, e.g. `2:1`, `17/20`, `3.6`. Never normalised on the way in. */
   readonly grade: string;
   /**
@@ -46,13 +76,6 @@ export interface LanguageTestResult {
   readonly componentScores: Readonly<Record<string, string>>;
   readonly testDate: Date;
   readonly certificateNumber?: string;
-}
-
-/** A month of a year, for a date that has no day — a job's start or end. */
-export interface YearMonth {
-  readonly year: number;
-  /** 1 to 12. */
-  readonly month: number;
 }
 
 /**

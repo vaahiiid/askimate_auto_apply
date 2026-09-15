@@ -48,10 +48,12 @@
     "",
     "Employment (page8), P130 (2026-09-14): the listing is named (ADR-0106) from Vahid's read of summary.do with one throwaway job saved — the heading reads exactly 'Previous Employment 1', the same shape as education's, so the entry locator is the same shape: h5:text-matches('^Previous Employment [0-9]+$') inside div.homepageInfomation. The wrapper is education's, on his word that the shape is the same; the capture's HTML is not in the commit. The summary lists a job's start date, end date, title and employer, and NOT its duties; under ADR-0106 §2 a per-item page is counted, never read back by value, so nothing confirms a saved job's values today, and a listing read-back could never reach duties.",
     "",
-    "Education (page7), P132 (2026-09-14): the dependent lists are in the blueprint (0.2.21) from Vahid's read of the page AS IT STOOD (--as-is) with United Kingdom, University of Sheffield and the grading system 'UK Bachelors Degree (BA, BSc)' chosen and 'business' searched: institutionCode holds the chosen value SHEFFIELD (the same value P118's typeahead entry carries); gradingSystemId's six options with numeric values (7, 8, 9, 81) and the escape 'Not in list', PER INSTITUTION — Sheffield's; grade's nine for system 7 — 1st, 2.1, 2.2, 3rd, Pass, Fail and the two non-grades 'Still waiting for grade' / 'Failed to complete course' — PER GRADING SYSTEM; subject's 87 for one search word, two values with a trailing space the label hides and one value listed twice. No mapping on this page is authored here: the registry's Qualification has a completion year and no start or end date, and the page's four date selects are marked mandatory — raised as blocker 27, his decision, the same shape as item 2 was. degree and unlistedDegree keep the third read's marks; the as-is read did not see the row's star, and the difference is flagged for the reviewer."
+    "Education (page7), P132 (2026-09-14): the dependent lists are in the blueprint (0.2.21) from Vahid's read of the page AS IT STOOD (--as-is) with United Kingdom, University of Sheffield and the grading system 'UK Bachelors Degree (BA, BSc)' chosen and 'business' searched: institutionCode holds the chosen value SHEFFIELD (the same value P118's typeahead entry carries); gradingSystemId's six options with numeric values (7, 8, 9, 81) and the escape 'Not in list', PER INSTITUTION — Sheffield's; grade's nine for system 7 — 1st, 2.1, 2.2, 3rd, Pass, Fail and the two non-grades 'Still waiting for grade' / 'Failed to complete course' — PER GRADING SYSTEM; subject's 87 for one search word, two values with a trailing space the label hides and one value listed twice. No mapping on this page is authored here: the registry's Qualification has a completion year and no start or end date, and the page's four date selects are marked mandatory — raised as blocker 27, his decision, the same shape as item 2 was. degree and unlistedDegree keep the third read's marks; the as-is read did not see the row's star, and the difference is flagged for the reviewer.",
+    "",
+    "Education (page7), P134 (2026-09-15, ADR-0112): Qualification now carries a start and an end as month and year and an optional award date — decided by Vahid: 'add the dates to Qualification. Same reasoning as employment.' The six date selects are mapped per qualification: the start and end months by the selects' three-letter names, the years as digits, the award date left EMPTY when the student has none (part … absent: leave_empty — an absent award claims nothing) and never derived from the end. The page's other fields (institution, degree, subject, grading system, grade) still wait on the reviewer's option maps onto the observed lists (P132) and on blocker 25."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.21",
+  "version": "0.3.22",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.21",
@@ -444,6 +446,172 @@
         "rationale": "Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer."
       },
       "note": "Vahid, 2026-09-11, from the live dropdown: 'the option is \"Prefer not to say\". There is no \"Information withheld\" entry in the list.' The field's captured text carries no later-opportunity statement, so nothing is quoted."
+    },
+    {
+      "fieldRef": "startDateMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "start",
+          "then": {
+            "kind": "part",
+            "path": "month",
+            "then": {
+              "kind": "option",
+              "options": {
+                "1": "Jan",
+                "2": "Feb",
+                "3": "Mar",
+                "4": "Apr",
+                "5": "May",
+                "6": "Jun",
+                "7": "Jul",
+                "8": "Aug",
+                "9": "Sep",
+                "10": "Oct",
+                "11": "Nov",
+                "12": "Dec"
+              }
+            }
+          }
+        }
+      },
+      "note": "Start:* — the month select's values are three-letter names, 'Jan'…'Dec'; the qualification's start month (1–12) maps onto them. Per qualification (ADR-0112)."
+    },
+    {
+      "fieldRef": "startDateYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "start",
+          "then": {
+            "kind": "part",
+            "path": "year",
+            "then": {
+              "kind": "number"
+            }
+          }
+        }
+      },
+      "note": "Start:* — the year as four digits."
+    },
+    {
+      "fieldRef": "endDateMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "end",
+          "then": {
+            "kind": "part",
+            "path": "date",
+            "then": {
+              "kind": "part",
+              "path": "month",
+              "then": {
+                "kind": "option",
+                "options": {
+                  "1": "Jan",
+                  "2": "Feb",
+                  "3": "Mar",
+                  "4": "Apr",
+                  "5": "May",
+                  "6": "Jun",
+                  "7": "Jul",
+                  "8": "Aug",
+                  "9": "Sep",
+                  "10": "Oct",
+                  "11": "Nov",
+                  "12": "Dec"
+                }
+              }
+            }
+          }
+        }
+      },
+      "note": "End:* — the end always carries a date (completed, expected, or discontinued — the student's claim; the date is what the form takes)."
+    },
+    {
+      "fieldRef": "endDateYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "end",
+          "then": {
+            "kind": "part",
+            "path": "date",
+            "then": {
+              "kind": "part",
+              "path": "year",
+              "then": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      },
+      "note": "As endDateMonth."
+    },
+    {
+      "fieldRef": "awardDateMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "award",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "month",
+            "then": {
+              "kind": "option",
+              "options": {
+                "1": "Jan",
+                "2": "Feb",
+                "3": "Mar",
+                "4": "Apr",
+                "5": "May",
+                "6": "Jun",
+                "7": "Jul",
+                "8": "Aug",
+                "9": "Sep",
+                "10": "Oct",
+                "11": "Nov",
+                "12": "Dec"
+              }
+            }
+          }
+        }
+      },
+      "note": "Date of Award: — unstarred. The award date the certificate carries, held on its own and never derived from the end; left EMPTY when the student has none (ADR-0112)."
+    },
+    {
+      "fieldRef": "awardDateYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "award",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "year",
+            "then": {
+              "kind": "number"
+            }
+          }
+        }
+      },
+      "note": "As awardDateMonth."
     },
     {
       "fieldRef": "certificate",

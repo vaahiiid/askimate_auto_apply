@@ -170,12 +170,41 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(values("subject").slice(0, 2)).toEqual(["Select subject...", "Not in list"]);
     expect(values("subject")).toContain("GCE Applied Business Advanced ");
     expect(field("subject")?.options?.find((o) => o.value === "GCE Applied Business Advanced ")?.label).toBe("GCE Applied Business Advanced");
-    // The four date selects are marked mandatory, and the registry's
-    // Qualification has no start or end date to fill them from (blocker 27).
+    // The four date selects are marked mandatory; since P134 (ADR-0112) the
+    // registry's Qualification carries the dates and the set maps them.
     for (const ref of ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear"]) {
       expect(field(ref)?.validations.some((v) => v.kind === "required" && v.source === "observed_marker"), ref).toBe(true);
+      expect(mappingSet.mappings.some((m) => m.fieldRef === ref), ref).toBe(true);
     }
-    expect(mappingSet.mappings.some((m) => ["startDateMonth", "degree", "grade", "subject"].includes(m.fieldRef))).toBe(false);
+    expect(mappingSet.mappings.some((m) => ["degree", "grade", "subject", "institutionCountry"].includes(m.fieldRef))).toBe(false);
+  });
+
+  it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
+    const withTwo = withConfirmed([
+      ...PROFILE_ENTRIES,
+      ["education.prior_qualifications", [
+        { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR",
+          start: { year: 2018, month: 9 }, end: { kind: "completed", date: { year: 2022, month: 6 } }, award: { year: 2022, month: 11 },
+          grade: "17.2", gradeScale: "iran_20_point" },
+        { level: "Master's degree", subject: "Management", institution: "Sharif University of Technology", countryCode: "IR",
+          start: { year: 2024, month: 9 }, end: { kind: "expected", date: { year: 2026, month: 6 } },
+          grade: "Still waiting for grade", gradeScale: "iran_20_point" },
+      ]],
+    ]);
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, withTwo);
+    expect(plan.repeats.find((r) => r.pageRef === "page7")?.count).toBe(2);
+    const typed = (index: number) =>
+      Object.fromEntries(plan.instructions.filter((i) => i.item?.index === index && ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear", "awardDateMonth", "awardDateYear"].includes(i.fieldRef)).map((i) => [i.fieldRef, textOf(i.value)]));
+    expect(typed(0)).toEqual({ startDateMonth: "Sep", startDateYear: "2018", endDateMonth: "Jun", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
+    // The one still running: its expected end is typed as the date it is,
+    // and the award boxes are left empty because there is no award — the
+    // student's statement, not our inference.
+    expect(typed(1)).toEqual({ startDateMonth: "Sep", startDateYear: "2024", endDateMonth: "Jun", endDateYear: "2026", awardDateMonth: "", awardDateYear: "" });
+    for (const ref of ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear"]) {
+      expect(plan.blockers.map((b) => b.fieldRef), ref).not.toContain(ref);
+    }
   });
 
   it("classify every one of the 216 fields, and accept the two refusals the form offers", () => {
@@ -201,13 +230,13 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
       "alwaysEUResident", "alwaysUKResident", "awardingBody", "britishPassport", "certificateNumber", "certificateNumber2",
       "dateOfAward.day", "dateOfAward.month", "dateOfAward.year", "degree",
-      "endDateMonth", "endDateYear", "euPassport", "firstLanguage",
+      "euPassport", "firstLanguage",
       "highestQualification(ENGLISH_LANGUAGE_STUDY)", "highestQualification(FOUNDATION_LEVEL)", "highestQualification(SCHOOL_LEVEL)",
       "highestQualification(STUDY_ABROAD_OR_EXCHANGE_LEVEL)", "highestQualification(UNIVERSITY_LEVEL)", "highestQualificationOther",
       "indefinateVisa", "languageCertificate", "languageCertificateStatus", "listeningScore", "livedOutsideCountry", "livingInUK",
       "migrantWorker", "overallScore", "overallScoreComponent", "passportNumber",
       "previousEducationLanguage", "previousEnglishEducation", "previousStudentVisa", "qualificationLevel", "readingScore",
-      "refugeeStatus", "speakingScore", "spouseOfEUCitizen", "spouseOfUKCitizen", "startDateMonth", "startDateYear",
+      "refugeeStatus", "speakingScore", "spouseOfEUCitizen", "spouseOfUKCitizen",
       "title", "unlistedDegree", "writingScore",
     ]);
   });
@@ -231,18 +260,19 @@ describe("the Sheffield drafts, under the real checks", () => {
     // is neither filled nor missing — the form does not show it.
     expect(typed.has("corrIntlPostcode")).toBe(false);
     expect(plan.hidden.map((h) => h.fieldRef)).toContain("corrIntlPostcode");
-    // Forty-four observed-mandatory fields on the three unmapped pages (P126)
-    // have no mapping; the four required employment fields are mapped (P129)
-    // and, with no employment list confirmed, unavailable. Nothing else.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(44);
+    // Forty observed-mandatory fields on the three unmapped pages (P126)
+    // have no mapping; the four required employment fields (P129) and the
+    // four education date selects (P134) are mapped and, with no list
+    // confirmed, unavailable. Nothing else.
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(40);
     expect(plan.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
-      "duties", "employerDetails", "position", "startMonth",
+      "duties", "employerDetails", "endDateMonth", "endDateYear", "position", "startDateMonth", "startDateYear", "startMonth",
     ]);
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.21");
-    expect(mappingSet.version).toBe("0.3.21");
+    expect(mappingSet.version).toBe("0.3.22");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -311,7 +341,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // blocks on its required fields, as any unasked value does.
     const unasked = planFill(blueprint, check.mappingSet, PROFILE);
     expect(unasked.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
-      "duties", "employerDetails", "position", "startMonth",
+      "duties", "employerDetails", "endDateMonth", "endDateYear", "position", "startDateMonth", "startDateYear", "startMonth",
     ]);
     // The preview says it, inside the yes.
     const page = { ...blueprint, pages: blueprint.pages.filter((p) => p.pageRef === "page8") };
@@ -571,7 +601,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     const second = checkUsable(naming("SHE0512"), withCountryEntries);
     expect(second.usable, second.usable ? "" : second.refusal.detail).toBe(true);
     if (second.usable) {
-      const plan = planFill(withCountryEntries, second.mappingSet, withConfirmed([...PROFILE_ENTRIES, ["education.prior_qualifications", [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" }]]]));
+      const plan = planFill(withCountryEntries, second.mappingSet, withConfirmed([...PROFILE_ENTRIES, ["education.prior_qualifications", [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" }]]]));
       const chosen = plan.instructions.find((i) => i.fieldRef === "institution-ts-control");
       expect(chosen === undefined ? "" : textOf(chosen.value)).toBe("SHE0512");
       expect(chosen?.typeahead?.text).toBe("Sheffield International College");
@@ -598,7 +628,7 @@ describe("the Sheffield drafts, under the real checks", () => {
       ...PROFILE_ENTRIES,
       [
         "education.prior_qualifications",
-        [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" }],
+        [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" }],
       ],
     ]);
     const plan = planFill(blueprint, check.mappingSet, withOne);

@@ -202,11 +202,27 @@ function fromParts(year: number, monthName: string, day: number): Date | null {
   return parsed;
 }
 
-/** A four-digit year within a plausible range for an academic award. */
-const awardYear = (raw: string): number | null => {
-  const match = /\b(19\d{2}|20\d{2})\b/.exec(raw.trim());
-  if (match === null) return null;
-  return Number(match[1]);
+/**
+ * A month and a year, or nothing (ADR-0112).
+ *
+ * Vahid, 2026-09-15, as a condition: *"Reading an award date off a certificate
+ * must give month and year or nothing — never a year with a month we chose."*
+ * So `12 November 2022`, `November 2022`, `Nov 2022`, `2022-11` and `11/2022`
+ * read; `2022` alone does not, and nothing here supplies the month it lacks.
+ */
+const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const yearMonth = (raw: string): { readonly year: number; readonly month: number } | null => {
+  const value = raw.trim();
+  const named = /^(?:\d{1,2}(?:st|nd|rd|th)?\s+)?([A-Za-z]{3,9})\.?,?\s+(19\d{2}|20\d{2})$/.exec(value);
+  if (named !== null) {
+    const typed = (named[1] ?? "").toLowerCase();
+    const index = MONTH_NAMES.findIndex((month) => month === typed || month.slice(0, 3) === typed);
+    return index === -1 ? null : { year: Number(named[2]), month: index + 1 };
+  }
+  const numeric = /^(19\d{2}|20\d{2})-(0[1-9]|1[0-2])$/.exec(value) ?? /^(0?[1-9]|1[0-2])\/(19\d{2}|20\d{2})$/.exec(value);
+  if (numeric === null) return null;
+  const [year, month] = value.includes("-") ? [numeric[1], numeric[2]] : [numeric[2], numeric[1]];
+  return { year: Number(year), month: Number(month) };
 };
 
 /**
@@ -373,11 +389,25 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
           required: true,
         },
         {
-          partKey: "completionYear",
-          labels: ["Year of award", "Date of award", "Completed", "Year"],
-          hint: "the year the qualification was awarded or completed",
-          expectedShape: "a four-digit year",
+          partKey: "start",
+          labels: ["Date of entry", "Start date", "Commenced", "From"],
+          hint: "when the programme of study began",
+          expectedShape: "a month and a year",
           required: true,
+        },
+        {
+          partKey: "end",
+          labels: ["Date of completion", "End date", "Completed", "To"],
+          hint: "when the programme of study ended",
+          expectedShape: "a month and a year",
+          required: true,
+        },
+        {
+          partKey: "award",
+          labels: ["Date of award", "Awarded on", "Year of award"],
+          hint: "the date the qualification was conferred, as the certificate states it",
+          expectedShape: "a month and a year — a year alone is not an award date",
+          required: false,
         },
         {
           partKey: "grade",
@@ -401,12 +431,17 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
         const countryCode = parts.get("countryCode");
         const grade = parts.get("grade");
         const gradeScale = parts.get("gradeScale");
-        const year = awardYear(parts.get("completionYear") ?? "");
+        const start = yearMonth(parts.get("start") ?? "");
+        const end = yearMonth(parts.get("end") ?? "");
+        // Month and year, or nothing — never a year with a month we chose
+        // (ADR-0112, his condition). A "Year of award: 2022" line is read
+        // and yields no award date; the qualification assembles without one.
+        const award = yearMonth(parts.get("award") ?? "");
 
         if (
           level === undefined || subject === undefined || institution === undefined ||
           countryCode === undefined || grade === undefined || gradeScale === undefined ||
-          year === null
+          start === null || end === null
         ) {
           return null;
         }
@@ -415,7 +450,15 @@ const ACADEMIC_TRANSCRIPT: ExtractionPlan = {
         // Converting 17/20 into a 2:1 here would be inventing a qualification
         // the document does not state (brief §2.9); conversion is a mapping
         // decision with its own provenance, made later and reviewably.
-        return { level, subject, institution, countryCode, completionYear: year, grade, gradeScale };
+        // A transcript states a completion; a course still running would say
+        // "expected", which no label here reads, so nothing is proposed for it.
+        return {
+          level, subject, institution, countryCode,
+          start,
+          end: { kind: "completed", date: end },
+          ...(award === null ? {} : { award }),
+          grade, gradeScale,
+        };
       },
     }),
   ],

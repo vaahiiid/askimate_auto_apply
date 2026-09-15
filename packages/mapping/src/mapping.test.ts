@@ -798,8 +798,8 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
   const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
   const SET = GATED_PORTAL_MAPPING_SET;
   const QUALIFICATIONS = [
-    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
-    { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", completionYear: 2017, grade: "19.1", gradeScale: "iran_20_point" },
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "High school diploma", subject: "Mathematics and Physics", institution: "Farzanegan High School", countryCode: "IR", start: { year: 2013, month: 9 }, end: { kind: "completed", date: { year: 2017, month: 6 } }, grade: "19.1", gradeScale: "iran_20_point" },
   ];
   const WITH_QUALIFICATIONS = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
   const educationPage = (blueprint: ApplicationBlueprint) => {
@@ -996,7 +996,7 @@ describe("a slot's companion handed with the slot, and a control pressed to load
   const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
   const SET = GATED_PORTAL_MAPPING_SET;
   const QUALIFICATIONS = [
-    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" },
   ];
   const WITH_ONE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
   const remapped = (fieldRef: string, source: MappingSet["mappings"][number]["source"]): MappingSet => ({
@@ -1159,7 +1159,7 @@ describe("the option a companion does not name (P108) — a fourth value is chos
   const SET = GATED_PORTAL_MAPPING_SET;
   const FOURTH = "english";
   const QUALIFICATIONS = [
-    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", completionYear: 2021, grade: "17.2", gradeScale: "iran_20_point" },
+    { level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" },
   ];
   const WITH_ONE = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS]]);
   const everyText = (plan: ReturnType<typeof planFill>): string =>
