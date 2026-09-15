@@ -85,7 +85,9 @@ In the order they bite, each with who holds it and the evidence.
    UK-residence history, and no list of previous countries with dates. Each select takes the
    portal's own names through a partial option map, like the country map on contact. What is
    mandatory here is item 1. **Iman's mapping** for what the registry reaches; **a product
-   decision** for what it does not.
+   decision** for what it does not — **the sheet is written (P136):**
+   [`decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md`](./decision-sheet-item-3-what-the-registry-does-not-hold-of-a-student-residence-and-status.md),
+   four groups with options and a recommendation each; his answers, in his words.
 4. **The language page: nineteen fields, none mapped.** The registry has
    `education.english_language_test`; the page asks the test type (42 options), the award date
    as three selects, certificate numbers, awarding body and the component scores, and offers a
@@ -174,7 +176,8 @@ so are the address, the passport, the English test, finance and immigration. Run
 this: its profile is confirmed through the service's own store and page by the deterministic
 client, lists included, and the journey does exactly that today. Run B, the student talking to
 AskiMate, meets it on its first required field with no question. Not on Run A's list for that
-reason; on Run B's for the same reason.
+reason; on Run B's for the same reason. How it is to be built is decided (ADR-0113, in his
+words): entry by entry, and never from a pasted CV the model summarises.
 
 ## Blocker 25, raised here
 
@@ -195,6 +198,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P136: records and sheets — ADR-0113 (the interview asks entry by entry; a CV block
+  is its own decision if ever wanted), his two notes on item 7 in ADR-0091, and two decision
+  sheets for him: blocker 26 and item 3's registry gaps. Five open of ten, unchanged.
 - 2026-09-15, P135: item 7 done — the runner reads, obeys and keeps robots.txt before every
   unit of work and paces the fill session (ADR-0091 on the fill path), with `robots_disallows`
   as the failure a person decides. The interview's coverage recorded under Run B at Vahid's

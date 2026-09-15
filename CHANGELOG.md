@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.134.0] — 2026-09-15
+
+**P136 — ADR-0113 in Vahid's words (the interview asks entry by entry; never from a pasted
+CV); his notes on item 7 in ADR-0091; decision sheets for blocker 26 and distance item 3.**
+
+### Recorded
+
+- ADR-0113: the decision and its four rules for the Run B build; not built.
+- ADR-0091: his two notes — refusing the whole unit of work; the account paths' reliance on the
+  gate alone as the first thing to revisit.
+- `docs/decision-sheet-blocker-26-…md` and `docs/decision-sheet-item-3-…md`, for his answers.
+
+---
+
 ## [0.133.0] — 2026-09-15
 
 **P135 — ADR-0091 on the fill path: the runner reads, obeys and keeps robots.txt before every

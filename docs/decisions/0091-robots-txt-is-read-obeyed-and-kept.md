@@ -81,6 +81,13 @@ page each through the browser context directly, so the gate's decision is the wh
 check, and no `robots.json` is written by the runner — the refusal is the report's failure code,
 and the file read is not kept as evidence there. Both said here rather than left to be found.
 
+Vahid, 2026-09-15, on reading it — two things to carry: *"the part I want noted is that the gate
+reads robots as the runner's own token and refuses the whole unit of work rather than skipping a
+page. Refusing the work is right — a half-filled application because one page was disallowed is
+worse than not starting."* And on the two things not done: *"The two things you did not do are
+recorded and I accept both. The account paths relying on the gate alone is the one I would revisit
+first if anything about that path changes."*
+
 ## What building this found
 
 Four defects, none of them in the new code, all surfaced by adding a second rule to a guard that had
