@@ -142,6 +142,16 @@ export type WorkflowStatus =
   | "suspended"
   | "uncertain"
   | "escalated"
+  /**
+   * The STUDENT stopped it (ADR-0116): they were shown a password box and
+   * closed it. Vahid, 2026-09-15: *"a cancel is the student's stop. Not a
+   * reopen and not a person's problem."* Not automatable — no worker and no
+   * runner moves it — and not held by a person either; it waits where they
+   * left it until they ask to carry on. Its own word, so a month later the
+   * record tells "the student stopped" from "the portal refused" and
+   * "nobody was told".
+   */
+  | "stopped_by_student"
   | "completed"
   | "abandoned";
 
@@ -150,6 +160,7 @@ export const WORKFLOW_STATUSES: readonly WorkflowStatus[] = [
   "suspended",
   "uncertain",
   "escalated",
+  "stopped_by_student",
   "completed",
   "abandoned",
 ];
@@ -163,10 +174,15 @@ export const WORKFLOW_STATUSES: readonly WorkflowStatus[] = [
  * become "it worked" without somebody finding out.
  */
 const NEXT_STATUS: Readonly<Record<WorkflowStatus, readonly WorkflowStatus[]>> = {
-  running: ["suspended", "uncertain", "escalated", "completed", "abandoned"],
-  suspended: ["running", "escalated", "abandoned"],
+  running: ["suspended", "uncertain", "escalated", "stopped_by_student", "completed", "abandoned"],
+  suspended: ["running", "escalated", "stopped_by_student", "abandoned"],
   uncertain: ["running", "escalated", "abandoned"],
   escalated: ["running", "abandoned"],
+  // Left when the student carries on (`running`) or stops the case
+  // (`abandoned`); and for a person (`escalated`) when carrying on runs
+  // straight into something only a specialist can settle — a restart is a
+  // decision like any other, and its stops are the ordinary ones.
+  stopped_by_student: ["running", "escalated", "abandoned"],
   completed: [],
   abandoned: [],
 };
@@ -212,7 +228,21 @@ export const AUTOMATABLE_STATUSES: readonly WorkflowStatus[] = ["running", "susp
  * reason the student is told "I will tell you as soon as it moves again".
  */
 export function isHeldByAPerson(status: WorkflowStatus): boolean {
-  return !isTerminalStatus(status) && !AUTOMATABLE_STATUSES.includes(status);
+  return (
+    !isTerminalStatus(status) &&
+    !AUTOMATABLE_STATUSES.includes(status) &&
+    !isHeldByTheStudent(status)
+  );
+}
+
+/**
+ * True when the STUDENT holds this run (ADR-0116): they closed the password
+ * box, and the run waits where it was until they ask to carry on. The fourth
+ * set beside automatable, held by a person and finished — nobody's to move
+ * but theirs, and nobody's to adjudicate.
+ */
+export function isHeldByTheStudent(status: WorkflowStatus): boolean {
+  return status === "stopped_by_student";
 }
 
 // ───────────────────────────────────────────────────────────────────────────

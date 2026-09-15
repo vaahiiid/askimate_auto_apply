@@ -52,6 +52,9 @@ export const RUN_STATUSES = [
   "suspended",
   "uncertain",
   "escalated",
+  // The student closed the password box (ADR-0116): stopped where it was,
+  // until they ask to carry on.
+  "stopped_by_student",
   "completed",
   "abandoned",
 ] as const;

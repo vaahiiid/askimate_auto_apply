@@ -45,6 +45,7 @@ import {
   runId as makeRunId,
 } from "@askimate/aas-domain";
 import type {
+  WorkflowStatus,
   BlueprintVersion,
   CaseEvent,
   CaseId,
@@ -364,6 +365,14 @@ export async function checkpointAfter(input: {
   readonly step: RunStep;
   readonly fieldsCompleted?: readonly string[];
   readonly now: Date;
+  /**
+   * A status to set with the checkpoint. Omitted, the status is preserved
+   * (`saveCheckpoint` writes `input.status ?? from`). Passed by a restart
+   * (ADR-0116): the run the student stopped becomes `running` in the same
+   * write as the decision that carried it on, so no tick between the two can
+   * read it as either.
+   */
+  readonly status?: WorkflowStatus;
 }): Promise<number> {
   return input.stores.runs.saveCheckpoint({
     runId: input.record.runId,
@@ -374,6 +383,7 @@ export async function checkpointAfter(input: {
       now: input.now,
     }),
     expectedRevision: input.record.revision,
+    ...(input.status === undefined ? {} : { status: input.status }),
   });
 }
 

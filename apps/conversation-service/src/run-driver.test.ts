@@ -7695,6 +7695,180 @@ describeIfDatabase("a runner that meets a CAPTCHA or a second factor (ADR-0101 �
   }, 120_000);
 });
 
+describeIfDatabase("a cancelled box is the student's stop (ADR-0116, blocker 28)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-15: *"a cancel is the student's stop. Not a reopen and not
+  // a person's problem. The student was shown a box and closed it. The only
+  // honest reading of that is that they do not want to do this now, and the
+  // system's answer should be to stop asking rather than to ask again in a
+  // different shape."* — *"the run stops, the student is told plainly what
+  // stopped and that they can start it again when they want to, and nothing
+  // is offered to a runner until they do. The application is not abandoned —
+  // it waits where they left it."*
+  //
+  // And his two conditions: restart without going back to the beginning, and
+  // a record that tells "the student stopped" from "the portal refused" and
+  // "nobody was told".
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const FIRST_BOX = `sr_${"0".repeat(31)}1`;
+  const SECOND_BOX = `sr_${"0".repeat(31)}2`;
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    const rows = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    return rows.rows[0]?.status;
+  }
+
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function requestsOpened(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ request_id: string }>(
+      `SELECT request_id FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'secret_requested' ORDER BY ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.request_id);
+  }
+
+  async function interventionsFor(runId: string): Promise<number> {
+    const rows = await pool.query("SELECT 1 FROM interventions WHERE run_id = $1", [runId]);
+    return rows.rowCount ?? 0;
+  }
+
+  it("stops the run where it is, tells the student once, and offers it to nobody", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00721";
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
+      );
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("request_secret");
+      const runId = started.position.runId;
+      const phaseBefore = started.position.phase;
+      expect(await requestsOpened(conversation)).toEqual([FIRST_BOX]);
+
+      // The student closes the box. The Secure Plane reports it as it does.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_cancelled", requestId: FIRST_BOX },
+      });
+
+      // The worker's next tick.
+      const stopped = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!stopped.ok) expect.unreachable(`advance refused: ${stopped.refusal.kind}`);
+      expect(stopped.position.status, "the student's stop, by name").toBe("stopped_by_student");
+      expect(stopped.position.phase, "where they left it").toBe(phaseBefore);
+      expect(stopped.position.step, "and what it is waiting for").toBe("request_secret");
+      expect(await statusOf(runId)).toBe("stopped_by_student");
+      expect(await requestsOpened(conversation), "no box in a different shape").toEqual([FIRST_BOX]);
+      expect(await interventionsFor(runId), "not a person's problem").toBe(0);
+
+      // ── Told plainly: what stopped, and that they can carry on ────────
+      const told = (await saidTo(conversation)).filter((c) => c.includes("closed the password box"));
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain("I have stopped");
+      expect(told[0]).toContain("carry on");
+      expect(told[0]).toContain("where you left it");
+
+      // ── Nobody's work ─────────────────────────────────────────────────
+      expect(
+        (await instance.driver.dueRuns(100)).some((due) => due.runId === runId),
+        "the worker does not pick it up",
+      ).toBe(false);
+      const offered = await instance.driver.claimWork({ holder: "runner-after-cancel", leaseSeconds: 60 });
+      expect(offered?.runId, "a runner is handed something else or nothing").not.toBe(runId);
+      await pool.query("DELETE FROM work_leases WHERE holder = 'runner-after-cancel'");
+
+      // A second look says nothing more and opens nothing.
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.status).toBe("stopped_by_student");
+      expect(await requestsOpened(conversation)).toEqual([FIRST_BOX]);
+      expect(
+        (await saidTo(conversation)).filter((c) => c.includes("closed the password box")),
+      ).toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("carries on from where it stopped when the student asks again — a fresh box, not the beginning", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00722";
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        ownerOf(conversation),
+      );
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const phaseBefore = started.position.phase;
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_cancelled", requestId: FIRST_BOX },
+      });
+      const stopped = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!stopped.ok) expect.unreachable(`advance refused: ${stopped.refusal.kind}`);
+      expect(stopped.position.status).toBe("stopped_by_student");
+
+      // ── The student asks again: the same request, the same run ────────
+      const restarted = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!restarted.ok) expect.unreachable(`restart refused: ${restarted.refusal.kind}`);
+      expect(restarted.position.runId, "the same run, not a second one").toBe(runId);
+      expect(restarted.position.resumed).toBe(true);
+      expect(restarted.position.status).toBe("running");
+      expect(restarted.position.phase, "not the beginning").toBe(phaseBefore);
+      expect(restarted.position.step).toBe("request_secret");
+      expect(await requestsOpened(conversation), "a fresh box").toEqual([FIRST_BOX, SECOND_BOX]);
+      expect(await statusOf(runId)).toBe("running");
+
+      // The yes stands: no second authorisation was asked for.
+      expect((await saidTo(conversation)).filter((c) => c.includes("closed the password box"))).toHaveLength(1);
+
+      // The worker's next tick does not read the old cancel as a new one.
+      const tick = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!tick.ok) expect.unreachable(`advance refused: ${tick.refusal.kind}`);
+      expect(tick.position.status, "carried on, and stays carried on").toBe("running");
+      expect(await requestsOpened(conversation)).toEqual([FIRST_BOX, SECOND_BOX]);
+
+      // And the student may close this one too: the same stop, the same words.
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "secret_cancelled", requestId: SECOND_BOX },
+      });
+      const stoppedAgain = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!stoppedAgain.ok) expect.unreachable(`advance refused: ${stoppedAgain.refusal.kind}`);
+      expect(stoppedAgain.position.status).toBe("stopped_by_student");
+      expect((await saidTo(conversation)).filter((c) => c.includes("closed the password box"))).toHaveLength(2);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+});
+
 describeIfDatabase("a failed account creation is tried twice, then stops for a person (ADR-0114)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* — *"once is

@@ -1315,6 +1315,28 @@ describe("asking a student for a password", () => {
     expect((await nextStep(expired, model)).kind).toBe("request_secret");
   });
 
+  it("asks again after a CANCELLED box, once the student has carried on (ADR-0116)", async () => {
+    // Before this, `secret_cancelled` read as "asked already" and the step
+    // moved on to `create_account` with nothing to spend — handed out, refused,
+    // handed out again (blocker 28). The step's answer to a cancelled request
+    // is the box again; whether the run is ASKING at all is the driver's, which
+    // stops the run on the cancel and asks only once the student restarts.
+    const base = await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+    );
+    const cancelled: RunState = {
+      ...base,
+      secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_cancelled" },
+    };
+    const step = await nextStep(cancelled, model);
+    expect(step.kind).toBe("request_secret");
+    if (step.kind !== "request_secret") expect.unreachable("checked above");
+    expect(step.request.purpose).toBe("portal_account_creation");
+  });
+
   it("asks again when the secret it holds is the one a failed creation spent (ADR-0114)", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* The first

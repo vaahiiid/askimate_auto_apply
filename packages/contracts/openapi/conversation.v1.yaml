@@ -1761,7 +1761,7 @@ components:
 
     RunStatus:
       type: string
-      enum: [running, suspended, uncertain, escalated, completed, abandoned]
+      enum: [running, suspended, uncertain, escalated, stopped_by_student, completed, abandoned]
 
     RunPhase:
       type: string

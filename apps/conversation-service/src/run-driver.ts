@@ -503,6 +503,8 @@ interface StartedRun {
   readonly caseId: CaseId;
   readonly studentRef: StudentId;
   readonly resumed: boolean;
+  /** The student is carrying on a run they stopped (ADR-0116). */
+  readonly restarting?: boolean;
 }
 
 /**
@@ -649,6 +651,27 @@ function creationFailedOnceMessage(
         `your password again for the second attempt. `
       : `I will try again shortly. `) +
     `Nothing has been submitted.`
+  );
+}
+
+/**
+ * The student closed the password box (ADR-0116). What stopped, that nothing
+ * is lost, and how to carry on — in that order, and nothing asking them to.
+ */
+function stoppedByStudentMessage(entry: CatalogueEntry): string {
+  return (
+    `You closed the password box, so I have stopped there. Nothing has been sent to ` +
+    `${entry.blueprint.institutionName} and nothing you have given me is lost — your ` +
+    `application waits where you left it. Whenever you want to carry on, ask me to apply ` +
+    `again and I will open the box once more.`
+  );
+}
+
+/** The student asked to carry on a run they had stopped (ADR-0116). */
+function restartMessage(entry: CatalogueEntry): string {
+  return (
+    `Carrying on with your ${entry.blueprint.institutionName} application from where you ` +
+    `left it. Nothing is repeated.`
   );
 }
 
@@ -1321,6 +1344,20 @@ export class RunDriver {
           const live = existing.find((record) => AUTOMATABLE_STATUSES.includes(record.status));
           if (live !== undefined) return { record: live, caseId, studentRef, resumed: true };
 
+          // ── A run the STUDENT stopped carries on from where it stopped ──
+          //
+          // ADR-0116. Vahid: *"The student must be able to restart without
+          // going back to the beginning. If cancelling means the case is dead,
+          // a cancel becomes an expensive mistake rather than an ordinary
+          // choice."* The same run, the same case, the same yes; the decision
+          // below opens a fresh box, and its checkpoint sets `running` in the
+          // same write. `restarting` is what tells `#decideOnce` that the
+          // cancelled request in the log has been answered by this request.
+          const stopped = existing.find((record) => record.status === "stopped_by_student");
+          if (stopped !== undefined) {
+            return { record: stopped, caseId, studentRef, resumed: true, restarting: true };
+          }
+
           // ── A run a PERSON holds is returned, not restarted (P40) ────────
           //
           // Vahid: "when a specialist reviews a case, there is no handoff to a
@@ -1457,9 +1494,9 @@ export class RunDriver {
       throw error;
     }
     if ("ok" in outcome) return outcome;
-    const { record, caseId, studentRef, resumed } = outcome;
+    const { record, caseId, studentRef, resumed, restarting } = outcome;
 
-    return await this.#decide({
+    const decided = await this.#decide({
       entry,
       record,
       conversationId: input.conversationId,
@@ -1467,7 +1504,18 @@ export class RunDriver {
       studentRef,
       concerns: [],
       resumed,
+      ...(restarting === true ? { restarting: true } : {}),
     });
+    // Told after, and only for a restart that carried on: a student who
+    // hears "carrying on" about a run the Secure Plane could not reopen a box
+    // for has been told something false.
+    if (restarting === true && decided.ok && decided.position.status === "running") {
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: { kind: "message", actor: "assistant", content: restartMessage(entry) },
+      });
+    }
+    return decided;
   }
 
   /** True when a case exists and has reached a terminal state. */
@@ -1885,6 +1933,7 @@ export class RunDriver {
     readonly studentRef: StudentId;
     readonly concerns: readonly ResumeConcern[];
     readonly resumed: boolean;
+    readonly restarting?: boolean;
   }): Promise<RunOutcome> {
     let record = input.record;
     for (let attempt = 0; ; attempt += 1) {
@@ -4841,6 +4890,100 @@ export class RunDriver {
     return stoppedAt("abandoned");
   }
 
+  /**
+   * Stops a run whose student closed the password box, and keeps it stopped
+   * until they ask to carry on (ADR-0116, blocker 28).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-09-15: *"a cancel is the student's stop. Not a reopen and not
+   * a person's problem. The student was shown a box and closed it. The only
+   * honest reading of that is that they do not want to do this now, and the
+   * system's answer should be to stop asking rather than to ask again in a
+   * different shape."* — *"the run stops, the student is told plainly what
+   * stopped and that they can start it again when they want to, and nothing
+   * is offered to a runner until they do. The application is not abandoned —
+   * it waits where they left it."*
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Three answers:
+   *
+   *   already stopped by them   → the stopped position, and nothing else:
+   *                               no message, no box. `advance` has no
+   *                               held-run guard (P40), and this is what a
+   *                               re-derivation of this run amounts to.
+   *   the log's latest request  → the stop: one message, the status of its
+   *   is cancelled, and this      own, the phase untouched. The worker's
+   *   is not their restart        `dueRuns` and the runners' pool both read
+   *                               the status, so nothing automatic moves it.
+   *   anything else             → `null`; the decision goes on.
+   *
+   * The cancel is read off the conversation log, where the Secure Plane
+   * reported it, on the next tick — the same lazy reading as an expiry. A
+   * restart (`input.restarting`) is the one decision that sees the cancelled
+   * request and goes on: it is the student's answer to it, and the box it
+   * opens supersedes the cancelled one in the log, so no later tick reads the
+   * old cancel as a new one.
+   *
+   * Not an intervention. Vahid: *"a specialist reading 'the student closed
+   * the box' has nothing to do about it."* The record that tells this stop
+   * from a portal's refusal and from a stop nobody was told about is the
+   * status itself, and the message in the log beside it.
+   */
+  async #stopForStudent(
+    input: {
+      readonly entry: CatalogueEntry;
+      readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
+      readonly conversationId: string;
+      readonly caseId: CaseId;
+      readonly concerns: readonly ResumeConcern[];
+      readonly resumed: boolean;
+      readonly restarting?: boolean;
+    },
+    situation: {
+      readonly step: RunStep;
+      readonly now: Date;
+      readonly secret: ReturnType<typeof latestSecretRequest>;
+    },
+  ): Promise<RunOutcome | null> {
+    const record = input.record;
+    const position = (status: WorkflowStatus, revision: number): RunOutcome => ({
+      ok: true,
+      position: {
+        runId: record.runId,
+        caseId: input.caseId,
+        conversationId: input.conversationId,
+        status,
+        phase: record.checkpoint.phase,
+        step: situation.step.kind,
+        revision,
+        resumed: input.resumed,
+        concerns: input.concerns,
+      },
+    });
+    if (record.status === "stopped_by_student" && input.restarting !== true) {
+      return position("stopped_by_student", record.revision);
+    }
+    if (input.restarting === true) return null;
+    if (!AUTOMATABLE_STATUSES.includes(record.status)) return null;
+    if (situation.secret?.lifecycle !== "secret_cancelled") return null;
+
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: stoppedByStudentMessage(input.entry),
+      },
+    });
+    const revision = await this.#options.stores.runs.saveCheckpoint({
+      runId: record.runId,
+      checkpoint: record.checkpoint,
+      expectedRevision: record.revision,
+      status: "stopped_by_student",
+    });
+    return position("stopped_by_student", revision);
+  }
+
   async #decideOnce(input: {
     readonly entry: CatalogueEntry;
     readonly record: Awaited<ReturnType<WorkflowRunStore["start"]>>;
@@ -4849,6 +4992,8 @@ export class RunDriver {
     readonly studentRef: StudentId;
     readonly concerns: readonly ResumeConcern[];
     readonly resumed: boolean;
+    /** This decision is the student carrying on a run they stopped (ADR-0116). */
+    readonly restarting?: boolean;
   }): Promise<RunOutcome> {
     const situation = await this.#situation(input);
     if (!situation.ok) return situation;
@@ -4862,6 +5007,12 @@ export class RunDriver {
     // conclude once it is.
     const stopped = await this.#windDown(input, situation);
     if (stopped !== null) return stopped;
+
+    // ── The student's own stop (ADR-0116) ────────────────────────────────
+    //
+    // Before the box: a closed box is not reopened in a different shape.
+    const closed = await this.#stopForStudent(input, situation);
+    if (closed !== null) return closed;
 
     // ── The one place a student is asked for a password ──────────────────
     //
@@ -5009,11 +5160,15 @@ export class RunDriver {
     const handed = await this.#stopForSpecialist(input, step, now);
     if (handed !== null) return handed;
 
+    // A restart becomes `running` in the same write as its decision
+    // (ADR-0116); every other decision preserves the status it found.
+    const restarted = input.restarting === true && input.record.status === "stopped_by_student";
     const revision = await checkpointAfter({
       stores: this.#options.stores,
       record: input.record,
       step,
       now,
+      ...(restarted ? { status: "running" as const } : {}),
     });
 
     return {
@@ -5022,7 +5177,7 @@ export class RunDriver {
         runId: input.record.runId,
         caseId: input.caseId,
         conversationId: input.conversationId,
-        status: input.record.status,
+        status: restarted ? "running" : input.record.status,
         // Read back from the store rather than recomputed here: the checkpoint
         // that was WRITTEN is the one to report, and `deriveCheckpoint` owns
         // what it contains.

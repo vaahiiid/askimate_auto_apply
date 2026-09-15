@@ -197,7 +197,11 @@ async function refresh(): Promise<void> {
   // `run.ok` as well as the emptiness: after a failed run read this page does
   // not know whether a case exists, and offering the student a fresh choice of
   // where to apply would be the most misleading screen it could draw.
-  if (run.ok && view.run.run === null && view.targets.length === 0) {
+  //
+  // And again for a run the student STOPPED (ADR-0116): asking to apply is
+  // how they carry on, and the same request restarts the same run where it
+  // was — so the choice is shown once more, and nothing is repeated.
+  if (run.ok && mayChoose() && view.targets.length === 0) {
     const targets = await api.readTargets();
     if (targets.ok) view.targets = targets.value;
   }
@@ -238,15 +242,28 @@ function drawTranscript(): void {
   list.scrollTop = list.scrollHeight;
 }
 
+/**
+ * True while the student may choose (or choose again) what to apply to: no
+ * run yet, or a run they stopped by closing the password box (ADR-0116).
+ */
+function mayChoose(): boolean {
+  return view.run.run === null || view.run.run.status === "stopped_by_student";
+}
+
 /** Gate 1: the reviewed targets, and nothing this client invented. */
 function drawTargets(): void {
   const panel = el("targets");
   if (panel === null) return;
   panel.replaceChildren();
-  if (view.run.run !== null || view.offer !== null) return;
+  if (!mayChoose() || view.offer !== null) return;
 
   const heading = document.createElement("h2");
-  text(heading, "What would you like to apply to?");
+  text(
+    heading,
+    view.run.run === null
+      ? "What would you like to apply to?"
+      : "To carry on, choose the application again — it picks up where you left it.",
+  );
   panel.append(heading);
 
   for (const target of view.targets) {
@@ -290,7 +307,7 @@ function drawOffer(): void {
   if (panel === null) return;
   panel.replaceChildren();
   const offer = view.offer;
-  if (offer === null || view.run.run !== null) return;
+  if (offer === null || !mayChoose()) return;
 
   const heading = document.createElement("h2");
   text(heading, "This is what I would apply for");
@@ -365,7 +382,11 @@ function drawPending(): void {
     where,
     waitsOnAPerson(run.status)
       ? "Your application is with a member of the team. I will come back to you."
-      : `Your application: ${run.step.replace(/_/g, " ")} (${run.status})`,
+      : // ADR-0116: the student closed the password box. Stopped where it
+        // was, by their choice, and read as such — not as a step to answer.
+        run.status === "stopped_by_student"
+        ? "You closed the password box, so this is stopped where it was. Ask me to apply again when you want to carry on."
+        : `Your application: ${run.step.replace(/_/g, " ")} (${run.status})`,
   );
   panel.append(where);
 

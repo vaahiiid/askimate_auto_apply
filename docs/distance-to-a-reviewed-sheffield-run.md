@@ -198,6 +198,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P138: blocker 28 decided and built the same day (ADR-0116: a cancel is the
+  student's stop). A seventh run status; the run stops where it was on the next tick, the
+  student told once; the restart is asking to apply again, a fresh box, nothing repeated; the
+  three stops are three records. Five open of ten, unchanged.
 - 2026-09-15, P137: blocker 26 built as decided (ADR-0114: two attempts, then a person; the
   student told at both points). The ledger counts attempts made and names the spent secret; the
   step sends the run back to the box by identity, not by the outbox's lifecycle word; the

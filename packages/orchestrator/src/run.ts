@@ -767,11 +767,20 @@ function secretStepFor(
     };
   }
 
-  if (secret !== undefined && secret.lifecycle !== "secret_expired") {
+  // A cancelled box is answered with the box again — but only once the
+  // student has asked to carry on (ADR-0116): the Run Driver stops the run on
+  // the cancel before this step is acted on, and a stopped run asks nobody.
+  // Read as "asked already" until P138, this sent the run on to
+  // `create_account` with nothing to spend (blocker 28).
+  if (
+    secret !== undefined &&
+    secret.lifecycle !== "secret_expired" &&
+    secret.lifecycle !== "secret_cancelled"
+  ) {
     // Asked already. `secret_received` means the automation has what it needs
     // and the run should carry on to create the account; `secret_requested`
     // means we are waiting on the student and asking twice would replace a box
-    // they may be typing into. Only an expiry re-opens it.
+    // they may be typing into. An expiry or a cancel re-opens it.
     return secret.lifecycle === "secret_requested"
       ? {
           kind: "request_secret",

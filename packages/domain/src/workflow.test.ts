@@ -26,6 +26,7 @@ import {
   canTransitionStatus,
   idempotencyKeyFor,
   isHeldByAPerson,
+  isHeldByTheStudent,
   isReadableCheckpoint,
   isTerminalStatus,
   isVerifiable,
@@ -101,12 +102,13 @@ describe("a checkpoint holds POSITION, never FACTS", () => {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("run status", () => {
-  it("has exactly the six states, and two are terminal", () => {
+  it("has exactly the seven states, and two are terminal", () => {
     expect([...WORKFLOW_STATUSES]).toEqual([
       "running",
       "suspended",
       "uncertain",
       "escalated",
+      "stopped_by_student",
       "completed",
       "abandoned",
     ]);
@@ -132,6 +134,30 @@ describe("run status", () => {
 
   it("lets a suspended run resume", () => {
     expect(canTransitionStatus("suspended", "running")).toBe(true);
+  });
+
+  it("a run the STUDENT stopped is nobody's to move but theirs (ADR-0116)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-15: *"a cancel is the student's stop. Not a reopen and
+    // not a person's problem."* — *"The application is not abandoned — it
+    // waits where they left it."* — and the record must tell "the student
+    // stopped" from "the portal refused" and "nobody was told". A status of
+    // its own: not automatable, so no worker and no runner moves it; not held
+    // by a person, so no specialist is asked to look at an ordinary choice;
+    // and left only for `running` (they carried on) or `abandoned` (they
+    // stopped the case).
+    // ═══════════════════════════════════════════════════════════════════
+    expect(canTransitionStatus("running", "stopped_by_student")).toBe(true);
+    expect(canTransitionStatus("suspended", "stopped_by_student")).toBe(true);
+    expect(canTransitionStatus("stopped_by_student", "running")).toBe(true);
+    expect(canTransitionStatus("stopped_by_student", "abandoned")).toBe(true);
+    expect(canTransitionStatus("stopped_by_student", "escalated"), "a restart's own stops").toBe(true);
+    for (const to of ["suspended", "uncertain", "completed"] as const) {
+      expect(canTransitionStatus("stopped_by_student", to), `stopped_by_student → ${to}`).toBe(false);
+    }
+    expect(AUTOMATABLE_STATUSES.includes("stopped_by_student"), "no worker, no runner").toBe(false);
+    expect(isHeldByAPerson("stopped_by_student"), "no specialist either").toBe(false);
+    expect(isTerminalStatus("stopped_by_student"), "and not over").toBe(false);
   });
 });
 
@@ -305,11 +331,15 @@ describe("who may move a run", () => {
   // landing in none of them — which is how `uncertain` and `escalated` came to
   // be missing from `start`'s live-run check in the first place.
   // ═══════════════════════════════════════════════════════════════════════
-  it("puts every status in exactly one of the three sets", () => {
+  it("puts every status in exactly one of the four sets", () => {
+    // Four since ADR-0116: the student's own stop is held by neither a
+    // machine nor a person, and this is the test that refuses a status in
+    // none of the sets.
     for (const status of WORKFLOW_STATUSES) {
       const memberships = [
         AUTOMATABLE_STATUSES.includes(status),
         isHeldByAPerson(status),
+        isHeldByTheStudent(status),
         isTerminalStatus(status),
       ].filter(Boolean);
       expect(memberships, `${status} belongs to exactly one set`).toHaveLength(1);

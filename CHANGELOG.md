@@ -19,6 +19,24 @@ not shipped artefacts.
 
 ---
 
+## [0.136.0] — 2026-09-15
+
+**P138 — ADR-0116 built: a cancelled secure box is the student's stop; the run waits where it
+was until they carry on (blocker 28 closed).**
+
+### Added
+
+- `packages/domain`: `WorkflowStatus` gains `stopped_by_student`; `isHeldByTheStudent`; the
+  transitions to and from it. `packages/contracts`: `RUN_STATUSES` and the OpenAPI enum.
+- `packages/orchestrator`: `secretStepFor` answers a cancelled request with the box again;
+  `checkpointAfter` takes an optional status.
+- `apps/conversation-service`: the driver stops a run whose latest request is cancelled, tells
+  the student once, and offers it to nobody; `start` restarts a run the student stopped where it
+  was, with a fresh box and `running` set in the same write; the demonstration client shows the
+  stop in its own words and the choice again.
+
+---
+
 ## [0.135.0] — 2026-09-15
 
 **P137 — ADR-0114 built: a failed account creation is tried twice, then stops for a person;

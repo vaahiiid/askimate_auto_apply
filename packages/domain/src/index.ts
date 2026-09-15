@@ -295,6 +295,7 @@ export {
   canTransitionStatus,
   idempotencyKeyFor,
   isHeldByAPerson,
+  isHeldByTheStudent,
   isReadableCheckpoint,
   isTerminalStatus as isTerminalWorkflowStatus,
   isVerifiable,

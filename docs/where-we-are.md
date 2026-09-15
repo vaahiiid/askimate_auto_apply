@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P138 — closing the box closes it
+
+He answered blocker 28 in the hour it was raised, and the answer is the third reading: a cancel is the student's stop. Not a reopen — a system where closing a box does not close it is one people learn to fight rather than use — and not a person's problem, because a specialist reading "the student closed the box" has nothing to do about it. The run stops, the student is told plainly what stopped and that they can carry on when they want to, nothing is offered to a runner until they do, and the application is not abandoned: it waits where they left it. Two conditions came with it — a restart that does not go back to the beginning, so a cancel is an ordinary choice rather than an expensive mistake, and a record in which "the student stopped", "the portal refused" and "nobody was told" are three different things a month later.
+
+Built the same day, red first. The run has a seventh status, `stopped_by_student`, and it is a fourth set beside the three the domain already partitioned its statuses into: not automatable, so no worker tick and no runner claim; not held by a person, so no intervention and no queue; not terminal. The driver reads the Secure Plane's cancel off the conversation log on the next tick, the same lazy reading as an expiry, and before any box would open it stops the run with one message and the phase untouched. Advancing a stopped run answers its stopped position and nothing else.
+
+The restart is the student asking to apply again. `start` finds the run they stopped and carries it on as a restart: the decision opens a fresh box, and its checkpoint sets `running` in the same write, so no tick between the two can read the old cancel as a new one. The restart is the one decision that sees the cancelled request and goes on, and the box it opens supersedes it in the log. Told after, and only when it actually carried on. Closing the fresh box stops it again, in the same words. The password step now answers a cancelled request with the box again, as it does an expired one — which is what it should always have done, and what blocker 28's loop was: "asked already", and on to the portal with nothing to spend.
+
+The three records, as he asked: the student's stop is its own status; a portal's refusal is `escalated` with an intervention whose text names the attempt and the cause; a stop nobody was told about is an intervention with `announced_at` still null. The demonstration client shows the stop in its own words rather than as a step to answer, and shows the choice of what to apply to once more for a stopped run, under a heading that says it carries on where they left it. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P137 — two, then a person
 
 Blocker 26 is built as he decided it: C, and the number is two. The loop P121 watched — a failed account creation re-offered on every tick with the password the first attempt had already spent, refused each time, nobody told — is reproduced first as the opening assertion of the third driver test, red, and then closed in three places that each hold one part of the answer.
