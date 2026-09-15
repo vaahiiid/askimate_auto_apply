@@ -52,6 +52,7 @@ import { mayConcludeCase } from "@askimate/aas-account";
 import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import { DuplicateSubmissionError } from "@askimate/aas-case-store";
+import type { IntentCompletionDetail } from "@askimate/aas-case-store";
 import type {
   InterventionStore,
   StoredIntervention,
@@ -108,6 +109,7 @@ import type {
   WorkflowStatus,
   RecoveryReason,
   OwnAct,
+  ActionIdempotencyKey,
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
@@ -158,6 +160,7 @@ import {
   specialistHandoverOf,
   resumeRun,
   startRun,
+  withAccountCreationFailure,
   withAuthorisation,
   withCheckpoint,
   withSecret,
@@ -193,6 +196,7 @@ import type {
 } from "@askimate/aas-contracts";
 import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
+import type { WorkFailure } from "@askimate/aas-contracts";
 import type { LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
@@ -592,6 +596,84 @@ function challengeMessage(entry: CatalogueEntry, challenge: "captcha" | "second_
     `that only you can complete. I have stopped there and passed your application to a member ` +
     `of the team, who will arrange it with you. Nothing you have given me is lost, and nothing ` +
     `has been submitted.`
+  );
+}
+
+/**
+ * A runner's failure code in the student's words (ADR-0114).
+ *
+ * The closed set `WORK_FAILURES`, said plainly and without the portal's own
+ * text — free text from a page we do not control never reaches this plane
+ * (`work.ts`). Each is a clause after "it did not go through:".
+ */
+function failureInWords(failure: WorkFailure): string {
+  switch (failure) {
+    case "portal_refused":
+      return "the portal did not accept the details";
+    case "already_exists":
+      return "the portal says an account with your email address already exists there";
+    case "portal_drift":
+      return "the registration page was not laid out the way I expected";
+    case "runner_fault":
+      return "my browser lost its connection";
+    case "needs_the_student":
+      return "the portal asked for something only you can do";
+    case "robots_disallows":
+      return "the portal's rules for automated visitors do not allow me onto that page";
+    case "secret_unavailable":
+      return "the password you typed could not be used";
+    case "captcha_met":
+    case "second_factor_met":
+    case "not_recorded":
+      return "the portal asked for something I could not give it";
+  }
+}
+
+/**
+ * The first attempt failed (ADR-0114). Says why, that there will be one more,
+ * and — when a password of the student's was spent — that the box opens
+ * again, because we do not keep it. Nothing has been submitted.
+ */
+function creationFailedOnceMessage(
+  entry: CatalogueEntry,
+  failure: WorkFailure,
+  passwordSpent: boolean,
+): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried to create your account on ${institution}'s application portal and it did not go ` +
+    `through: ${failureInWords(failure)}. That can happen once by chance, so I will try once ` +
+    `more. ` +
+    (passwordSpent
+      ? `I do not keep your password, so I will open the secure box again for you to type ` +
+        `your password again for the second attempt. `
+      : `I will try again shortly. `) +
+    `Nothing has been submitted.`
+  );
+}
+
+/** The password could not be used, so nothing was attempted (ADR-0114). */
+function unusablePasswordMessage(entry: CatalogueEntry): string {
+  return (
+    `I could not use the password you typed for ${entry.blueprint.institutionName} — it had ` +
+    `lapsed, or had already been used, before I could. Nothing was tried on their portal. I ` +
+    `will open the secure box again for you to type it once more.`
+  );
+}
+
+/**
+ * The second attempt failed and the run has stopped (ADR-0114). Vahid: *"the
+ * student must be told the account could not be created — not left with a
+ * conversation that has quietly stopped moving."*
+ */
+function creationStoppedMessage(entry: CatalogueEntry, failure: WorkFailure): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried a second time to create your account on ${institution}'s application portal and ` +
+    `it did not go through either: ${failureInWords(failure)}. I have stopped there rather than ` +
+    `keep trying, and passed your application to a member of the team, who will look at what ` +
+    `the portal is doing and tell you what happens next. Nothing you have given me is lost, ` +
+    `and nothing has been submitted.`
   );
 }
 
@@ -2069,7 +2151,29 @@ export class RunDriver {
       ...(found?.completed === undefined ? {} : { completed: found.completed }),
     });
     if (verdict.kind !== "already_done" || verdict.outcome !== "succeeded") {
-      return await this.#withAccountIfDeclared(state, input, now);
+      const declared = await this.#withAccountIfDeclared(state, input, now);
+      // ── A creation that was tried and failed, on the state (ADR-0114) ──
+      //
+      // Read off the same row, so the orchestrator can send the run back to
+      // the box rather than to the portal with a password the failed attempt
+      // spent. The count is what `reportWork` stops at; the step never reads
+      // it. Not recorded beside a declared account: the student's own account
+      // (ADR-0110) makes the creation moot, and `withAccountCreationFailure`
+      // refuses the pair.
+      if (
+        verdict.kind === "already_done" &&
+        found?.completed !== undefined &&
+        declared.account === undefined
+      ) {
+        return withAccountCreationFailure(declared, {
+          at: found.completed.completedAt,
+          attempts: found.attemptsMade,
+          ...(found.completed.spentSecretRequestId === undefined
+            ? {}
+            : { spentSecretRequestId: found.completed.spentSecretRequestId }),
+        });
+      }
+      return declared;
     }
 
     // Derived from the case, not random — the same reasoning as the run id and
@@ -4772,14 +4876,28 @@ export class RunDriver {
     // the same conversation can both hold a valid run revision — the second
     // loads the record after the first has checkpointed, so the optimistic lock
     // never fires — and would otherwise both find an empty log and both ask.
-    if (requiresSecureRequest(step)) {
+    //
+    // And never for a run a PERSON holds. `advance` has no held-run guard on
+    // purpose (see there): re-deriving a stopped run is a no-op that re-stops
+    // it. Opening a password box is not a no-op — it is the one thing a
+    // student would act on — and ADR-0114's second failure found this path:
+    // the run stops, its secret is spent, the step says "ask again", and a
+    // box opened on a run nobody automatic may move. So the box waits for
+    // the person, the same as everything else about the run.
+    if (requiresSecureRequest(step) && !isHeldByAPerson(input.record.status)) {
       const opened = await this.#options.bindings.withConversationLock(
         input.conversationId,
         async (): Promise<RunOutcome | null> => {
           const live = latestSecretRequest(
             await this.#options.conversations.since(input.conversationId, 0),
           );
-          if (live !== null && !isSettled(live.lifecycle)) return null;
+          // A request a failed creation spent is settled whatever the log says
+          // yet (ADR-0114): the Secure Plane's `secret_consumed` arrives through
+          // an outbox, and a runner that could not reach the plane at all
+          // leaves the log saying `secret_received` for ever. The ledger, not
+          // the outbox, is what says the handle is gone.
+          const spent = situation.state.accountCreationFailed?.spentSecretRequestId;
+          if (live !== null && !isSettled(live.lifecycle) && live.requestId !== spent) return null;
           return await this.#openSecureStep(input, step);
         },
       );
@@ -5346,12 +5464,26 @@ export class RunDriver {
     // So a runner that cannot tell whether the portal accepted must report
     // `uncertain`, not `failed`. `failed_cleanly` is a claim — that nothing
     // happened out there — and only the runner is in a position to make it.
+    //
+    // A failed creation says two more things (ADR-0114): whether the attempt
+    // reached the portal at all — a runner handed a password it could not use
+    // attempted nothing, and *"once is chance, twice is the portal"* counts
+    // attempts, not hand-outs — and which secure request's handle it was
+    // handed, so that password is never offered to the next attempt.
+    const creationFailed = held.kind === "create_account" && input.report.outcome === "failed";
+    const detail: IntentCompletionDetail | undefined = creationFailed
+      ? {
+          attempted: input.report.failure !== "secret_unavailable",
+          ...(await this.#secretHandedTo(runId)),
+        }
+      : undefined;
     if (input.report.outcome !== "uncertain" && LEDGERED_WORK.has(held.kind)) {
       await this.#options.stores.runs.completeIntent(
         runId,
         key,
         input.report.outcome === "succeeded" ? "succeeded" : "failed_cleanly",
         now,
+        detail,
       );
     }
 
@@ -5366,9 +5498,128 @@ export class RunDriver {
     const challenge = challengeOf(input.report);
     if (challenge !== null) {
       await this.#stopForChallenge({ runId, challenge, action, target, now });
+    } else if (creationFailed && input.report.failure !== undefined) {
+      // ADR-0114. Tried once: the student is told and the box reopens. Tried
+      // twice: a person is asked, and the student is told the account could
+      // not be created. A challenge is handled above and is neither.
+      await this.#afterFailedCreation({
+        runId,
+        key,
+        action,
+        target,
+        failure: input.report.failure,
+        spent: detail?.spentSecretRequestId,
+        now,
+      });
     }
 
     return await leases.release({ runId: input.runId, leaseId: input.report.leaseId, now });
+  }
+
+  /**
+   * Which secure request's handle the run was last handed, for the ledger
+   * (ADR-0114). The log's latest request, when the student has answered it —
+   * a request still on screen was handed to nobody. An opaque `sr_…` id.
+   */
+  async #secretHandedTo(runId: RunId): Promise<{ readonly spentSecretRequestId?: string }> {
+    const record = await this.#options.stores.runs.load(runId);
+    if (record === null) return {};
+    const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
+    if (conversationId === null) return {};
+    const secret = latestSecretRequest(await this.#options.conversations.since(conversationId, 0));
+    if (secret === null || secret.handle === undefined) return {};
+    return { spentSecretRequestId: secret.requestId };
+  }
+
+  /**
+   * What follows a cleanly failed account creation (ADR-0114).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* — *"once is
+   * chance, twice is the portal. A third attempt adds a wait and tells nobody
+   * anything new."* — *"The intervention's text must say which attempt failed
+   * and why, and the student must be told the account could not be created —
+   * not left with a conversation that has quietly stopped moving."*
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Three cases, from the ledger's count of attempts MADE:
+   *
+   *   the password could not be used   → not an attempt. The student is told
+   *                                       the box will open again; the count
+   *                                       is untouched.
+   *   the first attempt failed         → the student is told why and that the
+   *                                       box opens again. The step reopens it
+   *                                       (`secretStepFor` reads the spent
+   *                                       request off the state).
+   *   the second attempt failed        → stop. A person is asked, with which
+   *                                       attempt and why on the record; the
+   *                                       student is told the account could
+   *                                       not be created; `escalated`, which
+   *                                       `claimWork` never offers.
+   *
+   * The run is NOT moved here beyond the stop — the report is evidence, and
+   * the step is `nextStep`'s (ADR-0041). Idempotent through the lease: a
+   * duplicate report is refused before it reaches this.
+   */
+  async #afterFailedCreation(input: {
+    readonly runId: RunId;
+    readonly key: ActionIdempotencyKey;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly failure: WorkFailure;
+    readonly spent: string | undefined;
+    readonly now: Date;
+  }): Promise<void> {
+    const context = await this.#stopContext(input.runId);
+    if (context === null) return;
+    const { record, conversationId, entry } = context;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content },
+      });
+    };
+
+    if (input.failure === "secret_unavailable") {
+      // Told only when a password of theirs was actually handed over and
+      // refused. A hand-out with no handle at all — a box the student
+      // cancelled, an approach with no password of ours — typed nothing that
+      // could have lapsed, and a message saying so would be false.
+      if (input.spent !== undefined) await say(unusablePasswordMessage(entry));
+      return;
+    }
+
+    const found = await this.#options.stores.runs.findIntent(input.runId, input.key);
+    const attempts = found?.attemptsMade ?? 0;
+    if (attempts < 2) {
+      await say(creationFailedOnceMessage(entry, input.failure, input.spent !== undefined));
+      return;
+    }
+
+    await this.#stopForPerson({
+      record,
+      conversationId,
+      entry,
+      action: input.action,
+      target: input.target,
+      reason: "timeout_exhausted",
+      encountered:
+        `Creating the account on ${portalOf(entry)} failed on the second of two attempts ` +
+        `(ADR-0114): this attempt failed with "${input.failure}". The first attempt also ` +
+        `failed cleanly and the student was told so in the conversation; ` +
+        (input.spent === undefined
+          ? `no password of ours was involved. `
+          : `each attempt was handed a password the student typed once for it, and both are ` +
+            `spent — nothing is held. `) +
+        `The ledger records ${attempts} attempts made and no account; the system makes no ` +
+        `third attempt.`,
+      expected:
+        `An account created on the first attempt, or on the second. ADR-0114: once is chance, ` +
+        `twice is the portal — a person looks at what the portal is doing before anything is ` +
+        `tried again, and decides whether this portal is served at all.`,
+      say: creationStoppedMessage(entry, input.failure),
+      now: input.now,
+    });
   }
 
   /**
@@ -5502,21 +5753,74 @@ export class RunDriver {
     readonly target: string;
     readonly now: Date;
   }): Promise<void> {
-    const interventions = this.#options.interventions;
-    if (interventions === undefined) return;
-    const record = await this.#options.stores.runs.load(input.runId);
-    if (record === null) return;
-    const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
-    if (conversationId === null) return;
-    const bound = await this.#options.bindings.caseFor(conversationId);
-    if (bound === null || bound.blueprintId === null) return;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
-    if (entry === null) return;
-
-    const runId = record.runId;
-    const idempotencyKey = idempotencyKeyFor({ runId, action: input.action, target: input.target });
+    const context = await this.#stopContext(input.runId);
+    if (context === null) return;
     const reason: RecoveryReason =
       input.challenge === "captcha" ? "new_portal_behaviour" : "authentication_failure";
+    await this.#stopForPerson({
+      ...context,
+      action: input.action,
+      target: input.target,
+      reason,
+      encountered: challengeEncountered(context.entry, input.challenge, input.action, input.target),
+      expected:
+        `No CAPTCHA and no second factor at registration, sign-in or the form: the ` +
+        `assumption the one-sitting design rests on (ADR-0101 §1–§2), and what the reviewed ` +
+        `observation for this portal records. A person decides whether this portal is served ` +
+        `through the plan in ADR-0101 §5, or as a handoff route.`,
+      say: challengeMessage(context.entry, input.challenge),
+      now: input.now,
+    });
+  }
+
+  /**
+   * The run, its conversation and its catalogue entry, for a stop raised from
+   * a runner's report — or `null` when any of the three is missing, in which
+   * case there is nobody to tell and nothing to stop against.
+   */
+  async #stopContext(runId: RunId): Promise<{
+    readonly record: WorkflowRunRecord;
+    readonly conversationId: string;
+    readonly entry: CatalogueEntry;
+  } | null> {
+    const record = await this.#options.stores.runs.load(runId);
+    if (record === null) return null;
+    const conversationId = await this.#options.bindings.conversationForCase(record.caseId);
+    if (conversationId === null) return null;
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null || bound.blueprintId === null) return null;
+    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    if (entry === null) return null;
+    return { record, conversationId, entry };
+  }
+
+  /**
+   * Stops a run for a person, from a runner's report: one intervention, one
+   * announcement, one status (ADR-0048, ADR-0065).
+   *
+   * The same mechanism as every other stop. Idempotent by the action's own
+   * key, so a second report of the same stop raises nothing new and says
+   * nothing more; the student is told once, when the intervention is first
+   * raised. `escalated` is a status `claimWork` never offers.
+   */
+  async #stopForPerson(input: {
+    readonly record: WorkflowRunRecord;
+    readonly conversationId: string;
+    readonly entry: CatalogueEntry;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly reason: RecoveryReason;
+    readonly encountered: string;
+    readonly expected: string;
+    /** What the student is told, once. */
+    readonly say: string;
+    readonly now: Date;
+  }): Promise<void> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return;
+    const { record, conversationId, entry } = input;
+    const runId = record.runId;
+    const idempotencyKey = idempotencyKeyFor({ runId, action: input.action, target: input.target });
     const raised = await interventions.raise({
       interventionId: makeInterventionId(
         this.#options.newInterventionId?.(runId, idempotencyKey, input.now) ??
@@ -5527,14 +5831,10 @@ export class RunDriver {
       caseId: record.caseId,
       studentRef: record.studentRef,
       escalation: {
-        reason,
-        priority: priorityFor(reason),
-        encountered: challengeEncountered(entry, input.challenge, input.action, input.target),
-        expected:
-          `No CAPTCHA and no second factor at registration, sign-in or the form: the ` +
-          `assumption the one-sitting design rests on (ADR-0101 §1–§2), and what the reviewed ` +
-          `observation for this portal records. A person decides whether this portal is served ` +
-          `through the plan in ADR-0101 §5, or as a handoff route.`,
+        reason: input.reason,
+        priority: priorityFor(input.reason),
+        encountered: input.encountered,
+        expected: input.expected,
         checkpoint: {
           blueprintVersion: blueprintVersion(entry.blueprint.version),
           action: input.action,
@@ -5558,11 +5858,7 @@ export class RunDriver {
     if (held !== null && held.announcedAt === undefined) {
       await this.#options.conversations.append({
         conversationId,
-        event: {
-          kind: "message",
-          actor: "assistant",
-          content: challengeMessage(entry, input.challenge),
-        },
+        event: { kind: "message", actor: "assistant", content: input.say },
       });
       await interventions.markAnnounced(raised.interventionId, input.now);
     }

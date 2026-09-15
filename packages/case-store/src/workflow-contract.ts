@@ -427,6 +427,73 @@ export function runWorkflowStoreContract(
         expect(await store.reopenIntent(id, key(id), NOW)).toBe(false);
       });
 
+      it("counts the attempts MADE, and names the secret each one spent (ADR-0114)", async () => {
+        // ═══════════════════════════════════════════════════════════════
+        // Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* The
+        // row is still ONE per (run, action, target); what it gains is a
+        // count of the attempts actually made against the world, which a
+        // reopen must not forget, and the id of the secret request the
+        // last attempt was handed — so a spent password is never offered
+        // to a second attempt, and the second failure is known to be the
+        // second. The id is opaque (`sr_…`); no password is near it.
+        // ═══════════════════════════════════════════════════════════════
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        expect((await store.findIntent(id, key(id)))?.attemptsMade, "nothing attempted yet").toBe(0);
+
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, {
+          spentSecretRequestId: "sr_a",
+        });
+        let found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade, "the first attempt was made").toBe(1);
+        expect(found?.completed?.spentSecretRequestId).toBe("sr_a");
+        // Recorded once. A duplicate report of the same outcome is idempotent
+        // for the outcome already, and must be for the count too.
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, {
+          spentSecretRequestId: "sr_a",
+        });
+        expect((await store.findIntent(id, key(id)))?.attemptsMade).toBe(1);
+
+        const later = new Date(NOW.getTime() + 60_000);
+        expect(await store.reopenIntent(id, key(id), later)).toBe(true);
+        found = await store.findIntent(id, key(id));
+        expect(found?.completed, "in flight again").toBeUndefined();
+        expect(found?.attemptsMade, "a reopen forgets nothing").toBe(1);
+
+        await store.completeIntent(id, key(id), "failed_cleanly", later, {
+          spentSecretRequestId: "sr_b",
+        });
+        found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade, "the second failure is known to be the second").toBe(2);
+        expect(found?.completed?.spentSecretRequestId).toBe("sr_b");
+        expect((await store.listIntents(id, "create_portal_account"))[0]?.attemptsMade).toBe(2);
+      });
+
+      it("does NOT count a hand-out that never reached the portal (ADR-0114)", async () => {
+        // A runner handed a password it could not use has attempted nothing:
+        // once is chance, twice is the portal, and this was neither. The
+        // secret it was handed is still recorded as spent — a handle the
+        // Secure Plane refused is not one to hand out again.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, {
+          attempted: false,
+          spentSecretRequestId: "sr_a",
+        });
+        const found = await store.findIntent(id, key(id));
+        expect(found?.attemptsMade).toBe(0);
+        expect(found?.completed?.outcome).toBe("failed_cleanly");
+        expect(found?.completed?.spentSecretRequestId).toBe("sr_a");
+
+        // And a completion that names no secret — a page saved, an account
+        // created under an approach with no password of ours — carries none.
+        await expect(store.reopenIntent(id, key(id), NOW)).resolves.toBe(true);
+        await store.completeIntent(id, key(id), "succeeded", NOW);
+        const done = await store.findIntent(id, key(id));
+        expect(done?.attemptsMade, "a success was an attempt made").toBe(1);
+        expect(done?.completed?.spentSecretRequestId).toBeUndefined();
+      });
+
       it("keeps one run's intents out of another's", async () => {
         await store.start(freshRun(id));
         const other = makeRunId(`${id}_other`);

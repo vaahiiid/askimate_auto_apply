@@ -1,6 +1,6 @@
 # Decision sheet — blocker 26: a failed account creation is re-claimed without limit, and cannot succeed once the secret is spent
 
-**For:** Vahid · **Prepared:** 2026-09-15 · **Answerable in one sitting.** Recorded as **blocker 26**
+**For:** Vahid · **Prepared:** 2026-09-15 · **Answerable in one sitting.** **Answered 2026-09-15: C, and the number is two — ADR-0114; built in P137.** Recorded as **blocker 26**
 in [`state-of-the-system.md`](./state-of-the-system.md); raised in P121
 ([`runbook-local-stack.md`](./runbook-local-stack.md), *Found by driving the journey through it*).
 

@@ -39,6 +39,7 @@ export {
   signInWorkOf,
   specialistHandoverOf,
   withAccount,
+  withAccountCreationFailure,
   withAuthorisation,
   withProfile,
   withSecret,

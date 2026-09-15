@@ -103,7 +103,36 @@ export class RunStatusError extends Error {
 export interface IntentRecord {
   readonly intent: ActionIntent;
   /** Absent means started and never recorded as finished — the uncertain case. */
-  readonly completed?: { readonly outcome: IntentOutcome; readonly completedAt: Date };
+  readonly completed?: {
+    readonly outcome: IntentOutcome;
+    readonly completedAt: Date;
+    /**
+     * The Secure Plane request whose handle this attempt was handed, when it
+     * was handed one (ADR-0114). An opaque `sr_…` id, never a secret. What
+     * keeps a spent password from being offered to the next attempt.
+     */
+    readonly spentSecretRequestId?: string;
+  };
+  /**
+   * How many attempts were actually made against the world, across every
+   * reopen of this row (ADR-0114). A hand-out completed with
+   * `attempted: false` — the runner had nothing usable and touched nothing —
+   * is not among them. Vahid: *"once is chance, twice is the portal."*
+   */
+  readonly attemptsMade: number;
+}
+
+/**
+ * What a completion says beyond its outcome (ADR-0114).
+ *
+ * `attempted` defaults to true: a completion is an attempt made unless the
+ * caller says the action never reached the world. `spentSecretRequestId` is
+ * the request the attempt was handed a handle for, so the row can say which
+ * password is spent without waiting on the Secure Plane's outbox.
+ */
+export interface IntentCompletionDetail {
+  readonly attempted?: boolean;
+  readonly spentSecretRequestId?: string;
 }
 
 /**
@@ -170,12 +199,16 @@ export interface WorkflowRunStore {
     startedAt: Date,
   ): Promise<boolean>;
 
-  /** Records that it finished. Idempotent for the same outcome. */
+  /**
+   * Records that it finished. Idempotent for the same outcome — and for the
+   * attempt count, which a duplicate report must not raise twice.
+   */
   completeIntent(
     runId: RunId,
     idempotencyKey: ActionIntent["idempotencyKey"],
     outcome: IntentOutcome,
     now: Date,
+    detail?: IntentCompletionDetail,
   ): Promise<void>;
 
   /** What is known about one action. `null` when it was never started. */

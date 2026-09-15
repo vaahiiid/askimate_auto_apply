@@ -156,6 +156,23 @@ export interface RunState {
    */
   readonly account?: PortalAccount;
   /**
+   * That creating the account was tried and failed cleanly, as the Run
+   * Driver reads it off the intent ledger (ADR-0114).
+   *
+   * Absent while no attempt has completed as a failure — never tried, in
+   * flight, or succeeded (then `account` is set instead). `attempts` is how
+   * many were actually made; `spentSecretRequestId` is the secure request
+   * whose handle the failed attempt was handed, when it was handed one. The
+   * step reads the second to send the run back to the box rather than to the
+   * portal with a password already spent; the driver reads the first to stop
+   * at two. Vahid: *"once is chance, twice is the portal."*
+   */
+  readonly accountCreationFailed?: {
+    readonly at: Date;
+    readonly attempts: number;
+    readonly spentSecretRequestId?: string;
+  };
+  /**
    * Where the student's password has got to, when the secure channel is in
    * use.
    *
@@ -726,6 +743,30 @@ function secretStepFor(
   if (state.inputs.passwordDelivery !== "askimate_secure_channel") return null;
 
   const secret = state.secret;
+
+  // ── A password a failed attempt spent is not the next attempt's ─────────
+  //
+  // ADR-0114. The first clean failure spent its handle, and before this the
+  // step read `secret_consumed` as "asked already" and answered nothing —
+  // so `create_account` was offered again with nothing to spend, refused by
+  // the Secure Plane, and offered again: the loop P121 watched. The failure
+  // record names the request it spent; while the log's latest request is
+  // that one, the run goes back to the box. NOT decided from the lifecycle:
+  // `secret_consumed` arrives through an outbox, and a log that still says
+  // `secret_received` for a spent request must not hand its handle out.
+  //
+  // The driver opens a box only when the log has none open, so this cannot
+  // replace one the student is typing into: a spent request is by definition
+  // one that was answered.
+  const spent = state.accountCreationFailed?.spentSecretRequestId;
+  if (secret !== undefined && spent !== undefined && secret.requestId === spent) {
+    return {
+      kind: "request_secret",
+      say: describeSecureChannel(portalHost),
+      request: secretRequestFor(state, portalHost),
+    };
+  }
+
   if (secret !== undefined && secret.lifecycle !== "secret_expired") {
     // Asked already. `secret_received` means the automation has what it needs
     // and the run should carry on to create the account; `secret_requested`
@@ -930,6 +971,27 @@ function hostOf(url: string | undefined): string {
 /** Records the account on the run. */
 export function withAccount(state: RunState, account: PortalAccount): RunState {
   return { ...state, account };
+}
+
+/**
+ * Records that the last completed attempt to create the account failed
+ * cleanly (ADR-0114). See `RunState.accountCreationFailed`.
+ *
+ * Refused for a run that has its account: a failure record beside an account
+ * would describe an attempt the account contradicts, and the ledger the driver
+ * reads this from cannot say both.
+ */
+export function withAccountCreationFailure(
+  state: RunState,
+  failure: NonNullable<RunState["accountCreationFailed"]>,
+): RunState {
+  if (state.account !== undefined) {
+    throw new Error(
+      `The run has its account; a failed creation cannot be recorded beside it. The ledger ` +
+        `says one thing about an intent, and this state must not say two.`,
+    );
+  }
+  return { ...state, accountCreationFailed: failure };
 }
 
 /**

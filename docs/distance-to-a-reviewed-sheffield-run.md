@@ -198,6 +198,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P137: blocker 26 built as decided (ADR-0114: two attempts, then a person; the
+  student told at both points). The ledger counts attempts made and names the spent secret; the
+  step sends the run back to the box by identity, not by the outbox's lifecycle word; the
+  second failure stops with which attempt and why on the record. Found and closed on the way:
+  a held run's advance could open a password box. Blocker 28 raised — a cancelled box loops
+  the same way, his call. Five open of ten, unchanged.
 - 2026-09-15, P136: records and sheets — ADR-0113 (the interview asks entry by entry; a CV block
   is its own decision if ever wanted), his two notes on item 7 in ADR-0091, and two decision
   sheets for him: blocker 26 and item 3's registry gaps. Five open of ten, unchanged.

@@ -23,7 +23,7 @@ import type {
   ConsequentialAction,
 } from "@askimate/aas-domain";
 
-import type { IntentRecord, WorkflowRunStore } from "./workflow-store.js";
+import type { IntentCompletionDetail, IntentRecord, WorkflowRunStore } from "./workflow-store.js";
 import {
   RunAlreadyExistsError,
   RunConcurrencyError,
@@ -136,6 +136,7 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     }
     held.intents.set(intent.idempotencyKey, {
       intent: { ...intent, startedAt: new Date(intent.startedAt.getTime()) },
+      attemptsMade: 0,
     });
   }
 
@@ -151,8 +152,11 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     // Missing, unfinished, or succeeded: all three answer `false`. See the
     // interface — only a cleanly failed attempt may be tried again.
     if (record?.completed?.outcome !== "failed_cleanly") return false;
+    // The count survives the reopen (ADR-0114); the spent secret does not —
+    // it described the attempt just closed, and the next one is handed its own.
     held.intents.set(idempotencyKey, {
       intent: { ...record.intent, startedAt: new Date(startedAt.getTime()) },
+      attemptsMade: record.attemptsMade,
     });
     return true;
   }
@@ -162,6 +166,7 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     idempotencyKey: ActionIntent["idempotencyKey"],
     outcome: IntentOutcome,
     now: Date,
+    detail?: IntentCompletionDetail,
   ): Promise<void> {
     await Promise.resolve();
     const held = this.#runs.get(runId);
@@ -183,7 +188,14 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     }
     held.intents.set(idempotencyKey, {
       ...record,
-      completed: { outcome, completedAt: new Date(now.getTime()) },
+      completed: {
+        outcome,
+        completedAt: new Date(now.getTime()),
+        ...(detail?.spentSecretRequestId === undefined
+          ? {}
+          : { spentSecretRequestId: detail.spentSecretRequestId }),
+      },
+      attemptsMade: record.attemptsMade + (detail?.attempted === false ? 0 : 1),
     });
   }
 

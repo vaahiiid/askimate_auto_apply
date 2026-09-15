@@ -41,7 +41,7 @@ import type {
 } from "@askimate/aas-domain";
 
 import { decodeEvent, encodeEvent } from "./serialisation.js";
-import type { IntentRecord, WorkflowRunStore } from "./workflow-store.js";
+import type { IntentCompletionDetail, IntentRecord, WorkflowRunStore } from "./workflow-store.js";
 import {
   RunAlreadyExistsError,
   RunConcurrencyError,
@@ -228,9 +228,13 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
     // `outcome = 'failed_cleanly'` is doing all the work: a `succeeded` row and
     // an unfinished row are both left exactly as they are, and the caller is
     // told `false`.
+    //
+    // `attempts_made` is left alone: it is the memory a reopen must keep
+    // (ADR-0114). The spent secret is cleared — it described the attempt just
+    // closed, and the constraint pairs it with a completion.
     const updated = await this.pool.query(
       `UPDATE workflow_action_intents
-          SET started_at = $1, outcome = NULL, completed_at = NULL
+          SET started_at = $1, outcome = NULL, completed_at = NULL, spent_secret_request_id = NULL
         WHERE run_id = $2 AND idempotency_key = $3 AND outcome = 'failed_cleanly'`,
       [startedAt, runId, idempotencyKey],
     );
@@ -242,15 +246,27 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
     idempotencyKey: ActionIdempotencyKey,
     outcome: IntentOutcome,
     now: Date,
+    detail?: IntentCompletionDetail,
   ): Promise<void> {
     // Conditional on the outcome being unset, so a completion cannot silently
     // overwrite a different one. rowCount then distinguishes "recorded" from
-    // "already had one", and only the second needs a read to decide.
+    // "already had one", and only the second needs a read to decide. The
+    // attempt count rides on the same condition, so a duplicate report of one
+    // completion cannot count as two attempts (ADR-0114).
     const updated = await this.pool.query(
       `UPDATE workflow_action_intents
-          SET outcome = $1, completed_at = $2
+          SET outcome = $1, completed_at = $2,
+              attempts_made = attempts_made + $5,
+              spent_secret_request_id = $6
         WHERE run_id = $3 AND idempotency_key = $4 AND outcome IS NULL`,
-      [outcome, now, runId, idempotencyKey],
+      [
+        outcome,
+        now,
+        runId,
+        idempotencyKey,
+        detail?.attempted === false ? 0 : 1,
+        detail?.spentSecretRequestId ?? null,
+      ],
     );
     if (updated.rowCount === 1) return;
 
@@ -280,8 +296,11 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       started_at: Date;
       outcome: string | null;
       completed_at: Date | null;
+      attempts_made: number;
+      spent_secret_request_id: string | null;
     }>(
-      `SELECT idempotency_key, action, target, started_at, outcome, completed_at
+      `SELECT idempotency_key, action, target, started_at, outcome, completed_at,
+              attempts_made, spent_secret_request_id
          FROM workflow_action_intents WHERE run_id = $1 AND idempotency_key = $2`,
       [runId, idempotencyKey],
     );
@@ -294,12 +313,7 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       target: row.target,
       startedAt: row.started_at,
     };
-    return row.outcome === null || row.completed_at === null
-      ? { intent }
-      : {
-          intent,
-          completed: { outcome: row.outcome as IntentOutcome, completedAt: row.completed_at },
-        };
+    return intentRecordOf(row, intent);
   }
 
   public async listIntents(
@@ -313,8 +327,11 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       started_at: Date;
       outcome: string | null;
       completed_at: Date | null;
+      attempts_made: number;
+      spent_secret_request_id: string | null;
     }>(
-      `SELECT idempotency_key, action, target, started_at, outcome, completed_at
+      `SELECT idempotency_key, action, target, started_at, outcome, completed_at,
+              attempts_made, spent_secret_request_id
          FROM workflow_action_intents WHERE run_id = $1 AND action = $2
         ORDER BY started_at ASC, idempotency_key ASC`,
       [runId, action],
@@ -326,12 +343,7 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
         target: row.target,
         startedAt: row.started_at,
       };
-      return row.outcome === null || row.completed_at === null
-        ? { intent }
-        : {
-            intent,
-            completed: { outcome: row.outcome as IntentOutcome, completedAt: row.completed_at },
-          };
+      return intentRecordOf(row, intent);
     });
   }
 
@@ -411,4 +423,30 @@ export class PostgresWorkflowRunStore implements WorkflowRunStore {
       updatedAt: row.updated_at,
     };
   }
+}
+
+/** One ledger row as the record the interface promises. */
+function intentRecordOf(
+  row: {
+    readonly outcome: string | null;
+    readonly completed_at: Date | null;
+    readonly attempts_made: number;
+    readonly spent_secret_request_id: string | null;
+  },
+  intent: ActionIntent,
+): IntentRecord {
+  if (row.outcome === null || row.completed_at === null) {
+    return { intent, attemptsMade: row.attempts_made };
+  }
+  return {
+    intent,
+    completed: {
+      outcome: row.outcome as IntentOutcome,
+      completedAt: row.completed_at,
+      ...(row.spent_secret_request_id === null
+        ? {}
+        : { spentSecretRequestId: row.spent_secret_request_id }),
+    },
+    attemptsMade: row.attempts_made,
+  };
 }

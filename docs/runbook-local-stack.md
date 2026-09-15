@@ -133,9 +133,10 @@ that builds every plane in one process, each proved red before its fix:
    envelope: `secret_unavailable`, nothing typed. `AAS_SECURE_LOCAL_MASTER_KEY`, the same bytes
    in both, generated once by the script.
 
-And one thing observed, not fixed: a failed account creation is re-claimed about twice a second
-once the secret is spent, refused `already_spent` each time, without limit and without asking
-the student again (blocker 26 in `state-of-the-system.md`).
+And one thing observed, not fixed here: a failed account creation is re-claimed about twice a
+second once the secret is spent, refused `already_spent` each time, without limit and without
+asking the student again (blocker 26 in `state-of-the-system.md`). Decided by Vahid and built
+in P137 (ADR-0114): two attempts, the box reopened between them, then a person.
 
 ## Reading what happened
 

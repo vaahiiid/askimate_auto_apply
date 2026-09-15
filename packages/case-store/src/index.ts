@@ -29,7 +29,7 @@ export { decodeEvent, encodeEvent } from "./serialisation.js";
 // checkpoint is mutable and disposable. Forcing one into the other would mean
 // either putting execution detail into the business record or adding an update
 // path to an append-only log.
-export type { IntentRecord, WorkflowRunStore } from "./workflow-store.js";
+export type { IntentCompletionDetail, IntentRecord, WorkflowRunStore } from "./workflow-store.js";
 export {
   RunAlreadyExistsError,
   RunConcurrencyError,

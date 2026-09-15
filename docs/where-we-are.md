@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P137 — two, then a person
+
+Blocker 26 is built as he decided it: C, and the number is two. The loop P121 watched — a failed account creation re-offered on every tick with the password the first attempt had already spent, refused each time, nobody told — is reproduced first as the opening assertion of the third driver test, red, and then closed in three places that each hold one part of the answer.
+
+The ledger holds the count. `workflow_action_intents` still has one row per action, as ADR-0054 requires, and that row now remembers how many attempts were actually made and which secure request the last attempt spent. "Actually made" is the distinction the sheet drew: a runner handed a password it could not use has attempted nothing on the portal, so that hand-out completes as a clean failure with the count untouched — once is chance and twice is the portal, and that was neither. The spent request is an opaque id and it is there for one reason: so the decision about whether a password is gone does not wait on the Secure Plane's outbox. `secret_consumed` arrives later; a runner that never reached the plane at all leaves the log saying `secret_received` for ever; the ledger, written at the report, says the handle is spent now.
+
+The orchestrator reads it as a state and answers with the box. The driver reads the row into the run state, and the password step sends the run back to the secure box while the log's latest request is the one a failed attempt spent — by identity, never by the lifecycle word. A request opened after the failure is fresh, and the second attempt is handed that one. The driver's own guard against opening a second box reads the same fact, so a spent request is settled whatever the log says yet.
+
+The driver says what happened, each time. The first failure is told in the closed set's own words — the portal did not accept the details, my browser lost its connection — with why there will be one more attempt and that the box opens again because we do not keep the password. The second raises an intervention whose text names the second of two attempts and the reported code, tells the student the account could not be created and that a person will look, and sets the status nothing automatic offers. The challenge stop from ADR-0101 and this one turned out to be the same mechanism and are now one method with two callers.
+
+Found on the way and closed: an escalated run's advance could open a password box. `advance` deliberately has no held-run guard, because re-deriving a stopped run is a no-op that re-stops it — and the box was the one thing on that path that is not a no-op. The second failure's spent secret made the step say "ask again" on a run a person was holding, and a box opened. It no longer does; the box waits for the person like everything else about the run.
+
+Not done, and raised rather than decided: a box the student cancels loops the same way for a different word. `secret_cancelled` reads as "asked already", the creation is handed out with no password, refused, and handed out again — silently, because saying "the password you typed could not be used" to someone who typed nothing would be false. Whether a cancel means ask me again, stop for a person, or I am stopping is a product reading, and it is blocker 28 for him. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P136 — decided before it is built, and two sheets
 
 He answered the question I had left him while it was fresh, so that whoever builds the interview's coverage starts from it rather than re-opening it: entry by entry, not a CV block. His reasoning is ADR-0113 in his words — a model proposing entries from a pasted CV makes the model the source of what goes into the profile, and confirmation after the fact is weaker than it looks, because a student reading back five plausible jobs will confirm them without checking the dates; every value in this system comes from something the student said deterministically, and a CV block would be the first exception, its own decision with its own argument if ever wanted. The ADR turns that into four rules for the build: one entry at a time, one part at a time, parsed as the seven fields are; the student's claims asked, not inferred; "none" as a confirmation; and nothing entering the profile from a document the model summarised. Not built, at his word. He also corrected the framing I had used twice: it is not a list-valued problem, the interview covers seven of twenty-seven fields, and that number now sits under Run B rather than the phrase.

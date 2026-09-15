@@ -681,7 +681,7 @@ describeIfDatabase("P17 — a clean failure may be tried again", () => {
     // `failed_cleanly` for ever. Nothing tested the path, because no test ever
     // drove a full second attempt. This one does.
     // ═══════════════════════════════════════════════════════════════════
-    const { runId } = await seedRun();
+    const { runId, conversationId } = await seedRun();
 
     let attempts = 0;
     const flaky = (): Promise<PerformOutcome> => {
@@ -704,6 +704,38 @@ describeIfDatabase("P17 — a clean failure may be tried again", () => {
     expect(await intentsFor(runId), "recorded as a clean failure").toEqual([
       { action: "create_portal_account", outcome: "failed_cleanly" },
     ]);
+
+    // ── ADR-0114: the spent password is not the second attempt's ────────
+    //
+    // The first attempt was handed the student's password and spent it. Until
+    // P137 the run was offered again at once with that same handle — the loop
+    // P121 watched — so a runner polling now is handed nothing, and the run
+    // waits for the student to answer a fresh box.
+    const spent = runner("runner-flaky-spent", flaky);
+    await keepPolling(200);
+    expect(
+      spent.turns.every((t) => t.kind === "idle"),
+      "a password a failed attempt spent is not handed out again",
+    ).toBe(true);
+    await spent.supervisor.stop();
+    expect(attempts, "still the one attempt").toBe(1);
+
+    // The student types again, as the Secure Plane reports it: a fresh
+    // request, answered. Appended directly; the box itself is the driver's.
+    const fresh = `sr_${seeded.toString(16).padStart(31, "0")}f`;
+    await events.append({
+      conversationId,
+      event: {
+        kind: "secret_requested",
+        requestId: fresh,
+        channel: "secure_control",
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+      },
+    });
+    await events.append({
+      conversationId,
+      event: { kind: "secret_received", requestId: fresh, handle: `sh_${"f".repeat(32)}` },
+    });
 
     // A different runner entirely, as it would be after a deploy.
     const second = runner("runner-flaky-2", flaky);

@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.135.0] — 2026-09-15
+
+**P137 — ADR-0114 built: a failed account creation is tried twice, then stops for a person;
+the student is told at both points (blocker 26 closed; blocker 28 raised).**
+
+### Added
+
+- `packages/case-store`: migration `0005_intent_attempts.sql` — `attempts_made` and
+  `spent_secret_request_id` on `workflow_action_intents`; `IntentRecord.attemptsMade`,
+  `completed.spentSecretRequestId`; `completeIntent(…, detail)` with `attempted` and
+  `spentSecretRequestId`; a reopen keeps the count and clears the spent id.
+- `packages/orchestrator`: `RunState.accountCreationFailed`; `withAccountCreationFailure`;
+  `secretStepFor` sends the run back to the box while the latest request is the one a failed
+  attempt spent.
+- `apps/conversation-service`: `reportWork` records the detail and, on a failed creation, tells
+  the student (unusable password; first attempt, in the closed set's words; second attempt) and
+  stops for a person on the second with an intervention naming the attempt and the code;
+  `#stopForPerson` shared with the challenge stop; the second-box guard reads the spent request.
+
+### Fixed
+
+- Advancing a run a person holds could open a password box; no box opens for a held run.
+
+---
+
 ## [0.134.0] — 2026-09-15
 
 **P136 — ADR-0113 in Vahid's words (the interview asks entry by entry; never from a pasted

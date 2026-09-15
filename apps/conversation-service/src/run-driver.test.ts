@@ -7695,6 +7695,349 @@ describeIfDatabase("a runner that meets a CAPTCHA or a second factor (ADR-0101 �
   }, 120_000);
 });
 
+describeIfDatabase("a failed account creation is tried twice, then stops for a person (ADR-0114)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* — *"once is
+  // chance, twice is the portal"* — *"The intervention's text must say which
+  // attempt failed and why, and the student must be told the account could
+  // not be created — not left with a conversation that has quietly stopped
+  // moving."*
+  //
+  // P121 watched the loop these close: a creation failed, the ledger
+  // reopened it, the next poll offered it with the handle the first attempt
+  // had spent, the Secure Plane refused, and round again twice a second with
+  // the student told nothing.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const SPENT_REQUEST = `sr_${"0".repeat(31)}1`;
+  const FRESH_REQUEST = `sr_${"0".repeat(31)}2`;
+  const FRESH_HANDLE = `sh_${"b".repeat(32)}`;
+
+  /**
+   * A gated run at account creation with the runner's lease taken, on ONE
+   * instance that the test keeps: the opener numbers its requests per
+   * instance, and the second box must not reuse the first box's id.
+   */
+  async function aLeasedCreation(
+    conversation: string,
+    holder: string,
+  ): Promise<{
+    instance: ReturnType<typeof buildInstance>;
+    secure: ReturnType<typeof opener>;
+    runId: string;
+    leaseId: string;
+  }> {
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    await confirmTheInterview(
+      new PostgresConfirmedProfileStore(instance.pool),
+      ownerOf(conversation),
+    );
+    const started = await pastTheYes(instance, conversation);
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    const runId = started.position.runId;
+    await new ConversationEventStore(instance.pool).append({
+      conversationId: conversation,
+      event: { kind: "secret_received", requestId: SPENT_REQUEST, handle: `sh_${"7".repeat(32)}` },
+    });
+    const next = await instance.driver.advance({ runId, conversationId: conversation });
+    if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+    expect(next.position.step).toBe("create_account");
+    const leaseId = await takeTheLease(instance, runId, holder);
+    return { instance, secure, runId, leaseId };
+  }
+
+  /** The lease and the intent, as `claimWork` takes them, for THIS run. */
+  async function takeTheLease(
+    instance: ReturnType<typeof buildInstance>,
+    runId: string,
+    holder: string,
+  ): Promise<string> {
+    const leaseId = `wl_${holder}`;
+    const runRef = makeRunId(runId);
+    const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+    const runs = new PostgresWorkflowRunStore(instance.pool);
+    if ((await runs.findIntent(runRef, key)) === null) {
+      await runs.recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+    } else if (!(await runs.reopenIntent(runRef, key, NOW))) {
+      expect.unreachable("a cleanly failed intent reopens");
+    }
+    const lease = await new WorkLeaseStore(instance.pool).claim({
+      runId,
+      leaseId,
+      kind: "create_account",
+      holder,
+      now: NOW,
+      leaseSeconds: 120,
+    });
+    if (lease === null) expect.unreachable("the lease should be free to take");
+    return leaseId;
+  }
+
+  async function ledgerOf(runId: string): Promise<{
+    outcome: string | null;
+    attemptsMade: number;
+    spent: string | null;
+  }> {
+    const rows = await pool.query<{
+      outcome: string | null;
+      attempts_made: number;
+      spent_secret_request_id: string | null;
+    }>(
+      `SELECT outcome, attempts_made, spent_secret_request_id
+         FROM workflow_action_intents WHERE run_id = $1 AND action = 'create_portal_account'`,
+      [runId],
+    );
+    const row = rows.rows[0];
+    if (row === undefined) expect.unreachable("the claim recorded the intent");
+    return { outcome: row.outcome, attemptsMade: row.attempts_made, spent: row.spent_secret_request_id };
+  }
+
+  async function interventionFor(runId: string): Promise<{
+    reason: string;
+    encountered: string;
+    expected: string;
+    announced: boolean;
+  } | null> {
+    const rows = await pool.query<{
+      reason: string;
+      encountered: string;
+      expected: string;
+      announced_at: Date | null;
+    }>(
+      "SELECT reason, encountered, expected, announced_at FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined
+      ? null
+      : { reason: row.reason, encountered: row.encountered, expected: row.expected, announced: row.announced_at !== null };
+  }
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    const rows = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    return rows.rows[0]?.status;
+  }
+
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function requestsOpened(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ request_id: string }>(
+      `SELECT request_id FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'secret_requested' ORDER BY ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.request_id);
+  }
+
+  /** The Secure Plane reports the student answered the fresh box. */
+  async function theStudentTypesAgain(
+    instance: ReturnType<typeof buildInstance>,
+    conversation: string,
+  ): Promise<void> {
+    await new ConversationEventStore(instance.pool).append({
+      conversationId: conversation,
+      event: { kind: "secret_received", requestId: FRESH_REQUEST, handle: FRESH_HANDLE },
+    });
+  }
+
+  it("the first failure: the student is told why, the spent secret is not offered, and the box opens again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00711";
+    const { instance, runId, leaseId } = await aLeasedCreation(conversation, "runner-once");
+    try {
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "failed", failure: "portal_refused" },
+        }),
+      ).toBe(true);
+
+      // ── The ledger: one attempt made, and which secret it spent ───────
+      expect(await ledgerOf(runId)).toEqual({
+        outcome: "failed_cleanly",
+        attemptsMade: 1,
+        spent: SPENT_REQUEST,
+      });
+
+      // ── The student: told, in words that say why and what happens next ─
+      const told = (await saidTo(conversation)).filter((content) =>
+        content.includes("did not go through"),
+      );
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain("did not accept the details");
+      expect(told[0]).toContain("try once more");
+      expect(told[0]).toContain("type your password again");
+      expect(told[0]).toContain("Nothing has been submitted");
+      expect(await interventionFor(runId), "no person yet: once is chance").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+
+      // ── The step: back to the box, not to the portal with a spent handle ─
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step, "the spent secret is not the second attempt's").toBe(
+        "request_secret",
+      );
+      expect(await requestsOpened(conversation), "a second box, a new request").toEqual([
+        SPENT_REQUEST,
+        FRESH_REQUEST,
+      ]);
+
+      // Still not offered while the fresh box is unanswered.
+      const waiting = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!waiting.ok) expect.unreachable(`advance refused: ${waiting.refusal.kind}`);
+      expect(waiting.position.step).toBe("request_secret");
+      expect(await requestsOpened(conversation), "and asked once, not on every pass").toHaveLength(2);
+
+      // ── The fresh secret is the second attempt's ──────────────────────
+      await theStudentTypesAgain(instance, conversation);
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("create_account");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("a password the runner could not use is not an attempt: told, the box again, nothing counted", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00712";
+    const { instance, runId, leaseId } = await aLeasedCreation(conversation, "runner-unusable");
+    try {
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "failed", failure: "secret_unavailable" },
+        }),
+      ).toBe(true);
+      expect(await ledgerOf(runId), "the portal was never reached").toEqual({
+        outcome: "failed_cleanly",
+        attemptsMade: 0,
+        spent: SPENT_REQUEST,
+      });
+      const told = (await saidTo(conversation)).filter((content) =>
+        content.includes("could not use the password"),
+      );
+      expect(told).toHaveLength(1);
+      expect(told[0]).toContain("Nothing was tried on their portal");
+      expect(await statusOf(runId)).toBe("running");
+
+      const next = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("request_secret");
+
+      // The real first attempt, with the fresh secret, is still the FIRST.
+      await theStudentTypesAgain(instance, conversation);
+      const lease2 = await takeTheLease(instance, runId, "runner-unusable-2");
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: lease2, outcome: "failed", failure: "runner_fault" },
+        }),
+      ).toBe(true);
+      expect(await ledgerOf(runId)).toEqual({
+        outcome: "failed_cleanly",
+        attemptsMade: 1,
+        spent: FRESH_REQUEST,
+      });
+      expect(await interventionFor(runId), "one real failure is chance").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("the second failure: a person is asked, told which attempt and why; the student is told; never offered again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00713";
+    const { instance, runId, leaseId } = await aLeasedCreation(conversation, "runner-twice");
+    try {
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId, outcome: "failed", failure: "portal_refused" },
+        }),
+      ).toBe(true);
+      const opened = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!opened.ok) expect.unreachable(`advance refused: ${opened.refusal.kind}`);
+      expect(opened.position.step).toBe("request_secret");
+      await theStudentTypesAgain(instance, conversation);
+
+      const lease2 = await takeTheLease(instance, runId, "runner-twice-2");
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: lease2, outcome: "failed", failure: "runner_fault" },
+        }),
+      ).toBe(true);
+      expect(await ledgerOf(runId)).toEqual({
+        outcome: "failed_cleanly",
+        attemptsMade: 2,
+        spent: FRESH_REQUEST,
+      });
+
+      // ── The specialist: which attempt, and why ────────────────────────
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("the second failure asks a person");
+      expect(raised.reason, "retries are exhausted").toBe("timeout_exhausted");
+      expect(raised.encountered).toContain("second of two");
+      expect(raised.encountered).toContain("runner_fault");
+      expect(raised.encountered).toContain("ADR-0114");
+      expect(raised.expected).toContain("once is chance, twice is the portal");
+      expect(raised.announced).toBe(true);
+
+      // ── The run: stopped, and nobody's work ───────────────────────────
+      expect(await statusOf(runId)).toBe("escalated");
+      await pool.query("DELETE FROM work_leases WHERE run_id = $1", [runId]);
+      const offered = await instance.driver.claimWork({ holder: "runner-after-two", leaseSeconds: 60 });
+      expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
+      await pool.query("DELETE FROM work_leases WHERE holder = 'runner-after-two'");
+      // An escalated run still answers the conversation (P40) — and opens
+      // no third box while it does.
+      await instance.driver.advance({ runId, conversationId: conversation });
+      expect(await requestsOpened(conversation), "and no third box").toEqual([
+        SPENT_REQUEST,
+        FRESH_REQUEST,
+      ]);
+
+      // ── The student: told the account could not be created, once ──────
+      const said = await saidTo(conversation);
+      expect(said.filter((content) => content.includes("did not go through")), "first and second").toHaveLength(2);
+      const last = said.filter((content) => content.includes("a second time"));
+      expect(last).toHaveLength(1);
+      expect(last[0]).toContain("my browser lost its connection");
+      expect(last[0]).toContain("passed your application to a member of the team");
+      expect(last[0]).toContain("nothing has been submitted");
+
+      // A duplicate report of the second failure says nothing more.
+      expect(
+        await instance.driver.reportWork({
+          runId,
+          report: { leaseId: lease2, outcome: "failed", failure: "runner_fault" },
+        }),
+        "the lease is gone",
+      ).toBe(false);
+      expect((await saidTo(conversation)).filter((c) => c.includes("a second time"))).toHaveLength(1);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // R. P29 — the step that says a PERSON must look (ADR-0065)
 // ───────────────────────────────────────────────────────────────────────────

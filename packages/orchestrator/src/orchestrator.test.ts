@@ -51,6 +51,7 @@ import {
   withAccount,
   withAuthorisation,
   withProfile,
+  withAccountCreationFailure,
   withSecret,
   withSession,
 } from "./run.js";
@@ -1312,6 +1313,74 @@ describe("asking a student for a password", () => {
       secret: { requestId: "sr_00000000000000000000000000000000" as never, lifecycle: "secret_expired" },
     };
     expect((await nextStep(expired, model)).kind).toBe("request_secret");
+  });
+
+  it("asks again when the secret it holds is the one a failed creation spent (ADR-0114)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-15: *"Blocker 26: C, and the number is two."* The first
+    // clean failure spent the handle; before this the step read
+    // `secret_consumed` as "asked already" and moved on to `create_account`
+    // with nothing to spend — the loop P121 watched. Now a failure that names
+    // the request it spent sends the run back to the box, and only a request
+    // opened AFTER it is handed to the second attempt.
+    // ═══════════════════════════════════════════════════════════════════
+    const base = await authorised(
+      runWith(COMPLETE, {
+        ...WITH_LOGIN_PRESENT,
+        passwordDelivery: "askimate_secure_channel",
+      }),
+    );
+    const spentRequest = "sr_00000000000000000000000000000001";
+    const failed = (state: RunState): RunState =>
+      withAccountCreationFailure(state, {
+        at: new Date("2026-09-15T10:00:00Z"),
+        attempts: 1,
+        spentSecretRequestId: spentRequest,
+      });
+
+    // Spent, and the log says so.
+    const consumed = failed({
+      ...base,
+      secret: { requestId: spentRequest as never, lifecycle: "secret_consumed" },
+    });
+    expect((await nextStep(consumed, model)).kind, "consumed by the failed attempt").toBe(
+      "request_secret",
+    );
+
+    // Spent, and the log has NOT caught up — the Secure Plane's consumption
+    // arrives through an outbox. The handle is still not handed out.
+    const stale = failed({
+      ...base,
+      secret: {
+        requestId: spentRequest as never,
+        lifecycle: "secret_received",
+        handle: "sh_00000000000000000000000000000000" as never,
+      },
+    });
+    expect((await nextStep(stale, model)).kind, "received, but spent by the failure").toBe(
+      "request_secret",
+    );
+
+    // A request opened after the failure is fresh: the second attempt gets it.
+    const fresh = failed({
+      ...base,
+      secret: {
+        requestId: "sr_00000000000000000000000000000002" as never,
+        lifecycle: "secret_received",
+        handle: "sh_00000000000000000000000000000000" as never,
+      },
+    });
+    expect((await nextStep(fresh, model)).kind, "a fresh secret is the second attempt's").toBe(
+      "create_account",
+    );
+
+    // And a failure under an approach with no password of ours names no
+    // request; the step is unchanged, because there is no box to reopen.
+    const noSecret = withAccountCreationFailure(base, {
+      at: new Date("2026-09-15T10:00:00Z"),
+      attempts: 1,
+    });
+    expect((await nextStep(noSecret, model)).kind).toBe("request_secret");
   });
 
   it("keeps the password out of the run state, which is what a case record holds", () => {
