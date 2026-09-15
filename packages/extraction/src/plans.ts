@@ -268,13 +268,46 @@ const PASSPORT: ExtractionPlan = {
       required: true,
       parse: documentDate,
     }),
-    scalar({
-      fieldKey: "identity.passport_number",
-      labels: ["Passport No", "Passport Number", "Document No", "Document Number"],
-      hint: "the passport number, usually top right of the data page",
-      expectedShape: "an alphanumeric passport number",
+    // ADR-0117: one value — a passport read off a passport is always `held`;
+    // `none` is a statement only the student makes, never a document.
+    composite({
+      fieldKey: "identity.passport",
       required: true,
-      parse: passportNumber,
+      parts: [
+        {
+          partKey: "number",
+          labels: ["Passport No", "Passport Number", "Document No", "Document Number"],
+          hint: "the passport number, usually top right of the data page",
+          expectedShape: "an alphanumeric passport number",
+          required: true,
+        },
+        {
+          partKey: "expiry",
+          labels: ["Date of expiry", "Expiry", "Expiry date", "Date of Expiry"],
+          hint: "the date of expiry",
+          expectedShape: "a date, e.g. 01 MAR 2031",
+          required: true,
+        },
+        {
+          partKey: "issuingCountry",
+          labels: ["Country of issue", "Issuing country", "Issuing authority", "Authority"],
+          hint: "the issuing country or authority",
+          expectedShape: "a country",
+          required: false,
+        },
+      ],
+      assemble: (parts) => {
+        const number = passportNumber(parts.get("number") ?? "");
+        const expiry = documentDate(parts.get("expiry") ?? "");
+        if (number === null || expiry === null) return null;
+        const issuingCountry = nonEmpty(parts.get("issuingCountry") ?? "");
+        return {
+          kind: "held",
+          number,
+          expiry,
+          ...(issuingCountry === null ? {} : { issuingCountry }),
+        };
+      },
     }),
     scalar({
       fieldKey: "identity.nationality",
@@ -283,22 +316,6 @@ const PASSPORT: ExtractionPlan = {
       expectedShape: "a nationality",
       required: true,
       parse: nonEmpty,
-    }),
-    scalar({
-      fieldKey: "identity.passport_issuing_country",
-      labels: ["Country of issue", "Issuing country", "Issuing authority", "Authority"],
-      hint: "the issuing country or authority",
-      expectedShape: "a country",
-      required: false,
-      parse: nonEmpty,
-    }),
-    scalar({
-      fieldKey: "identity.passport_expiry",
-      labels: ["Date of expiry", "Expiry", "Expiry date", "Date of Expiry"],
-      hint: "the date of expiry",
-      expectedShape: "a date, e.g. 01 MAR 2031",
-      required: true,
-      parse: documentDate,
     }),
     {
       kind: "document_date",

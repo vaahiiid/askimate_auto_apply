@@ -94,7 +94,12 @@ describe("the published demonstrations", () => {
         /✓\s+identity\.family_name\s+HOSSEINI/,
       );
       const accepted = (demo.out.match(/quoted from page 1:/g) ?? []).length;
-      expect(accepted, "a demonstration of grounded reading with no grounded reading").toBeGreaterThanOrEqual(9);
+      // Seven since ADR-0117: the passport's number, expiry and issuing
+      // country are one reading of three parts, quoted line by line.
+      expect(accepted, "a demonstration of grounded reading with no grounded reading").toBeGreaterThanOrEqual(7);
+      expect(demo.out, "the one passport value is shown as its parts, not as [object Object]").toMatch(
+        /✓\s+identity\.passport\s+\{"kind":"held","number":"K12345678"/,
+      );
     });
 
     it("shows an inventing reader being DISCARDED", () => {

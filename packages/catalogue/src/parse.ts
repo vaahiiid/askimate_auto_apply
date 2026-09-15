@@ -568,7 +568,7 @@ function readFormatRule(value: unknown, path: string): FormatRule {
       return { kind, pattern: oneOf(source, "pattern", path, DATE_PATTERNS) };
     case "part": {
       const then = optionalWith(source, "then", path, readFormatRule);
-      const absent = source["absent"] === undefined ? undefined : oneOf(source, "absent", path, ["leave_empty"] as const);
+      const absent = readAbsent(source["absent"], `${path}.absent`);
       return {
         kind,
         path: text(source, "path", path),
@@ -801,4 +801,18 @@ export function parseReviewedEntryText(text_: string): ParseResult<ReviewedCatal
     return { ok: false, refusal: { path: "entry", detail: "is not valid JSON" } };
   }
   return parseReviewedEntry(decoded);
+}
+
+/**
+ * The `absent` clause of a `part` rule: `"leave_empty"`, or `{ typed }` — the
+ * portal's own instruction for a stated absence, quoted (ADR-0117). Non-empty:
+ * an empty typed text would be `leave_empty` wearing a costume.
+ */
+function readAbsent(value: unknown, path: string): "leave_empty" | { readonly typed: string } | undefined {
+  if (value === undefined) return undefined;
+  if (value === "leave_empty") return "leave_empty";
+  const source = record(value, path);
+  const typed = text(source, "typed", path);
+  if (typed.trim().length === 0) fail(`${path}.typed`, "expected the portal's words, not an empty string");
+  return { typed };
 }

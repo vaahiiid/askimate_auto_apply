@@ -16,7 +16,7 @@ is yours.
 |---|---|---|
 | `fundingNationality` | `identity.nationality` | a partial option map onto the portal's names, as the country map on contact |
 | `countryOfBirth` | `identity.country_of_birth` | the same |
-| `passportNumber` (starred) | `identity.passport_number` | text, verbatim |
+| `passportNumber` (starred) | `identity.passport` (ADR-0117, P141) | the held number verbatim; for a stated none, the portal's quoted instruction `no passport` through `absent: { typed }` |
 | `secondFundingNationality` | — | optional on the page; unmapped is honest |
 
 ## Not reached — four groups, each a decision
@@ -97,6 +97,11 @@ fixtures move to parts of one value. (B) Only the number gets the kind (`{ kind:
 value } | { kind: "none" }`), the expiry and the issuing country left as they are — smaller, but a
 no-passport student still has two unavailable values that block any page mapping them, which is
 the same defect kept. The recommendation is A.
+
+**Decided by Vahid, 2026-09-15: A** — *"Fold them."* — with the important half in his words:
+*"The portal's words living in the reviewed mapping and never in the profile… 'no passport' is
+Sheffield's instruction, not a fact about the student, and a portal that says something else
+gets its own words."* ADR-0117; built in P141.
 
 ## What I would choose, and why
 

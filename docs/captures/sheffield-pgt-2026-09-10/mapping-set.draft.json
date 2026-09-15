@@ -51,10 +51,11 @@
     "Education (page7), P132 (2026-09-14): the dependent lists are in the blueprint (0.2.21) from Vahid's read of the page AS IT STOOD (--as-is) with United Kingdom, University of Sheffield and the grading system 'UK Bachelors Degree (BA, BSc)' chosen and 'business' searched: institutionCode holds the chosen value SHEFFIELD (the same value P118's typeahead entry carries); gradingSystemId's six options with numeric values (7, 8, 9, 81) and the escape 'Not in list', PER INSTITUTION — Sheffield's; grade's nine for system 7 — 1st, 2.1, 2.2, 3rd, Pass, Fail and the two non-grades 'Still waiting for grade' / 'Failed to complete course' — PER GRADING SYSTEM; subject's 87 for one search word, two values with a trailing space the label hides and one value listed twice. No mapping on this page is authored here: the registry's Qualification has a completion year and no start or end date, and the page's four date selects are marked mandatory — raised as blocker 27, his decision, the same shape as item 2 was. degree and unlistedDegree keep the third read's marks; the as-is read did not see the row's star, and the difference is flagged for the reviewer.",
     "",
     "Education (page7), P134 (2026-09-15, ADR-0112): Qualification now carries a start and an end as month and year and an optional award date — decided by Vahid: 'add the dates to Qualification. Same reasoning as employment.' The six date selects are mapped per qualification: the start and end months by the selects' three-letter names, the years as digits, the award date left EMPTY when the student has none (part … absent: leave_empty — an absent award claims nothing) and never derived from the end. The page's other fields (institution, degree, subject, grading system, grade) still wait on the reviewer's option maps onto the observed lists (P132) and on blocker 25.",
-    "Nationality and residence (page5), P139 (2026-09-15, ADR-0115): the three registry groups Vahid confirmed — residence (the country of permanent residence, in the UK now, the entry date as MONTH AND YEAR by his change, a history of periods, three asked booleans), immigration.uk_status (seven claims, all asked, none derived) and immigration.uk_study (none, or studied with its details). Thirty-six mappings: the residence selects and radios, the entry date's month and year, the four previous-country blocks from the first four periods of the history (empty beyond what the student listed; the to-date empty for a current period), the seven status radios, and previousStudentVisa from the study's kind. Deliberately unmapped: every DAY select (the profile holds no day — a day the portal insists on is asked of the student as any unavailable value), ukPermanentResidence (a UK region the registry does not hold; not on an international student's path), and the UK-study block shown after 'yes', which waits on the page's show/hide script from Vahid's committed markup. The country maps are PARTIAL (eight countries), for the reviewer to extend from the captured options."
+    "Nationality and residence (page5), P139 (2026-09-15, ADR-0115): the three registry groups Vahid confirmed — residence (the country of permanent residence, in the UK now, the entry date as MONTH AND YEAR by his change, a history of periods, three asked booleans), immigration.uk_status (seven claims, all asked, none derived) and immigration.uk_study (none, or studied with its details). Thirty-six mappings: the residence selects and radios, the entry date's month and year, the four previous-country blocks from the first four periods of the history (empty beyond what the student listed; the to-date empty for a current period), the seven status radios, and previousStudentVisa from the study's kind. Deliberately unmapped: every DAY select (the profile holds no day — a day the portal insists on is asked of the student as any unavailable value), ukPermanentResidence (a UK region the registry does not hold; not on an international student's path), and the UK-study block shown after 'yes', which waits on the page's show/hide script from Vahid's committed markup. The country maps are PARTIAL (eight countries), for the reviewer to extend from the captured options.",
+    "Nationality (page5), P141 (2026-09-15, ADR-0117): the passport is one value, held or stated as none — decided by Vahid: 'a student who does not have a thing has three empty values and nothing anywhere saying why. Fold them.' passportNumber maps the held number through part → number, and for none types the portal's own instruction, quoted from the row's tooltip into this set through absent: { typed: 'no passport' } — the important half, in his words: the portal's words live in the reviewed mapping and never in the profile; the tempting shortcut of storing the string once and reusing it everywhere is refused."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.23",
+  "version": "0.3.24",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.21",
@@ -1603,6 +1604,21 @@
         }
       },
       "note": "Have you previously studied in the UK?* — from the kind of immigration.uk_study: 'none' is a statement (ADR-0113). The block the page shows after 'yes' (qualificationLevel, the five per-level selects, highestQualificationOther, years/months on the visa, the visa expiry) is NOT mapped in this set: the draft has no visibleWhen for it, and mapping a hidden select would type into a box the page does not show. Its show/hide is read off the page's own script from Vahid's committed nationality.do markup, as P112 read showHideDocumentUploads, before those mappings are written."
+    },
+    {
+      "fieldRef": "passportNumber",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.passport",
+        "format": {
+          "kind": "part",
+          "path": "number",
+          "absent": {
+            "typed": "no passport"
+          }
+        }
+      },
+      "note": "Please enter your passport number below. This is required in order to comply with UK immigration law.* — the number of a held passport, verbatim (thirty characters at most on the page). For a student who has STATED they have no passport (identity.passport kind = none), the portal's OWN instruction is typed, quoted from the row's tooltip: \"If you don't have a passport please enter 'no passport' in the box.\" The words live here, in the reviewed mapping, and never in the profile (ADR-0117): they are Sheffield's instruction, not a fact about the student, and a portal that says something else gets its own words."
     }
   ]
 }

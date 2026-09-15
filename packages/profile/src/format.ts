@@ -69,8 +69,21 @@ export type FormatRule =
    * date, and the portal's end-date boxes are left empty because of what they
    * said, not because of what we inferred (ADR-0111). Without it a missing
    * part refuses, as it always has.
+   *
+   * `absent: { typed: "…" }` renders the given text instead (ADR-0117): the
+   * PORTAL'S OWN instruction for a value the student has stated they do not
+   * have — Sheffield's *"If you don't have a passport please enter 'no
+   * passport' in the box"*. The words are quoted from the page into the
+   * reviewed mapping and never stored in the profile: they are the portal's
+   * instruction, not a fact about the student, and a portal that says
+   * something else gets its own words.
    */
-  | { readonly kind: "part"; readonly path: string; readonly then?: FormatRule; readonly absent?: "leave_empty" }
+  | {
+      readonly kind: "part";
+      readonly path: string;
+      readonly then?: FormatRule;
+      readonly absent?: "leave_empty" | { readonly typed: string };
+    }
   /**
    * Several parts of a structured value, each as text, joined in order with
    * the separator given — for a portal that asks for the employer's name and
@@ -251,6 +264,7 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
       const container = value as Record<string, unknown> | null;
       if (container === null || typeof container !== "object" || !(rule.path in container)) {
         if (rule.absent === "leave_empty") return "";
+        if (rule.absent !== undefined) return rule.absent.typed;
         return {
           kind: "no_such_part",
           detail: `The confirmed value has no part "${rule.path}".`,

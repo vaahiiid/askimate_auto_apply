@@ -49,10 +49,15 @@ describe("extracting a passport", () => {
 
     expect(byKey.get("identity.family_name")?.value).toBe("HOSSEINI");
     expect(byKey.get("identity.given_name")?.value).toBe("NILOOFAR");
-    expect(byKey.get("identity.passport_number")?.value).toBe("K12345678");
+    // ADR-0117: one value, held, with its number, expiry and issuing country.
+    expect(byKey.get("identity.passport")?.value).toEqual({
+      kind: "held",
+      number: "K12345678",
+      expiry: new Date("2031-06-13T00:00:00Z"),
+      issuingCountry: "ISLAMIC REPUBLIC OF IRAN",
+    });
     expect(byKey.get("identity.nationality")?.value).toBe("IRANIAN");
     expect(byKey.get("identity.date_of_birth")?.value).toEqual(new Date("1999-04-02T00:00:00Z"));
-    expect(byKey.get("identity.passport_expiry")?.value).toEqual(new Date("2031-06-13T00:00:00Z"));
     expect(byKey.get("document.expiresAt")?.value).toEqual(new Date("2031-06-13T00:00:00Z"));
   });
 
@@ -63,7 +68,9 @@ describe("extracting a passport", () => {
 
     for (const outcome of extracted(report)) {
       const { verbatim } = unwrapProposed(outcome.proposed);
-      expect(PASSPORT_TEXT).toContain(verbatim);
+      // A composite (the passport since ADR-0117) quotes one line per part,
+      // joined; each line is really in the document.
+      for (const line of verbatim.split("\n")) expect(PASSPORT_TEXT).toContain(line);
     }
   });
 
@@ -84,8 +91,10 @@ describe("extracting a passport", () => {
     const report = await extractDocument(text, model);
     if (report === null) expect.unreachable("there is a plan for passports");
 
-    expect(missingRequired(report)).toContain("identity.passport_expiry");
-    expect(extracted(report).map((o) => o.targetKey)).not.toContain("identity.passport_expiry");
+    // The expiry is a required part of the one passport value: without it the
+    // whole is not read, rather than a passport with a made-up expiry.
+    expect(missingRequired(report)).toContain("identity.passport");
+    expect(extracted(report).map((o) => o.targetKey)).not.toContain("identity.passport");
   });
 
   it("produces proposals, never confirmed values", async () => {

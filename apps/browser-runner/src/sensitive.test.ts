@@ -67,7 +67,8 @@ let runDir: string;
 
 function confirmed(value: string): ConfirmedValue<string> {
   const result = applyConfirmation({
-    key: "identity.passport_number",
+    // Any string-typed field: the key labels provenance and nothing else here.
+    key: "contact.mobile",
     proposed: proposeValue({ value, origin: "conversation", verbatim: value, confidence: 0.95 }),
     confirmation: {
       studentRef: STUDENT,

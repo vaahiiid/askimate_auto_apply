@@ -147,6 +147,35 @@ origin; the question is asked; the proposal is the interview's when the intervie
   "never entered" kind beside the date, as a job's end has "current" — his call, when the read
   says which.
 
+### Two more of his decisions on this page — 2026-09-15, after the markup read (P140/P141)
+
+**The three-year window: the interview asks, the mapping does not select.** Sheffield's four
+previous-country blocks are headed *"Please list the countries you have lived in over the last 3
+years"*. In his words:
+
+> *"Most recent first, and the mapping types the first four as it does now. A format rule that
+> could sort and window periods by date is a rule that decides which of a student's answers reach
+> the form, and that decision belongs where a person can see it, not inside a mapping."*
+>
+> *"But say plainly in the record what that means: a student with five periods in three years
+> has one dropped, and nothing tells them. If the interview asks for the last three years and
+> the page takes four, the fifth is lost silently. That is not acceptable and I am not solving
+> it now — raise it as its own item rather than letting the decision above bury it."*
+
+So `residence.history` is asked most recent first, the mapping stays as built, and the dropped
+fifth period is **blocker 29** in the state document, open.
+
+**The two script-filled spans.** The page's *"outside of `this country`"* and *"always lived in
+the `UK`"* are spans `nationality.js` fills; if with the permanent-residence country, two fields
+here ask a different question from the one their names record. In his words:
+
+> *"That is not a naming problem, it is asking a different question and recording the answer to
+> ours. Do not rename anything until the script says what the spans hold. If it turns out to be
+> the residence country, both fields and their interview questions change, and I would rather
+> that happened once, from the script, than twice."*
+
+Nothing is renamed; the read of `nationality.js` decides.
+
 ### What the build touched
 
 - `packages/profile`: three groups, their categories (ordinary), labels, persistence.

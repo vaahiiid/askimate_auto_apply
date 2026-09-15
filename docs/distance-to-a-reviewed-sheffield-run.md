@@ -90,9 +90,11 @@ In the order they bite, each with who holds it and the evidence.
    four groups with options and a recommendation each; his answers, in his words. **P139
    (ADR-0115, confirmed by him with one change):** the registry holds the three groups and
    set 0.3.23 maps thirty-six of the page's fields from them — no day anywhere, by his change.
-   What still waits: the UK-study block shown after *yes* (its show/hide read off the script
-   in his committed `nationality.do` markup, then mapped), the passport row (group 4, the same
-   read), and Iman's sitting for the partial country maps and the rest.
+   **P141 (ADR-0117):** group 4 decided (A) and built — the passport is one value, held or
+   stated as none, and the row is mapped with the portal's own words quoted for a stated none.
+   What still waits: the UK-study block shown after *yes* and the page's show/hide, both read
+   off `nationality.js` (he is committing it), the two script-filled spans' meanings, and
+   Iman's sitting, which starts now. Blocker 29 (the silently dropped fifth period) raised.
 4. **The language page: nineteen fields, none mapped.** The registry has
    `education.english_language_test`; the page asks the test type (42 options), the award date
    as three selects, certificate numbers, awarding body and the component scores, and offers a
@@ -203,6 +205,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P141: group 4 decided and built (ADR-0117: one passport value, held or none; the
+  portal's words in the mapping through `absent: { typed }`, never in the profile); set 0.3.24;
+  twenty-seven unmapped. His decisions on the three-year window and the two spans recorded in
+  ADR-0115; blocker 29 raised. P140 read the row's words off his committed markup. Iman starts
+  now. Five open of ten, unchanged.
 - 2026-09-15, P139: ADR-0115 built on his confirmation with one change — the entry date as
   month and year, never a day; his two reasons recorded. Three registry groups, the `derived`
   origin, set 0.3.23's thirty-six nationality mappings; the unmapped count on the three pages

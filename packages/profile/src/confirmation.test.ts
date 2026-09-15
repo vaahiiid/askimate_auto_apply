@@ -92,7 +92,7 @@ describe("minting a confirmed value", () => {
 
   it("marks a document extraction as document_extracted", () => {
     const result = applyConfirmation({
-      key: "identity.passport_number" as "identity.given_name",
+      key: "identity.passport" as "identity.given_name",
       proposed: proposeValue({
         value: "P1234567",
         origin: "document",

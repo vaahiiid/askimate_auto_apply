@@ -304,3 +304,21 @@ describe("an employment entry, rendered for a portal (ADR-0111)", () => {
     if (!strict.rendered) expect(strict.refusal.kind).toBe("no_such_part");
   });
 });
+
+describe("a stated absence types the portal's own words (ADR-0117)", () => {
+  const text = (result: ReturnType<typeof renderConfirmed>): string =>
+    result.rendered ? unwrapConfirmed(result.value) : `refused:${result.refusal.kind}`;
+
+  it("renders the number for a held passport and the quoted instruction for none — never a blank, never a stored string", () => {
+    const rule = { kind: "part", path: "number", absent: { typed: "no passport" } } as const;
+    const held = confirmed("identity.passport", { kind: "held", number: "K12345678", expiry: new Date("2031-06-13T00:00:00Z") });
+    const none = confirmed("identity.passport", { kind: "none" });
+    expect(text(renderConfirmed(held, rule))).toBe("K12345678");
+    expect(text(renderConfirmed(none, rule))).toBe("no passport");
+    // The words come from the rule, so another portal's instruction is that
+    // portal's mapping, not a second copy of Sheffield's.
+    expect(text(renderConfirmed(none, { ...rule, absent: { typed: "N/A" } }))).toBe("N/A");
+    // Without the clause, an absent part still refuses, as it always has.
+    expect(text(renderConfirmed(none, { kind: "part", path: "number" }))).toBe("refused:no_such_part");
+  });
+});

@@ -96,7 +96,15 @@ class ConfabulatingModelClient implements ModelClient {
 }
 
 function show(value: unknown): string {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value);
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  // A composite reading (the passport since ADR-0117 is one value of three
+  // parts) is shown as its parts, dates as dates, rather than "[object Object]".
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value, (_key, inner: unknown) =>
+      inner instanceof Date ? inner.toISOString().slice(0, 10) : inner,
+    );
+  }
+  return String(value);
 }
 
 async function main(): Promise<void> {
@@ -134,7 +142,7 @@ async function main(): Promise<void> {
     console.log(
       `  ${GREEN}✓${RESET} ${outcome.targetKey.padEnd(34)} ${BOLD}${show(fields.value)}${RESET}`,
     );
-    console.log(`    ${DIM}quoted from page ${String(outcome.page)}: "${fields.verbatim}"${RESET}`);
+    console.log(`    ${DIM}quoted from page ${String(outcome.page)}: "${fields.verbatim.replace(/\n/g, " / ")}"${RESET}`);
   }
 
   const missing = missingRequired(honest);

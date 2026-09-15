@@ -556,12 +556,35 @@ suffix and `previousCountryN` uses UPPER-CASE names while `permanentResidence` u
 | `dateToMonthN`, `dateToYearN` | `residence.history` | period → `to` → `date` (**empty for a current period**) → month option / year number; no day |
 | the seven status radios | `immigration.uk_status` | each claim → option, true → *yes*, false → *no*; nothing derived from the passport |
 | `previousStudentVisa` | `immigration.uk_study` | `kind` → option, *none* → *no*, *studied* → *yes* |
+| `passportNumber` (set 0.3.24, ADR-0117) | `identity.passport` | `number` for a held passport, verbatim; for a stated **none**, the portal's own instruction typed — `absent: { typed: "no passport" }`, quoted from the row's tooltip: *"If you don't have a passport please enter 'no passport' in the box."* The words are in this set and nowhere else |
 
 **Not mapped, and why:** `ukPermanentResidence` (a UK region the registry does not hold); the
 UK-study block shown after *yes* — `qualificationLevel`, the five per-level selects,
 `highestQualificationOther`, `yearsOnStudentVisa`, `monthsOnStudentVisa`, the visa expiry —
-until its show/hide is read off the page's script (Vahid's committed markup), because mapping a
-hidden select types into a box the page does not show; `passportNumber` (group 4, his read).
+until its show/hide is read off the page's script, because mapping a hidden select types into a
+box the page does not show.
+
+## What may still move — for your first sitting (P141, 2026-09-15)
+
+Vahid, 2026-09-15: *"Everything else is stable and his to do."* Review the whole pack except these
+four, which are waiting on `nationality.js` (the page's script, which he is committing) and on
+one decision, so you are not asked to review them twice:
+
+1. **The UK-study block on the nationality page** — `qualificationLevel`, the five per-level
+   selects, `highestQualificationOther`, the years and months on the visa, the visa expiry. Unmapped
+   until the script says when the block is shown; then mapped from `immigration.uk_study`.
+2. **The nationality page's show and hide** — every section but *"Are you currently living in the
+   UK?"* is hidden in the markup and shown by `updateSections()` in that script. The blueprint's
+   `visibleWhen` for the page follows the script, not a guess.
+3. **The passport row** — mapped in set 0.3.24 as above (decided). What may still change is
+   whether the row is shown for every student or only some, which is the same script.
+4. **Two field meanings** — *"outside of this country"* and *"always lived in the UK"* are spans
+   the script fills. If with the permanent-residence country, `residence.always_in_uk` and
+   `residence.outside_uk_last_three_years` are renamed and re-asked, once, from the script. Their
+   mappings to `alwaysUKResident` and `livedOutsideCountry` stay as they are either way.
+
+Everything else — personal, contact, employment, the education dates, the radios' values, the
+document slots, the residence and status mappings — is stable.
 
 ## For Iman — flagged, not asserted (P126, 2026-09-14)
 

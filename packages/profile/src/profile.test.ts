@@ -102,12 +102,12 @@ describe("the typed resolver", () => {
   it("returns FieldUnavailable rather than a guess or a default", () => {
     // The stop-and-ask branch. Never an empty string standing in for "we don't
     // know" — that is how a blank reaches a university form.
-    const resolution = resolveField(emptyProfile(STUDENT, NOW), "identity.passport_number");
+    const resolution = resolveField(emptyProfile(STUDENT, NOW), "identity.passport");
 
     expect(isFieldUnavailable(resolution)).toBe(true);
     if (isFieldUnavailable(resolution)) {
       expect(resolution.reason).toBe("not_collected");
-      expect(resolution.field).toBe("identity.passport_number");
+      expect(resolution.field).toBe("identity.passport");
     }
   });
 
@@ -179,6 +179,23 @@ describe("driving the interview", () => {
     profile = confirmField(profile, confirmed("identity.family_name", "Hosseini" as never), NOW);
 
     expect(missingFields(profile, ["identity.given_name", "identity.family_name"])).toEqual([]);
+  });
+});
+
+describe("the passport is one value, held or stated as none (ADR-0117)", () => {
+  it("folds the number, the expiry and the issuing country into identity.passport, and the three old keys are gone", async () => {
+    const fields = await import("./fields.js");
+    const categories = await import("./categories.js");
+    expect(fields.PROFILE_FIELD_KEYS).toContain("identity.passport");
+    for (const gone of ["identity.passport_number", "identity.passport_expiry", "identity.passport_issuing_country"]) {
+      expect(fields.PROFILE_FIELD_KEYS as readonly string[], gone).not.toContain(gone);
+    }
+    expect(categories.categoryOf("identity.passport")).toBe("ordinary");
+    expect(fields.FIELD_LABELS["identity.passport"]).toBe("Passport");
+    // Both shapes type-check; `none` carries nothing but the statement.
+    const held: ProfileFieldType<"identity.passport"> = { kind: "held", number: "K12345678", expiry: new Date("2031-06-13T00:00:00Z") };
+    const none: ProfileFieldType<"identity.passport"> = { kind: "none" };
+    expect([held.kind, none.kind]).toEqual(["held", "none"]);
   });
 });
 

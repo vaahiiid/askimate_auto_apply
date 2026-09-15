@@ -44,7 +44,8 @@ describe("no plan reads a field it may not read", () => {
     // would satisfy the assertion above without it being about anything —
     // which is precisely the failure ADR-0072 recorded about the walkthrough.
     expect(DOCUMENT_TYPES_WITH_PLANS.length).toBeGreaterThanOrEqual(3);
-    expect(allExtractedFields().length, "eight today: seven off a passport, one off a transcript").toBeGreaterThanOrEqual(8);
+    // Six since ADR-0117 folded the passport's three fields into one.
+    expect(allExtractedFields().length, "six today: five off a passport, one off a transcript").toBeGreaterThanOrEqual(6);
     for (const key of allExtractedFields()) {
       expect(PROFILE_FIELD_KEYS, `${key} is not in the registry`).toContain(key);
     }
@@ -66,7 +67,7 @@ describe("no plan reads a field it may not read", () => {
     const passport = planFor("passport");
     if (passport === undefined) expect.unreachable("the passport plan is configured");
     const fields = fieldsExtractedBy(passport);
-    expect(fields).toContain("identity.passport_number");
+    expect(fields).toContain("identity.passport");
     expect(fields.length).toBeLessThan(passport.targets.length);
   });
 });

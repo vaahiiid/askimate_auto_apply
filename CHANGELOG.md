@@ -19,6 +19,25 @@ not shipped artefacts.
 
 ---
 
+## [0.138.0] — 2026-09-15
+
+**P141 — ADR-0117 built: the passport is one value, held or stated as none; the portal's words
+for the absence live in the reviewed mapping (`absent: { typed }`), never in the profile; set
+0.3.24 maps the passport row. Blocker 29 raised.**
+
+### Changed
+
+- `packages/profile`: `identity.passport` (`Passport`) replaces `identity.passport_number`,
+  `identity.passport_expiry` and `identity.passport_issuing_country`.
+- `packages/extraction`: the passport plan reads one composite value.
+
+### Added
+
+- `packages/profile` / `packages/catalogue`: the `part` rule's `absent` clause takes `{ typed }`.
+- Set 0.3.24: `passportNumber` from `identity.passport`, the quoted instruction for a stated none.
+
+---
+
 ## [0.137.0] — 2026-09-15
 
 **P139 — ADR-0115 built on Vahid's confirmation with one change (the entry date as month and

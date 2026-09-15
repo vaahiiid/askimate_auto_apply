@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P141 — the third time the same problem arrived
+
+Group 4 is decided and built in the hour: the passport is one value, held with its number, expiry and issuing country, or stated as none. His reason is the one this registry keeps arriving at — absence as a statement in one place is the shape of a job's end and a qualification's end, and this was the third time a student who does not have a thing had three empty values and nothing anywhere saying why. The half he called important is the other one: the portal's words for the absence live in the reviewed mapping and never in the profile. "no passport" is Sheffield's instruction, not a fact about the student, and a portal that says something else gets its own words. The tempting shortcut, storing the string once and reusing it everywhere, is refused by construction: the profile has no field that could hold it, and the part rule's new absent clause takes the words from the mapping it is written in, quoted from the row's own tooltip. B, giving only the number the kind, kept the defect and called it smaller; it is not smaller for the student it happens to.
+
+The extraction plan reads a passport as one composite now, so a passport missing its expiry is not read at all rather than read with a made-up one. Set 0.3.24 maps the row; the drafts' unmapped count falls to twenty-seven. The words came from his committed markup (P140), read off the file and never off the console paste: the row, the tooltip, the thirty-character box, and the fact that every section of the page but one is hidden in the markup and shown by a script the capture does not hold.
+
+Two more of his decisions on that page are recorded rather than absorbed. The three-year window the previous-country blocks ask for is the interview's to ask, most recent first, and the mapping keeps typing the first four: a rule that could sort and window periods by date would decide which of a student's answers reach the form, and that decision belongs where a person can see it. What that means is said plainly and raised as blocker 29 rather than buried: a student with five periods in three years has one dropped, and nothing tells them. And the two script-filled spans, "this country" and "the UK", are renamed by nothing until the script says what they hold, because if it is the permanent-residence country, two fields are asking a different question and recording the answer to ours, and he would rather that changed once, from the script, than twice.
+
+Iman starts now. The pack names the four parts that may still move so he does not review them twice. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P139 — a month and a year, never a day
 
 He confirmed the three shapes with one change, and the change is the registry's own rule applied to a date: the day the student entered the UK is not held. Sheffield asks a day because it asks a day, not because anyone knows it; a student who came in September 2019 knows the month, and holding a Date would mean the profile carries a day invented at the point of asking, which is the thing refused everywhere else. So the entry date is a month and a year, every day select on the page is unmapped by decision, and a portal that insists on a day asks the student for it as any unavailable value — one extra question for the students who reach that page rather than a fabricated day for all of them. He also gave two reasons to carry, since a later phase may want to undo them: the three starred yes/no questions are asked rather than computed from the history, because the history is what they remembered and the answer is what they claim, and only one of those is signed at the bottom of an application; and the seven status claims each map to their own radio with nothing derived, because a wrong yes opens a document slot the student must refuse or fill.

@@ -165,6 +165,26 @@ export type UkStudy =
       readonly currentVisaExpiry?: Date;
     };
 
+/**
+ * The student's passport, or the statement that they have none (ADR-0117).
+ *
+ * One value, so the number, the expiry and the issuing country cannot
+ * disagree and cannot each go missing on their own. Vahid, 2026-09-15: *"a
+ * student who does not have a thing has three empty values and nothing
+ * anywhere saying why. Fold them."* `none` is the student's statement, the
+ * shape of a job's end and a qualification's end. What a portal wants typed
+ * for `none` is the portal's instruction — Sheffield's is *"no passport"* —
+ * and it lives in the reviewed mapping, never here.
+ */
+export type Passport =
+  | {
+      readonly kind: "held";
+      readonly number: string;
+      readonly expiry: Date;
+      readonly issuingCountry?: string;
+    }
+  | { readonly kind: "none" };
+
 export interface Address {
   readonly line1: string;
   readonly line2?: string;
@@ -188,9 +208,8 @@ export interface ProfileFieldTypes {
   "identity.nationality": string;
   "identity.country_of_birth": string;
   "identity.sex": string;
-  "identity.passport_number": string;
-  "identity.passport_expiry": Date;
-  "identity.passport_issuing_country": string;
+  /** ADR-0117: held with its details, or stated as none. */
+  "identity.passport": Passport;
 
   // ── Contact ─────────────────────────────────────────────────────────────
   /**
@@ -291,9 +310,7 @@ export const PROFILE_FIELD_KEYS = [
   "identity.nationality",
   "identity.country_of_birth",
   "identity.sex",
-  "identity.passport_number",
-  "identity.passport_expiry",
-  "identity.passport_issuing_country",
+  "identity.passport",
   "contact.email",
   "contact.mobile",
   "contact.address",
@@ -355,9 +372,7 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "identity.nationality": "Nationality",
   "identity.country_of_birth": "Country of birth",
   "identity.sex": "Sex as shown on your passport",
-  "identity.passport_number": "Passport number",
-  "identity.passport_expiry": "Passport expiry date",
-  "identity.passport_issuing_country": "Passport issuing country",
+  "identity.passport": "Passport",
   "contact.email": "Your personal email address",
   "contact.mobile": "Mobile number",
   "contact.address": "Home address",
