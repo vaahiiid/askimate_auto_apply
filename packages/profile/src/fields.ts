@@ -261,10 +261,17 @@ export interface ProfileFieldTypes {
    * from it. Vahid: *"The history is what they remembered; the answer is what
    * they claim. Those are different, and only one of them is signed at the
    * bottom of an application."*
+   *
+   * Two are about the country of PERMANENT RESIDENCE, not the UK — renamed
+   * once, from Sheffield's own script (P142): the page fills *"Have you always
+   * lived in the …?"* and *"…living outside of … during the last 3 years?"*
+   * with the permanent-residence country's name, *"the UK"* only when that
+   * country is the United Kingdom. Vahid: *"it is asking a different question
+   * and recording the answer to ours."*
    */
-  "residence.always_in_uk": boolean;
+  "residence.always_in_residence_country": boolean;
   "residence.always_in_eu": boolean;
-  "residence.outside_uk_last_three_years": boolean;
+  "residence.outside_residence_country_last_three_years": boolean;
 
   // ── Immigration history ─────────────────────────────────────────────────
   "immigration.previous_uk_visas": readonly string[];
@@ -327,9 +334,9 @@ export const PROFILE_FIELD_KEYS = [
   "residence.in_uk_now",
   "residence.uk_entry_date",
   "residence.history",
-  "residence.always_in_uk",
+  "residence.always_in_residence_country",
   "residence.always_in_eu",
-  "residence.outside_uk_last_three_years",
+  "residence.outside_residence_country_last_three_years",
   "immigration.previous_uk_visas",
   "immigration.previous_visa_refusals",
   "immigration.uk_status",
@@ -389,9 +396,9 @@ export const FIELD_LABELS: Readonly<Record<ProfileFieldKey, string>> = {
   "residence.in_uk_now": "Currently living in the UK",
   "residence.uk_entry_date": "When you entered the UK",
   "residence.history": "Where you have lived",
-  "residence.always_in_uk": "Always lived in the UK",
+  "residence.always_in_residence_country": "Always lived in your country of permanent residence",
   "residence.always_in_eu": "Always lived in the EU",
-  "residence.outside_uk_last_three_years": "Lived outside the UK in the last three years",
+  "residence.outside_residence_country_last_three_years": "Lived outside your country of permanent residence in the last three years",
   "immigration.previous_uk_visas": "Previous UK visas",
   "immigration.previous_visa_refusals": "Previous visa refusals",
   "immigration.uk_status": "Your status in the UK",

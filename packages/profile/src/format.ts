@@ -59,7 +59,16 @@ export type FormatRule =
    * string is a small programming language and this is a place where a typo
    * writes the wrong date of birth into a visa-relevant application.
    */
-  | { readonly kind: "date"; readonly pattern: DatePattern }
+  | {
+      readonly kind: "date";
+      readonly pattern: DatePattern;
+      /**
+       * Applied to the rendered text — for a month select whose entries are
+       * the portal's own spellings (Sheffield's *Jan … June, July … Sept*),
+       * reached from `MMMM` through an option map (P142).
+       */
+      readonly then?: FormatRule;
+    }
   /**
    * One part of a structured value, e.g. a qualification's subject.
    *
@@ -218,10 +227,13 @@ function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
             detail: `"uppercase" needs a string, got ${typeName(value)}.`,
           };
 
-    case "date":
-      return value instanceof Date
-        ? formatDate(value, rule.pattern)
-        : { kind: "rule_does_not_fit", detail: `"date" needs a Date, got ${typeName(value)}.` };
+    case "date": {
+      if (!(value instanceof Date)) {
+        return { kind: "rule_does_not_fit", detail: `"date" needs a Date, got ${typeName(value)}.` };
+      }
+      const rendered = formatDate(value, rule.pattern);
+      return rule.then === undefined ? rendered : applyRule(rendered, rule.then);
+    }
 
     case "number":
       return typeof value === "number"

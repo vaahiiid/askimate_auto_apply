@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P142 — what the script says, once
+
+He committed nationality.js and it says what the two spans hold: the permanent-residence country's name, "the UK" only when that country is the United Kingdom. So the two fields were asking about the country of permanent residence, not the UK, and both are renamed once, from the script, as he asked, with their labels; their mappings do not change. The script also says who is shown what: the always-lived questions and the entry date only to a resident of the UK or its territories, the seven claims only to a non-UK national resident in the UK or the EU, the passport to every non-UK national, the country blocks and the living-in-the-UK question after "yes" to living outside, the study block to a non-UK national and its details after "yes". The entry-date question from P139 is answered by the page itself: a student who never entered the UK is never shown the boxes.
+
+The draft carries the page as twelve sections with those rules as visibleWhen, so a mapped field the page hides is neither typed nor missing. Proved on the synthetic profile: a resident abroad with no UK study and no passport fills the page with nothing blocking, and with UK study everything but the per-level qualification select. Set 0.3.25 maps the nationality and country of birth with partial ISO-keyed maps and the UK-study block from the registry's study value, with a date rule that may now be followed by an option map, because Sheffield spells its months Jan, June, July, Sept. With nothing confirmed at all, the unmapped count on the three pages falls to twenty, because the sections a controlling answer opens are hidden until it is given.
+
+Two things the blueprint's condition language cannot say are on the record rather than approximated: a condition names one controlling field, so the script's "better of two nationalities" is read from the first nationality only, and the study block's OR over nationality and residence is written on the nationality alone. Neither is on Run A's path. Two things are open and his: the five per-level qualification selects, which want the student's qualification in the portal's own list — blocker 25's shape — and the registry's nationality vocabulary, on which the partial maps' keys depend. The pack tells Iman which three of the four moving parts have now landed and which two remain. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P141 — the third time the same problem arrived
 
 Group 4 is decided and built in the hour: the passport is one value, held with its number, expiry and issuing country, or stated as none. His reason is the one this registry keeps arriving at — absence as a statement in one place is the shape of a job's end and a qualification's end, and this was the third time a student who does not have a thing had three empty values and nothing anywhere saying why. The half he called important is the other one: the portal's words for the absence live in the reviewed mapping and never in the profile. "no passport" is Sheffield's instruction, not a fact about the student, and a portal that says something else gets its own words. The tempting shortcut, storing the string once and reusing it everywhere, is refused by construction: the profile has no field that could hold it, and the part rule's new absent clause takes the words from the mapping it is written in, quoted from the row's own tooltip. B, giving only the number the kind, kept the defect and called it smaller; it is not smaller for the student it happens to.

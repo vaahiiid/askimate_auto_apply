@@ -176,6 +176,43 @@ here ask a different question from the one their names record. In his words:
 
 Nothing is renamed; the read of `nationality.js` decides.
 
+### Read off `nationality.js` — P142, 2026-09-15
+
+He committed the script (`docs/captures/sheffield-pgt-2026-09-15-passport-row/nationality.js`).
+It decides every section of the page from three things: the nationality's suffix (`:H` the UK
+and its territories, `:E` the EU, `:O` overseas, `:Q` read as `:E`; the better of the first and
+second nationality, H over E over O), the permanent residence's suffix, and the answer to
+*"living outside … in the last 3 years"*.
+
+- **The two spans.** *"…outside of `this country`…"* becomes *"the UK"* when the permanent
+  residence is the United Kingdom and **the permanent-residence country's name otherwise**;
+  *"always lived in the `UK`"* becomes the permanent-residence country's name, and the question
+  is shown only to a resident of the UK or its territories. So both fields were asking about the
+  country of permanent residence, not the UK. **Renamed once, from the script**, as he asked:
+  `residence.always_in_uk` → `residence.always_in_residence_country`;
+  `residence.outside_uk_last_three_years` → `residence.outside_residence_country_last_three_years`,
+  with their labels; the mappings to `alwaysUKResident` and `livedOutsideCountry` unchanged.
+- **The entry date** is shown only to a non-UK national resident in the UK or its territories who
+  has not lived outside it in three years and has not always lived there. The P139 note is
+  resolved by the page: a student who never entered the UK is never shown the boxes, so
+  `residence.uk_entry_date` needs no "never" kind.
+- **The seven claims** are asked only of a non-UK national resident in the UK (the five) or in the
+  EU (the two). A resident abroad is shown none of them.
+- **The passport** is asked of every non-UK national. **The previous-country blocks** open after
+  *yes* to living outside; **the living-in-the-UK question** is shown then too, and otherwise the
+  script answers it itself from the permanent residence. **The UK-study block** is shown to a
+  non-UK national (and, in the script, to anyone resident in the EU or overseas), its details
+  after *yes*, one qualification select per chosen level.
+
+The draft (0.2.22) carries the page as twelve sections with these rules as `visibleWhen`, so a
+mapped field the page hides is neither typed nor missing. Two things the blueprint's condition
+language cannot say are recorded rather than approximated silently: a condition names ONE
+controlling field, so the "better of two nationalities" reads the first nationality only (the
+second is unmapped), and the study block's OR over nationality and residence is written on the
+nationality alone — a UK national living abroad is not covered. Set 0.3.25 maps the study block
+from `immigration.uk_study`; the five per-level qualification selects stay unmapped, because they
+want the student's qualification in the portal's own list — blocker 25's shape, flagged.
+
 ### What the build touched
 
 - `packages/profile`: three groups, their categories (ordinary), labels, persistence.

@@ -52,13 +52,14 @@
     "",
     "Education (page7), P134 (2026-09-15, ADR-0112): Qualification now carries a start and an end as month and year and an optional award date — decided by Vahid: 'add the dates to Qualification. Same reasoning as employment.' The six date selects are mapped per qualification: the start and end months by the selects' three-letter names, the years as digits, the award date left EMPTY when the student has none (part … absent: leave_empty — an absent award claims nothing) and never derived from the end. The page's other fields (institution, degree, subject, grading system, grade) still wait on the reviewer's option maps onto the observed lists (P132) and on blocker 25.",
     "Nationality and residence (page5), P139 (2026-09-15, ADR-0115): the three registry groups Vahid confirmed — residence (the country of permanent residence, in the UK now, the entry date as MONTH AND YEAR by his change, a history of periods, three asked booleans), immigration.uk_status (seven claims, all asked, none derived) and immigration.uk_study (none, or studied with its details). Thirty-six mappings: the residence selects and radios, the entry date's month and year, the four previous-country blocks from the first four periods of the history (empty beyond what the student listed; the to-date empty for a current period), the seven status radios, and previousStudentVisa from the study's kind. Deliberately unmapped: every DAY select (the profile holds no day — a day the portal insists on is asked of the student as any unavailable value), ukPermanentResidence (a UK region the registry does not hold; not on an international student's path), and the UK-study block shown after 'yes', which waits on the page's show/hide script from Vahid's committed markup. The country maps are PARTIAL (eight countries), for the reviewer to extend from the captured options.",
-    "Nationality (page5), P141 (2026-09-15, ADR-0117): the passport is one value, held or stated as none — decided by Vahid: 'a student who does not have a thing has three empty values and nothing anywhere saying why. Fold them.' passportNumber maps the held number through part → number, and for none types the portal's own instruction, quoted from the row's tooltip into this set through absent: { typed: 'no passport' } — the important half, in his words: the portal's words live in the reviewed mapping and never in the profile; the tempting shortcut of storing the string once and reusing it everywhere is refused."
+    "Nationality (page5), P141 (2026-09-15, ADR-0117): the passport is one value, held or stated as none — decided by Vahid: 'a student who does not have a thing has three empty values and nothing anywhere saying why. Fold them.' passportNumber maps the held number through part → number, and for none types the portal's own instruction, quoted from the row's tooltip into this set through absent: { typed: 'no passport' } — the important half, in his words: the portal's words live in the reviewed mapping and never in the profile; the tempting shortcut of storing the string once and reusing it everywhere is refused.",
+    "Nationality (page5), P142 (2026-09-15): nationality.js read from Vahid's commit. Two registry fields renamed once, from the script: residence.always_in_residence_country and residence.outside_residence_country_last_three_years — the page fills both questions with the permanent-residence country's name, 'the UK' only when that is the United Kingdom. Nine mappings added: fundingNationality and countryOfBirth (partial, keyed on ISO codes; the registry's nationality vocabulary flagged), and the UK-study block after 'yes' — the level in the registry's closed words, the 'Other' text, the years and months on the visa, the visa expiry's day, month (the select's own spellings through an option map after the month's name) and year. The five per-level qualification selects stay unmapped: the portal's own list against the student's free-text qualification, blocker 25's shape. The draft (0.2.22) now carries the page's sections with the script's show/hide as visibleWhen; a mapped field the page hides is neither typed nor missing."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.24",
+  "version": "0.3.25",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.21",
+  "blueprintVersion": "0.2.22",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -712,7 +713,7 @@
       "fieldRef": "livedOutsideCountry",
       "source": {
         "kind": "profile_field",
-        "fieldKey": "residence.outside_uk_last_three_years",
+        "fieldKey": "residence.outside_residence_country_last_three_years",
         "format": {
           "kind": "option",
           "options": {
@@ -721,13 +722,13 @@
           }
         }
       },
-      "note": "Have you been living outside of this country during the last 3 years?* — asked, not computed from the history. Vahid: 'The history is what they remembered; the answer is what they claim.'"
+      "note": "Have you been living outside of <country of permanent residence> during the last 3 years?* — the span is filled by the page's script with that country's name (the UK only when it is the UK). Asked, not computed from the history. Vahid: 'The history is what they remembered; the answer is what they claim.' Renamed once from the script (P142)."
     },
     {
       "fieldRef": "alwaysUKResident",
       "source": {
         "kind": "profile_field",
-        "fieldKey": "residence.always_in_uk",
+        "fieldKey": "residence.always_in_residence_country",
         "format": {
           "kind": "option",
           "options": {
@@ -736,7 +737,7 @@
           }
         }
       },
-      "note": "Have you always lived in the UK?* — asked, not computed (ADR-0115)."
+      "note": "Have you always lived in the <country of permanent residence>?* — the span is filled by the page's script with that country's name (the UK only when it is the UK); asked, not computed (ADR-0115; renamed once from the script, P142). Shown only to a resident of the UK or its territories."
     },
     {
       "fieldRef": "alwaysEUResident",
@@ -1619,6 +1620,193 @@
         }
       },
       "note": "Please enter your passport number below. This is required in order to comply with UK immigration law.* — the number of a held passport, verbatim (thirty characters at most on the page). For a student who has STATED they have no passport (identity.passport kind = none), the portal's OWN instruction is typed, quoted from the row's tooltip: \"If you don't have a passport please enter 'no passport' in the box.\" The words live here, in the reviewed mapping, and never in the profile (ADR-0117): they are Sheffield's instruction, not a fact about the student, and a portal that says something else gets its own words."
+    },
+    {
+      "fieldRef": "fundingNationality",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.nationality",
+        "format": {
+          "kind": "option",
+          "options": {
+            "GB": "GB:H",
+            "IN": "IN:O",
+            "PK": "PK:O",
+            "CN": "CN:O",
+            "NG": "NG:O",
+            "TR": "TR:O",
+            "US": "US:O",
+            "IR": "IR:O"
+          }
+        }
+      },
+      "note": "Nationality — the portal's own ISO-code values with their ':H'/':E'/':O'/':Q' suffix, which the page's script reads to decide which sections to show. PARTIAL map (eight), keyed on ISO codes as every country map in this set is; the registry's identity.nationality has no fixed vocabulary yet (the passport plan reads the word off the document, the interview asks 'a nationality or country'), which is flagged for the reviewer and for Vahid — a map by rule needs one."
+    },
+    {
+      "fieldRef": "countryOfBirth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "identity.country_of_birth",
+        "format": {
+          "kind": "option",
+          "options": {
+            "GB": "GB:H",
+            "IN": "IN:O",
+            "PK": "PK:O",
+            "CN": "CN:O",
+            "NG": "NG:O",
+            "TR": "TR:O",
+            "US": "US:O",
+            "IR": "IR:O"
+          }
+        }
+      },
+      "note": "Country of birth — the same select as the nationality's; PARTIAL map, the same caveat on the registry's vocabulary."
+    },
+    {
+      "fieldRef": "qualificationLevel",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "highestLevel",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "option",
+            "options": {
+              "english_language": "ENGLISH_LANGUAGE_STUDY",
+              "school": "SCHOOL_LEVEL",
+              "foundation": "FOUNDATION_LEVEL",
+              "study_abroad_or_exchange": "STUDY_ABROAD_OR_EXCHANGE_LEVEL",
+              "university": "UNIVERSITY_LEVEL",
+              "other": "OTHER"
+            }
+          }
+        }
+      },
+      "note": "What is the highest qualification level you have studied in the United Kingdom?* — the study's level in the registry's closed words onto the portal's; empty (and hidden by the page) for a study of kind 'none'. Shown after 'yes' to previous study in the UK (P142, from nationality.js)."
+    },
+    {
+      "fieldRef": "highestQualificationOther",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "qualification",
+          "absent": "leave_empty"
+        }
+      },
+      "note": "Please provide details of the qualification — the qualification in the student's words; shown only for the level 'Other'. The five per-level selects are NOT mapped: they need the student's qualification in the portal's own list (UG DEGREE, MASTERS, …), which the registry's free-text qualification cannot name by rule — the same shape as blocker 25's institution box; flagged for Vahid."
+    },
+    {
+      "fieldRef": "yearsOnStudentVisa",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "timeOnVisa",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "years",
+            "then": {
+              "kind": "number"
+            }
+          }
+        }
+      },
+      "note": "Years on the student visa — from timeOnVisa; empty when the study carries none. The page refuses a save with 0 years and 0 months (validate())."
+    },
+    {
+      "fieldRef": "monthsOnStudentVisa",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "timeOnVisa",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "part",
+            "path": "months",
+            "then": {
+              "kind": "number"
+            }
+          }
+        }
+      },
+      "note": "Months on the student visa — as the years."
+    },
+    {
+      "fieldRef": "visaExpiryDay",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "currentVisaExpiry",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "date",
+            "pattern": "D"
+          }
+        }
+      },
+      "note": "If you are currently studying in the UK, the current visa's expiry — a full date, read off the visa; empty when the study carries none. The day, as digits."
+    },
+    {
+      "fieldRef": "visaExpiryMonth",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "currentVisaExpiry",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "date",
+            "pattern": "MMMM",
+            "then": {
+              "kind": "option",
+              "options": {
+                "January": "Jan",
+                "February": "Feb",
+                "March": "Mar",
+                "April": "Apr",
+                "May": "May",
+                "June": "June",
+                "July": "July",
+                "August": "Aug",
+                "September": "Sept",
+                "October": "Oct",
+                "November": "Nov",
+                "December": "Dec"
+              }
+            }
+          }
+        }
+      },
+      "note": "The month, in the select's own spellings (Jan … June, July … Sept …) through an option map after the month's name (P142)."
+    },
+    {
+      "fieldRef": "visaExpiryYear",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "currentVisaExpiry",
+          "absent": "leave_empty",
+          "then": {
+            "kind": "date",
+            "pattern": "YYYY"
+          }
+        }
+      },
+      "note": "The year, as digits — the select holds 2026 to 2030 only; a later expiry refuses to render rather than choosing the nearest."
     }
   ]
 }

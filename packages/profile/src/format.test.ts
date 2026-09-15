@@ -322,3 +322,14 @@ describe("a stated absence types the portal's own words (ADR-0117)", () => {
     expect(text(renderConfirmed(none, { kind: "part", path: "number" }))).toBe("refused:no_such_part");
   });
 });
+
+describe("a date rendered then mapped (P142)", () => {
+  it("reaches a month select spelt the portal's way — June and Sept — through an option map after MMMM", () => {
+    const expiry = confirmed("identity.date_of_birth", new Date("2027-09-30T00:00:00Z"));
+    const months = { kind: "option", options: { September: "Sept", June: "June", January: "Jan" } } as const;
+    const result = renderConfirmed(expiry, { kind: "date", pattern: "MMMM", then: months });
+    expect(result.rendered ? unwrapConfirmed(result.value) : result.refusal.kind).toBe("Sept");
+    const refused = renderConfirmed(confirmed("identity.date_of_birth", new Date("2027-03-01T00:00:00Z")), { kind: "date", pattern: "MMMM", then: months });
+    expect(refused.rendered ? "rendered" : refused.refusal.kind).toBe("no_matching_option");
+  });
+});

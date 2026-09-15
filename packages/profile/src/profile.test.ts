@@ -205,7 +205,7 @@ describe("residence, UK status and previous UK study are registry groups (ADR-01
     const categories = await import("./categories.js");
     for (const key of [
       "residence.country", "residence.in_uk_now", "residence.uk_entry_date", "residence.history",
-      "residence.always_in_uk", "residence.always_in_eu", "residence.outside_uk_last_three_years",
+      "residence.always_in_residence_country", "residence.always_in_eu", "residence.outside_residence_country_last_three_years",
       "immigration.uk_status", "immigration.uk_study",
     ] as const) {
       expect(fields.PROFILE_FIELD_KEYS, key).toContain(key);

@@ -81,7 +81,35 @@ In the markup every radio has `value=""`; the values `yes` / `no` the runs recor
 one) are set by `nationality.js` at load, and this capture's draft records them as `yes` / `no`
 again. Consistent with P110; nothing to change.
 
-## What the next step needs
+## What `nationality.js` says (committed 2026-09-15, read in P142)
+
+`updateSections()` hides every section, then shows by three inputs: the nationality's suffix
+(`H` the UK and its territories, `E` the EU, `O` overseas, `Q` treated as `E`; the better of the
+first and second nationality, H over E over O), the permanent residence's suffix, and the answer
+to *living outside … in the last 3 years*.
+
+| section | shown when |
+|---|---|
+| `alwaysUKResidentSection` | outside = No **and** residence `H`; the span becomes the residence's own name |
+| `dateEnteredUKSection` | …and always-lived = No **and** nationality `O` |
+| `alwaysEUResidentSection` | outside = No **and** residence `E` |
+| `sectionB` (the country blocks) | outside = Yes |
+| `sectionC` (five UK claims) | nationality `O` **and** residence `H` |
+| `sectionD` (two EU claims) | nationality `O` **and** residence `E` |
+| `sectionE` (passport) | nationality `O` |
+| `sectionF` (living in the UK) | outside ≠ No; when No, the script sets it itself: *yes* for the United Kingdom, *no* otherwise |
+| `academicProgression` | nationality `E`/`O`/`Q`, **or** residence `E`/`O` (the script's `livedOutsideCountry == "yes"` clause never matches its own `"Yes"`) |
+| `academicProgression2` | …and previous study on a visa = Yes; one `quals…` div per chosen level |
+| `ukPermanentResidenceSection` | residence is `United Kingdom:H` |
+
+The *"outside of `this country`"* span reads *the UK* for the United Kingdom and the
+permanent-residence country's name otherwise; the *"always lived in the `UK`"* span reads the
+permanent-residence country's name. Both registry fields were renamed once from this, as Vahid
+asked (ADR-0115). The draft (0.2.22) carries the rules as twelve sections with `visibleWhen`; the
+two things the condition language cannot say (one controlling field, no OR across fields) are
+recorded in ADR-0115 rather than approximated silently.
+
+## What the next step needed, and got
 
 `nationality.js` itself — one file, the site's script, no personal data — saved from the browser
 (view the page source, follow the `nationality.js` link, save; or the Network panel) and committed

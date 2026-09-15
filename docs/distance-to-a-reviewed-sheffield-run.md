@@ -92,9 +92,12 @@ In the order they bite, each with who holds it and the evidence.
    set 0.3.23 maps thirty-six of the page's fields from them — no day anywhere, by his change.
    **P141 (ADR-0117):** group 4 decided (A) and built — the passport is one value, held or
    stated as none, and the row is mapped with the portal's own words quoted for a stated none.
-   What still waits: the UK-study block shown after *yes* and the page's show/hide, both read
-   off `nationality.js` (he is committing it), the two script-filled spans' meanings, and
-   Iman's sitting, which starts now. Blocker 29 (the silently dropped fifth period) raised.
+   **P142:** `nationality.js` read — the page's show/hide on the draft as twelve sections, the
+   two spans' fields renamed once from the script, the UK-study block mapped (set 0.3.25). A
+   resident abroad with no UK study fills the page with nothing blocking. What still waits: the
+   five per-level qualification selects (blocker 25's shape) and the registry's nationality
+   vocabulary, both his; and Iman's sitting, which starts now. Blocker 29 (the silently dropped
+   fifth period) raised.
 4. **The language page: nineteen fields, none mapped.** The registry has
    `education.english_language_test`; the page asks the test type (42 options), the award date
    as three selects, certificate numbers, awarding body and the component scores, and offers a
@@ -205,6 +208,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-15, P142: `nationality.js` read from his commit. The two residence fields renamed
+  once from the script; the page's show/hide on the draft (0.2.22) as twelve sections; set
+  0.3.25's nine mappings (the nationality selects, the UK-study block); the entry-date question
+  answered by the page. Proved: a resident abroad fills the page with nothing blocking. Open and
+  his: the per-level selects and the nationality vocabulary. Five open of ten, unchanged.
 - 2026-09-15, P141: group 4 decided and built (ADR-0117: one passport value, held or none; the
   portal's words in the mapping through `absent: { typed }`, never in the profile); set 0.3.24;
   twenty-seven unmapped. His decisions on the three-year window and the two spans recorded in

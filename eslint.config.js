@@ -3,7 +3,18 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/dist-tools/**", "**/node_modules/**", "**/*.tsbuildinfo"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/dist-tools/**",
+      "**/node_modules/**",
+      "**/*.tsbuildinfo",
+      // A portal's own script, committed beside a capture as evidence of what
+      // the page does (P142: Sheffield's nationality.js). Read, never run or
+      // authored here; the site's code is not held to this repository's rules.
+      "docs/captures/**/*.js",
+    ],
+  },
 
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

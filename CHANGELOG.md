@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.139.0] — 2026-09-15
+
+**P142 — `nationality.js` read: two residence fields renamed once from the script; the
+nationality page's show/hide on the draft (0.2.22, twelve sections with `visibleWhen`); set
+0.3.25 maps the nationality selects and the UK-study block; a `date` rule may be followed by a
+rule.**
+
+### Changed
+
+- `packages/profile`: `residence.always_in_uk` → `residence.always_in_residence_country`;
+  `residence.outside_uk_last_three_years` →
+  `residence.outside_residence_country_last_three_years`, with their labels.
+- The Sheffield draft 0.2.22: page5 as twelve sections carrying the script's rules.
+
+### Fixed
+
+- CI 249 (the P141 push) was red on lint alone: Vahid's committed `nationality.js`, a portal's
+  own script kept as evidence, was linted as project code. `docs/captures/**/*.js` is now
+  ignored by eslint; the site's code is not held to this repository's rules.
+
+### Added
+
+- `packages/profile` / `packages/catalogue`: `date` rules take `then`.
+- Set 0.3.25: `fundingNationality`, `countryOfBirth`, `qualificationLevel`,
+  `highestQualificationOther`, `yearsOnStudentVisa`, `monthsOnStudentVisa`, `visaExpiryDay`,
+  `visaExpiryMonth`, `visaExpiryYear`.
+
+---
+
 ## [0.138.0] — 2026-09-15
 
 **P141 — ADR-0117 built: the passport is one value, held or stated as none; the portal's words

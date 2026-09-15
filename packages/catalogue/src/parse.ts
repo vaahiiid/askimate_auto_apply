@@ -564,8 +564,10 @@ function readFormatRule(value: unknown, path: string): FormatRule {
   ] as const);
 
   switch (kind) {
-    case "date":
-      return { kind, pattern: oneOf(source, "pattern", path, DATE_PATTERNS) };
+    case "date": {
+      const then = optionalWith(source, "then", path, readFormatRule);
+      return { kind, pattern: oneOf(source, "pattern", path, DATE_PATTERNS), ...(then === undefined ? {} : { then }) };
+    }
     case "part": {
       const then = optionalWith(source, "then", path, readFormatRule);
       const absent = readAbsent(source["absent"], `${path}.absent`);

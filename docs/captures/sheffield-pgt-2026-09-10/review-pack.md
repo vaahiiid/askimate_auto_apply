@@ -536,7 +536,7 @@ your option maps onto the observed lists (P132) and on blocker 25.
 | `awardDateMonth` | `education.prior_qualifications` | `award` (**left empty when there is none** — never derived from the end) → `month` → option |
 | `awardDateYear` | `education.prior_qualifications` | `award` (left empty when none) → `year` → number |
 
-## Nationality and residence mappings — set 0.3.23 (P139, 2026-09-15), the next sitting's
+## Nationality and residence mappings — sets 0.3.23–0.3.25 (P139–P142, 2026-09-15), the next sitting's
 
 Decided by Vahid (ADR-0115, confirmed with one change): the registry holds `residence.*`,
 `immigration.uk_status` and `immigration.uk_study`, and the entry date is a **month and a year,
@@ -549,13 +549,15 @@ suffix and `previousCountryN` uses UPPER-CASE names while `permanentResidence` u
 |---|---|---|
 | `permanentResidence` | `residence.country` | option, `IR` → *Iran, Islamic Republic of:O* … (partial) |
 | `livingInUK`, `applicationLocation` | `residence.in_uk_now` | option, true → *yes* / *Inside UK*, false → *no* / *Outside UK* |
-| `livedOutsideCountry`, `alwaysUKResident`, `alwaysEUResident` | the three asked booleans | option, true → *yes*, false → *no* — asked, never computed from the history |
+| `livedOutsideCountry`, `alwaysUKResident`, `alwaysEUResident` | `residence.outside_residence_country_last_three_years`, `residence.always_in_residence_country`, `residence.always_in_eu` | option, true → *yes*, false → *no* — asked, never computed from the history. Two renamed once from `nationality.js` (P142): the page fills both questions with the permanent-residence country's name, *the UK* only when that is the United Kingdom |
 | `dateEnteredUKMonth`, `dateEnteredUKYear` | `residence.uk_entry_date` | `month` → option by the select's own names (*Jan* … *June*, *July* … *Sept* …); `year` → number; **no day** |
 | `previousCountryN` (1–4) | `residence.history` | period *N−1* (**empty beyond what the student listed**) → `countryCode` → option, `IR` → *IRAN:O* … (partial) |
 | `dateFromMonthN`, `dateFromYearN` | `residence.history` | period → `from` → month option / year number; no day |
 | `dateToMonthN`, `dateToYearN` | `residence.history` | period → `to` → `date` (**empty for a current period**) → month option / year number; no day |
 | the seven status radios | `immigration.uk_status` | each claim → option, true → *yes*, false → *no*; nothing derived from the passport |
 | `previousStudentVisa` | `immigration.uk_study` | `kind` → option, *none* → *no*, *studied* → *yes* |
+| `fundingNationality`, `countryOfBirth` (set 0.3.25) | `identity.nationality`, `identity.country_of_birth` | option onto the portal's suffixed ISO values (*IR:O* …), PARTIAL, keyed on ISO codes — the registry's vocabulary flagged below |
+| `qualificationLevel`, `highestQualificationOther`, `yearsOnStudentVisa`, `monthsOnStudentVisa`, `visaExpiryDay/Month/Year` (set 0.3.25) | `immigration.uk_study` | the level in the registry's closed words → the portal's; the *Other* text; `timeOnVisa` years and months; the expiry as `D`, `MMMM` → the select's own spellings, `YYYY`; all empty (and hidden by the page) for a study of kind *none* |
 | `passportNumber` (set 0.3.24, ADR-0117) | `identity.passport` | `number` for a held passport, verbatim; for a stated **none**, the portal's own instruction typed — `absent: { typed: "no passport" }`, quoted from the row's tooltip: *"If you don't have a passport please enter 'no passport' in the box."* The words are in this set and nowhere else |
 
 **Not mapped, and why:** `ukPermanentResidence` (a UK region the registry does not hold); the
@@ -564,27 +566,29 @@ UK-study block shown after *yes* — `qualificationLevel`, the five per-level se
 until its show/hide is read off the page's script, because mapping a hidden select types into a
 box the page does not show.
 
-## What may still move — for your first sitting (P141, 2026-09-15)
+## What may still move — for your first sitting (P141, updated P142, 2026-09-15)
 
-Vahid, 2026-09-15: *"Everything else is stable and his to do."* Review the whole pack except these
-four, which are waiting on `nationality.js` (the page's script, which he is committing) and on
-one decision, so you are not asked to review them twice:
+Vahid, 2026-09-15: *"Everything else is stable and his to do."* `nationality.js` is read (P142):
+the page's show and hide is on the draft (0.2.22, twelve sections with `visibleWhen`), the two
+field meanings are settled and renamed, and the UK-study block is mapped (set 0.3.25) — three of
+the four things listed here are done. What is still open, so you are not asked to review it twice:
 
-1. **The UK-study block on the nationality page** — `qualificationLevel`, the five per-level
-   selects, `highestQualificationOther`, the years and months on the visa, the visa expiry. Unmapped
-   until the script says when the block is shown; then mapped from `immigration.uk_study`.
-2. **The nationality page's show and hide** — every section but *"Are you currently living in the
-   UK?"* is hidden in the markup and shown by `updateSections()` in that script. The blueprint's
-   `visibleWhen` for the page follows the script, not a guess.
-3. **The passport row** — mapped in set 0.3.24 as above (decided). What may still change is
-   whether the row is shown for every student or only some, which is the same script.
-4. **Two field meanings** — *"outside of this country"* and *"always lived in the UK"* are spans
-   the script fills. If with the permanent-residence country, `residence.always_in_uk` and
-   `residence.outside_uk_last_three_years` are renamed and re-asked, once, from the script. Their
-   mappings to `alwaysUKResident` and `livedOutsideCountry` stay as they are either way.
+1. **The five per-level UK-study selects** (`highestQualification(<level>)`) — unmapped. They
+   want the student's qualification in the portal's own list (*UG DEGREE*, *MASTERS*, …), which
+   the registry's free-text qualification cannot name by rule: blocker 25's shape, for Vahid.
+2. **The registry's nationality vocabulary.** `fundingNationality` and `countryOfBirth` are mapped
+   with PARTIAL maps keyed on ISO codes, as every country map in this set is — but
+   `identity.nationality` has no fixed vocabulary yet (the passport plan reads the word off the
+   document, the interview asks *"a nationality or country"*). Which form the profile holds is
+   for Vahid; the map's keys follow it.
+
+Two limits of the blueprint's condition language, recorded in ADR-0115, that you will see on the
+nationality page: a condition names one controlling field, so the script's *better of two
+nationalities* is read from the first nationality only, and the study block's OR over nationality
+and residence is written on the nationality alone. Neither is on Run A's path.
 
 Everything else — personal, contact, employment, the education dates, the radios' values, the
-document slots, the residence and status mappings — is stable.
+document slots, the residence, status and study mappings, the passport row — is stable.
 
 ## For Iman — flagged, not asserted (P126, 2026-09-14)
 
