@@ -114,7 +114,9 @@ export { createPortalAccount } from "./create-account.js";
 // ── P8 / ADR-0046: the plan, reassembled and executed ─────────────────────
 export type { FillApplicationDeps } from "./fill-application.js";
 export { fillApplication } from "./fill-application.js";
-export { runnerPerformer } from "./performer.js";
+export { runnerPerformer, urlsOpenedBy } from "./performer.js";
+export { robotsGate } from "./robots-gate.js";
+export type { RobotsGate, RobotsVerdict } from "./robots-gate.js";
 export type { RunnerPerformerDeps } from "./performer.js";
 export { SessionHold } from "./session-hold.js";
 export type { SessionHoldOptions } from "./session-hold.js";

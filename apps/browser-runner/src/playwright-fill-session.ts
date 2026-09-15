@@ -57,6 +57,19 @@ export interface PreparationMode extends SessionMode {
   readonly clickableControls: readonly FieldLocator[];
   /** Submission endpoints, where the blueprint records them. */
   readonly forbiddenEndpoints?: readonly string[];
+  /**
+   * The floor between this session's navigations, in milliseconds (ADR-0091
+   * decision 2: nothing may lower it; a site's Crawl-delay may raise it).
+   */
+  readonly pace?: { readonly minimumMs: number };
+}
+
+/** A navigation the portal's robots.txt disallows (P135). */
+export class RobotsDisallowedError extends Error {
+  public override readonly name = "RobotsDisallowedError";
+  public constructor(public readonly url: string, reason: string) {
+    super(reason);
+  }
 }
 
 export class ClickRefusedError extends Error {
@@ -157,6 +170,7 @@ function escapeRegExp(text: string): string {
 }
 
 export class PlaywrightPreparationSession implements FillableSession {
+  #lastNavigationAt: number | null = null;
   readonly #allowList: HostAllowList;
   readonly #clickAllowList: ClickAllowList;
   readonly #writes = new WriteLog();
@@ -249,6 +263,14 @@ export class PlaywrightPreparationSession implements FillableSession {
         await route.abort("blockedbyclient");
         return;
       }
+      // Applied to every request, not only to navigations (ADR-0091, P135):
+      // a script or a stylesheet under a disallowed path is not fetched.
+      const robots = mode.robots?.(request.url());
+      if (robots !== undefined && !robots.allowed) {
+        session.#blocked.record({ allowed: false, method: request.method(), url: request.url(), reason: robots.reason });
+        await route.abort("blockedbyclient");
+        return;
+      }
 
       // Recorded BEFORE it is sent, so the log is complete even if the run dies
       // mid-request. "What did we send?" must be answerable after a crash.
@@ -271,6 +293,20 @@ export class PlaywrightPreparationSession implements FillableSession {
           `(${this.#allowList.hosts.join(", ")}).`,
       );
     }
+    // The portal's robots.txt, as the gate read it before the browser opened
+    // (P135): a navigation the file disallows is refused here as well as at
+    // the gate — two places, deliberately (ADR-0091). `SessionMode.robots`
+    // is the same decider the discovery session's guard runs.
+    const robots = this.mode.robots?.(url);
+    if (robots !== undefined && !robots.allowed) throw new RobotsDisallowedError(url, robots.reason);
+    // The floor between navigations (P135): the wait is the remainder of the
+    // pace since the last one, and the first navigation waits for nothing.
+    const pace = this.mode.pace;
+    if (pace !== undefined && this.#lastNavigationAt !== null) {
+      const remaining = pace.minimumMs - (this.#now().getTime() - this.#lastNavigationAt);
+      if (remaining > 0) await new Promise((done) => setTimeout(done, remaining));
+    }
+    this.#lastNavigationAt = this.#now().getTime();
     await this.#requirePage().goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
   }
 

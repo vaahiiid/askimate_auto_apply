@@ -96,6 +96,8 @@ export interface RobotsGroup {
  * a site writes a rule naming us, it applies.
  */
 export const ROBOTS_AGENT_TOKEN = "askimate-aas-discovery";
+/** The token the Automation Runner's fill path reads robots.txt as (P135). A site may rule for it by name. */
+export const RUNNER_AGENT_TOKEN = "askimate-aas-runner";
 
 /**
  * Parses robots.txt into groups.

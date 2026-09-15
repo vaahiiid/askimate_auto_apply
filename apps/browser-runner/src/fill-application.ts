@@ -38,6 +38,7 @@ import type { StoredFillPlan } from "@askimate/aas-mapping";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { challengeFailure, type ChallengeProbe } from "./challenge.js";
+import { RobotsDisallowedError } from "./playwright-fill-session.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 export interface FillApplicationDeps {
@@ -111,15 +112,17 @@ export async function fillApplication(
     if (where.host !== work.portalHost) return { kind: "failed", failure: "portal_drift" };
     try {
       before = await countRecorded(deps.session, { url: where.toString(), entryLocator: listing.entryLocator });
-    } catch {
-      return { kind: "failed", failure: "runner_fault" };
+    } catch (error) {
+      return { kind: "failed", failure: error instanceof RobotsDisallowedError ? "robots_disallows" : "runner_fault" };
     }
   }
 
   try {
     await deps.session.goto(target.toString());
-  } catch {
-    return { kind: "failed", failure: "runner_fault" };
+  } catch (error) {
+    // The second of ADR-0091's two places: the gate refused before the
+    // browser opened; the session refuses again at the navigation (P135).
+    return { kind: "failed", failure: error instanceof RobotsDisallowedError ? "robots_disallows" : "runner_fault" };
   }
 
   // ── Still signed in? ───────────────────────────────────────────────────

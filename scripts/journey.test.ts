@@ -88,6 +88,7 @@ import {
   SessionHold,
   httpWorkIntake,
   runOneTurn,
+  robotsGate,
   runnerPerformer,
   startFixturePortal,
   type FixturePortal,
@@ -512,6 +513,7 @@ beforeAll(async () => {
     sessions: () => journeyHold.held(),
   });
   journeyPerformer = runnerPerformer({
+    robots: robotsGate({ now: () => new Date() }),
     browser: runnerBrowser,
     browserEndpoint: cdpEndpoint,
     agentBaseUrl: AGENT,
@@ -728,6 +730,7 @@ async function restartedInstance(clock: () => Date = () => new Date()): Promise<
     held: () => hold.held(),
     intake,
     performer: runnerPerformer({
+      robots: robotsGate({ now: () => new Date() }),
       browser: runnerBrowser,
       browserEndpoint: cdpEndpoint,
       agentBaseUrl: AGENT,

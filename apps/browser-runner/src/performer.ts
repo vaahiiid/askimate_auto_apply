@@ -29,7 +29,9 @@ import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 
 import { createPortalAccount } from "./create-account.js";
 import { documentSourceFor } from "./document-source.js";
+import type { ClaimedWork } from "@askimate/aas-contracts";
 import { fillApplication } from "./fill-application.js";
+import type { RobotsGate } from "./robots-gate.js";
 import { signInToPortal } from "./sign-in.js";
 import { PlaywrightPreparationSession } from "./playwright-fill-session.js";
 import type { SessionHold } from "./session-hold.js";
@@ -49,6 +51,26 @@ export interface RunnerPerformerDeps {
   readonly register: LawfulBasisRegister;
   readonly now: () => Date;
   readonly fetch?: typeof globalThis.fetch;
+  /**
+   * The portal's robots.txt, read before the browser opens for each unit of
+   * work and obeyed (P135, ADR-0091 on the fill path). Required, not
+   * defaulted: a performer that silently had no gate would navigate unread.
+   */
+  readonly robots: RobotsGate;
+}
+
+/**
+ * Every URL a unit of work will open, for the gate to decide before the
+ * browser does. The account paths open one page; a fill opens the form and,
+ * on a repeating page, the listing it is counted on (ADR-0106).
+ */
+export function urlsOpenedBy(work: ClaimedWork): readonly string[] {
+  if (work.kind === "create_account") return work.registration === undefined ? [] : [work.registration.url];
+  if (work.kind === "sign_in") return work.login === undefined ? [] : [work.login.url];
+  return [
+    ...(work.formUrl === undefined ? [] : [work.formUrl]),
+    ...(work.repeat?.recorded === undefined ? [] : [work.repeat.recorded.url]),
+  ];
 }
 
 /**
@@ -61,6 +83,10 @@ const RELEASES_THE_SESSION = new Set<string>(SESSION_ENDING_FAILURES);
 
 export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
   return async (work): Promise<PerformOutcome> => {
+    // ── robots.txt, before anything opens (P135) ─────────────────────────
+    const verdict = await deps.robots.check(urlsOpenedBy(work));
+    if (!verdict.allowed) return { kind: "failed", failure: "robots_disallows" };
+
     if (work.kind === "create_account") {
       const context = await deps.hold.open(work.runId);
       const outcome = await createPortalAccount(work, {
@@ -109,6 +135,11 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       capability: "fillable",
       runId: work.runId,
       allowedHosts: [hostnameOf(work.portalHost)],
+      // The file the gate read, checked again at every navigation, and the
+      // floor it hands back — the site's Crawl-delay or one second, whichever
+      // is longer, and nothing lower (ADR-0091).
+      robots: (url) => verdict.set.decide(url),
+      pace: { minimumMs: verdict.delayMs },
       // EXACTLY the control the plane sent, and nothing else: the submit
       // button is unreachable however the blueprint changes (ADR-0014).
       // ...plus the control that opens a fresh entry on a page filled once

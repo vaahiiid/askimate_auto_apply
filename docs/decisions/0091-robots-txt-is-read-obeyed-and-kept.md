@@ -65,6 +65,22 @@ A `crawlDelayMs` below the floor in a target file is **refused, not clamped** �
 number meaning something, and silently ignoring it would leave them believing the run is doing what
 they asked.
 
+## Applied to the fill path — 2026-09-15 (P135)
+
+Everything above lived in the discovery CLI. The Automation Runner's fill path — the one a live
+run uses — read nothing and paced nothing until P135, which the distance list had carried as
+item 7's second half since Vahid corrected the record on 2026-09-14. Now, before every unit of
+work the runner performs (an account creation, a sign-in, a fill), a gate reads the portal's
+`robots.txt` as `askimate-aas-runner`, keeps it ten minutes, decides every URL the work would
+open, and refuses the work with the failure `robots_disallows` — a new member of the contract's
+closed set — when any is disallowed or the file could not be read (the middle row above, failing
+closed). The fill session refuses a disallowed navigation again, and its request guard refuses a
+disallowed subresource, as the discovery session's does; and it paces its navigations at the
+site's Crawl-delay or the floor, whichever is longer. Not applied: the two account paths open one
+page each through the browser context directly, so the gate's decision is the whole of their
+check, and no `robots.json` is written by the runner — the refusal is the report's failure code,
+and the file read is not kept as evidence there. Both said here rather than left to be found.
+
 ## What building this found
 
 Four defects, none of them in the new code, all surfaced by adding a second rule to a guard that had

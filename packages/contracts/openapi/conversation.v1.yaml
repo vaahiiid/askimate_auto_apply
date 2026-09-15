@@ -2429,6 +2429,7 @@ components:
           enum:
             [
               portal_drift,
+              robots_disallows,
               portal_refused,
               already_exists,
               secret_unavailable,

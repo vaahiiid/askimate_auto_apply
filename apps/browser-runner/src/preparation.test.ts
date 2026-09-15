@@ -32,8 +32,10 @@ import {
   LocatorNotFoundError,
   OptionNotAvailableError,
   PlaywrightPreparationSession,
+  RobotsDisallowedError,
   ValueNotAcceptedError,
 } from "./playwright-fill-session.js";
+import { robotsGate } from "./robots-gate.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // The pure guard
@@ -189,6 +191,11 @@ describe("filling a fixture portal", () => {
       "utf8",
     );
     server = createServer((req, res) => {
+      // The portal's robots.txt (P135): one path disallowed, a one-second delay.
+      if (req.method === "GET" && req.url === "/robots.txt") {
+        res.writeHead(200, { "content-type": "text/plain" }).end("User-agent: *\nDisallow: /private/\nCrawl-delay: 1\n");
+        return;
+      }
       if (req.method === "GET" && req.url === "/sheffield-summary") {
         res.writeHead(200, { "content-type": "text/html" }).end(sheffieldSummary);
         return;
@@ -337,6 +344,43 @@ describe("filling a fixture portal", () => {
     // title, an h2, is never an entry.
     expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:text-matches("^Previous Language [0-9]+$")' })).toBe(0);
     expect(await session.count({ strategy: "css", value: 'div.homepageInfomation > h5:has-text("Relevant Employment")' })).toBe(0);
+  }, 30_000);
+
+  // ── P135: robots.txt on the fill path, and the floor between navigations ──
+
+  it("refuses a navigation the portal's robots.txt disallows, at the session as well as at the gate (P135, ADR-0091)", async () => {
+    const gate = robotsGate({ now: () => NOW });
+    const verdict = await gate.check([`${baseUrl}/apply`]);
+    expect(verdict.allowed).toBe(true);
+    if (!verdict.allowed) expect.unreachable("the fixture allows /apply");
+    // The fixture's file disallows /private/ and states Crawl-delay: 1.
+    const refused = await gate.check([`${baseUrl}/apply`, `${baseUrl}/private/staff-only`]);
+    expect(refused.allowed).toBe(false);
+    if (refused.allowed) expect.unreachable("refused");
+    expect(refused.url).toBe(`${baseUrl}/private/staff-only`);
+    const traceDir = await mkdtemp(join(tmpdir(), "aas-prep-"));
+    const session = await PlaywrightPreparationSession.open({
+      capability: "fillable",
+      allowedHosts: ["127.0.0.1"],
+      runId: "run-robots",
+      traceDir,
+      now: () => NOW,
+      clickableControls: [],
+      forbiddenEndpoints: [],
+      robots: (url) => verdict.set.decide(url),
+      pace: { minimumMs: verdict.delayMs },
+    });
+    sessions.push(session);
+    const before = saved.length;
+    await expect(session.goto(`${baseUrl}/private/staff-only`)).rejects.toThrow(RobotsDisallowedError);
+    expect(saved.length).toBe(before);
+    // ...and the page the file allows opens, paced: the second navigation
+    // waits for the remainder of the floor. The fixture asks for one second.
+    const started = Date.now();
+    await session.goto(`${baseUrl}/apply`);
+    await session.goto(`${baseUrl}/apply`);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(verdict.delayMs - 50);
+    expect(verdict.delayMs).toBe(1_000);
   }, 30_000);
 
   // ── P94 (ADR-0103, gap 1) ─────────────────────────────────────────────

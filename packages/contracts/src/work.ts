@@ -436,6 +436,12 @@ export type WorkOutcome = (typeof WORK_OUTCOMES)[number];
 export const WORK_FAILURES = [
   /** The portal's form was not where the blueprint said it was. */
   "portal_drift",
+  /**
+   * The portal's robots.txt disallows a page this work needs, or could not be
+   * read at all — and a run that could not ask has not obeyed (ADR-0091,
+   * applied to the fill path in P135). Nothing was opened. A person decides.
+   */
+  "robots_disallows",
   /** The portal refused what we sent — a validation rule we do not model. */
   "portal_refused",
   /** An account with this email already exists there. */

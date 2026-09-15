@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.133.0] — 2026-09-15
+
+**P135 — ADR-0091 on the fill path: the runner reads, obeys and keeps robots.txt before every
+unit of work and paces the fill session (distance item 7 done); the interview's coverage
+recorded under Run B.**
+
+### Added
+
+- `apps/browser-runner/src/robots-gate.ts`: reads a portal's `robots.txt` as
+  `askimate-aas-runner`, keeps it ten minutes, decides every URL a unit of work would open,
+  hands back the pace (Crawl-delay or the one-second floor), and fails closed when the file
+  could not be read. Required by the performer; wired in `main.ts` and the journey.
+- `robots_disallows`, a member of the contract's `WORK_FAILURES` and the OpenAPI enum.
+- `PlaywrightPreparationSession`: `pace` between navigations; the session's `robots` decider
+  refused at `goto` (`RobotsDisallowedError`, mapped to `robots_disallows` by the fill) and at
+  the request guard.
+- Tests: the gate's unit tests; the fixture portal's own `robots.txt` refused at the gate and
+  at the session, two navigations one second apart.
+
+### Recorded
+
+- ADR-0091's addendum: applied to the fill path, and what was not. Distance item 7 done, five
+  open of ten. The interview's coverage — seven of twenty-seven fields — under Run B.
+
+---
+
 ## [0.132.0] — 2026-09-15
 
 **P134 — ADR-0112 built: a qualification has dates; the six education date selects mapped per

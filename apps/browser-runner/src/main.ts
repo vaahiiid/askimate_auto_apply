@@ -17,6 +17,7 @@ import { b2Register } from "@askimate/aas-disclosure";
 
 import { runnerConfigFrom, type RunnerConfig } from "./config.js";
 import { runnerPerformer } from "./performer.js";
+import { robotsGate } from "./robots-gate.js";
 import { SessionHold } from "./session-hold.js";
 import { startRunnerSupervisor } from "./supervisor.js";
 import { httpWorkIntake } from "./work-intake.js";
@@ -72,6 +73,8 @@ export async function start(options: StartOptions): Promise<RunningRunner> {
     // the disclosure gate on its own machine before attaching.
     register: b2Register(now()),
     now,
+    // robots.txt before the browser opens, for every unit of work (P135).
+    robots: robotsGate({ now }),
   });
 
   const supervisor = startRunnerSupervisor({

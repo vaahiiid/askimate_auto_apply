@@ -121,14 +121,16 @@ In the order they bite, each with who holds it and the evidence.
    thirteen fields read from the screenshots — nationality's eleven top questions and two
    language radios — listed on their own in the pack; the fifty observed markers to confirm,
    two flagged (language's eighteen of twenty, `unlistedDegree`). **Iman.**
-7. **`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
-   fill run does not read it at all today.** Corrected 2026-09-14: ADR-0091's reading, obeying
-   and pacing live in the discovery CLI (ADR-0014's read-only run); the Automation Runner's fill
-   path has no robots check and no pacing floor. The sentence this item carried in P119, that
-   the run reads it before the browser opens, was true of discovery and not of Run A. Two halves:
-   **his read** of the public file, pasted whole with its status line, settles early whether the
-   form's paths are allowed; **P123 (mine)** puts the same reading, refusal and one-second floor
-   into the runner before it opens the portal, so the run obeys it rather than the operator.
+7. ~~**`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
+   fill run does not read it at all today.**~~ **Done, P135.** The first half was his read of
+   2026-09-14, evaluated by the runner's matcher (P122): every observed path allowed, the
+   `/user/*` disallows path rules, no crawl-delay. The second half is the runner's own: before
+   every unit of work it performs, the Automation Runner reads the portal's `robots.txt` (kept
+   ten minutes, read as `askimate-aas-runner`), refuses the work with `robots_disallows` if any
+   page it would open is disallowed or the file could not be read, refuses again at the
+   navigation and at every request of the fill session, and paces the fill session's
+   navigations at the site's Crawl-delay or one second, whichever is longer. Proved on the
+   fixture portal's own `robots.txt`; the journey runs the real performer through the gate.
 8. ~~**The account, and how the run enters it.**~~ **Done, P122.** Decided by Vahid, 2026-09-14
    (ADR-0110): *"the run enters my existing account. Not a fresh synthetic applicant."* Built:
    the student says the account is theirs before the yes, the case records it, and ADR-0101
@@ -161,7 +163,18 @@ refusals); the AskiMate integration and specialist identity (blockers 10, 11) �
 
 Bedrock wired and verified (blocker 3, and the service has no code path that builds a Bedrock
 client today); the AskiMate integration (blocker 10); a consenting real applicant, with the DPA
-policy document in place (blockers 4 and 8 in their real form).
+policy document in place (blockers 4 and 8 in their real form); **and the interview asking for
+what the registry holds** (recorded 2026-09-15 at Vahid's question). The interview asks a field
+only when a question is defined for it (`packages/interview/src/field-specs.ts`), and seven of
+the registry's twenty-seven fields have one — the two names, the date of birth, the nationality,
+the e-mail, the mobile, the personal statement. For any other outstanding field it stops with
+*"No question is defined … The agent will not improvise one"*. The two list-valued groups he
+decided (employment, qualifications with their dates) are among the twenty it cannot ask, and
+so are the address, the passport, the English test, finance and immigration. Run A does not meet
+this: its profile is confirmed through the service's own store and page by the deterministic
+client, lists included, and the journey does exactly that today. Run B, the student talking to
+AskiMate, meets it on its first required field with no question. Not on Run A's list for that
+reason; on Run B's for the same reason.
 
 ## Blocker 25, raised here
 
@@ -178,10 +191,15 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: six items open of ten* — this file's list, by count, with what moved.
+- *Distance to Run A: five items open of ten* — this file's list, by count, with what moved.
 
 ## What moved
 
+- 2026-09-15, P135: item 7 done — the runner reads, obeys and keeps robots.txt before every
+  unit of work and paces the fill session (ADR-0091 on the fill path), with `robots_disallows`
+  as the failure a person decides. The interview's coverage recorded under Run B at Vahid's
+  question: seven of twenty-seven registry fields have a question; Run A does not need it, Run
+  B meets it first. Five open of ten.
 - 2026-09-15, P134: blocker 27 built — a qualification has dates (ADR-0112, confirmed by Vahid
   with his reasons and one condition on the extraction); the six education date selects mapped
   per qualification; the plan's `no_mapping` blockers down to forty, all on the three unmapped
