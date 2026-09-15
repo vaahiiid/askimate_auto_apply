@@ -1237,6 +1237,27 @@ the listing's shape is education's, and shows an *Edit* link per saved entry
 (`employment.do?update=N`) — the edit view his rule names as the condition for a value read-back,
 now known to exist; not built, not decided.
 
+## Item 3, group 4 — the passport row's instruction (what to run, 2026-09-15)
+
+The nationality page's `passportNumber` row says it is required *"in order to comply with UK
+immigration law"* and, by Vahid's console read of 2026-09-14, carries an instruction on what to
+enter without a passport — text after the box, which the observer records only for radios, so no
+file holds it. The page's HTML does. In order:
+
+1. `git pull`, start Chromium with the debugging port, sign in.
+2. Run the attached read in its normal mode on the one page — the row is there as the page opens,
+   nothing needs choosing:
+
+   ```bash
+   pnpm run inspect:attached sheffield-pgt-2026-09 --cdp http://127.0.0.1:9223 --out <dir> \
+     "https://www.sheffield.ac.uk/postgradapplication/nationality.do"
+   ```
+
+3. Commit the run's `pages/001.html` beside its `blueprint.draft.json` and `run.json`, as for the
+   employment listing (`../sheffield-pgt-2026-09-14-employment/001.html`), after checking it for
+   your surname and e-mail; input values are already scrubbed. The instruction's words are read
+   from the row's markup here, and the question of "no passport" is decided on them.
+
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
 The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*

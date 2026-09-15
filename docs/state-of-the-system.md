@@ -17,7 +17,7 @@ that application from conversation, through preparation, to a filled form on the
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
 the sixth, a research build, was removed in P53 (ADR-0086). **2,633 tests, 141 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
 the eighteen files that launch a browser run serially, everything else in parallel.
-One hundred and thirteen architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
+One hundred and fifteen architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
 checksum binding (ADR-0092 §4); the amount is the billing console's to state. Nothing is deployed. The journey works end to end against a *replayed*
 portal. It has never run against a real one, because that needs a real blueprint, a two-person
@@ -373,6 +373,8 @@ amended, and the amendment is always a later ADR that says so.
 | 0107 | A handed slot's companion says "later": a statement about when, never a claim about the document | Accepted · decides blocker 23 (A); decided by Vahid, 2026-09-12; amends 0105's companion half; built in P106 |
 | 0108 | What the student owes the portal is a record on the case, closed by their word, and nobody claims to chase them | Accepted · decides blocker 24 (A); decided by Vahid, 2026-09-12; built in P107 |
 | 0109 | A typeahead mapping names the value the form submits; the reviewer records the text; both must match at the fill; the preview shows the text; the escape is named by value and never chosen | Accepted · decides the value-versus-text question; decided by Vahid, 2026-09-13; built in P118 |
+| 0115 | The profile holds a student's residence over time, their UK status claims, and their previous UK study, each as facts the student states | Accepted · decides distance item 3's second half, three groups of four; decided by Vahid, 2026-09-15; the shapes proposed, awaiting his confirmation; not built |
+| 0114 | A failed account creation is offered to the student again once, and stops for a person on the second failure; the student is always told | Accepted · decides blocker 26 (C, two); decided by Vahid, 2026-09-15; not yet built |
 | 0113 | The interview collects a list entry by entry; a pasted CV is never the source of a profile value | Accepted · decided by Vahid, 2026-09-15; shapes the Run B interview build; not built, at his word |
 | 0112 | A qualification has dates: a start and an end as month and year, and an award date held on its own | Accepted · decides blocker 27; decided by Vahid, 2026-09-14; the shape confirmed by him 2026-09-15; built in P134 |
 | 0111 | Employment history is a registry group of its own; a page of jobs repeats over it; a student with none sees that said plainly | Accepted · decides distance item 2; decided by Vahid, 2026-09-14; the shape confirmed by him the same day; built in P129 |
