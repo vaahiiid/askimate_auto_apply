@@ -80,6 +80,18 @@ One mark to flag with the labels: `unlistedDegree`, the text box that appears wh
 qualification is *Not in list*, is marked by the `*` in the row it shares with `degree`. The
 star is the row's, and belongs to the select.
 
+> **"Mandatory" on this form means at least three different things (Vahid's observation of
+> 2026-09-16, P146).** (1) A box the portal refuses to save the page without — asserted in P81
+> from the public statement and never yet observed on a page: P104 saw a deficient education
+> entry *dropped silently*, with no error. (2) A box marked `*` **within a section the applicant
+> may skip entirely**: the language page saved with every one of its seventeen marked boxes
+> empty, no error, straight through, and `summary.do` then read *"D. English Language — No
+> English qualifications entered. If you do not have an English language qualification then you
+> do not need to complete this section."* with each box *Not entered*. (3) A box Part 2 needs
+> before it opens — Sheffield's own statement, not yet observed. The fifty observed markers
+> below are marks in the row; they say nothing about which of the three a mark is. Do not read
+> the count as fifty boxes the page will not save without.
+
 ## The ceiling, stated
 
 A fourth read would not reach 149 and 27, and the target is not 149: forty-three of the

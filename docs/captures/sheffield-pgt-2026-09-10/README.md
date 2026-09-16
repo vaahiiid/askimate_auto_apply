@@ -172,6 +172,14 @@ enforces them on save, not in the markup: no control in 309 carries a `required`
 matches the public statement that incomplete sections are prompted back at submit. Where the tool
 could read labels, the asterisks say:
 
+> **Corrected 2026-09-16 (P146), from the screen.** "Enforces them on save" was the public
+> statement, not an observation, and the language page contradicts it: it saved with all
+> seventeen of its marked boxes empty, no error, and the summary said the section need not be
+> completed at all. A `*` here means at least three different things — refused on save (never yet
+> observed; P104 saw a deficient entry dropped silently instead), marked within a section the
+> applicant may skip, and needed before Part 2 opens — and the marker table cannot tell them
+> apart. See the third read's README for the three, tabled with the fifty.
+
 - personal: first name, family name, date of birth (day, month, year)
 - contact: e-mail, confirm e-mail, address line 1, town, country, UK postcode (UK only)
 - employment: start date, job title, employer name and address, duties (max 4,000 characters)
@@ -1291,8 +1299,26 @@ whole. Nothing is typed that is not yours, and nothing is saved that you did not
 
 What the read gives: which of the seventeen boxes the portal demands on save for a student with
 no test, so the hand for Run A is known to hold or the page is known to be the student's whole.
-The same read, on the education page with one throwaway entry and `degree` left empty, is the
-second fact; it waits on this one.
+
+**Answered by the save alone, 2026-09-16 (Vahid, P146):** *"The language page saves empty. No
+error, no complaint, straight through."* The summary afterwards read *"D. English Language — No
+English qualifications entered. If you do not have an English language qualification then you do
+not need to complete this section. First Language: Not entered. Previously Educated in English:
+Not entered. Previous Education Language: Not entered."* So the section is optional the way
+employment is, in the portal's own words, and none of the seventeen marks is a mark the page will
+not save without. **The attached read was not taken, and is not owed:** the save answered the
+question it was for, and the one thing it would have added — the summary's words — is recorded
+here from his message. The page-wider mechanism ADR-0119 described stays unbuilt, now on an
+observation rather than a hope.
+
+**The education page's `degree` is the next fact, and it needs no attached read either.** The
+record is unsettled by Vahid's own rule: the star on *Qualification:* was seen in the third read
+and not seen in the read with an institution chosen (*"unsettled until someone looks at the
+screen"*), and P104 showed Sheffield dropping a deficient education entry silently rather than
+refusing it. What settles it: save one throwaway entry with the institution, subject, dates and
+grade filled and **the qualification select left unchosen**, then open `summary.do`. If
+*Previous Education N* lists it, `degree` is not needed to save; if the listing is unchanged, the
+entry was dropped silently, P104's shape, and `degree` is required in the only sense that bites.
 
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
