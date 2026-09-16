@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P154 (later): two things found writing Run A's sequence, both raised as blockers
+  before the run rather than met during it — 31, the runner signs in with the profile's
+  `contact.email`, which for the synthetic profile is not his account's address; 32, a page
+  fill that fails cleanly is re-offered without limit, the blocker-26 shape on the third path.
+  His decisions, then the build if he wants it before Run A.
 - 2026-09-16, P154: item 6 done — signed. The stack stood up on his machine (step 5, four
   findings, in the runbook). Run A is the next act, his. One open of ten.
 - 2026-09-16, P153: the four label fixes he asked for before signing (draft 0.2.26), the entry
