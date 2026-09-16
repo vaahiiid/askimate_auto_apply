@@ -136,9 +136,24 @@ confirmed stands: *"map the degree for the levels the profile holds, do not hand
 the page-wider mechanism. A loud blocker on an unmapped value is the gate, and the education page
 stays ours to fill."*
 
-**The pattern, named by him and written on the capture README's first screen:** Sheffield's
-failure mode is a silent drop, not a complaint; on this portal an error-free save tells you
-nothing, which is what ADR-0106's reopen-and-read is for.
+**The pattern, named by him and written on the capture README's first screen — and sharpened
+the same day (P148).** His throwaway entry with the qualification select unchosen was refused by
+name: *"Please complete the following item(s) correctly: Please select your qualification."* So
+this portal does both — some deficient saves it refuses by name, others it accepts and quietly
+does not keep, both on the same page — and, in his words, *"'Sheffield fails silently' is not a
+rule about the portal, it is a rule about some of its fields."* Nothing built here treats an
+error-free save as a save (ADR-0106), and nothing treats a `*` as a promise of a complaint.
+
+**Degree, required and mapped (P148).** His route, confirmed and taken: set 0.3.29 maps the
+degree for the two levels the synthetic profile holds — *Bachelor's degree* → `BSc`, *Master's
+degree* → `MSc`, a reviewer's judgment for the synthetic profile and recorded as such — onto
+Sheffield's forty-three captured award titles; any other level is a loud `render_refused`
+blocker, never an approximation; `unlistedDegree` is shown only for *Not in list*, which the map
+never names, so it stays hidden and unmapped. The set now hands nothing to the student on any
+page. A real student's level in the portal's own vocabulary is blocker 25's shape and waits on
+him. Found on the way and fixed: a required unmapped box on a repeating page whose visibility a
+mapped field decides is now judged per entry — never shown, never a gap; shown for one entry, a
+gap said once.
 
 ## Built
 

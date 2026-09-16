@@ -955,6 +955,48 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     pages: BLUEPRINT.pages.map((page) => (page.pageRef === "page-education" ? patch(page) : page)),
   });
 
+  it("judges a required unmapped box the form shows only for some entries PER ENTRY (P148)", () => {
+    // Sheffield's unlisted-degree box appears only when the qualification select
+    // says "Not in list". Nobody maps it; the map never names that value; so
+    // the box is never shown, and it is not a gap. When the controlling value
+    // DOES show it for an entry, the gap is real and said once.
+    const withOtherLevel = withEducation((page) => ({
+      ...page,
+      sections: page.sections.map((section, index) =>
+        index === 0
+          ? {
+              ...section,
+              fields: [
+                ...section.fields,
+                {
+                  fieldRef: "qualification_other_level",
+                  label: "Describe the qualification",
+                  inputType: "text",
+                  dataCategory: "ordinary",
+                  locators: [{ strategy: "id", value: "qualificationOtherLevel" }],
+                  validations: [{ kind: "required", source: "observed_marker" }],
+                  visibleWhen: { whenFieldRef: "qualification_level", operator: "equals", value: "High school diploma" },
+                },
+              ],
+            }
+          : section,
+      ),
+    }));
+    const check = checkUsable(SET, withOtherLevel);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    // Only the bachelor's: the box is shown for no entry, and nothing blocks.
+    const bachelorOnly = withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", QUALIFICATIONS.slice(0, 1)]]);
+    const quiet = planFill(withOtherLevel, check.mappingSet, bachelorOnly);
+    expect(quiet.blockers.map((b) => b.fieldRef)).not.toContain("qualification_other_level");
+    expect(quiet.hidden.map((h) => [h.fieldRef, h.item?.index])).toContainEqual(["qualification_other_level", 0]);
+    // None at all: nothing is shown, nothing blocks.
+    const none = planFill(withOtherLevel, check.mappingSet, withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", []]]));
+    expect(none.blockers.map((b) => b.fieldRef)).not.toContain("qualification_other_level");
+    // The school diploma shows it for entry 2: a real gap, said once.
+    const loud = planFill(withOtherLevel, check.mappingSet, WITH_QUALIFICATIONS);
+    expect(loud.blockers.filter((b) => b.fieldRef === "qualification_other_level").map((b) => b.kind)).toEqual(["no_mapping"]);
+  });
+
   it("plans the page's fields once per item, in item order, each from its own item", () => {
     const check = checkUsable(SET, BLUEPRINT);
     if (!check.usable) expect.unreachable(check.refusal.kind);

@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.144.0] — 2026-09-16
+
+**P148 — degree is required to save (Vahid, from the screen: refused by name); mapped for the
+synthetic profile's levels; the portal does both, and the first screen says so.**
+
+### Changed
+
+- Sheffield set 0.3.29: `degree` mapped from the qualification's level onto the captured award
+  titles for the two levels the synthetic profile holds; both hands removed; nothing is handed
+  to the student on any page.
+- `packages/mapping`: a required unmapped box on a repeating page whose visibility a mapped
+  field decides is judged per entry.
+
+### Recorded
+
+- The capture README's first screen: both failure modes on the same page, in his words; the
+  degree's result under Item 4; ADR-0119 addendum; distance item 5.
+
+---
+
 ## [0.143.0] — 2026-09-16
 
 **P147 — the language page saves empty (Vahid, from the screen); the seventeen un-handed; a

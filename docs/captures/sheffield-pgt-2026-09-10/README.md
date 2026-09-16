@@ -12,25 +12,35 @@ at the end.
 
 > ## Read this before you trust a save on this portal
 >
-> **Sheffield's failure mode is a silent drop, not a complaint.** On this portal, *"it saved
-> without an error"* tells you nothing at all. Four times now, on four different things, the
-> page accepted the save and quietly did not keep what was deficient:
+> **This portal does both, and you cannot tell which from the field.** Some deficient saves
+> Sheffield refuses by name; others it accepts without a word and quietly does not keep. Both
+> have been observed **on the same page**, and nothing about a box — its `*`, its row, its
+> control — says which it will do. So on this portal *"it saved without an error"* tells you
+> nothing at all, and *"it complained"* tells you only about that one box.
 >
-> 1. **P104** — a second qualification saved with two of its radios unanswered: no error, and
->    `summary.do` listed one entry. The entry was gone.
+> **Silent, observed:**
+> 1. **P104** — a second qualification saved with two of its evidence radios unanswered: no
+>    error, and `summary.do` listed one entry. The entry was gone.
 > 2. **Vahid's two unanswered radios** on the same page (P108–P110): accepted, not kept.
 > 3. **The language page, 2026-09-16** — saved with all seventeen of its `*`-marked boxes empty:
 >    no error, straight through, and the summary then said the section need not be completed.
 >    Here the silence was benign, which is the point: silence looks the same either way.
-> 4. **A star that may or may not be there** — `degree`'s mark, seen in one read and not in the
->    next (`2026-09-14-education-dependent`). Whether the page keeps an entry with no degree is
->    settled by the listing, not by the absence of an error.
 >
-> So nothing built here treats an error-free save as a save. A page is saved when the portal
-> **shows** the thing exists (ADR-0106): the runner reopens and reads it back, counts the
-> listing for a repeating page, and stops as `uncertain` where it cannot see. Vahid,
-> 2026-09-16: *"it is now the pattern rather than an incident … whoever reads this next should
-> meet it before they trust a save."*
+> **Loud, observed:**
+> 4. **The education entry's qualification select, 2026-09-16** — a full entry (country,
+>    institution, subject, dates, grading system, grade, all four evidence radios) saved with the
+>    select unchosen was refused by name: *"Please complete the following item(s) correctly:
+>    Please select your qualification."* Nothing was created. Vahid: *"this one complains rather
+>    than dropping. Both behaviours are now observed on the same page … 'Sheffield fails
+>    silently' is not a rule about the portal, it is a rule about some of its fields — which is
+>    harder to reason about than either."*
+>
+> So nothing built here treats an error-free save as a save, and nothing treats a `*` as a
+> promise of a complaint. A page is saved when the portal **shows** the thing exists
+> (ADR-0106): the runner reopens and reads it back, counts the listing for a repeating page,
+> and stops as `uncertain` where it cannot see. What a mark means is settled per box, from the
+> screen, and recorded per box; the three meanings are tabled with the fifty markers in the
+> third read's README.
 
 ## The pages, as read
 
@@ -1333,14 +1343,14 @@ question it was for, and the one thing it would have added — the summary's wor
 here from his message. The page-wider mechanism ADR-0119 described stays unbuilt, now on an
 observation rather than a hope.
 
-**The education page's `degree` is the next fact, and it needs no attached read either.** The
-record is unsettled by Vahid's own rule: the star on *Qualification:* was seen in the third read
-and not seen in the read with an institution chosen (*"unsettled until someone looks at the
-screen"*), and P104 showed Sheffield dropping a deficient education entry silently rather than
-refusing it. What settles it: save one throwaway entry with the institution, subject, dates and
-grade filled and **the qualification select left unchosen**, then open `summary.do`. If
-*Previous Education N* lists it, `degree` is not needed to save; if the listing is unchanged, the
-entry was dropped silently, P104's shape, and `degree` is required in the only sense that bites.
+**The education page's `degree`, settled the same day (Vahid, 2026-09-16, P148).** A full
+throwaway entry with the qualification select unchosen was **refused by name**: *"Please complete
+the following item(s) correctly: Please select your qualification."* Nothing was created. So
+`degree` is required to save, and this box complains rather than drops — the same page whose
+unanswered evidence radios drop silently (P104). Set 0.3.29 maps it for the two levels the
+synthetic profile holds, onto Sheffield's captured award titles; any other level is a loud
+blocker; `unlistedDegree` stays hidden and unmapped. Nothing on the form is handed to the student
+any more; every own act is a document slot.
 
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 

@@ -131,11 +131,12 @@ In the order they bite, each with who holds it and the evidence.
    which is the hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
-   entries for the student to choose. **Raised as blocker 25**, below; his decision. **P145:**
-   `degree` and `unlistedDegree` are handed to the student for Run A (ADR-0119); the option maps
-   to Iman's standard are cut for Run A (his cut of 2026-09-16 — map what the synthetic profile
-   holds; a value the map does not name is a loud blocker). The institution box waits on blocker
-   25.
+   entries for the student to choose. **Raised as blocker 25**, below; his decision. **P148:**
+   `degree` is required to save — Sheffield refused his throwaway entry by name — and is mapped
+   for the two levels the synthetic profile holds (set 0.3.29); `unlistedDegree` hidden and
+   unmapped; the option maps to Iman's standard are cut for Run A (his cut of 2026-09-16 — map
+   what the synthetic profile holds; a value the map does not name is a loud blocker). What
+   remains of this item is the institution box, blocker 25.
 6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
    the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
    his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
@@ -224,6 +225,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P148: degree required, refused by name on his throwaway entry; mapped for the
+  synthetic profile's levels (set 0.3.29); nothing handed on any page; the first screen says the
+  portal does both. Item 5 down to the institution box. Five open of ten, unchanged.
 - 2026-09-16, P147: the language page saves empty (his save); the seventeen un-handed and left
   empty; the section-level fact built; the silent-drop pattern on the capture README's first
   screen. Degree pending his throwaway save. Five open of ten, unchanged.

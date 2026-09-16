@@ -176,10 +176,11 @@ describe("the Sheffield drafts, under the real checks", () => {
       expect(field(ref)?.validations.some((v) => v.kind === "required" && v.source === "observed_marker"), ref).toBe(true);
       expect(mappingSet.mappings.some((m) => m.fieldRef === ref), ref).toBe(true);
     }
-    // P145 (ADR-0119): degree is handed to the student for Run A; grade, subject and the
-    // country are still nobody's — required, so they block until mapped or handed.
-    expect(mappingSet.mappings.find((m) => m.fieldRef === "degree")?.source.kind).toBe("student_handoff");
-    expect(mappingSet.mappings.some((m) => ["grade", "subject", "institutionCountry"].includes(m.fieldRef))).toBe(false);
+    // P148 (ADR-0119): degree is required to save (Sheffield refused it by name, 2026-09-16)
+    // and mapped for the synthetic profile's two levels; grade, subject and the country are
+    // still nobody's.
+    expect(mappingSet.mappings.find((m) => m.fieldRef === "degree")?.source.kind).toBe("profile_field");
+    expect(mappingSet.mappings.some((m) => ["grade", "subject", "institutionCountry", "unlistedDegree"].includes(m.fieldRef))).toBe(false);
   });
 
   it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
@@ -201,6 +202,25 @@ describe("the Sheffield drafts, under the real checks", () => {
     const typed = (index: number) =>
       Object.fromEntries(plan.instructions.filter((i) => i.item?.index === index && ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear", "awardDateMonth", "awardDateYear"].includes(i.fieldRef)).map((i) => [i.fieldRef, textOf(i.value)]));
     expect(typed(0)).toEqual({ startDateMonth: "Sep", startDateYear: "2018", endDateMonth: "Jun", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
+    // P148 (ADR-0119): the degree, required to save, typed per qualification from the
+    // synthetic profile's level onto Sheffield's own award title; the unlisted box hidden.
+    const degrees = plan.instructions.filter((i) => i.fieldRef === "degree").map((i) => [i.item?.index, textOf(i.value)]);
+    expect(degrees).toEqual([[0, "BSc"], [1, "MSc"]]);
+    expect(plan.instructions.some((i) => i.fieldRef === "unlistedDegree")).toBe(false);
+    expect(plan.hidden.filter((h) => h.fieldRef === "unlistedDegree").map((h) => h.item?.index)).toEqual([0, 1]);
+    expect(plan.handoffs.some((h) => h.fieldRef === "degree")).toBe(false);
+    // A level the map does not name is a loud blocker, never an approximation.
+    const diploma = withConfirmed([
+      ...PROFILE_ENTRIES,
+      ["education.prior_qualifications", [
+        { level: "Higher Diploma", subject: "Accounting", institution: "Sharif University of Technology", countryCode: "IR",
+          start: { year: 2018, month: 9 }, end: { kind: "completed", date: { year: 2020, month: 6 } }, award: { year: 2020, month: 9 },
+          grade: "17.2", gradeScale: "iran_20_point" },
+      ]],
+    ]);
+    const refused = planFill(blueprint, check.mappingSet, diploma);
+    expect(refused.blockers.some((b) => b.fieldRef === "degree" && b.kind === "render_refused")).toBe(true);
+    expect(refused.instructions.some((i) => i.fieldRef === "degree")).toBe(false);
     // The one still running: its expected end is typed as the date it is,
     // and the award boxes are left empty because there is no award — the
     // student's statement, not our inference.
@@ -285,12 +305,11 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(0);
     // Every box handed rather than mapped (P145, ADR-0119) is one of the
     // fifteen on the language page or the two per qualification on education.
-    const handedBoxes = new Set(["degree", "unlistedDegree"]);
-    for (const handoff of plan.handoffs.filter((h) => h.inputType !== "file")) {
-      expect(handedBoxes.has(handoff.fieldRef), handoff.fieldRef).toBe(true);
-    }
+    // P148: the set hands nothing to the student on any page; every own act is a document slot.
+    expect(plan.handoffs.filter((h) => h.inputType !== "file")).toEqual([]);
     expect(plan.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
       "countryOfBirth",
+      "degree",
       "duties", "employerDetails", "endDateMonth", "endDateYear",
       "fundingNationality", "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
@@ -299,7 +318,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.23");
-    expect(mappingSet.version).toBe("0.3.28");
+    expect(mappingSet.version).toBe("0.3.29");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -462,6 +481,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     const unasked = planFill(blueprint, check.mappingSet, PROFILE);
     expect(unasked.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
       "countryOfBirth",
+      "degree",
       "duties", "employerDetails", "endDateMonth", "endDateYear",
       "fundingNationality", "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",

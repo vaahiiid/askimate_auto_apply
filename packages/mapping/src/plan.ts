@@ -570,10 +570,21 @@ export function planFill(
     const fieldKey = page.repeats.fieldKey as OrdinaryFieldKey;
     const resolution = resolveField(profile, fieldKey);
 
+    // A required field nobody mapped whose visibility is decided by another
+    // field on the page (P148): the condition is answered per entry, so the
+    // gap is judged per entry below, and a box the form never shows for any
+    // entry is not a gap. Sheffield's unlisted-degree box appears only when
+    // the qualification select says "Not in list", which the map never names.
+    const governedRefs = new Set(
+      conditionsOf({ ...blueprint, pages: [page] })
+        .filter((entry) => entry.conditions.length > 0)
+        .map((entry) => entry.field.fieldRef),
+    );
     for (const field of fields) {
       if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
       if (mappingFor(mappingSet, field.fieldRef) !== undefined) continue;
       if (requiredToSave(field)) {
+        if (governedRefs.has(field.fieldRef)) continue;
         blockers.push({
           kind: "no_mapping",
           fieldRef: field.fieldRef,
@@ -664,6 +675,23 @@ export function planFill(
         new Map(itemInstructions.map((instruction) => [instruction.fieldRef, textOf(instruction.value)])),
       );
       const shownHere = (fieldRef: string): boolean => !hiddenHere.has(fieldRef);
+      // P148: a required field nobody mapped, shown for THIS entry by its
+      // condition, is the mapping's gap after all — said once, not per entry.
+      for (const field of fields) {
+        if (!governedRefs.has(field.fieldRef) || !shownHere(field.fieldRef)) continue;
+        if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
+        if (mappingFor(mappingSet, field.fieldRef) !== undefined || !requiredToSave(field)) continue;
+        if (blockers.some((blocker) => blocker.kind === "no_mapping" && blocker.fieldRef === field.fieldRef)) continue;
+        blockers.push({
+          kind: "no_mapping",
+          fieldRef: field.fieldRef,
+          label: field.label,
+          detail:
+            `Required field "${field.label}" has no mapping, and the form shows it for one of the ` +
+            `entries. A specialist decides what belongs here — it is not something to work out while ` +
+            `a form is open.`,
+        });
+      }
       instructions.push(...itemInstructions.filter((instruction) => shownHere(instruction.fieldRef)));
       handoffs.push(...itemHandoffs.filter((handoff) => shownHere(handoff.fieldRef)));
       blockers.push(...itemBlockers.filter((blocker) => shownHere(blocker.fieldRef)));

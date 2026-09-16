@@ -4906,6 +4906,14 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P148 — degree complains, and the portal does both
+
+He left the qualification select unchosen on a full throwaway entry and Sheffield refused it by name. So the degree is required to save, and on the very page whose unanswered evidence radios drop an entry silently, this box complains instead. His reading is on the first screen of the capture README in the form he asked for: this portal does both, and you cannot tell which from the field, so an error-free save tells you nothing and a complaint tells you only about that one box. His route is taken: the degree is mapped for the two levels the synthetic profile holds, onto Sheffield's own award titles, as a recorded judgment; any other level is a loud blocker; the unlisted box stays hidden and unmapped; nothing page-wider is built. The set now hands nothing to the student on any page. Found on the way: a required box nobody mapped, shown only when a mapped select says so, was a gap even when the select could never say so; it is now judged per entry, red first. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P147 — the page saves empty, and the seventeen are left empty
 
 He saved the language page with nothing in it and it went straight through; the summary then said, in Sheffield's words, that a student without an English qualification need not complete the section. That settled the thing the screen had to settle, the easy way, and the page-wider mechanism stays unbuilt on an observation rather than a hope. It also unsettled the hand: a hand says the student must do this and the application is not complete until they do, and both are false here in the portal's own words, so the seventeen are un-handed and left empty, the third state, with the form's own words under the page. Whether a student who has a qualification enters it is the interview's question. The section-level fact is built as proposed and erases nothing: the section carries the portal's words, the parser keeps them and the hash covers them, and a marker inside such a section is read as a mark within it and not as a box the page will not save without. The fifty markers are now tabled with the three things "mandatory" means on this form, because someone would have read it as one.
