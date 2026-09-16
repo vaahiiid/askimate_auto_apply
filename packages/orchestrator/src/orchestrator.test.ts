@@ -1599,6 +1599,36 @@ describe("the resume path — the session is gone (ADR-0101 §3)", () => {
     expect(step.reason).toBe("login_form_unrecorded");
   });
 
+  it("asks AGAIN, not for a sign-in, while the log's request is the one a failed sign-in spent (ADR-0120)", async () => {
+    // The Secure Plane's `secret_consumed` arrives through an outbox, so the
+    // log can say `secret_received` for a handle a runner already typed and
+    // the portal refused. The session record names that request; the step
+    // reads it as settled and opens a fresh box rather than handing a dead
+    // handle to the next runner — the same identity rule ADR-0114 gave the
+    // creation.
+    const spent = withSession(
+      withSecret(await runWithSession(false), {
+        requestId: SIGN_IN_REQUEST,
+        lifecycle: "secret_received",
+        handle: SIGN_IN_HANDLE,
+        requestedAt: AFTER_THE_ACCOUNT,
+      }),
+      { signedIn: false, signInFailed: { attempts: 1, spentSecretRequestId: SIGN_IN_REQUEST, failure: "portal_refused" } },
+    );
+    expect((await nextStep(spent, model)).kind).toBe("request_secret");
+    // A failure that spent nothing leaves the received handle usable.
+    const unspent = withSession(
+      withSecret(await runWithSession(false), {
+        requestId: SIGN_IN_REQUEST,
+        lifecycle: "secret_received",
+        handle: SIGN_IN_HANDLE,
+        requestedAt: AFTER_THE_ACCOUNT,
+      }),
+      { signedIn: false, signInFailed: { attempts: 0, failure: "secret_unavailable" } },
+    );
+    expect((await nextStep(unspent, model)).kind).toBe("sign_in");
+  });
+
   it("never asks once the application is filled — a lost session then is nobody's problem", async () => {
     const state = markFilled(
       withAccount(

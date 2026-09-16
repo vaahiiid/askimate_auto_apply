@@ -717,6 +717,55 @@ function creationStoppedMessage(entry: CatalogueEntry, failure: WorkFailure): st
 }
 
 /**
+ * A sign-in's failure in the student's words (ADR-0120). `portal_refused` on a
+ * sign-in is the login form still showing after the submit — which a wrong
+ * password and a portal fault both produce — so it is said as what it is,
+ * never as one of the two. A report that carried no code says so.
+ */
+function signInFailureInWords(failure: WorkFailure | null): string {
+  if (failure === null) return "I could not tell what happened";
+  if (failure === "portal_refused") {
+    return (
+      "the portal did not sign me in, and from where I stand I cannot tell whether the " +
+      "password was not the one it holds or the portal itself went wrong"
+    );
+  }
+  return failureInWords(failure);
+}
+
+/**
+ * The first sign-in attempt failed (ADR-0120): which attempt, why, that there
+ * will be one more, and that the box opens again because we do not keep the
+ * password. Nothing has been submitted.
+ */
+function signInFailedOnceMessage(entry: CatalogueEntry, failure: WorkFailure | null): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried to sign in to your account on ${institution}'s application portal and it did not ` +
+    `sign me in on the first of two attempts: ${signInFailureInWords(failure)}. That can happen ` +
+    `once by chance, so I will try once more. I do not keep your password, so I will open the ` +
+    `secure box again for you to type your password again for the second attempt — check it ` +
+    `carefully, since I cannot. Nothing has been submitted.`
+  );
+}
+
+/**
+ * The second sign-in attempt failed and the run has stopped (ADR-0120). The
+ * student is told which attempt, why, and that a person will look — and,
+ * for a refused sign-in, that a wrong password cannot be told from a fault.
+ */
+function signInStoppedMessage(entry: CatalogueEntry, failure: WorkFailure | null): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried a second time to sign in to your account on ${institution}'s application portal ` +
+    `and it did not sign me in either: ${signInFailureInWords(failure)}. I have stopped there ` +
+    `rather than keep trying, and passed your application to a member of the team, who will ` +
+    `look at what the portal is doing and tell you what happens next. Nothing you have given ` +
+    `me is lost, and nothing has been submitted.`
+  );
+}
+
+/**
  * What the specialist is told: which challenge, during which action, against
  * which page, and what discovery had recorded — so the contradiction is on
  * the record rather than in somebody's memory. For a creation met by a second
@@ -2217,7 +2266,11 @@ export class RunDriver {
   async #withSessionIfTracked(state: RunState, runId: RunId, now: Date): Promise<RunState> {
     const sessions = this.#options.sessions;
     if (sessions === undefined) return state;
-    return withSession(state, { signedIn: await sessions.signedIn(runId, now) });
+    const signInFailed = await sessions.signInFailure(runId);
+    return withSession(state, {
+      signedIn: await sessions.signedIn(runId, now),
+      ...(signInFailed === null ? {} : { signInFailed }),
+    });
   }
 
   /**
@@ -5120,8 +5173,14 @@ export class RunDriver {
           // an outbox, and a runner that could not reach the plane at all
           // leaves the log saying `secret_received` for ever. The ledger, not
           // the outbox, is what says the handle is gone.
-          const spent = situation.state.accountCreationFailed?.spentSecretRequestId;
-          if (live !== null && !isSettled(live.lifecycle) && live.requestId !== spent) return null;
+          // ADR-0120 gives a failed sign-in the same identity rule.
+          const spent = new Set(
+            [
+              situation.state.accountCreationFailed?.spentSecretRequestId,
+              situation.state.session?.signInFailed?.spentSecretRequestId,
+            ].filter((id): id is string => id !== undefined),
+          );
+          if (live !== null && !isSettled(live.lifecycle) && !spent.has(live.requestId)) return null;
           return await this.#openSecureStep(input, step);
         },
       );
@@ -5721,11 +5780,37 @@ export class RunDriver {
     // ── The session, as this report evidences it (ADR-0101 §2, §3) ──────
     await this.#recordSession(held, input.report, now);
 
+    // A sign-in that did not hold is counted, and the handle it was handed is
+    // named (ADR-0120) — before the stop below reads the count.
+    const signInFailed = held.kind === "sign_in" && input.report.outcome !== "succeeded";
+    const signInSpent = signInFailed ? (await this.#secretHandedTo(runId)).spentSecretRequestId : undefined;
+    if (signInFailed && this.#options.sessions !== undefined) {
+      await this.#options.sessions.signInFailed({
+        runId: input.runId,
+        attempted: input.report.failure !== "secret_unavailable",
+        failure: input.report.failure ?? null,
+        spentSecretRequestId: signInSpent ?? null,
+        now,
+      });
+    }
+
     // ADR-0101 §6. A CAPTCHA or a second factor is not a fill error: the run
     // stops, says which, and is never offered again until a person has looked.
     const challenge = challengeOf(input.report);
     if (challenge !== null) {
       await this.#stopForChallenge({ runId, challenge, action, target, now });
+    } else if (signInFailed) {
+      // ADR-0120. The same shape as the creation's: told once, told twice and
+      // a person asked — and told, both times, when a wrong password cannot
+      // be told from a portal fault.
+      await this.#afterFailedSignIn({
+        runId,
+        action,
+        target,
+        failure: input.report.failure ?? null,
+        spent: signInSpent,
+        now,
+      });
     } else if (creationFailed && input.report.failure !== undefined) {
       // ADR-0114. Tried once: the student is told and the box reopens. Tried
       // twice: a person is asked, and the student is told the account could
@@ -5846,6 +5931,98 @@ export class RunDriver {
         `twice is the portal — a person looks at what the portal is doing before anything is ` +
         `tried again, and decides whether this portal is served at all.`,
       say: creationStoppedMessage(entry, input.failure),
+      now: input.now,
+    });
+  }
+
+  /**
+   * What follows a sign-in that did not hold (ADR-0120).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-09-16: *"The sign-in failure shape is blocker 26 again,
+   * unsolved… apply ADR-0114's shape to sign-in. Two attempts, then stop for
+   * a person, with the student told which attempt failed and what the portal
+   * said. If the reason cannot be distinguished — a wrong password from a
+   * portal error — say so to the student rather than guessing, and say so in
+   * the record too."*
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The same three cases as `#afterFailedCreation`, from the session record's
+   * count of attempts MADE since the session was last live:
+   *
+   *   the password could not be used   → not an attempt; told when one of
+   *                                       theirs was handed over; the box
+   *                                       again.
+   *   the first attempt failed         → told which attempt, why, and that
+   *                                       the box opens again; the step reads
+   *                                       the spent request off the state.
+   *   the second attempt failed        → stop: a person asked, with which
+   *                                       attempt and why on the record; the
+   *                                       student told; `escalated`.
+   *
+   * What the runner reports for a wrong password is `portal_refused` — the
+   * page was still the login form after the submit — and that is ALSO what a
+   * portal fault on that page looks like from where the runner stands. So the
+   * words, to the student and to the person, say the two cannot be told
+   * apart, and never pick one.
+   */
+  async #afterFailedSignIn(input: {
+    readonly runId: RunId;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly failure: WorkFailure | null;
+    readonly spent: string | undefined;
+    readonly now: Date;
+  }): Promise<void> {
+    const context = await this.#stopContext(input.runId);
+    if (context === null) return;
+    const { record, conversationId, entry } = context;
+    const say = async (content: string): Promise<void> => {
+      await this.#options.conversations.append({
+        conversationId,
+        event: { kind: "message", actor: "assistant", content },
+      });
+    };
+
+    if (input.failure === "secret_unavailable") {
+      if (input.spent !== undefined) await say(unusablePasswordMessage(entry));
+      return;
+    }
+
+    const failed = await this.#options.sessions?.signInFailure(input.runId);
+    const attempts = failed?.attempts ?? 0;
+    if (attempts < 2) {
+      await say(signInFailedOnceMessage(entry, input.failure));
+      return;
+    }
+
+    const code = input.failure ?? "not reported";
+    await this.#stopForPerson({
+      record,
+      conversationId,
+      entry,
+      action: input.action,
+      target: input.target,
+      reason: input.failure === "portal_refused" ? "authentication_failure" : "timeout_exhausted",
+      encountered:
+        `Signing in to ${portalOf(entry)} failed on the second of two attempts (ADR-0120): this ` +
+        `attempt failed with "${code}". The first attempt also failed and the student was told ` +
+        `so in the conversation; each attempt was handed a password the student typed once for ` +
+        `it, and both are spent — nothing is held. ` +
+        (input.failure === "portal_refused"
+          ? `"portal_refused" on a sign-in means the page was still the login form after the ` +
+            `submit: a wrong password and a fault on the portal's side look the same from where ` +
+            `the runner stands, and the two cannot be told apart from this record — nothing here ` +
+            `guesses which. `
+          : "") +
+        `The session record holds ${String(attempts)} attempts made and no live session; the ` +
+        `system makes no third attempt.`,
+      expected:
+        `A sign-in that held on the first attempt, or on the second. ADR-0114's rule, applied to ` +
+        `the sign-in by ADR-0120: once is chance, twice is the portal — a person looks at what ` +
+        `the portal is doing, and at whether the password the student holds is the one the ` +
+        `portal holds, before anything is tried again.`,
+      say: signInStoppedMessage(entry, input.failure),
       now: input.now,
     });
   }

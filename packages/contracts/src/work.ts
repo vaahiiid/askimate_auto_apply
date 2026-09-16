@@ -227,6 +227,9 @@ export const WORK_PROVENANCE_SOURCES = [
   "student_entered",
   "document_extracted",
   "student_corrected",
+  // ADR-0121: an operator's seed from a fixture shown first; no student
+  // confirmed it. Named so it is never read as a confirmation.
+  "seeded",
 ] as const;
 export type WorkProvenanceSource = (typeof WORK_PROVENANCE_SOURCES)[number];
 

@@ -209,6 +209,18 @@ export interface RunState {
    */
   readonly session?: {
     readonly signedIn: boolean;
+    /**
+     * The sign-ins that did not hold since the session was last live
+     * (ADR-0120): how many were MADE, which secure request's handle the last
+     * was handed (the step reads it as settled whatever the log says yet — the
+     * same identity rule ADR-0114 gave the creation), and the runner's code.
+     * The driver reads the count to stop at two.
+     */
+    readonly signInFailed?: {
+      readonly attempts: number;
+      readonly spentSecretRequestId?: string;
+      readonly failure: string | null;
+    };
   };
   /**
    * Where this run got to, when it is a durable one.
@@ -918,7 +930,14 @@ function signInSecretOf(state: RunState): RunState["secret"] | undefined {
   const secret = state.secret;
   const created = state.account?.createdAt;
   if (secret?.requestedAt === undefined || created === undefined) return undefined;
-  return secret.requestedAt.getTime() > created.getTime() ? secret : undefined;
+  if (secret.requestedAt.getTime() <= created.getTime()) return undefined;
+  // ADR-0120: a request a failed sign-in spent is settled whatever the log
+  // says yet — `secret_consumed` arrives through the Secure Plane's outbox,
+  // and a runner that could not reach the plane leaves the log saying
+  // `secret_received` for ever. The session record, not the outbox, says the
+  // handle is gone; answering "none" here makes the step ask again.
+  if (secret.requestId === state.session?.signInFailed?.spentSecretRequestId) return undefined;
+  return secret;
 }
 
 /**
@@ -1552,8 +1571,20 @@ export function signInWorkOf(step: RunStep): {
  * (ADR-0101 §2, §3). The one writer, so a caller cannot put anything but the
  * two words here.
  */
-export function withSession(state: RunState, session: { readonly signedIn: boolean }): RunState {
-  return { ...state, session: { signedIn: session.signedIn } };
+export function withSession(
+  state: RunState,
+  session: {
+    readonly signedIn: boolean;
+    readonly signInFailed?: NonNullable<RunState["session"]>["signInFailed"];
+  },
+): RunState {
+  return {
+    ...state,
+    session: {
+      signedIn: session.signedIn,
+      ...(session.signInFailed === undefined ? {} : { signInFailed: session.signInFailed }),
+    },
+  };
 }
 
 /**

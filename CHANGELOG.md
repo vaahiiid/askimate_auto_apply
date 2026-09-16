@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.147.0] — 2026-09-16
+
+**P151 — a failed sign-in is tried twice, then stops for a person, and the student is told what
+cannot be told apart (ADR-0120); a seeded value says it was seeded (ADR-0121); the distance
+count means what it says.**
+
+### Added
+
+- ADR-0120 and ADR-0121, decided by Vahid in his words on 2026-09-16.
+- `apps/conversation-service`: migration `0021_sign_in_failures`; `RunSessionStore.signInFailed`
+  and `signInFailure`; the run driver's `#afterFailedSignIn` and its words — the first of two
+  attempts told with the box reopening, the second stopped for a person with the attempt, the
+  code and the undistinguishable case on the record.
+- `packages/orchestrator`: `RunState.session.signInFailed`; the step treats the request a failed
+  sign-in spent as settled and asks again.
+- `packages/domain`, `packages/contracts`: the provenance source `seeded`.
+
+### Changed
+
+- `scripts/profile-seed.ts` stores `seeded`; `docs/run-a/README.md` says the synthetic e-mail
+  receives nothing; `docs/distance-to-a-reviewed-sheffield-run.md` counts two open of ten, with
+  items 3, 4 and 5 struck for Run A and kept open for the product.
+
+---
+
 ## [0.146.0] — 2026-09-16
 
 **P150 — step 2 to Run A: the synthetic profile, shown before it seeds; the seed command; the

@@ -11257,3 +11257,251 @@ describeIfDatabase("one signature admits one account, and nothing else (ADR-0118
     }
   }, 120_000);
 });
+
+describeIfDatabase("a failed sign-in is tried twice, then stops for a person; the student is told, and told when a wrong password cannot be told from a portal fault (ADR-0120)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-16: *"The sign-in failure shape is blocker 26 again,
+  // unsolved."* — *"apply ADR-0114's shape to sign-in. Two attempts, then
+  // stop for a person, with the student told which attempt failed and what
+  // the portal said. If the reason cannot be distinguished — a wrong
+  // password from a portal error — say so to the student rather than
+  // guessing, and say so in the record too."*
+  //
+  // Before this: a sign-in that failed lost the session, the step asked
+  // again, and the student saw the same box with the same signed-out
+  // explanation, without limit and without a reason; and until the Secure
+  // Plane's outbox landed, the dead handle was offered to the next runner.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const LATER = new Date(NOW.getTime() + (SECURE_HOLD_CEILING_SECONDS + 1) * 1000);
+  const CREATION_REQUEST = `sr_${"0".repeat(31)}1`;
+  const CREATION_HANDLE = `sh_${"7".repeat(32)}`;
+  const SIGN_IN_HANDLE = `sh_${"8".repeat(32)}`;
+  const SECOND_HANDLE = `sh_${"9".repeat(32)}`;
+
+  /**
+   * A run whose account exists and whose session is gone, with the student's
+   * sign-in password typed and the sign-in leased to a runner — the moment a
+   * runner reports on. The creation is reported the way the resume group
+   * does it; the clock is past the session ceiling for the sign-in.
+   */
+  async function aLeasedSignIn(
+    conversation: string,
+    holder: string,
+  ): Promise<{
+    later: ReturnType<typeof buildInstance>;
+    secure: ReturnType<typeof opener>;
+    runId: string;
+    leaseId: string;
+  }> {
+    await ownConversation(conversation);
+    const secure = opener();
+    const instance = buildInstance(connectionString(), secure);
+    let runId = "";
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+      const started = await pastTheYes(instance, conversation);
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      const log = new ConversationEventStore(instance.pool);
+      await log.append({
+        conversationId: conversation,
+        event: { kind: "secret_received", requestId: CREATION_REQUEST, handle: CREATION_HANDLE },
+      });
+      const creating = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!creating.ok) expect.unreachable(`advance refused: ${creating.refusal.kind}`);
+      expect(creating.position.step).toBe("create_account");
+      const runRef = makeRunId(runId);
+      const key = idempotencyKeyFor({ runId: runRef, action: "create_portal_account", target: runId });
+      await new PostgresWorkflowRunStore(instance.pool).recordIntent(runRef, {
+        idempotencyKey: key,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      const creation = await new WorkLeaseStore(instance.pool).claim({
+        runId, leaseId: `wl_creation_${holder}`, kind: "create_account", holder: "runner-creator", now: NOW, leaseSeconds: 120,
+      });
+      if (creation === null) expect.unreachable("the lease should be free to take");
+      expect(await instance.driver.reportWork({ runId, report: { leaseId: `wl_creation_${holder}`, outcome: "succeeded" } })).toBe(true);
+      await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
+      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+    } finally {
+      await instance.pool.end();
+    }
+
+    // Past the ceiling: the session is gone, the run asks for the password again.
+    const later = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => LATER);
+    const resumed = await later.driver.advance({ runId, conversationId: conversation });
+    if (!resumed.ok) expect.unreachable(`advance refused: ${resumed.refusal.kind}`);
+    expect(resumed.position.step).toBe("request_secret");
+    const opened = (await requestsOpened(conversation)).at(-1);
+    if (opened === undefined) expect.unreachable("the sign-in box");
+    await new ConversationEventStore(later.pool).append({
+      conversationId: conversation,
+      event: { kind: "secret_received", requestId: opened, handle: SIGN_IN_HANDLE },
+    });
+    const typed = await later.driver.advance({ runId, conversationId: conversation });
+    if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
+    expect(typed.position.step).toBe("sign_in");
+    const leaseId = await takeTheSignIn(later, runId, holder);
+    return { later, secure, runId, leaseId };
+  }
+
+  async function takeTheSignIn(instance: ReturnType<typeof buildInstance>, runId: string, holder: string): Promise<string> {
+    const leaseId = `wl_${holder}`;
+    const lease = await new WorkLeaseStore(instance.pool).claim({ runId, leaseId, kind: "sign_in", holder, now: LATER, leaseSeconds: 120 });
+    if (lease === null) expect.unreachable("the sign-in lease should be free to take");
+    return leaseId;
+  }
+
+  async function failureOf(runId: string): Promise<{ attempts: number; spent: string | null; failure: string | null } | null> {
+    const rows = await pool.query<{ attempts: number; spent_secret_request_id: string | null; last_failure: string | null }>(
+      "SELECT attempts, spent_secret_request_id, last_failure FROM run_sign_in_failures WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : { attempts: row.attempts, spent: row.spent_secret_request_id, failure: row.last_failure };
+  }
+
+  async function interventionFor(runId: string): Promise<{ reason: string; encountered: string; expected: string; announced: boolean } | null> {
+    const rows = await pool.query<{ reason: string; encountered: string; expected: string; announced_at: Date | null }>(
+      "SELECT reason, encountered, expected, announced_at FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : { reason: row.reason, encountered: row.encountered, expected: row.expected, announced: row.announced_at !== null };
+  }
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    return (await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status;
+  }
+
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function requestsOpened(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ request_id: string }>(
+      "SELECT request_id FROM conversation_events WHERE conversation_id = $1 AND kind = 'secret_requested' ORDER BY ordinal ASC",
+      [conversation],
+    );
+    return rows.rows.map((row) => row.request_id);
+  }
+
+  it("the first failure: told which attempt and that a wrong password cannot be told from a portal fault; the spent handle is offered to nobody; the box opens again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00741";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-once");
+    try {
+      const before = await requestsOpened(conversation);
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+
+      // ── The record: one attempt, which handle it spent, what the portal said ─
+      expect(await failureOf(runId)).toEqual({ attempts: 1, spent: before.at(-1) ?? null, failure: "portal_refused" });
+      expect(await new RunSessionStore(later.pool).signedIn(runId, LATER), "the session is gone").toBe(false);
+
+      // ── The student: told, without guessing ────────────────────────────
+      const told = (await saidTo(conversation)).filter((content) => content.includes("did not sign me in"));
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain("first of two");
+      expect(told[0]).toContain("cannot tell");
+      expect(told[0]).toContain("type your password again");
+      expect(told[0]).toContain("Nothing has been submitted");
+      expect(await interventionFor(runId), "no person yet: once is chance").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+
+      // ── The step: a fresh box, though the log still says secret_received ─
+      const next = await later.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step, "the spent handle is not the second attempt's").toBe("request_secret");
+      expect(await requestsOpened(conversation), "a second sign-in box, a new request").toHaveLength(before.length + 1);
+      const again = await later.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.step).toBe("request_secret");
+      expect(await requestsOpened(conversation), "asked once, not on every pass").toHaveLength(before.length + 1);
+
+      // ── The student types again: the sign-in is work once more ─────────
+      const fresh = (await requestsOpened(conversation)).at(-1);
+      if (fresh === undefined) expect.unreachable("the fresh box");
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE } });
+      const second = await later.driver.advance({ runId, conversationId: conversation });
+      if (!second.ok) expect.unreachable(`advance refused: ${second.refusal.kind}`);
+      expect(second.position.step).toBe("sign_in");
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("a password the runner could not use is not an attempt: told, the box again, nothing counted", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00742";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-unusable");
+    try {
+      const before = await requestsOpened(conversation);
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "secret_unavailable" } })).toBe(true);
+      expect(await failureOf(runId), "the portal was never reached").toEqual({ attempts: 0, spent: before.at(-1) ?? null, failure: "secret_unavailable" });
+      const told = (await saidTo(conversation)).filter((content) => content.includes("could not use the password"));
+      expect(told).toHaveLength(1);
+      expect(told[0]).toContain("Nothing was tried on their portal");
+      expect(await interventionFor(runId)).toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+      const next = await later.driver.advance({ runId, conversationId: conversation });
+      if (!next.ok) expect.unreachable(`advance refused: ${next.refusal.kind}`);
+      expect(next.position.step).toBe("request_secret");
+      expect(await requestsOpened(conversation)).toHaveLength(before.length + 1);
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("the second failure: a person is asked, told which attempt, what the portal said and that the reason is undistinguishable; the student is told; never offered again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00743";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-twice");
+    try {
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+      const opened = await later.driver.advance({ runId, conversationId: conversation });
+      if (!opened.ok) expect.unreachable(`advance refused: ${opened.refusal.kind}`);
+      expect(opened.position.step).toBe("request_secret");
+      const fresh = (await requestsOpened(conversation)).at(-1);
+      if (fresh === undefined) expect.unreachable("the fresh box");
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE } });
+      const second = await later.driver.advance({ runId, conversationId: conversation });
+      if (!second.ok) expect.unreachable(`advance refused: ${second.refusal.kind}`);
+      expect(second.position.step).toBe("sign_in");
+      const lease2 = await takeTheSignIn(later, runId, "signin-twice-2");
+      expect(await later.driver.reportWork({ runId, report: { leaseId: lease2, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+
+      expect(await failureOf(runId)).toEqual({ attempts: 2, spent: fresh, failure: "portal_refused" });
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("a person is asked");
+      expect(raised.reason, "we could not sign in").toBe("authentication_failure");
+      expect(raised.encountered).toContain("second of two");
+      expect(raised.encountered).toContain("portal_refused");
+      expect(raised.encountered).toContain("cannot be told");
+      expect(raised.encountered).toContain("ADR-0120");
+      expect(raised.expected).toContain("once is chance, twice is the portal");
+      expect(raised.announced).toBe(true);
+      const told = (await saidTo(conversation)).filter((content) => content.includes("second time"));
+      expect(told).toHaveLength(1);
+      expect(told[0]).toContain("stopped");
+      expect(told[0]).toContain("cannot tell");
+      expect(told[0]).toContain("member of the team");
+      expect(await statusOf(runId)).toBe("escalated");
+
+      // No third box, and no third attempt: the run waits for the person.
+      const held = await later.driver.advance({ runId, conversationId: conversation });
+      if (!held.ok) expect.unreachable(`advance refused: ${held.refusal.kind}`);
+      expect((await requestsOpened(conversation)).at(-1), "no box opened on a run a person holds").toBe(fresh);
+      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      const offered = await later.driver.claimWork({ holder: "runner-after-two", leaseSeconds: 60, sessions: [] });
+      expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
+      if (offered !== null) await pool.query("DELETE FROM work_leases WHERE run_id = $1", [offered.runId]);
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+});

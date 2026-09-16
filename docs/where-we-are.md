@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P151 — the sign-in stops at two, and a seeded value says so
+
+Three of his answers, built before step 3 because he would rather Run A's first unknown be the portal than our own retry loop. The sign-in failure shape was blocker 26 again, and it is closed the way the creation's was: attempts counted since the session was last live, the handle each was handed named and offered to nobody whatever the Secure Plane's outbox has delivered, the first failure told as the first of two with the box opening again, the second stopping for a person with the attempt and the code on the record, and no box opening on a run a person holds. The part that is new is the honesty about what the runner can see. A refused sign-in is the login form still showing after the submit, which a wrong password and a portal fault both produce, so the student is told that the two cannot be told apart from where the system stands and asked to check the password carefully because it cannot, and the person is told the same in the record. Nothing picks one. Five tests failed before the mechanism existed, and the third reproduced the dead handle being handed to the next runner.
+
+The provenance vocabulary carries the true word now. A seeded value says it was seeded, in the domain, the contract, the API's enum and the command, and the comment on the vocabulary says that this one source bypasses the student's confirmation on purpose and is named so it can never be read as one. Nothing refuses a seeded value on any path today, and the ADR says so and why. The e-mail stays synthetic, with a line in the Run A README so that silence from Sheffield is not read as a portal failure. And the count means what it says: two items open of ten, with items 3, 4 and 5 struck for Run A and kept open for the product, in his words. Two of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P150 — the profile, shown before it seeds
 
 Step 2. The synthetic profile is a file of eighteen values in the shape the store keeps them, and the command that writes it prints them first and writes nothing unless told to, which is the mechanism his flag asked for rather than a promise to show him. Who the profile is, is written on the file and in its README: an invented Iranian national in Tehran with no passport, one Sheffield BSc as a UK study on a student visa, back in Iran with one job. It names exactly the registry fields the Sheffield set reads and nothing else, and a test holds that it plans onto the drafts with nothing blocking on Part 1 and that the preview at the yes reads as it should. Writing it creates the student's row with the e-mail marked verified, goes through the real store, refuses a profile that already has anything in it, and prints the UUID that the session, the store and the approval all key on.

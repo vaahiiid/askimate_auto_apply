@@ -78,8 +78,8 @@ In the order they bite, each with who holds it and the evidence.
    portal's own words on `summary.do`, so no student is stuck. **P130:** his read of the listing
    with one throwaway job saved names it (*Previous Employment N*, draft 0.2.20), so each save is
    counted. What remains is Iman's review (item 6).
-3. **The nationality page: seventy-two fields, none mapped, and the registry holds part of what
-   it asks.** Funding nationality, country of birth, permanent residence and the immigration
+3. ~~**The nationality page: seventy-two fields, none mapped, and the registry holds part of what
+   it asks.**~~ **Costs Run A nothing (P151); open for the product.** Funding nationality, country of birth, permanent residence and the immigration
    yes/no questions map onto `identity.nationality`, `identity.country_of_birth` and the two
    `immigration.*` lists as far as those reach; the registry has no permanent-residence field, no
    UK-residence history, and no list of previous countries with dates. Each select takes the
@@ -98,7 +98,7 @@ In the order they bite, each with who holds it and the evidence.
    five per-level qualification selects (blocker 25's shape) and the registry's nationality
    vocabulary, both his; and Iman's sitting, which starts now. Blocker 29 (the silently dropped
    fifth period) raised.
-4. **The language page: nineteen fields, none mapped — handed for Run A (P145, ADR-0119).** The
+4. ~~**The language page: nineteen fields, none mapped — handed for Run A (P145, ADR-0119).**~~ **Costs Run A nothing (P151); open for the product.** The
    registry has `education.english_language_test`; the page asks the test type (42 options), the
    award date as three selects, certificate numbers, awarding body and the component scores, and
    offers a certificate slot whose companion is now named. **Vahid's cut, 2026-09-16:** the
@@ -109,8 +109,8 @@ In the order they bite, each with who holds it and the evidence.
    as the third state, the section marked optional on the draft in Sheffield's words (0.2.23), and
    the page costs Run A nothing. Mapping it from `education.english_language_test` is a
    precondition of serving a real student, not of Run A.
-5. **The education page's own fields: thirty-three, six handed, the rest unmapped — and one of
-   them cannot be mapped by rule.** The country box needs its entries recorded on the box (the
+5. ~~**The education page's own fields: thirty-three, six handed, the rest unmapped — and one of
+   them cannot be mapped by rule.**~~ **Costs Run A nothing (P151); open for the product.** The country box needs its entries recorded on the box (the
    captured `<select>`'s 255, copied); degree, subject, the three dates and the grade are selects
    with option maps from the `Qualification` parts, and the grade list arrives only after an
    institution is chosen, so **his read** of that list with an institution set comes first (P94's
@@ -237,10 +237,17 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: five items open of ten* — this file's list, by count, with what moved.
+- *Distance to Run A: two items open of ten* — this file's list, by count, with what moved. Items
+  3, 4 and 5 cost Run A nothing on the synthetic profile and remain open for the product; they are
+  struck above for Run A and not closed. Vahid, 2026-09-16: *"A number that does not mean what it
+  says is the thing this project keeps finding."*
 
 ## What moved
 
+- 2026-09-16, P151: the count corrected at his word — items 3, 4 and 5 cost Run A nothing on the
+  synthetic profile and stay open for the product; two open of ten (items 6 and 10). The sign-in
+  failure shape closed under ADR-0114's rule (ADR-0120) before step 3, at his word; the
+  provenance word `seeded` added (ADR-0121). Two open of ten.
 - 2026-09-16, P150: step 2 — the synthetic profile (eighteen values) and the command that shows it
   before it seeds; a test that it plans with nothing blocking on Part 1; the UK-study qualification
   select mapped for it; the runbook's dev-session identity corrected to the `students.id` UUID.

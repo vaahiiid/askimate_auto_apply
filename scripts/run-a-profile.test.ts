@@ -71,7 +71,7 @@ describe("the synthetic profile for Run A (P150)", () => {
     const profile = rehydrateProfile({
       studentId: "run-a",
       updatedAt: now,
-      entries: fixture().entries.map((e) => ({ ...e, provenance: { source: "student_entered", confirmedAt: now }, revision: 1 })),
+      entries: fixture().entries.map((e) => ({ ...e, provenance: { source: "seeded", confirmedAt: now }, revision: 1 })),
     });
     const plan = planFill(blueprint, check.mappingSet, profile);
     expect(plan.blockers).toEqual([]);
@@ -178,7 +178,10 @@ describeIfDatabase("the seed, against a real migrated conversation database", ()
     );
     expect(stored.rows.map((r) => r.field_key)).toEqual([...fixture().entries.map((e) => e.key)].sort());
     for (const r of stored.rows) {
-      expect(r.provenance.source).toBe("student_entered");
+      // ADR-0121: the true word, not the nearest one. Vahid: "'Seeded, no
+      // interview took place' is a real origin and the nearest honest word is
+      // not it."
+      expect(r.provenance.source).toBe("seeded");
       expect(r.provenance.sourceExcerpt).toContain("seeded from synthetic-profile.json");
       expect(r.provenance.sourceExcerpt).toContain("no interview took place");
     }

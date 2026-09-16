@@ -2341,7 +2341,7 @@ components:
       properties:
         source:
           type: string
-          enum: [student_stated, student_entered, document_extracted, student_corrected]
+          enum: [student_stated, student_entered, document_extracted, student_corrected, seeded]
         confirmedAt: { type: string, format: date-time }
         sourceExcerpt:
           type: string

@@ -58,11 +58,22 @@ export interface ConfirmationProvenance {
    *                        student and confirmed by them (brief §2.3)
    *   student_corrected  — extraction or interpretation was wrong; the student
    *                        corrected it
+   *   seeded             — written by an operator's command from a fixture
+   *                        file that was shown first; NO student confirmed it,
+   *                        and no interview took place (ADR-0121, P151). Exists
+   *                        for a synthetic profile on the owner's own account
+   *                        under a one-account approval (ADR-0118), and says
+   *                        what it is rather than borrowing a word that means
+   *                        something else.
    *
-   * Every one of these ends in the student confirming. That is the only way a
-   * value becomes confirmed — there is no source that bypasses it.
+   * Every one of these but `seeded` ends in the student confirming, and that
+   * is the only way a student's value becomes confirmed. `seeded` bypasses it
+   * on purpose and is named so it can never be read as a confirmation. Vahid,
+   * 2026-09-16: *"'Seeded, no interview took place' is a real origin and the
+   * nearest honest word is not it… a value that reads as something it is not,
+   * which someone eventually takes at face value."*
    */
-  readonly source: "student_stated" | "student_entered" | "document_extracted" | "student_corrected";
+  readonly source: "student_stated" | "student_entered" | "document_extracted" | "student_corrected" | "seeded";
   /** When the student confirmed it. */
   readonly confirmedAt: Date;
   /**

@@ -15,10 +15,11 @@
  *
  * What is written is what the interview would have written, through the same
  * store (`PostgresConfirmedProfileStore`) and in the same stored shape, with
- * one honest difference: the provenance of every entry says it was seeded from
- * this file by this command on this date and that no interview took place.
- * Nothing here mints a `ConfirmedValue`: the store takes plain stored entries,
- * and the brand is minted at load by `rehydrateProfile` as for any row.
+ * one honest difference: the provenance of every entry carries the source
+ * `seeded` (ADR-0121) and an excerpt saying it was seeded from this file by
+ * this command on this date and that no interview took place. Nothing here
+ * mints a `ConfirmedValue`: the store takes plain stored entries, and the
+ * brand is minted at load by `rehydrateProfile` as for any row.
  *
  * The identity it prints is the `students.id` UUID — the only value the
  * profile store, the dev-session route and an `ownAccountOnly` approval agree
@@ -107,7 +108,7 @@ export async function seedProfile(
       key: entry.key,
       value: entry.value,
       provenance: {
-        source: "student_entered",
+        source: "seeded",
         confirmedAt: now,
         sourceExcerpt:
           `seeded from ${fixtureName} by \`pnpm run profile:seed --write\` on ${now.toISOString()}; ` +

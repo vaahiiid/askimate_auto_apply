@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P150 — step 2 to Run A: the synthetic profile, shown before it seeds (`pnpm run profile:seed`); plans onto the drafts with nothing blocking on Part 1; the runbook's dev-session identity corrected |
+| **Phase** | P151 — a failed sign-in is tried twice, then stops for a person, and the student is told what cannot be told apart (ADR-0120); a seeded value says it was seeded (ADR-0121); two items open of ten |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,680 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 119 ADRs · all 119 Accepted |
+| **Tests** | **2,684 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 121 ADRs · all 121 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

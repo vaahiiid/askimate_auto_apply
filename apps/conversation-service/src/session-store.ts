@@ -46,6 +46,54 @@ export class RunSessionStore {
              recorded_at = EXCLUDED.recorded_at`,
       [input.runId, input.holder, heldUntil, input.now],
     );
+    // A live session ends the count (ADR-0120): a later loss is a new episode
+    // of two, not the third attempt of an old one.
+    await this.#pool.query("DELETE FROM run_sign_in_failures WHERE run_id = $1", [input.runId]);
+  }
+
+  /**
+   * A sign-in the runner reported as not done (ADR-0120). Counts an attempt
+   * only when one was made — a hand-out the runner could not use reached no
+   * portal (ADR-0114's rule) — and names the handle the report was handed, so
+   * it is offered to nobody whatever the Secure Plane's outbox has delivered.
+   */
+  public async signInFailed(input: {
+    readonly runId: string;
+    readonly attempted: boolean;
+    readonly failure: string | null;
+    readonly spentSecretRequestId: string | null;
+    readonly now: Date;
+  }): Promise<void> {
+    await this.#pool.query(
+      `INSERT INTO run_sign_in_failures (run_id, attempts, spent_secret_request_id, last_failure, failed_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (run_id) DO UPDATE
+         SET attempts = run_sign_in_failures.attempts + EXCLUDED.attempts,
+             spent_secret_request_id = EXCLUDED.spent_secret_request_id,
+             last_failure = EXCLUDED.last_failure,
+             failed_at = EXCLUDED.failed_at`,
+      [input.runId, input.attempted ? 1 : 0, input.spentSecretRequestId, input.failure, input.now],
+    );
+  }
+
+  /** The run's sign-in failures since its last live session, or `null` when there are none. */
+  public async signInFailure(runId: string): Promise<{
+    readonly attempts: number;
+    readonly spentSecretRequestId?: string;
+    readonly failure: string | null;
+  } | null> {
+    const rows = await this.#pool.query<{
+      attempts: number;
+      spent_secret_request_id: string | null;
+      last_failure: string | null;
+    }>("SELECT attempts, spent_secret_request_id, last_failure FROM run_sign_in_failures WHERE run_id = $1", [runId]);
+    const row = rows.rows[0];
+    if (row === undefined) return null;
+    return {
+      attempts: row.attempts,
+      ...(row.spent_secret_request_id === null ? {} : { spentSecretRequestId: row.spent_secret_request_id }),
+      failure: row.last_failure,
+    };
   }
 
   /** The runner said the session is gone — bounced to a login page, or let go. */

@@ -136,6 +136,7 @@ beforeAll(async () => {
     "0018_sweep_document_intakes_job",
     "0019_sign_in_and_run_sessions",
     "0020_document_transmissions",
+    "0021_sign_in_failures",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -1087,6 +1088,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0018_sweep_document_intakes_job",
     "0019_sign_in_and_run_sessions",
     "0020_document_transmissions",
+    "0021_sign_in_failures",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1140,6 +1142,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0018_sweep_document_intakes_job",
     "0019_sign_in_and_run_sessions",
     "0020_document_transmissions",
+    "0021_sign_in_failures",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

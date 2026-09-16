@@ -40,8 +40,11 @@ read (P132), at his word: *"A Sheffield degree for the synthetic profile."*
 
 **What it types into the application on his account.** The whole of Part 1 as the drafts map it,
 including the e-mail address into the personal page's two e-mail boxes. The e-mail here is an
-`example.com` address; if he wants his own there, he changes the file before seeding, and it
-never enters this repository. The passport is *none*, so the nationality page gets the portal's
+`example.com` address, kept synthetic at his word (*"A real address inside an otherwise invented
+profile is the worst of both — not a test and not true"*). **Sheffield may send to that address
+and nothing will arrive** — no confirmation, no reminder, no reset link reaches anyone — so
+silence from the portal after Run A is not evidence of a portal failure, and nobody later should
+read it as one. The passport is *none*, so the nationality page gets the portal's
 own *"no passport"* instruction (ADR-0117); a synthetic passport number was not invented.
 
 **Not held, and why.** `residence.uk_entry_date` — not in the UK now, and the page hides the entry
@@ -67,12 +70,9 @@ The UUID it prints is the identity everything keys on: post it as the dev sessio
 refuses to write for a student who already holds any profile entry — a seed never overwrites
 what a person has said.
 
-**Provenance, said plainly.** Every seeded entry is stored with `source: "student_entered"` and a
-`sourceExcerpt` reading *seeded from synthetic-profile.json by `pnpm run profile:seed --write` on
-<date>; no interview took place*. The registry's provenance vocabulary has no *seeded* source —
-its comment says every source ends in the student confirming, and that there is no source that
-bypasses it — and adding one is a change to the profile's guarantee, which is Vahid's to decide,
-not this command's. `student_entered` is the nearest honest word for a person reviewing the
-printed values and typing `--write`; the excerpt says the rest. If he would rather the vocabulary
-carry the truth outright, that is one enum value, its contract mirror, and a sentence in the
-domain's comment.
+**Provenance, said plainly.** Every seeded entry is stored with `source: "seeded"` (ADR-0121,
+decided by Vahid: *"add the true one. 'Seeded, no interview took place' is a real origin and the
+nearest honest word is not it"*) and a `sourceExcerpt` reading *seeded from synthetic-profile.json
+by `pnpm run profile:seed --write` on <date>; no interview took place*. A seeded value is not a
+student's confirmation and nothing may read it as one; nothing refuses one on any path today, and
+the ADR says so.

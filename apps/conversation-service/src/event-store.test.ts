@@ -120,6 +120,7 @@ beforeAll(async () => {
     "0018_sweep_document_intakes_job",
     "0019_sign_in_and_run_sessions",
     "0020_document_transmissions",
+    "0021_sign_in_failures",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(
