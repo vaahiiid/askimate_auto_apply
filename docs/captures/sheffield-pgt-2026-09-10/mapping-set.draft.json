@@ -1,8 +1,9 @@
 {
   "$comment": [
     "The mapping set for the Sheffield PGT form, DRAFT, one file for the whole blueprint (a plan reads one set).",
-    "Authored from Vahid's words; the approver is Iman Behravan (step 5 reviewer pair). Not usable until reviewed",
-    "by a second person, and not executable until every required field is mapped.",
+    "Authored from Vahid's words. Since 2026-09-16 (ADR-0118) the signature is his alone, and a set signed by its",
+    "author admits his own account and nothing else; a second person's review is a precondition of serving a real",
+    "student. Not usable until signed, and not executable until every required field is mapped.",
     "",
     "Equal opportunities (page9), 2026-09-11, ADR-0102 and Vahid's correction from the live dropdown: both values",
     "are 'Prefer not to say'. The disability refusal COVERS the eleven other controls of the same question. The",

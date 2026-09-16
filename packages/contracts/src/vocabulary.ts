@@ -291,6 +291,11 @@ export const PROBLEM_CODES = [
   // `forbidden` because it is the one refusal here the STUDENT can clear
   // themselves, and a client that cannot tell it apart cannot say how.
   "email_not_verified",
+  // ADR-0118. The target the student asked for is approved on a single
+  // signature, which admits the signer's own account and nothing else. Its
+  // own code rather than `forbidden` so the student is told what it is, and
+  // so the record shows a one-signature approval refusing, not a bug.
+  "not_for_this_applicant",
   "rate_limited",
   "internal_error",
   "service_unavailable",

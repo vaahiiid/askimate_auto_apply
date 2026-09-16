@@ -13,14 +13,24 @@ Existing AskiMate  →  student decides to apply  →  AAS  →  prepare  →  e
 
 ---
 
+## If you are the developer taking this over — read this first
+
+**[What was skipped to get this standing](./docs/what-was-skipped-to-get-it-standing.md).** The
+mapping set that drives a run was reviewed by **one person** — Vahid, who approved his own project's
+work — and the class of error a second reviewer was there to catch, *a field mapped to a plausible
+wrong source*, is one every test passes and no gate refuses. A single signature admits his own
+account and nothing else; the running system enforces that (ADR-0118). **A second reviewer is a
+precondition of serving a real student, not an improvement.** The list says what else was cut, and
+what each cut leaves uncaught.
+
 ## Current status
 
 | | |
 |---|---|
-| **Phase** | P73 — one intent per document attached, and the record of what left (ADR-0069's third layer) |
-| **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs a real blueprint, a two-person mapping review, Bedrock credentials and an account |
-| **Tests** | **2,652 passing · 141 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 101 ADRs · all 101 Accepted |
+| **Phase** | P144 — one signature admits one account (ADR-0118): the review dropped to Vahid's own signature, and the gate that keeps it to his own account built |
+| **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
+| **Tests** | **2,663 passing · 141 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 118 ADRs · all 118 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

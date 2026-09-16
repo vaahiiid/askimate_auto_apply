@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P144 — one signature, and the gate that keeps it to one account
+
+He changed the framing: the goal is a system that stands and runs end to end for a developer to inherit, not one in front of a real student, and the two-person mapping review is not worth five hours of two people's time for that. So it is one signature, his, and the three places that refused an approval signed by its author now accept one — on one condition he asked to be enforced rather than noted. An approval signed by its author must name the one account it admits, and the running system holds it to that: the listing shows a one-account target to that student and to nobody else, the offer draws from the same set, the start and the re-application refuse anyone else by name with a code in the contract and words on the page, and every later lookup for a bound case answers as if the entry were gone, so a catalogue swapped under a running case stops it. His sentence is in the code's comments where the check is: my memory of this conversation is not a control.
+
+The thing given up is written where the developer will find it first — the README's first screen, the decisions index, the state document's opening paragraph — and it is said plainly: one person reviewed the set and that person approved their own project's work; a field mapped to a plausible wrong source is a class of error every test passes and no gate refuses; a second reviewer is a precondition of serving a real student, not an improvement. He asked what else on the list is the same shape. Seven candidates are named in the same file, with what each cut would leave uncaught, and none is cut, because a decision is his only in his own words. Four tests pinned the old rule and each was run red against the old code before it changed. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P143 — handled rather than absorbed
 
 He kept the renames and said why the script was read, which is now in the ADR in his words: a student resident in Iran would have answered "have you always lived in Iran" and we would have stored it under always_in_uk, and nobody would have noticed until a form somewhere read that field and meant the UK. Three things from the read are on the record rather than in a reply. The field the page answers itself — living in the UK, ticked by the script from the residence when the student says they have not lived outside it — is a box whose value the student never gives and this system never types, and a later phase that reads it back as the student's answer is wrong; the set's note says so, and the pack. The two things the condition language cannot say are blocker 30 with his sentence attached: true of Run A and not of the product, and the day a UK national living abroad arrives the condition is silently wrong rather than loudly missing. And Sheffield's own bug is recorded as the portal's, dated, with what it means: the study block opens on nationality or residence alone, and if they fix the comparison the condition drifts under the draft. The note that the interview should ask the seven claims only when the residence makes a portal ask went to ADR-0113, where the person who builds the interview will read it.

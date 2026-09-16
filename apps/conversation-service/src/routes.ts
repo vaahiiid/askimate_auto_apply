@@ -69,7 +69,7 @@ import {
 } from "@askimate/aas-case-store/interventions";
 
 import type { ReviewedTarget } from "@askimate/aas-catalogue";
-import { ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
+import { admits, ambiguousGroups, isAmbiguous } from "@askimate/aas-catalogue";
 import type { DocumentRecord, DocumentUpload, StorableUpload } from "@askimate/aas-documents";
 import {
   DOCUMENT_LIMITS,
@@ -412,6 +412,9 @@ function reapplicationProblem(res: Response, refusal: RunRefusal): void {
       return;
     case "email_not_verified":
       problem(res, "email_not_verified");
+      return;
+    case "not_for_this_applicant":
+      problem(res, "not_for_this_applicant");
       return;
     case "held_for_specialist":
       problem(res, "specialist_reviewing");
@@ -845,7 +848,13 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           problem(res, "service_unavailable");
           return;
         }
-        const targets = options.targets.targets();
+        // ADR-0118: a target on a single signature is listed to the one
+        // student it admits and to nobody else. The driver refuses everybody
+        // else again at the start; this keeps the offer honest about what
+        // this student can actually ask for.
+        const targets = options.targets
+          .targets()
+          .filter((target) => admits(target.admits, who.studentId));
         const ambiguous = ambiguousGroups(targets);
         res.status(200).json({
           targets: targets.map((target) => ({
@@ -1105,6 +1114,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           switch (outcome.refusal.kind) {
             case "unknown_blueprint":
               problem(res, "not_found");
+              return;
+            case "not_for_this_applicant":
+              problem(res, "not_for_this_applicant");
               return;
             case "unknown_conversation":
               problem(res, "not_found");

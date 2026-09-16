@@ -28,10 +28,16 @@ import { checkUsable } from "@askimate/aas-mapping";
 import { toCanonical, type ReviewedCatalogueEntry } from "./entry.js";
 import { targetOf, type ReviewedTarget } from "./target.js";
 import { parseReviewedEntryText, type ParseRefusal } from "./parse.js";
-import { hashOf, type Approval, type ApprovalRegistry } from "./registry.js";
+import { admissionOf, hashOf, type Admission, type Approval, type ApprovalRegistry } from "./registry.js";
 
 /**
- * A reviewed entry plus the deployment fact that is not part of it.
+ * A reviewed entry plus two facts that are not part of it: the deployment
+ * origin, and whom its approval admits.
+ *
+ * `admits` comes from the REGISTRY, never from the artefact (ADR-0118): an
+ * entry approved by its author on a single signature admits that one account,
+ * and the Conversation Service refuses every other student at each point a
+ * run touches the entry.
  *
  * Structurally identical to the Conversation Service's `CatalogueEntry`, which
  * is checked by a compile-time assertion where the two meet rather than by
@@ -39,6 +45,7 @@ import { hashOf, type Approval, type ApprovalRegistry } from "./registry.js";
  */
 export type DeployedCatalogueEntry = ReviewedCatalogueEntry & {
   readonly portalOrigin?: string;
+  readonly admits: Admission;
 };
 
 export type LoadRefusal =
@@ -126,6 +133,7 @@ export async function loadReviewedEntry(input: {
     entry: {
       ...reviewed,
       ...(input.portalOrigin === undefined ? {} : { portalOrigin: input.portalOrigin }),
+      admits: admissionOf(approval),
     },
     contentHash,
     approval,
@@ -193,6 +201,7 @@ export class ReviewedCatalogue {
         targetOf({
           entry,
           contentHash,
+          admits: entry.admits,
           ...(entry.portalOrigin === undefined ? {} : { portalOrigin: entry.portalOrigin }),
         }),
       );

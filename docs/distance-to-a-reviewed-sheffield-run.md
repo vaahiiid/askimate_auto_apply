@@ -126,13 +126,16 @@ In the order they bite, each with who holds it and the evidence.
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
    entries for the student to choose. **Raised as blocker 25**, below; his decision.
-6. **Review.** Iman signs the blueprint and the mapping set; the loader refuses a draft, an
-   unreviewed set, and an approval signed by its author (blocker 2). Three items are flagged for
-   him in the review pack: what the education page's first slot asks for, the contact page's
-   *After* / *Before* texts, and the postcode's two boxes. **Carried from item 1 (P126):** the
-   thirteen fields read from the screenshots — nationality's eleven top questions and two
-   language radios — listed on their own in the pack; the fifty observed markers to confirm,
-   two flagged (language's eighteen of twenty, `unlistedDegree`). **Iman.**
+6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
+   the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
+   his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
+   a self-signed approval that names no account, and the service serves the entry to his account
+   and to nobody else. Iman's sitting is dropped. What the pack flagged for a reviewer — the
+   thirteen fields read from the screenshots, the fifty observed markers, the three flagged items
+   — stays in the pack for whoever reviews before a real student, because **a second reviewer is a
+   precondition of serving a real student, not an improvement** (his words;
+   [`what-was-skipped-to-get-it-standing.md`](./what-was-skipped-to-get-it-standing.md)). Open
+   until he signs. **Vahid.**
 7. ~~**`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
    fill run does not read it at all today.**~~ **Done, P135.** The first half was his read of
    2026-09-14, evaluated by the runner's matcher (P122): every observed path allowed, the
@@ -211,6 +214,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P144: item 6 changed at his word — one signature, his, for his own account only,
+  enforced in the code (ADR-0118); Iman's sitting dropped; what the one signature leaves uncaught
+  written for the developer. Five open of ten, unchanged.
 - 2026-09-15, P143: records at his word — the ADR says why the script was read, not only what
   it said; the field the page answers itself is on the record; Sheffield's own bug is dated and
   the drift named; blocker 30 raised for what the condition language cannot say, with his

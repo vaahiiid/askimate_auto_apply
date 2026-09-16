@@ -88,10 +88,43 @@ scripts/local-stack.sh start
 ```
 
 where `/path/to/catalogue/entries/` holds the reviewed Sheffield entry and `approvals.json`
-carries an approval, by someone other than its author, whose canonical hash matches the entry
-(P20; the loader refuses anything else, and the Conversation Service and the Worker refuse to
-start on an entry no approval covers). `AAS_PORTAL_ORIGINS` is only needed to run the entry
-against a different instance of the portal than the one it observed.
+carries an approval whose canonical hash matches the entry (P20; the loader refuses anything
+else, and the Conversation Service and the Worker refuse to start on an entry no approval
+covers). `AAS_PORTAL_ORIGINS` is only needed to run the entry against a different instance of
+the portal than the one it observed.
+
+### The one-signature approval (ADR-0118)
+
+Since 2026-09-16 the approval may be signed by the entry's author, on one condition the loader
+enforces: it names the one account it admits, and the service serves the entry to that student
+and to nobody else. The shape, written by hand into `approvals.json` (there is no `approve`
+subcommand, on purpose):
+
+```json
+[
+  {
+    "contentHash": "sha256:<the output of `pnpm run catalogue hash entries/sheffield.json`>",
+    "authoredBy": "Vahid Mohammadi",
+    "approvedBy": "Vahid Mohammadi",
+    "approvedAt": "2026-09-16T10:00:00Z",
+    "ownAccountOnly": { "studentId": "<your studentId — see below>" },
+    "note": "One signature (ADR-0118): my own account only."
+  }
+]
+```
+
+`studentId` is the identity the session carries, and it depends on how you signed in:
+
+- **`AAS_DEV_SESSION=1`** (what `local-stack.sh` sets): it is the `subject` you post to the
+  dev-session route — the string you chose. Use the same one in the approval.
+- **A real OIDC provider:** it is the `students.id` row for your subject —
+  `SELECT id FROM students WHERE subject = '<your sub>'` on the conversation database, after your
+  first sign-in.
+
+A self-signed approval with no `ownAccountOnly` is refused at load (`self_approval_unbounded`).
+An approval by a second person needs no `ownAccountOnly` and admits any applicant.
+`pnpm run catalogue check /path/to/catalogue` prints, per entry, whom its approval admits — read
+it before starting the processes.
 
 What the script does **not** settle, and what stands before it can be pointed at Sheffield at
 all, is the rest of the distance list: the reviewed entry itself (items 1–6), `robots.txt`

@@ -16,9 +16,12 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * There is deliberately no `approve` subcommand. An approval is a record that a
- * second person read something, and a CLI that writes one on request is a CLI
- * that manufactures the evidence it is supposed to record. Approvals are added
- * to `approvals.json` by the person approving.
+ * person read something, and a CLI that writes one on request is a CLI that
+ * manufactures the evidence it is supposed to record. Approvals are added to
+ * `approvals.json` by the person approving — since ADR-0118 that may be the
+ * author, naming under `ownAccountOnly.studentId` the one account their single
+ * signature admits, and `check` prints that admission per entry so nobody
+ * starts a process on a one-account entry without seeing it.
  */
 
 import { readFile } from "node:fs/promises";
@@ -90,7 +93,18 @@ async function main(): Promise<void> {
 
     console.log(`\n${GREEN}✓${RESET} ${String(load.catalogue.size)} reviewed entr(ies).\n`);
     for (const item of load.catalogue.inventory()) {
-      console.log(`  ${BOLD}${item.blueprintId}${RESET}\n    ${DIM}${item.contentHash}${RESET}`);
+      const entry = await load.catalogue.find(item.blueprintId);
+      const admission =
+        entry === null
+          ? ""
+          : entry.admits.kind === "any_applicant"
+            ? `${GREEN}admits any applicant${RESET} (a second person's signature)`
+            : `${RED}admits ONE account only${RESET} — studentId ${entry.admits.studentId}, ` +
+              `signed by ${entry.admits.signedBy} alone (ADR-0118): usable for that account and ` +
+              `for nothing else`;
+      console.log(
+        `  ${BOLD}${item.blueprintId}${RESET}\n    ${DIM}${item.contentHash}${RESET}\n    ${admission}`,
+      );
     }
     console.log();
     return;

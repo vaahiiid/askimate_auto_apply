@@ -2678,6 +2678,7 @@ components:
         - already_applying
         - specialist_reviewing
         - email_not_verified
+        - not_for_this_applicant
         - rate_limited
         - internal_error
         - service_unavailable

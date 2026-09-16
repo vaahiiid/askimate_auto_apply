@@ -36,6 +36,7 @@
  */
 
 import {
+  admits,
   isAmbiguous,
   offerFor,
   renderOffer,
@@ -102,7 +103,12 @@ export function makeOffer(input: {
    */
   readonly disambiguated?: boolean;
 }): OfferResult {
-  const targets = input.directory.targets();
+  // ADR-0118: a target on a single signature is offered to the one student
+  // it admits and to nobody else — the same set the listing shows them, so
+  // an offer cannot be made for a target the student was never shown.
+  const targets = input.directory
+    .targets()
+    .filter((candidate) => admits(candidate.admits, input.studentId));
   const target = targets.find((candidate) => candidate.blueprintId === input.chosenBlueprintId);
 
   if (target === undefined) {
@@ -111,10 +117,11 @@ export function makeOffer(input: {
       refusal: {
         kind: "unknown_target",
         detail:
-          `No reviewed application target with id "${input.chosenBlueprintId}" is available. ` +
-          `This system applies only to targets that have been discovered, reviewed by two ` +
-          `people and approved (ADR-0057), so a course it cannot execute against is not ` +
-          `offered at all.`,
+          `No reviewed application target with id "${input.chosenBlueprintId}" is available to ` +
+          `this student. This system applies only to targets that have been discovered, ` +
+          `reviewed and approved (ADR-0057), and a target approved on a single signature is ` +
+          `available to the one account it names (ADR-0118), so a course it cannot execute ` +
+          `against for this student is not offered at all.`,
       },
     };
   }

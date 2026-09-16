@@ -6,11 +6,12 @@
  *   <dir>/entries/*.json        the reviewed entries
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Two files rather than one, because they are two different kinds of thing with
- * two different authors. An entry is produced by discovery and specialist
- * authoring; an approval is produced by a second person looking at it. Putting
- * the approval inside the entry would put the signature inside the document it
- * signs, which is the arrangement ADR-0057 exists to replace.
+ * Two files rather than one, because they are two different kinds of thing. An
+ * entry is produced by discovery and specialist authoring; an approval is
+ * produced by a person looking at it — a second person, or since ADR-0118 the
+ * author, naming the one account their signature admits. Putting the approval
+ * inside the entry would put the signature inside the document it signs, which
+ * is the arrangement ADR-0057 exists to replace.
  *
  * A directory is the simplest store that can hold both, and it is deliberately
  * unremarkable: a database table would be a better operational answer and a
@@ -24,7 +25,7 @@ import { join } from "node:path";
 
 import { isLabelledHash } from "./canonical.js";
 import type { Approval, ApprovalRegistry } from "./registry.js";
-import { InMemoryApprovalRegistry } from "./registry.js";
+import { InMemoryApprovalRegistry, approveContent } from "./registry.js";
 import {
   loadReviewedEntry,
   ReviewedCatalogue,
@@ -86,6 +87,7 @@ export function parseApprovals(value: unknown, source: string): {
     const authoredBy = item["authoredBy"];
     const approvedBy = item["approvedBy"];
     const approvedAt = item["approvedAt"];
+    const ownAccountOnly = item["ownAccountOnly"];
     const note = item["note"];
 
     if (!isLabelledHash(contentHash)) {
@@ -100,31 +102,46 @@ export function parseApprovals(value: unknown, source: string): {
       problems.push({ source: at, detail: "approvedBy must name somebody" });
       return;
     }
-    if (authoredBy.trim() === approvedBy.trim()) {
-      problems.push({
-        source: at,
-        detail:
-          `authored and approved by the same person ("${authoredBy}"). That is a draft with a ` +
-          `signature on it (ADR-0017).`,
-      });
-      return;
-    }
     if (typeof approvedAt !== "string" || Number.isNaN(new Date(approvedAt).getTime())) {
       problems.push({ source: at, detail: "approvedAt must be an ISO-8601 instant" });
       return;
+    }
+    let bounded: { readonly studentId: string } | undefined;
+    if (ownAccountOnly !== undefined) {
+      const studentId =
+        typeof ownAccountOnly === "object" && ownAccountOnly !== null && !Array.isArray(ownAccountOnly)
+          ? (ownAccountOnly as Record<string, unknown>)["studentId"]
+          : undefined;
+      if (typeof studentId !== "string" || studentId.trim().length === 0) {
+        problems.push({
+          source: at,
+          detail: "ownAccountOnly must be { studentId: <the one account this signature admits> }",
+        });
+        return;
+      }
+      bounded = { studentId };
     }
     if (note !== undefined && typeof note !== "string") {
       problems.push({ source: at, detail: "note must be a string when present" });
       return;
     }
 
-    approvals.push({
+    // The same rule the registry applies in memory, so a file cannot hold an
+    // approval `approveContent` would refuse — the author's signature with no
+    // account named among them (ADR-0118).
+    const built = approveContent({
       contentHash,
-      authoredBy: authoredBy.trim(),
-      approvedBy: approvedBy.trim(),
+      authoredBy,
+      approvedBy,
       approvedAt: new Date(approvedAt),
+      ...(bounded === undefined ? {} : { ownAccountOnly: bounded }),
       ...(note === undefined ? {} : { note }),
     });
+    if (!built.ok) {
+      problems.push({ source: at, detail: built.refusal.detail });
+      return;
+    }
+    approvals.push(built.approval);
   });
 
   return { approvals, problems };

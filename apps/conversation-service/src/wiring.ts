@@ -90,6 +90,9 @@ export function fixtureCatalogue(portalOrigin?: string): ServableCatalogue {
     institutionRef: "inst-gated",
     courseRef: "course-msc-controlled",
     intakeRef: "2026-09",
+    // Compiled in and refused in production, so there is no approval to read
+    // an admission from; the fixture admits any test student (ADR-0118).
+    admits: { kind: "any_applicant" },
     ...(portalOrigin === undefined ? {} : { portalOrigin }),
     portalAuthentication: {
       portalHost: "gated.portal.test",
@@ -117,6 +120,7 @@ export function fixtureCatalogue(portalOrigin?: string): ServableCatalogue {
       targetOf({
         entry,
         contentHash: fixtureContentHash,
+        admits: entry.admits,
         ...(portalOrigin === undefined ? {} : { portalOrigin }),
       }),
     ],

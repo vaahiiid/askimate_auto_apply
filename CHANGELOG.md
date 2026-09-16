@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.141.0] — 2026-09-16
+
+**P144 — ADR-0118: the mapping review is one signature, Vahid's, until a developer takes the
+system over; a single signature admits the signer's own account and nothing else.**
+
+### Changed
+
+- `packages/catalogue`: `Approval.ownAccountOnly`, `Admission`, `admissionOf`, `admits`; an
+  approval signed by its author is accepted only when it names one account (`self_approval_unbounded`
+  otherwise); `parseApprovals` goes through `approveContent`; the loader carries the admission onto
+  `DeployedCatalogueEntry.admits` and `ReviewedTarget.admits`; `targetOf` takes `admits`.
+- `packages/mapping`: `checkUsable` no longer refuses a set signed by its author
+  (`reviewed_by_author` removed).
+- `packages/contracts`: problem code `not_for_this_applicant` (403), in `RUN_REFUSALS` and the
+  OpenAPI enum.
+- `apps/conversation-service`: `CatalogueEntry.admits`; the driver's `#entryAdmitting` behind every
+  lookup for a bound case and the worded refusal at start, re-application and advance; the listing
+  and the offer filtered by admission; the client's words.
+- `scripts/catalogue.ts`: `check` prints each entry's admission.
+
+### Recorded
+
+- ADR-0118; `docs/what-was-skipped-to-get-it-standing.md` (new, linked from the README's first
+  screen); blocker 2 rewritten and kept open; the runbook's approvals shape; the review pack's note.
+
+---
+
 ## [0.140.0] — 2026-09-15
 
 **P143 — records at Vahid's word: why the script was read; the field the page answers itself;

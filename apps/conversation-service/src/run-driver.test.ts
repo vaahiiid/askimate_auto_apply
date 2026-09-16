@@ -152,10 +152,14 @@ if (!HAVE_DATABASE) announceSkip("P1 — the run exists, and survives a restart"
 const describeIfDatabase = HAVE_DATABASE ? describe : describe.skip;
 
 /** The reviewed blueprint and its reviewed mapping set. A port, not a table. */
+/** What the test entries admit: any student. One test below builds the other kind (ADR-0118). */
+const ANY_APPLICANT = { kind: "any_applicant" } as const;
+
 const ENTRY: CatalogueEntry = {
   blueprint: FIXTURE_BLUEPRINT,
   mappingSet: FIXTURE_MAPPING_SET,
   requiredDocuments: [],
+  admits: ANY_APPLICANT,
   institutionRef: "inst-example",
   courseRef: "course-msc-example",
   // The blueprint's own `intake` is the label "September 2026". The domain's
@@ -175,6 +179,7 @@ const GATED_ENTRY: CatalogueEntry = {
   blueprint: GATED_PORTAL_BLUEPRINT,
   mappingSet: GATED_PORTAL_MAPPING_SET,
   requiredDocuments: [],
+  admits: ANY_APPLICANT,
   institutionRef: "inst-gated",
   courseRef: "course-msc-controlled",
   intakeRef: "2026-09",
@@ -264,7 +269,7 @@ type TestCatalogue = ApplicationCatalogue & {
 const CATALOGUE: TestCatalogue = {
   targets: () =>
     [ENTRY, GATED_ENTRY].map((entry) =>
-      targetOf({ entry, contentHash: TEST_CONTENT_HASH }),
+      targetOf({ entry, contentHash: TEST_CONTENT_HASH, admits: entry.admits }),
     ),
   find: (id) =>
     Promise.resolve(
@@ -5977,7 +5982,7 @@ const DOCUMENT_ENTRY: CatalogueEntry = {
 
 const DOCUMENT_CATALOGUE: TestCatalogue = {
   targets: () => [
-    targetOf({ entry: DOCUMENT_ENTRY, contentHash: TEST_CONTENT_HASH }),
+    targetOf({ entry: DOCUMENT_ENTRY, contentHash: TEST_CONTENT_HASH, admits: DOCUMENT_ENTRY.admits }),
   ],
   find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? DOCUMENT_ENTRY : null),
 };
@@ -8234,7 +8239,7 @@ const UNOBSERVED_ENTRY: CatalogueEntry = (() => {
 
 const UNOBSERVED_CATALOGUE: TestCatalogue = {
   targets: () => [
-    targetOf({ entry: UNOBSERVED_ENTRY, contentHash: TEST_CONTENT_HASH }),
+    targetOf({ entry: UNOBSERVED_ENTRY, contentHash: TEST_CONTENT_HASH, admits: UNOBSERVED_ENTRY.admits }),
   ],
   find: (id) =>
     Promise.resolve(id === GATED_BLUEPRINT ? UNOBSERVED_ENTRY : null),
@@ -9107,7 +9112,7 @@ const NO_DOCUMENT_MAPPING: CatalogueEntry = {
 
 function catalogueOf(entry: CatalogueEntry): TestCatalogue {
   return {
-    targets: () => [targetOf({ entry, contentHash: TEST_CONTENT_HASH })],
+    targets: () => [targetOf({ entry, contentHash: TEST_CONTENT_HASH, admits: entry.admits })],
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
   };
 }
@@ -9330,6 +9335,7 @@ describeIfDatabase("which declaration actually decides", () => {
     const target = targetOf({
       entry: DOCUMENT_ENTRY,
       contentHash: TEST_CONTENT_HASH,
+      admits: DOCUMENT_ENTRY.admits,
     });
     const rendered = renderOffer(
       offerFor({
@@ -9857,7 +9863,7 @@ describeIfDatabase("one application per submission identity", () => {
 
     const laterIntake: CatalogueEntry = { ...ENTRY, intakeRef: "2027-01" };
     const january = await startOn("01JBXQ8Z9WKTQ6M4H2NP3801D2", {
-      targets: () => [targetOf({ entry: laterIntake, contentHash: TEST_CONTENT_HASH })],
+      targets: () => [targetOf({ entry: laterIntake, contentHash: TEST_CONTENT_HASH, admits: laterIntake.admits })],
       find: (id) => Promise.resolve(id === BLUEPRINT ? laterIntake : null),
     });
     if (!january.ok) expect.unreachable(`start refused: ${january.refusal.kind}`);
@@ -10126,7 +10132,7 @@ describeIfDatabase("the second application, on the student's instruction", () =>
 
     const corrected: CatalogueEntry = { ...ENTRY, intakeRef: "2029-01" };
     const instance = liveInstance({
-      targets: () => [targetOf({ entry: corrected, contentHash: TEST_CONTENT_HASH })],
+      targets: () => [targetOf({ entry: corrected, contentHash: TEST_CONTENT_HASH, admits: corrected.admits })],
       find: (id) => Promise.resolve(id === BLUEPRINT ? corrected : null),
     });
     try {
@@ -10548,7 +10554,7 @@ describeIfDatabase("one intent per attachment, and the record of what left (ADR-
     },
   };
   const UPLOAD_CATALOGUE: TestCatalogue = {
-    targets: () => [targetOf({ entry: UPLOAD_ENTRY, contentHash: TEST_CONTENT_HASH })],
+    targets: () => [targetOf({ entry: UPLOAD_ENTRY, contentHash: TEST_CONTENT_HASH, admits: UPLOAD_ENTRY.admits })],
     find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? UPLOAD_ENTRY : null),
   };
 
@@ -11035,4 +11041,191 @@ describeIfDatabase("a run that starts on an account the student already holds (A
       await instance.pool.end();
     }
   }, 300_000);
+});
+
+describeIfDatabase("one signature admits one account, and nothing else (ADR-0118)", () => {
+  // Vahid, 2026-09-16: *"Nothing reaches a real student on a one-signature
+  // approval. … a mapping set with one signature may be used for my own
+  // account and for nothing else. If that gate does not exist as a thing in
+  // the code, build it, because my memory of this conversation is not a
+  // control."*
+  //
+  // The entry below is GATED_ENTRY approved on a single signature that names
+  // one fresh student — "the signer" — as the one account it admits. Every
+  // other student here is fresh too, so nothing an earlier group opened on
+  // the gated target can stand in for a refusal.
+  const ONE_ACCOUNT_PORT = PORT + 9;
+  const ONE_ACCOUNT_BASE = `http://127.0.0.1:${String(ONE_ACCOUNT_PORT)}`;
+  const MINE = "01JBXQ8Z9WKTQ6M4H2NPE00B10";
+  const THEIRS = "01JBXQ8Z9WKTQ6M4H2NPE00B20";
+  const SWAPPED = "01JBXQ8Z9WKTQ6M4H2NPE00B30";
+  let signer = "";
+  let somebodyElse = "";
+  let swappedOwner = "";
+
+  beforeAll(async () => {
+    signer = await aStudent("oidc-adr0118-signer");
+    somebodyElse = await aStudent("oidc-adr0118-somebody-else");
+    swappedOwner = await aStudent("oidc-adr0118-swapped");
+    await conversationOf(MINE, signer);
+    await conversationOf(THEIRS, somebodyElse);
+    await conversationOf(SWAPPED, swappedOwner);
+  });
+
+  function oneAccountEntry(): CatalogueEntry {
+    return {
+      ...GATED_ENTRY,
+      admits: { kind: "one_account_only", studentId: signer, signedBy: "the-author" },
+    };
+  }
+
+  function catalogueOf(entry: CatalogueEntry): TestCatalogue {
+    return {
+      targets: () => [targetOf({ entry, contentHash: TEST_CONTENT_HASH, admits: entry.admits })],
+      find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? entry : null),
+    };
+  }
+
+  /** A live server on the given catalogue, on this group's own port. */
+  async function serving(catalogue: TestCatalogue): Promise<{ close: () => Promise<void> }> {
+    const instance = buildInstance(connectionString(), opener(), catalogue, "wired", null, WALL);
+    const listening = await new Promise<Server>((resolve) => {
+      const s_ = instance.app.listen(ONE_ACCOUNT_PORT, "127.0.0.1", () => resolve(s_));
+    });
+    return {
+      close: async (): Promise<void> => {
+        await new Promise<void>((resolve) => listening.close(() => resolve()));
+        await instance.pool.end();
+      },
+    };
+  }
+
+  async function listedTo(subject: string): Promise<readonly string[]> {
+    const response = await fetch(`${ONE_ACCOUNT_BASE}/v1/application-targets`, {
+      headers: { Cookie: cookieFor(subject) },
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { targets: readonly { blueprintId: string }[] };
+    return body.targets.map((target) => target.blueprintId);
+  }
+
+  async function offerTo(
+    conversationId: string,
+    subject: string,
+  ): Promise<{ status: number; offerHash: string | null }> {
+    const response = await fetch(
+      `${ONE_ACCOUNT_BASE}/v1/conversations/${conversationId}/target-offers`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+        body: JSON.stringify({ blueprintId: GATED_BLUEPRINT }),
+      },
+    );
+    const body = (await response.json()) as { offerHash?: string };
+    return { status: response.status, offerHash: body.offerHash ?? null };
+  }
+
+  async function startWith(
+    conversationId: string,
+    subject: string,
+    offerHash: string,
+  ): Promise<{ status: number; body: unknown }> {
+    const response = await fetch(`${ONE_ACCOUNT_BASE}/v1/conversations/${conversationId}/runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieFor(subject) },
+      body: JSON.stringify({ offerHash, studentStatement: STATEMENT }),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
+  it("lists and offers the target to the one student it admits, and to nobody else", async () => {
+    const live = await serving(catalogueOf(oneAccountEntry()));
+    try {
+      expect(await listedTo(signer)).toEqual([GATED_BLUEPRINT]);
+      expect(await listedTo(somebodyElse)).toEqual([]);
+      // The offer route draws from the same set: no offer for a target the
+      // student was never shown.
+      expect((await offerTo(THEIRS, somebodyElse)).status).toBe(404);
+      expect((await offerTo(MINE, signer)).status).toBe(201);
+    } finally {
+      await live.close();
+    }
+  }, 120_000);
+
+  it("refuses to START for any other student, by name, and starts for the one it admits", async () => {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(oneAccountEntry()));
+    try {
+      const theirs = await instance.driver.start({
+        conversationId: THEIRS,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(theirs).toEqual({ ok: false, refusal: { kind: "not_for_this_applicant" } });
+      // Nothing was opened for them: no case, no run.
+      const cases = await pool.query("SELECT 1 FROM case_events WHERE case_id = $1", [
+        `case_${THEIRS.toLowerCase()}`,
+      ]);
+      expect(cases.rowCount).toBe(0);
+
+      const mine = await instance.driver.start({
+        conversationId: MINE,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!mine.ok) expect.unreachable(`start refused: ${mine.refusal.kind}`);
+      expect(mine.position.step).toBe("authorise");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 120_000);
+
+  it("stops a case already running, and tells the student in the contract's words, when the catalogue no longer admits them", async () => {
+    // Started on an entry that admits anyone — the offer made and the run
+    // begun on that server. Then the same blueprint is served on a single
+    // signature naming somebody else. Every later lookup for the bound case
+    // finds no entry it may use: the advance refuses by name, the read paths
+    // answer as if the target were gone, and over the real route the refusal
+    // is the contract's own code, not a 404.
+    let offerHash = "";
+    let runId = "";
+    const open = await serving(catalogueOf(GATED_ENTRY));
+    try {
+      const offered = await offerTo(SWAPPED, swappedOwner);
+      expect(offered.status).toBe(201);
+      offerHash = offered.offerHash ?? "";
+      const started = await startWith(SWAPPED, swappedOwner, offerHash);
+      expect(started.status, JSON.stringify(started.body)).toBe(201);
+      runId = (started.body as { runId: string }).runId;
+    } finally {
+      await open.close();
+    }
+
+    const swapped = buildInstance(connectionString(), opener(), catalogueOf(oneAccountEntry()));
+    try {
+      const advanced = await swapped.driver.advance({ runId, conversationId: SWAPPED });
+      expect(advanced).toEqual({ ok: false, refusal: { kind: "not_for_this_applicant" } });
+      const again = await swapped.driver.start({
+        conversationId: SWAPPED,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      expect(again).toEqual({ ok: false, refusal: { kind: "not_for_this_applicant" } });
+      expect(await swapped.driver.previewFor(runId, SWAPPED)).toBeNull();
+    } finally {
+      await swapped.pool.end();
+    }
+
+    const live = await serving(catalogueOf(oneAccountEntry()));
+    try {
+      // The offer this student holds still verifies — same content, same
+      // hash — and the driver is the backstop behind it.
+      const refused = await startWith(SWAPPED, swappedOwner, offerHash);
+      expect(refused.status, JSON.stringify(refused.body)).toBe(403);
+      const parsed = parseProblem(refused.body);
+      if (parsed === null) expect.unreachable("the published parser reads it");
+      expect(parsed.code).toBe("not_for_this_applicant");
+    } finally {
+      await live.close();
+    }
+  }, 120_000);
 });

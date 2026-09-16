@@ -2,6 +2,13 @@
 
 **For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · **Revised:** 2026-09-14 (P126: the five pages' labels and markers from the third attached read, and the thirteen to read from the screenshots) · generated from `blueprint.draft.curated.json` (0.2.2; the five pages' labels and `observed_marker` validations from 0.2.18) and `mapping-set.draft.json` (0.2.0; the equal-opportunities page is this sitting's; its personal and contact mappings, added in P89, are the second sitting's)
 
+> **2026-09-16 (ADR-0118).** Vahid dropped the two-person review to one signature — his own —
+> for getting the system standing; the service holds a one-signature entry to his own account and
+> nothing else. **This sitting is not happening now.** The pack stays as it is, because a second
+> reviewer is a precondition of serving a real student, and whoever does that review before a real
+> student needs exactly this map: the judgement rows, the thirteen fields read from screenshots,
+> the fifty markers, the flagged items. Nothing below is closed by the change.
+
 What this sitting is, and is not. It is the review ADR-0102 requires before either artefact can be
 used: every field classified (`ordinary` or `special_category`), and the one page's mapping set
 checked against the form's own captured text. It is **not** the structural review of the blueprint

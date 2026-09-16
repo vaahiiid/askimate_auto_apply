@@ -30,7 +30,7 @@ against a real portal**, the difference is the point of the exercise.
 | | Blocker | Whose | Area |
 |---|---|---|---|
 | 1 | **Real portal discovery** — nothing downstream is real until this exists. Vahid's precondition stands: *"Do not run discovery against the live portal until you tell me what a discovery run would actually do to it."* The measurement is in the target file; **no run has been made** | Yours to run | 1, 3, 6 |
-| 2 | **Specialist review** of the blueprint, then a mapping set reviewed by a second person | Yours | 6, 9 |
+| 2 | **The signature** on the blueprint and the mapping set — since 2026-09-16 one signature, yours, admitting your own account only (ADR-0118); a second person's before any real student | Yours | 6, 9 |
 | 3 | **Bedrock credentials**, then the four model IDs | Yours | 8, 17 |
 | 4 | **An account** — a sandbox, or a consenting applicant — and **the vault's bucket** (blocker 17 in the state document: the service role, the CORS rule, the lifecycle). *"AWS spend stays my act."* | Yours | 4, 18 |
 | 5 | **The AskiMate production integration** for the conversation | Mine, once there is access (state document, blocker 10) | 7 |
@@ -213,8 +213,12 @@ The package is built and proved. The mapping for *this* portal does not exist an
 blueprint does.
 
 Someone decides, per required field, whether it comes from a profile field (and in what notation), a
-document, a student handoff, or a reviewed constant — and then **a second person reviews it**. A set
-signed off by its own author is refused ([ADR-0017](./decisions/0017-mapping-is-reviewed-data.md)).
+document, a student handoff, or a reviewed constant — and then signs it. Until 2026-09-16 a set
+signed off by its own author was refused ([ADR-0017](./decisions/0017-mapping-is-reviewed-data.md));
+since [ADR-0118](./decisions/0118-one-signature-admits-one-account.md) it is accepted when the
+approval names the one account it admits, and the service refuses every other student. **A second
+person's review is a precondition of serving a real student**, and what one signature leaves
+uncaught is in [`what-was-skipped-to-get-it-standing.md`](./what-was-skipped-to-get-it-standing.md).
 It is configuration, not code, hashed with the blueprint it belongs to (ADR-0057), and
 `inspect-discovery` prints the exact list of fields it must cover.
 

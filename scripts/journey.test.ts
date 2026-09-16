@@ -325,6 +325,7 @@ beforeAll(async () => {
     // document — the passport the student holds, attached on page three.
     blueprint: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT,
     mappingSet: GATED_PORTAL_WITH_DOCUMENTS_MAPPING_SET,
+    admits: { kind: "any_applicant" },
     requiredDocuments: ["passport"],
     institutionRef: "inst-gated",
     courseRef: "course-msc-controlled",
@@ -352,7 +353,12 @@ beforeAll(async () => {
   journeyCatalogue = {
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
     targets: () => [
-      targetOf({ entry, contentHash: JOURNEY_CONTENT_HASH, portalOrigin: portal.baseUrl }),
+      targetOf({
+        entry,
+        contentHash: JOURNEY_CONTENT_HASH,
+        admits: entry.admits,
+        portalOrigin: portal.baseUrl,
+      }),
     ],
   };
 

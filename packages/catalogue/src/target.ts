@@ -25,6 +25,7 @@
 import type { Canonical } from "./canonical.js";
 import { labelledHash } from "./canonical.js";
 import type { ReviewedCatalogueEntry } from "./entry.js";
+import type { Admission } from "./registry.js";
 
 /**
  * A reviewed target, as a person reads it.
@@ -39,6 +40,15 @@ export interface ReviewedTarget {
   /** The catalogue key. Not shown to a student as identity; used to resolve. */
   readonly blueprintId: string;
   readonly blueprintVersion: string;
+
+  /**
+   * Whom this target's approval admits (ADR-0118). A target on a single
+   * signature is listed to the one student it names and to nobody else; the
+   * run driver refuses everybody else again at the start and at every later
+   * lookup. NOT part of the offer's canonical form: the offer binds a student
+   * to content, and this is a fact about the approval, not the content.
+   */
+  readonly admits: Admission;
 
   readonly institutionName: string;
   readonly campus?: string;
@@ -119,10 +129,13 @@ function hostOf(entry: ReviewedCatalogueEntry, portalOrigin: string | undefined)
 export function targetOf(input: {
   readonly entry: ReviewedCatalogueEntry;
   readonly contentHash: string;
+  /** Whom the entry's approval admits (ADR-0118). From the registry, never the entry. */
+  readonly admits: Admission;
   readonly portalOrigin?: string;
 }): ReviewedTarget {
   const { entry } = input;
   return {
+    admits: input.admits,
     blueprintId: String(entry.blueprint.blueprintId),
     blueprintVersion: entry.blueprint.version,
     institutionName: entry.blueprint.institutionName,

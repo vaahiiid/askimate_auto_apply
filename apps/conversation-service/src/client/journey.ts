@@ -823,6 +823,12 @@ const REFUSALS: Readonly<Record<string, string>> = {
     "anything — I will carry on as soon as they are done.",
   email_not_verified:
     "Confirm your email address first. Check your inbox for the link we sent.",
+  // ADR-0118. A target approved on one signature is for the signer's own
+  // account. Said plainly, because the alternative is a student wondering
+  // what they did wrong.
+  not_for_this_applicant:
+    "That application target is approved for one account only, and not for " +
+    "yours. Nothing you have given me is lost.",
   secret_request_open:
     "Finish the secure step above first, then this will go through.",
   intervention_already_resolved:

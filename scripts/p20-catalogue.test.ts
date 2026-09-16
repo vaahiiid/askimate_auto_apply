@@ -249,7 +249,9 @@ describe("a catalogue directory", () => {
     expect(load.problems.some((p) => p.source === "approvals.json")).toBe(true);
   }, 60_000);
 
-  it("REFUSES an approvals file whose two names are the same person", async () => {
+  it("REFUSES an approvals file whose two names are the same person and no account is named", async () => {
+    // ADR-0118: a single signature admits the signer's own account and
+    // nothing else, so one that names no account is refused as it was before.
     const dir = await writeCatalogue({ document: DOCUMENT, approve: "the-written-entry" });
     const parsed = parseReviewedEntryText(DOCUMENT);
     if (!parsed.ok) expect.unreachable("fixture parses");
@@ -265,8 +267,57 @@ describe("a catalogue directory", () => {
       ]),
     );
     const load = await loadCatalogueDirectory({ directory: dir });
-    if (load.ok) expect.unreachable("self-approval is not review");
-    expect(load.problems[0]?.detail).toContain("draft with a signature on it");
+    if (load.ok) expect.unreachable("a single signature for everyone is a signed draft");
+    expect(load.problems[0]?.detail).toContain("ownAccountOnly");
+  }, 60_000);
+
+  it("LOADS the author's own signature when it names the one account it admits, and serves that", async () => {
+    const dir = await writeCatalogue({ document: DOCUMENT, approve: "the-written-entry" });
+    const parsed = parseReviewedEntryText(DOCUMENT);
+    if (!parsed.ok) expect.unreachable("fixture parses");
+    await writeFile(
+      join(dir, "approvals.json"),
+      JSON.stringify([
+        {
+          contentHash: hashOf(toCanonical(parsed.value)),
+          authoredBy: AUTHOR,
+          approvedBy: AUTHOR,
+          approvedAt: "2026-09-16T10:00:00Z",
+          ownAccountOnly: { studentId: "stu-the-signer" },
+          note: "One signature (ADR-0118): the signer's own account only.",
+        },
+      ]),
+    );
+    const load = await loadCatalogueDirectory({ directory: dir });
+    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("\n"));
+    const entry = await load.catalogue.find("bp-gated-portal");
+    expect(entry?.admits).toEqual({
+      kind: "one_account_only",
+      studentId: "stu-the-signer",
+      signedBy: AUTHOR,
+    });
+    expect(load.catalogue.targets()[0]?.admits).toEqual(entry?.admits);
+  }, 60_000);
+
+  it("REFUSES a bound approval whose account is not a name", async () => {
+    const dir = await writeCatalogue({ document: DOCUMENT, approve: "the-written-entry" });
+    const parsed = parseReviewedEntryText(DOCUMENT);
+    if (!parsed.ok) expect.unreachable("fixture parses");
+    await writeFile(
+      join(dir, "approvals.json"),
+      JSON.stringify([
+        {
+          contentHash: hashOf(toCanonical(parsed.value)),
+          authoredBy: AUTHOR,
+          approvedBy: AUTHOR,
+          approvedAt: "2026-09-16T10:00:00Z",
+          ownAccountOnly: { studentId: "" },
+        },
+      ]),
+    );
+    const load = await loadCatalogueDirectory({ directory: dir });
+    if (load.ok) expect.unreachable("a blank account names nobody");
+    expect(load.problems[0]?.detail).toContain("ownAccountOnly");
   }, 60_000);
 
   it("reports EVERY problem, not just the first", async () => {

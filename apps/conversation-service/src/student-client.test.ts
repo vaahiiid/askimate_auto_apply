@@ -118,6 +118,7 @@ const TEST_CONTENT_HASH = `sha256:${"a".repeat(64)}`;
 const ENTRY: CatalogueEntry = {
   blueprint: GATED_PORTAL_BLUEPRINT,
   mappingSet: GATED_PORTAL_MAPPING_SET,
+  admits: { kind: "any_applicant" },
   requiredDocuments: [],
   institutionRef: "inst-gated",
   courseRef: "course-msc-controlled",
@@ -168,6 +169,7 @@ const PARTNER: CatalogueEntry = {
 const OPEN_ENTRY: CatalogueEntry = {
   blueprint: FIXTURE_BLUEPRINT,
   mappingSet: FIXTURE_MAPPING_SET,
+  admits: { kind: "any_applicant" },
   requiredDocuments: [],
   institutionRef: "inst-example",
   courseRef: "course-msc-example",
@@ -186,7 +188,7 @@ const CATALOGUE: ApplicationCatalogue & {
   find: (id) => Promise.resolve(BY_ID[id] ?? null),
   targets: () =>
     [ENTRY, PARTNER, OPEN_ENTRY].map((entry) =>
-      targetOf({ entry, contentHash: TEST_CONTENT_HASH }),
+      targetOf({ entry, contentHash: TEST_CONTENT_HASH, admits: entry.admits }),
     ),
 };
 

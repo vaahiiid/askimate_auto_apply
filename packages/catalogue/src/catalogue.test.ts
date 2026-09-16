@@ -17,6 +17,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { checkUsable } from "@askimate/aas-mapping";
 import { GATED_PORTAL_BLUEPRINT, GATED_PORTAL_MAPPING_SET, GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT } from "@askimate/aas-mapping/fixtures/gated";
 import { PROFILE_FIELD_KEYS } from "@askimate/aas-profile";
 
@@ -24,7 +25,7 @@ import { canonicalText, contentHash, labelledHash } from "./canonical.js";
 import { toCanonical, type ReviewedCatalogueEntry } from "./entry.js";
 import { loadReviewedEntry, ReviewedCatalogue } from "./loader.js";
 import { parseReviewedEntry, parseReviewedEntryText } from "./parse.js";
-import { InMemoryApprovalRegistry, approveContent, hashOf } from "./registry.js";
+import { InMemoryApprovalRegistry, admissionOf, admits, approveContent, hashOf } from "./registry.js";
 import {
   ambiguousGroups,
   isAmbiguous,
@@ -611,18 +612,106 @@ describe("an approval binds to content", () => {
     if (result.ok) expect.unreachable("a draft is not executable");
     expect(result.refusal.kind).toBe("blueprint_not_executable");
   });
+
+  // ── ADR-0118: the served entry carries whom its approval admits ─────────
+  it("serves a second person's approval as admitting any applicant", async () => {
+    const text = documentOf();
+    const result = await loadReviewedEntry({ text, registry: registryApproving(text) });
+    if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
+    expect(result.entry.admits).toEqual({ kind: "any_applicant" });
+  });
+
+  it("serves the author's own signature as admitting the one account it names", async () => {
+    const text = documentOf();
+    const parsed = parseReviewedEntryText(text);
+    if (!parsed.ok) expect.unreachable("fixture parses");
+    const registry = new InMemoryApprovalRegistry();
+    const recorded = registry.record({
+      contentHash: hashOf(toCanonical(parsed.value)),
+      authoredBy: AUTHOR,
+      approvedBy: AUTHOR,
+      approvedAt: APPROVED_AT,
+      ownAccountOnly: { studentId: "stu-the-signer" },
+    });
+    if (!recorded.ok) expect.unreachable(`could not record: ${recorded.refusal.kind}`);
+
+    const result = await loadReviewedEntry({ text, registry });
+    if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
+    expect(result.entry.admits).toEqual({
+      kind: "one_account_only",
+      studentId: "stu-the-signer",
+      signedBy: AUTHOR,
+    });
+    // The listing carries it too, so an offer can be kept to the one student.
+    const served = new ReviewedCatalogue([{ entry: result.entry, contentHash: result.contentHash }]);
+    expect(served.targets()[0]?.admits).toEqual(result.entry.admits);
+  });
+
+  it("a mapping set signed by its own author is USABLE — the registry decides what that admits", () => {
+    // Until ADR-0118 this refused with `reviewed_by_author`. The artefact's
+    // two fields prove internal consistency and nothing about the world; whom
+    // the signature admits is the approval's record, tested above.
+    const selfSigned = { ...ENTRY.mappingSet, reviewedBy: ENTRY.mappingSet.authoredBy };
+    expect(checkUsable(selfSigned, ENTRY.blueprint).usable).toBe(true);
+  });
 });
 
 describe("the registry records people, not claims", () => {
-  it("refuses an approval by the artefact's own author", () => {
+  // ADR-0118, Vahid, 2026-09-16: "Drop it to one: I approve, and I am the only
+  // signature … a mapping set with one signature may be used for my own
+  // account and for nothing else."
+  it("refuses an approval by the artefact's own author that names no account", () => {
     const result = approveContent({
       contentHash: labelledHash(toCanonical(ENTRY)),
       authoredBy: AUTHOR,
       approvedBy: AUTHOR,
       approvedAt: APPROVED_AT,
     });
-    if (result.ok) expect.unreachable("self-approval is not review");
-    expect(result.refusal.kind).toBe("self_approval");
+    if (result.ok) expect.unreachable("a single signature for everyone is a signed draft");
+    expect(result.refusal.kind).toBe("self_approval_unbounded");
+    expect(result.refusal.detail).toContain("ownAccountOnly");
+  });
+
+  it("accepts the author's signature when it names the one account it admits", () => {
+    const result = approveContent({
+      contentHash: labelledHash(toCanonical(ENTRY)),
+      authoredBy: AUTHOR,
+      approvedBy: AUTHOR,
+      approvedAt: APPROVED_AT,
+      ownAccountOnly: { studentId: "stu-the-signer" },
+    });
+    if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
+    expect(admissionOf(result.approval)).toEqual({
+      kind: "one_account_only",
+      studentId: "stu-the-signer",
+      signedBy: AUTHOR,
+    });
+    expect(admits(admissionOf(result.approval), "stu-the-signer")).toBe(true);
+    expect(admits(admissionOf(result.approval), "stu-anyone-else")).toBe(false);
+  });
+
+  it("a second person's signature admits any applicant", () => {
+    const result = approveContent({
+      contentHash: labelledHash(toCanonical(ENTRY)),
+      authoredBy: AUTHOR,
+      approvedBy: REVIEWER,
+      approvedAt: APPROVED_AT,
+    });
+    if (!result.ok) expect.unreachable(`refused: ${result.refusal.kind}`);
+    expect(admissionOf(result.approval)).toEqual({ kind: "any_applicant" });
+    expect(admits(admissionOf(result.approval), "stu-anyone-at-all")).toBe(true);
+  });
+
+  it("refuses a bound approval whose account is blank", () => {
+    const result = approveContent({
+      contentHash: labelledHash(toCanonical(ENTRY)),
+      authoredBy: AUTHOR,
+      approvedBy: AUTHOR,
+      approvedAt: APPROVED_AT,
+      ownAccountOnly: { studentId: "  " },
+    });
+    if (result.ok) expect.unreachable("a blank account names nobody");
+    expect(result.refusal.kind).toBe("missing_reviewer");
   });
 
   it("refuses an approval that names nobody", () => {
@@ -704,7 +793,7 @@ const B_HASH = `sha256:${"b".repeat(64)}`;
 
 function aTarget(over: Partial<ReviewedTarget> = {}): ReviewedTarget {
   return {
-    ...targetOf({ entry: ENTRY, contentHash: A_HASH }),
+    ...targetOf({ entry: ENTRY, contentHash: A_HASH, admits: { kind: "any_applicant" } }),
     ...over,
   };
 }

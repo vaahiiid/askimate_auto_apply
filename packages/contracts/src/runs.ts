@@ -90,6 +90,9 @@ export const RUN_REFUSALS = [
   "unknown_blueprint",
   "unusable_mapping_set",
   "case_not_bindable",
+  // ADR-0118: the target is approved on a single signature that admits one
+  // account, and the student asking is not it.
+  "not_for_this_applicant",
 ] as const;
 export type RunRefusalCode = (typeof RUN_REFUSALS)[number];
 

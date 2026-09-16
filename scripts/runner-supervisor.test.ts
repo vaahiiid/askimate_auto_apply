@@ -121,6 +121,7 @@ const ENTRY: CatalogueEntry = {
   blueprint: GATED_PORTAL_BLUEPRINT,
   mappingSet: GATED_PORTAL_MAPPING_SET,
   requiredDocuments: [],
+  admits: { kind: "any_applicant" },
   institutionRef: "inst-gated",
   courseRef: "course-msc-controlled",
   intakeRef: "2026-09",

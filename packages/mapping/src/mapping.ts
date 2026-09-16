@@ -227,7 +227,12 @@ export interface MappingSet {
   readonly mappings: readonly FieldMapping[];
   readonly authoredBy: string;
   readonly authoredAt: Date;
-  /** Never the author. A mapping checked only by the person who wrote it is a draft. */
+  /**
+   * Who signed the set. Until ADR-0118 this could never be the author; since
+   * 2026-09-16 it may be, and what that signature admits is the REGISTRY's
+   * record (`Approval.ownAccountOnly`), not this field's — a single signature
+   * admits the signer's own account and nothing else.
+   */
   readonly reviewedBy?: string;
   readonly reviewedAt?: Date;
 }
@@ -244,7 +249,6 @@ export type UsableMappingSet = Brand<MappingSet, "UsableMappingSet">;
 export type MappingRefusal =
   | { readonly kind: "not_reviewed"; readonly detail: string }
   | { readonly kind: "retired"; readonly detail: string }
-  | { readonly kind: "reviewed_by_author"; readonly detail: string }
   | { readonly kind: "blueprint_mismatch"; readonly detail: string }
   | { readonly kind: "unknown_field_refs"; readonly detail: string; readonly fieldRefs: readonly string[] }
   | { readonly kind: "duplicate_mappings"; readonly detail: string; readonly fieldRefs: readonly string[] }
@@ -302,10 +306,15 @@ export type MappingCheck =
 /**
  * The gate between a mapping set and a real fill.
  *
- * Five conditions, each of which has an obvious way to go wrong in practice:
- * an unreviewed set, a retired one, one rubber-stamped by its own author, one
- * pinned to a different blueprint version, and one naming fields the blueprint
- * does not have.
+ * Four conditions, each of which has an obvious way to go wrong in practice:
+ * an unreviewed set, a retired one, one pinned to a different blueprint
+ * version, and one naming fields the blueprint does not have.
+ *
+ * A fifth used to stand here — a set whose `reviewedBy` was its `authoredBy`
+ * was refused as "a draft with a signature on it". Removed by Vahid's decision
+ * of 2026-09-16 (ADR-0118): those are two fields in one document, and whom a
+ * signature admits is the approval registry's record, where a single
+ * signature admits the signer's own account and nothing else.
  */
 export function checkUsable(
   mappingSet: MappingSet,
@@ -329,18 +338,6 @@ export function checkUsable(
         detail:
           `Mapping set ${mappingSet.mappingSetId} has not been reviewed. A mapping decides what ` +
           `student data goes in which university form field; it does not run unchecked.`,
-      },
-    };
-  }
-
-  if (mappingSet.reviewedBy === mappingSet.authoredBy) {
-    return {
-      usable: false,
-      refusal: {
-        kind: "reviewed_by_author",
-        detail:
-          `Mapping set ${mappingSet.mappingSetId} was reviewed by its own author ` +
-          `(${mappingSet.authoredBy}). That is a draft with a signature on it.`,
       },
     };
   }
@@ -943,9 +940,11 @@ export function unmappedRequiredFields(
  * A constant that a reviewed mapping set actually contains.
  *
  * Branded, and constructible only from a `UsableMappingSet` — which requires a
- * second person's review. So a constant cannot appear in a fill plan unless a
- * human put it in a mapping set and another human checked it, which is the only
- * control available for a value that is not the student's to confirm.
+ * signed review. So a constant cannot appear in a fill plan unless a human put
+ * it in a mapping set and a human signed it, which is the only control
+ * available for a value that is not the student's to confirm. Whether that
+ * signature was a second person's, and whom it admits, is the registry's
+ * record (ADR-0118).
  */
 export type ReviewedConstant = Brand<
   {

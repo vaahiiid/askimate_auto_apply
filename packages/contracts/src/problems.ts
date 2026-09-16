@@ -60,6 +60,7 @@ export const PROBLEM_TITLES: Readonly<Record<ProblemCode, string>> = {
   already_applying: "You already have an application for this course and intake",
   specialist_reviewing: "Someone is checking part of your application, and will finish shortly",
   email_not_verified: "Verify your email address, then sign in again",
+  not_for_this_applicant: "This application target is approved for one account only, and not for yours",
   rate_limited: "Too many requests",
   internal_error: "Internal error",
   service_unavailable: "Service unavailable",
@@ -107,6 +108,9 @@ export const PROBLEM_STATUS: Readonly<Record<ProblemCode, number>> = {
   // and the title is the instruction, because this is the one refusal on this
   // path a student can act on without anybody's help.
   email_not_verified: 403,
+  // 403: authenticated, and the target's single-signature approval admits one
+  // account that is not this one (ADR-0118).
+  not_for_this_applicant: 403,
   rate_limited: 429,
   internal_error: 500,
   service_unavailable: 503,
@@ -353,6 +357,7 @@ export function parseProblem(raw: unknown): Problem | null {
     case "intervention_already_resolved":
     case "content_changed":
     case "email_not_verified":
+    case "not_for_this_applicant":
     case "specialist_reviewing":
     case "internal_error":
     case "service_unavailable":

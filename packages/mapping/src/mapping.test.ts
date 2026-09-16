@@ -74,13 +74,16 @@ describe("the gate on a mapping set", () => {
     expect(check.refusal.kind).toBe("not_reviewed");
   });
 
-  it("refuses a set signed off by its own author", () => {
+  it("accepts a set signed off by its own author — whom that admits is the registry's record (ADR-0118)", () => {
+    // Refused as `reviewed_by_author` until Vahid's decision of 2026-09-16:
+    // "Drop it to one: I approve, and I am the only signature." The two
+    // fields compared here are in one document; the approval registry
+    // records that a single signature admits the signer's own account only.
     const check = checkUsable(
       { ...FIXTURE_MAPPING_SET, reviewedBy: FIXTURE_MAPPING_SET.authoredBy },
       FIXTURE_BLUEPRINT,
     );
-    if (check.usable) expect.unreachable("self-review is not review");
-    expect(check.refusal.kind).toBe("reviewed_by_author");
+    expect(check.usable).toBe(true);
   });
 
   it("refuses a set reviewed against a different blueprint version", () => {

@@ -195,6 +195,7 @@ import type {
   WorkReport,
 } from "@askimate/aas-contracts";
 import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
+import { admits, type Admission } from "@askimate/aas-catalogue";
 import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
 import type { LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
@@ -229,6 +230,19 @@ export interface CatalogueEntry {
    * which was never true of any code path.
    */
   readonly requiredDocuments: readonly string[];
+
+  /**
+   * Whom the entry's approval admits (ADR-0118).
+   *
+   * From the approval registry, never from the artefact: an entry approved on
+   * a single signature admits the signer's own account and nothing else, and
+   * this driver refuses every other student — at the start (`start`,
+   * `reapply`), and at every later lookup of the entry for a bound case
+   * (`#entryAdmitting`), so a catalogue swapped under a running case stops it
+   * too. Vahid, 2026-09-16: *"my memory of this conversation is not a
+   * control."* This field is.
+   */
+  readonly admits: Admission;
 
   /**
    * Stable identifiers for the submission identity. NOT derived from prose.
@@ -336,6 +350,8 @@ export type RunRefusal =
    */
   | { readonly kind: "email_not_verified" }
   | { readonly kind: "unknown_blueprint" }
+  /** The target's single-signature approval admits one account, and this student is not it (ADR-0118). */
+  | { readonly kind: "not_for_this_applicant" }
   | { readonly kind: "unusable_mapping_set"; readonly detail: string }
   | { readonly kind: "unknown_conversation" }
   | { readonly kind: "case_not_bindable" }
@@ -1285,6 +1301,37 @@ export class RunDriver {
    * and two copies of it would be two chances for a second attempt to skip a
    * guard a first attempt keeps.
    */
+  /**
+   * The catalogue entry a bound case runs against, or `null`.
+   *
+   * ADR-0118. Every lookup of an entry for a bound case goes through here and
+   * answers `null` when the entry's approval does not admit the case's
+   * student — as if the entry were not served to them, which is what a
+   * single-signature approval means. The start and reapply paths make the
+   * same check first, by name, so the student is told in words; this is the
+   * backstop behind them: a preview, a work claim, an advance, a resume or a
+   * handover for a student the approval does not admit finds no entry, so a
+   * catalogue swapped under a running case stops that case too.
+   */
+  async #entryAdmitting(bound: {
+    readonly blueprintId: string | null;
+    readonly studentId: string;
+  }): Promise<CatalogueEntry | null> {
+    const entry = await this.#entryFor(bound);
+    if (entry === null || !admits(entry.admits, bound.studentId)) return null;
+    return entry;
+  }
+
+  /**
+   * The entry a bound case names, whoever it admits. Only the worded checks
+   * read this. Every caller has already refused a binding with no blueprint;
+   * the `null` here keeps the narrowing honest rather than asserting it.
+   */
+  async #entryFor(bound: { readonly blueprintId: string | null }): Promise<CatalogueEntry | null> {
+    if (bound.blueprintId === null) return null;
+    return await this.#options.catalogue.find(bound.blueprintId);
+  }
+
   async #openAndStart(input: {
     readonly conversationId: string;
     readonly blueprintId: string;
@@ -1334,6 +1381,16 @@ export class RunDriver {
           now,
         },
         async (bound): Promise<StartedRun | RunOutcome> => {
+          // ── ADR-0118: whom the entry's approval admits ────────────────
+          //
+          // Checked here, with the student the binding names, before a run
+          // is resumed or started: an entry approved on a single signature
+          // admits the signer's own account and nothing else, and the
+          // student is told so in words rather than shown a missing target.
+          if (!admits(entry.admits, bound.studentId)) {
+            return { ok: false, refusal: { kind: "not_for_this_applicant" } };
+          }
+
           const caseId = makeCaseId(bound.caseId);
           const studentRef = makeStudentId(bound.studentId);
 
@@ -1597,8 +1654,11 @@ export class RunDriver {
     // binding records which target that was. Taking a `blueprintId` here would
     // reopen the gate that decides which application a student is talking
     // about, on a route whose whole subject is one they already have.
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryFor(bound);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
+    if (!admits(entry.admits, bound.studentId)) {
+      return { ok: false, refusal: { kind: "not_for_this_applicant" } };
+    }
 
     const latest = await this.#latestAttempt({
       studentRef: makeStudentId(bound.studentId),
@@ -1681,8 +1741,11 @@ export class RunDriver {
       return { ok: false, refusal: { kind: "unknown_conversation" } };
     }
     // From the binding, for the reason `adviseReapplication` reads it there.
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryFor(bound);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
+    if (!admits(entry.admits, bound.studentId)) {
+      return { ok: false, refusal: { kind: "not_for_this_applicant" } };
+    }
     const studentRef = makeStudentId(bound.studentId);
 
     const latest = await this.#latestAttempt({ studentRef, entry });
@@ -1823,8 +1886,11 @@ export class RunDriver {
     if (bound.blueprintId === null) {
       return { ok: false, refusal: { kind: "unknown_blueprint" } };
     }
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryFor(bound);
     if (entry === null) return { ok: false, refusal: { kind: "unknown_blueprint" } };
+    if (!admits(entry.admits, bound.studentId)) {
+      return { ok: false, refusal: { kind: "not_for_this_applicant" } };
+    }
 
     // ── `advance` deliberately has NO held-run guard ────────────────────
     //
@@ -2663,7 +2729,7 @@ export class RunDriver {
   public async runFor(conversationId: string): Promise<RunReading | null> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     if (entry === null) return null;
     const held = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
     const record = held[0];
@@ -2878,7 +2944,7 @@ export class RunDriver {
     if (conversationId === null) return { ok: false, refusal: "no_such_run" };
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return { ok: false, refusal: "no_such_run" };
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     if (entry === null) return { ok: false, refusal: "no_such_run" };
 
     // 2 · The work, as the orchestrator sees it now.
@@ -3010,7 +3076,7 @@ export class RunDriver {
   ): Promise<{ readonly contentHash: string; readonly presentedText: string } | null> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     const record = await this.#options.stores.runs.load(makeRunId(runId));
     if (entry === null || record === null) return null;
     const situation = await this.#situation({
@@ -3053,7 +3119,7 @@ export class RunDriver {
     if (bound === null || bound.blueprintId === null) {
       return { ok: false, reason: "no_case" };
     }
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     const record = await this.#options.stores.runs.load(makeRunId(input.runId));
     if (entry === null || record === null || record.caseId !== bound.caseId) {
       return { ok: false, reason: "no_case" };
@@ -3407,7 +3473,7 @@ export class RunDriver {
     const entry =
       bound?.blueprintId === undefined || bound.blueprintId === null
         ? null
-        : await this.#options.catalogue.find(bound.blueprintId);
+        : await this.#entryAdmitting(bound);
     if (entry !== null) {
       const accounts = await this.#accountsOn(record, entry);
       await this.#options.conversations.append({
@@ -3521,7 +3587,7 @@ export class RunDriver {
       if (conversationId === null) continue;
       const bound = await this.#options.bindings.caseFor(conversationId);
       if (bound === null || bound.blueprintId === null) continue;
-      const entry = await this.#options.catalogue.find(bound.blueprintId);
+      const entry = await this.#entryAdmitting(bound);
       if (entry === null) continue;
 
       // Message first, mark second — the order `#pause` uses, and for the same
@@ -3665,7 +3731,7 @@ export class RunDriver {
   } | null> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     if (entry === null) return null;
     // The conversation's own run. A conversation owns at most one case and a
     // case at most one run, so the first is the only.
@@ -3866,7 +3932,7 @@ export class RunDriver {
   ): Promise<{ readonly may: boolean; readonly outstanding: readonly string[] }> {
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return { may: false, outstanding: [] };
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     const record = await this.#options.stores.runs.load(makeRunId(runId));
     if (entry === null || record === null || record.caseId !== bound.caseId) {
       return { may: false, outstanding: [] };
@@ -4429,7 +4495,7 @@ export class RunDriver {
     if (conversationId === null) return;
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     if (entry === null) return;
     await this.#options.conversations.append({
       conversationId,
@@ -5354,7 +5420,7 @@ export class RunDriver {
 
       const bound = await this.#options.bindings.caseFor(conversationId);
       if (bound === null || bound.blueprintId === null) continue;
-      const entry = await this.#options.catalogue.find(bound.blueprintId);
+      const entry = await this.#entryAdmitting(bound);
       if (entry === null) continue;
 
       const record = await this.#options.stores.runs.load(makeRunId(candidate.runId));
@@ -5944,7 +6010,7 @@ export class RunDriver {
     if (conversationId === null) return null;
     const bound = await this.#options.bindings.caseFor(conversationId);
     if (bound === null || bound.blueprintId === null) return null;
-    const entry = await this.#options.catalogue.find(bound.blueprintId);
+    const entry = await this.#entryAdmitting(bound);
     if (entry === null) return null;
     return { record, conversationId, entry };
   }

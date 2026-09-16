@@ -25,8 +25,14 @@ export { toCanonical } from "./entry.js";
 export type { ParseRefusal, ParseResult } from "./parse.js";
 export { parseBlueprint, parseMappingSet, parseReviewedEntry, parseReviewedEntryText } from "./parse.js";
 
-export type { Approval, ApprovalRefusal, ApprovalRegistry, ApprovalResult } from "./registry.js";
-export { InMemoryApprovalRegistry, approveContent, hashOf } from "./registry.js";
+export type {
+  Admission,
+  Approval,
+  ApprovalRefusal,
+  ApprovalRegistry,
+  ApprovalResult,
+} from "./registry.js";
+export { InMemoryApprovalRegistry, admissionOf, admits, approveContent, hashOf } from "./registry.js";
 
 export type { ReviewedTarget, TargetOffer } from "./target.js";
 export {
