@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.23");
+    expect(blueprint.version).toBe("0.2.24");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -147,8 +147,13 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(values("institutionCode")).toEqual(["", "SHEFFIELD"]);
     expect(field("institution-ts-control")?.options?.find((o) => o.label === "University of Sheffield")?.value).toBe("SHEFFIELD");
     expect(field("institutionCode")?.optionsAfter?.fieldRef).toBe("institutionCountry");
-    // Sheffield's four grading systems, by numeric id, and the escape.
-    expect(field("gradingSystemId")?.optionsAfter?.fieldRef).toBe("institutionCode");
+    // Sheffield's four grading systems, by numeric id, and the escape. Since
+    // P149 (0.2.24) the grading systems follow the institution BOX — the one
+    // the runner fills, which sets the hidden select the lookup reads
+    // (getGradingSystemsForCountry.do?institutionCode=…, the dependencies
+    // read) — the same shape P102 gave the institution box after the country
+    // box. The hidden select itself still follows the hidden country select.
+    expect(field("gradingSystemId")?.optionsAfter?.fieldRef).toBe("institution-ts-control");
     expect(field("gradingSystemId")?.options?.map((o) => [o.value, o.label])).toEqual([
       ["", "Select a grading system..."],
       ["Not in list", "Not in list"],
@@ -177,10 +182,67 @@ describe("the Sheffield drafts, under the real checks", () => {
       expect(mappingSet.mappings.some((m) => m.fieldRef === ref), ref).toBe(true);
     }
     // P148 (ADR-0119): degree is required to save (Sheffield refused it by name, 2026-09-16)
-    // and mapped for the synthetic profile's two levels; grade, subject and the country are
-    // still nobody's.
+    // and mapped for the synthetic profile's two levels. P149: the chain is mapped for
+    // the synthetic profile's one Sheffield qualification — the two boxes the runner
+    // fills (never the hidden selects behind them), the search word and the subject,
+    // the grading system and the grade. The unlisted boxes stay nobody's.
     expect(mappingSet.mappings.find((m) => m.fieldRef === "degree")?.source.kind).toBe("profile_field");
-    expect(mappingSet.mappings.some((m) => ["grade", "subject", "institutionCountry", "unlistedDegree"].includes(m.fieldRef))).toBe(false);
+    for (const ref of ["institutionCountry-ts-control", "institution-ts-control", "subjectSearch", "subject", "gradingSystemId", "grade"]) {
+      expect(mappingSet.mappings.find((m) => m.fieldRef === ref)?.source.kind, ref).toBe("profile_field");
+    }
+    expect(mappingSet.mappings.some((m) => ["institutionCountry", "institutionCode", "unlistedInstitution", "unlistedSubject", "unlistedDegree", "unlistedGrade", "unlistedGradeDescription", "highestEducationLevel"].includes(m.fieldRef))).toBe(false);
+  });
+
+  it("plan the synthetic profile's Sheffield qualification onto the six chain boxes, and refuse loudly what the maps do not name (P149)", () => {
+    // One Bachelor's from the University of Sheffield: the shape the captured
+    // dependent lists were read for (P132), and the only one the drafts can
+    // fill from what was observed. Values as the form submits them, the
+    // typeahead text as the reviewer recorded it (ADR-0109).
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const sheffield = (over: Partial<{ level: string; subject: string; institution: string; countryCode: string; grade: string }>) => withConfirmed([
+      ...PROFILE_ENTRIES,
+      ["education.prior_qualifications", [
+        { level: "Bachelor's degree", subject: "Business Management", institution: "University of Sheffield", countryCode: "GB",
+          start: { year: 2019, month: 9 }, end: { kind: "completed", date: { year: 2022, month: 6 } }, award: { year: 2022, month: 7 },
+          grade: "2:1", gradeScale: "uk_honours", ...over },
+      ]],
+    ]);
+    const plan = planFill(blueprint, check.mappingSet, sheffield({}));
+    const typed = (ref: string) => plan.instructions.find((i) => i.fieldRef === ref && i.item?.index === 0);
+    const valueOf = (ref: string) => { const i = typed(ref); return i === undefined ? undefined : textOf(i.value); };
+    expect(valueOf("institutionCountry-ts-control")).toBe("UNITED KINGDOM");
+    expect(typed("institutionCountry-ts-control")?.typeahead?.text).toBe("United Kingdom");
+    expect(valueOf("institution-ts-control")).toBe("SHEFFIELD");
+    expect(typed("institution-ts-control")?.typeahead?.text).toBe("University of Sheffield");
+    expect(typed("institution-ts-control")?.optionsAfter?.fieldRef).toBe("institutionCountry-ts-control");
+    // The search word is the one the 87 captured results came from — never
+    // the subject typed into the search box as if the portal matched whole
+    // names, which nobody has observed.
+    expect(valueOf("subjectSearch")).toBe("business");
+    expect(valueOf("subject")).toBe("Business Management");
+    expect(typed("subject")?.optionsAfter?.press?.value).toBe("subjectSearchButton");
+    expect(valueOf("gradingSystemId")).toBe("7");
+    expect(typed("gradingSystemId")?.optionsAfter?.fieldRef).toBe("institution-ts-control");
+    expect(valueOf("grade")).toBe("2.1");
+    expect(valueOf("degree")).toBe("BSc");
+    // The hidden selects are neither typed nor blocking: the boxes set them.
+    for (const ref of ["institutionCountry", "institutionCode"]) {
+      expect(plan.instructions.some((i) => i.fieldRef === ref), ref).toBe(false);
+      expect(plan.blockers.some((b) => b.fieldRef === ref), ref).toBe(false);
+    }
+    const onPage7 = new Set(blueprint.pages.find((p) => p.pageRef === "page7")?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? []);
+    expect(plan.blockers.filter((b) => onPage7.has(b.fieldRef))).toEqual([]);
+    // What the maps do not name is a loud blocker on that box, never an
+    // approximation: another institution (the eleven entries are Sheffield's
+    // search), a Master's (system 8's grades were never read), an Iranian
+    // grade on a Sheffield entry, a subject the one search did not list.
+    const refusedOn = (profile: ReturnType<typeof sheffield>) =>
+      planFill(blueprint, check.mappingSet, profile).blockers.filter((b) => b.kind === "render_refused").map((b) => b.fieldRef).sort();
+    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["institution-ts-control"]);
+    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["gradingSystemId"]);
+    expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["grade"]);
+    expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["subject", "subjectSearch"]);
   });
 
   it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
@@ -314,11 +376,14 @@ describe("the Sheffield drafts, under the real checks", () => {
       "fundingNationality", "livedOutsideCountry", "permanentResidence",
       "position", "startDateMonth", "startDateYear", "startMonth",
     ]);
+    // P149's six chain boxes are mapped per qualification but carry no
+    // observed marker, so with no list at all they are neither typed nor
+    // unavailable — only the marked degree and dates are.
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.23");
-    expect(mappingSet.version).toBe("0.3.29");
+    expect(blueprint.version).toBe("0.2.24");
+    expect(mappingSet.version).toBe("0.3.30");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -720,37 +785,33 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(box?.options?.find((o) => o.value === "Not in list")?.label).toBe("Not in list");
     // The institution box's entries follow the country box (P102), so naming
     // one means the country box is mapped too — and under ADR-0109 a mapped
-    // typeahead records its entries. The country box's are the captured
-    // `<select id="institutionCountry">`'s (P101: value for value, label for
-    // label); the draft records them on the box when it is mapped, and this
-    // test does the same in memory, so that what it exercises is the rule.
+    // typeahead records its entries. Since P149 (0.2.24) the draft records the
+    // country box's: the captured `<select id="institutionCountry">`'s 255
+    // without its blank (P101: value for value, label for label; the count
+    // agreed with the dropdown he copied).
     const countrySelect = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "institutionCountry");
-    const countryEntries = (countrySelect?.options ?? []).filter((o) => o.value.length > 0);
-    expect(countryEntries.length).toBeGreaterThan(200);
-    const withCountryEntries = {
-      ...blueprint,
-      pages: blueprint.pages.map((p) => ({
-        ...p,
-        sections: p.sections.map((s) => ({
-          ...s,
-          fields: s.fields.map((f) => (f.fieldRef === "institutionCountry-ts-control" ? { ...f, options: countryEntries } : f)),
-        })),
-      })),
-    };
+    const countryBox = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields)).find((f) => f.fieldRef === "institutionCountry-ts-control");
+    expect(countryBox?.options).toEqual((countrySelect?.options ?? []).filter((o) => o.value.length > 0));
+    expect(countryBox?.options).toHaveLength(255);
     // Under the rule, a reviewed constant can name the SECOND of the two: the
-    // plan carries its value and the text the runner types.
+    // plan carries its value and the text the runner types. In memory, in
+    // place of the draft's own mappings to the two boxes.
     const constant = (fieldRef: string, value: string) => ({
       fieldRef,
       source: { kind: "constant" as const, value, classification: "application_metadata" as const, rationale: "test" },
     });
     const naming = (value: string) => ({
       ...asIfReviewed,
-      mappings: [...asIfReviewed.mappings, constant("institutionCountry-ts-control", "UNITED KINGDOM"), constant("institution-ts-control", value)],
+      mappings: [
+        ...asIfReviewed.mappings.filter((m) => m.fieldRef !== "institutionCountry-ts-control" && m.fieldRef !== "institution-ts-control"),
+        constant("institutionCountry-ts-control", "UNITED KINGDOM"),
+        constant("institution-ts-control", value),
+      ],
     });
-    const second = checkUsable(naming("SHE0512"), withCountryEntries);
+    const second = checkUsable(naming("SHE0512"), blueprint);
     expect(second.usable, second.usable ? "" : second.refusal.detail).toBe(true);
     if (second.usable) {
-      const plan = planFill(withCountryEntries, second.mappingSet, withConfirmed([...PROFILE_ENTRIES, ["education.prior_qualifications", [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" }]]]));
+      const plan = planFill(blueprint, second.mappingSet, withConfirmed([...PROFILE_ENTRIES, ["education.prior_qualifications", [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "completed", date: { year: 2021, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" }]]]));
       const chosen = plan.instructions.find((i) => i.fieldRef === "institution-ts-control");
       expect(chosen === undefined ? "" : textOf(chosen.value)).toBe("SHE0512");
       expect(chosen?.typeahead?.text).toBe("Sheffield International College");
@@ -760,14 +821,27 @@ describe("the Sheffield drafts, under the real checks", () => {
       expect(country?.typeahead?.text).toBe("United Kingdom");
     }
     // The text as the value: refused. The escape, by its value, which is its own label: refused.
-    expect(checkUsable(naming("Sheffield International College"), withCountryEntries).usable).toBe(false);
-    const escape = checkUsable(naming("Not in list"), withCountryEntries);
+    expect(checkUsable(naming("Sheffield International College"), blueprint).usable).toBe(false);
+    const escape = checkUsable(naming("Not in list"), blueprint);
     expect(escape.usable).toBe(false);
     if (!escape.usable) expect(escape.refusal.detail).toContain("escape");
-    // And on the draft as committed, the country box records no entries yet,
-    // so a mapping to the institution box is refused until it does.
-    const asCommitted = checkUsable(naming("SHE0512"), blueprint);
-    expect(asCommitted.usable).toBe(false);
+    // And with the country box's entries taken off the draft, a mapping to
+    // the institution box is refused: a mapped typeahead records its entries.
+    const withoutCountryEntries = {
+      ...blueprint,
+      pages: blueprint.pages.map((p) => ({
+        ...p,
+        sections: p.sections.map((s) => ({
+          ...s,
+          fields: s.fields.map((f) => {
+            if (f.fieldRef !== "institutionCountry-ts-control") return f;
+            const { options: _entries, ...bare } = f;
+            return bare;
+          }),
+        })),
+      })),
+    };
+    expect(checkUsable(naming("SHE0512"), withoutCountryEntries).usable).toBe(false);
   });
 
   it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {

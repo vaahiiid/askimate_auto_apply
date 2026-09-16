@@ -88,7 +88,8 @@ The table that follows is the sort as it was put to him, kept so the reasoning i
 **Not the same shape, and named so nobody cuts them by analogy:** the robots.txt rule and the
 one-second floor (his preconditions, *"not revisiting"*); the case binding at the transmission
 gate, the authorisation content hash and the mandatory-review categories (hard stops); blocker 25,
-the institution box, which his own account's run will hit on the education page; Bedrock (blocker
+the institution box, which a real student's run will hit on the education page (his own account's
+will not since P149: the synthetic profile's one institution is mapped by name, and nothing else is); Bedrock (blocker
 3), which the product needs even though the deterministic client stands the journey up without it.
 
 ## How to read this list in a month

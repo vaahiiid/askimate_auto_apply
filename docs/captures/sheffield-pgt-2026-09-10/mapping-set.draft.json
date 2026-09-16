@@ -58,13 +58,14 @@
     "P143 (2026-09-15): no mapping changed. The note on livingInUK now says that the page answers the question itself when living-outside is 'no' — a value the student never gives — so a reviewer or a later phase does not read that box as the student's answer.",
     "P145 (2026-09-16, ADR-0119): nineteen fields handed to the student for Run A rather than mapped — the seventeen the language page (page6) marks mandatory except the qualification select and the certificate's companion (languageCertificateStatus follows its slot, set to the defer value with the handed slot, ADR-0105/0107, never mapped itself), and 'degree' and 'unlistedDegree' on the education page (page7). Each is a student_handoff with its reason: the runner leaves the box empty, the preview says under the page which boxes the student fills themselves and that the application is not complete until they do, and the yes records each one on the case. This is Vahid's cut, in his words: 'I would rather cut a week of work deliberately today than find in a month that I spent it because it was next on a list nobody re-read after the goal changed.' Mapping these is a precondition of serving a real student, not of Run A. No required field is now without a mapping or a hand; what the plan still lacks is the synthetic profile's values.",
     "P147 (2026-09-16, ADR-0119): the language page's seventeen handed boxes are un-handed — Vahid, on the page saving empty: 'A hand says the student must do this and the application is not complete until they do, and both are false here in Sheffield's own words. Left empty is the honest state.' With the section marked optional on the draft (0.2.23), the seventeen are ordinary unmapped boxes: listed under the page as left empty, with the form's own words, inside the yes, and never an own act. Whether a student with an English qualification enters it is the interview's question (Run B), not the preview's. Still handed: degree and unlistedDegree on the education page, pending his throwaway save.",
-    "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page."
+    "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
+    "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.29",
+  "version": "0.3.30",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.23",
+  "blueprintVersion": "0.2.24",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -1831,6 +1832,124 @@
         }
       },
       "note": "Qualification:* — required to save, observed by Vahid on 2026-09-16: the page refused a full entry with the select unchosen, by name ('Please complete the following item(s) correctly: Please select your qualification'). Mapped for the two levels the synthetic profile holds, onto Sheffield's captured award titles (43 options, P132): Bachelor's degree → BSc, Master's degree → MSc — a reviewer's judgment for the synthetic profile, recorded here, not a rule; a real student's level in the portal's own vocabulary is blocker 25's shape and waits on him. Any other level is a loud blocker (the map does not name it), never an approximation. Per qualification (ADR-0112). unlistedDegree is shown only when degree is 'Not in list' (value ''), which this map never names, so it stays hidden and unmapped."
+    },
+    {
+      "fieldRef": "institutionCountry-ts-control",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "countryCode",
+          "then": {
+            "kind": "option",
+            "options": {
+              "GB": "UNITED KINGDOM",
+              "IR": "IRAN",
+              "IN": "INDIA",
+              "PK": "PAKISTAN",
+              "CN": "CHINA",
+              "NG": "NIGERIA",
+              "TR": "TURKEY",
+              "US": "UNITED STATES"
+            }
+          }
+        }
+      },
+      "note": "Select the country the institution is based in — the Tom Select BOX, the control the runner fills; the hidden <select id=\"institutionCountry\"> behind it is set by the box and mapped by nothing. Values are the portal's own upper-case names (the box's entries are the select's, 0.2.24). PARTIAL map, the same eight ISO codes as every country map in this set; any other country refuses to render, for the reviewer to extend from the captured options. Per qualification (ADR-0112). P149."
+    },
+    {
+      "fieldRef": "institution-ts-control",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "institution",
+          "then": {
+            "kind": "option",
+            "options": {
+              "University of Sheffield": "SHEFFIELD"
+            }
+          }
+        }
+      },
+      "note": "Search for an institution... — the Tom Select box whose entries follow the country box (P102). Names the VALUE the form submits, SHEFFIELD, for the one institution the synthetic profile holds, keyed on the profile part exactly as written; the blueprint records the text it reads as, 'University of Sheffield', and the runner requires both at the fill (ADR-0109). The eleven recorded entries are one search ('Sheff', United Kingdom, P118): a student whose institution is not among them, or is spelled otherwise, is a loud blocker on this box — never the escape 'Not in list', which the check refuses by value, and never an approximation. The hidden <select name=\"institutionCode\"> is set by the box and mapped by nothing. Per qualification. P149."
+    },
+    {
+      "fieldRef": "subjectSearch",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "subject",
+          "then": {
+            "kind": "option",
+            "options": {
+              "Business Management": "business"
+            }
+          }
+        }
+      },
+      "note": "Search: — the word typed into the subject search before subjectSearchButton is pressed (ADR-0105). The map names, per subject, the SEARCH WORD whose results the reviewer read: the 87 captured options came from 'business' (P132), and 'Business Management' is among them. The subject itself is never typed here as if the portal matched whole names — nobody has observed what a two-word search returns. A subject the map does not name is a loud blocker. Per qualification. P149."
+    },
+    {
+      "fieldRef": "subject",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "subject",
+          "then": {
+            "kind": "option",
+            "options": {
+              "Business Management": "Business Management"
+            }
+          }
+        }
+      },
+      "note": "Results: — the select loaded by the search (optionsAfter subjectSearch, press subjectSearchButton). Names the captured value exactly, for the one subject the synthetic profile holds; the runner waits a bounded time for it after the press. Two captured values carry a trailing space the label hides and one is listed twice — a reviewer extending this map copies the VALUE from the blueprint, never the label. Per qualification. P149."
+    },
+    {
+      "fieldRef": "gradingSystemId",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "level",
+          "then": {
+            "kind": "option",
+            "options": {
+              "Bachelor's degree": "7"
+            }
+          }
+        }
+      },
+      "note": "Grading System: — Sheffield's own list, PER INSTITUTION (P132), following the institution box (0.2.24). Mapped from the qualification's LEVEL, not its gradeScale: the portal's systems are 'UK Bachelors Degree (BA, BSc)' = 7 and 'UK Masters Degree (MA, MSc)' = 8, a level-and-country vocabulary, and uk_honours says nothing about which. Only 7 is named: the grade list was read for system 7 alone (nine options), so a Master's entry would set 8 and then wait at the fill for a grade from a list nobody read — refused at plan time instead, as a loud blocker on this box. Per qualification. P149."
+    },
+    {
+      "fieldRef": "grade",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "education.prior_qualifications",
+        "format": {
+          "kind": "part",
+          "path": "grade",
+          "then": {
+            "kind": "option",
+            "options": {
+              "1st": "1st",
+              "2:1": "2.1",
+              "2:2": "2.2",
+              "3rd": "3rd"
+            }
+          }
+        }
+      },
+      "note": "grade — system 7's nine captured values, following gradingSystemId. The student's grade as awarded (the registry keeps it raw, never normalised on the way in) maps onto the portal's spellings for the four honours classes: '2:1' → '2.1' is the reviewer's reading of the same class in two houses' notation, recorded here, not a conversion between scales. 'Pass', 'Fail' and the two non-grades are not named: the synthetic profile holds a classified degree, and whether a student's 'Pass' is the portal's 'Pass' is a question for a real review. Any other spelling ('2.1', 'Upper second', '17.2') is a loud blocker, never a guess. Per qualification. P149."
     }
   ]
 }

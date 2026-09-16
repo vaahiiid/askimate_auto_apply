@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P149 — the chain, for one qualification, by name
+
+Step 1 of the sequence he accepted: the six boxes the education page still needed are mapped for the synthetic profile's one University of Sheffield qualification, and for nothing else. The two Tom Select boxes are mapped as the controls the runner fills, never the hidden selects behind them; the country box now records its 255 entries from the reading he confirmed, so a mapping may name one under the rule that a typeahead is chosen by value. The institution map names one value, the subject map one subject, found by the one search word the captured results came from rather than by the subject typed whole, which nobody has observed. The grading system is mapped from the level, not the grade scale, because Sheffield's systems are a level-and-country vocabulary, and only system 7 is named because only its grades were read: a Master's is refused at plan time rather than left to wait at the fill for a list nobody read. The grade maps the four honours classes across two houses' spellings and nothing else. Every map is partial by design, so that anything the synthetic profile does not hold is a loud blocker on the box, by name, and never a guess.
+
+One thing on the draft is inferred, not observed, and says so: the grading systems now follow the institution box, the control that is filled, which sets the hidden select the lookup reads — the same shape P102 gave the institution box after the country box. Run A tests it. Six pins failed against the old drafts before the new ones passed. Blocker 25 stays open for a real student, because a map one reviewer typed for one profile is not a rule. Five of ten, with a question for him: three of the five now cost Run A nothing, and whether the line should say so by count is his to decide.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P148 — degree complains, and the portal does both
 
 He left the qualification select unchosen on a full throwaway entry and Sheffield refused it by name. So the degree is required to save, and on the very page whose unanswered evidence radios drop an entry silently, this box complains instead. His reading is on the first screen of the capture README in the form he asked for: this portal does both, and you cannot tell which from the field, so an error-free save tells you nothing and a complaint tells you only about that one box. His route is taken: the degree is mapped for the two levels the synthetic profile holds, onto Sheffield's own award titles, as a recorded judgment; any other level is a loud blocker; the unlisted box stays hidden and unmapped; nothing page-wider is built. The set now hands nothing to the student on any page. Found on the way: a required box nobody mapped, shown only when a mapped select says so, was a gap even when the select could never say so; it is now judged per entry, red first. Five of ten.

@@ -1352,6 +1352,26 @@ synthetic profile holds, onto Sheffield's captured award titles; any other level
 blocker; `unlistedDegree` stays hidden and unmapped. Nothing on the form is handed to the student
 any more; every own act is a document slot.
 
+**The rest of the chain, mapped for the synthetic profile's one Sheffield qualification (P149,
+2026-09-16).** At his word — *"A Sheffield degree for the synthetic profile"* — set 0.3.30 maps
+the six boxes the page still needed, each through a partial option map naming what that profile
+holds and nothing more: the country box (`institutionCountry-ts-control`, `GB` → `UNITED
+KINGDOM`, the same eight codes as every country map); the institution box (*University of
+Sheffield* → `SHEFFIELD`, the value P118 recorded, the text the runner must also see); the search
+word (`business`, the one the 87 results came from — never the subject typed whole, which nobody
+has observed) and the subject (*Business Management*, a captured value); the grading system from
+the LEVEL (Bachelor's → `7`; system 8's grades were never read, so a Master's is refused at plan
+time); the grade (`2:1` → `2.1` and the other three classes). The two Tom Select boxes are mapped
+as the controls the runner fills; `institutionCountry` and `institutionCode` behind them are set by
+the boxes and mapped by nothing. Two changes to the draft (0.2.24): the country box records its
+255 entries — the captured select's without its blank, which P101 confirmed the dropdown holds —
+and `gradingSystemId` now follows `institution-ts-control` rather than the hidden select, because
+the lookup (`getGradingSystemsForCountry.do?institutionCode=…`) reads the select the box sets: the
+shape P102 gave the institution box after the country box, **inferred from two reads and not
+observed as a fill.** Run A is the first time the runner drives this chain on the live page; if
+the grading systems do not arrive after the institution is chosen, that inference is the first
+thing to doubt.
+
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
 The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*

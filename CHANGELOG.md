@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.145.0] — 2026-09-16
+
+**P149 — the education chain mapped for the synthetic profile's one Sheffield qualification
+(step 1 of the sequence to Run A, at Vahid's word); every map partial and loud by name.**
+
+### Changed
+
+- Sheffield set 0.3.30: `institutionCountry-ts-control`, `institution-ts-control`,
+  `subjectSearch`, `subject`, `gradingSystemId` and `grade` mapped per qualification through
+  partial option maps onto the captured lists — the two Tom Select boxes, never the hidden
+  selects; the search word `business`; grading system 7 only; the four honours classes.
+- Sheffield draft 0.2.24: the country box records its 255 entries (the captured select's, P101);
+  `gradingSystemId` follows the institution box — inferred from the dependencies read and P102's
+  shape, not observed as a fill, flagged for Run A.
+
+### Recorded
+
+- Distance item 5 for Run A; blocker 25 open for a real student; the skipped list's line on
+  blocker 25 corrected; the capture README under Item 5.
+
+---
+
 ## [0.144.0] — 2026-09-16
 
 **P148 — degree is required to save (Vahid, from the screen: refused by name); mapped for the

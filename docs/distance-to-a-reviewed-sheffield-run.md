@@ -136,7 +136,20 @@ In the order they bite, each with who holds it and the evidence.
    for the two levels the synthetic profile holds (set 0.3.29); `unlistedDegree` hidden and
    unmapped; the option maps to Iman's standard are cut for Run A (his cut of 2026-09-16 — map
    what the synthetic profile holds; a value the map does not name is a loud blocker). What
-   remains of this item is the institution box, blocker 25.
+   remains of this item is the institution box, blocker 25. **P149 — the chain mapped for the
+   synthetic profile's one Sheffield qualification (his word, 2026-09-16: *"A Sheffield degree
+   for the synthetic profile"*).** Set 0.3.30 maps the six boxes the page still needed — the
+   country box and the institution box (the Tom Select controls the runner fills; the hidden
+   selects behind them are mapped by nothing), the search word and the subject, the grading
+   system and the grade — each through a partial option map that names what the synthetic
+   profile holds and nothing more: *University of Sheffield* → `SHEFFIELD`, *Business
+   Management* found by the search word `business` the 87 captured results came from, level →
+   system 7 (only system 7's grades were read, so a Master's is refused at plan time), `2:1` →
+   `2.1`. The country box's 255 entries are on the draft (0.2.24) from P101's confirmed reading,
+   and the grading systems now follow the institution box, inferred from the dependencies read
+   and P102's shape, not observed as a fill. **For Run A on the synthetic profile this item costs
+   nothing more.** Blocker 25 stays open for a real student: the maps are option (C) as far as
+   one reviewer typed for one profile, which is not a rule.
 6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
    the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
    his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
@@ -225,6 +238,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P149: item 5's six remaining boxes mapped for the synthetic profile's one Sheffield
+  qualification (set 0.3.30, draft 0.2.24), each a partial map naming only what that profile
+  holds; blocker 25 open for a real student. Items 3, 4 and 5 now each cost Run A nothing on the
+  synthetic profile while their real-student work stands undone; the count carries them as open
+  as it has since P145, and whether it should read *two open of ten* (items 6 and 10) is put to
+  Vahid rather than changed here. Five open of ten, unchanged.
 - 2026-09-16, P148: degree required, refused by name on his throwaway entry; mapped for the
   synthetic profile's levels (set 0.3.29); nothing handed on any page; the first screen says the
   portal does both. Item 5 down to the institution box. Five open of ten, unchanged.
