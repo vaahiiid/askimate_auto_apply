@@ -1,0 +1,10 @@
+[
+  {
+    "contentHash": "sha256:baca64a9975b0a2660743de6edc3ba821100417758124d2932a78387ef09e6f9",
+    "authoredBy": "Vahid Mohammadi",
+    "approvedBy": "Vahid Mohammadi",
+    "approvedAt": "2026-09-16T19:25:00Z",
+    "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
+    "note": "One signature (ADR-0118): my own account only. Read docs/run-a/what-will-be-typed.md before signing."
+  }
+]
