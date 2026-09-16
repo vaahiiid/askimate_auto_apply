@@ -162,7 +162,10 @@ In the order they bite, each with who holds it and the evidence.
    — stays in the pack for whoever reviews before a real student, because **a second reviewer is a
    precondition of serving a real student, not an improvement** (his words;
    [`what-was-skipped-to-get-it-standing.md`](./what-was-skipped-to-get-it-standing.md)). Open
-   until he signs. **Vahid.**
+   until he signs. **Vahid.** **P152:** the entry he signs is assembled
+   (`docs/run-a/catalogue/entries/`), unsigned; the page-by-page read is
+   `docs/run-a/what-will-be-typed.md`; the three signing acts are in the Run A README, in order,
+   after the read.
 7. ~~**`robots.txt` for `www.sheffield.ac.uk` has never been read from this repository — and the
    fill run does not read it at all today.**~~ **Done, P135.** The first half was his read of
    2026-09-14, evaluated by the runner's matcher (P122): every observed path allowed, the
@@ -244,6 +247,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P152: step 3 — the entry assembled from the drafts and pinned to them; the read as
+  a command and a file; the preview's registration-page defect found by the read and fixed. Item 6
+  waits on his read and his three acts. Two open of ten.
 - 2026-09-16, P151: the count corrected at his word — items 3, 4 and 5 cost Run A nothing on the
   synthetic profile and stay open for the product; two open of ten (items 6 and 10). The sign-in
   failure shape closed under ADR-0114's rule (ADR-0120) before step 3, at his word; the

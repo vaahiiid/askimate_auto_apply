@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.148.0] — 2026-09-16
+
+**P152 — step 3 to Run A: the catalogue entry assembled from the drafts, unsigned; the
+page-by-page read as a command and a committed file; the preview no longer lists a registration
+page.**
+
+### Added
+
+- `docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json` — the two drafts byte for byte after
+  parse, the authentication facts, the refs; not signed, and the directory refuses to load.
+- `pnpm run catalogue preview <entry.json> <profile.json>` — what a run would type into which
+  box, page by page, in the student's own preview words; `docs/run-a/what-will-be-typed.md` is
+  its output for the synthetic profile, held equal by a test.
+- `docs/run-a/README.md`: the three signing acts in order; what could still change after a
+  signature; the read's display-only defects named.
+
+### Fixed
+
+- `packages/preparation`: a page carrying a credential field — a registration page, which the
+  fill's page walk never visits — is no longer listed in the preview, nor are its boxes. Found by
+  the read: the registration e-mail box appeared as typed on a run that signs in to an existing
+  account. Red first.
+
+---
+
 ## [0.147.0] — 2026-09-16
 
 **P151 — a failed sign-in is tried twice, then stops for a person, and the student is told what

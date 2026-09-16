@@ -955,6 +955,21 @@ describe("an attachment's companion in the preview (P93)", () => {
     return result.preview;
   };
 
+  it("lists no registration page: a page the Secure Plane fills at account creation is not one the run types into (P152)", () => {
+    // `#nextPage` skips any page carrying a credential field — creation
+    // submitted it before `execute` was ever reached — so a preview that
+    // listed the e-mail box on that page as "exactly what will be submitted"
+    // described a page the fill never visits. Found reading Run A's preview
+    // for the signature (P152): the same rule, at the preview.
+    const preview = gatedPreview();
+    expect(preview.credentials.length, "the fixture carries a credential").toBeGreaterThan(0);
+    expect(preview.pages.map((page) => page.pageRef)).not.toContain("page-register");
+    expect(preview.entries.map((entry) => entry.fieldRef)).not.toContain("account_email");
+    expect(renderPreview(preview)).not.toContain("Create your account");
+    // The credentials themselves are still carried (and never rendered).
+    expect(preview.credentials.map((credential) => credential.fieldRef)).toContain("account_password");
+  });
+
   it("names the companion beside the attachment, in the option's own words", () => {
     const preview = gatedPreview();
     expect(preview.attachments[0]?.companion).toEqual({

@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P152 — the entry, and the read that is his
+
+Step 3, with his two conditions met before the JSON. The first was the honest list: nothing in the entry is one I expect to revise, but four things in it have never been driven on the live portal — the grading systems following the institution box, the two Tom Select boxes as fills, the subject search, and the login form's locators — and if any is wrong the fix is a change to the entry, which means signing again. A smaller settled entry does not exist, because all four sit on Part 1's path. The second was the read: not the JSON but what will be typed into which box, page by page. That is now a command, printed from the same builder and renderer the run shows at the yes, and the committed file is its output for the synthetic profile, held equal by a test.
+
+The read did its job before he opened it. The first two lines said the run would type the synthetic e-mail into the registration page's box, on a run that signs in to an account he already holds and never visits that page. The driver's page walk has skipped any page carrying a credential field since P72; the preview had not, so "exactly what will be submitted" listed a box the fill never touches. Red first, then the same rule at the preview, and the read starts at the personal page. Three label defects remain in it and are named rather than changed, because each is in the blueprint and the blueprint is what he signs.
+
+The entry itself is the two drafts byte for byte after parse, pinned by a test so a draft cannot move under a signed entry unnoticed, with the authentication facts, no required documents, the repository's refs and the secure-channel delivery. It is not signed. Both artefacts still say draft, the set names nobody, the directory refuses to load, and the three acts that change that are his, written in order. Two of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P151 — the sign-in stops at two, and a seeded value says so
 
 Three of his answers, built before step 3 because he would rather Run A's first unknown be the portal than our own retry loop. The sign-in failure shape was blocker 26 again, and it is closed the way the creation's was: attempts counted since the session was last live, the handle each was handed named and offered to nobody whatever the Secure Plane's outbox has delivered, the first failure told as the first of two with the box opening again, the second stopping for a person with the attempt and the code on the record, and no box opening on a run a person holds. The part that is new is the honesty about what the runner can see. A refused sign-in is the login form still showing after the submit, which a wrong password and a portal fault both produce, so the student is told that the two cannot be told apart from where the system stands and asked to check the password carefully because it cannot, and the person is told the same in the record. Nothing picks one. Five tests failed before the mechanism existed, and the third reproduced the dead handle being handed to the next runner.

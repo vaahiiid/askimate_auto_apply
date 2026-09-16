@@ -353,6 +353,21 @@ export function buildPreview(
 
   const optionLabels = optionLabelsOf(blueprint);
   const labelOf = new Map(allFields(blueprint).map((field) => [field.fieldRef, field.label]));
+  // A page carrying a credential field is a registration page: the Secure
+  // Plane fills the password and account creation submits it before `execute`
+  // is ever reached, and the fill's page walk (`#nextPage`) never visits it.
+  // So nothing on it is "exactly what will be submitted" by the run the
+  // student is authorising, and the preview lists neither the page nor its
+  // boxes — found reading Run A's preview for the signature (P152), where the
+  // registration e-mail box appeared as typed on a run that signs in to an
+  // account the student already holds (ADR-0110). The credentials themselves
+  // stay in their own list, as before, and are never rendered (ADR-0043).
+  const credentialRefs = new Set(plan.credentials.map((credential) => credential.fieldRef));
+  const registrationPages = new Set(
+    blueprint.pages
+      .filter((page) => page.sections.some((section) => section.fields.some((field) => credentialRefs.has(field.fieldRef))))
+      .map((page) => page.title),
+  );
   const pageTitleOf = new Map(
     blueprint.pages.flatMap((page) =>
       page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
@@ -377,6 +392,7 @@ export function buildPreview(
   const entries: PreviewEntry[] = [];
   const refusals: PreviewFormRefusal[] = [];
   for (const instruction of plan.instructions) {
+    if (registrationPages.has(pageTitleOf.get(instruction.fieldRef) ?? "")) continue;
     const value = instruction.value;
     switch (value.kind) {
       case "confirmed": {
@@ -490,17 +506,19 @@ export function buildPreview(
   }));
 
   // ADR-0119: the boxes nobody mapped, under their page, in the hash.
-  const unmapped: PreviewUnmapped[] = plan.unmapped.map((field) => ({
+  const unmapped: PreviewUnmapped[] = plan.unmapped.filter((field) => !registrationPages.has(field.pageTitle)).map((field) => ({
     fieldRef: field.fieldRef,
     label: field.label,
     page: field.pageTitle,
     ...(field.formSays === undefined ? {} : { formSays: field.formSays }),
   }));
-  const pages: PreviewPage[] = blueprint.pages.map((page) => ({
-    pageRef: page.pageRef,
-    title: page.title,
-    repeats: page.repeats !== undefined,
-  }));
+  const pages: PreviewPage[] = blueprint.pages
+    .filter((page) => !registrationPages.has(page.title))
+    .map((page) => ({
+      pageRef: page.pageRef,
+      title: page.title,
+      repeats: page.repeats !== undefined,
+    }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
     fieldRef: credential.fieldRef,

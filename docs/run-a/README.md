@@ -76,3 +76,64 @@ nearest honest word is not it"*) and a `sourceExcerpt` reading *seeded from synt
 by `pnpm run profile:seed --write` on <date>; no interview took place*. A seeded value is not a
 student's confirmation and nothing may read it as one; nothing refuses one on any path today, and
 the ADR says so.
+
+## The catalogue entry — `catalogue/entries/sheffield-pgt-2027-09.json` (P152)
+
+The thing he signs. Assembled from the two drafts as they stand — blueprint 0.2.25 and mapping
+set 0.3.31, byte for byte after parse, which `scripts/run-a-profile.test.ts` holds — plus the
+portal-authentication facts of 2026-09-11, `requiredDocuments: []` (the runner attaches nothing
+on the international path; the six education slots are the student's own act), the repository's
+own refs for the submission key (`inst-sheffield`, `course-sheffield-msc-management-and-
+international-business`, `2027-09`) and `passwordDelivery: askimate_secure_channel`.
+
+**It is not signed.** Both artefacts still say `draft`, the set names no reviewer, and
+`pnpm run catalogue check docs/run-a/catalogue` refuses the directory for exactly that. The
+signature is three acts, his, in this order, after the read below:
+
+1. In the entry file, `blueprint.status` → `"reviewed"`.
+2. `mappingSet.status` → `"reviewed"`, `mappingSet.reviewedBy` → `"Vahid Mohammadi"`,
+   `mappingSet.reviewedAt` → the moment, RFC 3339.
+3. `pnpm run catalogue hash docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json`, and the
+   hash into `docs/run-a/catalogue/approvals.json` in the shape the runbook shows, with
+   `ownAccountOnly.studentId` = the UUID the seed printed (ADR-0118). Then
+   `pnpm run catalogue check docs/run-a/catalogue` prints *admits ONE account only*.
+
+Anything that changes in the entry after step 3 invalidates the approval, which is the point
+(ADR-0057). The test that pins the entry to the drafts will go red the moment a draft moves
+under a signed entry, which is the signal to decide whether to sign again.
+
+## The read — `what-will-be-typed.md`
+
+Vahid, 2026-09-16: *"give me the human-readable version to read. Not the JSON — the list of what
+will be typed into which box, page by page. That is the one review that is actually mine."*
+`pnpm run catalogue preview <entry.json> <profile.json>` prints it, in the student's own preview
+words (ADR-0059), from the same builder and renderer the run shows at the yes; the committed
+file is that output for the synthetic profile, and the test holds that they are the same. A
+draft entry is planned as if reviewed and the first line says so.
+
+Three things in the read are display, not substance, and each is a blueprint label, so fixing
+one changes the entry: the yes/no radios on the nationality page show their own name beside the
+value sent (their option labels were never read; the values were, P110); the two hidden selects
+behind the education page's country and institution boxes are listed under *Left empty* although
+the boxes set them; and a few selects carry their DOM id as a label (`dobMonth`, `startYear`).
+And one sentence is the product's, not Run A's: *"This is exactly what will be submitted"* —
+Run A ends at the end of Part 1 with nothing submitted (distance item 10).
+
+## What could still change after a signature
+
+Asked before assembling, answered plainly. Nothing in the entry is one I expect to revise. Four
+things in it have never been driven on the live portal, and if any of them is wrong the fix is a
+change to the entry, which means signing again:
+
+- **The grading systems following the institution box** (draft 0.2.24): inferred from the
+  dependencies read and P102's shape, not observed as a fill.
+- **The two Tom Select boxes as fills**: the runner's typeahead was proved on the fixture and on
+  the markup he copied (P101), never on Sheffield's page.
+- **The subject search**: the word `business` produced the 87 captured results; the runner
+  pressing the button and waiting on Sheffield's page is unobserved.
+- **The login form's locators** (P91, from the signed-out read): the sign-in path has never run
+  against the real portal. It now stops at two attempts (ADR-0120).
+
+A smaller entry that is settled is not available: all four are on Part 1's path, and the
+education page is one of its pages. Everything else — every value, the date maps, employment,
+the refusals, the language section left as optional — is settled and stays as it is.

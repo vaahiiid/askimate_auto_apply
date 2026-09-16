@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
-import { parseBlueprint, parseMappingSet } from "@askimate/aas-catalogue";
+import { loadCatalogueDirectory, parseBlueprint, parseMappingSet, parseReviewedEntryText } from "@askimate/aas-catalogue";
 import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import { migrate } from "@askimate/aas-migrate";
@@ -200,5 +200,58 @@ describeIfDatabase("the seed, against a real migrated conversation database", ()
     expect(again).toEqual({ ok: false, kind: "profile_not_empty", studentId: expect.any(String) as string, held: 18 });
     const count = await pool.query<{ n: string }>("SELECT count(*)::text AS n FROM profile_entries");
     expect(count.rows[0]?.n).toBe("18");
+  });
+});
+
+describe("the catalogue entry for Run A (P152)", () => {
+  const ENTRY = join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json");
+  const READ = join(ROOT, "docs", "run-a", "what-will-be-typed.md");
+
+  function entry() {
+    const parsed = parseReviewedEntryText(readFileSync(ENTRY, "utf8"));
+    if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+    return parsed.value;
+  }
+
+  it("is the two drafts, parsed — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
+    const { blueprint, mappingSet } = drafts();
+    const value = entry();
+    expect(value.blueprint).toEqual(blueprint);
+    expect(value.mappingSet).toEqual(mappingSet);
+    expect(value.institutionRef).toBe("inst-sheffield");
+    expect(value.courseRef).toBe("course-sheffield-msc-management-and-international-business");
+    expect(value.intakeRef).toBe("2027-09");
+    expect(value.requiredDocuments, "nothing attached by the runner on the international path").toEqual([]);
+    expect(value.passwordDelivery).toBe("askimate_secure_channel");
+    expect(value.portalAuthentication?.portalHost).toBe("www.sheffield.ac.uk");
+    expect(value.portalAuthentication?.applicantChoosesPassword).toBe(true);
+    expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
+  });
+
+  it("is NOT signed: both artefacts still say draft, the set names no reviewer, and the directory refuses to load", async () => {
+    const value = entry();
+    expect(value.blueprint.status).toBe("draft");
+    expect(value.mappingSet.status).toBe("draft");
+    expect(value.mappingSet.reviewedBy).toBeUndefined();
+    const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
+    expect(load.ok).toBe(false);
+    if (load.ok) expect.unreachable("a draft entry with no approval must not load");
+    expect(load.problems.some((problem) => problem.detail.includes("No approval exists"))).toBe(true);
+  });
+
+  it("the committed page-by-page read IS the command's output for the synthetic profile, and lists no registration page", async () => {
+    const child = spawn(TSX, ["scripts/catalogue.ts", "preview", "docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json", "docs/run-a/synthetic-profile.json"], {
+      cwd: ROOT,
+      env: { PATH: process.env["PATH"] ?? "", HOME: process.env["HOME"] ?? "" },
+    });
+    let output = "";
+    child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
+    const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
+    expect(code).toBe(0);
+    expect(output).toBe(readFileSync(READ, "utf8"));
+    expect(output).toContain("DRAFT — blueprint 0.2.25 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed.");
+    expect(output).not.toContain("Sign in or start an application");
+    expect(output).toContain("Search for an institution...: University of Sheffield");
+    expect(output).toContain("Please select the qualification you studied:: Bachelors Degree");
   });
 });
