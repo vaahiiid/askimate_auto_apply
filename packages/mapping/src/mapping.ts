@@ -70,12 +70,20 @@ export type ValueSource =
    */
   | { readonly kind: "document"; readonly documentRef: string }
   /**
-   * Only the student can do this (brief §7): MFA, OTP, CAPTCHA, payment, a
-   * legal declaration, identity verification.
+   * The student's own act (brief §7, ADR-0104, ADR-0119): a legal declaration,
+   * a document slot, or — since 2026-09-16 — any box the reviewer hands to the
+   * student rather than maps. The runner types nothing in it; the preview says
+   * under the page which boxes the student fills themselves and that the
+   * application is not complete until they do; the yes records each one on
+   * the case (ADR-0108).
    *
    * A mapping, not an omission. Recording it here means the orchestrator knows
-   * this field is *deliberately* not automated, rather than discovering an
-   * unmapped field at fill time and treating it as a gap.
+   * this field is *deliberately* not automated — a decision somebody made —
+   * rather than discovering an unmapped field at fill time and treating it as
+   * a gap. The gap nobody looked at is `FillPlan.unmapped`, kept apart from
+   * this on purpose. A challenge only the student can meet (MFA, OTP, CAPTCHA)
+   * is not a mapping at all: the runner detects it on the page and stops
+   * (ADR-0101 §6).
    */
   | { readonly kind: "student_handoff"; readonly reason: string }
   /**
@@ -769,12 +777,10 @@ export function checkUsable(
           }
         } else if (mapping.source.kind === "student_handoff") {
           // ADR-0104 (B): the documents of a repeating page are the student's
-          // own act — a handoff on a document slot, and on nothing else. The
-          // slot's companion is set by the runner (ADR-0107), not handed.
-          if (field.inputType !== "file") {
-            repeatProblems.push(`${field.fieldRef} is handed to the student on a page that repeats, and it is not a document slot`);
-            repeatRefs.push(field.fieldRef);
-          }
+          // own act, said under each entry. ADR-0119 extends the same shape to
+          // any box handed to the student on a repeating page: one own act
+          // per entry, said under it, recorded at the yes. The slot's
+          // companion is set by the runner (ADR-0107), not handed.
         } else if (mapping.source.kind !== "constant") {
           repeatProblems.push(`${field.fieldRef} is mapped as ${mapping.source.kind} on a page that repeats`);
           repeatRefs.push(field.fieldRef);
@@ -790,9 +796,9 @@ export function checkUsable(
         fieldRefs: repeatRefs,
         detail:
           `${repeatProblems.join("; ")}. A page filled once per item draws every value from one item ` +
-          `of the list it repeats over, or from a reviewed constant; its document slots may be left ` +
-          `to the student and nothing else may be; a condition on it looks only at the page ` +
-          `(ADR-0103, ADR-0104).`,
+          `of the list it repeats over, or from a reviewed constant, or is handed to the student ` +
+          `as their own act per entry; a condition on it looks only at the page ` +
+          `(ADR-0103, ADR-0104, ADR-0119).`,
       },
     };
   }

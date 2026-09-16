@@ -98,11 +98,15 @@ In the order they bite, each with who holds it and the evidence.
    five per-level qualification selects (blocker 25's shape) and the registry's nationality
    vocabulary, both his; and Iman's sitting, which starts now. Blocker 29 (the silently dropped
    fifth period) raised.
-4. **The language page: nineteen fields, none mapped.** The registry has
-   `education.english_language_test`; the page asks the test type (42 options), the award date
-   as three selects, certificate numbers, awarding body and the component scores, and offers a
-   certificate slot whose companion is now named. **Iman's mapping**, once item 1 says what is
-   mandatory.
+4. **The language page: nineteen fields, none mapped — handed for Run A (P145, ADR-0119).** The
+   registry has `education.english_language_test`; the page asks the test type (42 options), the
+   award date as three selects, certificate numbers, awarding body and the component scores, and
+   offers a certificate slot whose companion is now named. **Vahid's cut, 2026-09-16:** the
+   seventeen marked boxes are handed to the student for Run A (set 0.3.27), the certificate slot
+   handed with its companion set to "later", the qualification select left as the optional box it
+   is. What remains is one fact only the screen settles: whether Sheffield saves the page empty
+   for a student with no test — his read, steps in the capture README under *Item 4*. Mapping the
+   page is a precondition of serving a real student, not of Run A.
 5. **The education page's own fields: thirty-three, six handed, the rest unmapped — and one of
    them cannot be mapped by rule.** The country box needs its entries recorded on the box (the
    captured `<select>`'s 255, copied); degree, subject, the three dates and the grade are selects
@@ -125,7 +129,11 @@ In the order they bite, each with who holds it and the evidence.
    which is the hard one: ADR-0109 requires an option rule onto recorded entries, and a real student's
    institution is free text — no rule can map *Sharif University of Technology* onto Sheffield's
    list. Either the box is the student's own act, or an interview step offers the portal's own
-   entries for the student to choose. **Raised as blocker 25**, below; his decision.
+   entries for the student to choose. **Raised as blocker 25**, below; his decision. **P145:**
+   `degree` and `unlistedDegree` are handed to the student for Run A (ADR-0119); the option maps
+   to Iman's standard are cut for Run A (his cut of 2026-09-16 — map what the synthetic profile
+   holds; a value the map does not name is a loud blocker). The institution box waits on blocker
+   25.
 6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
    the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
    his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
@@ -214,6 +222,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P145: the cut accepted in full; the own-act mechanism built (ADR-0119); set 0.3.27
+  hands nineteen required boxes for Run A, so no required field on Part 1 is without a mapping or
+  a hand; blocker 29 built; the pack frozen. Open: his read of the language page (item 4), blocker
+  25 (item 5), his signature (item 6). Five open of ten, unchanged.
 - 2026-09-16, P144: item 6 changed at his word — one signature, his, for his own account only,
   enforced in the code (ADR-0118); Iman's sitting dropped; what the one signature leaves uncaught
   written for the developer. Five open of ten, unchanged.

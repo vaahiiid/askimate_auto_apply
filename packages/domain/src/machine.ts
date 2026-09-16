@@ -84,6 +84,12 @@ export interface ApplicationCase {
    * have said they did it. Empty for a case that deferred nothing.
    */
   readonly ownActs: readonly OwnAct[];
+  /**
+   * The boxes nobody mapped, left empty at the yes, by page (ADR-0119). The
+   * third state beside "filled" and "handed": a gap nobody has looked at,
+   * kept apart from a decision somebody made.
+   */
+  readonly unmapped: readonly { readonly page: string; readonly fieldRef: string; readonly label: string }[];
   /** ADR-0110: the student said the portal account already exists and is theirs. */
   readonly declaredAccount?: { readonly portalHost: string; readonly declaredAt: Date };
   readonly openHandoffToken?: string;
@@ -158,6 +164,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
   let priorCaseId: CaseId | undefined = first.priorCaseId;
   let reapplication: ApplicationCase["reapplication"];
   const ownActs = new Map<string, OwnAct>();
+  const unmappedByPage = new Map<string, readonly { page: string; fieldRef: string; label: string }[]>();
   let declaredAccount: ApplicationCase["declaredAccount"];
 
   const tasks = new Map<string, Task>();
@@ -292,6 +299,15 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
         break;
       }
 
+      case "UnmappedRecorded":
+        // Per page, replaced on a re-authorisation: the record is of the
+        // preview the student last said yes to.
+        unmappedByPage.set(
+          event.page,
+          event.fields.map((field) => ({ page: event.page, fieldRef: field.fieldRef, label: field.label })),
+        );
+        break;
+
       case "PortalAccountDeclared":
         // Once. A second declaration keeps the first: the account did not
         // become theirs twice.
@@ -355,6 +371,7 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
     submissionAttempted,
     // ADR-0108: what the student owes, in the order it was recorded.
     ownActs: [...ownActs.values()],
+    unmapped: [...unmappedByPage.values()].flat(),
     ...(declaredAccount === undefined ? {} : { declaredAccount }),
     createdAt: first.occurredAt,
     updatedAt: last.occurredAt,

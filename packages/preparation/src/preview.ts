@@ -75,6 +75,8 @@ export interface PreviewItem {
 export interface PreviewEntry {
   readonly fieldRef: string;
   readonly label: string;
+  /** The page the box is on, in the portal's words. Lines are read under it (ADR-0119). */
+  readonly page: string;
   /** Which entry of a repeating page this line belongs to (ADR-0103, gap 3). */
   readonly item?: PreviewItem;
   /** Exactly what will be submitted. What the hash covers. */
@@ -121,10 +123,34 @@ export interface PreviewHandoff {
   readonly fieldRef: string;
   readonly label: string;
   readonly reason: string;
+  /** The page the box is on. Said under it, apart from what was filled (ADR-0119). */
+  readonly page: string;
+  /** What the student does: attach a file to a slot, or fill in a box themselves. */
+  readonly act: "attach" | "fill";
   /** Under which entry of a repeating page it is said (ADR-0104). */
   readonly item?: PreviewItem;
   /** What the portal is told beside the slot while the student attaches it (ADR-0107). */
   readonly deferred?: { readonly fieldRef: string; readonly label: string; readonly text: string; readonly displayText?: string };
+}
+
+/**
+ * An optional box nobody mapped, left empty and said so under its page
+ * (ADR-0119). Kept apart from a handoff on purpose: a handoff is a decision
+ * somebody made; this is a gap nobody has looked at, and the record must
+ * not let the two collapse into one list.
+ */
+export interface PreviewUnmapped {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly page: string;
+}
+
+/** A page of the form, in the portal's order and words, for reading the preview under. */
+export interface PreviewPage {
+  readonly pageRef: string;
+  readonly title: string;
+  /** Filled once per entry of a list (ADR-0103, gap 3). */
+  readonly repeats: boolean;
 }
 
 /**
@@ -192,9 +218,13 @@ export interface SubmissionPreview {
   readonly portalHost: string;
   readonly courseName: string;
   readonly intake: string;
+  /** The form's pages in order, so every line is read under the page it belongs to (ADR-0119). */
+  readonly pages: readonly PreviewPage[];
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  /** Optional boxes nobody mapped, left empty and said so (ADR-0119). In the hash. */
+  readonly unmapped: readonly PreviewUnmapped[];
   /** Questions not answered on the student's behalf, and what was entered (ADR-0102). */
   readonly refusals: readonly PreviewFormRefusal[];
   /** Fields the Secure Plane fills. Never carries a value (ADR-0043). */
@@ -326,8 +356,9 @@ export function buildPreview(
       page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
     ),
   );
-  const itemOf = (instruction: FillInstruction): { readonly item?: PreviewItem } =>
-    instruction.item === undefined
+  const itemOf = (instruction: FillInstruction): { readonly page: string; readonly item?: PreviewItem } => ({
+    page: pageTitleOf.get(instruction.fieldRef) ?? "",
+    ...(instruction.item === undefined
       ? {}
       : {
           item: {
@@ -335,7 +366,8 @@ export function buildPreview(
             count: instruction.item.count,
             title: pageTitleOf.get(instruction.fieldRef) ?? "",
           },
-        };
+        }),
+  });
 
   // Refusals are kept OUT of the entries (ADR-0102): an entry is an answer,
   // and a refusal must never be listed as one. The switch is exhaustive, so a
@@ -447,10 +479,24 @@ export function buildPreview(
     fieldRef: handoff.fieldRef,
     label: handoff.label,
     reason: handoff.reason,
+    page: pageTitleOf.get(handoff.fieldRef) ?? "",
+    act: handoff.inputType === "file" ? "attach" : "fill",
     ...(handoff.item === undefined
       ? {}
       : { item: { index: handoff.item.index, count: handoff.item.count, title: pageTitleOf.get(handoff.fieldRef) ?? "" } }),
     ...(handoff.deferred === undefined ? {} : { deferred: { ...handoff.deferred } }),
+  }));
+
+  // ADR-0119: the boxes nobody mapped, under their page, in the hash.
+  const unmapped: PreviewUnmapped[] = plan.unmapped.map((field) => ({
+    fieldRef: field.fieldRef,
+    label: field.label,
+    page: field.pageTitle,
+  }));
+  const pages: PreviewPage[] = blueprint.pages.map((page) => ({
+    pageRef: page.pageRef,
+    title: page.title,
+    repeats: page.repeats !== undefined,
   }));
 
   const credentials: PreviewCredential[] = plan.credentials.map((credential) => ({
@@ -475,6 +521,7 @@ export function buildPreview(
     entries,
     attachments,
     handoffs,
+    unmapped,
     refusals,
     credentials,
     repeats,
@@ -490,9 +537,11 @@ export function buildPreview(
       portalHost,
       courseName: blueprint.courseName,
       intake: blueprint.intake,
+      pages,
       entries,
       attachments,
       handoffs,
+      unmapped,
       refusals,
       credentials,
       repeats,
@@ -528,6 +577,7 @@ function hashContent(content: {
   readonly entries: readonly PreviewEntry[];
   readonly attachments: readonly PreviewAttachment[];
   readonly handoffs: readonly PreviewHandoff[];
+  readonly unmapped: readonly PreviewUnmapped[];
   readonly refusals: readonly PreviewFormRefusal[];
   readonly credentials: readonly PreviewCredential[];
   readonly repeats: readonly PreviewRepeat[];
@@ -568,6 +618,12 @@ function hashContent(content: {
       `handoff${handoff.fieldRef}${handoff.item === undefined ? "" : `#${String(handoff.item.index)}`}` +
         `${handoff.deferred === undefined ? "" : `${handoff.deferred.fieldRef}=${handoff.deferred.text}`}`,
     );
+  }
+  // ADR-0119: which boxes are left empty because nobody mapped them is inside
+  // the yes — a box that becomes mapped, or handed, is a different thing to
+  // say yes to than a box left blank.
+  for (const field of [...content.unmapped].sort(byFieldRef)) {
+    lines.push(`unmapped${field.fieldRef}`);
   }
   // ADR-0102: what was entered instead of an answer, why, the form's quoted
   // words and which controls were left untouched are all inside the yes — a
@@ -636,6 +692,12 @@ export function renderPreview(preview: SubmissionPreview): string {
   // student attaches them themselves, and that the application is not
   // complete until they do. If a student authorises this and is surprised
   // later, the preview failed."*
+  //
+  // ADR-0119 extends the same shape to every box handed to the student, and
+  // to every box nobody mapped — under the page each belongs to, in his
+  // words: *"Not a footnote at the bottom, not a count — under the page it
+  // belongs to, in the student's words, saying which boxes they are filling
+  // themselves and that the application is not complete until they do."*
   const deferralLines = (own: readonly PreviewHandoff[], indent: string): readonly string[] => {
     const deferred = own.filter((handoff) => handoff.deferred !== undefined);
     if (deferred.length === 0) return [];
@@ -648,45 +710,74 @@ export function renderPreview(preview: SubmissionPreview): string {
       `${indent}Nobody is watching this, and nobody will remind you.`,
     ];
   };
-  const ownActs = (item: PreviewItem | undefined): readonly string[] => {
-    if (item === undefined) return [];
-    const own = preview.handoffs.filter((handoff) => handoff.item?.title === item.title && handoff.item.index === item.index);
-    return [...own.map((handoff) => `  You attach yourself: ${handoff.label}`), ...deferralLines(own, "  ")];
-  };
-  let heading: string | null = null;
-  let current: PreviewItem | undefined;
-  for (const entry of preview.entries) {
-    // ADR-0103 gap 3: each entry of a repeating page under its own heading,
-    // in the order the student gave them, every field of it.
-    const entryHeading =
-      entry.item === undefined
-        ? null
-        : `${entry.item.title} — entry ${String(entry.item.index + 1)} of ${String(entry.item.count)}:`;
-    if (entryHeading !== heading) {
-      lines.push(...ownActs(current));
-      if (entryHeading !== null) lines.push(entryHeading);
-      heading = entryHeading;
-      current = entry.item;
+  const ownActLines = (own: readonly PreviewHandoff[], indent: string): readonly string[] => {
+    const lines: string[] = [];
+    for (const handoff of own) {
+      lines.push(handoff.act === "attach" ? `${indent}You attach yourself: ${handoff.label}` : `${indent}You fill in yourself: ${handoff.label}`);
     }
-    const indent = entry.item === undefined ? "" : "  ";
+    const filled = own.filter((handoff) => handoff.act === "fill");
+    if (filled.length > 0) {
+      lines.push(
+        `${indent}We leave ${filled.length === 1 ? "this box" : "these boxes"} empty for you to fill in. The application is not complete until you do.`,
+        `${indent}Nobody is watching this, and nobody will remind you.`,
+      );
+    }
+    lines.push(...deferralLines(own, indent));
+    return lines;
+  };
+  const unmappedLines = (page: string, indent: string): readonly string[] => {
+    const empty = preview.unmapped.filter((field) => field.page === page);
+    if (empty.length === 0) return [];
+    return [
+      `${indent}Left empty: ${empty.map((field) => field.label).join("; ")}`,
+      `${indent}Nothing you told us goes into ${empty.length === 1 ? "this box" : "these boxes"}, and the form does not require ${empty.length === 1 ? "it" : "them"}.`,
+    ];
+  };
+  const entryLine = (entry: PreviewEntry, indent: string): readonly string[] => {
     // What it means first, then what is actually sent — because the student
     // must be able to check it AND must not be shown something other than the
     // value that will reach the university.
-    lines.push(
+    const line =
       entry.displayText === undefined
         ? `${indent}${entry.label}: ${entry.text}`
-        : `${indent}${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`,
-    );
-    if (entry.attribution.kind === "reviewed_constant") {
-      // Marked, because it is the one thing here the student did not tell us.
-      lines.push(`${indent}    (set by AskiMate: ${entry.attribution.rationale})`);
+        : `${indent}${entry.label}: ${entry.displayText}  (sent as "${entry.text}")`;
+    return entry.attribution.kind === "reviewed_constant"
+      ? // Marked, because it is the one thing here the student did not tell us.
+        [line, `${indent}    (set by AskiMate: ${entry.attribution.rationale})`]
+      : [line];
+  };
+
+  // Every page in the portal's order, and under it everything that page
+  // holds: what is filled, what the student does themselves, what is left
+  // empty. A page with none of those is not mentioned.
+  for (const page of preview.pages) {
+    const pageEntries = preview.entries.filter((entry) => entry.page === page.title);
+    const pageOwn = preview.handoffs.filter((handoff) => handoff.page === page.title);
+    const pageUnmapped = unmappedLines(page.title, "  ");
+    const repeat = preview.repeats.find((candidate) => candidate.title === page.title);
+    if (pageEntries.length === 0 && pageOwn.length === 0 && pageUnmapped.length === 0 && repeat === undefined) continue;
+
+    lines.push(`${page.title}:`);
+    if (page.repeats) {
+      // ADR-0103 gap 3: each entry of a repeating page under its own heading,
+      // in the order the student gave them, every field of it.
+      const count = repeat?.count ?? 0;
+      // Said plainly: a block filled zero times is a fact the student is
+      // authorising, not an omission.
+      if (count === 0) lines.push(`  none — the page is left as it is`);
+      for (let index = 0; index < count; index++) {
+        lines.push(`  ${page.title} — entry ${String(index + 1)} of ${String(count)}:`);
+        for (const entry of pageEntries.filter((candidate) => candidate.item?.index === index)) {
+          lines.push(...entryLine(entry, "    "));
+        }
+        lines.push(...ownActLines(pageOwn.filter((handoff) => handoff.item?.index === index), "    "));
+      }
+      lines.push(...pageUnmapped);
+      continue;
     }
-  }
-  lines.push(...ownActs(current));
-  for (const repeat of preview.repeats) {
-    // Said plainly: a block filled zero times is a fact the student is
-    // authorising, not an omission.
-    if (repeat.count === 0) lines.push(`${repeat.title}: none — the page is left as it is`);
+    for (const entry of pageEntries) lines.push(...entryLine(entry, "  "));
+    lines.push(...ownActLines(pageOwn, "  "));
+    lines.push(...pageUnmapped);
   }
 
   if (preview.refusals.length > 0) {
@@ -733,13 +824,6 @@ export function renderPreview(preview: SubmissionPreview): string {
         );
       }
     }
-  }
-
-  const general = preview.handoffs.filter((handoff) => handoff.item === undefined);
-  if (general.length > 0) {
-    lines.push("", "You will complete these yourself:");
-    for (const handoff of general) lines.push(`  ${handoff.label}`);
-    lines.push(...deferralLines(general, "  "));
   }
 
   lines.push("", `Reference: ${preview.contentHash}`);

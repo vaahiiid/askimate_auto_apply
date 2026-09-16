@@ -4920,6 +4920,34 @@ describeIfDatabase("the decision only the student can make", () => {
       ),
       "and the machine moved, from the same decision",
     ).toBe(true);
+
+    // ── ADR-0119: three states on the record, kept apart ──────────────────
+    //
+    // Vahid, 2026-09-16: *"the record must distinguish three states, not two:
+    // filled by us, handed to the student, and never mapped."* Filled is the
+    // hash the yes captured; handed is one own act per box, with its page;
+    // never mapped is one record per page of the boxes nobody looked at —
+    // exactly the plan's own lists, and never one list.
+    const recorded = await pool.query<{ event: { type: string; key?: string; page?: string; fields?: readonly { fieldRef: string }[] } }>(
+      `SELECT event FROM case_events WHERE case_id = $1 AND event->>'type' IN ('OwnActRecorded', 'UnmappedRecorded') ORDER BY "sequence" ASC`,
+      [`case_${conversation.toLowerCase()}`],
+    );
+    const usable = checkUsable(GATED_ENTRY.mappingSet, GATED_ENTRY.blueprint);
+    if (!usable.usable) expect.unreachable("usable");
+    const profile = await new PostgresConfirmedProfileStore(pool).load(ownerOf(conversation), NOW);
+    const plan = planFill(GATED_ENTRY.blueprint, usable.mappingSet, profile);
+    const handed = recorded.rows.filter((row) => row.event.type === "OwnActRecorded");
+    expect(handed.map((row) => row.event.key).sort()).toEqual(
+      plan.handoffs.map((h) => (h.item === undefined ? h.fieldRef : `${h.fieldRef}#${String(h.item.index)}`)).sort(),
+    );
+    for (const row of handed) expect(row.event.page, "every own act names its page").toBeTruthy();
+    const unmappedRows = recorded.rows.filter((row) => row.event.type === "UnmappedRecorded");
+    const unmappedByPage = new Map(plan.unmapped.map((f) => [f.pageTitle, plan.unmapped.filter((g) => g.pageTitle === f.pageTitle).map((g) => g.fieldRef).sort()]));
+    expect(new Map(unmappedRows.map((row) => [row.event.page, (row.event.fields ?? []).map((f) => f.fieldRef).sort()]))).toEqual(unmappedByPage);
+    expect(
+      handed.some((row) => plan.unmapped.some((f) => f.fieldRef === row.event.key)),
+      "a box nobody mapped is never recorded as a box somebody handed",
+    ).toBe(false);
   }, 300_000);
 
   it("REFUSES a second decision once the case has moved on", async () => {

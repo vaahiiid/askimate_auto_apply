@@ -23,7 +23,7 @@ import { chooseApproach } from "@askimate/aas-account";
 import type { ObservedPortalAuthentication } from "@askimate/aas-account";
 import { parseBlueprint, parseMappingSet } from "@askimate/aas-catalogue";
 import { proposeValue, studentId } from "@askimate/aas-domain";
-import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
+import { checkUsable, planFill, textOf, toStoredPlan } from "@askimate/aas-mapping";
 import { buildPreview, renderPreview } from "@askimate/aas-preparation";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
@@ -176,7 +176,10 @@ describe("the Sheffield drafts, under the real checks", () => {
       expect(field(ref)?.validations.some((v) => v.kind === "required" && v.source === "observed_marker"), ref).toBe(true);
       expect(mappingSet.mappings.some((m) => m.fieldRef === ref), ref).toBe(true);
     }
-    expect(mappingSet.mappings.some((m) => ["degree", "grade", "subject", "institutionCountry"].includes(m.fieldRef))).toBe(false);
+    // P145 (ADR-0119): degree is handed to the student for Run A; grade, subject and the
+    // country are still nobody's — required, so they block until mapped or handed.
+    expect(mappingSet.mappings.find((m) => m.fieldRef === "degree")?.source.kind).toBe("student_handoff");
+    expect(mappingSet.mappings.some((m) => ["grade", "subject", "institutionCountry"].includes(m.fieldRef))).toBe(false);
   });
 
   it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
@@ -226,22 +229,34 @@ describe("the Sheffield drafts, under the real checks", () => {
     // the read also marked are not here: a handed slot's companion is the
     // student's own act (ADR-0107). NOTHING else blocks: no covered control,
     // no unclassified field, no refused render.
-    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable", "no_mapping"]));
+    // P145 (ADR-0119): the twenty are handed to the student for Run A, so no
+    // required field is without a mapping or a hand; what remains is the
+    // synthetic profile's values.
+    expect(new Set(plan.blockers.map((b) => b.kind))).toEqual(new Set(["value_unavailable"]));
     // P139 (ADR-0115) mapped the twelve nationality radios and P141 the
     // passport; P142 put the page's own show/hide on the draft from
     // nationality.js, so with NOTHING confirmed the sections a controlling
     // answer opens are hidden — neither typed nor missing — and only the
     // language and education pages' unmapped fields remain.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping").map((b) => b.fieldRef).sort()).toEqual([
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toEqual([]);
+    // With no qualification confirmed the education page is filled zero times, so
+    // its two handed boxes (degree, unlistedDegree) have no entry to be said under.
+    expect(plan.handoffs.filter((h) => h.inputType !== "file").map((h) => h.fieldRef).sort()).toEqual([
       "awardingBody", "certificateNumber", "certificateNumber2",
-      "dateOfAward.day", "dateOfAward.month", "dateOfAward.year", "degree",
+      "dateOfAward.day", "dateOfAward.month", "dateOfAward.year",
       "firstLanguage",
-      "languageCertificate", "languageCertificateStatus", "listeningScore",
+      "listeningScore",
       "overallScore", "overallScoreComponent",
       "previousEducationLanguage", "previousEnglishEducation", "readingScore",
       "speakingScore",
-      "title", "unlistedDegree", "writingScore",
+      "title", "writingScore",
     ]);
+    // The certificate slot is a file: handed like the education slots, an attach
+    // not a fill; its companion follows the slot (ADR-0105, 0107) and is never
+    // mapped or handed itself.
+    expect(plan.handoffs.find((h) => h.fieldRef === "languageCertificate")?.inputType).toBe("file");
+    expect(plan.handoffs.some((h) => h.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(toStoredPlan({ ...plan, blockers: [] }).ok).toBe(true);
   });
 
   it("fill the personal and contact pages from a confirmed profile, the date as three selects", () => {
@@ -270,7 +285,18 @@ describe("the Sheffield drafts, under the real checks", () => {
     // or not: an unmapped optional box is left alone, a MAPPED one with no
     // value is a value the student has not given. Every other nationality
     // field sits behind an answer the page has not got, so it is hidden.
-    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(20);
+    expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(0);
+    // Every box handed rather than mapped (P145, ADR-0119) is one of the
+    // fifteen on the language page or the two per qualification on education.
+    const handedBoxes = new Set([
+      "awardingBody", "certificateNumber", "certificateNumber2", "dateOfAward.day", "dateOfAward.month",
+      "dateOfAward.year", "firstLanguage", "listeningScore", "overallScore", "overallScoreComponent",
+      "previousEducationLanguage", "previousEnglishEducation", "readingScore", "speakingScore", "title",
+      "writingScore", "degree", "unlistedDegree",
+    ]);
+    for (const handoff of plan.handoffs.filter((h) => h.inputType !== "file")) {
+      expect(handedBoxes.has(handoff.fieldRef), handoff.fieldRef).toBe(true);
+    }
     expect(plan.blockers.filter((b) => b.kind === "value_unavailable").map((b) => b.fieldRef).sort()).toEqual([
       "countryOfBirth",
       "duties", "employerDetails", "endDateMonth", "endDateYear",
@@ -281,7 +307,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.22");
-    expect(mappingSet.version).toBe("0.3.26");
+    expect(mappingSet.version).toBe("0.3.27");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -457,7 +483,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     const pagePlan = planFill(page, pageCheck.mappingSet, none);
     const preview = buildPreview(page, pagePlan, new Map(), { portalHost: "www.sheffield.ac.uk" });
     if (!preview.built) expect.unreachable(preview.refusal.kind);
-    expect(renderPreview(preview.preview)).toContain("Employment history: none — the page is left as it is");
+    expect(renderPreview(preview.preview)).toContain("Employment history:\n  none — the page is left as it is");
     expect(preview.preview.repeats).toEqual([{ title: "Employment history", fieldKey: "employment.history", count: 0 }]);
   });
 
@@ -586,8 +612,14 @@ describe("the Sheffield drafts, under the real checks", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(blueprint, check.mappingSet, PROFILE);
-    expect(plan.instructions.some((i) => i.fieldRef === "languageCertificateStatus")).toBe(false);
-    expect(plan.blockers.find((b) => b.fieldRef === "languageCertificateStatus")?.kind).toBe("no_mapping");
+    // P145 (ADR-0119): the certificate slot is handed to the student for Run A,
+    // so its companion is set by the plan to the defer value the blueprint
+    // names (ADR-0107) — never mapped, never handed, never a blocker.
+    const status = plan.instructions.find((i) => i.fieldRef === "languageCertificateStatus");
+    expect(status?.defers).toBe("languageCertificate");
+    expect(status === undefined ? "" : textOf(status.value)).toBe(language.requiredDocuments[0]?.companion?.whenDeferred ?? "");
+    expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(plan.handoffs.some((h) => h.fieldRef === "languageCertificateStatus")).toBe(false);
   });
 
   it("carry the twenty-three groups of personal, contact and nationality as Vahid read them — the case the page's, the five companions three values, NotRequired absent (P110)", () => {

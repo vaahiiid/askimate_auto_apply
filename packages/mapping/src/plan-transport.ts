@@ -161,9 +161,7 @@ export interface StoredFillPlan {
 /** Why a plan cannot be sent to a runner. Every one is a refusal, not a bug. */
 export type PlanTransportRefusal =
   /** The plan is not executable: a required field has no mapping, or worse. */
-  | "has_blockers"
-  /** A field the student must do themselves, other than a document slot (ADR-0104). Not automatable by definition. */
-  | "has_handoffs";
+  "has_blockers";
 
 /**
  * Takes a plan apart for transport, or refuses.
@@ -178,12 +176,12 @@ export function toStoredPlan(
   if (plan.blockers.length > 0) return { ok: false, refusal: "has_blockers" };
   // ADR-0104: a document slot left to the student is not dropped and not a
   // refusal — the runner fills the page and the preview says, under the entry,
-  // what the student attaches themselves. A handoff on anything else still
-  // makes the plan a person's, not a runner's.
-  // ...and (ADR-0105) a slot's companion handed with its slot goes with it.
-  if (plan.handoffs.some((handoff) => handoff.inputType !== "file")) {
-    return { ok: false, refusal: "has_handoffs" };
-  }
+  // what the student attaches themselves. Until ADR-0119 a handoff on anything
+  // else refused transport (`has_handoffs`); since 2026-09-16 every handoff is
+  // the student's own act on a page the runner still fills: the runner types
+  // nothing in that box, the preview says so under the page, and the yes
+  // records it. Nothing of a handoff crosses to the runner — the stored plan
+  // carries none, so a runner cannot be asked to fill one.
 
   return {
     ok: true,
@@ -277,9 +275,11 @@ function storedValue(value: FillValue): StoredFillValue {
  * `executePlan` calls `fill` for one and `fillConstant` for the other and no
  * fabricated provenance is invented for either.
  *
- * `handoffs` and `blockers` come back EMPTY, and they are empty because
- * `toStoredPlan` refuses any plan that had them — not because they were
- * dropped here. `uploads` come back as the references that crossed.
+ * `blockers` come back EMPTY because `toStoredPlan` refuses any plan that had
+ * them; `handoffs` and `unmapped` come back EMPTY because nothing of them
+ * crosses to a runner (ADR-0119): a handed box and an unmapped box are both
+ * boxes the runner never touches, and the record of them is the case's, not
+ * the work's. `uploads` come back as the references that crossed.
  */
 export function rehydratePlan(stored: StoredFillPlan): FillPlan {
   return {
@@ -318,6 +318,7 @@ export function rehydratePlan(stored: StoredFillPlan): FillPlan {
     // Hidden fields never crossed: the plane dropped them before transport.
     hidden: [],
     repeats: [],
+    unmapped: [],
   };
 }
 

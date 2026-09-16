@@ -2,6 +2,15 @@
 
 **For:** Iman Behravan (approver) · **Author:** Vahid Mohammadi · **Prepared:** 2026-09-11 · **Revised:** 2026-09-14 (P126: the five pages' labels and markers from the third attached read, and the thirteen to read from the screenshots) · generated from `blueprint.draft.curated.json` (0.2.2; the five pages' labels and `observed_marker` validations from 0.2.18) and `mapping-set.draft.json` (0.2.0; the equal-opportunities page is this sitting's; its personal and contact mappings, added in P89, are the second sitting's)
 
+> **FROZEN, 2026-09-16 (P145).** This pack describes a review sitting that did not happen and is
+> not pending. Vahid, 2026-09-16: *"Freeze the review pack as the reviewer's map with a line at
+> the top saying it is frozen, when, and why."* Why: the goal changed to getting the system
+> standing end to end for a developer to inherit, not to serving a real student, and the
+> two-person review was cut to his own signature (ADR-0118) with what that leaves uncaught written
+> in [`../../what-was-skipped-to-get-it-standing.md`](../../what-was-skipped-to-get-it-standing.md).
+> Nothing below is maintained from here on; the mapping set has moved past the versions this pack
+> names. Whoever reviews before a real student starts from this map and the set as it then stands.
+>
 > **2026-09-16 (ADR-0118).** Vahid dropped the two-person review to one signature — his own —
 > for getting the system standing; the service holds a one-signature entry to his own account and
 > nothing else. **This sitting is not happening now.** The pack stays as it is, because a second

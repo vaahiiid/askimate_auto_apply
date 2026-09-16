@@ -453,9 +453,9 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
       reason: structural[0]?.kind ?? "mapping_gap",
       detail: structural
         .map((blocker) =>
-          blocker.kind === "no_mapping" || blocker.kind === "special_category_unhandled"
-            ? blocker.detail
-            : `"${blocker.label}" could not be written: ${blocker.refusal.detail}`,
+          blocker.kind === "render_refused"
+            ? `"${blocker.label}" could not be written: ${blocker.refusal.detail}`
+            : blocker.detail,
         )
         .join(" "),
     };
@@ -570,10 +570,12 @@ export async function nextStep(state: RunState, model: ModelClient): Promise<Run
  * student's answers.
  */
 /**
- * What the student attaches themselves (ADR-0104): the document slots of a
- * repeating page, named with their entry, as the fill plan holds them. The
- * same list at the handover's ask and at its confirmation, because the
- * confirmation is bound to the text they were shown (ADR-0050).
+ * What the student does themselves (ADR-0104, ADR-0119): the document slots
+ * they attach and — since 2026-09-16 — the boxes handed to them to fill in,
+ * named with their page and, on a repeating page, their entry, as the fill
+ * plan holds them. The same list at the handover's ask and at its
+ * confirmation, because the confirmation is bound to the text they were
+ * shown (ADR-0050).
  */
 function studentsOwnActs(state: RunState): readonly { readonly text: string; readonly toldLater: boolean }[] {
   const usable = checkUsable(state.inputs.mappingSet, state.inputs.blueprint);
@@ -586,14 +588,16 @@ function studentsOwnActs(state: RunState): readonly { readonly text: string; rea
   );
   const institution = state.inputs.blueprint.institutionName;
   return plan.handoffs
-    .filter((handoff) => handoff.inputType === "file")
     .map((handoff) => {
       // ADR-0107: what the portal was told beside the slot, so the student
       // reads at the handover what they owe and what was said about it.
+      // ADR-0119: a box handed to them to fill in, said as such.
       const what =
-        handoff.deferred === undefined
-          ? handoff.label
-          : `${handoff.label} (${institution} has been told it is coming later; the application is not complete until you attach it)`;
+        handoff.inputType !== "file"
+          ? `${handoff.label} (left empty for you to fill in on ${titles.get(handoff.fieldRef) ?? "the form"}; the application is not complete until you do)`
+          : handoff.deferred === undefined
+            ? handoff.label
+            : `${handoff.label} (${institution} has been told it is coming later; the application is not complete until you attach it)`;
       const text =
         handoff.item === undefined
           ? what

@@ -19,6 +19,34 @@ not shipped artefacts.
 
 ---
 
+## [0.142.0] — 2026-09-16
+
+**P145 — ADR-0119: a box handed to the student is their own act on a page we still fill; the
+record distinguishes filled, handed and never mapped; a list longer than the form stops the fill
+by name. The cut of 2026-09-16, accepted in full.**
+
+### Changed
+
+- `packages/mapping`: `FillPlan.unmapped` (optional boxes nobody mapped, by page);
+  `list_exceeds_form` blocker (blocker 29); a handed box allowed on a repeating page as an own
+  act per entry; `toStoredPlan` no longer refuses a non-file handoff (`has_handoffs` removed).
+- `packages/preparation`: the preview carries its pages, the page of every line, the act of every
+  handoff and the unmapped list (inside the hash); rendered page by page with the handed and
+  left-empty boxes under each; the general "You will complete these yourself" block removed.
+- `packages/domain`: `UnmappedRecorded` event and `ApplicationCase.unmapped`.
+- `packages/orchestrator`: the handover names handed boxes with their page; the structural
+  blocker detail covers the new kind.
+- `apps/conversation-service`: at the yes, every own act carries its page and one
+  `UnmappedRecorded` per page is written beside them.
+- Sheffield set 0.3.27: nineteen required boxes handed for Run A. The review pack frozen.
+
+### Recorded
+
+- ADR-0119; the skipped list carries the cut and his reasoning; blocker 29 closed; blocker 30's
+  note; the language page's read (capture README, Item 4); distance items 4 and 5.
+
+---
+
 ## [0.141.0] — 2026-09-16
 
 **P144 — ADR-0118: the mapping review is one signature, Vahid's, until a developer takes the

@@ -3230,13 +3230,18 @@ export class RunDriver {
 
     // ADR-0108: with the yes, what the student owes goes on the record — from
     // the preview they authorised, which is the one thing the hash binds.
+    // ADR-0119: three states on the record, kept apart — filled (the fill
+    // ledger and the hash), handed (an own act per box, with its page), and
+    // never mapped (one record per page of the boxes nobody looked at).
     const owed: CaseEventPayload[] =
       input.decision.kind === "authorise" && awaitsStudentAuthorisation(situation.step)
-        ? situation.step.preview.handoffs.map((handoff) => ({
+        ? [
+            ...situation.step.preview.handoffs.map((handoff): CaseEventPayload => ({
             type: "OwnActRecorded",
             key: ownActKeyOf(handoff),
             label: handoff.label,
-            ...(handoff.item === undefined ? {} : { page: handoff.item.title, entry: { index: handoff.item.index, count: handoff.item.count } }),
+            page: handoff.page,
+            ...(handoff.item === undefined ? {} : { entry: { index: handoff.item.index, count: handoff.item.count } }),
             ...(handoff.deferred === undefined
               ? {}
               : {
@@ -3246,7 +3251,9 @@ export class RunDriver {
                     ...(handoff.deferred.displayText === undefined ? {} : { displayText: handoff.deferred.displayText }),
                   },
                 }),
-          }))
+            })),
+            ...unmappedRecordsOf(situation.step.preview.unmapped),
+          ]
         : [];
     await this.#appendToCase(
       record.caseId,
@@ -6760,6 +6767,19 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
 }
 
 /** The key an own act is recorded and closed under: the slot, and the entry when the page repeats (ADR-0108). */
+/** One `UnmappedRecorded` per page that has any box nobody mapped (ADR-0119). */
+function unmappedRecordsOf(
+  unmapped: readonly { readonly page: string; readonly fieldRef: string; readonly label: string }[],
+): readonly CaseEventPayload[] {
+  const byPage = new Map<string, { fieldRef: string; label: string }[]>();
+  for (const field of unmapped) {
+    const held = byPage.get(field.page) ?? [];
+    held.push({ fieldRef: field.fieldRef, label: field.label });
+    byPage.set(field.page, held);
+  }
+  return [...byPage.entries()].map(([page, fields]) => ({ type: "UnmappedRecorded", page, fields }));
+}
+
 function ownActKeyOf(handoff: { readonly fieldRef: string; readonly item?: { readonly index: number } }): string {
   return handoff.item === undefined ? handoff.fieldRef : `${handoff.fieldRef}#${String(handoff.item.index)}`;
 }

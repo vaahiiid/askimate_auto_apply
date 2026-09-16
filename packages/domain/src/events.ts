@@ -292,6 +292,22 @@ export interface OwnActRecorded {
 }
 
 /**
+ * The boxes of one page nobody mapped, left empty at the yes (ADR-0119).
+ *
+ * Kept apart from `OwnActRecorded` on purpose. Vahid, 2026-09-16: *"Handed is
+ * a decision. Never mapped is a gap nobody has looked at. If those collapse
+ * into one list, a later developer reading it cannot tell which fields
+ * someone thought about."* Recorded from the preview the student authorised,
+ * one event per page that has any, replacing the page's earlier record on a
+ * re-authorisation.
+ */
+export interface UnmappedRecorded {
+  readonly type: "UnmappedRecorded";
+  readonly page: string;
+  readonly fields: readonly { readonly fieldRef: string; readonly label: string }[];
+}
+
+/**
  * The student said they did it (ADR-0108). Their word is what closes an act —
  * nothing here checks, nothing here reminds, and the record says so.
  */
@@ -466,6 +482,7 @@ export type CaseEventPayload =
   | AuthorisationVoided
   | OwnActRecorded
   | OwnActDone
+  | UnmappedRecorded
   | PortalAccountDeclared
   | SubmissionAttempted
   | SubmissionSucceeded

@@ -137,6 +137,7 @@ export type {
   OwnAct,
   OwnActDone,
   OwnActRecorded,
+  UnmappedRecorded,
   PortalAccountDeclared,
 } from "./events.js";
 export { HANDOFF_KINDS, REQUEST_CHANNELS, isEventOfType } from "./events.js";

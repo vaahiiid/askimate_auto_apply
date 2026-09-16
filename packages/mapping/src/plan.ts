@@ -225,7 +225,41 @@ export type FillBlocker =
       readonly label: string;
       readonly fieldKey: OrdinaryFieldKey;
       readonly refusal: RenderRefusal;
+    }
+  /**
+   * The student gave more entries of a list than the form has blocks for
+   * (blocker 29, ADR-0119). The page maps entry 0…n-1 of a list-valued field
+   * through indexed `part` rules; the list holds more. Refused rather than
+   * typed short: Vahid, 2026-09-16 — *"A history that silently drops a period
+   * is the exact class of error this system exists to refuse."*
+   */
+  | {
+      readonly kind: "list_exceeds_form";
+      readonly fieldRef: string;
+      readonly label: string;
+      readonly fieldKey: OrdinaryFieldKey;
+      readonly held: number;
+      readonly blocks: number;
+      readonly detail: string;
     };
+
+/**
+ * An OPTIONAL field nobody mapped (ADR-0119).
+ *
+ * Not a blocker — the form does not require it — and not silence either: the
+ * preview says under its page that the box is left empty, and the yes records
+ * it, so the record distinguishes a box somebody decided to hand to the
+ * student from a box nobody has looked at. Vahid, 2026-09-16: *"Handed is a
+ * decision. Never mapped is a gap nobody has looked at. If those collapse into
+ * one list, a later developer reading it cannot tell which fields someone
+ * thought about."*
+ */
+export interface UnmappedField {
+  readonly fieldRef: string;
+  readonly label: string;
+  readonly pageRef: string;
+  readonly pageTitle: string;
+}
 
 /**
  * A field the form does not show for these answers (P90).
@@ -260,6 +294,8 @@ export interface FillPlan {
   readonly hidden: readonly HiddenField[];
   /** Pages filled once per item, with how many times each (ADR-0103, gap 3). */
   readonly repeats: readonly RepeatedPage[];
+  /** Optional fields nobody mapped, left empty and said so (ADR-0119). */
+  readonly unmapped: readonly UnmappedField[];
 }
 
 /**
@@ -279,6 +315,14 @@ export function planFill(
   const handoffs: HandoffRequirement[] = [];
   const credentials: CredentialRequirement[] = [];
   const blockers: FillBlocker[] = [];
+  const unmapped: UnmappedField[] = [];
+  const pageOf = new Map(
+    blueprint.pages.flatMap((page) =>
+      page.sections.flatMap((section) =>
+        section.fields.map((field) => [field.fieldRef, { pageRef: page.pageRef, pageTitle: page.title }] as const),
+      ),
+    ),
+  );
 
   // ADR-0102: the other controls of a question one refusal answers. Left
   // untouched, and not blockers — `checkUsable` has held each is
@@ -374,7 +418,9 @@ export function planFill(
       }
       // An OPTIONAL unmapped field is not a problem: portals carry fields no
       // applicant needs to complete, and leaving one blank is the correct
-      // behaviour rather than a gap to fill.
+      // behaviour rather than a gap to fill. It is SAID, though (ADR-0119):
+      // listed under its page, so a box nobody looked at is never mistaken
+      // for one somebody handed to the student.
       if (isRequired(field)) {
         blockers.push({
           kind: "no_mapping",
@@ -384,6 +430,9 @@ export function planFill(
             `Required field "${field.label}" has no mapping. A specialist decides what belongs ` +
             `here — it is not something to work out while a form is open.`,
         });
+      } else {
+        const page = pageOf.get(field.fieldRef);
+        if (page !== undefined) unmapped.push({ fieldRef: field.fieldRef, label: field.label, ...page });
       }
       continue;
     }
@@ -510,8 +559,9 @@ export function planFill(
     const resolution = resolveField(profile, fieldKey);
 
     for (const field of fields) {
-      if (companionFields.has(field.fieldRef)) continue;
-      if (mappingFor(mappingSet, field.fieldRef) === undefined && isRequired(field)) {
+      if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
+      if (mappingFor(mappingSet, field.fieldRef) !== undefined) continue;
+      if (isRequired(field)) {
         blockers.push({
           kind: "no_mapping",
           fieldRef: field.fieldRef,
@@ -520,6 +570,10 @@ export function planFill(
             `Required field "${field.label}" has no mapping. A specialist decides what belongs ` +
             `here — it is not something to work out while a form is open.`,
         });
+      } else {
+        // Once per page, not per entry: the gap is the mapping's, and the
+        // mapping is the same for every entry (ADR-0119).
+        unmapped.push({ fieldRef: field.fieldRef, label: field.label, pageRef: page.pageRef, pageTitle: page.title });
       }
     }
 
@@ -619,6 +673,17 @@ export function planFill(
   const hidden = hiddenFields(blueprint, instructions, repeated);
   const shown = (fieldRef: string): boolean => repeated.has(fieldRef) || !hidden.has(fieldRef);
 
+  // ── Blocker 29 (ADR-0119): a list longer than the form's blocks ─────────
+  //
+  // A page that asks "the countries you have lived in" as four fixed blocks
+  // is mapped as entry 0, 1, 2, 3 of a list-valued field, through `part`
+  // rules whose path is the index. A student with five entries would have
+  // the fifth dropped with nobody told. So the blocks a page offers are
+  // counted from the mapping, the list from the profile, and a list longer
+  // than the blocks stops the plan by name — a person decides how the extra
+  // is entered, and the student is told why the fill stopped.
+  blockers.push(...listsExceedingForm(blueprint, mappingSet, profile, repeated));
+
   // ADR-0109: a typeahead instruction names the value; the runner types the
   // text the reviewer recorded for it. `checkUsable` held that every value a
   // mapped typeahead can name is among its entries, so the text is found;
@@ -640,7 +705,56 @@ export function planFill(
     blockers: blockers.filter((blocker) => shown(blocker.fieldRef)),
     hidden: [...hidden.values(), ...itemHidden],
     repeats,
+    unmapped: unmapped.filter((field) => shown(field.fieldRef)),
   };
+}
+
+/** The `list_exceeds_form` blockers of this plan (blocker 29, ADR-0119). See `planFill`. */
+function listsExceedingForm(
+  blueprint: ApplicationBlueprint,
+  mappingSet: UsableMappingSet,
+  profile: ConfirmedProfile,
+  repeated: ReadonlySet<string>,
+): readonly FillBlocker[] {
+  const titleOf = new Map(
+    blueprint.pages.flatMap((page) =>
+      page.sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, page.title] as const)),
+    ),
+  );
+  // fieldKey → the highest index a mapping names, and the first field that names one.
+  const blocksOf = new Map<string, { readonly fieldRef: string; highest: number }>();
+  for (const mapping of mappingSet.mappings) {
+    if (repeated.has(mapping.fieldRef) || mapping.source.kind !== "profile_field") continue;
+    const format = mapping.source.format;
+    if (format.kind !== "part" || !/^\d+$/.test(format.path)) continue;
+    const index = Number(format.path);
+    const held = blocksOf.get(mapping.source.fieldKey);
+    if (held === undefined) blocksOf.set(mapping.source.fieldKey, { fieldRef: mapping.fieldRef, highest: index });
+    else if (index > held.highest) held.highest = index;
+  }
+  const blockers: FillBlocker[] = [];
+  for (const [fieldKey, { fieldRef, highest }] of blocksOf) {
+    const resolution = resolveField(profile, fieldKey as OrdinaryFieldKey);
+    if (isFieldUnavailable(resolution)) continue;
+    const list = unwrapConfirmed(resolution);
+    if (!Array.isArray(list)) continue;
+    const blocks = highest + 1;
+    if (list.length <= blocks) continue;
+    const title = titleOf.get(fieldRef) ?? fieldRef;
+    blockers.push({
+      kind: "list_exceeds_form",
+      fieldRef,
+      label: title,
+      fieldKey: fieldKey as OrdinaryFieldKey,
+      held: list.length,
+      blocks,
+      detail:
+        `The form has room for ${String(blocks)} entries on "${title}" and you gave ${String(list.length)}. ` +
+        `Rather than enter ${String(blocks)} of them and drop the rest with nobody told, the fill stops ` +
+        `here, and a person decides how the extra are entered (ADR-0119, blocker 29).`,
+    });
+  }
+  return blockers;
 }
 
 /** Every field with the conditions that govern it: its own, and its section's. */

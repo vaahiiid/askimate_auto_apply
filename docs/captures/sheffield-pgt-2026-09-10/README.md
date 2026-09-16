@@ -1258,6 +1258,42 @@ file holds it. The page's HTML does. In order:
    your surname and e-mail; input values are already scrubbed. The instruction's words are read
    from the row's markup here, and the question of "no passport" is decided on them.
 
+## Item 4 — the language page: does it save with nothing in it? (what to do, 2026-09-16)
+
+The fact P145 (ADR-0119) needs and only the screen settles: for a student who declares no
+English test, which boxes of `language.do` does Sheffield refuse to save empty? The draft marks
+seventeen of its twenty boxes mandatory from the observed `*`, and for Run A every one of them is
+handed to the student rather than mapped. If the page saves empty, the hand costs nothing. If it
+refuses, the runner's fill of that page cannot be saved and the page becomes the student's as a
+whole. Nothing is typed that is not yours, and nothing is saved that you did not choose to save.
+
+1. `git pull`, then start Chromium with the debugging port and sign in as before.
+2. Open `https://www.sheffield.ac.uk/postgradapplication/language.do` in one tab and no other tab
+   at that URL. Touch nothing.
+3. Press the page's **Save** (or **Save and continue**, whichever the page offers) with every box
+   empty and no radio chosen. Note what the portal does: does it stay on the page with errors, and
+   which boxes do the errors name? Does the summary show the page as complete?
+4. With the tab left as the portal returned it, run:
+
+   ```bash
+   pnpm run inspect:attached sheffield-pgt-2026-09 --cdp http://127.0.0.1:9223 --out <dir> \
+     --as-is "https://www.sheffield.ac.uk/postgradapplication/language.do"
+   ```
+
+   The read records the page as it stands after the refused or accepted save — the error markup
+   and its words, if any, beside the boxes they name.
+5. If the save was refused: choose **No** on the *previousEnglishEducation* radio only, press
+   Save again, and read the page once more the same way into a second `--out` directory. That
+   tells us whether the radio alone lets the page save, or whether the test boxes are demanded
+   regardless.
+6. Say in the message what the portal did at each save and what the errors named. Do not enter a
+   test, a score or a certificate number.
+
+What the read gives: which of the seventeen boxes the portal demands on save for a student with
+no test, so the hand for Run A is known to hold or the page is known to be the student's whole.
+The same read, on the education page with one throwaway entry and `degree` left empty, is the
+second fact; it waits on this one.
+
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
 The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*

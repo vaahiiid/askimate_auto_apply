@@ -217,10 +217,42 @@ describe("the preview", () => {
     expect(text).toMatch(/for: this application — .+, .+/);
   });
 
-  it("says what the student will do themselves", () => {
+  it("says what the student does themselves UNDER the page it belongs to, apart from what was filled (ADR-0119)", () => {
+    // Vahid, 2026-09-16: *"Not a footnote at the bottom, not a count — under
+    // the page it belongs to, in the student's words, saying which boxes they
+    // are filling themselves and that the application is not complete until
+    // they do."*
     const text = renderPreview(previewFor());
-    expect(text).toContain("You will complete these yourself:");
-    expect(text).toContain("I declare that the information given is true and complete");
+    expect(text).not.toContain("You will complete these yourself:");
+    const page = text.indexOf("Course and documents:");
+    expect(page).toBeGreaterThan(-1);
+    const handed = text.indexOf("  You fill in yourself: I declare that the information given is true and complete");
+    expect(handed).toBeGreaterThan(page);
+    expect(text.slice(handed)).toContain("  We leave this box empty for you to fill in. The application is not complete until you do.");
+    expect(text.slice(handed)).toContain("  Nobody is watching this, and nobody will remind you.");
+    // The filled lines of the same page stand above it, under the same heading.
+    expect(text.slice(page, handed)).toContain("Course code: ");
+  });
+
+  it("says which boxes are left empty because nobody mapped them, under their page, apart from the handed ones (ADR-0119)", () => {
+    // `preferred_name` is optional and unmapped: a gap nobody looked at, not a
+    // decision. Said so, and never as an own act.
+    const preview = previewFor();
+    expect(preview.unmapped).toEqual([{ fieldRef: "preferred_name", label: "Preferred name (optional)", page: "Personal details" }]);
+    const text = renderPreview(preview);
+    const page = text.indexOf("Personal details:");
+    const left = text.indexOf("  Left empty: Preferred name (optional)");
+    expect(left).toBeGreaterThan(page);
+    expect(text.slice(left)).toContain("  Nothing you told us goes into this box, and the form does not require it.");
+    expect(text).not.toContain("You fill in yourself: Preferred name");
+  });
+
+  it("binds the yes to which boxes are left unmapped (ADR-0119)", () => {
+    const preview = previewFor();
+    const plan = planFor();
+    const mapped = buildPreview(FIXTURE_BLUEPRINT, { ...plan, unmapped: [] }, DOCUMENTS);
+    if (!mapped.built) expect.unreachable("built");
+    expect(mapped.preview.contentHash).not.toBe(preview.contentHash);
   });
 
   it("refuses to preview an incomplete application", () => {
@@ -976,8 +1008,8 @@ describe("a page filled once per item, in the preview (P96)", () => {
     // and not listed — the condition is answered per item.
     expect(text.slice(second)).toContain("  Grade, as on the certificate: 19.1");
     expect(text.slice(first, second)).not.toContain("Grade, as on the certificate");
-    // Not in the general list at the end: it belongs to its entry.
-    expect(text).not.toMatch(/You will complete these yourself:\n {2}Certificate/);
+    // Not in a general list at the end: it belongs to its entry.
+    expect(text).not.toContain("You will complete these yourself:");
   });
 
   it("binds the yes to what the student attaches themselves, per entry", () => {
@@ -1012,7 +1044,7 @@ describe("a page filled once per item, in the preview (P96)", () => {
     const preview = previewFor(null);
     expect(preview.entries.some((entry) => entry.item !== undefined)).toBe(false);
     expect(preview.repeats).toEqual([{ title: "Your qualifications", fieldKey: "education.prior_qualifications", count: 0 }]);
-    expect(renderPreview(preview)).toContain("Your qualifications: none — the page is left as it is");
+    expect(renderPreview(preview)).toContain("Your qualifications:\n  none — the page is left as it is");
   });
 
   it("binds the yes to the entries' ORDER and their number, not only their text", () => {

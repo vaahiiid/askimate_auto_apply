@@ -171,6 +171,88 @@ describe("planning a fill", () => {
     expect(plan.instructions.map((i) => i.fieldRef)).not.toContain("declaration");
   });
 
+  // ── ADR-0119: a box handed to the student is an own act on a page the runner fills ──
+  it("transports a plan whose handed box is not a document slot — the runner fills the page and leaves the box (ADR-0119)", () => {
+    // Until 2026-09-16 `toStoredPlan` refused this as `has_handoffs`. Vahid's
+    // own-act mechanism: the box is the student's, the rest of the page is ours.
+    const plan = planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE_PROFILE);
+    const stored = toStoredPlan(plan);
+    expect(stored.ok).toBe(true);
+    if (!stored.ok) expect.unreachable("transported");
+    expect(stored.plan.instructions.map((i) => i.fieldRef)).not.toContain("declaration");
+  });
+
+  it("lists an optional box nobody mapped, under its page, apart from the handed ones (ADR-0119)", () => {
+    // `preferred_name` is deliberately unmapped and optional. Not a blocker,
+    // not a handoff: a gap nobody has looked at, and said so.
+    const plan = planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE_PROFILE);
+    expect(plan.unmapped.map((f) => [f.fieldRef, f.pageTitle])).toEqual([["preferred_name", "Personal details"]]);
+    expect(plan.handoffs.map((h) => h.fieldRef)).not.toContain("preferred_name");
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("preferred_name");
+  });
+
+  it("STOPS by name when a list-valued field has more entries than the form has blocks (blocker 29, ADR-0119)", () => {
+    // Two blocks mapped as entry 0 and entry 1 of a list; three entries given.
+    // Vahid, 2026-09-16: *"A history that silently drops a period is the exact
+    // class of error this system exists to refuse."*
+    const blocks: ApplicationBlueprint = {
+      ...FIXTURE_BLUEPRINT,
+      pages: [
+        ...FIXTURE_BLUEPRINT.pages,
+        {
+          pageRef: "page-residence",
+          title: "Where you have lived",
+          sections: [
+            {
+              sectionRef: "residence-blocks",
+              title: "Where you have lived",
+              fields: [0, 1].map((index) => ({
+                fieldRef: `country_${String(index)}`,
+                label: `Country ${String(index + 1)}`,
+                inputType: "text" as const,
+                dataCategory: "ordinary" as const,
+                locators: [{ strategy: "name" as const, value: `country_${String(index)}` }],
+                validations: [],
+              })),
+            },
+          ],
+          requiredDocuments: [],
+          advanceControl: { strategy: "css" as const, value: "button.save" },
+        },
+      ],
+    };
+    const set: MappingSet = {
+      ...FIXTURE_MAPPING_SET,
+      mappings: [
+        ...FIXTURE_MAPPING_SET.mappings,
+        ...[0, 1].map((index) => ({
+          fieldRef: `country_${String(index)}`,
+          source: {
+            kind: "profile_field" as const,
+            fieldKey: "residence.history" as const,
+            format: { kind: "part" as const, path: String(index), absent: "leave_empty" as const, then: { kind: "part" as const, path: "countryCode" } },
+          },
+        })),
+      ],
+    };
+    const check = checkUsable(set, blocks);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const period = (code: string): unknown => ({ countryCode: code, from: { year: 2020, month: 1 }, to: { kind: "current" } });
+
+    const fits = planFill(blocks, check.mappingSet, withConfirmed(COMPLETE_PROFILE, [["residence.history", [period("IR"), period("GB")]]]));
+    expect(fits.blockers.map((b) => b.kind)).not.toContain("list_exceeds_form");
+    expect(fits.instructions.filter((i) => i.fieldRef.startsWith("country_")).map((i) => textOf(i.value))).toEqual(["IR", "GB"]);
+
+    const exceeds = planFill(blocks, check.mappingSet, withConfirmed(COMPLETE_PROFILE, [["residence.history", [period("IR"), period("GB"), period("DE")]]]));
+    const blocker = exceeds.blockers.find((b) => b.kind === "list_exceeds_form");
+    expect(blocker).toBeDefined();
+    if (blocker?.kind !== "list_exceeds_form") expect.unreachable("narrowed");
+    expect([blocker.fieldKey, blocker.held, blocker.blocks, blocker.label]).toEqual(["residence.history", 3, 2, "Where you have lived"]);
+    expect(blocker.detail).toContain("room for 2 entries");
+    expect(blocker.detail).toContain("you gave 3");
+    expect(toStoredPlan(exceeds).ok).toBe(false);
+  });
+
   it("routes the passport to an upload rather than typing anything", () => {
     const plan = planFill(FIXTURE_BLUEPRINT, usable(), COMPLETE_PROFILE);
     expect(plan.uploads.map((u) => u.documentRef)).toEqual(["passport"]);
@@ -905,7 +987,8 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     expect(certificates[0]?.inputType).toBe("file");
     expect(plan.blockers).toEqual([]);
     // The runner still gets the page: a document slot left to the student does
-    // not refuse transport; a handoff on anything else still does.
+    // not refuse transport. Since ADR-0119 neither does any other handed box:
+    // it is the student's own act on a page the runner still fills.
     const stored = toStoredPlan(plan);
     expect(stored.ok).toBe(true);
     const ticked: MappingSet = {
@@ -915,7 +998,10 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
       ),
     };
     const c = checkUsable(ticked, BLUEPRINT);
-    expect(c.usable, "a handoff on a text field of a repeating page is refused").toBe(false);
+    expect(c.usable, "a handed box on a repeating page is the student's own act per entry (ADR-0119)").toBe(true);
+    if (!c.usable) expect.unreachable("usable");
+    const handedYears = planFill(BLUEPRINT, c.mappingSet, WITH_QUALIFICATIONS).handoffs.filter((h) => h.fieldRef === "qualification_year");
+    expect(handedYears.map((h) => [h.item?.index, h.inputType])).toEqual([[0, "text"], [1, "text"]]);
   });
 
   it("answers a condition inside a repeat PER ITEM: shown for the qualification it applies to, hidden for the other (ADR-0104)", () => {
@@ -932,16 +1018,10 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     expect(plan.repeats[0]?.count).toBe(2);
   });
 
-  it("REFUSES a document, a handoff or a condition on a repeating page, and a list that is not one", () => {
-    const handedOff: MappingSet = {
-      ...SET,
-      mappings: SET.mappings.map((m) =>
-        m.fieldRef === "qualification_year" ? { ...m, source: { kind: "student_handoff", reason: "x" } } : m,
-      ),
-    };
-    const c1 = checkUsable(handedOff, BLUEPRINT);
-    expect(c1.usable).toBe(false);
-    if (!c1.usable) expect(c1.refusal.kind).toBe("repeat_mapping_invalid");
+  it("REFUSES a document or a condition off the page on a repeating page, and a list that is not one", () => {
+    // Until ADR-0119 a handoff on a non-document field of a repeating page
+    // was refused here too; it is now the student's own act per entry, tested
+    // above.
 
     // A document is mapped to a held type, not to an item: "the certificate for
     // the second qualification" has no way to be said, so it is refused here.
@@ -1073,10 +1153,10 @@ describe("a slot's companion handed with the slot, and a control pressed to load
       expect(refusing.refusal.kind).toBe("document_companion_invalid");
       expect(refusing.refusal.detail).toContain("not ours to say");
     }
-    // A radio that is nobody's companion: not a licence either.
+    // A radio that is nobody's companion may be handed (ADR-0119): the
+    // student's own act per entry, not a companion's licence.
     const level = checkUsable(remapped("qualification_level", { kind: "student_handoff", reason: "x" }), BLUEPRINT);
-    expect(level.usable).toBe(false);
-    if (!level.usable) expect(level.refusal.kind).toBe("repeat_mapping_invalid");
+    expect(level.usable).toBe(true);
   });
 
   it("REFUSES a handed slot whose companion names no defer value on a page the runner fills — the page waits for the student, or it is not option A", () => {

@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P145 — the cut, and the mechanism that makes it safe
+
+He accepted the cut in full and asked for the reasoning to be kept where the next developer reads it: the goal changed, the list did not, and a week of work was on it out of habit rather than need. That sentence is in the skipped list, in ADR-0119 and here. What reaching Run A needed was not twenty mappings but one mechanism, and it is built: any box the reviewer hands to the student is their own act on a page the runner still fills. His one condition holds in the preview and in its hash. The preview now reads page by page, in the portal's words, and under each page it says what was filled, then which boxes the student fills in themselves and that the application is not complete until they do, in the shape the document slots already used, then which boxes are left empty because nobody mapped them. The footnote at the bottom is gone. The record keeps the three states apart: filled is the hash the yes captured, handed is an own act per box with its page, never mapped is its own record per page, and a test at the yes holds that no box is in both lists. Set 0.3.27 hands nineteen required boxes on the language and education pages, so for the first time no required field on Part 1 is without a mapping or a hand; what the plan lacks is the synthetic profile's values.
+
+Blocker 29 is built, at his word that an hour and a gate is the whole cost: a list longer than the form's blocks stops the fill by name, with the counts in the text, and nothing is typed short. Blocker 30 stays with its two-line note. The review pack is frozen with a line at the top saying so, when and why. Eight tests failed against the old code before any of this passed. What the screen still has to settle is whether Sheffield saves a page with a handed mandatory box empty; the steps for the language page are written for him, and the education page follows it. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P144 — one signature, and the gate that keeps it to one account
 
 He changed the framing: the goal is a system that stands and runs end to end for a developer to inherit, not one in front of a real student, and the two-person mapping review is not worth five hours of two people's time for that. So it is one signature, his, and the three places that refused an approval signed by its author now accept one — on one condition he asked to be enforced rather than noted. An approval signed by its author must name the one account it admits, and the running system holds it to that: the listing shows a one-account target to that student and to nobody else, the offer draws from the same set, the start and the re-application refuse anyone else by name with a code in the contract and words on the page, and every later lookup for a bound case answers as if the entry were gone, so a catalogue swapped under a running case stops it. His sentence is in the code's comments where the check is: my memory of this conversation is not a control.

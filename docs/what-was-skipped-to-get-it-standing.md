@@ -50,12 +50,30 @@ account but his runs against a reviewed set, a second person reads the set again
 signs it — then, and only then, the approval admits any applicant. Blocker 2 in
 [`state-of-the-system.md`](./state-of-the-system.md) stays open with this sentence in it.
 
-## Candidates for the same cut — none cut, his call
+## The cut of 2026-09-16 — accepted by Vahid, all of it
 
 Vahid asked what else on the list is the same shape: work that only matters for serving a real
-student, not for getting this standing. These are the items I see. **None of them is decided.** A
-decision is his only if he typed it in his own words (see `CLAUDE.md`), and until he does each
-stays where it is on the blocker list and the distance list.
+student, not for getting this standing. The open items were sorted into three (the sort is
+reproduced below the table), and he decided, in his words: *"The cut is accepted, all of it. This
+is the most useful thing you have written in a while and I want the reasoning kept where the next
+developer reads it: **the goal changed, the list did not, and a week of work was on it out of habit
+rather than need.**"*
+
+What the cut leaves and what makes each drop safe is in ADR-0119. In one line each:
+
+- **Own-act mechanism, built (ADR-0119).** Nineteen required boxes on the language and education
+  pages are handed to the student for Run A rather than mapped; the preview says so under each
+  page; the record keeps *filled*, *handed* and *never mapped* apart. Mapping them is a precondition
+  of serving a real student, not of Run A.
+- **Blocker 29, done now.** A list longer than the form's blocks stops the fill by name. *"A
+  history that silently drops a period is the exact class of error this system exists to refuse."*
+- **Blocker 30, kept with its two-line note.** *"Half a day, and the case it protects is a student
+  we are not serving yet."*
+- **Cut outright:** confirming the thirteen labels and fifty markers before the run; keeping the
+  review pack current (frozen, with a line at its top); further attached reads of pages already
+  read; decision sheets for second-group items; the set's notes addressed to a reviewer.
+
+The table that follows is the sort as it was put to him, kept so the reasoning is readable.
 
 | Item | Where it lives | Why it is the same shape | What cutting it would leave uncaught |
 |---|---|---|---|

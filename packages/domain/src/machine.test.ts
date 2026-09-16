@@ -118,6 +118,25 @@ describe("fold — deriving a case from its log", () => {
     expect(fold(buildLog([OPENED])).ownActs).toEqual([]);
   });
 
+  it("keeps the boxes nobody mapped apart from the boxes handed to the student, by page, replaced on a re-authorisation (ADR-0119)", () => {
+    // Vahid, 2026-09-16: *"Handed is a decision. Never mapped is a gap nobody
+    // has looked at. If those collapse into one list, a later developer
+    // reading it cannot tell which fields someone thought about."*
+    const derived = fold(
+      buildLog([
+        OPENED,
+        { type: "OwnActRecorded", key: "declaration", label: "Declaration", page: "Course and declaration" },
+        { type: "UnmappedRecorded", page: "Personal details", fields: [{ fieldRef: "preferred_name", label: "Preferred name" }] },
+        { type: "UnmappedRecorded", page: "Contact", fields: [{ fieldRef: "fax", label: "Fax" }] },
+        // The page's record is the latest yes's, not the union of every yes.
+        { type: "UnmappedRecorded", page: "Contact", fields: [] },
+      ]),
+    );
+    expect(derived.ownActs.map((act) => act.key)).toEqual(["declaration"]);
+    expect(derived.unmapped).toEqual([{ page: "Personal details", fieldRef: "preferred_name", label: "Preferred name" }]);
+    expect(fold(buildLog([OPENED])).unmapped).toEqual([]);
+  });
+
   it("derives the opening state", () => {
     const derived = fold(buildLog([OPENED]));
 
