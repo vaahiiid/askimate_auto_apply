@@ -326,6 +326,7 @@ function readField(value: unknown, path: string): BlueprintField {
     };
   });
   const mapsTo = optionalText(source, "mapsTo", path);
+  const frontedBy = optionalText(source, "frontedBy", path);
   // ADR-0102: the reviewer's classification. Optional here — a draft has none
   // — and refused absent by `checkUsable`, not by the parser.
   const dataCategory =
@@ -347,6 +348,7 @@ function readField(value: unknown, path: string): BlueprintField {
     ...(optionsAfter === undefined ? {} : { optionsAfter }),
     ...(typeahead === undefined ? {} : { typeahead }),
     ...(mapsTo === undefined ? {} : { mapsTo }),
+    ...(frontedBy === undefined ? {} : { frontedBy }),
   };
 }
 

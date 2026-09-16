@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P153 — the labels he signs are the labels he reads
+
+He would not sign over labels he could not read correctly, and said why: what he signs is the blueprint, what he reads is the preview generated from it, and if the labels are wrong the two are not the same document. So four fixes before the signature, each from a source and none invented. The nationality page's yes/no radios carry the option labels the third read found, where that read's values equal the draft's; P110's rewrite from the markup had put the field's own name on every option, and fourteen groups get their words back while three off the path keep their name because the read's "No" ran on into help text. The date selects that share a row with a labelled sibling carry the row's question, which is his fourth, the marker shape in the labels: anyone reading "Date of Birth: 2" saw the day as the date. The two hidden selects behind the education boxes are now a blueprint fact, fronted by the boxes that set them, so the plan lists them nowhere, and a mapping to one is refused. And the sentence at the top of every preview is true now: nothing is submitted by any run, so it says what the yes is, the fill saved on the portal and not the sending of it. There was no product path to make a difference explicit against.
+
+Seven labels still carry the field's name, and the README says which and why: no capture holds their question, and a label the file did not carry is not invented. His acceptance of the four unobserved things is on the record in his words, with the four named, so a re-sign for one of them reads as Run A doing what it is for. The ADR on the preview carries the note he asked for: the preview and the page walk had answered "which pages does the run fill" differently since P72, and nothing compared them until a person asked to read the output. Two of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P152 — the entry, and the read that is his
 
 Step 3, with his two conditions met before the JSON. The first was the honest list: nothing in the entry is one I expect to revise, but four things in it have never been driven on the live portal — the grading systems following the institution box, the two Tom Select boxes as fills, the subject search, and the login form's locators — and if any is wrong the fix is a change to the entry, which means signing again. A smaller settled entry does not exist, because all four sit on Part 1's path. The second was the read: not the JSON but what will be typed into which box, page by page. That is now a command, printed from the same builder and renderer the run shows at the yes, and the committed file is its output for the synthetic profile, held equal by a test.

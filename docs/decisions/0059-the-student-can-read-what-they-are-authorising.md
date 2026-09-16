@@ -124,3 +124,25 @@ between them. It had no production callers, so replacing it costs nothing.
 - **One more surface holds student plaintext in a response.** It is authenticated, owner-checked,
   `no-store`, and its body is never logged — the same posture as every other route that carries
   confirmed profile values.
+
+## Addendum — P152, 2026-09-16: the preview and the page walk had disagreed since P72
+
+Found when Vahid asked to read the preview for Run A's entry before signing it. The Run
+Driver's page walk (`#nextPage`) has skipped any page carrying a credential field since P72 —
+a registration page is the Secure Plane's and account creation's, done before `execute` is
+reached — but the preview built by `buildPreview` still listed that page and its boxes, so the
+registration e-mail box read as *"exactly what will be submitted"* on a run that signs in to an
+account the student already holds (ADR-0110) and never visits the page. Two components had
+answered the question *which pages does the run fill* differently for ten phases, and nothing
+compared their answers until a person asked to read the output. Vahid, in his words: *"The
+registration page catch is the read doing its job before anyone read it."* The preview now
+applies the walk's rule (`registrationPages`), with a test on the gated fixture; the credentials
+stay in their own list and are never rendered (ADR-0043).
+
+P153, the same day, at his word: the preview's sentence *"This is exactly what will be
+submitted."* is replaced. No run submits — the capability ladder of ADR-0014 has no `submit`,
+and every run stops at `ready_to_submit` — so the sentence said something false for every run,
+not only Run A. It now reads: *"This is exactly what will be entered into the portal on your
+behalf and saved there. Nothing is submitted by this: the application is not sent to the
+university until a separate submission step, which this does not do."* There was no product
+path to make the difference explicit against; the one sentence is true for both.

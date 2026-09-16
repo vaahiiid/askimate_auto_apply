@@ -4743,7 +4743,7 @@ describeIfDatabase("the decision only the student can make", () => {
       GATED_PORTAL_BLUEPRINT.institutionName,
     );
     expect(preview.presentedText).toContain(
-      "This is exactly what will be submitted.",
+      "This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.",
     );
     expect(preview.presentedText).toContain(`Reference: ${contentHash}`);
 
@@ -4853,7 +4853,7 @@ describeIfDatabase("the decision only the student can make", () => {
 
     // And it is a POINTER, not a copy: no part of the application is in it.
     expect(ready[0]?.content).not.toContain(
-      "This is exactly what will be submitted.",
+      "This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.",
     );
     expect(ready[0]?.content).not.toContain(contentHash);
   }, 300_000);

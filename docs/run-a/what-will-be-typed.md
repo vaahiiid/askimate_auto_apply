@@ -1,17 +1,17 @@
-DRAFT — blueprint 0.2.25 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed. Nothing here is signed.
+DRAFT — blueprint 0.2.26 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed. Nothing here is signed.
 Profile: 18 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
 
 University of Sheffield — MSc Management and International Business, 2027-09
 Portal: www.sheffield.ac.uk
 
-This is exactly what will be submitted.
+This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.
 
 Personal details:
   First / Given Name:*: Niloofar
   Family Name:*: Hosseini
   Date of Birth:*: 2
-  dobMonth: April
-  dobYear: 1999
+  Date of Birth:*: April
+  Date of Birth:*: 1999
   Left empty: Title:; Middle Names:; Preferred/Chosen First Name:(optional); sex; Tick to confirm that you have entered your names and date of birth as they appear in your passport. This is to ensure you are able to get a student visa if you need to apply for one:; HESA Number:; Unique Learner Number:; takenCourseAtShefUni; appliedBefore; nameChanged
   Nothing you told us goes into these boxes, and the form does not require them.
 Contact details:
@@ -27,9 +27,9 @@ Nationality and residence:
   fundingNationality: Iran [Iran, Islamic Republic of]  (sent as "IR:O")
   countryOfBirth: Iran [Iran, Islamic Republic of]  (sent as "IR:O")
   permanentResidence: Iran, Islamic Republic of  (sent as "Iran, Islamic Republic of:O")
-  Have you been living outside of this country during the last 3 years?: livedOutsideCountry  (sent as "no")
+  Have you been living outside of this country during the last 3 years?: No  (sent as "no")
   Please enter your passport number below. This is required in order to comply with UK immigration law.: no passport
-  Have you previously studied in the United Kingdom on a Student Visa?: previousStudentVisa  (sent as "yes")
+  Have you previously studied in the United Kingdom on a Student Visa?: Yes  (sent as "yes")
   What is the highest qualification level you have studied in the United Kingdom?: University Level e.g. Bachelors, Masters  (sent as "UNIVERSITY_LEVEL")
   Please select the qualification you studied:: Bachelors Degree  (sent as "UG DEGREE")
   yearsOnStudentVisa: 3
@@ -80,14 +80,14 @@ Education — one qualification; the applicant adds one entry per qualification:
     We are telling University of Sheffield that your certificate, your transcript, your officialCertTranslation, your officialTranTranslation, your certificateTranslation and your transcriptTranslation are coming later.
     You attach them yourself. The application is not complete until you do.
     Nobody is watching this, and nobody will remind you.
-  Left empty: Select the country the institution is based in:; institutionCode; unlistedInstitution; If your subject is not in the list please enter it here:; unlistedGrade; Unlisted grade description:; Please tick here if this is this the highest qualification level you have taken:
+  Left empty: unlistedInstitution; If your subject is not in the list please enter it here:; unlistedGrade; Unlisted grade description:; Please tick here if this is this the highest qualification level you have taken:
   Nothing you told us goes into these boxes, and the form does not require them.
 Employment history:
   Employment history — entry 1 of 1:
     Start Date:*: October
-    startYear: 2022
+    Start Date:*: 2022
     End Date:: (blank — the portal's "please select" entry)  (sent as "")
-    endYear: (blank — the portal's "please select" entry)  (sent as "")
+    End Date:: (blank — the portal's "please select" entry)  (sent as "")
     Job Title / Position held:*: Business analyst
     Name and address of employer:*: Pars Novin Trading Co.
 Unit 4, 8 Mirdamad Boulevard, Tehran, Iran
@@ -121,4 +121,4 @@ We did not answer these for you:
     Not answered on your behalf. Instead we entered "Prefer not to say".
     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
 
-Reference: sha256:4ac6e01c090032a404fe8aabcda6f248af40c990d09ffb2c9d3aa77121a36042
+Reference: sha256:11354004fbd5621fba033f34d6578d123240843afdbe2173b0bab3cafbb45ea4

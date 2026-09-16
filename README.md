@@ -27,9 +27,9 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P152 — step 3 to Run A: the catalogue entry assembled from the drafts, unsigned; the page-by-page read (`pnpm run catalogue preview`); the preview lists no registration page |
+| **Phase** | P153 — the four label fixes before the signature (draft 0.2.26): the labels he signs are the labels he reads; a fronted control is a blueprint fact; the preview's sentence is true for every run |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,688 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,691 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 121 ADRs · all 121 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 

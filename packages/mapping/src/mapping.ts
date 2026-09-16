@@ -299,6 +299,8 @@ export type MappingRefusal =
   | { readonly kind: "options_after_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A typeahead field that does not say where its entries are, or entries declared on a field that is not one (gap 2). */
   | { readonly kind: "typeahead_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /** A fronted control (P153) that is mapped, or whose `frontedBy` is not another field on the same page. */
+  | { readonly kind: "fronted_field_invalid"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /**
    * A repeating page that could not be filled once per item (gap 3): it repeats over a field
    * that is not a list; a mapping on it draws from anything but that list, or is not a value at
@@ -661,6 +663,34 @@ export function checkUsable(
         kind: "document_companion_invalid",
         fieldRefs: badCompanions,
         detail: `A document slot's companion may not be used as it is: ${companionProblems.join("; ")}.`,
+      },
+    };
+  }
+
+  // ── P153: a fronted control is set by another on its page, and mapped by nothing ──
+  const frontedProblems: string[] = [];
+  const frontedRefs: string[] = [];
+  for (const page of blueprint.pages) {
+    const onPage = new Set(page.sections.flatMap((section) => section.fields.map((field) => field.fieldRef)));
+    for (const field of page.sections.flatMap((section) => section.fields)) {
+      if (field.frontedBy === undefined) continue;
+      if (field.frontedBy === field.fieldRef || !onPage.has(field.frontedBy)) {
+        frontedRefs.push(field.fieldRef);
+        frontedProblems.push(`${field.fieldRef} says it is set by "${field.frontedBy}", which is not another field on its page`);
+      }
+      if (mappingFor(mappingSet, field.fieldRef) !== undefined) {
+        frontedRefs.push(field.fieldRef);
+        frontedProblems.push(`${field.fieldRef} is mapped, but it is set by "${field.frontedBy}" — the control that fronts it is what is mapped`);
+      }
+    }
+  }
+  if (frontedProblems.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "fronted_field_invalid",
+        fieldRefs: frontedRefs,
+        detail: `${frontedProblems.join("; ")}. A fronted control is set by another field on the same page and is mapped by nothing (P153).`,
       },
     };
   }

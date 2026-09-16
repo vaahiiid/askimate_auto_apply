@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.25",
+  "version": "0.2.26",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -549,7 +549,7 @@
             },
             {
               "fieldRef": "dobMonth",
-              "label": "dobMonth",
+              "label": "Date of Birth:*",
               "inputType": "select",
               "dataCategory": "ordinary",
               "locators": [
@@ -616,7 +616,7 @@
             },
             {
               "fieldRef": "dobYear",
-              "label": "dobYear",
+              "label": "Date of Birth:*",
               "inputType": "select",
               "dataCategory": "ordinary",
               "locators": [
@@ -9506,11 +9506,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "livedOutsideCountry"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "livedOutsideCountry"
+                  "label": "No"
                 }
               ]
             }
@@ -9541,11 +9541,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "alwaysUKResident"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "alwaysUKResident"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -10323,11 +10323,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "alwaysEUResident"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "alwaysEUResident"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -18819,11 +18819,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "refugeeStatus"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "refugeeStatus"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -18866,11 +18866,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "migrantWorker"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "migrantWorker"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -18913,11 +18913,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "spouseOfUKCitizen"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "spouseOfUKCitizen"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -19160,11 +19160,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "euPassport"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "euPassport"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -19232,11 +19232,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "spouseOfEUCitizen"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "spouseOfEUCitizen"
+                  "label": "No"
                 }
               ],
               "visibleWhen": {
@@ -19768,11 +19768,11 @@
               "options": [
                 {
                   "value": "yes",
-                  "label": "previousStudentVisa"
+                  "label": "Yes"
                 },
                 {
                   "value": "no",
-                  "label": "previousStudentVisa"
+                  "label": "No"
                 }
               ]
             }
@@ -20783,11 +20783,11 @@
               "options": [
                 {
                   "value": "Uploaded",
-                  "label": "passportScanStatus"
+                  "label": "I will upload my passport scan now"
                 },
                 {
                   "value": "UploadLater",
-                  "label": "passportScanStatus"
+                  "label": "I will upload my passport scan later"
                 },
                 {
                   "value": "NotSending",
@@ -20830,15 +20830,15 @@
               "options": [
                 {
                   "value": "Uploaded",
-                  "label": "visaScanStatus"
+                  "label": "I will upload my visa scan now"
                 },
                 {
                   "value": "UploadLater",
-                  "label": "visaScanStatus"
+                  "label": "I will upload my visa scan later"
                 },
                 {
                   "value": "NotSending",
-                  "label": "visaScanStatus"
+                  "label": "I will not be providing my visa scan"
                 }
               ]
             },
@@ -20877,11 +20877,11 @@
               "options": [
                 {
                   "value": "Uploaded",
-                  "label": "utilityBillScanStatus"
+                  "label": "I will upload my utility bill scan now"
                 },
                 {
                   "value": "UploadLater",
-                  "label": "utilityBillScanStatus"
+                  "label": "I will upload my utility bill scan later"
                 },
                 {
                   "value": "NotSending",
@@ -20919,15 +20919,15 @@
               "options": [
                 {
                   "value": "Uploaded",
-                  "label": "proofOfUKSpouseStatus"
+                  "label": "I will upload a document showing I am the spouse of a UK citizen now"
                 },
                 {
                   "value": "UploadLater",
-                  "label": "proofOfUKSpouseStatus"
+                  "label": "I will upload a document showing I am the spouse of a UK citizen later"
                 },
                 {
                   "value": "NotSending",
-                  "label": "proofOfUKSpouseStatus"
+                  "label": "I will not provide or do not have a document showing I am the spouse of a UK cit"
                 }
               ]
             },
@@ -20966,15 +20966,15 @@
               "options": [
                 {
                   "value": "Uploaded",
-                  "label": "refugeeProofStatus"
+                  "label": "I will upload a document showing my refugee status now"
                 },
                 {
                   "value": "UploadLater",
-                  "label": "refugeeProofStatus"
+                  "label": "I will upload a document showing my refugee status later"
                 },
                 {
                   "value": "NotSending",
-                  "label": "refugeeProofStatus"
+                  "label": "I will not provide or do not have a document showing my refugee status"
                 }
               ]
             },
@@ -22253,6 +22253,7 @@
                 }
               ],
               "validations": [],
+              "frontedBy": "institutionCountry-ts-control",
               "options": [
                 {
                   "value": "",
@@ -24337,6 +24338,7 @@
                 }
               ],
               "validations": [],
+              "frontedBy": "institution-ts-control",
               "options": [
                 {
                   "value": "",
@@ -26970,7 +26972,7 @@
             },
             {
               "fieldRef": "startYear",
-              "label": "startYear",
+              "label": "Start Date:*",
               "inputType": "select",
               "dataCategory": "ordinary",
               "locators": [
@@ -27348,7 +27350,7 @@
             },
             {
               "fieldRef": "endYear",
-              "label": "endYear",
+              "label": "End Date:",
               "inputType": "select",
               "dataCategory": "ordinary",
               "locators": [
@@ -28824,6 +28826,7 @@
     ]
   },
   "$comment": [
+    "0.2.26 (2026-09-16, P153): four label fixes before Vahid signs, at his word ('If the labels in the blueprint are wrong, then the thing I read and the thing I signed are not the same thing'). (1) The nationality page's radios carry the option labels the third read found (2026-09-14) — Yes / No, and the document-status sentences — where the third read's values equal this draft's; P110's rewrite of the values from the markup had set every option label to the field's own name. Restored: livedOutsideCountry, alwaysUKResident, alwaysEUResident, refugeeStatus, migrantWorker, spouseOfUKCitizen, euPassport, spouseOfEUCitizen, previousStudentVisa, passportScanStatus, visaScanStatus, utilityBillScanStatus, proofOfUKSpouseStatus, refugeeProofStatus. Not restored, because the third read's 'no' label ran on into the row's help text: britishPassport, indefinateVisa, livingInUK — they keep the field's name and are off a resident abroad's path. (2) dobMonth and dobYear carry 'Date of Birth:*', startYear 'Start Date:*' and endYear 'End Date:' — the row's question, which the read attached to the row's first control (dobDay, startMonth, endMonth); the same one-row-several-controls shape P131 recorded for the markers, now in the labels. No labelSource is claimed for the carried ones: the row was read, the sibling was not. (3) institutionCountry and institutionCode carry frontedBy — the Tom Select boxes that set them — so the plan lists them nowhere; they were read as 'left empty' when the boxes fill them. The thirteen unread labels of the five-pages read (fundingNationality, countryOfBirth, permanentResidence, yearsOnStudentVisa, monthsOnStudentVisa, applicationLocation, …) and 'grade' still carry the field's name: no capture holds their question, and a label the file did not carry is not invented.",
     "0.2.25 (2026-09-16, P150): the country box (institutionCountry-ts-control) carries the row's question as its label — 'Select the country the institution is based in:' — the text the third read found on the row and attached to the hidden <select id=\"institutionCountry\"> the box fronts (0.2.18, P126). The box and the select share one row; the preview shows the box, and a student reading 'institutionCountry-ts-control: United Kingdom' at the yes would be reading a DOM id. No labelSource is claimed: the read labelled the select, not the box.",
     "0.2.24 (2026-09-16, P149): the country box (institutionCountry-ts-control) records its 255 entries — the captured <select id=\"institutionCountry\">'s options without its blank, value for value and label for label, which is what P101 confirmed the dropdown holds from Vahid's copied markup (the count agreed) — so that a mapping to it can name a value under ADR-0109. gradingSystemId's options now follow the institution BOX (institution-ts-control), the control the runner fills, which sets the hidden select the lookup reads (getGradingSystemsForCountry.do?institutionCode=…, the dependencies read of P85): the same shape P102 gave the institution box after the country box. The hidden institutionCode still follows the hidden institutionCountry; neither is mapped. This is inferred from two reads, not observed as a fill — flagged for Run A.",
     "0.2.23 (2026-09-16, P147, ADR-0119): the language page's one section carries optional.formSays — Sheffield's own words from summary.do after Vahid saved the page empty: no error, and 'If you do not have an English language qualification then you do not need to complete this section.' The seventeen observed markers on the page stay (the star was seen; erase nothing): a marker inside a section the portal says may be skipped is not a box the page will not save without, and the plan reads it so. Vahid: 'that is a property of the section, not something to fix by erasing marks.'"

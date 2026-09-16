@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.149.0] — 2026-09-16
+
+**P153 — the four label fixes before the signature (draft 0.2.26); a fronted control is a
+blueprint fact; the preview's sentence is true for every run.**
+
+### Added
+
+- `BlueprintField.frontedBy` — a control set by another on its page; parsed, guarded by
+  `checkUsable` (`fronted_field_invalid`), listed nowhere by the plan.
+- ADR-0059 addendum: the preview and the page walk disagreed from P72 to P152.
+
+### Changed
+
+- Sheffield draft 0.2.26: fourteen radio groups' option labels restored from the third read;
+  the date selects carry the row's question; the two hidden education selects are fronted.
+  The Run A entry re-assembled from it; the read regenerated.
+- `packages/preparation`: *"This is exactly what will be entered into the portal on your behalf
+  and saved there. Nothing is submitted by this…"* replaces *"exactly what will be submitted"*.
+- `docs/run-a/README.md`: Vahid's acceptance of the four unobserved things, in his words.
+
+---
+
 ## [0.148.0] — 2026-09-16
 
 **P152 — step 3 to Run A: the catalogue entry assembled from the drafts, unsigned; the

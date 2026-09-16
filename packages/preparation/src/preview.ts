@@ -702,7 +702,14 @@ export function renderPreview(preview: SubmissionPreview): string {
     // it — the whole reason it is inside the yes rather than in configuration.
     `Portal: ${preview.portalHost}`,
     "",
-    "This is exactly what will be submitted.",
+    // P153, Vahid: *"change 'This is exactly what will be submitted' for a run
+    // that submits nothing… If the sentence is shared with the real product
+    // path, make the difference explicit rather than softening it for both."*
+    // There is no difference to make explicit: NO run submits — the capability
+    // ladder of ADR-0014 has no `submit`, and every run stops at
+    // ready_to_submit (ADR-0059). So the sentence says what the yes is: the
+    // fill, saved on the portal, and not the sending of it.
+    "This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.",
     "",
   ];
 

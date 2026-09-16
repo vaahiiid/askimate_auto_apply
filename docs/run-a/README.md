@@ -111,13 +111,23 @@ words (ADR-0059), from the same builder and renderer the run shows at the yes; t
 file is that output for the synthetic profile, and the test holds that they are the same. A
 draft entry is planned as if reviewed and the first line says so.
 
-Three things in the read are display, not substance, and each is a blueprint label, so fixing
-one changes the entry: the yes/no radios on the nationality page show their own name beside the
-value sent (their option labels were never read; the values were, P110); the two hidden selects
-behind the education page's country and institution boxes are listed under *Left empty* although
-the boxes set them; and a few selects carry their DOM id as a label (`dobMonth`, `startYear`).
-And one sentence is the product's, not Run A's: *"This is exactly what will be submitted"* —
-Run A ends at the end of Part 1 with nothing submitted (distance item 10).
+**Fixed before the signature, at his word (P153, draft 0.2.26):** *"If the labels in the
+blueprint are wrong, then the thing I read and the thing I signed are not the same thing."* The
+nationality page's radios carry the option labels the third read found (*Yes* / *No*, and the
+document-status sentences) where that read's values equal the draft's; the date selects that
+share a row with a labelled sibling carry the row's question (*Date of Birth:\** on the day,
+month and year; *Start Date:\** and *End Date:* on both boxes), the same one-row-several-controls
+shape P131 recorded for the markers; the two hidden selects behind the education boxes are
+`frontedBy` the boxes that set them and appear nowhere in the read; and *"This is exactly what
+will be submitted"* is gone from every preview, because no run submits (ADR-0014, ADR-0059
+addendum). **Still carrying the field's own name, and why:** `fundingNationality`,
+`countryOfBirth`, `permanentResidence`, `yearsOnStudentVisa`, `monthsOnStudentVisa`,
+`applicationLocation` on the nationality page, and `grade` on the education page — no capture
+holds their question (the five-pages read could not reach it positionally; P126), and a label the
+file did not carry is not invented. Three radios off a resident abroad's path keep their name too,
+because the third read's *No* label ran on into the row's help text (`britishPassport`,
+`indefinateVisa`, `livingInUK`). Reading those seven questions off the screen is a five-minute
+sitting if he wants them in before signing; the values sent are right either way.
 
 ## What could still change after a signature
 
@@ -137,3 +147,11 @@ change to the entry, which means signing again:
 A smaller entry that is settled is not available: all four are on Part 1's path, and the
 education page is one of its pages. Everything else — every value, the date maps, employment,
 the refusals, the language section left as optional — is settled and stays as it is.
+
+**Told and accepted — Vahid, 2026-09-16, in his words:** *"On the four unobserved things:
+understood, and I accept that a smaller settled entry does not exist. All four are on Part 1's
+path, so signing means accepting that the first live proof of them is Run A itself. That is what
+Run A is for. Record that I was told and accepted it, with the four named, so a later reading does
+not treat a re-sign as a failure of the review."* The four, named: the grading systems following
+the institution box; the two Tom Select boxes as fills; the subject search; the login form's
+locators. A re-sign for any of them is Run A doing what it is for, not a failure of the review.

@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.25");
+    expect(blueprint.version).toBe("0.2.26");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -145,6 +145,10 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The hidden select behind the typeahead holds the chosen entry's value —
     // the same value the recorded typeahead entry carries (P118, ADR-0109).
     expect(values("institutionCode")).toEqual(["", "SHEFFIELD"]);
+    // P153 (0.2.26): the two hidden selects are FRONTED by the boxes that set
+    // them, so the plan lists them nowhere — not typed, not left empty.
+    expect(field("institutionCountry")?.frontedBy).toBe("institutionCountry-ts-control");
+    expect(field("institutionCode")?.frontedBy).toBe("institution-ts-control");
     expect(field("institution-ts-control")?.options?.find((o) => o.label === "University of Sheffield")?.value).toBe("SHEFFIELD");
     expect(field("institutionCode")?.optionsAfter?.fieldRef).toBe("institutionCountry");
     // Sheffield's four grading systems, by numeric id, and the escape. Since
@@ -233,6 +237,8 @@ describe("the Sheffield drafts, under the real checks", () => {
     }
     const onPage7 = new Set(blueprint.pages.find((p) => p.pageRef === "page7")?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? []);
     expect(plan.blockers.filter((b) => onPage7.has(b.fieldRef))).toEqual([]);
+    expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCountry");
+    expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCode");
     // What the maps do not name is a loud blocker on that box, never an
     // approximation: another institution (the eleven entries are Sheffield's
     // search), a Master's (system 8's grades were never read), an Iranian
@@ -382,7 +388,7 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.25");
+    expect(blueprint.version).toBe("0.2.26");
     expect(mappingSet.version).toBe("0.3.31");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
@@ -712,6 +718,19 @@ describe("the Sheffield drafts, under the real checks", () => {
     // would be wrong on one of them."*
     expect(options.get("sex")).toEqual(["Female", "Male", "Other"]);
     for (const group of ["takenCourseAtShefUni", "appliedBefore", "nameChanged"]) expect(options.get(group), group).toEqual(["Yes", "No"]);
+    // P153 (0.2.26): the nationality page's yes/no radios carry the option
+    // labels the third read found ("Yes" / "No"), which P110's rewrite of the
+    // values had replaced with the field's own name; the four date selects
+    // that share a row with a labelled sibling carry the row's question.
+    const all = blueprint.pages.flatMap((p) => p.sections.flatMap((s) => s.fields));
+    const labelsOf = (ref: string) => all.find((f) => f.fieldRef === ref)?.options?.map((o) => o.label);
+    expect(labelsOf("livedOutsideCountry")).toEqual(["Yes", "No"]);
+    expect(labelsOf("previousStudentVisa")).toEqual(["Yes", "No"]);
+    expect(labelsOf("passportScanStatus")?.[1]).toBe("I will upload my passport scan later");
+    for (const [ref, label] of [["dobMonth", "Date of Birth:*"], ["dobYear", "Date of Birth:*"], ["startYear", "Start Date:*"], ["endYear", "End Date:"]] as const) {
+      expect(all.find((f) => f.fieldRef === ref)?.label, ref).toBe(label);
+      expect(all.find((f) => f.fieldRef === ref)?.labelSource, `${ref}: the row's text, carried, not read`).toBeUndefined();
+    }
     for (const group of [
       "livedOutsideCountry", "alwaysUKResident", "alwaysEUResident", "britishPassport", "indefinateVisa", "refugeeStatus",
       "migrantWorker", "spouseOfUKCitizen", "euPassport", "spouseOfEUCitizen", "livingInUK", "previousStudentVisa",

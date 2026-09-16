@@ -249,7 +249,14 @@ describe("the catalogue entry for Run A (P152)", () => {
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("DRAFT — blueprint 0.2.25 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed.");
+    expect(output).toContain("DRAFT — blueprint 0.2.26 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed.");
+    // P153: the read's four label defects gone — the hidden selects are not
+    // "left empty", the radios read Yes/No, the date selects carry the row's question.
+    expect(output).not.toContain("institutionCode");
+    expect(output).toContain("Have you previously studied in the United Kingdom on a Student Visa?: Yes  (sent as \"yes\")");
+    expect(output).toContain("Date of Birth:*: April");
+    expect(output).not.toContain("dobMonth");
+    expect(output).not.toContain("exactly what will be submitted");
     expect(output).not.toContain("Sign in or start an application");
     expect(output).toContain("Search for an institution...: University of Sheffield");
     expect(output).toContain("Please select the qualification you studied:: Bachelors Degree");

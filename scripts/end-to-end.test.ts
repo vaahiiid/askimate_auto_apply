@@ -66,7 +66,7 @@ describe("the end-to-end run, executed for real", () => {
     expect(stdout).toContain("Student   2 April 1999");
 
     // The student saw exactly what would be sent, in words they can check.
-    expect(stdout).toContain("This is exactly what will be submitted.");
+    expect(stdout).toContain("This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.");
     expect(stdout).toContain("Date of birth: 02/04/1999");
     expect(stdout).toContain('Nationality: Iran  (sent as "IR")');
 

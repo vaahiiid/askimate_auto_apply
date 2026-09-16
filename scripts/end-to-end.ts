@@ -11,7 +11,7 @@
  *   4. INTERVIEWS the student in conversation            (scripted replies)
  *   5. PLANS the fill, before any browser is opened
  *   6. VALIDATES it against the portal's own recorded rules
- *   7. PREVIEWS exactly what will be submitted, and hashes it
+ *   7. PREVIEWS exactly what will be entered and saved on the portal, and hashes it
  *   8. CAPTURES the student's authorisation
  *   9. FILLS the portal
  *  10. STOPS

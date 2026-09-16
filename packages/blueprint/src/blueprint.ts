@@ -157,6 +157,17 @@ export interface BlueprintField {
   /** Only present when this condition holds. */
   readonly visibleWhen?: FieldCondition;
   /**
+   * This control is SET BY another on the same page — a hidden `<select>`
+   * behind a typeahead box, which the box writes when an entry is chosen
+   * (P153). Nothing maps a fronted control (`checkUsable` refuses it: the box
+   * is what is mapped) and the plan lists it nowhere — not typed, not a gap,
+   * not "left empty". Found reading Run A's preview for the signature, where
+   * the two hidden selects behind Sheffield's country and institution boxes
+   * read as boxes nobody filled. Recorded by the reviewer from the markup;
+   * discovery does not infer it.
+   */
+  readonly frontedBy?: string;
+  /**
    * This field's options are loaded by the portal AFTER `fieldRef` is set
    * (ADR-0103, gap 1) — a grading system's list after the institution, a
    * passport's country after the nationality. Fill order follows the

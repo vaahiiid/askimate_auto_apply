@@ -1525,3 +1525,79 @@ describe("a typeahead mapping names the value the form submits (P118, ADR-0109)"
     if (!check.usable) expect(check.refusal.kind).toBe("typeahead_invalid");
   });
 });
+
+describe("a control fronted by another is neither mapped nor left empty (P153)", () => {
+  // Found reading Run A's preview for the signature: the two hidden selects
+  // behind Sheffield's country and institution boxes were listed as "left
+  // empty" — "Nothing you told us goes into these boxes" — when the boxes set
+  // them. A blueprint fact says so now: `frontedBy` names the control that
+  // sets this one. The plan lists a fronted field nowhere; a mapping to it is
+  // refused (the box is what is mapped); and the fronting control must be a
+  // field on the same page.
+  const BLUEPRINT = GATED_PORTAL_BLUEPRINT;
+  const SET = GATED_PORTAL_MAPPING_SET;
+  const withHidden = (frontedBy: string): ApplicationBlueprint => ({
+    ...BLUEPRINT,
+    pages: BLUEPRINT.pages.map((page) =>
+      page.sections.some((section) => section.fields.some((field) => field.fieldRef === "course"))
+        ? {
+            ...page,
+            sections: page.sections.map((section, index) =>
+              index === 0
+                ? {
+                    ...section,
+                    fields: [
+                      ...section.fields,
+                      {
+                        fieldRef: "course_code",
+                        label: "course_code",
+                        inputType: "select" as const,
+                        dataCategory: "ordinary" as const,
+                        locators: [{ strategy: "name" as const, value: "course_code" }],
+                        validations: [],
+                        options: [{ value: "", label: "" }, { value: "PG-EX-2026", label: "PG-EX-2026" }],
+                        frontedBy,
+                      },
+                    ],
+                  }
+                : section,
+            ),
+          }
+        : page,
+    ),
+  });
+
+  it("plans the page without the hidden select: not typed, not a blocker, not left empty", () => {
+    const check = checkUsable(SET, withHidden("course"));
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const plan = planFill(withHidden("course"), check.mappingSet, COMPLETE_PROFILE);
+    expect(plan.instructions.some((i) => i.fieldRef === "course_code")).toBe(false);
+    expect(plan.blockers.some((b) => b.fieldRef === "course_code")).toBe(false);
+    expect(plan.unmapped.some((u) => u.fieldRef === "course_code")).toBe(false);
+    expect(plan.instructions.some((i) => i.fieldRef === "course"), "the box is what is filled").toBe(true);
+  });
+
+  it("REFUSES a mapping to a fronted control — the box that fronts it is what is mapped", () => {
+    const mapped: MappingSet = {
+      ...SET,
+      mappings: [
+        ...SET.mappings,
+        { fieldRef: "course_code", source: { kind: "constant", value: "PG-EX-2026", classification: "application_metadata", rationale: "x" } },
+      ],
+    };
+    const check = checkUsable(mapped, withHidden("course"));
+    expect(check.usable).toBe(false);
+    if (!check.usable) {
+      expect(check.refusal.kind).toBe("fronted_field_invalid");
+      expect(check.refusal.detail).toContain("course_code");
+    }
+  });
+
+  it("REFUSES a frontedBy that names a field not on the same page, or itself", () => {
+    for (const bad of ["account_email", "course_code", "nowhere"]) {
+      const check = checkUsable(SET, withHidden(bad));
+      expect(check.usable, bad).toBe(false);
+      if (!check.usable) expect(check.refusal.kind, bad).toBe("fronted_field_invalid");
+    }
+  });
+});

@@ -247,6 +247,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P153: the four label fixes he asked for before signing (draft 0.2.26), the entry
+  re-assembled, the read regenerated; his acceptance of the four unobserved things recorded with
+  the four named. Item 6 waits on his read of the regenerated file and his three acts. Two open
+  of ten.
 - 2026-09-16, P152: step 3 — the entry assembled from the drafts and pinned to them; the read as
   a command and a file; the preview's registration-page defect found by the read and fixed. Item 6
   waits on his read and his three acts. Two open of ten.

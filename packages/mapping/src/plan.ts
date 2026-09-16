@@ -407,6 +407,8 @@ export function planFill(
 
   for (const field of allFields(blueprint)) {
     if (repeated.has(field.fieldRef)) continue;
+    // P153: a control set by another on its page is neither typed nor a gap.
+    if (field.frontedBy !== undefined) continue;
     const mapping = mappingFor(mappingSet, field.fieldRef);
 
     if (mapping === undefined) {
@@ -582,6 +584,7 @@ export function planFill(
     );
     for (const field of fields) {
       if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
+      if (field.frontedBy !== undefined) continue;
       if (mappingFor(mappingSet, field.fieldRef) !== undefined) continue;
       if (requiredToSave(field)) {
         if (governedRefs.has(field.fieldRef)) continue;
@@ -679,7 +682,7 @@ export function planFill(
       // condition, is the mapping's gap after all — said once, not per entry.
       for (const field of fields) {
         if (!governedRefs.has(field.fieldRef) || !shownHere(field.fieldRef)) continue;
-        if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
+        if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef) || field.frontedBy !== undefined) continue;
         if (mappingFor(mappingSet, field.fieldRef) !== undefined || !requiredToSave(field)) continue;
         if (blockers.some((blocker) => blocker.kind === "no_mapping" && blocker.fieldRef === field.fieldRef)) continue;
         blockers.push({

@@ -914,7 +914,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     // What the student actually reads: this university, this course, and the
     // values that will be typed — ending in the reference their approval names.
     expect(preview.presentedText).toContain("Gated University");
-    expect(preview.presentedText).toContain("This is exactly what will be submitted.");
+    expect(preview.presentedText).toContain("This is exactly what will be entered into the portal on your behalf and saved there. Nothing is submitted by this: the application is not sent to the university until a separate submission step, which this does not do.");
     expect(preview.presentedText).toContain(`Reference: ${preview.contentHash}`);
     // ADR-0104, in Vahid's words: under each qualification the student can
     // see which documents they attach themselves and which we filled.
