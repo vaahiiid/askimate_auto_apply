@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.146.0] — 2026-09-16
+
+**P150 — step 2 to Run A: the synthetic profile, shown before it seeds; the seed command; the
+UK-study qualification select mapped for that one profile; the runbook's identity paragraph
+corrected.**
+
+### Added
+
+- `docs/run-a/synthetic-profile.json` and `docs/run-a/README.md`: eighteen values in the
+  store's stored shape, who the synthetic person is, what the run types on his account.
+- `scripts/profile-seed.ts` (`pnpm run profile:seed`): prints the values and writes nothing
+  by default; `--write --subject <label>` creates the `students` row, writes through the real
+  store with a seeded provenance, prints the `students.id` UUID, refuses a non-empty profile.
+- `scripts/run-a-profile.test.ts`: the fixture names exactly the fields the set reads; plans
+  with nothing blocking on Part 1; the command prints without writing; the seed round-trips
+  through a real migrated database and refuses twice.
+
+### Changed
+
+- Sheffield set 0.3.31: `highestQualification(UNIVERSITY_LEVEL)` mapped for the synthetic
+  profile's one qualification (`BSc Business Management` → `UG DEGREE`), nothing else named.
+- Sheffield draft 0.2.25: the country box carries the row's question as its label.
+- `docs/runbook-local-stack.md`: a dev-session subject must be a `students.id` UUID.
+
+---
+
 ## [0.145.0] — 2026-09-16
 
 **P149 — the education chain mapped for the synthetic profile's one Sheffield qualification

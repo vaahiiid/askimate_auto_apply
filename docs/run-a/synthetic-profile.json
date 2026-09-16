@@ -1,0 +1,201 @@
+{
+  "$comment": [
+    "The synthetic profile for Run A — DATA, not a person. Eighteen values in the profile store's stored shape",
+    "(dates as {\"$date\": …}), one entry per registry field the Sheffield mapping set (0.3.31) reads. Shown by",
+    "`pnpm run profile:seed docs/run-a/synthetic-profile.json` and written only with --write --subject <label>",
+    "(scripts/profile-seed.ts, P150). Vahid, 2026-09-16: 'the synthetic profile: I want to see its values before",
+    "it seeds.'",
+    "",
+    "Who this is: a synthetic Iranian national, born 1999, resident in Tehran, holding no passport, with one",
+    "qualification — a BSc in Business Management from the University of Sheffield, 2019–2022, 2:1 — which is a",
+    "UK study at university level on a student visa (three years, no current visa), back in Iran since August",
+    "2022 and in one job there since October 2022. Every value is invented; none belongs to anyone. The",
+    "qualification is Sheffield's because only Sheffield's dependent lists were read (P132), at Vahid's word:",
+    "'A Sheffield degree for the synthetic profile'. The e-mail is example.com: the personal page types it into",
+    "the application on his own account, twice, so it is his to change before seeding if he wants his own there.",
+    "",
+    "NOT held, and why: residence.uk_entry_date (not in the UK now, and the page hides the entry date for a",
+    "resident abroad); immigration.uk_study.currentVisaExpiry (no current visa — the three expiry boxes are",
+    "typed empty, as the row's own words allow); identity.sex, contact.mobile and every other registry field",
+    "no Sheffield mapping reads. The plan for this profile against the drafts has no blockers on Part 1;",
+    "scripts/run-a-profile.test.ts holds that."
+  ],
+  "entries": [
+    {
+      "key": "identity.given_name",
+      "value": "Niloofar"
+    },
+    {
+      "key": "identity.family_name",
+      "value": "Hosseini"
+    },
+    {
+      "key": "identity.date_of_birth",
+      "value": {
+        "$date": "1999-04-02T00:00:00.000Z"
+      }
+    },
+    {
+      "key": "identity.nationality",
+      "value": "IR"
+    },
+    {
+      "key": "identity.country_of_birth",
+      "value": "IR"
+    },
+    {
+      "key": "identity.passport",
+      "value": {
+        "kind": "none"
+      }
+    },
+    {
+      "key": "contact.email",
+      "value": "niloofar.hosseini@example.com"
+    },
+    {
+      "key": "contact.address",
+      "value": {
+        "line1": "12 Valiasr Street",
+        "city": "Tehran",
+        "postalCode": "1966733411",
+        "countryCode": "IR"
+      }
+    },
+    {
+      "key": "education.prior_qualifications",
+      "value": [
+        {
+          "level": "Bachelor's degree",
+          "subject": "Business Management",
+          "institution": "University of Sheffield",
+          "countryCode": "GB",
+          "start": {
+            "year": 2019,
+            "month": 9
+          },
+          "end": {
+            "kind": "completed",
+            "date": {
+              "year": 2022,
+              "month": 6
+            }
+          },
+          "award": {
+            "year": 2022,
+            "month": 7
+          },
+          "grade": "2:1",
+          "gradeScale": "uk_honours"
+        }
+      ]
+    },
+    {
+      "key": "employment.history",
+      "value": [
+        {
+          "employer": "Pars Novin Trading Co.",
+          "employerAddress": "Unit 4, 8 Mirdamad Boulevard, Tehran, Iran",
+          "position": "Business analyst",
+          "startDate": {
+            "year": 2022,
+            "month": 10
+          },
+          "end": {
+            "kind": "current"
+          },
+          "basis": "full_time",
+          "duties": "Prepares monthly sales analyses, maintains the customer database and supports the commercial team's tenders."
+        }
+      ]
+    },
+    {
+      "key": "residence.country",
+      "value": "IR"
+    },
+    {
+      "key": "residence.in_uk_now",
+      "value": false
+    },
+    {
+      "key": "residence.history",
+      "value": [
+        {
+          "countryCode": "IR",
+          "from": {
+            "year": 2015,
+            "month": 9
+          },
+          "to": {
+            "kind": "ended",
+            "date": {
+              "year": 2019,
+              "month": 8
+            }
+          }
+        },
+        {
+          "countryCode": "GB",
+          "from": {
+            "year": 2019,
+            "month": 9
+          },
+          "to": {
+            "kind": "ended",
+            "date": {
+              "year": 2022,
+              "month": 7
+            }
+          }
+        },
+        {
+          "countryCode": "IR",
+          "from": {
+            "year": 2022,
+            "month": 8
+          },
+          "to": {
+            "kind": "current"
+          }
+        }
+      ]
+    },
+    {
+      "key": "residence.always_in_residence_country",
+      "value": false
+    },
+    {
+      "key": "residence.always_in_eu",
+      "value": false
+    },
+    {
+      "key": "residence.outside_residence_country_last_three_years",
+      "value": false
+    },
+    {
+      "key": "immigration.uk_status",
+      "value": {
+        "british_passport": false,
+        "indefinite_leave": false,
+        "refugee_status": false,
+        "migrant_worker": false,
+        "spouse_of_uk_citizen": false,
+        "eu_passport": false,
+        "spouse_of_eu_citizen": false
+      }
+    },
+    {
+      "key": "immigration.uk_study",
+      "value": {
+        "kind": "studied",
+        "onStudentVisa": true,
+        "highestLevel": "university",
+        "qualification": "BSc Business Management",
+        "timeOnVisa": {
+          "years": 3,
+          "months": 0
+        }
+      }
+    }
+  ]
+}

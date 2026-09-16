@@ -59,13 +59,14 @@
     "P145 (2026-09-16, ADR-0119): nineteen fields handed to the student for Run A rather than mapped — the seventeen the language page (page6) marks mandatory except the qualification select and the certificate's companion (languageCertificateStatus follows its slot, set to the defer value with the handed slot, ADR-0105/0107, never mapped itself), and 'degree' and 'unlistedDegree' on the education page (page7). Each is a student_handoff with its reason: the runner leaves the box empty, the preview says under the page which boxes the student fills themselves and that the application is not complete until they do, and the yes records each one on the case. This is Vahid's cut, in his words: 'I would rather cut a week of work deliberately today than find in a month that I spent it because it was next on a list nobody re-read after the goal changed.' Mapping these is a precondition of serving a real student, not of Run A. No required field is now without a mapping or a hand; what the plan still lacks is the synthetic profile's values.",
     "P147 (2026-09-16, ADR-0119): the language page's seventeen handed boxes are un-handed — Vahid, on the page saving empty: 'A hand says the student must do this and the application is not complete until they do, and both are false here in Sheffield's own words. Left empty is the honest state.' With the section marked optional on the draft (0.2.23), the seventeen are ordinary unmapped boxes: listed under the page as left empty, with the form's own words, inside the yes, and never an own act. Whether a student with an English qualification enters it is the interview's question (Run B), not the preview's. Still handed: degree and unlistedDegree on the education page, pending his throwaway save.",
     "P148 (2026-09-16, ADR-0119): degree is required to save — Sheffield refused Vahid's full throwaway entry with the select unchosen, by name. His route, confirmed: map the degree for the levels the synthetic profile holds from the captured options, do not hand it, do not build a page-wider mechanism; a value the map does not name stays a loud blocker; unlistedDegree stays hidden and unmapped. The set now hands nothing to the student on any page.",
-    "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification."
+    "Education (page7), P149 (2026-09-16): the chain is mapped for the synthetic profile's one Sheffield qualification, six boxes — the country BOX and the institution BOX (the Tom Select controls the runner fills; the hidden selects behind them are set by the boxes and mapped by nothing), the search word and the subject, the grading system and the grade — each through a PARTIAL option map onto the captured lists, naming what the synthetic profile holds and nothing more, so that anything else is a loud blocker at plan time rather than an approximation at the fill. The country box's entries are on the draft (0.2.24) from P101's confirmed reading; the grading systems now follow the institution box, inferred from the dependencies read and P102's shape, not observed as a fill. The search word is 'business', the one the 87 results came from, never the subject typed whole. Only grading system 7 is named, because only its grades were read. The set now covers every box the education page requires to save, for that one qualification.",
+    "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.30",
+  "version": "0.3.31",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.24",
+  "blueprintVersion": "0.2.25",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -1692,6 +1693,24 @@
         }
       },
       "note": "What is the highest qualification level you have studied in the United Kingdom?* — the study's level in the registry's closed words onto the portal's; empty (and hidden by the page) for a study of kind 'none'. Shown after 'yes' to previous study in the UK (P142, from nationality.js)."
+    },
+    {
+      "fieldRef": "highestQualification(UNIVERSITY_LEVEL)",
+      "source": {
+        "kind": "profile_field",
+        "fieldKey": "immigration.uk_study",
+        "format": {
+          "kind": "part",
+          "path": "qualification",
+          "then": {
+            "kind": "option",
+            "options": {
+              "BSc Business Management": "UG DEGREE"
+            }
+          }
+        }
+      },
+      "note": "Please select the qualification you studied:* — shown for a UK study at university level. The portal's own list (UG DEGREE, UG MASTERS, SIC PG DIP, GRAD CERT, GRAD DIP, MASTERS, PHD) against the study's free-text qualification: blocker 25's shape, and mapped here the way P149 mapped the institution box — for the synthetic profile's one qualification only, 'BSc Business Management' → UG DEGREE (the entry reading 'Bachelors Degree'), a reviewer's reading recorded, not a rule. No absent rule: a study at this level with no qualification text is a value the student has not given, and blocks. Any other text is a loud blocker on this box. The other four per-level selects stay unmapped; the synthetic profile does not reach them. P150."
     },
     {
       "fieldRef": "highestQualificationOther",

@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P150 — the profile, shown before it seeds
+
+Step 2. The synthetic profile is a file of eighteen values in the shape the store keeps them, and the command that writes it prints them first and writes nothing unless told to, which is the mechanism his flag asked for rather than a promise to show him. Who the profile is, is written on the file and in its README: an invented Iranian national in Tehran with no passport, one Sheffield BSc as a UK study on a student visa, back in Iran with one job. It names exactly the registry fields the Sheffield set reads and nothing else, and a test holds that it plans onto the drafts with nothing blocking on Part 1 and that the preview at the yes reads as it should. Writing it creates the student's row with the e-mail marked verified, goes through the real store, refuses a profile that already has anything in it, and prints the UUID that the session, the store and the approval all key on.
+
+Two things were found by building it. The profile's UK study at university level makes the nationality page ask which qualification, from its own list — blocker 25's shape on a second page — and it is mapped for that one qualification the way P149 mapped the institution box, one value, anything else loud. And the runbook was wrong about the dev-session identity: the subject is not a label of his choosing but a students row's UUID, because the profile table references that row; the local-stack journey always did it that way and the paragraph did not. Corrected, and the seed prints the UUID. Smaller: the country box read as a DOM id in the preview and now carries the row's question.
+
+One thing is said rather than solved. The registry's provenance vocabulary has no word for a seeded value, and its comment says there is no source that bypasses the student confirming. The seed stores the nearest honest word and an excerpt that says exactly what happened, and the README says that adding the true word is his decision, not the command's. His second flag, the sign-in failure shape, was traced from the code and is in the report, not the record: the box is spent at the moment the password is typed, a fresh box opens by itself, there is no attempt limit, and a wrong password shows him only the box again. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P149 — the chain, for one qualification, by name
 
 Step 1 of the sequence he accepted: the six boxes the education page still needed are mapped for the synthetic profile's one University of Sheffield qualification, and for nothing else. The two Tom Select boxes are mapped as the controls the runner fills, never the hidden selects behind them; the country box now records its 255 entries from the reading he confirmed, so a mapping may name one under the rule that a typeahead is chosen by value. The institution map names one value, the subject map one subject, found by the one search word the captured results came from rather than by the subject typed whole, which nobody has observed. The grading system is mapped from the level, not the grade scale, because Sheffield's systems are a level-and-country vocabulary, and only system 7 is named because only its grades were read: a Master's is refused at plan time rather than left to wait at the fill for a list nobody read. The grade maps the four honours classes across two houses' spellings and nothing else. Every map is partial by design, so that anything the synthetic profile does not hold is a loud blocker on the box, by name, and never a guess.

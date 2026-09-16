@@ -116,7 +116,12 @@ subcommand, on purpose):
 `studentId` is the identity the session carries, and it depends on how you signed in:
 
 - **`AAS_DEV_SESSION=1`** (what `local-stack.sh` sets): it is the `subject` you post to the
-  dev-session route — the string you chose. Use the same one in the approval.
+  dev-session route — and that subject must be a `students.id` UUID, not a label of your own:
+  `profile_entries.student_id` is a uuid referencing `students`, so a session whose subject is
+  any other string has no profile and the store cannot read one for it. **Corrected in P150** —
+  this paragraph used to say "the string you chose", which the local-stack journey never relied
+  on (it inserts a `students` row and posts its UUID). `pnpm run profile:seed … --write` creates
+  the row and prints the UUID; post that as `subject`, and write the same UUID into the approval.
 - **A real OIDC provider:** it is the `students.id` row for your subject —
   `SELECT id FROM students WHERE subject = '<your sub>'` on the conversation database, after your
   first sign-in.
@@ -131,6 +136,24 @@ all, is the rest of the distance list: the reviewed entry itself (items 1–6), 
 (item 7 — the runner reads it before the browser opens and obeys it), the account and how a run
 enters it (item 8), and Part 2 (item 10). This environment cannot reach `sheffield.ac.uk`; the
 script is run from a machine that can.
+
+### The synthetic profile for Run A (P150)
+
+The run fills from a confirmed profile, and on a fresh database there is none. The profile for
+Run A is synthetic — `docs/run-a/synthetic-profile.json`, eighteen values, described in
+`docs/run-a/README.md` — and it is shown before it is written, at Vahid's word:
+
+```sh
+pnpm run profile:seed docs/run-a/synthetic-profile.json            # prints the values, writes nothing
+AAS_CONVERSATION_DATABASE_URL=postgresql://…/aas_local_conversation \
+  pnpm run profile:seed docs/run-a/synthetic-profile.json --write --subject run-a
+```
+
+The second form creates the `students` row for `run-a` (e-mail marked verified, as the secure
+step requires), writes the eighteen entries through the same store the interview writes to, and
+prints the `studentId` UUID to post to `/dev/session` and to put in the approval. It refuses to
+write for a student who already holds any profile entry. Every entry's provenance says it was
+seeded from the file by this command on that date and that no interview took place.
 
 ## Found while writing this: the runner's CDP endpoint
 

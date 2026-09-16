@@ -149,7 +149,10 @@ In the order they bite, each with who holds it and the evidence.
    and the grading systems now follow the institution box, inferred from the dependencies read
    and P102's shape, not observed as a fill. **For Run A on the synthetic profile this item costs
    nothing more.** Blocker 25 stays open for a real student: the maps are option (C) as far as
-   one reviewer typed for one profile, which is not a rule.
+   one reviewer typed for one profile, which is not a rule. **P150:** the synthetic profile is
+   written (`docs/run-a/`), shown before it seeds, and plans onto the drafts with nothing blocking
+   on Part 1; on the way, the nationality page's university-level qualification select (the
+   profile's Sheffield BSc is a UK study) mapped the same way, one value (set 0.3.31).
 6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
    the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
    his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
@@ -238,6 +241,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P150: step 2 — the synthetic profile (eighteen values) and the command that shows it
+  before it seeds; a test that it plans with nothing blocking on Part 1; the UK-study qualification
+  select mapped for it; the runbook's dev-session identity corrected to the `students.id` UUID.
+  Five open of ten, unchanged; the count question of P149 still his.
 - 2026-09-16, P149: item 5's six remaining boxes mapped for the synthetic profile's one Sheffield
   qualification (set 0.3.30, draft 0.2.24), each a partial map naming only what that profile
   holds; blocker 25 open for a real student. Items 3, 4 and 5 now each cost Run A nothing on the

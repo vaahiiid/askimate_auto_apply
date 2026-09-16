@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.24");
+    expect(blueprint.version).toBe("0.2.25");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -382,8 +382,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.24");
-    expect(mappingSet.version).toBe("0.3.30");
+    expect(blueprint.version).toBe("0.2.25");
+    expect(mappingSet.version).toBe("0.3.31");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -521,7 +521,11 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(new Set(studied.hidden.map((h) => h.fieldRef)).has("highestQualificationOther"), "the Other text, hidden for a university level").toBe(true);
     // The one thing still open on the page: the qualification select for the
     // chosen level wants the portal's own list, blocker 25's shape.
-    expect(studied.blockers.filter((b) => refs.has(b.fieldRef)).map((b) => [b.kind, b.fieldRef])).toEqual([["no_mapping", "highestQualification(UNIVERSITY_LEVEL)"]]);
+    // P150: the university-level select is mapped for the synthetic profile's one
+    // qualification only (set 0.3.31, the same shape as P149's institution map), so
+    // a qualification the map does not name is a loud render_refused, never a gap
+    // nobody looked at and never an approximation.
+    expect(studied.blockers.filter((b) => refs.has(b.fieldRef)).map((b) => [b.kind, b.fieldRef])).toEqual([["render_refused", "highestQualification(UNIVERSITY_LEVEL)"]]);
 
     // A held passport types its number.
     const held = planFill(blueprint, check.mappingSet, withConfirmed([

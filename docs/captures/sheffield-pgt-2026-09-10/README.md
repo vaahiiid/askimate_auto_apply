@@ -1372,6 +1372,15 @@ observed as a fill.** Run A is the first time the runner drives this chain on th
 the grading systems do not arrive after the institution is chosen, that inference is the first
 thing to doubt.
 
+**The nationality page's university-level qualification select, and the country box's label
+(P150, 2026-09-16).** The synthetic profile's Sheffield BSc is a UK study at university level,
+so `nationality.do` asks *Please select the qualification you studied:* from its own list —
+the box P142 left unmapped as blocker 25's shape. Set 0.3.31 maps it for that one qualification
+(`BSc Business Management` → `UG DEGREE`, the entry reading *Bachelors Degree*), nothing else
+named; the other four per-level selects stay unmapped. Draft 0.2.25 gives the country box the
+row's question as its label — the text the third read attached to the hidden select it fronts —
+so the preview no longer shows a DOM id; no `labelSource` is claimed for it.
+
 ## Item 5 — the education page read with an institution chosen (what to do, 2026-09-14)
 
 The grade list is per institution: `gradingSystemId` reads *Enter your institution to see grades*

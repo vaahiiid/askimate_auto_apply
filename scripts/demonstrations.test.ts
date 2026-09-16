@@ -245,6 +245,9 @@ describe("the published demonstrations", () => {
       // P59 — `verify-s3-checksum.test.ts` checks the judgement offline and the
       // no-bucket path (NOT CHECKED, exit 1, no record written).
       "verify-s3-checksum",
+      // P150 — `run-a-profile.test.ts` spawns the command without --write (prints, writes
+      // nothing) and drives the seed against a real migrated database.
+      "profile:seed",
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",

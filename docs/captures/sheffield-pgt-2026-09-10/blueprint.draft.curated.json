@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.24",
+  "version": "0.2.25",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -23282,7 +23282,7 @@
             },
             {
               "fieldRef": "institutionCountry-ts-control",
-              "label": "institutionCountry-ts-control",
+              "label": "Select the country the institution is based in:",
               "inputType": "typeahead",
               "dataCategory": "ordinary",
               "locators": [
@@ -28824,6 +28824,7 @@
     ]
   },
   "$comment": [
+    "0.2.25 (2026-09-16, P150): the country box (institutionCountry-ts-control) carries the row's question as its label — 'Select the country the institution is based in:' — the text the third read found on the row and attached to the hidden <select id=\"institutionCountry\"> the box fronts (0.2.18, P126). The box and the select share one row; the preview shows the box, and a student reading 'institutionCountry-ts-control: United Kingdom' at the yes would be reading a DOM id. No labelSource is claimed: the read labelled the select, not the box.",
     "0.2.24 (2026-09-16, P149): the country box (institutionCountry-ts-control) records its 255 entries — the captured <select id=\"institutionCountry\">'s options without its blank, value for value and label for label, which is what P101 confirmed the dropdown holds from Vahid's copied markup (the count agreed) — so that a mapping to it can name a value under ADR-0109. gradingSystemId's options now follow the institution BOX (institution-ts-control), the control the runner fills, which sets the hidden select the lookup reads (getGradingSystemsForCountry.do?institutionCode=…, the dependencies read of P85): the same shape P102 gave the institution box after the country box. The hidden institutionCode still follows the hidden institutionCountry; neither is mapped. This is inferred from two reads, not observed as a fill — flagged for Run A.",
     "0.2.23 (2026-09-16, P147, ADR-0119): the language page's one section carries optional.formSays — Sheffield's own words from summary.do after Vahid saved the page empty: no error, and 'If you do not have an English language qualification then you do not need to complete this section.' The seventeen observed markers on the page stay (the star was seen; erase nothing): a marker inside a section the portal says may be skipped is not a box the page will not save without, and the plan reads it so. Vahid: 'that is a property of the section, not something to fix by erasing marks.'"
   ]
