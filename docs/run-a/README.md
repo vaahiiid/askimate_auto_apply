@@ -126,8 +126,11 @@ addendum). **Still carrying the field's own name, and why:** `fundingNationality
 holds their question (the five-pages read could not reach it positionally; P126), and a label the
 file did not carry is not invented. Three radios off a resident abroad's path keep their name too,
 because the third read's *No* label ran on into the row's help text (`britishPassport`,
-`indefinateVisa`, `livingInUK`). Reading those seven questions off the screen is a five-minute
-sitting if he wants them in before signing; the values sent are right either way.
+`indefinateVisa`, `livingInUK`). Reading those seven questions off the screen was offered before the
+signature and **declined — Vahid, 2026-09-16, in his words:** *"The seven without labels: leave
+them. The values sent are right, which is what my signature is about, and a readable label is
+for the developer who comes next rather than for Run A. It is exactly the class we cut on 16
+September."* So the seven field names in the read are a decision, not an oversight.
 
 ## What could still change after a signature
 
