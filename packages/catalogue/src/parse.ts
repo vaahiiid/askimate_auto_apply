@@ -353,11 +353,16 @@ function readField(value: unknown, path: string): BlueprintField {
 function readSection(value: unknown, path: string): BlueprintSection {
   const source = record(value, path);
   const visibleWhen = optionalWith(source, "visibleWhen", path, readCondition);
+  // ADR-0119: the portal's own words that the section may be skipped.
+  const optional = optionalWith(source, "optional", path, (raw, at) => ({
+    formSays: text(record(raw, at), "formSays", at),
+  }));
   return {
     sectionRef: text(source, "sectionRef", path),
     title: text(source, "title", path),
     fields: list(source, "fields", path, readField),
     ...(visibleWhen === undefined ? {} : { visibleWhen }),
+    ...(optional === undefined ? {} : { optional }),
   };
 }
 

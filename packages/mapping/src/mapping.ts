@@ -928,6 +928,30 @@ export function isRequired(field: BlueprintField): boolean {
 }
 
 /**
+ * The fields of every section the portal says may be skipped (ADR-0119), with
+ * the portal's words for it. A `required` marker on one of these is a mark
+ * within the section, not a box the page will not save without.
+ */
+export function optionalSectionWords(blueprint: ApplicationBlueprint): ReadonlyMap<string, string> {
+  const words = new Map<string, string>();
+  for (const page of blueprint.pages) {
+    for (const section of page.sections) {
+      if (section.optional === undefined) continue;
+      for (const field of section.fields) words.set(field.fieldRef, section.optional.formSays);
+    }
+  }
+  return words;
+}
+
+/**
+ * Whether the page will not save without this field: marked required, and not
+ * inside a section the portal says may be skipped (ADR-0119).
+ */
+export function isRequiredToSave(blueprint: ApplicationBlueprint, field: BlueprintField): boolean {
+  return isRequired(field) && !optionalSectionWords(blueprint).has(field.fieldRef);
+}
+
+/**
  * Required blueprint fields with no mapping.
  *
  * The list that says whether this mapping set is finished. A required field
@@ -938,7 +962,7 @@ export function unmappedRequiredFields(
   mappingSet: MappingSet,
 ): readonly BlueprintField[] {
   return allFields(blueprint).filter(
-    (field) => isRequired(field) && mappingFor(mappingSet, field.fieldRef) === undefined,
+    (field) => isRequiredToSave(blueprint, field) && mappingFor(mappingSet, field.fieldRef) === undefined,
   );
 }
 

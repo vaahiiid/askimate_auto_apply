@@ -10,6 +10,28 @@ stay on the machine that made them. Nothing here was typed, clicked, uploaded or
 step 4 of the path recorded in `docs/target-sheffield-pgt.md`, and it waits on three things named
 at the end.
 
+> ## Read this before you trust a save on this portal
+>
+> **Sheffield's failure mode is a silent drop, not a complaint.** On this portal, *"it saved
+> without an error"* tells you nothing at all. Four times now, on four different things, the
+> page accepted the save and quietly did not keep what was deficient:
+>
+> 1. **P104** — a second qualification saved with two of its radios unanswered: no error, and
+>    `summary.do` listed one entry. The entry was gone.
+> 2. **Vahid's two unanswered radios** on the same page (P108–P110): accepted, not kept.
+> 3. **The language page, 2026-09-16** — saved with all seventeen of its `*`-marked boxes empty:
+>    no error, straight through, and the summary then said the section need not be completed.
+>    Here the silence was benign, which is the point: silence looks the same either way.
+> 4. **A star that may or may not be there** — `degree`'s mark, seen in one read and not in the
+>    next (`2026-09-14-education-dependent`). Whether the page keeps an entry with no degree is
+>    settled by the listing, not by the absence of an error.
+>
+> So nothing built here treats an error-free save as a save. A page is saved when the portal
+> **shows** the thing exists (ADR-0106): the runner reopens and reads it back, counts the
+> listing for a repeating page, and stops as `uncertain` where it cannot see. Vahid,
+> 2026-09-16: *"it is now the pattern rather than an incident … whoever reads this next should
+> meet it before they trust a save."*
+
 ## The pages, as read
 
 | # | URL | What it is | Controls read |

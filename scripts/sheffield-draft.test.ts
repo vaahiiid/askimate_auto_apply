@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.22");
+    expect(blueprint.version).toBe("0.2.23");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -239,23 +239,20 @@ describe("the Sheffield drafts, under the real checks", () => {
     // answer opens are hidden — neither typed nor missing — and only the
     // language and education pages' unmapped fields remain.
     expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toEqual([]);
+    // P147 (ADR-0119): the language page's section is optional in Sheffield's own
+    // words, so its seventeen marked boxes are not boxes the page will not save
+    // without — un-handed at Vahid's word, left empty and said so, with the words.
     // With no qualification confirmed the education page is filled zero times, so
     // its two handed boxes (degree, unlistedDegree) have no entry to be said under.
-    expect(plan.handoffs.filter((h) => h.inputType !== "file").map((h) => h.fieldRef).sort()).toEqual([
-      "awardingBody", "certificateNumber", "certificateNumber2",
-      "dateOfAward.day", "dateOfAward.month", "dateOfAward.year",
-      "firstLanguage",
-      "listeningScore",
-      "overallScore", "overallScoreComponent",
-      "previousEducationLanguage", "previousEnglishEducation", "readingScore",
-      "speakingScore",
-      "title", "writingScore",
-    ]);
-    // The certificate slot is a file: handed like the education slots, an attach
-    // not a fill; its companion follows the slot (ADR-0105, 0107) and is never
-    // mapped or handed itself.
-    expect(plan.handoffs.find((h) => h.fieldRef === "languageCertificate")?.inputType).toBe("file");
-    expect(plan.handoffs.some((h) => h.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(plan.handoffs.filter((h) => h.inputType !== "file")).toEqual([]);
+    const language = blueprint.pages.find((p) => p.pageRef === "page6");
+    const languageRefs = language?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? [];
+    const leftEmpty = plan.unmapped.filter((f) => f.pageRef === "page6");
+    expect(leftEmpty.map((f) => f.fieldRef).sort()).toEqual([...languageRefs].sort());
+    for (const field of leftEmpty) {
+      expect(field.formSays).toBe("If you do not have an English language qualification then you do not need to complete this section.");
+    }
+    expect(plan.handoffs.some((h) => languageRefs.includes(h.fieldRef))).toBe(false);
     expect(toStoredPlan({ ...plan, blockers: [] }).ok).toBe(true);
   });
 
@@ -288,12 +285,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.blockers.filter((b) => b.kind === "no_mapping")).toHaveLength(0);
     // Every box handed rather than mapped (P145, ADR-0119) is one of the
     // fifteen on the language page or the two per qualification on education.
-    const handedBoxes = new Set([
-      "awardingBody", "certificateNumber", "certificateNumber2", "dateOfAward.day", "dateOfAward.month",
-      "dateOfAward.year", "firstLanguage", "listeningScore", "overallScore", "overallScoreComponent",
-      "previousEducationLanguage", "previousEnglishEducation", "readingScore", "speakingScore", "title",
-      "writingScore", "degree", "unlistedDegree",
-    ]);
+    const handedBoxes = new Set(["degree", "unlistedDegree"]);
     for (const handoff of plan.handoffs.filter((h) => h.inputType !== "file")) {
       expect(handedBoxes.has(handoff.fieldRef), handoff.fieldRef).toBe(true);
     }
@@ -306,8 +298,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.22");
-    expect(mappingSet.version).toBe("0.3.27");
+    expect(blueprint.version).toBe("0.2.23");
+    expect(mappingSet.version).toBe("0.3.28");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -612,14 +604,14 @@ describe("the Sheffield drafts, under the real checks", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const plan = planFill(blueprint, check.mappingSet, PROFILE);
-    // P145 (ADR-0119): the certificate slot is handed to the student for Run A,
-    // so its companion is set by the plan to the defer value the blueprint
-    // names (ADR-0107) — never mapped, never handed, never a blocker.
-    const status = plan.instructions.find((i) => i.fieldRef === "languageCertificateStatus");
-    expect(status?.defers).toBe("languageCertificate");
-    expect(status === undefined ? "" : textOf(status.value)).toBe(language.requiredDocuments[0]?.companion?.whenDeferred ?? "");
-    expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus")).toBe(false);
-    expect(plan.handoffs.some((h) => h.fieldRef === "languageCertificateStatus")).toBe(false);
+    // P147 (ADR-0119): the section is optional in Sheffield's words, so the slot
+    // is neither handed nor a blocker; it and its companion are left empty and
+    // said so. Nothing types the companion, and nothing hands it.
+    expect(plan.instructions.some((i) => i.fieldRef === "languageCertificateStatus")).toBe(false);
+    expect(plan.blockers.some((b) => b.fieldRef === "languageCertificateStatus" || b.fieldRef === "languageCertificate")).toBe(false);
+    expect(plan.handoffs.some((h) => h.fieldRef === "languageCertificateStatus" || h.fieldRef === "languageCertificate")).toBe(false);
+    expect(plan.unmapped.map((f) => f.fieldRef)).toContain("languageCertificate");
+    expect(plan.unmapped.map((f) => f.fieldRef)).toContain("languageCertificateStatus");
   });
 
   it("carry the twenty-three groups of personal, contact and nationality as Vahid read them — the case the page's, the five companions three values, NotRequired absent (P110)", () => {

@@ -247,6 +247,49 @@ describe("the preview", () => {
     expect(text).not.toContain("You fill in yourself: Preferred name");
   });
 
+  it("says the portal's own words under a page whose section may be skipped (ADR-0119, P147)", () => {
+    const words = "If you do not have this, you do not need to complete this section.";
+    const first = FIXTURE_BLUEPRINT.pages[0];
+    if (first === undefined) expect.unreachable("a page");
+    const skippable = {
+      ...FIXTURE_BLUEPRINT,
+      pages: [
+        {
+          ...first,
+          sections: [
+            ...first.sections,
+            {
+              sectionRef: "skippable",
+              title: "A section you may skip",
+              optional: { formSays: words },
+              fields: [
+                {
+                  fieldRef: "starred_but_skippable",
+                  label: "Starred box",
+                  inputType: "text" as const,
+                  dataCategory: "ordinary" as const,
+                  locators: [{ strategy: "name" as const, value: "starred_but_skippable" }],
+                  validations: [{ kind: "required" as const, source: "observed_marker" as const }],
+                },
+              ],
+            },
+          ],
+        },
+        ...FIXTURE_BLUEPRINT.pages.slice(1),
+      ],
+    };
+    const check = checkUsable(FIXTURE_MAPPING_SET, skippable);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const result = buildPreview(skippable, planFill(skippable, check.mappingSet, COMPLETE), DOCUMENTS);
+    if (!result.built) expect.unreachable(`expected a preview: ${result.refusal.kind}`);
+    const text = renderPreview(result.preview);
+    const page = text.indexOf("Personal details:");
+    const left = text.indexOf("  Left empty: Preferred name (optional); Starred box");
+    expect(left).toBeGreaterThan(page);
+    expect(text.slice(left)).toContain(`  The form says: "${words}"`);
+    expect(text).not.toContain("You fill in yourself: Starred box");
+  });
+
   it("binds the yes to which boxes are left unmapped (ADR-0119)", () => {
     const preview = previewFor();
     const plan = planFor();

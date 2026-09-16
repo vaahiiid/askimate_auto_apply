@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P147 — the page saves empty, and the seventeen are left empty
+
+He saved the language page with nothing in it and it went straight through; the summary then said, in Sheffield's words, that a student without an English qualification need not complete the section. That settled the thing the screen had to settle, the easy way, and the page-wider mechanism stays unbuilt on an observation rather than a hope. It also unsettled the hand: a hand says the student must do this and the application is not complete until they do, and both are false here in the portal's own words, so the seventeen are un-handed and left empty, the third state, with the form's own words under the page. Whether a student who has a qualification enters it is the interview's question. The section-level fact is built as proposed and erases nothing: the section carries the portal's words, the parser keeps them and the hash covers them, and a marker inside such a section is read as a mark within it and not as a box the page will not save without. The fifty markers are now tabled with the three things "mandatory" means on this form, because someone would have read it as one.
+
+He named the pattern, and it is on the capture README's first screen: Sheffield's failure mode is a silent drop, not a complaint, four times now, and on this portal an error-free save tells you nothing. The degree stays handed until his throwaway save settles it; if it is required, the route is confirmed and cheap. Three tests failed against the old code first. Five of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P145 — the cut, and the mechanism that makes it safe
 
 He accepted the cut in full and asked for the reasoning to be kept where the next developer reads it: the goal changed, the list did not, and a week of work was on it out of habit rather than need. That sentence is in the skipped list, in ADR-0119 and here. What reaching Run A needed was not twenty mappings but one mechanism, and it is built: any box the reviewer hands to the student is their own act on a page the runner still fills. His one condition holds in the preview and in its hash. The preview now reads page by page, in the portal's words, and under each page it says what was filled, then which boxes the student fills in themselves and that the application is not complete until they do, in the shape the document slots already used, then which boxes are left empty because nobody mapped them. The footnote at the bottom is gone. The record keeps the three states apart: filled is the hash the yes captured, handed is an own act per box with its page, never mapped is its own record per page, and a test at the yes holds that no box is in both lists. Set 0.3.27 hands nineteen required boxes on the language and education pages, so for the first time no required field on Part 1 is without a mapping or a hand; what the plan lacks is the synthetic profile's values.

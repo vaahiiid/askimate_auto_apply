@@ -104,9 +104,11 @@ In the order they bite, each with who holds it and the evidence.
    offers a certificate slot whose companion is now named. **Vahid's cut, 2026-09-16:** the
    seventeen marked boxes are handed to the student for Run A (set 0.3.27), the certificate slot
    handed with its companion set to "later", the qualification select left as the optional box it
-   is. What remains is one fact only the screen settles: whether Sheffield saves the page empty
-   for a student with no test — his read, steps in the capture README under *Item 4*. Mapping the
-   page is a precondition of serving a real student, not of Run A.
+   is. **Settled from the screen, 2026-09-16 (P147):** the page saves empty, and the summary says
+   the section need not be completed. So the seventeen are un-handed (set 0.3.28) and left empty
+   as the third state, the section marked optional on the draft in Sheffield's words (0.2.23), and
+   the page costs Run A nothing. Mapping it from `education.english_language_test` is a
+   precondition of serving a real student, not of Run A.
 5. **The education page's own fields: thirty-three, six handed, the rest unmapped — and one of
    them cannot be mapped by rule.** The country box needs its entries recorded on the box (the
    captured `<select>`'s 255, copied); degree, subject, the three dates and the grade are selects
@@ -222,6 +224,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-16, P147: the language page saves empty (his save); the seventeen un-handed and left
+  empty; the section-level fact built; the silent-drop pattern on the capture README's first
+  screen. Degree pending his throwaway save. Five open of ten, unchanged.
 - 2026-09-16, P145: the cut accepted in full; the own-act mechanism built (ADR-0119); set 0.3.27
   hands nineteen required boxes for Run A, so no required field on Part 1 is without a mapping or
   a hand; blocker 29 built; the pack frozen. Open: his read of the language page (item 4), blocker

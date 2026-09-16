@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.143.0] — 2026-09-16
+
+**P147 — the language page saves empty (Vahid, from the screen); the seventeen un-handed; a
+section the portal says may be skipped is a fact on the blueprint; the silent-drop pattern on the
+capture README's first screen.**
+
+### Changed
+
+- `packages/blueprint`: `BlueprintSection.optional: { formSays }`.
+- `packages/catalogue`: the parser keeps it; the hash covers it.
+- `packages/mapping`: `isRequiredToSave`, `optionalSectionWords`; the plan reads a marker inside
+  such a section as not required to save; `UnmappedField.formSays`.
+- `packages/preparation`: *The form says: "…"* under a page whose boxes sit in such a section.
+- Sheffield draft 0.2.23 (the language section optional, in Sheffield's words); set 0.3.28 (the
+  seventeen un-handed; degree and unlistedDegree still handed pending his save).
+
+### Recorded
+
+- ADR-0119 addendum; the capture README's first screen; the three meanings of "mandatory" where
+  the markers are tabled (P146); distance item 4.
+
+---
+
 ## [0.142.0] — 2026-09-16
 
 **P145 — ADR-0119: a box handed to the student is their own act on a page we still fill; the

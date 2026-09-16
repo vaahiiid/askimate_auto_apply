@@ -143,6 +143,8 @@ export interface PreviewUnmapped {
   readonly fieldRef: string;
   readonly label: string;
   readonly page: string;
+  /** The portal's own words that the section may be skipped, when it says so (ADR-0119). */
+  readonly formSays?: string;
 }
 
 /** A page of the form, in the portal's order and words, for reading the preview under. */
@@ -492,6 +494,7 @@ export function buildPreview(
     fieldRef: field.fieldRef,
     label: field.label,
     page: field.pageTitle,
+    ...(field.formSays === undefined ? {} : { formSays: field.formSays }),
   }));
   const pages: PreviewPage[] = blueprint.pages.map((page) => ({
     pageRef: page.pageRef,
@@ -728,9 +731,12 @@ export function renderPreview(preview: SubmissionPreview): string {
   const unmappedLines = (page: string, indent: string): readonly string[] => {
     const empty = preview.unmapped.filter((field) => field.page === page);
     if (empty.length === 0) return [];
+    const says = [...new Set(empty.flatMap((field) => (field.formSays === undefined ? [] : [field.formSays])))];
     return [
       `${indent}Left empty: ${empty.map((field) => field.label).join("; ")}`,
       `${indent}Nothing you told us goes into ${empty.length === 1 ? "this box" : "these boxes"}, and the form does not require ${empty.length === 1 ? "it" : "them"}.`,
+      // The portal's own words for it, where it has them (ADR-0119).
+      ...says.map((words) => `${indent}The form says: "${words}"`),
     ];
   };
   const entryLine = (entry: PreviewEntry, indent: string): readonly string[] => {

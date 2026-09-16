@@ -27,6 +27,8 @@ export {
   formRefusalText,
   isMappingRefused,
   isRequired,
+  isRequiredToSave,
+  optionalSectionWords,
   mappingFor,
   reviewedConstant,
   reviewedFormRefusal,

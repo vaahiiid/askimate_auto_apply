@@ -56,13 +56,14 @@
     "Nationality (page5), P141 (2026-09-15, ADR-0117): the passport is one value, held or stated as none — decided by Vahid: 'a student who does not have a thing has three empty values and nothing anywhere saying why. Fold them.' passportNumber maps the held number through part → number, and for none types the portal's own instruction, quoted from the row's tooltip into this set through absent: { typed: 'no passport' } — the important half, in his words: the portal's words live in the reviewed mapping and never in the profile; the tempting shortcut of storing the string once and reusing it everywhere is refused.",
     "Nationality (page5), P142 (2026-09-15): nationality.js read from Vahid's commit. Two registry fields renamed once, from the script: residence.always_in_residence_country and residence.outside_residence_country_last_three_years — the page fills both questions with the permanent-residence country's name, 'the UK' only when that is the United Kingdom. Nine mappings added: fundingNationality and countryOfBirth (partial, keyed on ISO codes; the registry's nationality vocabulary flagged), and the UK-study block after 'yes' — the level in the registry's closed words, the 'Other' text, the years and months on the visa, the visa expiry's day, month (the select's own spellings through an option map after the month's name) and year. The five per-level qualification selects stay unmapped: the portal's own list against the student's free-text qualification, blocker 25's shape. The draft (0.2.22) now carries the page's sections with the script's show/hide as visibleWhen; a mapped field the page hides is neither typed nor missing.",
     "P143 (2026-09-15): no mapping changed. The note on livingInUK now says that the page answers the question itself when living-outside is 'no' — a value the student never gives — so a reviewer or a later phase does not read that box as the student's answer.",
-    "P145 (2026-09-16, ADR-0119): nineteen fields handed to the student for Run A rather than mapped — the seventeen the language page (page6) marks mandatory except the qualification select and the certificate's companion (languageCertificateStatus follows its slot, set to the defer value with the handed slot, ADR-0105/0107, never mapped itself), and 'degree' and 'unlistedDegree' on the education page (page7). Each is a student_handoff with its reason: the runner leaves the box empty, the preview says under the page which boxes the student fills themselves and that the application is not complete until they do, and the yes records each one on the case. This is Vahid's cut, in his words: 'I would rather cut a week of work deliberately today than find in a month that I spent it because it was next on a list nobody re-read after the goal changed.' Mapping these is a precondition of serving a real student, not of Run A. No required field is now without a mapping or a hand; what the plan still lacks is the synthetic profile's values."
+    "P145 (2026-09-16, ADR-0119): nineteen fields handed to the student for Run A rather than mapped — the seventeen the language page (page6) marks mandatory except the qualification select and the certificate's companion (languageCertificateStatus follows its slot, set to the defer value with the handed slot, ADR-0105/0107, never mapped itself), and 'degree' and 'unlistedDegree' on the education page (page7). Each is a student_handoff with its reason: the runner leaves the box empty, the preview says under the page which boxes the student fills themselves and that the application is not complete until they do, and the yes records each one on the case. This is Vahid's cut, in his words: 'I would rather cut a week of work deliberately today than find in a month that I spent it because it was next on a list nobody re-read after the goal changed.' Mapping these is a precondition of serving a real student, not of Run A. No required field is now without a mapping or a hand; what the plan still lacks is the synthetic profile's values.",
+    "P147 (2026-09-16, ADR-0119): the language page's seventeen handed boxes are un-handed — Vahid, on the page saving empty: 'A hand says the student must do this and the application is not complete until they do, and both are false here in Sheffield's own words. Left empty is the honest state.' With the section marked optional on the draft (0.2.23), the seventeen are ordinary unmapped boxes: listed under the page as left empty, with the form's own words, inside the yes, and never an own act. Whether a student with an English qualification enters it is the interview's question (Run B), not the preview's. Still handed: degree and unlistedDegree on the education page, pending his throwaway save."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "blueprintVersion": "0.2.22",
+  "blueprintVersion": "0.2.23",
   "authoredBy": "Vahid Mohammadi",
   "authoredAt": "2026-09-11T12:00:00Z",
   "mappings": [
@@ -1812,48 +1813,6 @@
       "note": "The year, as digits — the select holds 2026 to 2030 only; a later expiry refuses to render rather than choosing the nearest."
     },
     {
-      "fieldRef": "awardingBody",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Awarding Body:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "certificateNumber",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Certificate Number :' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "certificateNumber2",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'UKVI Reference Number :' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "dateOfAward.day",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Date of Award:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "dateOfAward.month",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Date of Award:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "dateOfAward.year",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Date of Award:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
       "fieldRef": "degree",
       "source": {
         "kind": "student_handoff",
@@ -1861,87 +1820,10 @@
       }
     },
     {
-      "fieldRef": "firstLanguage",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'What is your first language?' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "languageCertificate",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Please tell us how you will provide your test certificate:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "listeningScore",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Listening Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "overallScore",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Grade/Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "overallScoreComponent",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Overall Grade/Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "previousEducationLanguage",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Please enter the language you were educated in:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "previousEnglishEducation",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'previousEnglishEducation' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "readingScore",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Reading Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "speakingScore",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Speaking Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "title",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Qualification Title:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
       "fieldRef": "unlistedDegree",
       "source": {
         "kind": "student_handoff",
         "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'unlistedDegree' on the Education — one qualification; the applicant adds one entry per qualification page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
-      }
-    },
-    {
-      "fieldRef": "writingScore",
-      "source": {
-        "kind": "student_handoff",
-        "reason": "Handed to the student for Run A (ADR-0119, Vahid's cut of 2026-09-16): 'Writing Score:' on the English language page is not mapped from the profile. The runner leaves it empty, the preview says so under the page, and the student fills it in themselves after the handover; the application is not complete until they do. Mapping it is a precondition of serving a real student, not of Run A."
       }
     }
   ]

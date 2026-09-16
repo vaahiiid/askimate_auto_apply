@@ -233,6 +233,20 @@ export interface BlueprintSection {
   readonly title: string;
   readonly fields: readonly BlueprintField[];
   readonly visibleWhen?: FieldCondition;
+  /**
+   * The portal says this section may be skipped entirely (ADR-0119, P147).
+   *
+   * A property of the SECTION, recorded in the portal's own words: Sheffield's
+   * language page saved with every one of its seventeen marked boxes empty, and
+   * the summary then read *"If you do not have an English language
+   * qualification then you do not need to complete this section."* A `*` inside
+   * such a section is a mark within the section, not a box the page will not
+   * save without — so a field's `required` marker is kept (erase nothing; the
+   * star was seen) and the plan reads it as not required to save. Vahid,
+   * 2026-09-16: *"that is a property of the section, not something to fix by
+   * erasing marks."*
+   */
+  readonly optional?: { readonly formSays: string };
 }
 
 /**

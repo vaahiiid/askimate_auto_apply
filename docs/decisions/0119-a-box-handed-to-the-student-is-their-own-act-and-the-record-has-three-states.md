@@ -105,6 +105,41 @@ README under *Item 4*. If a page will not save with a handed box empty, the next
 as the unit: not filled by us at all, said so under it, with the values we hold listed for the
 student — not a new shape, the same one a page wider.
 
+## Settled from the screen, and two more of his decisions — P147, 2026-09-16
+
+**The language page saves empty.** Vahid: *"No error, no complaint, straight through."* The
+summary afterwards read *"D. English Language — No English qualifications entered. If you do not
+have an English language qualification then you do not need to complete this section."* So the
+page-wider mechanism above stays unbuilt, now on an observation rather than a hope, and the
+seventeen marks on that page are marks within a section the applicant may skip. *"'Mandatory' on
+this form means at least three different things now"*, in his words, and that is said where the
+markers are tabled.
+
+**The seventeen are un-handed.** His reasoning, adopting the distinction: *"'A student who has an
+English qualification should enter it' is the interview's argument, not the preview's. A hand
+says the student must do this and the application is not complete until they do, and both are
+false here in Sheffield's own words. Left empty is the honest state."* Set 0.3.28 hands them no
+more; the language page's boxes are the third state, left empty and said so, with the form's own
+words under the page. Whether a student with a qualification enters it is Run B's interview.
+
+**The section-level fact, built as proposed, erasing nothing.** *"A marker inside a section the
+portal says may be skipped is not a box the page will not save without, and that is a property of
+the section, not something to fix by erasing marks. Erase nothing."* `BlueprintSection.optional:
+{ formSays }` carries the portal's words; the parser keeps it and the hash covers it; the plan's
+"required to save" is the marker AND not inside such a section (`isRequiredToSave`); the
+seventeen `observed_marker` validations stay exactly as read. The preview says *The form says:
+"…"* under the page, in Sheffield's words. Draft 0.2.23 marks the language section so.
+
+**Degree, still handed, pending his throwaway save.** If the entry is kept without a degree, it
+is not required to save. If the listing is unchanged, it was dropped silently, and the route he
+confirmed stands: *"map the degree for the levels the profile holds, do not hand it, do not build
+the page-wider mechanism. A loud blocker on an unmapped value is the gate, and the education page
+stays ours to fill."*
+
+**The pattern, named by him and written on the capture README's first screen:** Sheffield's
+failure mode is a silent drop, not a complaint; on this portal an error-free save tells you
+nothing, which is what ADR-0106's reopen-and-read is for.
+
 ## Built
 
 P145, 2026-09-16: `packages/mapping` (`FillPlan.unmapped`, `UnmappedField`, `list_exceeds_form`,

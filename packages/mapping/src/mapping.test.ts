@@ -4,7 +4,7 @@ import { proposeValue, studentId, unwrapConfirmed } from "@askimate/aas-domain";
 import type { ConfirmedProfile, ProfileFieldKey, ProfileFieldType } from "@askimate/aas-profile";
 import { applyConfirmation, confirmField, emptyProfile, isDeclined } from "@askimate/aas-profile";
 
-import { checkUsable, constantsIn, formRefusalAttribution, unmappedRequiredFields } from "./mapping.js";
+import { checkUsable, constantsIn, formRefusalAttribution, isRequired, isRequiredToSave, unmappedRequiredFields } from "./mapping.js";
 import type { MappingSet, UsableMappingSet } from "./mapping.js";
 import type { ApplicationBlueprint, BlueprintField, BlueprintPage } from "@askimate/aas-blueprint";
 import { fieldsToCollect, isComplete, planFill, textOf } from "./plan.js";
@@ -189,6 +189,64 @@ describe("planning a fill", () => {
     expect(plan.unmapped.map((f) => [f.fieldRef, f.pageTitle])).toEqual([["preferred_name", "Personal details"]]);
     expect(plan.handoffs.map((h) => h.fieldRef)).not.toContain("preferred_name");
     expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("preferred_name");
+  });
+
+  it("reads a marker inside a section the portal says may be skipped as NOT required to save, and carries the portal's words (ADR-0119, P147)", () => {
+    // Sheffield's language page saved with all seventeen marked boxes empty;
+    // the summary then said the section need not be completed. Vahid: "that is
+    // a property of the section, not something to fix by erasing marks."
+    const words = "If you do not have this, you do not need to complete this section.";
+    const first = FIXTURE_BLUEPRINT.pages[0];
+    if (first === undefined) expect.unreachable("a page");
+    const skippable: ApplicationBlueprint = {
+      ...FIXTURE_BLUEPRINT,
+      pages: [
+        {
+          ...first,
+          sections: [
+            ...first.sections,
+            {
+              sectionRef: "skippable",
+              title: "A section you may skip",
+              optional: { formSays: words },
+              fields: [
+                {
+                  fieldRef: "starred_but_skippable",
+                  label: "Starred box",
+                  inputType: "text",
+                  dataCategory: "ordinary",
+                  locators: [{ strategy: "name", value: "starred_but_skippable" }],
+                  validations: [{ kind: "required", source: "observed_marker" }],
+                },
+              ],
+            },
+          ],
+        },
+        ...FIXTURE_BLUEPRINT.pages.slice(1),
+      ],
+    };
+    const field = skippable.pages[0]?.sections.at(-1)?.fields[0];
+    if (field === undefined) expect.unreachable("the field");
+    // The mark is kept and read as a mark; only "required to save" changes.
+    expect(isRequired(field)).toBe(true);
+    expect(isRequiredToSave(skippable, field)).toBe(false);
+    expect(unmappedRequiredFields(skippable, FIXTURE_MAPPING_SET).map((f) => f.fieldRef)).not.toContain("starred_but_skippable");
+
+    const check = checkUsable(FIXTURE_MAPPING_SET, skippable);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(skippable, check.mappingSet, COMPLETE_PROFILE);
+    expect(plan.blockers.map((b) => b.fieldRef)).not.toContain("starred_but_skippable");
+    expect(plan.unmapped.find((f) => f.fieldRef === "starred_but_skippable")).toEqual({
+      fieldRef: "starred_but_skippable",
+      label: "Starred box",
+      pageRef: first.pageRef,
+      pageTitle: first.title,
+      formSays: words,
+    });
+    // A marker OUTSIDE such a section still blocks.
+    const marked = { ...skippable, pages: skippable.pages.map((p, i) => (i === 0 ? { ...p, sections: p.sections.map((s) => (s.sectionRef === "skippable" ? { sectionRef: s.sectionRef, title: s.title, fields: s.fields } : s)) } : p)) };
+    const blocked = planFill(marked, check.mappingSet, COMPLETE_PROFILE);
+    expect(blocked.blockers.map((b) => [b.kind, b.fieldRef])).toContainEqual(["no_mapping", "starred_but_skippable"]);
   });
 
   it("STOPS by name when a list-valued field has more entries than the form has blocks (blocker 29, ADR-0119)", () => {

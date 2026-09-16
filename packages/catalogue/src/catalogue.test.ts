@@ -647,6 +647,25 @@ describe("an approval binds to content", () => {
     expect(served.targets()[0]?.admits).toEqual(result.entry.admits);
   });
 
+  it("keeps a section's own words that it may be skipped, and hashes them (ADR-0119, P147)", () => {
+    const words = "If you do not have this, you do not need to complete this section.";
+    const doc = JSON.parse(documentOf()) as { blueprint: { pages: { sections: Record<string, unknown>[] }[] } };
+    const section = doc.blueprint.pages[0]?.sections[0];
+    if (section === undefined) expect.unreachable("a section");
+    section["optional"] = { formSays: words };
+    const text = JSON.stringify(doc);
+    const parsed = parseReviewedEntryText(text);
+    if (!parsed.ok) expect.unreachable(`parse refused: ${parsed.refusal.detail}`);
+    expect(parsed.value.blueprint.pages[0]?.sections[0]?.optional).toEqual({ formSays: words });
+    // Reviewed content: the plain document and the one with the words hash apart.
+    const plain = parseReviewedEntryText(documentOf());
+    if (!plain.ok) expect.unreachable("plain parses");
+    expect(hashOf(toCanonical(parsed.value))).not.toBe(hashOf(toCanonical(plain.value)));
+    // A malformed one refuses rather than dropping it.
+    section["optional"] = { formSays: 7 };
+    expect(parseReviewedEntryText(JSON.stringify(doc)).ok).toBe(false);
+  });
+
   it("a mapping set signed by its own author is USABLE — the registry decides what that admits", () => {
     // Until ADR-0118 this refused with `reviewed_by_author`. The artefact's
     // two fields prove internal consistency and nothing about the world; whom

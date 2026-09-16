@@ -45,6 +45,7 @@ import {
   formRefusalText,
   isRequired,
   mappingFor,
+  optionalSectionWords,
   reviewedConstant,
   reviewedFormRefusal,
 } from "./mapping.js";
@@ -259,6 +260,8 @@ export interface UnmappedField {
   readonly label: string;
   readonly pageRef: string;
   readonly pageTitle: string;
+  /** The portal's own words that the box's section may be skipped, when it says so (ADR-0119). */
+  readonly formSays?: string;
 }
 
 /**
@@ -316,6 +319,15 @@ export function planFill(
   const credentials: CredentialRequirement[] = [];
   const blockers: FillBlocker[] = [];
   const unmapped: UnmappedField[] = [];
+  // ADR-0119: a marker inside a section the portal says may be skipped is not
+  // a box the page will not save without. The section's words travel with the
+  // box into the preview.
+  const skippable = optionalSectionWords(blueprint);
+  const requiredToSave = (field: BlueprintField): boolean => isRequired(field) && !skippable.has(field.fieldRef);
+  const saysOf = (fieldRef: string): { readonly formSays?: string } => {
+    const words = skippable.get(fieldRef);
+    return words === undefined ? {} : { formSays: words };
+  };
   const pageOf = new Map(
     blueprint.pages.flatMap((page) =>
       page.sections.flatMap((section) =>
@@ -421,7 +433,7 @@ export function planFill(
       // behaviour rather than a gap to fill. It is SAID, though (ADR-0119):
       // listed under its page, so a box nobody looked at is never mistaken
       // for one somebody handed to the student.
-      if (isRequired(field)) {
+      if (requiredToSave(field)) {
         blockers.push({
           kind: "no_mapping",
           fieldRef: field.fieldRef,
@@ -432,7 +444,7 @@ export function planFill(
         });
       } else {
         const page = pageOf.get(field.fieldRef);
-        if (page !== undefined) unmapped.push({ fieldRef: field.fieldRef, label: field.label, ...page });
+        if (page !== undefined) unmapped.push({ fieldRef: field.fieldRef, label: field.label, ...page, ...saysOf(field.fieldRef) });
       }
       continue;
     }
@@ -561,7 +573,7 @@ export function planFill(
     for (const field of fields) {
       if (companionFields.has(field.fieldRef) || covered.has(field.fieldRef)) continue;
       if (mappingFor(mappingSet, field.fieldRef) !== undefined) continue;
-      if (isRequired(field)) {
+      if (requiredToSave(field)) {
         blockers.push({
           kind: "no_mapping",
           fieldRef: field.fieldRef,
@@ -573,13 +585,13 @@ export function planFill(
       } else {
         // Once per page, not per entry: the gap is the mapping's, and the
         // mapping is the same for every entry (ADR-0119).
-        unmapped.push({ fieldRef: field.fieldRef, label: field.label, pageRef: page.pageRef, pageTitle: page.title });
+        unmapped.push({ fieldRef: field.fieldRef, label: field.label, pageRef: page.pageRef, pageTitle: page.title, ...saysOf(field.fieldRef) });
       }
     }
 
     if (isFieldUnavailable(resolution)) {
       for (const field of fields) {
-        if (mappingFor(mappingSet, field.fieldRef)?.source.kind !== "profile_field" || !isRequired(field)) continue;
+        if (mappingFor(mappingSet, field.fieldRef)?.source.kind !== "profile_field" || !requiredToSave(field)) continue;
         blockers.push({
           kind: "value_unavailable",
           fieldRef: field.fieldRef,
