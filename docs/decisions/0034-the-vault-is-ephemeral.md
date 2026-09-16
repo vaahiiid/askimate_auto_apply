@@ -76,3 +76,13 @@ Two independent compromises are now required: the cache **and** KMS. Memory-only
 - **A restart that loses in-flight secrets fails closed and visibly**: the request moves to
   `secret_expired`, the student is told in the conversation, and the model asks again.
 - **Health-check-gated deploys** so a rolling restart drains in-flight secure turns first.
+
+## Addendum — 2026-09-16, the disk check fires on a real machine
+
+Vahid's step 5 stood the local stack up on a machine that had Node and pnpm and nothing else. A
+Homebrew Redis with its default `save` schedule met the envelope cache's policy check and the
+Secure Service refused to start — *"ciphertext must not reach disk"* — the first time that check
+ran anywhere but a test. In his words: *"That last one is a control doing its job on a real
+machine for the first time, and it stopped the stack rather than quietly writing ciphertext to
+my disk."* Recorded here because this ADR is where nothing-on-disk was decided; the persistent
+fix is a `redis.conf` edit, not `CONFIG SET`, and the runbook says so plainly.

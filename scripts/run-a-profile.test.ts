@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
 import { MIGRATIONS_DIR as CASE_MIGRATIONS } from "@askimate/aas-case-store";
-import { loadCatalogueDirectory, parseBlueprint, parseMappingSet, parseReviewedEntryText } from "@askimate/aas-catalogue";
+import { labelledHash, loadCatalogueDirectory, parseBlueprint, parseMappingSet, parseReviewedEntryText, toCanonical } from "@askimate/aas-catalogue";
 import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import { migrate } from "@askimate/aas-migrate";
@@ -213,11 +213,15 @@ describe("the catalogue entry for Run A (P152)", () => {
     return parsed.value;
   }
 
-  it("is the two drafts, parsed — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
+  it("is the two drafts, parsed, plus the signature and nothing else — so the entry cannot drift from them unnoticed — with the refs and the delivery Run A needs", () => {
     const { blueprint, mappingSet } = drafts();
     const value = entry();
-    expect(value.blueprint).toEqual(blueprint);
-    expect(value.mappingSet).toEqual(mappingSet);
+    // P154: signed. The drafts in docs/captures stay drafts (the record of the
+    // reads); the entry is the drafts with the three signature fields set by
+    // Vahid's act 1, and NOTHING else may differ.
+    expect({ ...value.blueprint, status: "draft" }).toEqual(blueprint);
+    const { status: _status, reviewedBy: _by, reviewedAt: _at, ...unsigned } = value.mappingSet;
+    expect(unsigned).toEqual({ ...mappingSet, status: undefined, reviewedBy: undefined, reviewedAt: undefined } as unknown as typeof unsigned);
     expect(value.institutionRef).toBe("inst-sheffield");
     expect(value.courseRef).toBe("course-sheffield-msc-management-and-international-business");
     expect(value.intakeRef).toBe("2027-09");
@@ -228,15 +232,41 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
   });
 
-  it("is NOT signed: both artefacts still say draft, the set names no reviewer, and the directory refuses to load", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only (2026-09-16, commit 3575eb1): the directory loads and admits exactly that account", async () => {
+    // His acts, verbatim from what he pasted back: the reviewer flip, the
+    // hash, the approval naming the UUID the seed printed.
     const value = entry();
-    expect(value.blueprint.status).toBe("draft");
-    expect(value.mappingSet.status).toBe("draft");
-    expect(value.mappingSet.reviewedBy).toBeUndefined();
+    expect(value.blueprint.status).toBe("reviewed");
+    expect(value.mappingSet.status).toBe("reviewed");
+    expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
+    expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:baca64a9975b0a2660743de6edc3ba821100417758124d2932a78387ef09e6f9");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok).toBe(false);
-    if (load.ok) expect.unreachable("a draft entry with no approval must not load");
-    expect(load.problems.some((problem) => problem.detail.includes("No approval exists"))).toBe(true);
+    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+  });
+
+  it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {
+    // Vahid, before signing: "If anything in either changes afterwards — a
+    // label, a value, a condition — the hash moves and the approval is void,
+    // and I would rather that happened loudly than be worked around."
+    const value = entry();
+    const edited = {
+      ...value,
+      blueprint: {
+        ...value.blueprint,
+        pages: value.blueprint.pages.map((page) => ({
+          ...page,
+          sections: page.sections.map((section) => ({
+            ...section,
+            fields: section.fields.map((field) => (field.fieldRef === "dobMonth" ? { ...field, label: "Month of birth" } : field)),
+          })),
+        })),
+      },
+    };
+    expect(labelledHash(toCanonical(edited))).not.toBe(labelledHash(toCanonical(value)));
   });
 
   it("the committed page-by-page read IS the command's output for the synthetic profile, and lists no registration page", async () => {
@@ -249,7 +279,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("DRAFT — blueprint 0.2.26 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.26, mapping set 0.3.31, reviewed by Vahid Mohammadi.");
     // P153: the read's four label defects gone — the hidden selects are not
     // "left empty", the radios read Yes/No, the date selects carry the row's question.
     expect(output).not.toContain("institutionCode");

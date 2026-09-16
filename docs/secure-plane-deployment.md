@@ -65,6 +65,13 @@ Nothing in this repository can verify any of these. They are the deployment's.
 
 ### 3.2 Valkey / Redis for the ciphertext cache
 
+> **Observed on a real machine, 2026-09-16 (Vahid, step 5 of the sequence to Run A):** a
+> Homebrew Redis with its default `save` schedule met this check, and the Secure Service refused
+> to start — *"ciphertext must not reach disk"* — rather than write an envelope of every
+> credential exchange to his disk. The first time the control fired outside a test, and it fired
+> the right way. `CONFIG SET save ""` is not persistent; the fix that survives a restart is in
+> `redis.conf` (`runbook-local-stack.md`, "Found on a real machine").
+
 ```
 appendonly no
 save ""                  # no RDB, no AOF — nothing on disk, ever

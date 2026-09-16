@@ -153,7 +153,8 @@ In the order they bite, each with who holds it and the evidence.
    written (`docs/run-a/`), shown before it seeds, and plans onto the drafts with nothing blocking
    on Part 1; on the way, the nationality page's university-level qualification select (the
    profile's Sheffield BSc is a UK study) mapped the same way, one value (set 0.3.31).
-6. **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
+6. ~~**Review**~~ **Done, P154 — signed by Vahid, 2026-09-16 (commit 3575eb1), one signature, own
+   account only.** The rest of this item as it stood: **Review — changed by Vahid, 2026-09-16 (ADR-0118).** *"Drop it to one: I approve, and I am
    the only signature."* He signs the blueprint and the mapping set in `approvals.json`, naming
    his own `studentId` under `ownAccountOnly`; the loader refuses a draft, an unreviewed set, and
    a self-signed approval that names no account, and the service serves the entry to his account
@@ -240,13 +241,16 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: two items open of ten* — this file's list, by count, with what moved. Items
+- *Distance to Run A: one item open of ten* — this file's list, by count, with what moved. Item
+  10 (Part 2) is the one, and it is not on Run A's path by his word. Items
   3, 4 and 5 cost Run A nothing on the synthetic profile and remain open for the product; they are
   struck above for Run A and not closed. Vahid, 2026-09-16: *"A number that does not mean what it
   says is the thing this project keeps finding."*
 
 ## What moved
 
+- 2026-09-16, P154: item 6 done — signed. The stack stood up on his machine (step 5, four
+  findings, in the runbook). Run A is the next act, his. One open of ten.
 - 2026-09-16, P153: the four label fixes he asked for before signing (draft 0.2.26), the entry
   re-assembled, the read regenerated; his acceptance of the four unobserved things recorded with
   the four named. Item 6 waits on his read of the regenerated file and his three acts. Two open

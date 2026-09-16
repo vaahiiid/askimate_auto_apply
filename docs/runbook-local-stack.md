@@ -93,7 +93,50 @@ else, and the Conversation Service and the Worker refuse to start on an entry no
 covers). `AAS_PORTAL_ORIGINS` is only needed to run the entry against a different instance of
 the portal than the one it observed.
 
-### The one-signature approval (ADR-0118)
+### Run A: the signed catalogue (P154)
+
+The entry Vahid signed on 2026-09-16 is `docs/run-a/catalogue/` in this repository. The stack
+serves it, and nothing else, with:
+
+```sh
+scripts/local-stack.sh stop
+AAS_LOCAL_CATALOGUE=registry \
+AAS_CATALOGUE_DIR="$PWD/docs/run-a/catalogue" \
+scripts/local-stack.sh start
+```
+
+`start` refuses if any of the five is still running (*"is already running … stop it first"*), so
+the `stop` comes first. Its last lines then read `catalogue  registry (…/docs/run-a/catalogue)`
+instead of `catalogue  fixtures`; the Conversation Service and the Worker both load the
+directory at start and refuse to come up on an entry no approval covers. No `AAS_PORTAL_ORIGINS`:
+Run A runs against the origin the blueprint observed, `www.sheffield.ac.uk`.
+
+### Found on a real machine — Vahid's step 5, 2026-09-16
+
+The runbook had been run only where Postgres and Redis were already there. On a machine with
+Node and pnpm and nothing else it found four things, each with its fix:
+
+1. **Homebrew was not installed.** It is the way the two services below arrive on a Mac:
+   `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`.
+2. **PostgreSQL was not installed, and the script wanted a role named `postgres`** that
+   Homebrew's install does not create (it creates a superuser named after the macOS user).
+   `brew install postgresql@16 && brew services start postgresql@16`, then either
+   `createuser -s postgres` once, or point the script at the role that exists:
+   `AAS_LOCAL_ADMIN_DATABASE_URL=postgresql://$(whoami)@127.0.0.1:5432/postgres`.
+3. **Redis was not installed.** `brew install redis && brew services start redis`.
+4. **Redis's default save-to-disk, and the Secure Service refused to start against it** —
+   `save` must be empty and `appendonly` must be `no`: *ciphertext must not reach disk*
+   (`secure-plane-deployment.md` §3.2; the check is in `packages/envelope-cache-redis`). This
+   was a control doing its job on a real machine for the first time: it stopped the stack rather
+   than let an envelope of every credential exchange be written to a disk nobody decided to
+   keep. **`redis-cli CONFIG SET save ""` clears it for the running server only — it does NOT
+   survive a Redis restart.** After a reboot, or `brew services restart redis`, the next start
+   meets the same refusal with no idea why. The persistent fix is the server's own file,
+   `/opt/homebrew/etc/redis.conf` on Apple silicon (`/usr/local/etc/redis.conf` on Intel): replace
+   the `save 3600 1 300 100 60 10000` line with `save ""`, make sure `appendonly no` stands, and
+   `brew services restart redis`. `redis-cli CONFIG GET save` then answers an empty string every
+   time the server comes up. `maxmemory-policy noeviction` is Redis's default and needs nothing.
+
 
 Since 2026-09-16 the approval may be signed by the entry's author, on one condition the loader
 enforces: it names the one account it admits, and the service serves the entry to that student

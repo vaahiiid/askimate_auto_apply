@@ -1,4 +1,4 @@
-DRAFT — blueprint 0.2.26 (draft), mapping set 0.3.31 (draft); planned AS IF reviewed. Nothing here is signed.
+REVIEWED — blueprint 0.2.26, mapping set 0.3.31, reviewed by Vahid Mohammadi.
 Profile: 18 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
 
 University of Sheffield — MSc Management and International Business, 2027-09

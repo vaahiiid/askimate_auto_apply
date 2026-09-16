@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P154 — signed
+
+He read the regenerated file and signed. The entry on main is the two drafts with his three signature fields and nothing else, a test now holds that, and the same test holds what he asked to be confirmed in one line: an edited label moves the hash, and the loader refuses the entry it no longer covers. The hash he pasted recomputes here to the byte. One signature, his, admitting one account, and the pins that said unsigned are flipped.
+
+Step 5 found four things on a machine with Node and pnpm and nothing else, and one of them was a control firing for the first time outside a test: a Homebrew Redis with its default save schedule, and the Secure Service refusing to start rather than let ciphertext reach his disk. He named it for what it was. The runbook now carries all four with their fixes, and says plainly that the setting he used to get past it is lost on a Redis restart and where the persistent one lives. The runbook also says how the stack is restarted on the signed catalogue instead of the fixtures.
+
+What is left is Run A, and the sequence for it is in the report rather than the record, because it is his to run with a live portal open and I would rather he had it whole. One of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P153 — the labels he signs are the labels he reads
 
 He would not sign over labels he could not read correctly, and said why: what he signs is the blueprint, what he reads is the preview generated from it, and if the labels are wrong the two are not the same document. So four fixes before the signature, each from a source and none invented. The nationality page's yes/no radios carry the option labels the third read found, where that read's values equal the draft's; P110's rewrite from the markup had put the field's own name on every option, and fourteen groups get their words back while three off the path keep their name because the read's "No" ran on into help text. The date selects that share a row with a labelled sibling carry the row's question, which is his fourth, the marker shape in the labels: anyone reading "Date of Birth: 2" saw the day as the date. The two hidden selects behind the education boxes are now a blueprint fact, fronted by the boxes that set them, so the plan lists them nowhere, and a mapping to one is refused. And the sentence at the top of every preview is true now: nothing is submitted by any run, so it says what the yes is, the fill saved on the portal and not the sending of it. There was no product path to make a difference explicit against.

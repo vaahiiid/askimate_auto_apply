@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.150.0] — 2026-09-16
+
+**P154 — signed: the Run A entry carries Vahid's signature (his commit 3575eb1); verified,
+pinned; step 5's four findings in the runbook; the signed-catalogue restart.**
+
+### Changed
+
+- `scripts/run-a-profile.test.ts`: the entry is the drafts plus the signature and nothing else;
+  the directory loads one entry admitting his account; an edited label voids it.
+- `docs/run-a/what-will-be-typed.md` regenerated from the signed entry (`REVIEWED`).
+- `docs/runbook-local-stack.md`: "Run A: the signed catalogue" and "Found on a real machine";
+  `docs/secure-plane-deployment.md` §3.2 and ADR-0034 note the disk check firing for real.
+
+---
+
 ## [0.149.0] — 2026-09-16
 
 **P153 — the four label fixes before the signature (draft 0.2.26); a fronted control is a
