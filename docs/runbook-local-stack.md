@@ -198,6 +198,23 @@ prints the `studentId` UUID to post to `/dev/session` and to put in the approval
 write for a student who already holds any profile entry. Every entry's provenance says it was
 seeded from the file by this command on that date and that no interview took place.
 
+**Run A signs in with his account's e-mail (blocker 31, decided 2026-09-17).** The resume path
+uses the profile's `contact.email` as the account's address (ADR-0110), and the file's address
+is synthetic, so for Run A the profile is seeded from a copy outside the repository whose
+`contact.email` is the one his Sheffield account holds — the file in the repository is not
+changed. The seed refuses a student who already holds entries, so the synthetic entries go first:
+
+```sh
+cp docs/run-a/synthetic-profile.json "$HOME/run-a-profile.json"          # outside the repository, at his word
+#   edit "$HOME/run-a-profile.json": "contact.email" → the address the Sheffield account holds
+psql "$AAS_CONVERSATION_DATABASE_URL"   -c "DELETE FROM profile_entries WHERE student_id = '<the studentId the first seed printed>'"
+AAS_CONVERSATION_DATABASE_URL=postgresql://…/aas_local_conversation   pnpm run profile:seed "$HOME/run-a-profile.json" --write --subject run-a
+#   prints "existing students row" and the SAME studentId — the approval does not change
+```
+
+The `students` row is kept, so the UUID in `approvals.json` still names the account; only the
+eighteen entries are rewritten, and each one's provenance now names the copy's file name.
+
 ## Found while writing this: the runner's CDP endpoint
 
 `AAS_BROWSER_CDP_URL` is documented as *"its own browser's CDP endpoint, as the agent will dial

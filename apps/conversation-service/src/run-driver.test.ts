@@ -11505,3 +11505,142 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 });
+
+describeIfDatabase("a page fill that fails cleanly is tried twice, then stops for a person; the student is told which attempt and what the page did (ADR-0122)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-17: *"build the cap first. My own rule… Two attempts then
+  // stop, same shape as 26 and 120, and the student told which attempt
+  // failed and what the page did."* Before this: a page reported `failed`
+  // completed its intent `failed_cleanly`, the next claim re-opened it
+  // (ADR-0047), and the runner tried the page again without limit, paced
+  // only by the one-second floor — blocker 32.
+  // ═══════════════════════════════════════════════════════════════════════
+  const PAGE = "page-application";
+  const TITLE = GATED_PORTAL_BLUEPRINT.pages.find((p) => p.pageRef === PAGE)?.title ?? "";
+
+  async function aLeasedPage(conversation: string, holder: string): Promise<{ instance: ReturnType<typeof buildInstance>; runId: string; leaseId: string }> {
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
+    const started = await pastTheYes(instance, conversation);
+    if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+    const runId = started.position.runId;
+    await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+    const leaseId = await takeThePage(instance, runId, holder);
+    return { instance, runId, leaseId };
+  }
+
+  /** The lease and the page's intent, as `claimWork` takes them: recorded first, re-opened after. */
+  async function takeThePage(instance: ReturnType<typeof buildInstance>, runId: string, holder: string): Promise<string> {
+    const runRef = makeRunId(runId);
+    const key = idempotencyKeyFor({ runId: runRef, action: "advance_portal_page", target: PAGE });
+    const runs = new PostgresWorkflowRunStore(instance.pool);
+    if ((await runs.findIntent(runRef, key)) === null) {
+      await runs.recordIntent(runRef, { idempotencyKey: key, action: "advance_portal_page", target: PAGE, startedAt: NOW });
+    } else if (!(await runs.reopenIntent(runRef, key, NOW))) {
+      expect.unreachable("a cleanly failed page re-opens");
+    }
+    const leaseId = `wl_${holder}`;
+    const lease = await new WorkLeaseStore(instance.pool).claim({ runId, leaseId, kind: "execute", holder, pageRef: PAGE, now: NOW, leaseSeconds: 120 });
+    if (lease === null) expect.unreachable("the page's lease should be free to take");
+    return leaseId;
+  }
+
+  async function attemptsOf(runId: string): Promise<{ outcome: string | null; attempts: number }> {
+    const rows = await pool.query<{ outcome: string | null; attempts_made: number }>(
+      "SELECT outcome, attempts_made FROM workflow_action_intents WHERE run_id = $1 AND action = 'advance_portal_page' AND target = $2",
+      [runId, PAGE],
+    );
+    const row = rows.rows[0];
+    if (row === undefined) expect.unreachable("the claim recorded the page's intent");
+    return { outcome: row.outcome, attempts: row.attempts_made };
+  }
+
+  async function interventionFor(runId: string): Promise<{ reason: string; encountered: string; expected: string; page: string | null } | null> {
+    const rows = await pool.query<{ reason: string; encountered: string; expected: string; context: { page?: string } }>(
+      "SELECT reason, encountered, expected, context FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : { reason: row.reason, encountered: row.encountered, expected: row.expected, page: row.context.page ?? null };
+  }
+
+  async function statusOf(runId: string): Promise<string | undefined> {
+    return (await pool.query<{ status: string }>("SELECT status FROM workflow_runs WHERE run_id = $1", [runId])).rows[0]?.status;
+  }
+
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("the first failure: told which page, which attempt and what the page did; the page is offered once more", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00751";
+    const { instance, runId, leaseId } = await aLeasedPage(conversation, "page-once");
+    try {
+      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+      expect(await attemptsOf(runId)).toEqual({ outcome: "failed_cleanly", attempts: 1 });
+      const told = (await saidTo(conversation)).filter((content) => content.includes("first of two"));
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain(TITLE);
+      expect(told[0]).toContain("would not take");
+      expect(told[0]).toContain("try once more");
+      expect(told[0]).toContain("Nothing has been submitted");
+      expect(await interventionFor(runId), "once is chance").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+      // Re-offered: a cleanly failed page re-opens for one more attempt.
+      expect(await takeThePage(instance, runId, "page-once-2")).toBe("wl_page-once-2");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("the second failure: a person is asked, told the page, the attempt and what the runner saw; the student is told; never offered again", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00752";
+    const { instance, runId, leaseId } = await aLeasedPage(conversation, "page-twice");
+    try {
+      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+      const lease2 = await takeThePage(instance, runId, "page-twice-2");
+      expect(await instance.driver.reportWork({ runId, report: { leaseId: lease2, outcome: "failed", failure: "portal_drift" } })).toBe(true);
+      expect(await attemptsOf(runId)).toEqual({ outcome: "failed_cleanly", attempts: 2 });
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("a person is asked");
+      expect(raised.reason, "the page was not laid out as the blueprint says").toBe("page_structure_changed");
+      expect(raised.page).toBe(PAGE);
+      expect(raised.encountered).toContain("second of two");
+      expect(raised.encountered).toContain("portal_drift");
+      expect(raised.encountered).toContain("portal_refused");
+      expect(raised.encountered).toContain("ADR-0122");
+      expect(raised.expected).toContain("once is chance, twice is the portal");
+      const told = (await saidTo(conversation)).filter((content) => content.includes("second time"));
+      expect(told).toHaveLength(1);
+      expect(told[0]).toContain(TITLE);
+      expect(told[0]).toContain("not laid out");
+      expect(told[0]).toContain("member of the team");
+      expect(await statusOf(runId)).toBe("escalated");
+      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      const offered = await instance.driver.claimWork({ holder: "runner-after-two", leaseSeconds: 60, sessions: [runId] });
+      expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
+      if (offered !== null) await pool.query("DELETE FROM work_leases WHERE run_id = $1", [offered.runId]);
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("a session the runner no longer holds is not an attempt: the resume path asks for the password, nothing is counted or told here", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00753";
+    const { instance, runId, leaseId } = await aLeasedPage(conversation, "page-nosession");
+    try {
+      expect(await instance.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "needs_the_student" } })).toBe(true);
+      expect((await saidTo(conversation)).some((content) => content.includes("of two"))).toBe(false);
+      expect(await interventionFor(runId)).toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});

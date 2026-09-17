@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P154 — signed: the Run A entry carries Vahid's one signature, own account only; step 5's findings in the runbook; Run A next |
+| **Phase** | P155 — ADR-0122: a failed page fill is tried twice, then stops for a person; blocker 32 closed before Run A; blocker 31 decided for Run A |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,692 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 121 ADRs · all 121 Accepted |
+| **Tests** | **2,699 passing · 142 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 122 ADRs · all 122 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P155 — the page fill stops at two
+
+His rule had a third exception and he would rather not have found it on the live portal, so it is closed first, before the run, the same way as 26 and 120: two attempts on a page, then a person, with the student told which page, which attempt and what the page did. The build was the ledger's memory as much as the driver's branch. The row already counted attempts across a reopen; what it could not say was what the first attempt did, and the person asked after the second needs both, so the row now keeps each attempt's code in order and both stores prove it. The words to the student say what the runner saw and no more — a box that would not take its value and a page not saved, a page not laid out as expected, a browser that failed before the save — and the words to the person say where the record cannot tell a rejected value from a wrong box, rather than picking one. A save the runner could not confirm was never a failure and still is not: it stops at once as uncertain, as it did.
+
+Blocker 31 is his to act on and he has: Run A signs in with his account's e-mail, re-seeded from a copy outside the repository, and the declaration carrying the account's e-mail is recorded as the thing to build, not a note. The fixture in the repository keeps the synthetic address. One of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P154 — signed
 
 He read the regenerated file and signed. The entry on main is the two drafts with his three signature fields and nothing else, a test now holds that, and the same test holds what he asked to be confirmed in one line: an edited label moves the hash, and the loader refuses the entry it no longer covers. The hash he pasted recomputes here to the byte. One signature, his, admitting one account, and the pins that said unsigned are flipped.

@@ -766,6 +766,86 @@ function signInStoppedMessage(entry: CatalogueEntry, failure: WorkFailure | null
 }
 
 /**
+ * A page fill's failure in the student's words (ADR-0122): what the page
+ * did, said as the runner saw it and never as more. `portal_refused` on a
+ * fill is a box that would not take its value — the runner read the page
+ * back and the page was not saved — and is said as that. A fault the runner
+ * could not tell from a refusal is reported `uncertain`, not `failed`, and
+ * stops through `pauseMessage`, which says so; it never reaches here.
+ */
+function pageFailureInWords(failure: WorkFailure): string {
+  if (failure === "portal_refused") {
+    return "a box on it would not take what I had for it, and the page was not saved";
+  }
+  if (failure === "portal_drift") {
+    return "the page was not laid out the way I expected, so I did not type into it";
+  }
+  if (failure === "runner_fault") return "my browser lost its connection before the page was saved";
+  return failureInWords(failure);
+}
+
+/**
+ * What the person is told about the code, beyond the code (ADR-0122): where
+ * the runner's reading can and cannot tell a refusal from a fault.
+ */
+function pageFailureForPerson(failure: WorkFailure): string {
+  if (failure === "portal_refused") {
+    return (
+      `"portal_refused" on a fill means a box on the page would not take the value the plan ` +
+      `gave it: the runner set what it could, read the page back, and found the page not ` +
+      `saved. Whether the portal rejected the value or the box is not the one the blueprint ` +
+      `names cannot be told apart from this record — nothing here guesses which.`
+    );
+  }
+  if (failure === "portal_drift") {
+    return (
+      `"portal_drift" means the page, its host or a locator the blueprint names was not as ` +
+      `expected, and the runner did not type into it.`
+    );
+  }
+  if (failure === "runner_fault") {
+    return (
+      `"runner_fault" means the runner's own browser failed before the save; the portal may ` +
+      `not have been reached on that attempt.`
+    );
+  }
+  if (failure === "robots_disallows") {
+    return `"robots_disallows" means the portal's robots.txt rules do not allow this page.`;
+  }
+  return "";
+}
+
+/**
+ * The first fill of a page failed (ADR-0122): which page, which attempt,
+ * what the page did, that there will be one more, and that nothing has
+ * been submitted.
+ */
+function pageFailedOnceMessage(entry: CatalogueEntry, title: string, failure: WorkFailure): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried to fill in the "${title}" page of your ${institution} application and it did not ` +
+    `go through on the first of two attempts: ${pageFailureInWords(failure)}. That can happen ` +
+    `once by chance, so I will try once more. Nothing has been submitted.`
+  );
+}
+
+/**
+ * The second fill of a page failed and the run has stopped (ADR-0122). The
+ * student is told which page, that it was the second time, what the page
+ * did, and that a person will look.
+ */
+function pageStoppedMessage(entry: CatalogueEntry, title: string, failure: WorkFailure): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I tried a second time to fill in the "${title}" page of your ${institution} application ` +
+    `and it did not go through either: ${pageFailureInWords(failure)}. I have stopped there ` +
+    `rather than keep trying, and passed your application to a member of the team, who will ` +
+    `look at what the portal is doing on that page and tell you what happens next. Nothing you ` +
+    `have given me is lost, and nothing has been submitted.`
+  );
+}
+
+/**
  * What the specialist is told: which challenge, during which action, against
  * which page, and what discovery had recorded — so the contradiction is on
  * the record rather than in somebody's memory. For a creation met by a second
@@ -5757,13 +5837,21 @@ export class RunDriver {
     // attempted nothing, and *"once is chance, twice is the portal"* counts
     // attempts, not hand-outs — and which secure request's handle it was
     // handed, so that password is never offered to the next attempt.
+    //
+    // A failed page fill says what it failed with (ADR-0122), so the person
+    // asked after the second attempt is told what the first did as well.
     const creationFailed = held.kind === "create_account" && input.report.outcome === "failed";
+    const pageFailed = held.kind === "execute" && input.report.outcome === "failed";
+    const code = input.report.failure === undefined ? {} : { failure: input.report.failure };
     const detail: IntentCompletionDetail | undefined = creationFailed
       ? {
           attempted: input.report.failure !== "secret_unavailable",
+          ...code,
           ...(await this.#secretHandedTo(runId)),
         }
-      : undefined;
+      : pageFailed
+        ? { attempted: input.report.failure !== "needs_the_student", ...code }
+        : undefined;
     if (input.report.outcome !== "uncertain" && LEDGERED_WORK.has(held.kind)) {
       await this.#options.stores.runs.completeIntent(
         runId,
@@ -5822,6 +5910,19 @@ export class RunDriver {
         target,
         failure: input.report.failure,
         spent: detail?.spentSecretRequestId,
+        now,
+      });
+    } else if (pageFailed && input.report.failure !== undefined) {
+      // ADR-0122. The same shape for a page: tried once, the student is told
+      // which page, which attempt and what it did, and the page is offered
+      // once more; tried twice, a person is asked and the student is told.
+      await this.#afterFailedPage({
+        runId,
+        key,
+        action,
+        target,
+        pageRef: held.pageRef,
+        failure: input.report.failure,
         now,
       });
     }
@@ -6023,6 +6124,115 @@ export class RunDriver {
         `the portal is doing, and at whether the password the student holds is the one the ` +
         `portal holds, before anything is tried again.`,
       say: signInStoppedMessage(entry, input.failure),
+      now: input.now,
+    });
+  }
+
+  /**
+   * What follows a page fill that failed cleanly (ADR-0122).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Vahid, 2026-09-17: *"build the cap first. My own rule… Two attempts
+   * then stop, same shape as 26 and 120, and the student told which
+   * attempt failed and what the page did. If a page's save failure cannot
+   * be told from a portal fault, say so rather than guessing, as 120
+   * does."*
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Before this, a page reported `failed` was completed `failed_cleanly`,
+   * the next claim re-opened it (ADR-0047) and the runner tried it again —
+   * without limit, paced only by the one-second floor (blocker 32). Now the
+   * ledger's count of attempts MADE against this page decides, as it does
+   * for the account (ADR-0114) and the session record does for the sign-in
+   * (ADR-0120):
+   *
+   *   the runner held no session       → not an attempt on the page: the
+   *                                       resume path asks for the password
+   *                                       (ADR-0101 §3); nothing counted or
+   *                                       said here.
+   *   the first attempt failed         → told which page, which attempt and
+   *                                       what the page did; the row stays
+   *                                       re-openable for one more.
+   *   the second attempt failed        → stop: a person asked, with both
+   *                                       attempts' codes on the record; the
+   *                                       student told; `escalated`.
+   *
+   * A failed fill is a claim by the runner that the page was NOT saved: it
+   * read the page back and found no save (ADR-0106), or never reached the
+   * save. A save it could not confirm is `uncertain`, which stops for a
+   * person at once through `#pause`, and is never counted here. So the cap
+   * covers the clean failures — `portal_refused` (a box would not take its
+   * value), `portal_drift` (the page not laid out as the blueprint says),
+   * `robots_disallows`, `runner_fault` before the save — and the two the
+   * runner can tell apart it says apart; the one it cannot, it says it
+   * cannot.
+   */
+  async #afterFailedPage(input: {
+    readonly runId: RunId;
+    readonly key: ActionIdempotencyKey;
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly pageRef: string | undefined;
+    readonly failure: WorkFailure;
+    readonly now: Date;
+  }): Promise<void> {
+    // Not an attempt on the page (see above); the resume path is elsewhere.
+    if (input.failure === "needs_the_student" || input.failure === "secret_unavailable") return;
+
+    const context = await this.#stopContext(input.runId);
+    if (context === null) return;
+    const { record, conversationId, entry } = context;
+    const page = entry.blueprint.pages.find((candidate) => candidate.pageRef === input.pageRef);
+    const title = page?.title ?? input.pageRef ?? "the page";
+
+    const found = await this.#options.stores.runs.findIntent(input.runId, input.key);
+    const attempts = found?.attemptsMade ?? 0;
+    if (attempts < 2) {
+      await this.#options.conversations.append({
+        conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: pageFailedOnceMessage(entry, title, input.failure),
+        },
+      });
+      return;
+    }
+
+    const failures = found?.attemptFailures ?? [];
+    const first = failures[0] ?? "not recorded";
+    const reason: RecoveryReason =
+      input.failure === "portal_drift"
+        ? "page_structure_changed"
+        : input.failure === "portal_refused"
+          ? "unfamiliar_validation_error"
+          : input.failure === "robots_disallows"
+            ? "new_portal_behaviour"
+            : "timeout_exhausted";
+    await this.#stopForPerson({
+      record,
+      conversationId,
+      entry,
+      action: input.action,
+      target: input.target,
+      reason,
+      encountered:
+        `Filling the "${title}" page (${input.pageRef ?? input.target}) on ${portalOf(entry)} ` +
+        `failed on the second of two attempts (ADR-0122): this attempt failed with ` +
+        `"${input.failure}"; the first attempt failed with "${first}", and the student was told ` +
+        `so in the conversation. The runner reported each as a clean failure — the page was ` +
+        `read back and found not saved, or the save was never reached — so nothing on this ` +
+        `page is recorded as entered. ` +
+        `${pageFailureForPerson(input.failure)} ` +
+        `The ledger records ${String(attempts)} attempts made against this page ` +
+        `(${failures.map((failure) => `"${failure}"`).join(", ")}) and no save; the system ` +
+        `makes no third attempt.`,
+      expected:
+        `The page saved on the first attempt, or on the second. ADR-0114's rule, applied to a ` +
+        `page fill by ADR-0122: once is chance, twice is the portal — a person looks at what ` +
+        `the portal is doing on this page, and at whether the blueprint still describes it, ` +
+        `before anything is tried again.`,
+      say: pageStoppedMessage(entry, title, input.failure),
       now: input.now,
     });
   }

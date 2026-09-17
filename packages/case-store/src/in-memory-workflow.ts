@@ -137,6 +137,7 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     held.intents.set(intent.idempotencyKey, {
       intent: { ...intent, startedAt: new Date(intent.startedAt.getTime()) },
       attemptsMade: 0,
+      attemptFailures: [],
     });
   }
 
@@ -157,6 +158,7 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
     held.intents.set(idempotencyKey, {
       intent: { ...record.intent, startedAt: new Date(startedAt.getTime()) },
       attemptsMade: record.attemptsMade,
+      attemptFailures: record.attemptFailures,
     });
     return true;
   }
@@ -196,6 +198,11 @@ export class InMemoryWorkflowRunStore implements WorkflowRunStore {
           : { spentSecretRequestId: detail.spentSecretRequestId }),
       },
       attemptsMade: record.attemptsMade + (detail?.attempted === false ? 0 : 1),
+      // The code of an attempt MADE that failed (ADR-0122); nothing otherwise.
+      attemptFailures:
+        detail?.attempted === false || detail?.failure === undefined
+          ? record.attemptFailures
+          : [...record.attemptFailures, detail.failure],
     });
   }
 

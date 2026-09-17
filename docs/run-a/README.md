@@ -47,6 +47,18 @@ silence from the portal after Run A is not evidence of a portal failure, and nob
 read it as one. The passport is *none*, so the nationality page gets the portal's
 own *"no passport"* instruction (ADR-0117); a synthetic passport number was not invented.
 
+**Blocker 31 (P154, decided 2026-09-17).** The runner signs in to an existing account with the
+profile's `contact.email` (`existingAccountStep`, ADR-0110), so on Run A the seeded address must
+be the one his Sheffield account holds, or the sign-in fails as `portal_refused` twice before a
+page is touched. Vahid: *"re-seed with my account's e-mail, from the copy outside the
+repository."* So **the file here keeps the synthetic address**; his machine seeds a copy of it,
+outside the repository, with `contact.email` changed to his account's, after deleting the
+synthetic profile's entries for the same student (the command refuses to overwrite). The two
+paragraphs above then read differently for Run A: the personal page's e-mail boxes carry his
+address, and mail from Sheffield reaches him. The honest product shape — the `existing_account`
+declaration carrying the account's own e-mail, distinct from the contact address — is recorded
+as **the thing to build** (state document, blocker 31), at his word: *"not as a note."*
+
 **Not held, and why.** `residence.uk_entry_date` — not in the UK now, and the page hides the entry
 date for a resident abroad; `immigration.uk_study.currentVisaExpiry` — no current visa, the three
 expiry boxes typed empty as the row's own words allow; and every registry field no Sheffield

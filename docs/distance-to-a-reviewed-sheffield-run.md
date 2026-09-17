@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-17, P155: blocker 32 closed at his word before Run A — ADR-0122, the page fill capped
+  at two like the creation and the sign-in, the ledger remembering what each attempt failed
+  with. Blocker 31 decided A for Run A (his re-seed, outside the repository) with the declaration
+  carrying the account's e-mail recorded as the thing to build. One open of ten, unchanged.
 - 2026-09-16, P154 (later): two things found writing Run A's sequence, both raised as blockers
   before the run rather than met during it — 31, the runner signs in with the profile's
   `contact.email`, which for the synthetic profile is not his account's address; 32, a page

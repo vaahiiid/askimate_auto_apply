@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.151.0] — 2026-09-17
+
+**P155 — ADR-0122: a failed page fill is tried twice, then stops for a person; the student is
+told which page, which attempt and what the page did; the ledger remembers what each attempt
+failed with (blocker 32, decided by Vahid, 2026-09-17).**
+
+### Added
+
+- `packages/case-store`: `IntentRecord.attemptFailures` and `IntentCompletionDetail.failure`;
+  migration `0006_intent_failures.sql` (`attempt_failures text[]`); the contract suite proves the
+  codes survive a reopen, a non-attempt adds none, a success adds none.
+- `apps/conversation-service` run driver: `#afterFailedPage` — first failure told with the page's
+  title and the page re-openable once; second failure stops for a person with the page, both codes
+  and the reason on the record, the student told, `escalated`; a lost session is not an attempt.
+
+### Changed
+
+- A failed `execute` report completes the page's intent with its code; a failed creation does too.
+- Blocker 31 recorded as decided A for Run A (his re-seed) with B the thing to build.
+
+---
+
 ## [0.150.0] — 2026-09-16
 
 **P154 — signed: the Run A entry carries Vahid's signature (his commit 3575eb1); verified,

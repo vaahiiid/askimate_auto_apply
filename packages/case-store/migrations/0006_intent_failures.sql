@@ -1,0 +1,27 @@
+-- 0006 · What each attempt made failed with, in order (ADR-0122).
+--
+-- Forward-only and reviewed, per ADR-0003.
+--
+-- ── Still ONE row per (run, action, target) ──────────────────────────────
+--
+-- 0005 gave the row a count of the attempts made, so that a second failure
+-- is known to be the second and there is no third (ADR-0114). What the count
+-- cannot say is what the FIRST attempt did. Vahid, 2026-09-17, on the page
+-- fill that was tried without limit (blocker 32): *"Two attempts then stop,
+-- same shape as 26 and 120, and the student told which attempt failed and
+-- what the page did."* The person asked after the second attempt needs both
+-- on the record — a page refused twice and a page refused once then not
+-- found the way the blueprint says are different faults — and the record
+-- is this row, not a conversation somebody would have to read back.
+--
+-- ── A closed code per attempt, never the portal's text ───────────────────
+--
+-- Each element is the runner's failure code from the closed set the wire
+-- contract names (`WORK_FAILURES`): free text from a page we do not control
+-- never reaches this plane. Appended by the completion that closes an
+-- attempt MADE and failed; a success appends nothing, and a hand-out that
+-- reached no page (`attempted = false`, the count untouched) appends
+-- nothing either, so the list and the count draw the same line. A reopen
+-- leaves it alone, as it leaves the count alone: that is the memory.
+ALTER TABLE workflow_action_intents
+    ADD COLUMN IF NOT EXISTS attempt_failures text[] NOT NULL DEFAULT '{}';

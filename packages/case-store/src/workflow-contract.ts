@@ -469,6 +469,60 @@ export function runWorkflowStoreContract(
         expect((await store.listIntents(id, "create_portal_account"))[0]?.attemptsMade).toBe(2);
       });
 
+      it("remembers what each attempt MADE failed with, in order, across a reopen (ADR-0122)", async () => {
+        // ═══════════════════════════════════════════════════════════════
+        // Vahid, 2026-09-17: *"the student told which attempt failed and
+        // what the page did."* The count says a second failure is the
+        // second; it does not say what the first one was, and the person
+        // asked after the second needs both on the record — a page refused
+        // twice and a page refused once then not found are different
+        // faults. So the row keeps the code of every attempt made, in the
+        // order they were made, and a reopen forgets none of them.
+        // ═══════════════════════════════════════════════════════════════
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        expect((await store.findIntent(id, key(id)))?.attemptFailures, "nothing yet").toEqual([]);
+
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, { failure: "portal_refused" });
+        expect((await store.findIntent(id, key(id)))?.attemptFailures).toEqual(["portal_refused"]);
+        // A duplicate report of the same completion is one attempt, once.
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, { failure: "portal_refused" });
+        expect((await store.findIntent(id, key(id)))?.attemptFailures).toEqual(["portal_refused"]);
+
+        const later = new Date(NOW.getTime() + 60_000);
+        expect(await store.reopenIntent(id, key(id), later)).toBe(true);
+        expect((await store.findIntent(id, key(id)))?.attemptFailures, "a reopen forgets nothing").toEqual(["portal_refused"]);
+
+        await store.completeIntent(id, key(id), "failed_cleanly", later, { failure: "portal_drift" });
+        const found = await store.findIntent(id, key(id));
+        expect(found?.attemptFailures, "both, in order").toEqual(["portal_refused", "portal_drift"]);
+        expect(found?.attemptsMade).toBe(2);
+        expect((await store.listIntents(id, "create_portal_account"))[0]?.attemptFailures).toEqual(["portal_refused", "portal_drift"]);
+      });
+
+      it("records no failure for a hand-out that was not an attempt, and none for a success (ADR-0122)", async () => {
+        // The list is what the attempts MADE did. A password that could not
+        // be used reached no page (`attempted: false`) and so has no place
+        // in it — the same line `attempts_made` draws. A success ends the
+        // row with no code, and the failures before it stay as they were.
+        await store.start(freshRun(id));
+        await store.recordIntent(id, intent(id));
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, {
+          attempted: false,
+          failure: "secret_unavailable",
+          spentSecretRequestId: "sr_a",
+        });
+        expect((await store.findIntent(id, key(id)))?.attemptFailures, "not an attempt").toEqual([]);
+
+        await expect(store.reopenIntent(id, key(id), NOW)).resolves.toBe(true);
+        await store.completeIntent(id, key(id), "failed_cleanly", NOW, { failure: "runner_fault" });
+        await expect(store.reopenIntent(id, key(id), NOW)).resolves.toBe(true);
+        await store.completeIntent(id, key(id), "succeeded", NOW);
+        const done = await store.findIntent(id, key(id));
+        expect(done?.attemptsMade).toBe(2);
+        expect(done?.attemptFailures, "the success adds nothing; the failure before it stays").toEqual(["runner_fault"]);
+      });
+
       it("does NOT count a hand-out that never reached the portal (ADR-0114)", async () => {
         // A runner handed a password it could not use has attempted nothing:
         // once is chance, twice is the portal, and this was neither. The

@@ -120,6 +120,16 @@ export interface IntentRecord {
    * is not among them. Vahid: *"once is chance, twice is the portal."*
    */
   readonly attemptsMade: number;
+  /**
+   * What each attempt MADE failed with, in the order they were made, across
+   * every reopen (ADR-0122). The runner's closed failure code, never the
+   * portal's own text. A success adds nothing; a hand-out that was not an
+   * attempt adds nothing, on the same line `attemptsMade` draws. Vahid:
+   * *"the student told which attempt failed and what the page did"* — and
+   * the person asked after the second attempt is told what the first did
+   * too, which the count alone cannot say.
+   */
+  readonly attemptFailures: readonly string[];
 }
 
 /**
@@ -128,11 +138,14 @@ export interface IntentRecord {
  * `attempted` defaults to true: a completion is an attempt made unless the
  * caller says the action never reached the world. `spentSecretRequestId` is
  * the request the attempt was handed a handle for, so the row can say which
- * password is spent without waiting on the Secure Plane's outbox.
+ * password is spent without waiting on the Secure Plane's outbox. `failure`
+ * is the runner's code for a failed attempt (ADR-0122), kept on the row
+ * only when the attempt was made.
  */
 export interface IntentCompletionDetail {
   readonly attempted?: boolean;
   readonly spentSecretRequestId?: string;
+  readonly failure?: string;
 }
 
 /**
