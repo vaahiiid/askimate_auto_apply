@@ -38,6 +38,9 @@ failed with (blocker 32, decided by Vahid, 2026-09-17).**
 
 - A failed `execute` report completes the page's intent with its code; a failed creation does too.
 - Blocker 31 recorded as decided A for Run A (his re-seed) with B the thing to build.
+- Addendum, 2026-09-17: blocker 33 raised (a robots refusal on a sign-in is counted and worded
+  as a password attempt; deferred past Run A at his word); `CLAUDE.md` carries his rule that a
+  phase at twice its estimate stops and says so.
 
 ---
 

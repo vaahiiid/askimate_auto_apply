@@ -47,6 +47,19 @@ What this means for work entering the repository:
 This is the same failure the record-integrity phases (ADR-0082 to ADR-0084) spent removing — a
 record asserting more than what happened — and it matters most where a boundary protects passwords.
 
+## A phase that passes twice its estimate stops and says so
+
+Decided by Vahid on 2026-09-17, after a phase estimated at about an hour ran seven without a
+word. The work was right — a test he asked for found a real gap and the phase grew to close
+it — but he had no way to tell a phase that had grown from one stuck in a loop.
+
+In his words: **"if a phase passes roughly twice what you estimated, stop and say so before
+carrying on. One line is enough — what grew and why. I will almost always say carry on, but I
+want to be the one saying it."**
+
+So: every phase carries an estimate; at roughly twice it, the work stops and one line goes to
+him naming what grew and why; carrying on is his word, not the agent's.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.
