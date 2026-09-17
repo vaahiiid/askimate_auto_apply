@@ -9064,10 +9064,21 @@ describeIfDatabase("a run only a person can carry on", () => {
     const stop = source.slice(source.indexOf("async #stopForSpecialist"));
     expect(
       stop.slice(0, 2400),
-      "the step is recognised by the ORCHESTRATOR's narrowing, not by a " +
+      "the step is recognised by the ORCHESTRATOR's narrowings, not by a " +
         "comparison here — `check-boundaries` forbids one, and a sixth " +
         "specialist situation must reach this stop without an edit",
-    ).toContain("const handover = specialistHandoverOf(step);");
+    ).toContain("specialistHandoverOf(step)");
+    expect(
+      stop.slice(0, 2400),
+      "and since ADR-0123 a `fix_content` the interview cannot act on is the " +
+        "same fact through the second narrowing — still the orchestrator's, " +
+        "not a `step.kind` this coordinator keeps its own copy of",
+    ).toContain("contentHandoverOf(step)");
+    expect(
+      stop.slice(0, 2400),
+      "neither narrowing is re-implemented here as a comparison on the step — " +
+        "the kind is carried into the position it returns, never branched on",
+    ).not.toContain("step.kind ===");
     expect(
       stop.slice(0, 2400),
       "it stops on the hand-over itself, not on a reason it recognises",
@@ -11639,6 +11650,79 @@ describeIfDatabase("a page fill that fails cleanly is tried twice, then stops fo
       expect((await saidTo(conversation)).some((content) => content.includes("of two"))).toBe(false);
       expect(await interventionFor(runId)).toBeNull();
       expect(await statusOf(runId)).toBe("running");
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
+
+describeIfDatabase("content the portal would reject, that the interview cannot ask for, stops for a person and says so (ADR-0123)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-17, at Run A's step 3: the page read `fix content
+  // (running)` with no question, no message, no intervention and no log line
+  // — *"A position with no question, no intervention, no log line and no way
+  // out is worse than any of the three loops we have fixed, because at least
+  // those did something. Whatever the validator decides, a step that cannot
+  // ask for what it needs must stop for a person and say so."*
+  //
+  // The mechanism is ADR-0065's stop, through the orchestrator's own
+  // narrowing (`contentHandoverOf`), so `specialist` and `fix_content` are one
+  // fact — this run cannot go on until a person looks — with one home.
+  // ═══════════════════════════════════════════════════════════════════════
+  async function interventionFor(runId: string): Promise<{ reason: string; encountered: string; announced: boolean; key: string } | null> {
+    const rows = await pool.query<{ reason: string; encountered: string; announced_at: Date | null; idempotency_key: string }>(
+      "SELECT reason, encountered, announced_at, idempotency_key FROM interventions WHERE run_id = $1",
+      [runId],
+    );
+    const row = rows.rows[0];
+    return row === undefined ? null : { reason: row.reason, encountered: row.encountered, announced: row.announced_at !== null, key: row.idempotency_key };
+  }
+  async function saidTo(conversation: string): Promise<string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content FROM conversation_events e JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant' ORDER BY e.ordinal ASC`,
+      [conversation],
+    );
+    return rows.rows.map((row) => row.content);
+  }
+
+  it("a statement over the portal's limit: the run is escalated, a person is told which box and which rule, the student is told once, nothing is asked", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00761";
+    await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const profiles = new PostgresConfirmedProfileStore(instance.pool);
+      await confirmTheInterview(profiles, ownerOf(conversation));
+      // Over the fixture's 4,000-character limit. Nothing here may shorten it
+      // for the student, and no mapping names a box the validator objects to
+      // — so there is nothing to ask.
+      await confirmInto(profiles, "study.personal_statement", "A".repeat(4_500), "…", ownerOf(conversation));
+
+      const started = await instance.driver.start({ conversationId: conversation, blueprintId: GATED_BLUEPRINT, studentStatement: STATEMENT });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      expect(started.position.step).toBe("fix_content");
+      expect(started.position.status, "not left running with nothing to do").toBe("escalated");
+      const runId = started.position.runId;
+
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("a person is asked");
+      expect(raised.key).toContain("specialist:content_rejected");
+      expect(raised.encountered).toContain("personal_statement");
+      expect(raised.encountered).toContain("maxlength");
+      expect(raised.encountered).not.toContain("AAAAA");
+      expect(raised.announced).toBe(true);
+
+      const said = (await saidTo(conversation)).filter((content) => content.includes("member of the team"));
+      expect(said, "told once").toHaveLength(1);
+      expect(said[0]).toContain("would not accept");
+      expect(said[0]).toContain("nothing has been submitted");
+
+      // Advanced again: the same stop, said nothing more, asked nothing.
+      const again = await instance.driver.advance({ runId, conversationId: conversation });
+      if (!again.ok) expect.unreachable(`advance refused: ${again.refusal.kind}`);
+      expect(again.position.status).toBe("escalated");
+      expect((await saidTo(conversation)).filter((content) => content.includes("member of the team"))).toHaveLength(1);
+      expect((await pool.query("SELECT 1 FROM conversation_events WHERE conversation_id = $1 AND kind = 'value_asked'", [conversation])).rowCount).toBe(0);
     } finally {
       await instance.pool.end();
     }

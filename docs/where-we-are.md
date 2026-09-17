@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P156 — Run A found it before a student did
+
+He ran step 3 and the run stood at a position my sequence did not name, with no question, no message, no intervention and no log line. It was two of our own records disagreeing about one page, the third time: the plan had read the language section's optional fact since P147 and planned nothing for its eighteen starred boxes, the read he signed over said the form did not require them, and the validator read the marks alone and objected to all eighteen. Nothing compared the two until a run did, because the Run A test had checked the plan's blockers and never run the validator on the signed entry. That gap is on the record as its own line, and the test runs the validator now.
+
+His evidence was a save, not a star: he had opened the language page fresh on 16 September, touched nothing, pressed Save, and the portal took it. So the section fact governs and the validator reads it through the same function the plan reads. The marks stay, no draft changed, the hash is the one he signed, and the re-sign he accepted is not owed.
+
+The dead end he found is the more serious thing and is treated as such. A fix_content the interview cannot ask for stops for a person now, with the box, the rule and its bound on the record and never a value, and the student is told once. Until the interview can ask for a fix, every fix_content stops this way, and a stop that says so beats a loop that says nothing. Run A resumes from the conversation he left. One of ten.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P155 — the page fill stops at two
 
 His rule had a third exception and he would rather not have found it on the live portal, so it is closed first, before the run, the same way as 26 and 120: two attempts on a page, then a person, with the student told which page, which attempt and what the page did. The build was the ledger's memory as much as the driver's branch. The row already counted attempts across a reopen; what it could not say was what the first attempt did, and the person asked after the second needs both, so the row now keeps each attempt's code in order and both stores prove it. The words to the student say what the runner saw and no more — a box that would not take its value and a page not saved, a page not laid out as expected, a browser that failed before the save — and the words to the person say where the record cannot tell a rejected value from a wrong box, rather than picking one. A save the runner could not confirm was never a failure and still is not: it stops at once as uncertain, as it did.

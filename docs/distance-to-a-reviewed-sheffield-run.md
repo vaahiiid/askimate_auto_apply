@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-17, P156: Run A's step 3 found two things before a student did — the validator read
+  the language section's marks where the plan read its optional fact (eighteen violations on the
+  signed entry, never run by the P150 test), and a `fix_content` with nothing to ask was a silent
+  dead end. Both closed at his word (ADR-0123): the validator reads the section fact, the stop
+  says so. No draft changed, no re-sign owed. Run A resumes from step 3. One open of ten.
 - 2026-09-17, P155: blocker 32 closed at his word before Run A — ADR-0122, the page fill capped
   at two like the creation and the sign-in, the ledger remembering what each attempt failed
   with. Blocker 31 decided A for Run A (his re-seed, outside the repository) with the declaration

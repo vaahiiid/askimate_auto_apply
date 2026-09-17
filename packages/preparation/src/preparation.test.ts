@@ -290,6 +290,68 @@ describe("the preview", () => {
     expect(text).not.toContain("You fill in yourself: Starred box");
   });
 
+  it("does not report a starred box inside a section the portal says may be skipped: the validator reads the fact the plan reads (ADR-0123)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-17, after Run A stopped at `fix_content` on eighteen
+    // starred boxes of a section he had saved empty on the live portal:
+    // *"The star is not the evidence. The save is… a star is not a
+    // requirement either."* — *"the section-level optional fact you built
+    // in P147 is right and should govern. If the validator is not reading
+    // it, that is the defect — not the marks and not the mapping."*
+    //
+    // The plan read `optionalSectionWords` since P147; the validator read
+    // the marks alone. Two of our own records read different things about
+    // one fact, and nothing compared them until a run stopped.
+    // ═══════════════════════════════════════════════════════════════════
+    const words = "If you do not have this, you do not need to complete this section.";
+    const first = FIXTURE_BLUEPRINT.pages[0];
+    if (first === undefined) expect.unreachable("a page");
+    const starred = {
+      fieldRef: "starred_but_skippable",
+      label: "Starred box",
+      inputType: "text" as const,
+      dataCategory: "ordinary" as const,
+      locators: [{ strategy: "name" as const, value: "starred_but_skippable" }],
+      validations: [{ kind: "required" as const, source: "observed_marker" as const }],
+    };
+    const section = (optional: boolean) => ({
+      ...FIXTURE_BLUEPRINT,
+      pages: [
+        {
+          ...first,
+          sections: [
+            ...first.sections,
+            {
+              sectionRef: "skippable",
+              title: "A section you may skip",
+              ...(optional ? { optional: { formSays: words } } : {}),
+              fields: [starred],
+            },
+          ],
+        },
+        ...FIXTURE_BLUEPRINT.pages.slice(1),
+      ],
+    });
+    // The mark alone, outside such a section: still a box the page will not
+    // save without. Erase nothing; the star was seen.
+    const marked = section(false);
+    const markedCheck = checkUsable(FIXTURE_MAPPING_SET, marked);
+    if (!markedCheck.usable) expect.unreachable(markedCheck.refusal.kind);
+    const markedResult = validatePlan(marked, planFill(marked, markedCheck.mappingSet, COMPLETE));
+    expect(markedResult.violations.map((v) => v.fieldRef)).toContain("starred_but_skippable");
+
+    // The same mark inside a section the portal says may be skipped: the
+    // same answer the plan gives — not required to save.
+    const skippable = section(true);
+    const check = checkUsable(FIXTURE_MAPPING_SET, skippable);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(skippable, check.mappingSet, COMPLETE);
+    expect(plan.blockers, "the plan already reads the fact").toEqual([]);
+    const result = validatePlan(skippable, plan);
+    expect(result.violations.map((v) => v.fieldRef), "and now the validator does").not.toContain("starred_but_skippable");
+    expect(isValid(result)).toBe(true);
+  });
+
   it("binds the yes to which boxes are left unmapped (ADR-0119)", () => {
     const preview = previewFor();
     const plan = planFor();

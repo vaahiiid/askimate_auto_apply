@@ -158,6 +158,7 @@ import {
   requiredFieldsFor,
   requiresSecureRequest,
   specialistHandoverOf,
+  contentHandoverOf,
   resumeRun,
   startRun,
   withAccountCreationFailure,
@@ -919,6 +920,21 @@ function specialistMessage(entry: CatalogueEntry): string {
     `I have had to pass your ${entry.blueprint.institutionName} application to a member of the ` +
     `team. There is something about it I cannot complete on my own, and I would rather a person ` +
     `looked at it than guess. Nothing you have given me is lost, and nothing has been submitted.`
+  );
+}
+
+/**
+ * What the student reads when the portal would not accept the content as
+ * planned and nothing here can ask them to change it (ADR-0123). Says what
+ * stopped and that a person will look; names no box and no rule, which the
+ * student could do nothing with.
+ */
+function contentRejectedMessage(entry: CatalogueEntry): string {
+  return (
+    `I have paused your ${entry.blueprint.institutionName} application and passed it to a member ` +
+    `of the team. Their form would not accept something in it as I had planned to enter it, and ` +
+    `it is not something I can ask you to change from here, so a person will look at it and tell ` +
+    `you what happens next. Nothing you have given me is lost, and nothing has been submitted.`
   );
 }
 
@@ -4281,7 +4297,12 @@ export class RunDriver {
     step: RunStep,
     now: Date,
   ): Promise<RunOutcome | null> {
-    const handover = specialistHandoverOf(step);
+    // ADR-0123: a `fix_content` the interview cannot act on is the same fact
+    // — this run cannot go on until a person looks — through the
+    // orchestrator's second narrowing. Found at Run A's step 3: the run sat at
+    // `fix content (running)` with nothing asked, nothing said, nobody told.
+    const content = contentHandoverOf(step);
+    const handover = specialistHandoverOf(step) ?? content;
     if (handover === null) return null;
 
     await this.#raiseForSpecialist({
@@ -4298,7 +4319,7 @@ export class RunDriver {
       expected:
         `A specialist reviews the case and the reviewed artefacts behind it, and either supplies ` +
         `what is missing or stops the application. This run cannot proceed on its own.`,
-      message: specialistMessage(input.entry),
+      message: content === null ? specialistMessage(input.entry) : contentRejectedMessage(input.entry),
       now,
     });
 

@@ -24,7 +24,7 @@
 import type { ApplicationBlueprint, BlueprintField, FieldValidation } from "@askimate/aas-blueprint";
 import { allFields } from "@askimate/aas-blueprint";
 import type { FillPlan } from "@askimate/aas-mapping";
-import { textOf } from "@askimate/aas-mapping";
+import { optionalSectionWords, textOf } from "@askimate/aas-mapping";
 
 /** One rule this plan does not satisfy. */
 export interface Violation {
@@ -85,6 +85,15 @@ export function validatePlan(
   const filledSecurely = new Set(plan.credentials.map((credential) => credential.fieldRef));
   // P90: a field the form hides for these answers is not a missing one.
   const hidden = new Set(plan.hidden.map((field) => field.fieldRef));
+  // ADR-0119, read here from ADR-0123 on: a marker inside a section the
+  // portal says may be skipped is not a box the page will not save without.
+  // THE SAME FUNCTION the plan reads (`optionalSectionWords`), so the two
+  // cannot answer differently about one page again. Until P156 the plan read
+  // it and this did not, and the signed Run A entry — eighteen starred boxes
+  // in a language section Vahid had saved empty on the live portal — planned
+  // clean and validated as eighteen violations. Vahid: *"The star is not the
+  // evidence. The save is."*
+  const skippable = optionalSectionWords(blueprint);
   // ADR-0103 gap 4: a slot's companion is set by the attach, not by an
   // instruction — a required status radio beside an attached file is not
   // missing, it is the attach's second act.
@@ -106,6 +115,7 @@ export function validatePlan(
         filledSecurely: filledSecurely.has(field.fieldRef),
         hidden: hidden.has(field.fieldRef),
         companion: companions.has(field.fieldRef),
+        skippable: skippable.has(field.fieldRef),
       });
       if (violation !== null) violations.push(violation);
     }
@@ -127,6 +137,8 @@ interface FieldContext {
   readonly hidden: boolean;
   /** Set beside an attached file by the attach itself (ADR-0103, gap 4). */
   readonly companion: boolean;
+  /** Inside a section the portal says may be skipped (ADR-0119, ADR-0123). */
+  readonly skippable: boolean;
 }
 
 function checkRule(
@@ -149,7 +161,14 @@ function checkRule(
       // the Secure Plane is not empty — it is filled by something other than
       // typing here. Reporting those as violations would bury the real ones,
       // and in the credential case would be a violation nobody could ever fix.
-      if (context.uploaded || context.handedOff || context.filledSecurely || context.hidden || context.companion) {
+      if (
+        context.uploaded ||
+        context.handedOff ||
+        context.filledSecurely ||
+        context.hidden ||
+        context.companion ||
+        context.skippable
+      ) {
         return null;
       }
       if (value !== undefined && value.trim().length > 0) return null;

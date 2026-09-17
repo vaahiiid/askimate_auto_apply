@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.152.0] — 2026-09-17
+
+**P156 — ADR-0123: a star is not a requirement — the validator reads the section fact the plan
+reads; a `fix_content` the interview cannot act on stops for a person and says so (blockers 34
+and 35, found by Run A, decided by Vahid, 2026-09-17).**
+
+### Fixed
+
+- `packages/preparation` `validatePlan`: a `required` marker inside a section the portal says may
+  be skipped (`BlueprintSection.optional`) raises no violation — the same `optionalSectionWords`
+  the plan reads. The signed Run A entry validated as eighteen violations until now.
+- `scripts/run-a-profile.test.ts` runs the validator on the signed entry with the synthetic
+  profile; it had checked plan blockers only.
+
+### Added
+
+- `packages/orchestrator` `contentHandoverOf(step)`: a `fix_content` step as a hand-over naming
+  boxes, rules and bounds, never a value.
+- Run driver: the ADR-0065 stop takes it — `specialist:content_rejected`, `escalated`, the
+  student told once (`contentRejectedMessage`).
+
+---
+
 ## [0.151.0] — 2026-09-17
 
 **P155 — ADR-0122: a failed page fill is tried twice, then stops for a person; the student is

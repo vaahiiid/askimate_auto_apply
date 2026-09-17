@@ -171,3 +171,15 @@ Run A is for. Record that I was told and accepted it, with the four named, so a 
 not treat a re-sign as a failure of the review."* The four, named: the grading systems following
 the institution box; the two Tom Select boxes as fills; the subject search; the login form's
 locators. A re-sign for any of them is Run A doing what it is for, not a failure of the review.
+
+## What Run A found before a student did — step 3, 2026-09-17
+
+The run stopped at `fix content` with no question and no message. The validator objected to
+eighteen starred boxes in the language section — the boxes Vahid had saved empty on the live
+portal on 16 September, which the plan and the read already treated as not required (the
+section's `optional` fact, P147). The validator had never run on this entry: the P150 test
+checked the plan's blockers only. Both readings of the page are compared in that test now, the
+validator reads the section fact (ADR-0123), **no draft changed and the signature stands**. The
+same run found that a `fix_content` with nothing to ask was a silent dead end; it stops for a
+person now. Vahid: *"The star is not the evidence. The save is."* This is the whole argument for
+Run A existing, and it is recorded here as such.

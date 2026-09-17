@@ -38,6 +38,7 @@ export {
   requiresSecureRequest,
   signInWorkOf,
   specialistHandoverOf,
+  contentHandoverOf,
   withAccount,
   withAccountCreationFailure,
   withAuthorisation,

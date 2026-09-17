@@ -23,7 +23,7 @@ import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStor
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import { migrate } from "@askimate/aas-migrate";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
-import { buildPreview, renderPreview } from "@askimate/aas-preparation";
+import { buildPreview, renderPreview, validatePlan } from "@askimate/aas-preparation";
 import { rehydrateProfile } from "@askimate/aas-profile";
 import type { StoredProfileEntry } from "@askimate/aas-profile";
 
@@ -75,6 +75,18 @@ describe("the synthetic profile for Run A (P150)", () => {
     });
     const plan = planFill(blueprint, check.mappingSet, profile);
     expect(plan.blockers).toEqual([]);
+    // ── The validator, which never ran on this entry until Run A stopped ──
+    //
+    // Found by Vahid at Run A's step 3, 2026-09-17: this test checked the
+    // plan's blockers and nothing more, so the run was the first thing to
+    // run `validatePlan` on the signed entry with this profile — and it
+    // answered eighteen violations, every one a starred box in the language
+    // section he had saved empty on the live portal (blocker 34, ADR-0123).
+    // The gap is worth its own line: the plan and the validator are two
+    // readings of one page, and only the run compared them.
+    const validation = validatePlan(blueprint, plan);
+    expect(validation.violations, "the run authorises only what the validator passes").toEqual([]);
+    expect(validation.unknownFields).toEqual([]);
     const typed = new Map(plan.instructions.map((i) => [`${i.fieldRef}${i.item === undefined ? "" : `#${String(i.item.index)}`}`, textOf(i.value)]));
     // The education chain, per P149; the UK-study qualification, per P150.
     expect(typed.get("institutionCountry-ts-control#0")).toBe("UNITED KINGDOM");

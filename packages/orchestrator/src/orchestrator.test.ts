@@ -45,6 +45,7 @@ import {
   pageAttachmentsOf,
   pageFillTarget,
   markFilled,
+  contentHandoverOf,
   nextStep,
   requiredFieldsFor,
   signInWorkOf,
@@ -258,6 +259,37 @@ describe("content the portal would reject", () => {
     expect(step.kind).toBe("fix_content");
     if (step.kind !== "fix_content") expect.unreachable("checked above");
     expect(step.violations[0]?.rule.kind).toBe("maxlength");
+  });
+
+  it("hands a fix the interview cannot ask for to a person, naming the boxes and the rules and never a value (ADR-0123)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-17: *"a step that cannot ask for what it needs must
+    // stop for a person and say so."* Before this, `fix_content` went to the
+    // interview surface and the interview had nothing to ask — no mapping
+    // names a box the validator objects to — so the run sat at
+    // `fix content (running)` with no question, no intervention and no log
+    // line (blocker 35). The narrowing below is what the driver stops on.
+    // ═══════════════════════════════════════════════════════════════════
+    const tooLong = withConfirmed([
+      ["identity.given_name", "Niloofar"],
+      ["identity.family_name", "Hosseini"],
+      ["identity.date_of_birth", new Date("1999-04-02T00:00:00Z")],
+      ["identity.nationality", "Iranian"],
+      ["contact.email", "niloofar.hosseini@example.com"],
+      ["study.personal_statement", "A".repeat(4_500)],
+    ]);
+    const step = await nextStep(runWith(tooLong), model);
+    const handover = contentHandoverOf(step);
+    if (handover === null) expect.unreachable("a fix_content step hands over");
+    expect(handover.reason).toBe("content_rejected");
+    expect(handover.detail).toContain("personal_statement");
+    expect(handover.detail).toContain("maxlength");
+    expect(handover.detail).toContain("4000");
+    // The student's words are theirs: the record names the box and the rule.
+    expect(handover.detail).not.toContain("AAAAA");
+    expect(handover.detail).toContain("cannot ask");
+
+    expect(contentHandoverOf(await nextStep(runWith(COMPLETE), model))).toBeNull();
   });
 });
 

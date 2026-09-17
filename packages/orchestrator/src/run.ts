@@ -1717,6 +1717,48 @@ export function specialistHandoverOf(
   return step.kind === "specialist" ? { reason: step.reason, detail: step.detail } : null;
 }
 
+/**
+ * The hand-over a `fix_content` step carries, or `null` (ADR-0123).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Vahid, 2026-09-17, at Run A's step 3: *"a step that cannot ask for what it
+ * needs must stop for a person and say so."*
+ *
+ * `fix_content` was meant to go back to the student through the interview —
+ * a statement over the limit is theirs to shorten. But the interview asks
+ * for PROFILE fields, and a violation names a portal BOX; no mapping is
+ * consulted, no question is composed, and `interviewActionOf` answers `null`.
+ * So every `fix_content` was a position with no question, no intervention
+ * and no log line, re-derived by the worker for ever (blocker 35). Until the
+ * interview can ask for a fix, a fix_content stops for a person, through the
+ * same narrowing shape as `specialistHandoverOf` — one fact, one home.
+ *
+ * The detail names each box (label and ref), the rule and its bound, and
+ * never a value: a `pattern` violation's own text quotes what the student
+ * typed, and that must not reach an intervention record.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function contentHandoverOf(
+  step: RunStep,
+): { readonly reason: string; readonly detail: string } | null {
+  if (step.kind !== "fix_content") return null;
+  const named = step.violations.map(
+    (violation) =>
+      `"${violation.label}" (${violation.fieldRef}): ${violation.rule.kind}` +
+      (violation.rule.value === undefined ? "" : ` ${violation.rule.value}`) +
+      ` [${violation.source}]`,
+  );
+  return {
+    reason: "content_rejected",
+    detail:
+      `The portal would reject the content as planned, and this system cannot ask the student ` +
+      `to change it from here: the interview asks for profile fields and a violation names a ` +
+      `portal box (ADR-0123). ${String(named.length)} violation${named.length === 1 ? "" : "s"}: ` +
+      `${named.join("; ")}. A person decides whether the blueprint's rule is the portal's, ` +
+      `whether the mapping should cover the box, or whether the student is asked.`,
+  };
+}
+
 /** What the student is told for a handoff step. The text a hash is taken over. */
 export function handoffMessageOf(step: RunStep): string | null {
   if (step.kind === "student_handoff") return step.say;
