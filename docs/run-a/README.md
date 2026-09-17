@@ -78,7 +78,8 @@ AAS_CONVERSATION_DATABASE_URL=postgresql://…/aas_local_conversation \
 ```
 
 The UUID it prints is the identity everything keys on: post it as the dev session's `subject`
-(`POST /dev/session`), and write it into the approval's `ownAccountOnly.studentId`. The command
+(`POST /dev/session`, from the console on `/healthz` — the runbook says why that page), and
+write it into the approval's `ownAccountOnly.studentId`. The command
 refuses to write for a student who already holds any profile entry — a seed never overwrites
 what a person has said.
 

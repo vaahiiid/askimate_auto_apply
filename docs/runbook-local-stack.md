@@ -198,6 +198,27 @@ prints the `studentId` UUID to post to `/dev/session` and to put in the approval
 write for a student who already holds any profile entry. Every entry's provenance says it was
 seeded from the file by this command on that date and that no interview took place.
 
+**Getting the session into a browser by hand (found by Vahid at Run A's step 1, 2026-09-17).**
+The journey tests mint the session through Playwright's request API, which writes into the
+browser's own cookie jar; no person had done it in a browser before. Two things go wrong for a
+person. `curl` to `/dev/session` keeps the cookie in curl, not the browser. And the console on
+`http://127.0.0.1:4870` cannot run the fetch: without a session the student page sends the
+browser to `/auth/login`, which the local stack has no route for, and Express's own 404 carries
+`Content-Security-Policy: default-src 'none'` — the framework's default for a 404, not a header
+this service sets — so the page refuses every fetch. The Secure attribute is not the problem:
+Chromium accepts the `__Host-` cookie over plain HTTP on `127.0.0.1` (a loopback origin is
+trustworthy to it) and sends it on the next navigation, proved on a real page rather than through
+Playwright. So open a page of ours that sets no policy and run the fetch there:
+
+```js
+// on http://127.0.0.1:4870/healthz, in the console
+await fetch("/dev/session", { method: "POST", headers: { "content-type": "application/json" },
+  body: JSON.stringify({ subject: "<the studentId UUID>" }) });   // Response { status: 204 }
+```
+
+Then open `http://127.0.0.1:4870/`. `document.cookie` stays empty whatever happens — the cookie is
+`HttpOnly` — so that is not evidence either way; the student page loading is.
+
 **Run A signs in with his account's e-mail (blocker 31, decided 2026-09-17).** The resume path
 uses the profile's `contact.email` as the account's address (ADR-0110), and the file's address
 is synthetic, so for Run A the profile is seeded from a copy outside the repository whose
