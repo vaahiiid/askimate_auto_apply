@@ -457,3 +457,113 @@ describe("a page is saved when the portal shows it, not when a control was press
     expect(live.typed).toEqual([]);
   });
 });
+
+describe("the fill says what it did, in words it is allowed to say (ADR-0124 applied to the fill, P163)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Run A's third conversation, 2026-09-18: the sign-in succeeded and the
+  // next line on disk was `uncertain (runner_fault)`. That code comes from
+  // two places — the Save press threw, or something threw out of the fill —
+  // and nothing said which, because P157 gave the sign-in its lines and left
+  // the fill silent. Vahid: *"That is not a gap to note, it is the same
+  // defect in a second place, and it should be fixed before the next attempt
+  // rather than after."*
+  // ═══════════════════════════════════════════════════════════════════════
+  function collecting(): { readonly lines: string[]; readonly log: (line: string) => void } {
+    const lines: string[] = [];
+    return { lines, log: (line) => lines.push(line) };
+  }
+  /** The point read a test supplies: what the runner would say about the Save button's point. */
+  const cover = (): Promise<string> =>
+    Promise.resolve("at the button's point: div#cover (fixed, 1280×720 at 0,0) > button#save (static, 120×30 at 500,600)");
+
+  it("says it is starting, and which page, BEFORE anything opens — so a fill that dies mid-page still said it began", async () => {
+    const { lines, log } = collecting();
+    const opened: string[] = [];
+    const live = session({
+      goto: (to) => {
+        opened.push(to);
+        expect(lines, "the start line precedes the first navigation").toHaveLength(1);
+        return Promise.resolve();
+      },
+    });
+    await fillApplication(WORK, { session: live, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    // The form URL is a REVIEWED blueprint fact, as the login URL is on the
+    // sign-in's line — not a URL from a page.
+    expect(lines[0]).toBe(`run run_1: page fill starting, opening ${FORM}`);
+    expect(opened[0]).toBe(FORM);
+  });
+
+  it("names the Save press as the thing that failed, which check was pending, and what stood at the button's point — never the error's text", async () => {
+    const { lines, log } = collecting();
+    const dying = session({
+      click: () => Promise.reject(new Error("net::ERR_CONNECTION_RESET at /apply?session=tok_abc123")),
+    });
+    const outcome = await fillApplication(WORK, {
+      session: dying, now: () => NOW, documents: noDocuments, challenge: unchallenged, log, atPoint: cover,
+    });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
+    const failed = lines.find((line) => line.includes("could not be pressed"));
+    expect(failed, "the source of this uncertain is named").toBeDefined();
+    expect(failed).toContain("run run_1: page fill failed — the save button could not be pressed — Error: the network failed: ERR_CONNECTION_RESET");
+    expect(failed).toContain("pending: a check this log does not name");
+    expect(failed).toContain("at the button's point: div#cover (fixed, 1280×720 at 0,0) > button#save");
+    // Nothing of the thrown message beyond the recognised code.
+    expect(lines.join("\n")).not.toContain("tok_abc123");
+    expect(lines.join("\n")).not.toContain("/apply?");
+  });
+
+  it("withholds a message it does not recognise, naming the class alone", async () => {
+    const { lines, log } = collecting();
+    const leaking = session({
+      click: () => Promise.reject(new Error("Set-Cookie: JSESSIONID=9f8e7d6c; the page said: Welcome Niloofar")),
+    });
+    await fillApplication(WORK, { session: leaking, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    const failed = lines.find((line) => line.includes("could not be pressed"));
+    expect(failed).toContain("Error (message withheld: it matched nothing this runner may repeat)");
+    expect(lines.join("\n")).not.toContain("JSESSIONID");
+    expect(lines.join("\n")).not.toContain("Welcome");
+    // No point reader supplied: said so, not guessed.
+    expect(failed).toContain("the point was not read");
+  });
+
+  it("says the page was read back and what was NOT seen, by the blueprint's own field names (ADR-0106)", async () => {
+    const { lines, log } = collecting();
+    let saved = false;
+    const forgetting = session({
+      click: () => {
+        saved = true;
+        return Promise.resolve();
+      },
+      readValue: () => Promise.resolve(saved ? "" : "Niloofar"),
+    });
+    const outcome = await fillApplication(WORK, { session: forgetting, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "not_recorded" });
+    expect(lines.at(-1)).toBe("run run_1: page fill: the save was pressed, the page was read back — not seen: given_name");
+  });
+
+  it("says the page was saved and seen, so a success is not silent either", async () => {
+    const { lines, log } = collecting();
+    await fillApplication(WORK, { session: session(), now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(lines.at(-1)).toBe("run run_1: page fill: the save was pressed, the page was read back — every filled value seen");
+  });
+
+  it("counts the boxes that would not take their value, without repeating what the page said", async () => {
+    const { lines, log } = collecting();
+    const refusing = session({
+      fill: () => Promise.reject(new Error("the portal said: 'Niloofar' is not a valid name for field #given_name")),
+    });
+    const outcome = await fillApplication(WORK, { session: refusing, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(outcome.kind).toBe("failed");
+    expect(lines.at(-1)).toMatch(/^run run_1: page fill failed — 1 of 1 boxes did not take its value \((refused|drift)\)/u);
+    expect(lines.join("\n")).not.toContain("not a valid name");
+  });
+
+  it("says when the browser did not land on the form, without printing where it landed", async () => {
+    const { lines, log } = collecting();
+    const bounced = session({ currentUrl: () => Promise.resolve("https://portal.test/login?next=%2Fapply&sid=tok_secret") });
+    const outcome = await fillApplication(WORK, { session: bounced, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(outcome).toEqual({ kind: "failed", failure: "needs_the_student" });
+    expect(lines.at(-1)).toBe("run run_1: page fill failed — the browser did not land on the form; the session is not signed in");
+    expect(lines.join("\n")).not.toContain("tok_secret");
+  });
+});

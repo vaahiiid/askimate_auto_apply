@@ -30,6 +30,7 @@
  * it in the tests.
  */
 
+import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { ClaimedWork, WireTransmission } from "@askimate/aas-contracts";
 import { countRecorded, executePlan, failures, verifyRecorded } from "@askimate/aas-execution";
 import type { ApplicationSession, DocumentSource } from "@askimate/aas-execution";
@@ -39,6 +40,7 @@ import type { ProfileFieldKey } from "@askimate/aas-profile";
 
 import { challengeFailure, type ChallengeProbe } from "./challenge.js";
 import { RobotsDisallowedError } from "./playwright-fill-session.js";
+import { pressCheckInWords, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 export interface FillApplicationDeps {
@@ -68,6 +70,31 @@ export interface FillApplicationDeps {
    * requirement exists to prevent.
    */
   readonly challenge: ChallengeProbe;
+  /**
+   * Where this page fill says what it is doing (ADR-0124, applied to the
+   * fill in P163). Optional so every existing test builds deps without one;
+   * the production runner always passes it. What it receives has been
+   * through `runner-log`'s vocabulary: our words for a recognised error, the
+   * class alone when the message could not be repeated, the blueprint's own
+   * field names, and the form's REVIEWED URL. Nothing from a page reaches it.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Run A's third conversation, 2026-09-18: the sign-in succeeded and the
+   * next line on disk was `uncertain (runner_fault)`, which this file
+   * produces in one place and the intake's catch in another, and nothing said
+   * which. P157 gave the sign-in its lines and left the fill silent. Vahid:
+   * *"That is not a gap to note, it is the same defect in a second place, and
+   * it should be fixed before the next attempt rather than after."*
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  readonly log?: (line: string) => void;
+  /**
+   * What stands at a control's point, for the line written when the Save
+   * press fails (ADR-0129, as the sign-in already does). `atPointInWords`
+   * over the runner's page in production; a test supplies its own words.
+   * Absent, the line says the point was not read rather than guessing.
+   */
+  readonly atPoint?: (locator: FieldLocator) => Promise<string>;
 }
 
 export async function fillApplication(
@@ -95,6 +122,15 @@ export async function fillApplication(
     return { kind: "failed", failure: "portal_drift" };
   }
 
+  // ── The fill says what it is doing (ADR-0124, P163) ───────────────────
+  //
+  // BEFORE anything opens: a fill that dies mid-page has still said it
+  // began, and on which page. The URL is the reviewed blueprint's, rebased by
+  // the plane — a fact Vahid signed, not a URL from a page.
+  const say = deps.log ?? ((): void => undefined);
+  const run = `run ${work.runId}`;
+  say(`${run}: page fill starting, opening ${target.toString()}`);
+
   // ── A repeating page's listing, counted BEFORE the save (ADR-0106) ─────
   //
   // The new-entry form reopens empty by design, so what shows an item exists
@@ -113,6 +149,7 @@ export async function fillApplication(
     try {
       before = await countRecorded(deps.session, { url: where.toString(), entryLocator: listing.entryLocator });
     } catch (error) {
+      say(`${run}: page fill failed — the listing could not be counted before the fill — ${thrownInWords(error)}`);
       return { kind: "failed", failure: error instanceof RobotsDisallowedError ? "robots_disallows" : "runner_fault" };
     }
   }
@@ -122,6 +159,7 @@ export async function fillApplication(
   } catch (error) {
     // The second of ADR-0091's two places: the gate refused before the
     // browser opened; the session refuses again at the navigation (P135).
+    say(`${run}: page fill failed opening the form — ${thrownInWords(error)}`);
     return { kind: "failed", failure: error instanceof RobotsDisallowedError ? "robots_disallows" : "runner_fault" };
   }
 
@@ -136,14 +174,23 @@ export async function fillApplication(
     // Somewhere other than the form — most often a login page the session
     // was bounced to. If THAT page asks for a code, say so rather than "the
     // student is needed": the two are different stops with different plans
-    // behind them (ADR-0101 §3 and §5).
+    // behind them (ADR-0101 §3 and §5). Where it landed is NOT printed: a
+    // page's URL can carry a token, and the line says only that it was not
+    // the form.
     const gate = await deps.challenge();
-    if (gate !== null) return { kind: "failed", failure: challengeFailure(gate) };
+    if (gate !== null) {
+      say(`${run}: page fill failed — the browser did not land on the form, and the page it landed on asks for ${gate}`);
+      return { kind: "failed", failure: challengeFailure(gate) };
+    }
+    say(`${run}: page fill failed — the browser did not land on the form; the session is not signed in`);
     return { kind: "failed", failure: "needs_the_student" };
   }
   // On the form. A CAPTCHA on it is met before anything is typed into it.
   const challenged = await deps.challenge();
-  if (challenged !== null) return { kind: "failed", failure: challengeFailure(challenged) };
+  if (challenged !== null) {
+    say(`${run}: page fill failed — the form asks for ${challenged}, before anything was typed`);
+    return { kind: "failed", failure: challengeFailure(challenged) };
+  }
 
   // ── A page filled once per item: open a fresh entry first (ADR-0103, gap 3) ──
   //
@@ -155,7 +202,8 @@ export async function fillApplication(
   if (addAnother !== undefined) {
     try {
       await deps.session.click({ strategy: addAnother.strategy, value: addAnother.value });
-    } catch {
+    } catch (error) {
+      say(`${run}: page fill failed — the control that opens a fresh entry could not be pressed — ${thrownInWords(error)}`);
       return { kind: "failed", failure: "portal_drift" };
     }
   }
@@ -191,9 +239,16 @@ export async function fillApplication(
     // blueprint described". Everything else is the portal declining what we
     // sent — a rule we do not model — and the two lead to different work: one
     // is a blueprint to re-review, the other is content to fix.
+    const drifted = failed.some((outcome) => outcome.drift);
+    // A count and the blueprint's own field names: never what a box said.
+    say(
+      `${run}: page fill failed — ${String(failed.length)} of ${String(plan.instructions.length)} boxes did ` +
+        `not take ${failed.length === 1 ? "its" : "their"} value (${drifted ? "drift" : "refused"}): ` +
+        failed.map((outcome) => outcome.fieldRef).join(", "),
+    );
     return {
       kind: "failed",
-      failure: failed.some((outcome) => outcome.drift) ? "portal_drift" : "portal_refused",
+      failure: drifted ? "portal_drift" : "portal_refused",
     };
   }
   // ── Saving the page, which is what makes any of it real ────────────────
@@ -207,10 +262,20 @@ export async function fillApplication(
   // changes (ADR-0014).
   try {
     await deps.session.click({ strategy: advance.strategy, value: advance.value });
-  } catch {
+  } catch (error) {
     // The fields are typed and the save did not land. UNCERTAIN, not failed:
     // the click may have reached the portal, and asserting that nothing
     // happened on a university's system is not this process's to assert.
+    //
+    // The FIRST of the two places `uncertain runner_fault` comes from on a
+    // fill (the other is a throw the intake catches), and the line names it
+    // the way the sign-in names its press (ADR-0129): which check was
+    // pending, and what stood at the button's point, structure only.
+    const atPoint = deps.atPoint === undefined ? "the point was not read" : await deps.atPoint(advance);
+    say(
+      `${run}: page fill failed — the save button could not be pressed — ${thrownInWords(error)}; ` +
+        `pending: ${pressCheckInWords(error)}; ${atPoint}`,
+    );
     return { kind: "uncertain", failure: "runner_fault" };
   }
 
@@ -231,7 +296,13 @@ export async function fillApplication(
       ? {}
       : { listing: { url: listing.url, entryLocator: listing.entryLocator, before } }),
   });
-  if (!seen.recorded) return { kind: "uncertain", failure: "not_recorded" };
+  if (!seen.recorded) {
+    // What was NOT seen, by the blueprint's field names or the listing's
+    // word for its entries — the reviewer's names, never the page's values.
+    say(`${run}: page fill: the save was pressed, the page was read back — not seen: ${seen.unseen.join(", ")}`);
+    return { kind: "uncertain", failure: "not_recorded" };
+  }
+  say(`${run}: page fill: the save was pressed, the page was read back — every filled value seen`);
 
   // ── What left, with the page that carried it (ADR-0069, P73) ──────────
   //

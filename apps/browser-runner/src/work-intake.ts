@@ -34,6 +34,8 @@ import type { ClaimedWork, WorkDocument, WireTransmission, WorkFailure, WorkRepo
 import { SERVICE_CERTIFICATE_HEADER } from "@askimate/aas-contracts";
 import { parseClaimedWork, parseWorkDocument } from "@askimate/aas-contracts";
 
+import { thrownInWords } from "./runner-log.js";
+
 /** What the runner does with a unit of work once it has one. */
 export type WorkPerformer = (work: ClaimedWork) => Promise<PerformOutcome>;
 
@@ -183,6 +185,11 @@ export type TurnResult =
 export async function runOneTurn(
   intake: WorkIntake,
   perform: WorkPerformer,
+  /**
+   * Where a throw is named (ADR-0124, P163). Optional so every existing
+   * caller stands; the supervisor passes the runner's log.
+   */
+  log?: (line: string) => void,
 ): Promise<TurnResult> {
   const work = await intake.claim();
   if (work === null) return { kind: "idle" };
@@ -190,10 +197,17 @@ export async function runOneTurn(
   let outcome: PerformOutcome;
   try {
     outcome = await perform(work);
-  } catch {
-    // The error object is deliberately not read. A thrown error from a browser
-    // session can carry a page's text, a URL with a token in it, or a whole
-    // request body — and the report has no field it could go in anyway.
+  } catch (error) {
+    // The error's MESSAGE is not read into the report, which has no field it
+    // could go in anyway; a thrown error from a browser session can carry a
+    // page's text, a URL with a token in it, or a whole request body. It is
+    // said to the log through the closed vocabulary only (ADR-0124): the
+    // class, and our phrase for a recognised pattern or nothing.
+    //
+    // This is the SECOND place `uncertain runner_fault` comes from — the
+    // first is a Save press that threw, which the fill names itself — and
+    // until P163 the two were indistinguishable on disk.
+    log?.(`run ${work.runId}: the work threw before it could report — ${thrownInWords(error)}`);
     outcome = { kind: "uncertain", failure: "runner_fault" };
   }
 

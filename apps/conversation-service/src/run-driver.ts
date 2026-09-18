@@ -801,34 +801,49 @@ function signInFailureInWords(failure: WorkFailure | null): string {
 }
 
 /**
- * The first sign-in attempt failed (ADR-0120): which attempt, why, that there
- * will be one more, and that the box opens again because we do not keep the
- * password. Nothing has been submitted.
+ * A sign-in failed and the rule allows one more (ADR-0120): why, that once
+ * can be chance, what happens if it fails again, and that the box opens again
+ * because we do not keep the password. Nothing has been submitted.
+ *
+ * ── No ordinal, on purpose (P163) ─────────────────────────────────────────
+ *
+ * The rule counts FAILURES IN AN EPISODE: twice is the portal, and a sign-in
+ * that held ends the episode — *"a later loss is a new episode of two, not
+ * the third attempt of an old one."* This message used to say "the first of
+ * two attempts". On Run A's third conversation — a failure, then a sign-in
+ * that held, then the session lapsing at the ceiling — the next failure
+ * would have been called "the first of two attempts" when it was the third
+ * sign-in a person had typed a password for. Vahid: *"Fix the words only"*,
+ * and for the student *"say what it means for them: that if it fails again
+ * you will stop and someone will look at it."* So the message says what is
+ * true whatever came before: it did not sign in, once can be chance, and a
+ * second failure in a row stops for a person.
  */
 function signInFailedOnceMessage(entry: CatalogueEntry, failure: WorkFailure | null): string {
   const institution = entry.blueprint.institutionName;
   return (
     `I tried to sign in to your account on ${institution}'s application portal and it did not ` +
-    `sign me in on the first of two attempts: ${signInFailureInWords(failure)}. That can happen ` +
-    `once by chance, so I will try once more. I do not keep your password, so I will open the ` +
-    `secure box again for you to type your password again for the second attempt — check it ` +
-    `carefully, since I cannot. Nothing has been submitted.`
+    `sign me in: ${signInFailureInWords(failure)}. Once can be chance, so I will try again; if ` +
+    `it fails again I will stop and someone will look at it. I do not keep your password, so I ` +
+    `will open the secure box again for you to type your password again — check it carefully, ` +
+    `since I cannot. Nothing has been submitted.`
   );
 }
 
 /**
- * The second sign-in attempt failed and the run has stopped (ADR-0120). The
- * student is told which attempt, why, and that a person will look — and,
- * for a refused sign-in, that a wrong password cannot be told from a fault.
+ * A sign-in failed twice in a row and the run has stopped (ADR-0120). The
+ * student is told why, that it has failed twice in a row, and that a person
+ * will look — and, for a refused sign-in, that a wrong password cannot be
+ * told from a fault.
  */
 function signInStoppedMessage(entry: CatalogueEntry, failure: WorkFailure | null): string {
   const institution = entry.blueprint.institutionName;
   return (
-    `I tried a second time to sign in to your account on ${institution}'s application portal ` +
-    `and it did not sign me in either: ${signInFailureInWords(failure)}. I have stopped there ` +
-    `rather than keep trying, and passed your application to a member of the team, who will ` +
-    `look at what the portal is doing and tell you what happens next. Nothing you have given ` +
-    `me is lost, and nothing has been submitted.`
+    `I tried again to sign in to your account on ${institution}'s application portal and it ` +
+    `did not sign me in: ${signInFailureInWords(failure)}. It has now failed twice in a row, ` +
+    `so I have stopped rather than keep trying, and passed your application to a member of ` +
+    `the team, who will look at what the portal is doing and tell you what happens next. ` +
+    `Nothing you have given me is lost, and nothing has been submitted.`
   );
 }
 
@@ -5991,15 +6006,15 @@ export class RunDriver {
         continue;
       }
 
-      // Which attempt the runner is about to make (ADR-0124). The PLANE's
-      // own count, so the runner's log line names a number that means what it
-      // says; the runner is stateless between turns and must never guess it.
-      // `attempts` is what has been MADE, so the one about to start is the
-      // next: ADR-0120 stops at two, and this is read at the claim, before
-      // that attempt is counted.
-      const signInAttempt =
+      // How many sign-ins have FAILED so far (ADR-0124, reworded in P163).
+      // The PLANE's own count, so the runner's log line names a number that
+      // means what it says; the runner is stateless between turns and must
+      // never guess it. ADR-0120 counts failures — a success in between is
+      // not evidence against the portal — and stops at two; this is read at
+      // the claim, before the sign-in about to start could add to it.
+      const signInFailuresSoFar =
         kind === "sign_in"
-          ? ((await this.#options.sessions?.signInFailure(candidate.runId))?.attempts ?? 0) + 1
+          ? ((await this.#options.sessions?.signInFailure(candidate.runId))?.attempts ?? 0)
           : undefined;
 
       return {
@@ -6012,7 +6027,7 @@ export class RunDriver {
         portalHost,
         email: detail.email,
         approach: detail.approach,
-        ...(signInAttempt === undefined ? {} : { signInAttempt }),
+        ...(signInFailuresSoFar === undefined ? {} : { signInFailuresSoFar }),
         // Present only when the student has actually typed one. A handle is
         // opaque and resolves to nothing outside a live vault (ADR-0026), which
         // is why the component that may hold no secrets may hold this.
@@ -6368,10 +6383,11 @@ export class RunDriver {
       target: input.target,
       reason: input.failure === "portal_refused" ? "authentication_failure" : "timeout_exhausted",
       encountered:
-        `Signing in to ${portalOf(entry)} failed on the second of two attempts (ADR-0120): this ` +
-        `attempt failed with "${code}". The first attempt also failed and the student was told ` +
-        `so in the conversation; each attempt was handed a password the student typed once for ` +
-        `it, and both are spent — nothing is held. ` +
+        `Signing in to ${portalOf(entry)} failed twice in a row (ADR-0120 stops at the second ` +
+        `failure in an episode; a sign-in that held ends an episode, so a failure before it is ` +
+        `not counted here): this sign-in failed with "${code}". The first failure of the episode ` +
+        `was told to the student in the conversation. Each sign-in was handed a password the ` +
+        `student typed once for it, and every one is spent — nothing is held. ` +
         both +
         (input.failure === "portal_refused"
           ? `"portal_refused" on a sign-in means the page was still the login form after the ` +
@@ -6379,13 +6395,13 @@ export class RunDriver {
             `the runner stands, and the two cannot be told apart from this record — nothing here ` +
             `guesses which. `
           : "") +
-        `The session record holds ${String(attempts)} attempts made and no live session; the ` +
-        `system makes no third attempt.`,
+        `The session record holds ${String(attempts)} failures in this episode and no live ` +
+        `session; the system tries no further sign-in until a person has looked.`,
       expected:
-        `A sign-in that held on the first attempt, or on the second. ADR-0114's rule, applied to ` +
-        `the sign-in by ADR-0120: once is chance, twice is the portal — a person looks at what ` +
-        `the portal is doing, and at whether the password the student holds is the one the ` +
-        `portal holds, before anything is tried again.`,
+        `A sign-in that held on the first try, or on the one after a first failure. ADR-0114's ` +
+        `rule, applied to the sign-in by ADR-0120: once is chance, twice is the portal — a ` +
+        `person looks at what the portal is doing, and at whether the password the student ` +
+        `holds is the one the portal holds, before anything is tried again.`,
       say: signInStoppedMessage(entry, input.failure),
       now: input.now,
     });

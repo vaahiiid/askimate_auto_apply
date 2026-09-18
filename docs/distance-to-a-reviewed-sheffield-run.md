@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P163: the third conversation's attempt 1 NAMED the obstacle — `div#ccc-overlay`,
+  fixed, the full viewport: CookieControl's backdrop, measured at the press — and attempt 2 signed
+  in; the first page fill then reported `uncertain (runner_fault)` and the fill had no line to say
+  from which of two places. Fixed before attempt 3, as he asked: the fill says what it did through
+  ADR-0124's vocabulary, the intake names a throw, and the sign-in count is named for what it is
+  (failures in an episode). The overlay is decided: option 0 (measure at every press) then option 2
+  (the student decides, per portal, durable, changeable, asked in the banner's own words); option 3
+  refused in his words. Nothing reached the portal; the intervention waits. One open of ten.
 - 2026-09-18, P162: the as-runner read found nothing over the button as the page opens — the
   fourth wrong hypothesis, tested. ADR-0129: the runner reads the point at the moment the press
   fails, structure only, and names which check was pending; the picture waits on *nothing at the

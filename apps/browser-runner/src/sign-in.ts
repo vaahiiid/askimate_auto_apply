@@ -46,7 +46,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
-import { layerInWords, stackAtPoint } from "./point-read.js";
+import { atPointInWords } from "./point-of-control.js";
 import { pressCheckInWords, signInStartLine, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
@@ -147,13 +147,7 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
     // no text, no value, because this line goes to a log — and names which
     // of Playwright's checks was pending, from Playwright's own closed
     // phrases. Attempt 3 is a reading of the thing itself.
-    const point = await stackAtPoint(await submit.elementHandle({ timeout: 1_000 }).catch(() => null) ?? submitHandleNever(), { withText: false }).catch(() => null);
-    const atPoint =
-      point === null
-        ? "the point could not be read"
-        : point.layers.length === 0
-          ? "nothing at the button's point"
-          : `at the button's point: ${point.layers.map(layerInWords).join(" > ")}`;
+    const atPoint = await atPointInWords(page, input.submitLocator);
     input.say(
       `run ${input.runId}: sign-in failed — the sign-in button could not be pressed — ` +
         `${thrownInWords(error)}; pending: ${pressCheckInWords(error)}; the password box is ` +
@@ -252,11 +246,11 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
   // ── 1. Sensitive before anything is typed ──────────────────────────────
   const say = deps.log ?? ((): void => undefined);
   // BEFORE anything opens: a runner that dies inside the attempt has still
-  // said it began, and which attempt, and where (ADR-0124).
+  // said it began, how many sign-ins had failed before it, and where (ADR-0124).
   say(
     signInStartLine({
       runId: work.runId,
-      ...(work.signInAttempt === undefined ? {} : { attempt: work.signInAttempt }),
+      ...(work.signInFailuresSoFar === undefined ? {} : { failuresSoFar: work.signInFailuresSoFar }),
       url: target.toString(),
     }),
   );
@@ -334,11 +328,6 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
   } finally {
     if (supplied === undefined) await context.close().catch(() => undefined);
   }
-}
-
-/** A press whose button has left the page has no point to read; the read rejects and is caught. */
-function submitHandleNever(): never {
-  throw new Error("the sign-in button is no longer on the page");
 }
 
 /** A locator that exists on the page right now, or `null`. */

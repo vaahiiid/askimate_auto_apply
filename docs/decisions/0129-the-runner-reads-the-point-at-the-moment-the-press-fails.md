@@ -35,6 +35,17 @@ pending: another element intercepts pointer events; the password box is still on
 at the button's point: div#ccc-overlay.ccc-overlay (fixed, 1280×60 at 0,660) > input (static, 130×22 at 238,690)
 ```
 
+The line above was written before any attempt printed one, and its `at the button's point`
+clause was an **illustration** of the shape — a bottom bar, the candidate then on record. What
+attempt 1 of the third conversation printed on 2026-09-18 was:
+
+```
+at the button's point: div#ccc-overlay (fixed, 1280×720 at 0,0) > input (static, 130×21 at 238,566)
+```
+
+A full-viewport backdrop, and the button at y=566, not 690. The candidate below is withdrawn in
+the capture's README; the finding — the overlay — does not depend on where the button was.
+
 `pending:` is Playwright's own check, matched from a closed set of Playwright's phrases and printed
 in our word — *intercepts pointer events*, *not visible*, *outside the viewport*, *not enabled*,
 *not stable* — or *a check this log does not name*. The element Playwright quotes is never quoted;
@@ -71,7 +82,9 @@ entries, which stay as written.
   page that loads a cookie-consent library. Recorded as the **leading candidate with its caveat**:
   not a conclusion, the first fact in four days with a shape a bottom bar would fit. If attempt 3
   names a bottom-anchored element, it was the candidate on record; if it names something else, the
-  candidate is seen to have been one.
+  candidate is seen to have been one. **It named something else** (2026-09-18, the same day): the
+  runner's own read put the button at y=566 under a full-viewport `div#ccc-overlay`. Withdrawn, in
+  the capture's README, with the correction beside the candidate (P163).
 
 ## Consequences
 

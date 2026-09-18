@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P163 — the fill was silent in the same way the sign-in had been, and the count was a label
+
+Attempt 1 of the third conversation did what P162 was built for: the line named the thing. A full-viewport backdrop with CookieControl's id, at the button's point, at the instant the press failed, with Playwright's own check saying another element was in the way. Five hypotheses on one button; the fifth was measured. Then attempt 2 pressed through and signed in, and nothing was read at that press, because the runner reads the point only when a press fails. So the overlay is sometimes there and nobody knows why it sometimes is not, and he was right that nothing may be built on an unmeasured absence.
+
+Then the first page fill reported uncertain with the runner's own code, and the record said nothing about which of two places the code came from, because P157 had given the sign-in its lines and left the fill with none. He called it what it was: the same defect in a second place, to be fixed before the next attempt and not after. It is. The fill says it is starting and on which page, and at every place it can stop it says which — the press, with the pending check and the layers at the point, the way the sign-in does; the read-back, with the field names it did not see; a box that would not take its value, by count and by name and never by what the box said. The intake names a throw. Two codes that read the same on disk are two lines now.
+
+The label was a second lesson in measuring. I told him the count was one and the next sign-in would read "attempt 2", and I had read that from the code path that increments. The test that pinned the sequence showed the count cleared by a sign-in that holds, which ADR-0120 says in its own words and I had not read to the end: a new episode of two. So the next sign-in would have read "attempt 1", and either number was a label for something else. The rule is untouched, on his word; the words now say what the number is, and the student hears no number at all — once can be chance, and if it fails again someone will look. The wrong answer is in the record beside the right one.
+
+And the overlay is decided, in his words: measure first and unconditionally, then the student decides, once per portal, durably, changeably, asked in the banner's own words. The convenient option — decide for them and tell them — is refused with its reason kept, because it will be proposed again. The two I refused he adopted as refused: a fabricated consent record, and an assertion that a person clicked where a person could not.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P162 — the moment the press fails is the only moment the obstacle is certainly there
 
 His read came back with nothing over the button. Four hypotheses on one step, each tested and each wrong, and the run still cannot press a button that is at its own point when the page opens. So whatever stops it arrives between the page settling and the click, and no static read sees that moment; only the runner does. It had the datum all along — Playwright says which check a failed click was waiting on, and for one of them names the element in the way — and ADR-0124's rule threw the message away, rightly, because a message can carry page text.

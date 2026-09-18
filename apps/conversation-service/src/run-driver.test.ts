@@ -11856,7 +11856,13 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       // ── The student: told, without guessing ────────────────────────────
       const told = (await saidTo(conversation)).filter((content) => content.includes("did not sign me in"));
       expect(told, "told once").toHaveLength(1);
-      expect(told[0]).toContain("first of two");
+      // P163: no ordinal. "First of two attempts" was our machinery, and
+      // under the episode rule not even true on a run that had signed in
+      // between; what it means for the student is that once can be chance,
+      // and that if it fails again someone will look.
+      expect(told[0]).toContain("Once can be chance");
+      expect(told[0]).toContain("if it fails again I will stop and someone will look at it");
+      expect(told[0]).not.toContain("attempts");
       expect(told[0]).toContain("cannot tell");
       expect(told[0]).toContain("type your password again");
       expect(told[0]).toContain("Nothing has been submitted");
@@ -11944,6 +11950,82 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 
+  it("fail, succeed, fail: a sign-in that held ENDS the episode, so the third sign-in is offered with zero failures and its failure is told as a first, not a stop (P163)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Run A's third conversation, 2026-09-18: attempt 1 failed at the press,
+    // attempt 2 signed in, the session lapsed at the five-minute ceiling.
+    // ADR-0120's rule, measured here rather than read: a live session clears
+    // the count — *"a later loss is a new episode of two, not the third
+    // attempt of an old one"* — so the next sign-in stands at zero failures.
+    // The old label would have printed "attempt 1" for a third sign-in.
+    // Vahid: *"Counting failures is correct — twice is the portal, and a
+    // success in between is not evidence against it… Fix the words only."*
+    // The rule is pinned exactly as it was; the words are pinned as the count.
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00744";
+    const THIRD_HANDLE = `sh_${"a".repeat(32)}`;
+    const { later, secure, runId, leaseId } = await aLeasedSignIn(conversation, "signin-fsf");
+    let afterwards: ReturnType<typeof buildInstance> | null = null;
+    try {
+      // 1. The first sign-in fails at the portal.
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "runner_fault" } })).toBe(true);
+      expect(await failureOf(runId)).toMatchObject({ attempts: 1 });
+      const opened = await later.driver.advance({ runId, conversationId: conversation });
+      if (!opened.ok) expect.unreachable(`advance refused: ${opened.refusal.kind}`);
+      const fresh = (await requestsOpened(conversation)).at(-1);
+      if (fresh === undefined) expect.unreachable("the fresh box");
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE } });
+      const second = await later.driver.advance({ runId, conversationId: conversation });
+      if (!second.ok) expect.unreachable(`advance refused: ${second.refusal.kind}`);
+      expect(second.position.step).toBe("sign_in");
+
+      // 2. The second sign-in HOLDS. The episode ends: the count is gone.
+      const lease2 = await takeTheSignIn(later, runId, "signin-fsf-2");
+      expect(await later.driver.reportWork({ runId, report: { leaseId: lease2, outcome: "succeeded" } })).toBe(true);
+      expect(await failureOf(runId), "a live session ends the count (ADR-0120)").toBeNull();
+      expect(await interventionFor(runId)).toBeNull();
+      // The Secure Plane's outbox reports the password spent, as it does in
+      // production once the fill agent has typed it (ADR-0026).
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: fresh } });
+
+      // 3. The session lapses at the ceiling; the run asks for the password
+      //    again — a THIRD sign-in, at ZERO failures in this episode.
+      const AFTER = new Date(LATER.getTime() + (SECURE_HOLD_CEILING_SECONDS + 1) * 1000);
+      afterwards = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => AFTER);
+      const asked = await afterwards.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step, "the session is gone, the box opens again").toBe("request_secret");
+      const third = (await requestsOpened(conversation)).at(-1);
+      if (third === undefined || third === fresh) expect.unreachable("a third box");
+      await new ConversationEventStore(afterwards.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: third, handle: THIRD_HANDLE } });
+      const typed = await afterwards.driver.advance({ runId, conversationId: conversation });
+      if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
+      expect(typed.position.step).toBe("sign_in");
+      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      const work = await afterwards.driver.claimWork({ holder: "runner-fsf-3", leaseSeconds: 60 });
+      if (work === null || work.runId !== runId) expect.unreachable(`the third sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
+      expect(work.kind).toBe("sign_in");
+      // The number the old label would have printed as "attempt 1".
+      expect(work.signInFailuresSoFar, "zero failures in this episode").toBe(0);
+
+      // 4. The third sign-in fails: the FIRST failure of this episode. Told as
+      //    such, no stop, the box opens once more — the rule as decided.
+      expect(await afterwards.driver.reportWork({ runId, report: { leaseId: work.leaseId, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+      expect(await failureOf(runId)).toMatchObject({ attempts: 1 });
+      expect(await statusOf(runId), "one failure in a new episode is not a stop").toBe("running");
+      expect(await interventionFor(runId)).toBeNull();
+      const told = (await saidTo(conversation)).filter((content) => content.includes("Once can be chance"));
+      expect(told, "the once-message, twice on this run: once per episode").toHaveLength(2);
+      expect((await saidTo(conversation)).filter((content) => content.includes("twice in a row"))).toHaveLength(0);
+      const fourth = await afterwards.driver.advance({ runId, conversationId: conversation });
+      if (!fourth.ok) expect.unreachable(`advance refused: ${fourth.refusal.kind}`);
+      expect(fourth.position.step).toBe("request_secret");
+    } finally {
+      await later.pool.end();
+      if (afterwards !== null) await afterwards.pool.end();
+    }
+  }, 300_000);
+
   it("the second failure: a person is asked, told which attempt, what the portal said and that the reason is undistinguishable; the student is told; never offered again", async () => {
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00743";
     const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-twice");
@@ -11965,14 +12047,16 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       const raised = await interventionFor(runId);
       if (raised === null) expect.unreachable("a person is asked");
       expect(raised.reason, "we could not sign in").toBe("authentication_failure");
-      expect(raised.encountered).toContain("second of two");
+      expect(raised.encountered, "counted in failures, not attempts (P163)").toContain("twice in a row");
+      expect(raised.encountered).not.toContain("second of two");
       expect(raised.encountered).toContain("portal_refused");
       expect(raised.encountered).toContain("cannot be told");
       expect(raised.encountered).toContain("ADR-0120");
       expect(raised.expected).toContain("once is chance, twice is the portal");
       expect(raised.announced).toBe(true);
-      const told = (await saidTo(conversation)).filter((content) => content.includes("second time"));
+      const told = (await saidTo(conversation)).filter((content) => content.includes("failed twice in a row"));
       expect(told).toHaveLength(1);
+      expect(told[0]).not.toContain("attempts");
       expect(told[0]).toContain("stopped");
       expect(told[0]).toContain("cannot tell");
       expect(told[0]).toContain("member of the team");

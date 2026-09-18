@@ -208,18 +208,36 @@ export function turnInWords(result: TurnResult): string | null {
  * a fault) inside an attempt twice, and nothing on disk said an attempt had
  * begun at all.
  *
+ * ── The number is a count of FAILURES IN THIS EPISODE, and the line says so ──
+ *
+ * ADR-0120 counts failures — *twice is the portal* — and a sign-in that held
+ * ENDS the count: *"a later loss is a new episode of two, not the third
+ * attempt of an old one."* Until P163 this line printed the count plus one as
+ * "attempt N". On Run A's third conversation (one failure, then a sign-in
+ * that held, then the session lapsed) the next sign-in would have read
+ * "attempt 1": a number that meant something else. Vahid: *"Counting
+ * failures is correct… Fix the words only."* So the line names what the
+ * number is — how many sign-ins have failed in this episode, of the two the
+ * rule allows before a person is asked — in ADR-0120's own word for it.
+ *
  * The URL is a REVIEWED blueprint fact — the login page named in the entry
  * Vahid signed — not a URL from a page, so it carries no token and is the one
- * thing that makes the line worth reading. The attempt is the plane's count,
- * carried on the work item; when an older plane sends none, the line says the
- * attempt is unknown rather than defaulting to a number that would be wrong
- * on the second try.
+ * thing that makes the line worth reading. The count is the plane's, carried
+ * on the work item; when an older plane sends none, the line says the count
+ * is unknown rather than defaulting to a number that would be wrong.
  */
 export function signInStartLine(input: {
   readonly runId: string;
-  readonly attempt?: number;
+  /** How many sign-ins have FAILED in this episode — the plane's count. */
+  readonly failuresSoFar?: number;
   readonly url: string;
 }): string {
-  const attempt = input.attempt === undefined ? "attempt unknown" : `attempt ${String(input.attempt)}`;
-  return `run ${input.runId}: sign-in ${attempt}, starting, opening ${input.url}`;
+  const failures =
+    input.failuresSoFar === undefined
+      ? "failures in this episode: unknown"
+      : `failures in this episode: ${String(input.failuresSoFar)} of ${String(SIGN_IN_FAILURES_ALLOWED)} allowed`;
+  return `run ${input.runId}: sign-in, ${failures}, starting, opening ${input.url}`;
 }
+
+/** ADR-0120's cap: the second failure stops the run for a person. */
+const SIGN_IN_FAILURES_ALLOWED = 2;

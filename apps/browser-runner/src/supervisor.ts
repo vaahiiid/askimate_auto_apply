@@ -86,6 +86,13 @@ export interface RunnerSupervisorOptions {
    * and this is the process driving the portal.
    */
   readonly onTurn?: (result: TurnResult) => void;
+  /**
+   * Where a turn whose performer THREW says so (ADR-0124, P163): the class
+   * and our phrase through the closed vocabulary, never the message. The
+   * one line that tells a throw apart from a Save press that failed, both
+   * of which report `uncertain runner_fault`.
+   */
+  readonly log?: (line: string) => void;
 }
 
 export interface RunningSupervisor {
@@ -146,7 +153,7 @@ export function startRunnerSupervisor(options: RunnerSupervisorOptions): Running
   let inFlight: Promise<TurnResult> | null = null;
 
   const takeATurn = async (): Promise<TurnResult> => {
-    const turn = runOneTurn(options.intake, options.perform);
+    const turn = runOneTurn(options.intake, options.perform, options.log);
     inFlight = turn;
     try {
       const result = await turn;

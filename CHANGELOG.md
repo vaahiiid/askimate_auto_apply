@@ -19,6 +19,40 @@ not shipped artefacts.
 
 ---
 
+## [0.159.0] — 2026-09-18
+
+**P163 — the fill says what it did, and the sign-in count is named for what it is (ADR-0124
+amended; decided by Vahid, 2026-09-18, after the third conversation's first page fill reported
+`uncertain (runner_fault)` with no line to say from which of two places).**
+
+### Added
+
+- `fill-application.ts`: a line at every place a page fill can stop — starting and which page, the
+  form not opening, the browser not landing on the form (never where), a challenge, boxes that did
+  not take their value (a count and the blueprint's field names), **the Save press failing with
+  which check was pending and what stood at the button's point**, the read-back and what was not
+  seen, a save that was seen. `FillApplicationDeps.log` and `atPoint`.
+- `point-of-control.ts`: `atPointInWords`, the one point read shared by the sign-in and the fill.
+- `runOneTurn(intake, perform, log)`: a performer that threw is named — class and phrase, message
+  withheld — so the two sources of `uncertain runner_fault` are two lines.
+- The ADR-0120 fail-succeed-fail case, measured: a sign-in that holds ends the count.
+
+### Changed
+
+- `ClaimedWork.signInAttempt` → `signInFailuresSoFar` (zero admitted): the plane's count of failed
+  sign-ins in this episode, not that count plus one called an attempt. The runner's line reads
+  `sign-in, failures in this episode: N of 2 allowed`.
+- The student's sign-in messages carry no ordinal: once can be chance and *"if it fails again I
+  will stop and someone will look at it"*; then *"failed twice in a row"*. The intervention's text
+  counts failures in an episode.
+- Records: the y=690 candidate withdrawn (the button was at y=566 under a full-viewport
+  `div#ccc-overlay`); what this week's `attempt N` lines meant, with dates; Run A's account will
+  hold a mixture of the synthetic profile and the real one (accepted cost, ADR-0110); the listing
+  read-back compares before plus one, not a total; the overlay options and his decisions, blocker
+  47.
+
+---
+
 ## [0.158.0] — 2026-09-18
 
 **P162 — ADR-0129: the runner reads the point at the moment the press fails (decided by Vahid,

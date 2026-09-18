@@ -195,14 +195,27 @@ describe("one turn of the loop", () => {
     // ═══════════════════════════════════════════════════════════════════
     offer = WORK;
     acceptReports = true;
-    const result = await runOneTurn(intake(), () => {
-      throw new Error("the browser died holding niloofar@example.test's session");
-    });
+    const said: string[] = [];
+    const result = await runOneTurn(
+      intake(),
+      () => {
+        throw new Error("the browser died holding niloofar@example.test's session");
+      },
+      (line) => said.push(line),
+    );
     expect(result).toEqual({
       kind: "worked",
       runId: WORK.runId,
       report: { leaseId: WORK.leaseId, outcome: "uncertain", failure: "runner_fault" },
     });
+
+    // P163: the throw is the SECOND source of `uncertain runner_fault` on a
+    // fill (the first is the Save press), and until now nothing on disk told
+    // them apart. The line names the class through ADR-0124's vocabulary and
+    // withholds the message, which here carries a student's address.
+    expect(said).toEqual([
+      `run ${WORK.runId}: the work threw before it could report — Error (message withheld: it matched nothing this runner may repeat)`,
+    ]);
 
     // And the thrown error's text — which came from a page and a session — is
     // nowhere on the wire. There is no field it could go in, which is why.

@@ -48,3 +48,51 @@ completely. P162 makes the runner read the point at the moment the press fails, 
 in one line whether that shape is the thing. It is recorded here as the leading candidate so that,
 if attempt 3 names a bottom-anchored element, nobody later reads it as a lucky guess — and so that,
 if it names something else, this paragraph is seen to have been a candidate and not a finding.
+
+## What "attempt 1" and "attempt 2" meant in this week's logs (17 and 18 September 2026)
+
+Every runner line above and in the Run A record that reads `sign-in attempt N` was printed
+before P163, when the number was the plane's count of **failed** sign-ins plus one. Read them
+as follows, because the words did not say what the number was:
+
+- `attempt 1` — a sign-in starting with no failure yet on the run: the first sign-in.
+- `attempt 2` — a sign-in starting after exactly one failure. On the run of 17–18 September
+  (P157 to P160) that was the second sign-in. On the third conversation of 18 September it was
+  also the second sign-in, and it **held**.
+- A sign-in that holds ends the count (ADR-0120: *"a later loss is a new episode of two, not the
+  third attempt of an old one"*). So the next sign-in on the third conversation — the third a
+  person typed a password for — would have printed `attempt 1`.
+
+From P163 the line says what the number is: `sign-in, failures in this episode: N of 2 allowed,
+starting, opening <URL>`, and the student's messages carry no ordinal at all.
+
+## Correction — the y=690 candidate is withdrawn (attempt 1 of the third conversation, 2026-09-18)
+
+The paragraph above records the button at `y=690`, eight pixels from the bottom of a 720-pixel
+viewport, as the leading candidate with its caveat. Attempt 1 of the third conversation, read by
+the runner at the instant the press failed, ends its line with the control itself:
+
+```
+at the button's point: div#ccc-overlay (fixed, 1280×720 at 0,0) > input (static, 130×21 at 238,566)
+```
+
+At the press the button was at **y=566**, 133 pixels above the bottom edge, fully inside the
+viewport. The bottom-bar candidate rested on the button being at the edge, and it was not. It is
+withdrawn, and the caveat did its job: this paragraph was a candidate, not a finding.
+
+What the line does establish rests on nothing about the button's position: Playwright's pending
+check was *another element intercepts pointer events*, and the top layer at the point was
+`div#ccc-overlay`, fixed, the full viewport — Civic CookieControl's backdrop. A full-viewport
+backdrop covers a button at 566 and at 690 alike.
+
+The 124-pixel difference between the two readings is unexplained. The honest reading is the same
+page in two layouts — a consent bar at the top, a sign-in error line, a scroll offset would each
+move the button by that much — and it says that this reader's page on 2026-09-18 was not the
+runner's page at attempt 1, which is consistent with the reader finding nothing over the button
+and the runner finding the overlay. Option 0 (P164, decided by Vahid 2026-09-18) reads the point
+as the page opens and at a successful press too, so the next difference comes with its cause.
+
+Attempt 2 of the same conversation signed in. Nothing was read at that press, because the runner
+read the point only when a press failed; so whether the overlay arrived late or never appeared is
+not known, and nothing may be built on that absence until it is measured.
+

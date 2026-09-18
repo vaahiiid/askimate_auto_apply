@@ -90,6 +90,34 @@ compile-time constraint that keeps free text off the wire — a count is exempt 
 `retryBudget` added later still fails the build. The driver fills it from the plane's own count at
 the claim. Migration 0022, the store append, and both codes in the intervention.
 
+## Amended — P163, 2026-09-18: the same lines for the fill, and the count named for what it is
+
+**The fill was silent.** This ADR gave the sign-in its lines and left the page fill with none. On
+the third conversation of Run A the sign-in held and the next line on disk was
+`uncertain (runner_fault)` — a code the fill produces in one place (the Save press threw) and the
+intake's catch in another (something threw out of the fill), and nothing said which. Vahid:
+*"That is not a gap to note, it is the same defect in a second place, and it should be fixed
+before the next attempt rather than after."* Now the fill says, through the same vocabulary: that
+it is starting and which page (the reviewed form URL); a listing that could not be counted; the
+form not opening; the browser not landing on the form, without where it landed; a challenge; a
+fresh-entry control that could not be pressed; how many boxes did not take their value, by the
+blueprint's field names and never what a box said; **the Save press failing, with which check was
+pending and what stood at the button's point** (ADR-0129, as the sign-in); the read-back and what
+was not seen; and a save that was seen. The intake names a throw with the class and our phrase,
+message withheld. The two sources of `uncertain runner_fault` are now two different lines.
+
+**The count is of failures in an episode, and the words say so.** `signInAttempt` carried the
+plane's count of failed sign-ins plus one and called it an attempt. ADR-0120 counts failures and a
+sign-in that holds ends the count; so on a run that failed once, then held, then lost its session
+at the ceiling, the next sign-in would have printed `attempt 1` — a number that meant something
+else. Vahid: *"Counting failures is correct — twice is the portal, and a success in between is
+not evidence against it… Fix the words only."* The rule is unchanged. The field is
+`signInFailuresSoFar`, zero admitted; the line reads `sign-in, failures in this episode: N of 2
+allowed`; the student is told, without an ordinal, that once can be chance and that *"if it fails
+again I will stop and someone will look at it"* (his wording), and after the second failure in a
+row that it has failed twice in a row and a person will look. What the old numbers meant, with
+dates, is in the capture record of 2026-09-18.
+
 ## Consequences
 
 - The next sign-in attempt writes: that it started, which attempt, which URL; and then its outcome

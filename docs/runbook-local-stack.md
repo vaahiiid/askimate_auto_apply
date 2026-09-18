@@ -283,8 +283,13 @@ in P137 (ADR-0114): two attempts, the box reopened between them, then a person.
   intervention with its reason, the portal's record and the last things the student was told.
 - `.local-stack/<app>.log` — each process's own lines; the runner logs turn kinds, never an
   error object (a page's text or a URL with a token could be in one).
-- `pnpm run interventions` — stopped runs waiting for a person, against the conversation
-  database.
+- `pnpm run interventions` — stopped runs waiting for a person, through the conversation
+  service's internal route. Against the local stack it needs the service's port and a service
+  certificate name the stack accepts:
+  `AAS_CONVERSATION_URL=http://127.0.0.1:4870 AAS_SERVICE_CERT=browser-runner pnpm run interventions`
+  (the port is the stack's base). Each line names the run, what it is stuck on and against which
+  page, and whether the student has been told. `resolve <id> --did-happen|--did-not-happen` records
+  what a person established on the portal; neither retries anything by itself.
 - `scripts/local-stack.sh status` — pids and endpoints.
 
 ## Reading the login page the way the runner sees it (ADR-0128)

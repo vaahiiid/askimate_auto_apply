@@ -326,3 +326,85 @@ portal, and all but the last from Vahid's own machine rather than a test:
 What it did not establish is why the submit failed, because the error was discarded by a bare
 catch. That is ADR-0124, built the same day. The run stays parked with a person until one repeat
 with the logging in place.
+
+## The third conversation, 2026-09-18: attempt 1 named the overlay, attempt 2 signed in, the first page fill was uncertain
+
+Conversation `01M2TP83VDZB1EM323S0RWJ8TE`, started through the blocker-46 sequence above. Two
+sign-ins, both by Vahid, both with the P162 line in place:
+
+```
+attempt 1: sign-in failed — the sign-in button could not be pressed — TimeoutError: the step
+           timed out; pending: another element intercepts pointer events; the password box is
+           still on the page; at the button's point: div#ccc-overlay (fixed, 1280×720 at 0,0)
+           > input (static, 130×21 at 238,566)
+attempt 2: sign-in/work succeeded
+then:      uncertain (runner_fault)
+```
+
+**What attempt 1 measured.** `div#ccc-overlay`, fixed, the full 1280×720 viewport at 0,0 —
+Civic CookieControl's backdrop — was the top layer at the button's point, and Playwright's pending
+check was *another element intercepts pointer events*. The fifth hypothesis on this step, and the
+first one measured rather than reasoned. The button was at y=566, not the y=690 of the as-runner
+read: the bottom-bar candidate is withdrawn (the capture README of 2026-09-18 carries the
+correction). Attempt 2 pressed through and signed in, and nothing was read at that press, so
+whether the overlay arrived late or never appeared is **not known**. Option 0 below measures it.
+
+**What "uncertain (runner_fault)" was.** The first page fill after the sign-in — Personal
+details, `personal.do`, the first page in the signed blueprint with fields and no credential field.
+The code comes from two places, the Save press throwing or a throw out of the fill, and the fill
+wrote no line to say which: P157 gave the sign-in its lines and left the fill silent. P163 closed
+that (ADR-0124, amended). The read-back was never reached: its own refusal is `not_recorded`.
+
+**What the portal shows.** Vahid opened the page in his own browser: the twenty fields hold his
+own details, none of them the synthetic profile's. So nothing reached the portal, `uncertain` was
+the honest report, and the run did not press Save twice on a page that might have saved. The
+intervention is open and unresolved at his word (`--did-not-happen` when it is), because a
+resolution opens the password box within seconds and the third password should wait for the fill
+log, option 0 and option 2.
+
+**Two records, in his words, without the values he typed.** First: *"Run A writes a synthetic
+person into a real person's application. That was accepted (ADR-0110, the profile is synthetic,
+the account is mine) and it stays accepted, but the record should say plainly that after a
+successful Run A this account will hold a mixture of both, and that is the cost of using my own
+account rather than a created one."* Recorded as stated. Second, on the education listing that
+already holds two entries of his: the listing read-back compares **after against before plus
+one** (`packages/execution/src/verify.ts:78`), so on his account it expects three where it counted
+two. A total against the plan is not what it does; a returning student's existing entries are
+counted before the fill and not against it.
+
+**The overlay: decided by Vahid, 2026-09-18.** Six options were put to him with their costs
+(state doc, blocker 47). His words:
+
+- *"Option 0 always, option 2 on top of it. Not 3."*
+- Option 0, unconditionally: *"We do not know why the overlay was absent at attempt 2, and
+  anything built on top of an unmeasured absence is built on a guess. Read the point at a
+  successful press as well as a failed one, and once as the login page opens, so attempt 3 names
+  it either way."*
+- Option 2, the student decides: *"a cookie choice is a choice made on the student's account, in
+  their name, against an institution that may one day be asked what they consented to. A system
+  that asks for a yes before typing a date of birth cannot decide this one by itself."* Two
+  conditions: *"The choice is per portal and it is durable, but it is not permanent. A student who
+  chose once on Sheffield should not be asked again on Sheffield, and should be asked afresh on
+  Manchester. And they must be able to see what they chose and change it — not buried, but
+  somewhere they can reach."* And: *"the question must be answerable by someone who does not know
+  what a cookie banner is. Not 'what is your consent preference' — what the banner actually
+  offers, in the portal's own words if they are quotable, with what each means in plain terms. If
+  the honest version of that question is three sentences long, it is three sentences."*
+- Option 3, a fixed minimal choice, **refused**, and he wants the reason kept because it will be
+  proposed again: *"'We declined non-essential cookies for you' is still a choice we made. Telling
+  the student afterwards is not the same as asking. The convenience is real and the principle is
+  the one this whole system is built on."*
+- Options 5 and 6, **refused** with my reasons, which he adopted: pre-setting the consent cookie is
+  *a fabricated consent record* on the student's account; removing, hiding or force-pressing
+  through the overlay is *an assertion that a person clicked where a person could not*.
+- Option 4, not loading the consent script: agreed not to build.
+
+Build order, his: the fill log (P163), then option 0 (P164), then option 2 (P165), each
+estimated separately and stopped at twice.
+
+**The label.** The plane counts failed sign-ins and a sign-in that holds ends the count
+(ADR-0120). The runner's line printed the count plus one as `attempt N`, so the next sign-in on
+this conversation would have read `attempt 1`. Fixed in P163, words only: the line says
+`failures in this episode: N of 2 allowed`, the student hears no ordinal. What this week's numbers
+meant, with dates, is in the capture README.
+

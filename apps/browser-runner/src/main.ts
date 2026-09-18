@@ -83,6 +83,8 @@ export async function start(options: StartOptions): Promise<RunningRunner> {
   const supervisor = startRunnerSupervisor({
     intake,
     perform,
+    // ADR-0124 (P163): a performer that threw is named, through the vocabulary.
+    log: options.log,
     ...(config.idleIntervalMs === undefined ? {} : { idleIntervalMs: config.idleIntervalMs }),
     ...(config.busyIntervalMs === undefined ? {} : { busyIntervalMs: config.busyIntervalMs }),
     onTurn: (result) => {

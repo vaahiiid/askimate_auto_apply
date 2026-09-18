@@ -854,6 +854,32 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     expect(parsed?.plan?.uploads[0]?.recorded).toEqual({ strategy: "id", value: "passportHeld" });
   });
 
+  it("carries the plane's count of FAILED sign-ins, zero included, and refuses a count that is not a whole number (P163)", () => {
+    // The count is of failures (ADR-0120: twice is the portal). Zero is the
+    // first sign-in's honest value; a negative or fractional one is refused
+    // rather than defaulted, because a line saying "no failures so far"
+    // over a malformed count would be a number that does not mean what it says.
+    const login = {
+      url: "https://apply.example.test/login",
+      emailLocator: { strategy: "id", value: "returnemail" },
+      passwordLocator: { strategy: "id", value: "returnpass" },
+      submitLocator: { strategy: "name", value: "loginBtn" },
+    };
+    const signIn = { ...work, kind: "sign_in", login, signInFailuresSoFar: 0 };
+    const parsed = parseClaimedWork(signIn);
+    if (parsed === null) expect.unreachable("a sign-in item with its login targets parses");
+    expect(parsed.signInFailuresSoFar).toBe(0);
+    expect(parseClaimedWork({ ...signIn, signInFailuresSoFar: 1 })?.signInFailuresSoFar).toBe(1);
+    expect(parseClaimedWork({ ...signIn, signInFailuresSoFar: -1 })).toBeNull();
+    expect(parseClaimedWork({ ...signIn, signInFailuresSoFar: 1.5 })).toBeNull();
+    // The old name is not read: a plane still sending it is a plane whose
+    // number meant something else, and the runner's line then says "unknown".
+    const oldName = parseClaimedWork({ ...work, kind: "sign_in", login, signInAttempt: 2 });
+    if (oldName === null) expect.unreachable("the item still parses without the count");
+    expect(oldName.signInFailuresSoFar).toBeUndefined();
+    expect("signInAttempt" in oldName).toBe(false);
+  });
+
   it("refuses a listing that is not a URL and a locator, and a marker that is not a locator", () => {
     expect(parseClaimedWork({ ...work, repeat: { index: 1, count: 2, recorded: { url: "", entryLocator: { strategy: "css", value: "li" } } } })).toBeNull();
     expect(parseClaimedWork({ ...work, repeat: { index: 1, count: 2, recorded: { url: "https://apply.example.test/summary" } } })).toBeNull();

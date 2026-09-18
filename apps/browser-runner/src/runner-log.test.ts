@@ -121,29 +121,40 @@ describe("how a turn is announced (ADR-0124)", () => {
   });
 });
 
-describe("the line a sign-in writes before it starts (ADR-0124)", () => {
-  it("names the attempt, the URL and the run, so a runner that dies mid-attempt still said it started", () => {
+describe("the line a sign-in writes before it starts (ADR-0124, reworded in P163)", () => {
+  it("names how many sign-ins have FAILED so far, the URL and the run, so a runner that dies mid-attempt still said it started", () => {
     // Vahid: *"a line at the start of each sign-in attempt, not only at the
     // end: which attempt, which URL, when. If the runner dies mid-attempt, I
-    // want to know it started."* The attempt is the PLANE's count, carried on
-    // the work item; the runner never invents it.
+    // want to know it started."* The count is the PLANE's, carried on the
+    // work item; the runner never invents it. And it is a count of FAILURES
+    // (ADR-0120 counts failures: twice is the portal, and a success in
+    // between ENDS the count — "a later loss is a new episode of two"), so
+    // the line says so in the rule's own word. Before P163 it printed the
+    // count plus one as "attempt N", which on Run A's third conversation
+    // would have called the third sign-in "attempt 1".
     const line = signInStartLine({
       runId: "run-1",
-      attempt: 2,
+      failuresSoFar: 1,
       url: "https://www.sheffield.ac.uk/apply/login",
     });
     expect(line).toContain("run run-1");
-    expect(line).toContain("attempt 2");
+    expect(line).toContain("failures in this episode: 1 of 2 allowed");
+    expect(line).not.toContain("attempt");
     expect(line).toContain("https://www.sheffield.ac.uk/apply/login");
     expect(line).toContain("starting");
   });
 
-  it("says the attempt is unknown rather than guessing a number", () => {
-    // An older plane that does not send the count. Saying "attempt 1" here
+  it("says zero of two when the count is zero", () => {
+    const line = signInStartLine({ runId: "run-1", failuresSoFar: 0, url: "https://portal.example/login" });
+    expect(line).toContain("failures in this episode: 0 of 2 allowed");
+  });
+
+  it("says the count is unknown rather than guessing a number", () => {
+    // An older plane that does not send the count. Saying "0 of 2" here
     // would be a number that does not mean what it says.
     const line = signInStartLine({ runId: "run-1", url: "https://portal.example/login" });
-    expect(line).toContain("attempt unknown");
-    expect(line).not.toContain("attempt 1");
+    expect(line).toContain("failures in this episode: unknown");
+    expect(line).not.toContain("0 of 2");
   });
 });
 

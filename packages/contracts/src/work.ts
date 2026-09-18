@@ -188,18 +188,25 @@ export interface ClaimedWork {
   /**
    * Which attempt this sign-in is, counting from one (ADR-0124, P157).
    *
-   * Present for `sign_in`, absent otherwise. The PLANE counts attempts — the
-   * runner is stateless between turns and could only guess — and ADR-0120
-   * stops the run at two, so this is always 1 or 2 in practice.
+   * Present for `sign_in`, absent otherwise. How many sign-ins have FAILED
+   * on this run so far — the PLANE's count, because the runner is stateless
+   * between turns and could only guess. ADR-0120 stops the run at the second
+   * failure, so this is 0 or 1 in practice.
    *
-   * It exists because the runner's log had no honest way to say which attempt
-   * it was starting. Vahid, 2026-09-18, after Run A stopped at the sign-in
-   * twice: *"a line at the start of each sign-in attempt, not only at the end:
-   * which attempt, which URL, when. If the runner dies mid-attempt, I want to
-   * know it started."* A number the runner invented would be the thing this
-   * project keeps finding; this one is the plane's own count, carried.
+   * It exists because the runner's log had no honest way to say where in the
+   * rule a sign-in stood. Vahid, 2026-09-18, after Run A stopped at the
+   * sign-in twice: *"a line at the start of each sign-in attempt, not only at
+   * the end: which attempt, which URL, when. If the runner dies mid-attempt,
+   * I want to know it started."* A number the runner invented would be the
+   * thing this project keeps finding; this one is the plane's own, carried.
+   *
+   * Renamed in P163 from a field that carried this same count plus one and
+   * called it an attempt, which on a run that failed once and then signed in
+   * would have called the third sign-in "attempt 2". The rule counts
+   * failures — *twice is the portal, and a success in between is not
+   * evidence against it* — so the field says what it counts.
    */
-  readonly signInAttempt?: number;
+  readonly signInFailuresSoFar?: number;
   /**
    * The fill plan, taken apart for transport. ADR-0046.
    *
@@ -380,11 +387,11 @@ type OpenStrings<T> = {
         : // A COUNT is not free text, but it is not exempt by being a number
           // either: the field is named here, the way the strings above are, so
           // a `retryBudget` or a `portalErrorCode` added later still fails the
-          // build. `signInAttempt` is the plane's own count of attempts made
-          // (ADR-0124), carried so the runner's log can name the attempt it is
-          // starting without inventing a number.
+          // build. `signInFailuresSoFar` is the plane's own count of failed
+          // sign-ins (ADR-0124, P163), carried so the runner's log can say
+          // where in ADR-0120's rule a sign-in stands without inventing a number.
           NonNullable<T[K]> extends number
-          ? K extends "signInAttempt"
+          ? K extends "signInFailuresSoFar"
             ? never
             : K
           : K;
@@ -654,11 +661,14 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
   const login = kind === "sign_in" ? parseLogin(record["login"]) : null;
   if (kind === "sign_in" && login === null) return null;
 
-  // A whole positive number or nothing. A malformed count is refused rather
-  // than defaulted: a log line saying "attempt 0" would be a number that does
-  // not mean what it says.
-  const signInAttempt = record["signInAttempt"];
-  if (signInAttempt !== undefined && (!Number.isInteger(signInAttempt) || (signInAttempt as number) < 1)) {
+  // A whole number, zero or more, or nothing. A malformed count is refused
+  // rather than defaulted: a log line saying "no failures so far" over a
+  // count that was not one would be a number that does not mean what it says.
+  const signInFailuresSoFar = record["signInFailuresSoFar"];
+  if (
+    signInFailuresSoFar !== undefined &&
+    (!Number.isInteger(signInFailuresSoFar) || (signInFailuresSoFar as number) < 0)
+  ) {
     return null;
   }
 
@@ -708,7 +718,7 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     approach: record["approach"],
     ...(handle === undefined ? {} : { secretHandle: handle }),
     ...(registration === null ? {} : { registration }),
-    ...(signInAttempt === undefined ? {} : { signInAttempt: signInAttempt as number }),
+    ...(signInFailuresSoFar === undefined ? {} : { signInFailuresSoFar: signInFailuresSoFar as number }),
     ...(login === null ? {} : { login }),
     ...(plan === null ? {} : { plan }),
     ...(typeof formUrl === "string" && formUrl.length > 0 ? { formUrl } : {}),

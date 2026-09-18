@@ -31,6 +31,7 @@ import { createPortalAccount } from "./create-account.js";
 import { documentSourceFor } from "./document-source.js";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { fillApplication } from "./fill-application.js";
+import { atPointInWords } from "./point-of-control.js";
 import type { RobotsGate } from "./robots-gate.js";
 import { signInToPortal } from "./sign-in.js";
 import { PlaywrightPreparationSession } from "./playwright-fill-session.js";
@@ -167,6 +168,10 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       now: deps.now,
       session,
       challenge: () => session.challenge(),
+      // ADR-0124, applied to the fill (P163): what the page fill is doing,
+      // and what stood at the Save button's point when a press fails.
+      ...(deps.log === undefined ? {} : { log: deps.log }),
+      atPoint: (locator) => atPointInWords(page, locator),
       documents: documentSourceFor({
         intake: deps.intake,
         work,
