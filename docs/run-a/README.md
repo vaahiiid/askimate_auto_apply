@@ -184,6 +184,23 @@ same run found that a `fix_content` with nothing to ask was a silent dead end; i
 person now. Vahid: *"The star is not the evidence. The save is."* This is the whole argument for
 Run A existing, and it is recorded here as such.
 
+## Warning to the next reader: this sequence has not been walked to the end
+
+**Nobody has taken this document past step 5 by hand.** Steps 1 to 5 — session, offer, request,
+account declared, authorisation — were walked by Vahid on 2026-09-18 and work. Step 6, the
+sign-in, was reached and failed twice against the real portal. **Everything after step 6 is
+untested by a person**, and everything about recovering from a failure was wrong when he tried
+it: three separate resume sequences were given and none worked, because the behaviour they
+described existed only in tests, or not at all.
+
+Four defects on that path are open as blockers 37 to 40: a run stopped for a person cannot be
+resolved; the stop message tells a student we created an account when they declared their own;
+the route back after a stop is a refusal the student must trigger, documented nowhere; and a
+stop cancels the case while leaving the run escalated, which leaves the page with no exit.
+
+Treat every instruction below step 5 as a proposal until someone has walked it. That is what
+Run A is for, and it is the honest state of this file.
+
 ## What Run A proved before it stopped — the sign-in, 2026-09-18
 
 The run reached the portal and stopped at the sign-in, twice, with `runner_fault`. A stop at the
