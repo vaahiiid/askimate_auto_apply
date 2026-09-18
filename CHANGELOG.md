@@ -39,6 +39,10 @@ pulling 412d001 and re-running the two calls, decided by him, 2026-09-18).**
   env file, so it cannot be pointed at a different database by accident.
 - The runbook's query for reading a case's state from `case_events`, which is where case state lives
   — there is no column on `cases`.
+- The WHOLE path walked as a test, not described: the repair raises the handover ask on a case that
+  still owes one, the student answers it through the read that publishes the hash (ADR-0061), and the
+  repair then concludes. Four resume sequences reasoned from reading failed on his machine; the one
+  thing they had in common was that nobody had run them.
 
 ### Not changed, deliberately
 

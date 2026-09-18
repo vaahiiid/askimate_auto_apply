@@ -9587,6 +9587,51 @@ describeIfDatabase("a stopped case that still owes an account is NOT concluded b
     }
     expect(await caseState(), "NOT concluded").toBe("WINDING_DOWN");
   }, 300_000);
+
+  it("IS concluded once the student finishes the handover — the whole path, walked", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The end of the sequence, walked here rather than described to him.
+    //
+    // Four resume sequences reasoned from reading failed on his machine, and
+    // the one thing every one of them had in common was that nobody had run
+    // it. So: the repair raises the handover ask, the student answers it the
+    // way a student does — through the READ that publishes the hash, never a
+    // method only a test can call (ADR-0061) — and the repair is run again.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const reading = await instance.driver.runFor(conversation);
+      const runId = reading?.run.runId ?? "";
+      expect(runId, "the repair's advance left the run readable").not.toBe("");
+
+      // Bounded: the checklist has three student-side items at most, and a
+      // loop that cannot end is not a proof of anything.
+      for (let round = 0; round < 5; round += 1) {
+        const now = await instance.driver.runFor(conversation);
+        if (now?.pending?.decision !== "confirm_handoff") break;
+        const done = await instance.driver.recordDecision({
+          conversationId: conversation,
+          runId,
+          decision: {
+            kind: "confirm_handoff",
+            contentHash: now.pending.contentHash ?? "",
+          },
+        });
+        expect(done, `round ${String(round)}`).toEqual({ ok: true });
+        await instance.driver.advance({ runId, conversationId: conversation });
+      }
+
+      const finished = await instance.driver.finishStoppedCase(conversation);
+      expect(finished, "nothing owed now, so it concludes").toEqual({
+        ok: true,
+        concluded: true,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await caseState(), "and the case is closed").toBe("CANCELLED");
+  }, 300_000);
 });
 
 describeIfDatabase("which declaration actually decides", () => {
