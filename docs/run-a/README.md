@@ -201,6 +201,23 @@ stop cancels the case while leaving the run escalated, which leaves the page wit
 Treat every instruction below step 5 as a proposal until someone has walked it. That is what
 Run A is for, and it is the honest state of this file.
 
+**Walked by Vahid on 2026-09-18, later the same day, and now known to work:**
+
+- **The repair.** `scripts/local-stack.sh finish-stopped <conversationId>` concluded the first
+  pre-P158 case on the first run (ADR-0126, blocker 44).
+- **The re-application, from the two raw calls.** Once the prior case is concluded,
+  `POST …/reapplication/prior-outcome` then `POST …/reapplication` open a new case end to end.
+  Blocker 42's 403 does not fire for a concluded prior case; what remains of 41 and 42 is the
+  silence when something genuinely IS outstanding.
+- **The runner's log, on the repeat.** The second run's first sign-in attempt printed the start
+  line, then *"sign-in failed at the submit and the load that follows — TimeoutError: the step
+  timed out"*, then `failed (runner_fault)`. ADR-0124 did its job: the failure is a reading now,
+  not a deduction. It is `TimeoutError`, not the "execution context destroyed" the race hypothesis
+  predicted — so the submit/load race is exonerated, and it was right not to fix it on a guess.
+
+Blockers 37 to 40 in the paragraph above: 40 is closed (ADR-0125), 44 raised and closed
+(ADR-0126); 37, 38 and 39 stay open.
+
 ## What Run A proved before it stopped — the sign-in, 2026-09-18
 
 The run reached the portal and stopped at the sign-in, twice, with `runner_fault`. A stop at the
