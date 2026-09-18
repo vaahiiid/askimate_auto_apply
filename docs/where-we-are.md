@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P161 — the runner meets a page nobody has read
+
+Attempt 2 said which clock: the press. The button could not be pressed, the password box was still there, and the page went nowhere — the thirty seconds never came into it, and both of the week's earlier hypotheses are gone. What is over the button is not known, and the honest reason is that the runner's page has never been observed. Every capture refused the tag host; the runner lets it load, sends a user agent no capture ever sent, and a viewport nobody has read at.
+
+So nothing in the runner changes. He said it before I could propose it: no dismisser, no click-through, no wait for the overlay to clear — name it from a capture first. The attached tool gains a way to read the page as the runner meets it: reads to other hosts let through and every one recorded, the runner's own agent presented on every request, its viewport; writes refused everywhere, as before. And a read that says what stands at the button's point, top-most first, with its shape and its text, because the text is what names a banner if a banner is what it is.
+
+The ADR names nothing. A tag's banner, a different page served to that agent, something the viewport puts over the button — each is an observation to make, and the tool now makes it possible to make without assuming any. The next step is his read, and the step after that is his word.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P160 — the one wait did not do what it read as doing
 
 The repeat printed a reading, which is what P157 was for: the step timed out, at the submit. Not the error the race would have thrown, so the race is exonerated and stays untouched. But the reading I had offered as the alternative — that fifteen seconds was too short for the load after Sheffield's submit — was wrong as well, and wrong in the way he has now seen three times in a week. The load wait was called before the click, on a page that had already loaded, and Playwright's own contract says such a wait resolves at once. It guarded nothing. The clock that ran out was the click's, which waits for the button to be pressable and then for the portal's answer under one name.

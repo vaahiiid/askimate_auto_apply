@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.157.0] — 2026-09-18
+
+**P161 — ADR-0128: read the page the runner sees before anything learns to push past it (found by
+Run A's attempt 2; decided by Vahid, 2026-09-18).**
+
+### Added
+
+- `inspect:attached --as-runner`: reads to hosts off the target's list are let through — `GET`,
+  `HEAD`, `OPTIONS` only — and every one is recorded in `run.json` (`offHostReads`); the
+  `User-Agent` header is rewritten at the guard to the runner's `AskiMate-Runner/1.0`; the tab is
+  the runner's 1280×720. The method rule is untouched: writes are refused on every host.
+- `inspect:attached --covering <strategy>=<value>` (repeatable): what stands at a control's centre
+  point, top-most first down to the control — tag, id, classes, computed position and z-index, box,
+  dialog/iframe role, own text to 160 characters. Printed, and written to `run.json` (`covering`).
+- `runner-identity.ts`: `RUNNER_PRESENTS`, pinned by test to the agent `sign-in.ts` opens with.
+- `startFixturePortal({ loginTagScriptUrl })`: a login page that loads a script from another host.
+
+### Not changed, deliberately
+
+- The runner. No dismisser, no click-through, no wait for an overlay to clear — nothing learns to
+  push past a thing nobody has named.
+
+---
+
 ## [0.156.0] — 2026-09-18
 
 **P160 — ADR-0127: the submit is two waits with two names, because the one wait did not do what it

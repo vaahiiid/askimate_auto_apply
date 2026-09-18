@@ -1,7 +1,14 @@
 /**
  * Attached inspection of a form a person has signed in to (P79).
  *
- *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 [--out <dir>] [--as-is] <url> [url ...]
+ *   pnpm run inspect:attached <target> --cdp http://127.0.0.1:9222 [--out <dir>] [--as-is]
+ *                             [--as-runner] [--covering <strategy>=<value> ...] <url> [url ...]
+ *
+ * With `--as-runner` (ADR-0128) it reads the page the RUNNER meets: reads to
+ * hosts off the target's list are let through and recorded — a tag manager
+ * loads — every request presents the runner's own user agent, and the tab is
+ * the runner's viewport. `--covering` names a control and the read says what
+ * stands at its centre point, top-most first. Neither presses anything.
  *
  * With `--as-is` it reads the person's OWN open tab at each URL as it stands —
  * no navigation, so what they chose on the page (and every list a choice
@@ -23,7 +30,10 @@ import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
-import { PlaywrightAttachedInspection } from "./attached-inspection.js";
+import type { FieldLocator } from "@askimate/aas-blueprint";
+
+import { PlaywrightAttachedInspection, type CoveringReading } from "./attached-inspection.js";
+import { RUNNER_PRESENTS, parseCoveringLocator } from "./runner-identity.js";
 import { draftBlueprintFrom } from "./discovery.js";
 import { parseTarget } from "./target.js";
 import type { PageObservation } from "./session.js";
@@ -66,6 +76,17 @@ function pause(ms: number): Promise<void> {
   return new Promise((done) => setTimeout(done, ms));
 }
 
+function coveringInWords(reading: CoveringReading): string {
+  const who = `${reading.locator.strategy}=${reading.locator.value}`;
+  if (!reading.found) return `     ${who}: not on this page`;
+  if (!reading.covered) return `     ${who}: at its own point — nothing over it`;
+  const top = reading.atPoint;
+  const name = top === undefined ? "?" : `<${top.tag}${top.id === null ? "" : `#${top.id}`}${top.classes.length === 0 ? "" : `.${top.classes.join(".")}`}>`;
+  const shape = top === undefined ? "" : ` position ${top.position}, z-index ${top.zIndex}, ${String(top.box.width)}×${String(top.box.height)} at ${String(top.box.x)},${String(top.box.y)}${top.role === null ? "" : `, ${top.role}`}`;
+  const text = top === undefined || top.text === "" ? "" : `\n       text: ${JSON.stringify(top.text)}`;
+  return `     ${who}: COVERED by ${name}${shape}${text}\n       stack, top first: ${reading.stack.map((layer) => `${layer.tag}${layer.id === null ? "" : `#${layer.id}`}`).join(" > ")}`;
+}
+
 function usage(root: string): void {
   process.stderr.write(
     `Usage: pnpm run inspect:attached <target> --cdp <endpoint> <url> [url ...]\n\n` +
@@ -74,7 +95,12 @@ function usage(root: string): void {
       `  --out <dir>  where to write the run (default: inspection-runs/ in this checkout)\n` +
       `  --as-is      read YOUR open tab at each url as it stands, without navigating it —\n` +
       `               for a page whose lists load only after a choice (open the page, make\n` +
-      `               the choices, leave the tab on it, then run)\n\n` +
+      `               the choices, leave the tab on it, then run)\n` +
+      `  --as-runner  read the page the RUNNER meets (ADR-0128): off-host reads allowed and\n` +
+      `               recorded, the runner's user agent presented, the runner's viewport\n` +
+      `  --covering <strategy>=<value>\n` +
+      `               say what stands at this control's centre point (repeatable), e.g.\n` +
+      `               --covering name=loginBtn\n\n` +
       `Targets:\n` +
       listTargets(root)
         .map((name) => `  ${name}\n`)
@@ -94,7 +120,23 @@ async function main(): Promise<void> {
   const outRoot = outIndex === -1 ? resolve(root, "inspection-runs") : resolve(args[outIndex + 1] ?? "");
   const asIsIndex = args.indexOf("--as-is");
   const asIs = asIsIndex !== -1;
-  const taken = new Set([0, cdpIndex, cdpIndex + 1, outIndex, outIndex + 1, asIsIndex]);
+  const asRunnerIndex = args.indexOf("--as-runner");
+  const asRunner = asRunnerIndex !== -1;
+  const taken = new Set([0, cdpIndex, cdpIndex + 1, outIndex, outIndex + 1, asIsIndex, asRunnerIndex]);
+  const coveringLocators: FieldLocator[] = [];
+  args.forEach((arg, index) => {
+    if (arg !== "--covering") return;
+    taken.add(index);
+    taken.add(index + 1);
+    const parsed = parseCoveringLocator(args[index + 1] ?? "");
+    if (parsed === null) {
+      process.stderr.write(`--covering wants <strategy>=<value>, e.g. name=loginBtn; got "${args[index + 1] ?? ""}".\n`);
+      process.exitCode = 2;
+      return;
+    }
+    coveringLocators.push(parsed);
+  });
+  if (process.exitCode === 2) return;
   const urls = args.filter((_, index) => !taken.has(index));
 
   if (typed === undefined || cdp === undefined || urls.length === 0) {
@@ -129,8 +171,14 @@ async function main(): Promise<void> {
       `and the run record says so.\n` +
       (asIs
         ? `\n--as-is: each page is read in place from YOUR open tab, as it stands. Nothing is\n` +
-          `navigated; the tab stays yours and stays open.\n\n`
-        : `\n`),
+          `navigated; the tab stays yours and stays open.\n`
+        : ``) +
+      (asRunner
+        ? `\n--as-runner: reads to hosts OFF ${target.allowedHosts.join(", ")} are let through and\n` +
+          `recorded, so tags load; every request presents "${RUNNER_PRESENTS.userAgent}"; the tab is\n` +
+          `${String(RUNNER_PRESENTS.viewport.width)}×${String(RUNNER_PRESENTS.viewport.height)}. Writes are still refused everywhere.\n`
+        : ``) +
+      `\n`,
   );
 
   const session = await PlaywrightAttachedInspection.open({
@@ -140,7 +188,15 @@ async function main(): Promise<void> {
     traceDir: outDir,
     cdpEndpoint: cdp,
     navigableUrlPatterns: urls.map((url) => new RegExp(`^${escapeRegExp(url.split("#")[0] ?? url)}`)),
+    ...(asRunner
+      ? {
+          offHostReads: "allowed" as const,
+          presentUserAgent: RUNNER_PRESENTS.userAgent,
+          viewport: RUNNER_PRESENTS.viewport,
+        }
+      : {}),
   });
+  const coverings: { url: string; readings: readonly CoveringReading[] }[] = [];
 
   const observations: PageObservation[] = [];
   const captured: { url: string; file: string; capturedAt: string }[] = [];
@@ -173,6 +229,11 @@ async function main(): Promise<void> {
         );
         if (observation.url !== url) {
           process.stdout.write(`     landed on ${observation.url}\n`);
+        }
+        if (coveringLocators.length > 0) {
+          const readings = await session.covering(coveringLocators);
+          coverings.push({ url: observation.url, readings });
+          for (const reading of readings) process.stdout.write(`${coveringInWords(reading)}\n`);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -235,6 +296,14 @@ async function main(): Promise<void> {
           reason: entry.reason ?? "",
         })),
         refusedNavigations: session.refusedNavigations,
+        // ADR-0128: what the runner's page loaded that no capture ever did,
+        // what was presented to get it, and what stands at the named points.
+        asRunner,
+        presented: asRunner
+          ? { userAgent: RUNNER_PRESENTS.userAgent, viewport: RUNNER_PRESENTS.viewport, note: "the User-Agent HEADER was rewritten at the guard; the page's navigator.userAgent is this browser's own" }
+          : null,
+        offHostReads: session.offHostReads,
+        covering: coverings,
         crawlDelayMs: delayMs,
         robots: "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",
         capturesScrubbed: "input values and textarea bodies removed from pages/*.html; the page itself was not touched",
@@ -249,6 +318,7 @@ async function main(): Promise<void> {
   process.stdout.write(`Pages failed       ${String(failed.length)}\n`);
   process.stdout.write(`Navigations refused ${String(session.refusedNavigations.length)}\n`);
   process.stdout.write(`Requests refused    ${String(session.blockedRequests().length)}\n`);
+  if (asRunner) process.stdout.write(`Off-host reads      ${String(session.offHostReads.length)} (allowed and recorded)\n`);
   // P123: how much of the draft's labelling is a read of the row rather than
   // a tie in the markup, and how many rows carry a visible mandatory marker.
   const drafted = blueprint.pages.flatMap((page) => page.sections.flatMap((section) => section.fields));

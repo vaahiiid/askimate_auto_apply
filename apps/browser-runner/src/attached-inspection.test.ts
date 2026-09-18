@@ -10,6 +10,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { createServer, type Server } from "node:http";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -70,6 +71,125 @@ afterAll(async () => {
   await portal.stop();
   await rm(traceDir, { recursive: true, force: true });
   await rm(profileDir, { recursive: true, force: true });
+});
+
+describe("reading the page the RUNNER sees (ADR-0128)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Attempt 2 said "the sign-in button could not be pressed; the password
+  // box is still on the page". Something is over the button, and nobody has
+  // read the page the runner meets: every capture refused the tag host, and
+  // the runner allows it and presents a non-browser user agent. This mode
+  // reads that page — tags loading, the runner's own agent presented — and
+  // names what stands at the button's point. It pushes past nothing.
+  // ═══════════════════════════════════════════════════════════════════════
+  let tagHost: Server;
+  let tagPort = 0;
+  const tagRequests: { url: string; userAgent: string }[] = [];
+  let tagged: FixturePortal;
+  let coveredPortal: FixturePortal;
+
+  beforeAll(async () => {
+    tagHost = createServer((request, response) => {
+      tagRequests.push({ url: request.url ?? "", userAgent: request.headers["user-agent"] ?? "" });
+      response.writeHead(200, { "content-type": "text/javascript" });
+      response.end("window.__tagLoaded = true;");
+    });
+    await new Promise<void>((done) => tagHost.listen(0, "127.0.0.2", () => done()));
+    const address = tagHost.address();
+    tagPort = typeof address === "object" && address !== null ? address.port : 0;
+    tagged = await startFixturePortal({ loginTagScriptUrl: `http://127.0.0.2:${String(tagPort)}/tag.js` });
+    coveredPortal = await startFixturePortal({ loginButtonCovered: true });
+  }, 60_000);
+
+  afterAll(async () => {
+    await tagged.stop();
+    await coveredPortal.stop();
+    await new Promise<void>((done) => tagHost.close(() => done()));
+  });
+
+  it("refuses the tag host by default, as every capture did — so the tag never loaded", async () => {
+    tagRequests.length = 0;
+    const session = await attach([`${tagged.baseUrl}/login`]);
+    try {
+      await session.goto(`${tagged.baseUrl}/login`);
+      await session.settle(5_000);
+      expect(session.blockedLog.byRule("host").map((entry) => entry.url)).toContain(
+        `http://127.0.0.2:${String(tagPort)}/tag.js`,
+      );
+      expect(session.offHostReads).toEqual([]);
+    } finally {
+      await session.close();
+    }
+    expect(tagRequests, "the tag host was never reached").toEqual([]);
+  }, 60_000);
+
+  it("as the runner: lets the tag load, presents the runner's user agent to it, records the read — and still refuses every write", async () => {
+    tagRequests.length = 0;
+    const session = await PlaywrightAttachedInspection.open({
+      runId: "attached-as-runner",
+      capability: "read_only",
+      allowedHosts: ["127.0.0.1"],
+      traceDir,
+      cdpEndpoint: CDP,
+      navigableUrlPatterns: [new RegExp(`^${escapeRegExp(`${tagged.baseUrl}/login`)}`)],
+      offHostReads: "allowed",
+      presentUserAgent: "AskiMate-Runner/1.0",
+      viewport: { width: 1280, height: 720 },
+    });
+    try {
+      await session.goto(`${tagged.baseUrl}/login`);
+      await session.settle(5_000);
+      expect(tagRequests.map((r) => r.url)).toEqual(["/tag.js"]);
+      expect(tagRequests[0]?.userAgent, "the portal's tag sees what the runner sends").toBe("AskiMate-Runner/1.0");
+      expect(session.offHostReads.map((r) => r.url), "allowed, and RECORDED — never silent").toEqual([
+        `http://127.0.0.2:${String(tagPort)}/tag.js`,
+      ]);
+      expect(session.blockedLog.byRule("host")).toEqual([]);
+      expect(await session.viewport()).toEqual({ width: 1280, height: 720 });
+    } finally {
+      await session.close();
+    }
+  }, 60_000);
+
+  it("names what stands at the sign-in button's point: nothing on a plain form, the cover on a covered one", async () => {
+    const plain = await attach([`${portal.baseUrl}/login`]);
+    try {
+      await plain.goto(`${portal.baseUrl}/login`);
+      await plain.settle(5_000);
+      const [reading] = await plain.covering([{ strategy: "id", value: "signIn" }]);
+      expect(reading?.found).toBe(true);
+      expect(reading?.covered, "the button is what is at its own point").toBe(false);
+    } finally {
+      await plain.close();
+    }
+
+    const covered = await attach([`${coveredPortal.baseUrl}/login`]);
+    try {
+      await covered.goto(`${coveredPortal.baseUrl}/login`);
+      await covered.settle(5_000);
+      const [reading] = await covered.covering([{ strategy: "id", value: "signIn" }]);
+      expect(reading?.found).toBe(true);
+      expect(reading?.covered).toBe(true);
+      expect(reading?.atPoint?.tag).toBe("div");
+      expect(reading?.atPoint?.id).toBe("cover");
+      expect(reading?.atPoint?.position).toBe("fixed");
+      // The whole stack at the point, top first, down to the button itself.
+      expect(reading?.stack.map((layer) => layer.id)).toEqual(["cover", "signIn"]);
+    } finally {
+      await covered.close();
+    }
+  }, 60_000);
+
+  it("says so when the locator names nothing on the page", async () => {
+    const session = await attach([`${portal.baseUrl}/login`]);
+    try {
+      await session.goto(`${portal.baseUrl}/login`);
+      const [reading] = await session.covering([{ strategy: "id", value: "noSuchButton" }]);
+      expect(reading).toEqual({ locator: { strategy: "id", value: "noSuchButton" }, found: false, covered: false, stack: [] });
+    } finally {
+      await session.close();
+    }
+  }, 60_000);
 });
 
 describe("attached inspection reads a form behind a login (P79)", () => {
@@ -248,6 +368,84 @@ describe("attached inspection reads a form behind a login (P79)", () => {
 });
 
 describe("through the REAL command, under tsx — not vitest's transform", () => {
+  it("reads a covered login as the runner, through the real flags: --as-runner --covering (ADR-0128)", async () => {
+    const root = resolve(import.meta.dirname, "..", "..", "..");
+    const covered = await startFixturePortal({ loginButtonCovered: true });
+    const outRoot = await mkdtemp(join(tmpdir(), "aas-attached-cli-runner-"));
+    const targetFile = join(outRoot, "fixture.json");
+    await writeFile(
+      targetFile,
+      JSON.stringify({
+        targetId: "fixture-covered",
+        institutionName: "Gated University",
+        courseName: "MSc Controlled Studies",
+        intake: "2026-09",
+        route: "direct_portal",
+        routeNotes: [],
+        allowedHosts: ["127.0.0.1"],
+        seedUrls: [`${covered.baseUrl}/login`],
+        linkPatterns: ["login"],
+        maxPages: 1,
+        claimsToVerify: [],
+      }),
+    );
+    try {
+      const result = await new Promise<{ status: number | null; out: string }>((done) => {
+        const child = spawn(
+          process.execPath,
+          [
+            "--import",
+            "tsx",
+            resolve(root, "apps", "browser-runner", "src", "inspect-attached-cli.ts"),
+            targetFile,
+            "--cdp",
+            CDP,
+            "--out",
+            outRoot,
+            "--as-runner",
+            "--covering",
+            "id=signIn",
+            "--covering",
+            "id=noSuchButton",
+            `${covered.baseUrl}/login`,
+          ],
+          { cwd: root, env: { ...process.env } },
+        );
+        let out = "";
+        child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+        child.stderr.on("data", (chunk: Buffer) => (out += chunk.toString()));
+        const timer = setTimeout(() => child.kill(), 120_000);
+        child.on("close", (status) => {
+          clearTimeout(timer);
+          done({ status, out });
+        });
+      });
+      const out = result.out;
+      expect(result.status, out).toBe(0);
+      expect(out).toContain("--as-runner:");
+      expect(out).toContain("id=signIn: COVERED by <div#cover> position fixed");
+      expect(out).toContain("stack, top first: div#cover > button#signIn");
+      expect(out).toContain("id=noSuchButton: not on this page");
+      expect(out).toContain("Off-host reads      0 (allowed and recorded)");
+
+      const runDir = (await readdir(outRoot)).map((name) => join(outRoot, name)).find((dir) => existsSync(join(dir, "run.json")));
+      if (runDir === undefined) expect.unreachable(`no run directory written under ${outRoot}`);
+      const run = JSON.parse(await readFile(join(runDir, "run.json"), "utf8")) as {
+        asRunner: boolean;
+        presented: { userAgent: string; viewport: { width: number; height: number } } | null;
+        covering: { url: string; readings: { covered: boolean; atPoint?: { id: string | null; position: string } }[] }[];
+      };
+      expect(run.asRunner).toBe(true);
+      expect(run.presented?.userAgent).toBe("AskiMate-Runner/1.0");
+      expect(run.presented?.viewport).toEqual({ width: 1280, height: 720 });
+      expect(run.covering[0]?.readings[0]?.covered).toBe(true);
+      expect(run.covering[0]?.readings[0]?.atPoint).toMatchObject({ id: "cover", position: "fixed" });
+    } finally {
+      await covered.stop();
+      await rm(outRoot, { recursive: true, force: true });
+    }
+  }, 180_000);
+
   // ── Why this test exists ──────────────────────────────────────────────
   //
   // The six tests above passed, and the first real run failed on its first

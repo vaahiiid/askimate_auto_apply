@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P161: attempt 2 named the press — something over the button, on a page no capture
+  has read (tags refused there, allowed in the runner; a non-browser agent; a fixed viewport).
+  ADR-0128: `inspect:attached --as-runner --covering name=loginBtn` reads the page as the runner
+  meets it and names what stands at the button's point. No dismisser; the runner is unchanged.
+  Run A's third attempt waits on that read. One open of ten.
 - 2026-09-18, P160: the repeat's log read `TimeoutError` at the submit — the race exonerated, and
   the load-wait reading wrong too: it was called on an already-loaded page and guarded nothing.
   ADR-0127: two waits with two names (press 15 s, answer 30 s), the landing by URL, no screenshot,

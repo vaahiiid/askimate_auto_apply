@@ -59,8 +59,16 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page, Route } from "playwright";
 import { chromium } from "playwright";
 
+import type { FieldLocator } from "@askimate/aas-blueprint";
+import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
+
 import { OBSERVE_SCRIPT } from "./observe-script.js";
-import { BlockedRequestLog, HostAllowList, decideDiscoveryRequestForHost } from "./safety.js";
+import {
+  BlockedRequestLog,
+  HostAllowList,
+  decideDiscoveryRequest,
+  decideDiscoveryRequestForHost,
+} from "./safety.js";
 import { MINIMUM_CRAWL_DELAY_MS } from "./robots.js";
 import type { PageObservation, ReadOnlySession, SessionMode } from "./session.js";
 
@@ -75,12 +83,68 @@ export interface AttachedInspectionMode extends SessionMode {
   readonly navigableUrlPatterns: readonly RegExp[];
   /** Injected so a test can hand over a browser it launched. */
   readonly connect?: (endpoint: string) => Promise<Browser>;
+  /**
+   * ADR-0128 — reading the page the RUNNER sees.
+   *
+   * `"refused"` (the default, and every capture before P161): a GET to a host
+   * off the target's list is refused and recorded under the host rule. That
+   * is why a tag manager, and anything a tag injects, has never appeared in
+   * a page this repository has read.
+   *
+   * `"allowed"`: a GET, HEAD or OPTIONS to any host proceeds and is RECORDED
+   * in `offHostReads`, so the run record says what loaded. The method rule
+   * is untouched: nothing that is not a read proceeds, on any host.
+   */
+  readonly offHostReads?: "refused" | "allowed";
+  /**
+   * The `User-Agent` header presented on every request this session lets
+   * through — the runner's own string, so the portal and its tags answer the
+   * question "what do you serve THAT agent". Rewritten at the guard; the
+   * page's `navigator.userAgent` is the person's browser's and is not
+   * changed, which the run record states as a limit of the read.
+   */
+  readonly presentUserAgent?: string;
+  /** The viewport our tab is set to — the runner's, so layout matches. */
+  readonly viewport?: { readonly width: number; readonly height: number };
+}
+
+/** One layer of what stands at a point on the page: structure, no values. */
+export interface LayerAtPoint {
+  readonly tag: string;
+  readonly id: string | null;
+  readonly classes: readonly string[];
+  /** Computed `position`, the thing an overlay is usually made of. */
+  readonly position: string;
+  readonly zIndex: string;
+  readonly box: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+  /** `iframe`, `dialog`, `[role=dialog]`, `[aria-modal]` — the shapes a banner takes. */
+  readonly role: string | null;
+  /** Its own visible text, trimmed to 160 characters: page chrome, never a value. */
+  readonly text: string;
+}
+
+/**
+ * What stands at a control's centre point (ADR-0128).
+ *
+ * `document.elementsFromPoint` at the control's own centre, top-most first,
+ * down to the control itself. `covered` is true when the top-most element is
+ * neither the control nor inside it — the fact a press cannot get past.
+ */
+export interface CoveringReading {
+  readonly locator: FieldLocator;
+  readonly found: boolean;
+  readonly covered: boolean;
+  /** The top-most element at the point, when it is not the control. */
+  readonly atPoint?: LayerAtPoint;
+  /** Every layer at the point, top first, ending at the control. */
+  readonly stack: readonly LayerAtPoint[];
 }
 
 export class PlaywrightAttachedInspection implements ReadOnlySession {
   readonly #blocked = new BlockedRequestLog();
   readonly #allowList: HostAllowList;
   readonly #refusedNavigations: string[] = [];
+  readonly #offHostReads: { readonly method: string; readonly url: string }[] = [];
   #browser: Browser | null = null;
   #context: BrowserContext | null = null;
   #page: Page | null = null;
@@ -151,13 +215,27 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
         await route.abort("blockedbyclient");
         return;
       }
-      const decision = decideDiscoveryRequestForHost(request.method(), url, session.#allowList);
+      // ADR-0128: as the runner, the host rule is lifted for READS and every
+      // lifted read is recorded; the method rule never is.
+      const decision =
+        mode.offHostReads === "allowed"
+          ? decideDiscoveryRequest(request.method(), url)
+          : decideDiscoveryRequestForHost(request.method(), url, session.#allowList);
       if (!decision.allowed) {
         session.#blocked.record(decision);
         await route.abort("blockedbyclient");
         return;
       }
-      await route.continue();
+      if (mode.offHostReads === "allowed" && !session.#allowList.permits(url)) {
+        session.#offHostReads.push({ method: decision.method, url });
+      }
+      if (mode.presentUserAgent === undefined) {
+        await route.continue();
+        return;
+      }
+      await route.continue({
+        headers: { ...request.headers(), "user-agent": mode.presentUserAgent },
+      });
     };
     session.#guard = guard;
     await context.route("**/*", guard);
@@ -187,7 +265,80 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
     // Our own tab, in THEIR context — which is what carries the session.
     session.#page = await context.newPage();
     session.#ownTab = session.#page;
+    if (mode.viewport !== undefined) await session.#page.setViewportSize(mode.viewport);
     return session;
+  }
+
+  /** The tab's viewport, so a run record can say what size the page was read at. */
+  public async viewport(): Promise<{ readonly width: number; readonly height: number } | null> {
+    const size = this.#requirePage().viewportSize();
+    return Promise.resolve(size === null ? null : { width: size.width, height: size.height });
+  }
+
+  /** Reads this session let through to hosts off the target's list (ADR-0128). */
+  public get offHostReads(): readonly { readonly method: string; readonly url: string }[] {
+    return [...this.#offHostReads];
+  }
+
+  /**
+   * What stands at each named control's centre point (ADR-0128).
+   *
+   * A READ: `elementsFromPoint` and computed style, nothing dispatched. The
+   * runner's press failed with the password box still on the page; this is
+   * how the thing over the button gets a name from a capture before anything
+   * in the runner learns to push past it.
+   */
+  public async covering(locators: readonly FieldLocator[]): Promise<readonly CoveringReading[]> {
+    const page = this.#requirePage();
+    const readings: CoveringReading[] = [];
+    for (const locator of locators) {
+      const found = toPlaywrightLocator(page, locator);
+      const handle = found === null ? null : await found.first().elementHandle({ timeout: 2_000 }).catch(() => null);
+      if (handle === null) {
+        readings.push({ locator, found: false, covered: false, stack: [] });
+        continue;
+      }
+      const stack = await handle.evaluate((control): { covered: boolean; layers: LayerAtPoint[] } => {
+        const describe = (element: Element): LayerAtPoint => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          const role =
+            element.tagName.toLowerCase() === "iframe" || element.tagName.toLowerCase() === "dialog"
+              ? element.tagName.toLowerCase()
+              : element.getAttribute("role") ?? (element.hasAttribute("aria-modal") ? "aria-modal" : null);
+          return {
+            tag: element.tagName.toLowerCase(),
+            id: element.id === "" ? null : element.id,
+            classes: [...element.classList],
+            position: style.position,
+            zIndex: style.zIndex,
+            box: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
+            role,
+            text: (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
+          };
+        };
+        const rect = control.getBoundingClientRect();
+        const x = rect.x + rect.width / 2;
+        const y = rect.y + rect.height / 2;
+        const layers: LayerAtPoint[] = [];
+        for (const element of document.elementsFromPoint(x, y)) {
+          layers.push(describe(element));
+          if (element === control) break;
+        }
+        const top = document.elementFromPoint(x, y);
+        const covered = top !== null && top !== control && !control.contains(top);
+        return { covered, layers };
+      });
+      const atPoint = stack.covered ? stack.layers[0] : undefined;
+      readings.push({
+        locator,
+        found: true,
+        covered: stack.covered,
+        ...(atPoint === undefined ? {} : { atPoint }),
+        stack: stack.layers,
+      });
+    }
+    return readings;
   }
 
   /**

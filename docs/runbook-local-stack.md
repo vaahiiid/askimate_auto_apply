@@ -287,6 +287,53 @@ in P137 (ADR-0114): two attempts, the box reopened between them, then a person.
   database.
 - `scripts/local-stack.sh status` — pids and endpoints.
 
+## Reading the login page the way the runner sees it (ADR-0128)
+
+Attempt 2 on Sheffield said *the sign-in button could not be pressed; the password box is still
+on the page*. Something is over the button, and no capture has ever shown what: every read refused
+Google Tag Manager, and the runner allows it, presents `AskiMate-Runner/1.0` as its user agent,
+and uses a 1280×720 viewport. This reads the page the runner meets, and names what stands at the
+button's point. It presses nothing.
+
+1. Launch a Chromium with a **fresh, empty profile** and a debugging port — fresh, because a
+   banner you dismissed once in your everyday profile may not appear again:
+
+   ```bash
+   "$CHROME" --user-data-dir="$(mktemp -d)" --remote-debugging-port=9222 about:blank
+   ```
+
+   Do not sign in. The login page is what is being read, signed out, as the entry-page read was.
+
+2. Read it as the runner:
+
+   ```bash
+   pnpm run inspect:attached sheffield --cdp http://127.0.0.1:9222 \
+     --as-runner --covering name=loginBtn \
+     https://www.sheffield.ac.uk/postgradapplication/
+   ```
+
+3. What to look for. In the terminal, one of:
+
+   - `name=loginBtn: at its own point — nothing over it` — the runner's page, read this way, has
+     nothing over the button. Then the variable is not the page: look at `Off-host reads` (what
+     loaded) and at `pages/001.html` for a page that differs from the capture in shape.
+   - `name=loginBtn: COVERED by <tag#id.class> position …, z-index …, W×H at X,Y, dialog` followed
+     by `text: "…"` — **that text is the name.** The `stack, top first:` line shows every layer
+     between the runner and the button.
+   - `name=loginBtn: not on this page` — the button the blueprint names is not there at all as the
+     runner: the page served to that agent is a different page. `pages/001.html` and the
+     screenshot say what it is.
+
+   In `<out>/run.json`: `presented` (what was sent), `offHostReads` (every read to another host
+   that a capture would have refused), `covering` (the readings, with the full stack).
+
+4. Send the run directory's `run.json`, `pages/001.html` and the screenshot. Look at the HTML first:
+   input values are removed, but it is a page with your address typed nowhere and a name possibly
+   in its chrome.
+
+Nothing in the runner acts on what this finds until the finding is named and the next step is
+decided in Vahid's words.
+
 ## Finishing a case whose stop was recorded before P158 (ADR-0126)
 
 A cancellation is two acts. Before commit 412d001 the second act was performed only by an

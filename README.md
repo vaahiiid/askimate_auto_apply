@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P160 — ADR-0127: the submit is two waits with two names — the press at 15 s, the portal's answer at 30 s, each failing under its own phrase; Run A parked at request_secret awaiting the second password |
+| **Phase** | P161 — ADR-0128: read the page the runner sees — `--as-runner --covering` names what is over the sign-in button; the runner unchanged; Run A's third attempt waits on that read |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,731 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 127 ADRs · all 127 Accepted |
+| **Tests** | **2,737 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 128 ADRs · all 128 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

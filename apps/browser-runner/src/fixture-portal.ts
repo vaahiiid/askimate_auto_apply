@@ -167,6 +167,12 @@ export interface FixturePortalOptions {
    * attached, visible and enabled, and cannot be pressed.
    */
   readonly loginButtonCovered?: boolean;
+  /**
+   * ADR-0128. A script the login page loads from ANOTHER host — the shape of a
+   * tag manager. Refused by the guard's host rule in every read so far, which
+   * is exactly why the runner's page, where it loads, has never been observed.
+   */
+  readonly loginTagScriptUrl?: string;
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -202,10 +208,16 @@ ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
 const BUTTON_COVER = `
   <div id="cover" style="position:fixed;inset:0;background:transparent;z-index:10"></div>`;
 
-const LOGIN_PAGE = (error: string | null, challenge?: FixtureChallenge, covered = false): string =>
+const LOGIN_PAGE = (
+  error: string | null,
+  challenge?: FixtureChallenge,
+  covered = false,
+  tagScriptUrl?: string,
+): string =>
   page(
     "Sign in",
-    `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
+    `${tagScriptUrl === undefined ? "" : `<script src="${escapeHtml(tagScriptUrl)}"></script>`}
+${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/login" id="loginForm">
   <label for="email">Email address</label>
   <input type="email" id="email" name="email" required autocomplete="username">
@@ -638,6 +650,7 @@ export async function startFixturePortal(
   const challenge = options.challenge;
   const loginAnswerDelayMs = options.loginAnswerDelayMs ?? 0;
   const covered = options.loginButtonCovered === true;
+  const tagScriptUrl = options.loginTagScriptUrl;
   const accounts = new Map<string, Account>();
   const sessions = new Map<string, string>();
   /** Accounts that have signed in but not yet passed the second factor. */
@@ -766,7 +779,7 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && path === "/login") {
-        send(response, 200, LOGIN_PAGE(null, challenge, covered));
+        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl));
         return;
       }
 

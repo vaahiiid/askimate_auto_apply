@@ -217,6 +217,11 @@ Run A is for, and it is the honest state of this file.
   And the reading behind it was wrong too: the load wait had resolved at once on an already-loaded
   page and guarded nothing; the click's own clock expired. ADR-0127 splits the submit into the
   press and the answer, each named, so the next line is a reading of which.
+- **Attempt 2, with the split:** *the sign-in button could not be pressed … the password box is
+  still on the page.* The press. Something is over the button on a page no capture has read.
+  ADR-0128: read it as the runner (`--as-runner --covering name=loginBtn`, runbook) before anything
+  in the runner learns to push past it. The run is with a person; attempt 3 is a fresh conversation
+  once the read names the thing.
 
 Blockers 37 to 40 in the paragraph above: 40 is closed (ADR-0125), 44 raised and closed
 (ADR-0126); 37, 38 and 39 stay open.

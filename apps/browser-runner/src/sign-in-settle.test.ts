@@ -160,6 +160,16 @@ describe("the two waits", () => {
   }, 30_000);
 });
 
+describe("the runner's presented identity (ADR-0128)", () => {
+  it("is what the --as-runner read presents — the two cannot drift apart silently", async () => {
+    const { RUNNER_PRESENTS } = await import("./runner-identity.js");
+    const source = await import("node:fs/promises").then((fs) => fs.readFile(new URL("./sign-in.ts", import.meta.url), "utf8"));
+    expect(source).toContain(`deps.userAgent ?? "${RUNNER_PRESENTS.userAgent}"`);
+    // Playwright's default viewport, which `openSensitiveContext` does not override.
+    expect(RUNNER_PRESENTS.viewport).toEqual({ width: 1280, height: 720 });
+  });
+});
+
 describe("the numbers", () => {
   it("are the ones ADR-0127 names, and the answer is the longer wait", async () => {
     const { SIGN_IN_PRESS_TIMEOUT_MS, SIGN_IN_ANSWER_TIMEOUT_MS } = await import("./sign-in.js");
