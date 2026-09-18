@@ -9612,10 +9612,11 @@ describeIfDatabase("a stopped case that still owes an account is NOT concluded b
         const done = await instance.driver.recordDecision({
           conversationId: conversation,
           runId,
-          decision: {
-            kind: "confirm_handoff",
-            contentHash: now.pending.contentHash ?? "",
-          },
+          // No `?? ""` here: the narrowing above proves `pending` is the
+          // handoff ask, and a pending decision always carries the hash of the
+          // message it published. A fallback would be a fallback for a case
+          // the type says cannot happen.
+          decision: { kind: "confirm_handoff", contentHash: now.pending.contentHash },
         });
         expect(done, `round ${String(round)}`).toEqual({ ok: true });
         await instance.driver.advance({ runId, conversationId: conversation });
