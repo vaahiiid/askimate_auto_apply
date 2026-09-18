@@ -16,7 +16,7 @@ AAS takes a student who has explicitly decided to apply to a specific university
 that application from conversation, through preparation, to a filled form on the real portal —
 stopping before submission. Twenty-six packages and five applications, all five deployable processes —
 the sixth, a research build, was removed in P53 (ADR-0086). **2,731 tests, 144 files, zero skipped**, against real PostgreSQL and Redis, in two lanes —
-the eighteen files that launch a browser run serially, everything else in parallel.
+the twenty-one files that launch a browser run serially, everything else in parallel.
 One hundred and twenty-seven architecture decision records, all accepted (ADR-0006 §3 amended in P38). **AWS spend is no longer $0:** one bucket, one
 customer-managed key and one revoked role exist, created by Vahid on 2026-09-09 to verify the S3
 checksum binding (ADR-0092 §4); the amount is the billing console's to state. Nothing is deployed. The journey works end to end against a *replayed*
@@ -617,7 +617,7 @@ Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run ver
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
 
-**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the sixteen browser files one at a
+**Two lanes since P47** (ADR-0081). `vitest.workspace.ts` runs the browser files (sixteen then, twenty-one now) one at a
 time and everything else in parallel, because three or four browsers landing together on a four-CPU
 container starved pages past a twenty-second poll and failed two full runs in five — each on a
 different test, each of which passed 4/4 alone. Peak Chromium processes 21 → 7, peak load 5.13 →
