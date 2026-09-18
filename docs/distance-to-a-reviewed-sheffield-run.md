@@ -249,6 +249,16 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P158: Vahid walked the failure path himself and found a stop that reported itself
+  finished on a case that had not concluded. ADR-0125: the second act of a cancellation moves into
+  `#concludeCancellation`, called by the stop as well as the advance, so a run a person is holding
+  can finish stopping without ADR-0065 being touched; the obligations guard, which had never been
+  reachable through `decide`, now refuses by name when a caller has not established what is owed;
+  and the message says *stopped and finished* or *stopped but not finished, because of what*.
+  Blocker 40 closed, 41 and 42's cause closed, 43 raised. Recorded with it: the first diagnosis was
+  wrong and reasoned from reading the code, four sequences built on it failed on his machine, and
+  the corrected one came from changing one variable on the fixture. One open of ten; Run A parked
+  with a person, awaiting one repeat.
 - 2026-09-18, P157: Run A reached the portal and stopped at the sign-in, twice, and the runner had
   written two words about it. ADR-0124: the outcome on every turn, a start line on every sign-in
   attempt, a thrown error through a closed vocabulary that withholds what it cannot repeat, and

@@ -19,6 +19,48 @@ not shipped artefacts.
 
 ---
 
+## [0.154.0] — 2026-09-18
+
+**P158 — ADR-0125: the stop finishes its own job; a cancellation concludes at the stop when nothing
+is outstanding, and the message says plainly when it is not finished (blocker 40, found by Vahid
+walking the failure path in Run A, decided by him, 2026-09-18).**
+
+### Added
+
+- `RunDriver.#concludeCancellation`: the second act of a cancellation, called by BOTH `#cancel` and
+  `#windDown`. The name had been promised by `#cancel`'s own comment since P15 and never defined.
+- `CaseIntent`'s `transition` carries `outstandingObligations`, which `decide` passes to the guard.
+  Read by one guard only — `WINDING_DOWN → CANCELLED` — and ignored by every other transition.
+- `TransitionRefusal` kind `obligations_unknown`: nobody established what the case owes. A separate
+  kind from `obligations_outstanding` because they are two different facts, and reporting an account
+  that was never looked for is a wrong label.
+- `cancellationFinishedMessage`: what the student reads when the last thing they were owed is done.
+  Before this, that conclusion happened silently.
+
+### Changed
+
+- A stop now concludes the case at the stop itself when nothing is owed, whatever the run's status.
+  The conclusion previously ran only from `#windDown`, which runs only on an advance — and the
+  Worker advances `running` and `suspended` only, because `uncertain` and `escalated` wait for a
+  person by design (ADR-0065, unchanged). A run a specialist was holding could be stopped and could
+  never conclude.
+- `checkTransition` refuses `WINDING_DOWN → CANCELLED` when the obligations are ABSENT, where it
+  previously treated absence as "nothing outstanding". A caller that has not asked has not
+  established that the answer is nothing.
+- `cancellationMessage` takes the conclusion as a union, never a length check: concluded says
+  *nothing is outstanding — this application is closed*; not concluded says *it is stopped, but it
+  is not finished* and names the account still to be handed back.
+
+### Not changed, deliberately
+
+- ADR-0065. Nothing here advances a run a person is holding.
+- The two acts. `WINDING_DOWN` is still entered first and always, because the guard that protects an
+  account created in a student's name is on the way out of it.
+- The account sentence still says *"was created in your name"* on a student-declared account
+  (blocker 38, open).
+
+---
+
 ## [0.153.0] — 2026-09-18
 
 **P157 — ADR-0124: the runner says what it did, in words it is allowed to say; both attempts'

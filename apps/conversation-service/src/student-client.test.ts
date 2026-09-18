@@ -1275,8 +1275,8 @@ describeIfDatabase("the second attempt, from the student's own page", () => {
    * Concludes a case, the way P15's own tests do.
    *
    * The one fixture step here, and deliberately so: a cancellation reaches
-   * CANCELLED through `#concludeCancellation` on the next ADVANCE, and nothing
-   * in this file advances a run — the worker does that, and its own tests
+   * CANCELLED through `#concludeCancellation`, and nothing in this file makes
+   * the stop at all — the worker does that, and its own tests
    * prove it. What P42 is about is what the student can do once the prior
    * application HAS concluded.
    */
@@ -1289,6 +1289,10 @@ describeIfDatabase("the second attempt, from the student's own page", () => {
         kind: "transition",
         to,
         reason: "The student stopped.",
+        // Required at CANCELLED since P158, and ignored at WINDING_DOWN: a
+        // caller that has not established what the case owes may no longer
+        // conclude a cancellation by not asking. This fixture owes nothing.
+        outstandingObligations: [],
       });
       if (!decision.accepted) expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);
       await store.append(

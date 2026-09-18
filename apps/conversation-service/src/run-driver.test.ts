@@ -6832,6 +6832,32 @@ describeIfDatabase("the student stops", () => {
     expect(said, "erasure is named as separate").toContain("separate request");
   }, 300_000);
 
+  it("says it is STOPPED BUT NOT FINISHED, and what is outstanding (P158)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-18: *"If something is outstanding, the case winds down as
+    // it does now and the message says so: stopped, but not yet finished,
+    // because of what. A student should never read 'stopped' and later find it
+    // was not."*
+    //
+    // The message this replaces said "I have stopped work on your application"
+    // and nothing else about completion, in BOTH situations — the concluded
+    // one and this one. A student with an account still in our hands read the
+    // same words as a student with nothing left, and only one of them was
+    // being told the truth.
+    // ═══════════════════════════════════════════════════════════════════
+    const said = (await messages()).at(-1) ?? "";
+    expect(said, "stopped is not finished, and it says which").toContain(
+      "not finished",
+    );
+    expect(said, "and names what is left").toContain(
+      "give you control of it",
+    );
+    expect(
+      said,
+      "never the words the concluded case uses",
+    ).not.toContain("nothing is outstanding");
+  }, 300_000);
+
   it("offers the run to NO runner from the moment it is stopped", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Where "stop further consequential work immediately" is actually
@@ -7171,12 +7197,26 @@ describeIfDatabase("the student stops before anything was created", () => {
     }
   }, 300_000);
 
-  it("CONCLUDES, because nothing is owed", async () => {
+  it("CONCLUDES on the stop itself, with no advance (P158)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
     // `CANCELLED` is the FIRST terminal state this system has ever been able
     // to reach. ADR-0050 §7 declined to make one reachable because `CONFIRMED`
     // means a portal confirmed a submission and submission is out of scope.
     // That reasoning does not apply to "the student stopped", which is a fact
     // this system holds entirely and can state truthfully.
+    //
+    // FOUND BY A PERSON WALKING THE FAILURE PATH (Run A, 2026-09-18).
+    //
+    // The second act used to be performed only by `#windDown`, which runs
+    // only on an advance — and the Worker advances `running` and `suspended`
+    // runs only, because `uncertain` and `escalated` wait for a PERSON by
+    // design (ADR-0065). So an escalated run's stop could never conclude: the
+    // case sat in WINDING_DOWN for ever while its own message said the work
+    // had stopped. Vahid hit exactly that, four resume sequences in a row.
+    //
+    // This test drives it the way the student does — one decision, nothing
+    // else — because an advance is what was hiding the defect.
+    // ═══════════════════════════════════════════════════════════════════
     const instance = buildInstance(connectionString(), opener());
     try {
       const stopped = await instance.driver.recordDecision({
@@ -7185,18 +7225,23 @@ describeIfDatabase("the student stops before anything was created", () => {
         decision: { kind: "cancel" },
       });
       expect(stopped).toEqual({ ok: true });
-      expect(await caseState(), "winding down first, always").toBe(
-        "WINDING_DOWN",
-      );
-
-      await instance.driver.advance({ runId, conversationId: conversation });
     } finally {
       await instance.pool.end();
     }
 
-    expect(await caseState(), "nothing owed, so it concludes").toBe(
-      "CANCELLED",
+    // Both transitions are in the log, in order: WINDING_DOWN is still always
+    // entered first, because the guard that protects the account is on the way
+    // OUT of it and a one-act cancellation would skip it.
+    const moves = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" ASC`,
+      [caseRef],
     );
+    expect(
+      moves.rows.map((row) => row.to).slice(-2),
+      "winding down first, always — then concluded",
+    ).toEqual(["WINDING_DOWN", "CANCELLED"]);
 
     const status = await pool.query<{ status: string }>(
       "SELECT status FROM workflow_runs WHERE run_id = $1",
@@ -7205,6 +7250,22 @@ describeIfDatabase("the student stops before anything was created", () => {
     expect(status.rows[0]?.status, "and the run is abandoned").toBe(
       "abandoned",
     );
+  }, 300_000);
+
+  it("tells the student it is FINISHED, not merely stopped (P158)", async () => {
+    // Vahid, 2026-09-18: *"A student should never read 'stopped' and later
+    // find it was not."* The converse is this one — nothing is outstanding,
+    // so the message says so rather than leaving them waiting for a step that
+    // is never coming.
+    const rows = await pool.query<{ content: string }>(
+      `SELECT b.content FROM conversation_events e
+         JOIN message_bodies b ON b.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.kind = 'message' ORDER BY e.ordinal DESC LIMIT 1`,
+      [conversation],
+    );
+    const said = rows.rows[0]?.content ?? "";
+    expect(said, "finished, and said so").toContain("nothing is outstanding");
+    expect(said, "no half-stop").not.toContain("not finished");
   }, 300_000);
 
   it("does not promise an account that never existed", async () => {
@@ -9195,10 +9256,24 @@ describeIfDatabase("stopping is available while a person is looking", () => {
     const moved = await pool.query<{ to: string }>(
       `SELECT event->>'to' AS to FROM case_events
         WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
-        ORDER BY "sequence" DESC LIMIT 1`,
+        ORDER BY "sequence" ASC`,
       [`case_${conversation.toLowerCase()}`],
     );
-    expect(moved.rows[0]?.to).toBe("WINDING_DOWN");
+    // ═══════════════════════════════════════════════════════════════════
+    // THE RUN A CASE, exactly (P158). An escalated run is one a PERSON is
+    // holding, and the Worker advances `running` and `suspended` only — so
+    // until the stop performed its own second act, a case stopped from here
+    // could not conclude by any path. It sat in WINDING_DOWN while its own
+    // message told the student the work had stopped.
+    //
+    // This assertion used to read the LAST transition and expect
+    // WINDING_DOWN. It passed for the whole time the defect existed, because
+    // what it asserted was the defect.
+    // ═══════════════════════════════════════════════════════════════════
+    expect(moved.rows.map((row) => row.to).slice(-2), "and it finishes").toEqual([
+      "WINDING_DOWN",
+      "CANCELLED",
+    ]);
   }, 300_000);
 });
 
@@ -9764,6 +9839,10 @@ async function conclude(caseRef: string): Promise<void> {
       kind: "transition",
       to,
       reason: "The student stopped.",
+      // Required at CANCELLED since P158, and ignored at WINDING_DOWN: a
+      // caller that has not established what the case owes may no longer
+      // conclude a cancellation by not asking. This fixture owes nothing.
+      outstandingObligations: [],
     });
     if (!decision.accepted)
       expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);

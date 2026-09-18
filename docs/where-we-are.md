@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P158 — the stop finishes its own job
+
+He walked the failure path himself and found what four of my sequences had not: a stop that told him it had stopped, on a case that had not. The cancellation is two acts by design and both are right — the student's stop is instant and unguarded, and the conclusion waits until nothing is owed, because a concluded case refuses everything and would strand an account created in their name on a real portal. The defect was that the second act had only one caller, and that caller runs on an advance, and the Worker does not advance a run a person is holding. So the one kind of run most likely to be stopped was the one kind that could never finish stopping.
+
+The first diagnosis I gave him was wrong. It blamed a missing write to the run's status and it was reasoned from reading the code rather than from running it, and four resume sequences built on it failed on his machine. The corrected one came from changing one variable on the fixture and reproducing — the same two calls, the same cookie, everything held but the prior case's state — which also exonerated the gate he suspected. He asked for that method to be the thing recorded, and it is, in the ADR and beside the code: a test written from a reading asserts what the reader believed; a test written from a reproduction asserts what happened.
+
+His condition was that the conclusion must be enforced and not assumed, and taking it seriously found a second defect underneath the first. The guard that refuses to conclude while an account is outstanding sits in the machine, with a comment beside it saying it lives there because this repository has already learned what happens to rules that live in a caller. It was never reachable through `decide`, which built its context from the case alone and never handed it the obligations. The rule had been in the caller since P15. Now the obligations travel on the intent, and their absence is its own refusal: not asking is not the same as being told there is nothing, and only the second may conclude a stop.
+
+And the message says which. Stopped and finished says nothing is outstanding; stopped and not finished says so and names the account still in our hands — and because that sentence promises to come back, the conclusion at the handover now tells the student it is done, which it never did. One thing raised and not fixed: a stop that concludes leaves the specialist's intervention open on a closed case, and closing it would mean writing an adjudication under a person's name for an act no person performed.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P157 — the runner says what it did
 
 Run A got to the portal and the sign-in failed twice, and the cap built for exactly that stopped the run and told him. What it could not tell him was anything at all about why: the runner had no logging beyond a line that printed the turn's kind, and the word for a turn that ran was the same word for a turn that succeeded, so a real failure against a live portal read as `turn: worked`. Underneath it, five bare catches in the sign-in path that never even bound the error. His reading of that was the right one, and the one I would not have reached on my own: the thing to fix first is not the connection, it is the silence.

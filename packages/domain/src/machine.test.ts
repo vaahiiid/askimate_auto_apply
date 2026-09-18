@@ -657,12 +657,16 @@ describe("decide — cancellation", () => {
       kind: "transition",
       to: "CANCELLED",
       reason: "Nothing left.",
+      outstandingObligations: ["acct_1 on portal.example.ac.uk has not been handed back"],
     });
 
-    // `decide` builds the guard context from the case alone, which carries no
-    // obligations — so this passes. The refusal is proved directly against
-    // `checkTransition`, which is where the driver supplies them.
-    expect(decision.accepted, "the case alone knows of no obligation").toBe(true);
+    expect(decision.accepted, "it owes them an account").toBe(false);
+    if (!decision.accepted) {
+      expect(decision.refusal.kind).toBe("transition_refused");
+      if (decision.refusal.kind === "transition_refused") {
+        expect(decision.refusal.refusal.kind).toBe("obligations_outstanding");
+      }
+    }
 
     const refused = checkTransition("WINDING_DOWN", "CANCELLED", {
       activeTriggers: [],
@@ -673,6 +677,68 @@ describe("decide — cancellation", () => {
     if (!refused.permitted) {
       expect(refused.refusal.kind).toBe("obligations_outstanding");
     }
+  });
+
+  it("REFUSES to conclude when the caller never established what is owed (P158)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The guard above could only fire if somebody remembered to hand it the
+    // obligations, and `decide` — the only sanctioned way to move a case —
+    // never did. So the rule that protects a student's account lived in ONE
+    // caller's memory, which is the arrangement the comment beside the guard
+    // says this repository has already learned about. It went unnoticed
+    // because the driver checked first and never asked for the transition it
+    // would have been refused.
+    //
+    // Silence is now a refusal. A caller that has not established what the
+    // case owes has not established that it owes nothing, and the two are
+    // different facts — the second is the one CANCELLED requires.
+    // ═══════════════════════════════════════════════════════════════════
+    const winding = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseCancelled", reason: "Stop." },
+        { type: "CaseStateChanged", from: "INTAKE", to: "WINDING_DOWN", reason: "The student stopped." },
+      ]),
+    );
+
+    const decision = decide(winding, {
+      kind: "transition",
+      to: "CANCELLED",
+      reason: "Nothing left.",
+    });
+
+    expect(decision.accepted, "nobody said what is owed").toBe(false);
+    if (!decision.accepted && decision.refusal.kind === "transition_refused") {
+      expect(decision.refusal.refusal.kind).toBe("obligations_unknown");
+    }
+
+    // And the same silence on every OTHER transition is still silence: this
+    // guard is about the terminal state, not a new argument every caller now
+    // has to pass.
+    const elsewhere = fold(buildLog([OPENED]));
+    expect(
+      decide(elsewhere, { kind: "transition", to: "READY_TO_PREPARE", reason: "On." }).accepted,
+      "unchanged everywhere else",
+    ).toBe(true);
+  });
+
+  it("CONCLUDES through `decide` once the caller names nothing outstanding (P158)", () => {
+    const winding = fold(
+      buildLog([
+        OPENED,
+        { type: "CaseCancelled", reason: "Stop." },
+        { type: "CaseStateChanged", from: "INTAKE", to: "WINDING_DOWN", reason: "The student stopped." },
+      ]),
+    );
+
+    expect(
+      decide(winding, {
+        kind: "transition",
+        to: "CANCELLED",
+        reason: "The student stopped it, and nothing is outstanding.",
+        outstandingObligations: [],
+      }).accepted,
+    ).toBe(true);
   });
 
   it("CONCLUDES once nothing is outstanding", () => {

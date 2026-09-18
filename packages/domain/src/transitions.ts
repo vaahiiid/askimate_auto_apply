@@ -144,9 +144,15 @@ export interface GuardContext {
    * module cannot fetch it. The run driver establishes it with
    * `mayConcludeCase` and passes it in.
    *
-   * Absent means "not asked" and is treated as nothing outstanding — which is
-   * safe here because the only guard that reads it, WINDING_DOWN → CANCELLED,
-   * is the sole way to reach that state and the driver is its only caller.
+   * Absent means NOT ASKED, and for WINDING_DOWN → CANCELLED that is a refusal
+   * rather than a pass (P158). "Nobody established what this case owes" and
+   * "this case owes nothing" are different facts, and only the second one may
+   * conclude a cancellation. Treating the first as the second is what made the
+   * guard below unreachable through `decide` for as long as it existed: the
+   * driver checked the obligations itself and then asked for a transition it
+   * would have been refused, so the rule lived in the caller after all.
+   *
+   * Every other transition ignores this field, absent or not.
    */
   readonly outstandingObligations?: readonly string[];
 }
@@ -161,7 +167,17 @@ export type TransitionRefusal =
       readonly kind: "obligations_outstanding";
       readonly detail: string;
       readonly outstanding: readonly string[];
-    };
+    }
+  /**
+   * Nobody said what the case owes (P158).
+   *
+   * A SEPARATE kind from `obligations_outstanding`, deliberately: that one
+   * names what is owed and a caller can act on it, and this one names an
+   * unanswered question. Folding the second into the first would have the
+   * system report an account it has never looked for — a wrong label, which
+   * is worse than none.
+   */
+  | { readonly kind: "obligations_unknown"; readonly detail: string };
 
 export type TransitionCheck =
   | { readonly permitted: true }
@@ -235,7 +251,19 @@ export function checkTransition(from: CaseState, to: CaseState, context: GuardCo
   // account" is a rule one caller remembers, and this repository has already
   // learned what happens to rules that live in a caller.
   if (to === "CANCELLED") {
-    const outstanding = context.outstandingObligations ?? [];
+    const outstanding = context.outstandingObligations;
+    if (outstanding === undefined) {
+      return {
+        permitted: false,
+        refusal: {
+          kind: "obligations_unknown",
+          detail:
+            `Nothing established what this case still owes the student, so it cannot be ` +
+            `concluded. A caller that has not asked has not established that the answer is ` +
+            `"nothing", and only that answer may conclude a cancellation.`,
+        },
+      };
+    }
     if (outstanding.length > 0) {
       return {
         permitted: false,

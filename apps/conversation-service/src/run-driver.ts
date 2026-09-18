@@ -544,6 +544,20 @@ function pauseMessage(entry: CatalogueEntry): string {
 }
 
 /**
+ * Whether the stop finished the job, and what is left if it did not.
+ *
+ * A UNION rather than a list with a length check, for the reason ADR-0053 §3
+ * gave for `StudentDecision`: "concluded" and "nothing is outstanding" are not
+ * the same fact, and only the first one may be said to a student. A cancel
+ * that found nothing owed but was refused the transition for some other reason
+ * would, under a length check, be announced as finished when it was not — the
+ * precise failure this phase exists to remove.
+ */
+type StopConclusion =
+  | { readonly concluded: true }
+  | { readonly concluded: false; readonly outstanding: readonly string[] };
+
+/**
  * What the student is told when they stop.
  *
  * ═══════════════════════════════════════════════════════════════════════════
@@ -567,7 +581,11 @@ function pauseMessage(entry: CatalogueEntry): string {
  * The account sentence is conditional because the claim must be true: a student
  * who stops before any account exists must not be told one does.
  */
-function cancellationMessage(entry: CatalogueEntry, hasAccount: boolean): string {
+function cancellationMessage(
+  entry: CatalogueEntry,
+  hasAccount: boolean,
+  conclusion: StopConclusion,
+): string {
   const institution = entry.blueprint.institutionName;
   const account = hasAccount
     ? `The account at ${institution} was created in your name and still exists — it is yours, and ` +
@@ -575,10 +593,36 @@ function cancellationMessage(entry: CatalogueEntry, hasAccount: boolean): string
       `form is still saved there; I cannot remove it, and you can change it yourself once you have ` +
       `the account. `
     : ``;
+  // Named, not enumerated. Every member of `outstanding` comes from
+  // `mayConcludeCase`, whose only source is the portal account — so the one
+  // sentence below is the whole list, in the student's terms rather than in
+  // account ids and stage names. If a second source of obligations is ever
+  // added, this wording stops being true and has to change with it; the note
+  // on `#outstandingObligations` says so at the other end.
+  const completion = conclusion.concluded
+    ? `Nothing was submitted, and nothing is outstanding — this application is closed. `
+    : `It is stopped, but it is not finished: the account at ${institution} is still in my ` +
+      `hands, and I have to give you control of it before we are done. I will come back to you ` +
+      `about that, and I will tell you when it is finished. Nothing was submitted. `;
   return (
     `I have stopped work on your ${institution} application, and I will not start anything new ` +
-    `on it. ${account}Nothing was submitted. If you want your data deleted rather than just ` +
+    `on it. ${account}${completion}If you want your data deleted rather than just ` +
     `stopped, tell me — that is a separate request and I will pass it to a person.`
+  );
+}
+
+/**
+ * What the student reads when the last thing they were owed is done.
+ *
+ * The other half of the promise the stop message makes. Without it a student
+ * told "I will tell you when it is finished" is never told, and the case
+ * concludes in a log they cannot read.
+ */
+function cancellationFinishedMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `That is the last of it. The account at ${institution} is yours now, nothing is outstanding, ` +
+    `and your application there is closed. Nothing was submitted.`
   );
 }
 
@@ -3541,6 +3585,13 @@ export class RunDriver {
    * For a cancellation the question is only "is anything owed?", and no account
    * means nothing owed. Two questions, two derivations, one source of truth
    * underneath — the account is derived by `#situation` in both.
+   *
+   * Every member of the list comes from `mayConcludeCase`, whose only source
+   * is the portal account. `cancellationMessage` relies on that to say what is
+   * outstanding in the student's terms rather than reciting account ids; a
+   * second source of obligations added here has to change that wording too, or
+   * a student will be told about an account that is not the thing holding
+   * their case open.
    */
   async #outstandingObligations(input: {
     readonly record: WorkflowRunRecord;
@@ -3557,6 +3608,78 @@ export class RunDriver {
     if (!situation.ok) return [];
     const account = situation.account;
     return account === undefined ? [] : mayConcludeCase([account]).outstanding;
+  }
+
+  /**
+   * The SECOND act of a cancellation: conclude it, once nothing is owed.
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * FOUND BY A PERSON WALKING THE FAILURE PATH — and the method is the part
+   * worth keeping (Vahid, 2026-09-18).
+   *
+   * Run A stopped an escalated run and the case never concluded. The FIRST
+   * diagnosis was wrong: it blamed a missing write to `workflow_runs.status`,
+   * reasoned from reading the code rather than running it, and four resume
+   * sequences built on it all failed on his machine. The CORRECTED one came
+   * from changing ONE variable on the fixture and reproducing — which showed
+   * the two-act design was deliberate and working, and that the defect was
+   * that the second act was unreachable for that run.
+   *
+   * It was unreachable because only `#windDown` performed it, and `#windDown`
+   * runs only on an advance; the Worker advances `running` and `suspended`
+   * runs, because `uncertain` and `escalated` wait for a PERSON by design
+   * (ADR-0065). That rule is right and stays whole. What changes is that the
+   * stop no longer depends on it: the act lives here, and BOTH the stop and
+   * the advance call it.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * The obligation check is not a courtesy here. `decide` is given what this
+   * case owes and refuses the transition itself (P158), so a caller that has
+   * not established it cannot conclude a cancellation by forgetting to ask.
+   */
+  async #concludeCancellation(input: {
+    readonly entry: CatalogueEntry;
+    readonly conversationId: string;
+    readonly caseId: CaseId;
+    readonly record: WorkflowRunRecord;
+    readonly held: ApplicationCase;
+    readonly now: Date;
+  }): Promise<StopConclusion> {
+    const outstanding = await this.#outstandingObligations({
+      record: input.record,
+      entry: input.entry,
+      conversationId: input.conversationId,
+    });
+    if (outstanding.length > 0) return { concluded: false, outstanding };
+
+    const decided = decide(input.held, {
+      kind: "transition",
+      to: "CANCELLED",
+      reason: "The student stopped it, and nothing is outstanding.",
+      outstandingObligations: outstanding,
+    });
+    /* c8 ignore next -- the guard above is the only thing that refuses this */
+    if (!decided.accepted) return { concluded: false, outstanding };
+
+    await this.#appendToCase(
+      input.caseId,
+      input.held.sequence,
+      decided.events,
+      { conversationId: input.conversationId, caseId: input.caseId },
+      input.now,
+    );
+    // The run is `abandoned` only now. Leaving it `running` while winding
+    // down is the honest word: the automation IS still working, on the one
+    // thing it still owes. There is no "winding down" run status and this
+    // does not invent one — the CASE log says why, which is where the reason
+    // belongs.
+    await this.#options.stores.runs.saveCheckpoint({
+      runId: input.record.runId,
+      checkpoint: input.record.checkpoint,
+      expectedRevision: input.record.revision,
+      status: "abandoned",
+    });
+    return { concluded: true };
   }
 
   /** The accounts this run holds, for a message that must not claim one exists. */
@@ -3631,13 +3754,27 @@ export class RunDriver {
         ? null
         : await this.#entryAdmitting(bound);
     if (entry !== null) {
+      // Concluded here, before the student is told — so the message describes
+      // what actually happened rather than what was about to. Without a
+      // blueprint there is no entry, nothing can be derived about the account,
+      // and the case stays WINDING_DOWN: silence is the safe direction when
+      // the obligations cannot be established at all.
+      const winding = fold(await this.#options.stores.cases.read(record.caseId));
+      const conclusion = await this.#concludeCancellation({
+        entry,
+        conversationId,
+        caseId: record.caseId,
+        record,
+        held: winding,
+        now,
+      });
       const accounts = await this.#accountsOn(record, entry);
       await this.#options.conversations.append({
         conversationId,
         event: {
           kind: "message",
           actor: "assistant",
-          content: cancellationMessage(entry, accounts.length > 0),
+          content: cancellationMessage(entry, accounts.length > 0, conclusion),
         },
       });
     }
@@ -5069,13 +5206,20 @@ export class RunDriver {
       return held.state === "CANCELLED" ? stoppedAt("abandoned") : null;
     }
 
-    const outstanding = await this.#outstandingObligations({
-      record: input.record,
+    // The same second act the stop itself performs — one implementation, so
+    // the two entry points cannot disagree about when a cancellation may
+    // conclude. This one is reached when the stop could NOT conclude: the
+    // handover below is what eventually clears the obligation.
+    const conclusion = await this.#concludeCancellation({
       entry: input.entry,
       conversationId: input.conversationId,
+      caseId: input.caseId,
+      record: input.record,
+      held,
+      now: situation.now,
     });
 
-    if (outstanding.length > 0) {
+    if (!conclusion.concluded) {
       // `situation.step` is already the account's — `#situation` substitutes
       // it for a stopped run, so every reader agrees about what is left.
       await this.#raiseHandoff({
@@ -5087,33 +5231,17 @@ export class RunDriver {
       return stoppedAt(input.record.status);
     }
 
-    // Nothing owed. The guard in `checkTransition` agrees, and this is the
-    // first terminal state this system has ever been able to reach.
-    const decided = decide(held, {
-      kind: "transition",
-      to: "CANCELLED",
-      reason: "The student stopped it, and nothing is outstanding.",
+    // The other half of the promise the stop message made. Reached only from
+    // WINDING_DOWN — the early return above sends an already-concluded case
+    // away — so this is said once, on the pass that finishes it.
+    await this.#options.conversations.append({
+      conversationId: input.conversationId,
+      event: {
+        kind: "message",
+        actor: "assistant",
+        content: cancellationFinishedMessage(input.entry),
+      },
     });
-    if (decided.accepted) {
-      await this.#appendToCase(
-        input.caseId,
-        held.sequence,
-        decided.events,
-        { conversationId: input.conversationId, caseId: input.caseId },
-        situation.now,
-      );
-      // The run is `abandoned` only now. Leaving it `running` while winding
-      // down is the honest word: the automation IS still working, on the one
-      // thing it still owes. There is no "winding down" run status and this
-      // does not invent one — the CASE log says why, which is where the reason
-      // belongs.
-      await this.#options.stores.runs.saveCheckpoint({
-        runId: input.record.runId,
-        checkpoint: input.record.checkpoint,
-        expectedRevision: input.record.revision,
-        status: "abandoned",
-      });
-    }
     return stoppedAt("abandoned");
   }
 

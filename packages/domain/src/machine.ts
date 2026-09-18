@@ -397,7 +397,24 @@ export function fold(events: readonly CaseEvent[]): ApplicationCase {
 
 /** Something the system or a person wants to do to a case. */
 export type CaseIntent =
-  | { readonly kind: "transition"; readonly to: CaseState; readonly reason: string }
+  | {
+      readonly kind: "transition";
+      readonly to: CaseState;
+      readonly reason: string;
+      /**
+       * What this case still owes the student, established by the caller.
+       *
+       * Read by one guard only — WINDING_DOWN → CANCELLED — and required
+       * there (P158). It is on the INTENT rather than folded from the case
+       * because it cannot be folded from the case: an account's stage is
+       * derived from the case log AND the intent ledger together, which this
+       * module does not and must not reach.
+       *
+       * Absent is a refusal at that transition and ignored at every other, so
+       * no existing caller has to learn a new argument.
+       */
+      readonly outstandingObligations?: readonly string[];
+    }
   | { readonly kind: "raise_task"; readonly taskId: string; readonly taskKind: TaskKind; readonly description: string; readonly blocksProgress: boolean }
   | { readonly kind: "complete_task"; readonly taskId: string; readonly outcome: "done" | "cancelled" | "superseded" }
   | { readonly kind: "request_human_review"; readonly triggers: readonly ReviewTrigger[] }
@@ -499,7 +516,15 @@ export function decide(applicationCase: ApplicationCase, intent: CaseIntent): De
 
   switch (intent.kind) {
     case "transition": {
-      const check = checkTransition(applicationCase.state, intent.to, guardContextOf(applicationCase));
+      const check = checkTransition(applicationCase.state, intent.to, {
+        ...guardContextOf(applicationCase),
+        // Spread conditionally, because the guard distinguishes an empty list
+        // from an absent one and `exactOptionalPropertyTypes` would otherwise
+        // let `undefined` in as if it had been asked and answered.
+        ...(intent.outstandingObligations === undefined
+          ? {}
+          : { outstandingObligations: intent.outstandingObligations }),
+      });
       if (!check.permitted) {
         return { accepted: false, refusal: { kind: "transition_refused", refusal: check.refusal } };
       }
