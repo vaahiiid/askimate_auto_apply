@@ -87,6 +87,33 @@ const RECOGNISED: readonly { readonly pattern: RegExp; readonly phrase: string }
   },
 ];
 
+/**
+ * Which of Playwright's actionability checks a failed press was waiting on
+ * (ADR-0129). Playwright's OWN fixed phrases, not the page's: the message is
+ * matched against this closed set and our word is printed, never a slice.
+ * The one datum a click failure carries that names the obstacle — "<div …>
+ * intercepts pointer events" — is NOT quoted; the element is read from the
+ * page's structure instead, by `stackAtPoint`.
+ */
+const PRESS_CHECKS: readonly { readonly pattern: RegExp; readonly phrase: string }[] = [
+  { pattern: /intercepts pointer events/i, phrase: "another element intercepts pointer events" },
+  { pattern: /element is not visible/i, phrase: "the button is not visible" },
+  { pattern: /outside of the viewport/i, phrase: "the button is outside the viewport" },
+  { pattern: /element is not enabled/i, phrase: "the button is not enabled" },
+  { pattern: /element is not stable/i, phrase: "the button is not stable — it keeps moving" },
+];
+
+/** What a failed press was waiting on, in our words, or that the log does not name it. */
+export function pressCheckInWords(thrown: unknown): string {
+  const message = thrown instanceof Error ? thrown.message : "";
+  for (const check of PRESS_CHECKS) {
+    if (check.pattern.test(message)) return check.phrase;
+  }
+  return "a check this log does not name";
+}
+
+export const PRESS_CHECK_PHRASES: readonly string[] = PRESS_CHECKS.map((check) => check.phrase);
+
 /** A Chromium network code: a closed enum, naming no page and no value. */
 const NETWORK_CODE = /\b(ERR_[A-Z0-9_]{3,40})\b/;
 

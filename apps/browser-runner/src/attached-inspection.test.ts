@@ -107,6 +107,31 @@ describe("reading the page the RUNNER sees (ADR-0128)", () => {
     await new Promise<void>((done) => tagHost.close(() => done()));
   });
 
+  it("does not call a pixel FRAME's load 'the page tried to send the tab elsewhere' (ADR-0129)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The reader's own defect, found on Run A: `isNavigationRequest()` is
+    // true for a subframe's first load, and the guard refused two tracking
+    // pixels' iframes as navigations — "Navigations refused 2" — which read
+    // as a lead and cost a round of attention. A subframe's load is an
+    // off-host read: refused under the host rule, and recorded as one.
+    // ═══════════════════════════════════════════════════════════════════
+    const pixelUrl = `http://127.0.0.2:${String(tagPort)}/pixel`;
+    const withPixel = await startFixturePortal({ loginPixelFrameUrl: pixelUrl });
+    const session = await attach([`${withPixel.baseUrl}/login`]);
+    try {
+      await session.goto(`${withPixel.baseUrl}/login`);
+      await session.settle(5_000);
+      expect(session.refusedNavigations, "the tab went nowhere").toEqual([]);
+      expect(session.blockedLog.byRule("navigation")).toEqual([]);
+      expect(session.blockedLog.byRule("host").map((entry) => entry.url)).toContain(pixelUrl);
+      // And the tab itself going off its list is still a navigation refusal.
+      await expect(session.goto(`${withPixel.baseUrl}/register`)).rejects.toThrow(/not on this attached run's list/);
+    } finally {
+      await session.close();
+      await withPixel.stop();
+    }
+  }, 60_000);
+
   it("refuses the tag host by default, as every capture did — so the tag never loaded", async () => {
     tagRequests.length = 0;
     const session = await attach([`${tagged.baseUrl}/login`]);

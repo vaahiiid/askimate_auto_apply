@@ -222,6 +222,10 @@ Run A is for, and it is the honest state of this file.
   ADR-0128: read it as the runner (`--as-runner --covering name=loginBtn`, runbook) before anything
   in the runner learns to push past it. The run is with a person; attempt 3 is a fresh conversation
   once the read names the thing.
+- **The as-runner read (dd12175):** nothing over the button as the page opens. Fourth hypothesis,
+  tested, wrong. ADR-0129: the runner now reads the point at the moment the press fails and names
+  which check was pending. Attempt 3 is the reading of the thing itself; leading candidate, with its
+  caveat, in the capture's README.
 
 Blockers 37 to 40 in the paragraph above: 40 is closed (ADR-0125), 44 raised and closed
 (ADR-0126); 37, 38 and 39 stay open.

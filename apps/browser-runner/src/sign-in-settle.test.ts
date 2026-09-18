@@ -135,8 +135,15 @@ describe("the two waits", () => {
       expect(said[0]).toContain("the sign-in button could not be pressed");
       expect(said[0]).toContain("the step timed out");
       expect(said[0]).toContain("the password box is still on the page");
+      // ADR-0129: the obstacle, named from the page's structure at the moment
+      // of the failure — and Playwright's own check, from its closed phrases.
+      expect(said[0]).toContain("pending: another element intercepts pointer events");
+      expect(said[0]).toContain("at the button's point: div#cover (fixed, ");
+      expect(said[0]).toMatch(/at the button's point: div#cover \(fixed, \d+×\d+ at 0,0\) > button#signIn \(static, /);
       expect(said[0]).not.toContain("did not answer");
       expect(said[0]).not.toContain(covered.baseUrl);
+      // Structure only: the cover's text, were it a banner, would not be here.
+      expect(said[0]).not.toContain("text:");
     } finally {
       await context.close();
     }

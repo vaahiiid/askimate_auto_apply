@@ -11,7 +11,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { describeThrown, RECOGNISED_PHRASES, signInStartLine, turnInWords } from "./runner-log.js";
+import { describeThrown, RECOGNISED_PHRASES, signInStartLine, turnInWords,
+  PRESS_CHECK_PHRASES,
+  pressCheckInWords,
+} from "./runner-log.js";
 
 describe("what the runner may say about a thrown error", () => {
   it("names the class, and answers OUR phrase for a pattern it recognises", () => {
@@ -141,5 +144,35 @@ describe("the line a sign-in writes before it starts (ADR-0124)", () => {
     const line = signInStartLine({ runId: "run-1", url: "https://portal.example/login" });
     expect(line).toContain("attempt unknown");
     expect(line).not.toContain("attempt 1");
+  });
+});
+
+describe("which check a failed press was waiting on (ADR-0129)", () => {
+  it("names Playwright's own check in our words, and never quotes the element", () => {
+    const thrown = new Error(
+      "locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('#signIn')\n" +
+        "  - <div id=\"ccc-overlay\" class=\"ccc-overlay\">Our cookies…</div> intercepts pointer events\n" +
+        "  - retrying click action",
+    );
+    const said = pressCheckInWords(thrown);
+    expect(said).toBe("another element intercepts pointer events");
+    expect(said).not.toContain("ccc-overlay");
+    expect(said).not.toContain("cookies");
+  });
+
+  it("says when the check is not one this log names, rather than guessing", () => {
+    expect(pressCheckInWords(new Error("something else entirely"))).toBe("a check this log does not name");
+    expect(pressCheckInWords("not an error")).toBe("a check this log does not name");
+  });
+
+  it("holds a closed set, each phrase ours", () => {
+    expect(PRESS_CHECK_PHRASES).toEqual([
+      "another element intercepts pointer events",
+      "the button is not visible",
+      "the button is outside the viewport",
+      "the button is not enabled",
+      "the button is not stable — it keeps moving",
+    ]);
+    for (const phrase of PRESS_CHECK_PHRASES) expect(phrase).not.toMatch(/https?:|@|<|>/);
   });
 });

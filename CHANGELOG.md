@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.158.0] — 2026-09-18
+
+**P162 — ADR-0129: the runner reads the point at the moment the press fails (decided by Vahid,
+2026-09-18, after the as-runner read found nothing over the button as the page opens).**
+
+### Added
+
+- `point-read.ts`: one in-page `elementsFromPoint` read, `withText` for the reader and structure
+  only for the runner; `layerInWords` for a log — `div#cover (fixed, 1280×720 at 0,0)`.
+- `pressCheckInWords`: which of Playwright's actionability checks a failed press was waiting on,
+  from a closed set of Playwright's own phrases; the element Playwright quotes is never repeated.
+- `sign-in.ts`: on a failed press the line adds `pending: …` and `at the button's point: …`.
+- `startFixturePortal({ loginPixelFrameUrl })`: a login page carrying a pixel's iframe.
+
+### Changed
+
+- The attached reader refuses a navigation only when it is a MAIN frame's; a subframe's first load
+  falls to the host rule and is recorded as an off-host read (blocker 45).
+
+### Not built, as a decision
+
+- The masked viewport picture. It waits on attempt 3 printing *nothing at the button's point*, and
+  on Vahid's word after that.
+
+---
+
 ## [0.157.0] — 2026-09-18
 
 **P161 — ADR-0128: read the page the runner sees before anything learns to push past it (found by

@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P162: the as-runner read found nothing over the button as the page opens — the
+  fourth wrong hypothesis, tested. ADR-0129: the runner reads the point at the moment the press
+  fails, structure only, and names which check was pending; the picture waits on *nothing at the
+  point*; the reader's frame check fixed (blocker 45). Attempt 3 is a reading of the thing itself.
+  One open of ten.
 - 2026-09-18, P161: attempt 2 named the press — something over the button, on a page no capture
   has read (tags refused there, allowed in the runner; a non-browser agent; a fixed viewport).
   ADR-0128: `inspect:attached --as-runner --covering name=loginBtn` reads the page as the runner

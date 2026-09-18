@@ -62,6 +62,8 @@ import { chromium } from "playwright";
 import type { FieldLocator } from "@askimate/aas-blueprint";
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 
+import { stackAtPoint, type LayerAtPoint } from "./point-read.js";
+
 import { OBSERVE_SCRIPT } from "./observe-script.js";
 import {
   BlockedRequestLog,
@@ -71,6 +73,8 @@ import {
 } from "./safety.js";
 import { MINIMUM_CRAWL_DELAY_MS } from "./robots.js";
 import type { PageObservation, ReadOnlySession, SessionMode } from "./session.js";
+
+export type { LayerAtPoint } from "./point-read.js";
 
 /** How an attached run is configured. */
 export interface AttachedInspectionMode extends SessionMode {
@@ -106,21 +110,6 @@ export interface AttachedInspectionMode extends SessionMode {
   readonly presentUserAgent?: string;
   /** The viewport our tab is set to — the runner's, so layout matches. */
   readonly viewport?: { readonly width: number; readonly height: number };
-}
-
-/** One layer of what stands at a point on the page: structure, no values. */
-export interface LayerAtPoint {
-  readonly tag: string;
-  readonly id: string | null;
-  readonly classes: readonly string[];
-  /** Computed `position`, the thing an overlay is usually made of. */
-  readonly position: string;
-  readonly zIndex: string;
-  readonly box: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
-  /** `iframe`, `dialog`, `[role=dialog]`, `[aria-modal]` — the shapes a banner takes. */
-  readonly role: string | null;
-  /** Its own visible text, trimmed to 160 characters: page chrome, never a value. */
-  readonly text: string;
 }
 
 /**
@@ -201,7 +190,22 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
     const guard = async (route: Route): Promise<void> => {
       const request = route.request();
       const url = request.url();
-      if (request.isNavigationRequest() && !session.#navigable(url)) {
+      // ADR-0129. `isNavigationRequest()` is true for a SUBFRAME's first load
+      // too — a tracking pixel in an iframe — and this guard once refused
+      // those as "the page tried to send the tab elsewhere". It cost a round
+      // of attention on Run A: two pixel frames read as a lead. Only the main
+      // frame's navigation is the tab going somewhere; a subframe's load is
+      // an off-host read and falls to the host rule below, recorded as one.
+      const mainFrame = ((): boolean => {
+        try {
+          return request.frame().parentFrame() === null;
+        } catch {
+          // Issued before its frame exists (Playwright's own caveat): not a
+          // tab going anywhere, so it falls to the host rule.
+          return false;
+        }
+      })();
+      if (request.isNavigationRequest() && mainFrame && !session.#navigable(url)) {
         session.#refusedNavigations.push(url);
         session.#blocked.record({
           allowed: false,
@@ -298,37 +302,7 @@ export class PlaywrightAttachedInspection implements ReadOnlySession {
         readings.push({ locator, found: false, covered: false, stack: [] });
         continue;
       }
-      const stack = await handle.evaluate((control): { covered: boolean; layers: LayerAtPoint[] } => {
-        const describe = (element: Element): LayerAtPoint => {
-          const style = getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          const role =
-            element.tagName.toLowerCase() === "iframe" || element.tagName.toLowerCase() === "dialog"
-              ? element.tagName.toLowerCase()
-              : element.getAttribute("role") ?? (element.hasAttribute("aria-modal") ? "aria-modal" : null);
-          return {
-            tag: element.tagName.toLowerCase(),
-            id: element.id === "" ? null : element.id,
-            classes: [...element.classList],
-            position: style.position,
-            zIndex: style.zIndex,
-            box: { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) },
-            role,
-            text: (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
-          };
-        };
-        const rect = control.getBoundingClientRect();
-        const x = rect.x + rect.width / 2;
-        const y = rect.y + rect.height / 2;
-        const layers: LayerAtPoint[] = [];
-        for (const element of document.elementsFromPoint(x, y)) {
-          layers.push(describe(element));
-          if (element === control) break;
-        }
-        const top = document.elementFromPoint(x, y);
-        const covered = top !== null && top !== control && !control.contains(top);
-        return { covered, layers };
-      });
+      const stack = await stackAtPoint(handle, { withText: true });
       const atPoint = stack.covered ? stack.layers[0] : undefined;
       readings.push({
         locator,

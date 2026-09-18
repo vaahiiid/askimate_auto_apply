@@ -173,6 +173,12 @@ export interface FixturePortalOptions {
    * is exactly why the runner's page, where it loads, has never been observed.
    */
   readonly loginTagScriptUrl?: string;
+  /**
+   * ADR-0129. An iframe the login page loads from ANOTHER host — a tracking
+   * pixel's frame. Its first load is a "navigation request" to Playwright,
+   * and the reader once refused it as the tab going elsewhere.
+   */
+  readonly loginPixelFrameUrl?: string;
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -213,10 +219,12 @@ const LOGIN_PAGE = (
   challenge?: FixtureChallenge,
   covered = false,
   tagScriptUrl?: string,
+  pixelFrameUrl?: string,
 ): string =>
   page(
     "Sign in",
     `${tagScriptUrl === undefined ? "" : `<script src="${escapeHtml(tagScriptUrl)}"></script>`}
+${pixelFrameUrl === undefined ? "" : `<iframe src="${escapeHtml(pixelFrameUrl)}" width="1" height="1" style="display:none"></iframe>`}
 ${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
 <form method="post" action="/login" id="loginForm">
   <label for="email">Email address</label>
@@ -651,6 +659,7 @@ export async function startFixturePortal(
   const loginAnswerDelayMs = options.loginAnswerDelayMs ?? 0;
   const covered = options.loginButtonCovered === true;
   const tagScriptUrl = options.loginTagScriptUrl;
+  const pixelFrameUrl = options.loginPixelFrameUrl;
   const accounts = new Map<string, Account>();
   const sessions = new Map<string, string>();
   /** Accounts that have signed in but not yet passed the second factor. */
@@ -779,7 +788,7 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && path === "/login") {
-        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl));
+        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl));
         return;
       }
 

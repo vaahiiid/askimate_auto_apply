@@ -46,7 +46,8 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
-import { signInStartLine, thrownInWords } from "./runner-log.js";
+import { layerInWords, stackAtPoint } from "./point-read.js";
+import { pressCheckInWords, signInStartLine, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 /** How long to wait for a page or a control. Portals are slow; students wait. */
@@ -140,9 +141,23 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
     const boxStill = await toPlaywrightLocator(page, input.passwordLocator)
       ?.isVisible()
       .catch(() => false);
+    // ADR-0129: the moment the press fails is the only moment the obstacle
+    // is certainly there, and a static read of the page as it opens found
+    // nothing (P161). So the runner reads the point NOW — structure only,
+    // no text, no value, because this line goes to a log — and names which
+    // of Playwright's checks was pending, from Playwright's own closed
+    // phrases. Attempt 3 is a reading of the thing itself.
+    const point = await stackAtPoint(await submit.elementHandle({ timeout: 1_000 }).catch(() => null) ?? submitHandleNever(), { withText: false }).catch(() => null);
+    const atPoint =
+      point === null
+        ? "the point could not be read"
+        : point.layers.length === 0
+          ? "nothing at the button's point"
+          : `at the button's point: ${point.layers.map(layerInWords).join(" > ")}`;
     input.say(
       `run ${input.runId}: sign-in failed — the sign-in button could not be pressed — ` +
-        `${thrownInWords(error)}; the password box is ${boxStill === true ? "still" : "no longer"} on the page`,
+        `${thrownInWords(error)}; pending: ${pressCheckInWords(error)}; the password box is ` +
+        `${boxStill === true ? "still" : "no longer"} on the page; ${atPoint}`,
     );
     return { kind: "failed", failure: "runner_fault" };
   }
@@ -319,6 +334,11 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
   } finally {
     if (supplied === undefined) await context.close().catch(() => undefined);
   }
+}
+
+/** A press whose button has left the page has no point to read; the read rejects and is caught. */
+function submitHandleNever(): never {
+  throw new Error("the sign-in button is no longer on the page");
 }
 
 /** A locator that exists on the page right now, or `null`. */

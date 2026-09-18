@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P162 — the moment the press fails is the only moment the obstacle is certainly there
+
+His read came back with nothing over the button. Four hypotheses on one step, each tested and each wrong, and the run still cannot press a button that is at its own point when the page opens. So whatever stops it arrives between the page settling and the click, and no static read sees that moment; only the runner does. It had the datum all along — Playwright says which check a failed click was waiting on, and for one of them names the element in the way — and ADR-0124's rule threw the message away, rightly, because a message can carry page text.
+
+The answer is the same read the reader makes, made by the runner at the instant of the failure, with the text left out. Structure only: tag, id, classes, position, box, top-most first down to the button. And which of Playwright's checks was pending, from Playwright's own closed phrases in our words, never the element Playwright quotes. The fixture's covered button proves the line names the cover and carries no text. Attempt 3 is a reading of the thing itself.
+
+Not the picture. He would rather earn that case than assume it, and so would I: the picture is for *nothing at the point*, and if attempt 3 says that, the design comes back to him then. Three things went into the record at his word rather than staying in a reply: the reader's own defect — two pixel iframes called a navigation, one frame short of right, a round of attention spent; that the read is the quieter of the two pages, twenty POSTs quieter; and the button eight pixels from the bottom of the runner's screen on a page with a cookie library, as the leading candidate with its caveat, so that whatever attempt 3 names is seen against what was thought before it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P161 — the runner meets a page nobody has read
 
 Attempt 2 said which clock: the press. The button could not be pressed, the password box was still there, and the page went nowhere — the thirty seconds never came into it, and both of the week's earlier hypotheses are gone. What is over the button is not known, and the honest reason is that the runner's page has never been observed. Every capture refused the tag host; the runner lets it load, sends a user agent no capture ever sent, and a viewport nobody has read at.
