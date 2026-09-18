@@ -286,3 +286,44 @@ in P137 (ADR-0114): two attempts, the box reopened between them, then a person.
 - `pnpm run interventions` — stopped runs waiting for a person, against the conversation
   database.
 - `scripts/local-stack.sh status` — pids and endpoints.
+
+## Finishing a case whose stop was recorded before P158 (ADR-0126)
+
+A cancellation is two acts. Before commit 412d001 the second act was performed only by an
+advance, and the Worker advances `running` and `suspended` runs only — so a case stopped while
+a person was holding the run stayed at `WINDING_DOWN` for ever. The student saw a stop that said
+it had stopped, and a re-application refused with a bare 403.
+
+412d001 fixed the STOP. It does not reach a case whose stop is already in the past: that case's
+stop has been and gone, and nothing re-examines it. This is the missing caller.
+
+Read the state first — the case state is folded from `case_events`, never a column on `cases`:
+
+```bash
+psql "$CONVERSATION_DATABASE_URL" -c "
+  SELECT event->>'to' AS state, occurred_at
+    FROM case_events
+   WHERE case_id = 'case_<your conversation id, lower-cased>'
+     AND event->>'type' = 'CaseStateChanged'
+   ORDER BY \"sequence\" DESC LIMIT 3;"
+```
+
+`WINDING_DOWN` on the top row and no `CANCELLED` above it is the stuck state. Then:
+
+```bash
+scripts/local-stack.sh finish-stopped <CONVERSATION id, as the client shows it>
+```
+
+It takes the **conversation** id, not the case id — the case id is `case_` plus that id
+lower-cased. What it prints is one of three things:
+
+- `is CONCLUDED. The case is closed.` — done; the re-application will now be offered.
+- `is NOT concluded, and that is the guard working. Still owed: …` — the case owes the student
+  their portal account. That is ADR-0050 holding, not a failure: finish the handover and run it
+  again.
+- `is at <STATE>, not stopped. Nothing was done.` — it acts on `WINDING_DOWN` and nothing else,
+  so it can never move a live application.
+
+It performs no transition of its own: it runs the ordinary wind-down, which asks `decide`, which
+applies the same obligations guard as every other path. Running it twice is safe.
+

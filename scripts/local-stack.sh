@@ -9,6 +9,12 @@
 #                                    until each says it is up, print where they are
 #   scripts/local-stack.sh status    which are running, and whether they answer
 #   scripts/local-stack.sh stop      SIGTERM each, wait for an orderly exit
+#   scripts/local-stack.sh finish-stopped <conversationId>
+#                                    ADR-0126: finishes a case whose stop was
+#                                    recorded before the stop could finish it.
+#                                    Refuses any case not at WINDING_DOWN, and
+#                                    concludes only when nothing is outstanding —
+#                                    the same guard every other path goes through.
 #
 # Configuration, all by environment, all optional except where a value names
 # something only you know:
@@ -256,9 +262,29 @@ cmd_stop() {
   done
 }
 
+cmd_finish_stopped() {
+  # ADR-0126. The repair runs through the SERVICE's own binary and env file, so
+  # it is judged against the same catalogue and the same database the running
+  # service uses. It does not need the service to be up — it opens its own pool
+  # — but it must not be pointed at a different one, which is what reusing the
+  # env file guarantees.
+  local conversation="${1:-}"
+  if [ -z "$conversation" ]; then
+    echo "usage: scripts/local-stack.sh finish-stopped <conversationId>" >&2
+    exit 2
+  fi
+  if [ ! -f "$DIR/conversation-service.env" ]; then
+    echo "no env file at $DIR/conversation-service.env — run start first" >&2
+    exit 2
+  fi
+  run_with_env conversation-service apps/conversation-service/src/bin.ts \
+    finish-stopped "$conversation"
+}
+
 case "${1:-}" in
   start) cmd_start ;;
   status) cmd_status ;;
   stop) cmd_stop ;;
-  *) echo "usage: scripts/local-stack.sh start|status|stop" >&2; exit 2 ;;
+  finish-stopped) shift; cmd_finish_stopped "${1:-}" ;;
+  *) echo "usage: scripts/local-stack.sh start|status|stop|finish-stopped <conversationId>" >&2; exit 2 ;;
 esac

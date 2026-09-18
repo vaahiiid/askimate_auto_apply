@@ -249,6 +249,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P159: P158 reached the stop and not the cases already stopped. Vahid pulled it and
+  read the reason himself; reproduced here on the fixture, with all three doors measured shut on a
+  case stopped the old way. ADR-0126: `scripts/local-stack.sh finish-stopped <conversationId>` — the
+  missing caller, scoped to `WINDING_DOWN`, performing no transition of its own so the obligations
+  guard is unchanged, proved through the real command. Blocker 44 raised and closed. One open of ten;
+  Run A parked with a person, awaiting one repeat.
 - 2026-09-18, P158: Vahid walked the failure path himself and found a stop that reported itself
   finished on a case that had not concluded. ADR-0125: the second act of a cancellation moves into
   `#concludeCancellation`, called by the stop as well as the advance, so a run a person is holding

@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P159 — the fix was right and it arrived too late for his case
+
+He pulled it, restarted, refreshed, ran the same two calls and got the same 403 — and read the reason himself before I did: the fix changes what a new cancel does, and nothing re-examines a case already half-cancelled. That is exactly right, and this time it is established rather than agreed. A case stopped the old way was built on the fixture and the three doors were measured shut on it: the Worker advances running and suspended runs only, a runner is offered nothing for a stopped case, and a second stop is refused by the table. What is missing is not a design. It is a caller.
+
+He also asked to be told if the honest answer was that the case is abandoned and he should start again, and said he would take it. It is not the honest answer. Abandoning it leaves the record saying an application is half-stopped for ever, and holds his ability to re-apply for that course, because an unconcluded prior case is the one cause of that refusal. Walking around a record rather than finishing it is the thing three phases were spent removing.
+
+So the repair is the missing caller and deliberately nothing else. It refuses any case that is not winding down, and says where the case actually is — proved against a live one, not against a fixture shaped to be refused. It performs no transition of its own: it runs the ordinary wind-down, which asks the machine, so a case that still owes a student their account is reported and left alone rather than concluded. It is idempotent. It lives as a subcommand of the service that owns the driver rather than as a script of its own, because a second composition root is a second answer to which catalogue a case is judged against.
+
+One thing I did not do: read his database. What state his case is in is a fact in his Postgres, and the runbook now carries the query rather than this repository guessing at the answer.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P158 — the stop finishes its own job
 
 He walked the failure path himself and found what four of my sequences had not: a stop that told him it had stopped, on a case that had not. The cancellation is two acts by design and both are right — the student's stop is instant and unguarded, and the conclusion waits until nothing is owed, because a concluded case refuses everything and would strand an account created in their name on a real portal. The defect was that the second act had only one caller, and that caller runs on an advance, and the Worker does not advance a run a person is holding. So the one kind of run most likely to be stopped was the one kind that could never finish stopping.

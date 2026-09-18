@@ -9277,6 +9277,318 @@ describeIfDatabase("stopping is available while a person is looking", () => {
   }, 300_000);
 });
 
+describeIfDatabase("a case stopped BEFORE P158 is not finished by P158", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-18, after pulling 412d001: *"the fix does not reach the case
+  // that was already stuck at WINDING_DOWN when it landed … it means every case
+  // that stopped before 412d001 stays stuck for ever, and one of them is mine."*
+  //
+  // Established here rather than believed. The stop below is performed the way
+  // `#cancel` performed it BEFORE 412d001 — the first act alone, straight
+  // through the domain — which is exactly the shape his case is in on disk.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NP4001SV";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+  let runId = "";
+
+  async function caseState(): Promise<string> {
+    const rows = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [caseRef],
+    );
+    return rows.rows[0]?.to ?? "INTAKE";
+  }
+
+  async function runStatus(): Promise<string> {
+    const rows = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    return rows.rows[0]?.status ?? "";
+  }
+
+  /**
+   * The stop as it was before 412d001: `CaseCancelled`, the voiding if there is
+   * one, and `CaseStateChanged → WINDING_DOWN`. Nothing else. No conclusion,
+   * because there was no code that could perform one without an advance.
+   */
+  beforeAll(async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
+      expect(started.position.status, "a person is holding it — Run A's shape").toBe("escalated");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const store = new PostgresCaseStore(pool);
+    const ref = makeCaseId(caseRef);
+    const current = fold(await store.read(ref));
+    const decision = decide(current, {
+      kind: "cancel_case",
+      reason: `The student stopped the application in conversation ${conversation}.`,
+    });
+    if (!decision.accepted)
+      expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);
+    await store.append(
+      ref,
+      current.sequence,
+      stamp({
+        caseId: ref,
+        fromSequence: current.sequence,
+        payloads: decision.events,
+        actor: askimateActor(externalRef("test:pre-p158-stop")),
+        now: NOW,
+        nextEventId: (index: number) =>
+          `evt_${caseRef}_o${String(current.sequence + index + 1)}`,
+      }),
+    );
+  }, 300_000);
+
+  it("sits at WINDING_DOWN, with the run still held by a person", async () => {
+    expect(await caseState(), "the first act, and only the first").toBe("WINDING_DOWN");
+    expect(await runStatus(), "nothing moved the run").toBe("escalated");
+  }, 300_000);
+
+  it("is reached by NOTHING that runs on its own — the finding", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Three doors, all shut, and this is the whole of his report established
+    // from the code rather than from the symptom:
+    //
+    //   - the WORKER advances `dueRuns`, which filters on AUTOMATABLE_STATUSES
+    //     (`running`, `suspended`). An escalated run is not in it.
+    //   - a RUNNER is offered nothing: `claimWork` withholds a stopped case.
+    //   - the STUDENT cannot stop it again: WINDING_DOWN goes one place, and
+    //     `decide` answers `refused` rather than appending a second stop.
+    //
+    // So a case in this state has no caller left. P158 gave the conclusion a
+    // second caller — `#cancel` — but `#cancel` runs at the stop, and this
+    // case's stop is in the past.
+    // ═══════════════════════════════════════════════════════════════════
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const due = await instance.driver.dueRuns(200);
+      expect(
+        due.map((row) => row.runId),
+        "the worker will never pick it up",
+      ).not.toContain(runId);
+
+      const again = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "cancel" },
+      });
+      expect(again, "and it cannot be stopped a second time").toEqual({
+        ok: false,
+        reason: "refused",
+      });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await caseState(), "still exactly where it was").toBe("WINDING_DOWN");
+  }, 300_000);
+
+  it("REFUSES a case that is not stopped — it cannot move a live application", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Written before the repair is used in anger, because a repair that can
+    // act on any case is a second way to move an application, and this
+    // repository has one. Asserted on ANOTHER conversation's live case, so
+    // what is refused is a real running application rather than a fixture
+    // shaped to be refused.
+    // ═══════════════════════════════════════════════════════════════════
+    const live = "01JBXQ8Z9WKTQ6M4H2NP4001SW";
+    const owner = await ownConversation(live);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({
+        conversationId: live,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+
+      const refused = await instance.driver.finishStoppedCase(live);
+      expect(refused.ok, "a live case is not this command's to touch").toBe(false);
+      if (!refused.ok) {
+        expect(refused.reason).toBe("not_stopped");
+        if (refused.reason === "not_stopped") {
+          expect(refused.state, "and it says where the case actually is").not.toBe(
+            "WINDING_DOWN",
+          );
+        }
+      }
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+
+  it("IS finished by the repair, through the same guard (ADR-0126)", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const finished = await instance.driver.finishStoppedCase(conversation);
+      expect(finished).toEqual({ ok: true, concluded: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    expect(await caseState(), "the second act, performed late").toBe("CANCELLED");
+    expect(await runStatus(), "and the run is abandoned").toBe("abandoned");
+  }, 300_000);
+
+  it("is idempotent — a concluded case is reported, not re-written", async () => {
+    const before = await pool.query<{ count: string }>(
+      `SELECT count(*) AS count FROM case_events WHERE case_id = $1`,
+      [caseRef],
+    );
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      expect(await instance.driver.finishStoppedCase(conversation)).toEqual({
+        ok: true,
+        concluded: true,
+      });
+    } finally {
+      await instance.pool.end();
+    }
+    const after = await pool.query<{ count: string }>(
+      `SELECT count(*) AS count FROM case_events WHERE case_id = $1`,
+      [caseRef],
+    );
+    expect(after.rows[0]?.count, "nothing was appended the second time").toBe(
+      before.rows[0]?.count,
+    );
+  }, 300_000);
+});
+
+describeIfDatabase("a stopped case that still owes an account is NOT concluded by the repair", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // The condition Vahid set on P158, tested against the repair as well as
+  // against the stop: *"it must do so only when nothing is outstanding — you
+  // said that and I want it enforced, not assumed."* A repair that concluded
+  // whatever it was pointed at would be the way round the guard, and would
+  // strand an account created in a student's name on a real portal.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NP4001SX";
+  const caseRef = `case_${conversation.toLowerCase()}`;
+
+  async function caseState(): Promise<string> {
+    const rows = await pool.query<{ to: string }>(
+      `SELECT event->>'to' AS to FROM case_events
+        WHERE case_id = $1 AND event->>'type' = 'CaseStateChanged'
+        ORDER BY "sequence" DESC LIMIT 1`,
+      [caseRef],
+    );
+    return rows.rows[0]?.to ?? "INTAKE";
+  }
+
+  beforeAll(async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: GATED_BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      const runId = started.position.runId;
+      const hash =
+        (await instance.driver.previewFor(runId, conversation))?.contentHash ?? "";
+      const approved = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "authorise", contentHash: hash },
+      });
+      expect(approved).toEqual({ ok: true });
+
+      await instance.driver.advance({ runId, conversationId: conversation });
+      await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: {
+          kind: "secret_received",
+          requestId: `sr_${"0".repeat(31)}7`,
+          handle: `sh_${"e".repeat(32)}`,
+        },
+      });
+      await instance.driver.advance({ runId, conversationId: conversation });
+
+      // The account, so something IS owed when the stop lands.
+      const runRef = makeRunId(runId);
+      const runs = new PostgresWorkflowRunStore(instance.pool);
+      const accountKey = idempotencyKeyFor({
+        runId: runRef,
+        action: "create_portal_account",
+        target: runId,
+      });
+      await runs.recordIntent(runRef, {
+        idempotencyKey: accountKey,
+        action: "create_portal_account",
+        target: runId,
+        startedAt: NOW,
+      });
+      await runs.completeIntent(runRef, accountKey, "succeeded", NOW);
+      await signedInAtCreation(instance.pool, runRef);
+      await instance.driver.advance({ runId, conversationId: conversation });
+    } finally {
+      await instance.pool.end();
+    }
+
+    // Stopped the pre-P158 way: the first act alone.
+    const store = new PostgresCaseStore(pool);
+    const ref = makeCaseId(caseRef);
+    const current = fold(await store.read(ref));
+    const decision = decide(current, { kind: "cancel_case", reason: "The student stopped." });
+    if (!decision.accepted)
+      expect.unreachable(`refused: ${JSON.stringify(decision.refusal)}`);
+    await store.append(
+      ref,
+      current.sequence,
+      stamp({
+        caseId: ref,
+        fromSequence: current.sequence,
+        payloads: decision.events,
+        actor: askimateActor(externalRef("test:pre-p158-stop-owing")),
+        now: NOW,
+        nextEventId: (index: number) =>
+          `evt_${caseRef}_o${String(current.sequence + index + 1)}`,
+      }),
+    );
+  }, 300_000);
+
+  it("leaves it winding down, and NAMES the account it still owes", async () => {
+    const instance = buildInstance(connectionString(), opener());
+    try {
+      const outcome = await instance.driver.finishStoppedCase(conversation);
+      expect(outcome.ok).toBe(true);
+      if (outcome.ok) {
+        expect(outcome.concluded, "the guard held").toBe(false);
+        if (!outcome.concluded) {
+          expect(
+            outcome.outstanding.length,
+            "and the operator is told what is owed",
+          ).toBeGreaterThan(0);
+          expect(outcome.outstanding.join(" ")).toContain("handed back");
+        }
+      }
+    } finally {
+      await instance.pool.end();
+    }
+    expect(await caseState(), "NOT concluded").toBe("WINDING_DOWN");
+  }, 300_000);
+});
+
 describeIfDatabase("which declaration actually decides", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // THREE reviewed declarations carry the word "document", and P29's ADR got

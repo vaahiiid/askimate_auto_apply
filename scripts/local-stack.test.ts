@@ -54,9 +54,9 @@ interface Finished {
   readonly output: string;
 }
 
-function script(command: string, dir: string): Promise<Finished> {
+function script(command: string, dir: string, ...rest: readonly string[]): Promise<Finished> {
   return new Promise((resolve) => {
-    const child = spawn("bash", ["scripts/local-stack.sh", command], {
+    const child = spawn("bash", ["scripts/local-stack.sh", command, ...rest], {
       cwd: ROOT,
       env: {
         PATH: process.env["PATH"] ?? "",
@@ -137,6 +137,33 @@ describeIfBoth("the local stack, started by its own script", () => {
       expect(checked.output).toContain(`${app}: running`);
     }
   }, 300_000);
+
+  it("runs the P159 repair through the REAL command, and refuses what it cannot name", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-0126, and the P80 lesson: a command is proved by running the
+    // command. Everything the repair needs is built before it can act — the
+    // env file is read, the pool opens, the catalogue resolves, the driver is
+    // constructed — and any one of those failing would show up here and
+    // nowhere else, because the repair's own behaviour is tested against the
+    // driver, not against this binary.
+    //
+    // A conversation that does not exist, deliberately: what this asserts is
+    // the WIRING and the refusal, and staging a stopped case inside the
+    // stack's own database would test the driver a second time instead.
+    // ═══════════════════════════════════════════════════════════════════
+    const missing = await script("finish-stopped", dir, "01JBXQ8Z9WKTQ6M4H2NPNOSUCH0");
+    expect(missing.code, missing.output).toBe(1);
+    expect(missing.output).toContain("unknown_conversation");
+    expect(missing.output).toContain("Nothing was done");
+    // The env file carries the database URL and the session secret. Neither is
+    // this command's to print, the same rule `start` is held to above.
+    expect(missing.output).not.toContain(TEST_DATABASE_URL);
+    expect(missing.output).not.toMatch(/AAS_SESSION_SECRET|[0-9a-f]{64}/);
+
+    const noArgument = await script("finish-stopped", dir);
+    expect(noArgument.code, "a repair with no target does nothing").toBe(2);
+    expect(noArgument.output).toContain("usage:");
+  }, 120_000);
 
   it("stops all five on request, and nothing answers afterwards", async () => {
     const stopped = await script("stop", dir);

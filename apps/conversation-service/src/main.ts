@@ -141,6 +141,47 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       store,
     );
 
+    // ── The repair, as a subcommand of the service that owns the driver ───
+    //
+    // ADR-0126. Here rather than in a script of its own, because the repair
+    // needs the SAME driver the service runs — the same catalogue, the same
+    // stores, the same guard. A separate script would be a second composition
+    // root, and a second composition root is a second set of rules about which
+    // catalogue a case is judged against (ADR-0041).
+    //
+    // Above the provider block deliberately: a stopped case can be finished
+    // without an identity provider being reachable, and an operator repairing
+    // a case should not be blocked by something no part of the repair uses.
+    if (options.argv[0] === "finish-stopped") {
+      const conversationId = options.argv[1];
+      if (conversationId === undefined) {
+        options.log("finish-stopped: give the CONVERSATION id of the stopped case");
+        await pool.end();
+        options.exit(2);
+        return null;
+      }
+      const outcome = await driver.finishStoppedCase(conversationId);
+      if (!outcome.ok) {
+        options.log(
+          outcome.reason === "not_stopped"
+            ? `finish-stopped: ${conversationId} is at ${outcome.state}, not stopped. ` +
+              `Nothing was done — this repair acts on WINDING_DOWN and nothing else.`
+            : `finish-stopped: ${conversationId} — ${outcome.reason}. Nothing was done.`,
+        );
+      } else if (outcome.concluded) {
+        options.log(`finish-stopped: ${conversationId} is CONCLUDED. The case is closed.`);
+      } else {
+        options.log(
+          `finish-stopped: ${conversationId} is NOT concluded, and that is the guard ` +
+            `working. Still owed: ${outcome.outstanding.join("; ")}. Finish the handover ` +
+            `and run this again.`,
+        );
+      }
+      await pool.end();
+      options.exit(outcome.ok && outcome.concluded ? 0 : 1);
+      return null;
+    }
+
     // ── The provider, reached at STARTUP ─────────────────────────────────
     //
     // Its discovery document is fetched here, so a provider that cannot be

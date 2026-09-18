@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.155.0] — 2026-09-18
+
+**P159 — ADR-0126: a stop recorded before P158 needs a caller of its own (blocker 44, found by Vahid
+pulling 412d001 and re-running the two calls, decided by him, 2026-09-18).**
+
+### Added
+
+- `RunDriver.finishStoppedCase(conversationId)`: the missing caller for a case left at
+  `WINDING_DOWN` by a stop that predates P158. Refuses any case in any other state, naming where the
+  case is; performs no transition of its own, so `decide`'s obligations guard applies unchanged;
+  idempotent on a case already concluded.
+- `FinishStopped`: a union, so `concluded: false` cannot be read as success by an operator skimming
+  output — the same reasoning `StopConclusion` carries one level up.
+- `aas-conversation-service finish-stopped <conversationId>`: a subcommand of the binary that owns
+  the driver, beside `migrate`, dispatched above the identity-provider block so the repair does not
+  need an OIDC provider it never uses.
+- `scripts/local-stack.sh finish-stopped <conversationId>`: runs it with the running service's own
+  env file, so it cannot be pointed at a different database by accident.
+- The runbook's query for reading a case's state from `case_events`, which is where case state lives
+  — there is no column on `cases`.
+
+### Not changed, deliberately
+
+- No second composition root. A standalone repair script would be a second answer to which catalogue
+  a case is judged against (ADR-0041).
+- The obligations guard. A case that still owes the student their portal account is reported by the
+  repair and left at `WINDING_DOWN`, not concluded.
+- The specialist's intervention (blocker 43, open). A case finished this way can still have a row in
+  a person's queue.
+
+---
+
 ## [0.154.0] — 2026-09-18
 
 **P158 — ADR-0125: the stop finishes its own job; a cancellation concludes at the stop when nothing

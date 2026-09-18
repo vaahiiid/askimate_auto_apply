@@ -473,6 +473,28 @@ export type RunOutcome =
   | { readonly ok: false; readonly refusal: RunRefusal };
 
 /**
+ * What the repair found and what it did (ADR-0126).
+ *
+ * `concluded: false` with an empty `outstanding` is NOT representable as a
+ * success here by accident: the union separates "it finished" from "it did not,
+ * and here is what is owed", so an operator reading the output can never take
+ * silence for completion. The same reasoning as `StopConclusion`, one level up.
+ */
+export type FinishStopped =
+  | { readonly ok: true; readonly concluded: true }
+  | {
+      readonly ok: true;
+      readonly concluded: false;
+      readonly outstanding: readonly string[];
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "unknown_conversation" | "no_run" | "unknown_blueprint";
+    }
+  /** The case is not stopped, so this may not touch it. Names where it is. */
+  | { readonly ok: false; readonly reason: "not_stopped"; readonly state: CaseState };
+
+/**
  * The durable phases from which browser work can exist.
  *
  * A cheap NARROWING of which runs to ask the orchestrator about, not an answer
@@ -4219,6 +4241,77 @@ export class RunDriver {
    * a run that has not got that far, or a portal that needs none. Those are
    * different from an account that is outstanding, and the caller can tell.
    */
+/**
+ * Finishes a case whose stop was recorded before the stop could finish it.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A REPAIR, and scoped like one. ADR-0126.
+ *
+ * Vahid, 2026-09-18, after pulling P158: *"the fix does not reach the case that
+ * was already stuck at WINDING_DOWN when it landed … it means every case that
+ * stopped before 412d001 stays stuck for ever, and one of them is mine."* He is
+ * right, and the reason is exact: P158 gave the conclusion a second caller,
+ * `#cancel`, and `#cancel` runs at the stop. A case whose stop is in the past
+ * has no caller left — the Worker advances `running` and `suspended` only, a
+ * runner is offered nothing for a stopped case, and a second cancellation is
+ * refused by the transition table.
+ *
+ * This is that missing caller, and nothing more:
+ *
+ *   - it REFUSES any case not at WINDING_DOWN, so it can never push a live
+ *     application anywhere. The one state it acts on is the one the student's
+ *     own stop already put the case in;
+ *   - it performs no transition of its own. The advance runs `#windDown`,
+ *     which runs `#concludeCancellation`, which asks `decide` — so the
+ *     obligations guard applies here exactly as it does everywhere else, and a
+ *     case that still owes the student an account is NOT concluded by running
+ *     this;
+ *   - it says which happened, and names what is outstanding when it is.
+ *
+ * Idempotent: a case already CANCELLED answers `concluded` without writing.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+  public async finishStoppedCase(conversationId: string): Promise<FinishStopped> {
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return { ok: false, reason: "unknown_conversation" };
+
+    const held = fold(await this.#options.stores.cases.read(makeCaseId(bound.caseId)));
+    if (held.state === "CANCELLED") return { ok: true, concluded: true };
+    if (held.state !== "WINDING_DOWN") {
+      return { ok: false, reason: "not_stopped", state: held.state };
+    }
+
+    const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    const record = runs[0];
+    if (record === undefined) return { ok: false, reason: "no_run" };
+
+    // The advance IS the repair. `#windDown` is the first thing `#decideOnce`
+    // consults and it returns before anything else can run, so a stopped case
+    // reaches the conclusion and nothing else — which is why this does not need
+    // a second path through the driver, and must not have one.
+    await this.advance({ runId: record.runId, conversationId });
+
+    const after = fold(await this.#options.stores.cases.read(makeCaseId(bound.caseId)));
+    if (after.state === "CANCELLED") return { ok: true, concluded: true };
+
+    // Still winding down, which is the guard working. Name what is owed, from
+    // the same derivation the guard consulted.
+    if (bound.blueprintId === null) return { ok: false, reason: "unknown_blueprint" };
+    const entry = await this.#entryFor(bound);
+    if (entry === null) return { ok: false, reason: "unknown_blueprint" };
+    const reloaded = await this.#options.stores.runs.load(makeRunId(record.runId));
+    if (reloaded === null) return { ok: false, reason: "no_run" };
+    return {
+      ok: true,
+      concluded: false,
+      outstanding: await this.#outstandingObligations({
+        record: reloaded,
+        entry,
+        conversationId,
+      }),
+    };
+  }
+
   public async mayConclude(
     runId: string,
     conversationId: string,
