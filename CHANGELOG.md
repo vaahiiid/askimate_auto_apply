@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.160.0] — 2026-09-18
+
+**P164 — ADR-0130: the point is read at every press, not only a failed one (option 0 on blocker
+47; decided by Vahid, 2026-09-18).**
+
+### Added
+
+- `sayOverButton` (`sign-in.ts`) and `overControlInWords` (`point-of-control.ts`): what stands
+  over the sign-in button as the login page opens and just before the press, structure only —
+  `nothing over the sign-in button (button#signIn (static, 57×21 at 546,80))` or `over the
+  sign-in button: div#cover (fixed, 1280×720 at 0,0)` — then `the button was pressed`.
+- Settle tests: the open reading on a plain and a covered page; a layer that arrives after the
+  page opened reads as nothing at the open, over the button before the press, and at the point at
+  the failure, with its text in none of the three lines.
+
+### Changed
+
+- Nothing in the runner's behaviour. The failed-press line of ADR-0129 is unchanged and pinned.
+
+---
+
 ## [0.159.0] — 2026-09-18
 
 **P163 — the fill says what it did, and the sign-in count is named for what it is (ADR-0124

@@ -46,7 +46,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
-import { atPointInWords } from "./point-of-control.js";
+import { atPointInWords, overControlInWords } from "./point-of-control.js";
 import { pressCheckInWords, signInStartLine, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
@@ -100,6 +100,40 @@ export interface SettleSignInInput {
 }
 
 /**
+ * What stands over the sign-in button at a moment a press has NOT failed
+ * (ADR-0130, P164): as the login page opens, and just before the press.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Attempt 1 of Run A's third conversation named the overlay at a failed
+ * press. Attempt 2 pressed through, and nothing was read, because until
+ * this the runner read the point only when a press failed. Vahid,
+ * 2026-09-18: *"We do not know why the overlay was absent at attempt 2, and
+ * anything built on top of an unmeasured absence is built on a guess. Read
+ * the point at a successful press as well as a failed one, and once as the
+ * login page opens, so attempt 3 names it either way."*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Structure only, as ADR-0129: the layers above the button, or the button's
+ * own box when nothing is over it, and never a layer's text. Exported so the
+ * settle tests can drive the open reading on a fixture page without a fill
+ * agent. Never throws: a read that fails says so in the line.
+ */
+export async function sayOverButton(
+  page: Page,
+  input: {
+    readonly runId: string;
+    readonly submitLocator: FieldLocator;
+    readonly say: (line: string) => void;
+    readonly when: "as the login page opens" | "just before the press";
+  },
+): Promise<void> {
+  const over = await overControlInWords(page, input.submitLocator, "sign-in button").catch(
+    () => "the sign-in button's point could not be read",
+  );
+  input.say(`run ${input.runId}: sign-in, ${input.when}: ${over}`);
+}
+
+/**
  * The submit, settled: the press, then the answer, then where it landed.
  *
  * Exported and taken to the form already typed, so a test can drive each wait
@@ -131,8 +165,21 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
   // `noWaitAfter`: the press measures ONLY whether the button could be
   // pressed. Waiting for the answer is the next wait's job, under its own
   // name and its own number.
+  //
+  // Read just BEFORE the press, not after (ADR-0130): a press that lands
+  // may navigate the page at once and take the point with it, and a press
+  // that fails reads the point again in its catch. The two readings, a few
+  // milliseconds apart, are what say whether the overlay was there when the
+  // press was made.
+  await sayOverButton(page, {
+    runId: input.runId,
+    submitLocator: input.submitLocator,
+    say: input.say,
+    when: "just before the press",
+  });
   try {
     await submit.click({ timeout: pressMs, noWaitAfter: true });
+    input.say(`run ${input.runId}: sign-in: the button was pressed`);
   } catch (error) {
     // The one extra fact for the overlay case: the button was attached and
     // resolvable, the press still failed — is the form still there? A yes
@@ -269,6 +316,14 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
       say(`run ${work.runId}: sign-in failed opening the login page — ${thrownInWords(error)}`);
       return { kind: "failed", failure: "runner_fault" };
     }
+
+    // ── 2. The page as it opens (ADR-0130): what stands over the button ───
+    await sayOverButton(page, {
+      runId: work.runId,
+      submitLocator: targets.submitLocator,
+      say,
+      when: "as the login page opens",
+    });
 
     // ── 3. A challenge on the login form, before a character is typed ─────
     const challenged = await detectChallenge(page);

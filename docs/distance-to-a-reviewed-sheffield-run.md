@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P164: ADR-0130 — the sign-in reads the point as the page opens, just before the
+  press and at a failure, and says each in the same words; a late-arriving layer is caught on the
+  fixture. Attempt 3 names the overlay or its absence whichever way the press falls. Nothing in
+  the runner's behaviour changed; option 2 is next. One open of ten.
 - 2026-09-18, P163: the third conversation's attempt 1 NAMED the obstacle — `div#ccc-overlay`,
   fixed, the full viewport: CookieControl's backdrop, measured at the press — and attempt 2 signed
   in; the first page fill then reported `uncertain (runner_fault)` and the fill had no line to say

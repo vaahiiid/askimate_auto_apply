@@ -1,6 +1,6 @@
 {
   "name": "@askimate/aas-config",
-  "version": "0.159.0",
+  "version": "0.160.0",
   "private": true,
   "type": "module",
   "exports": {

@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 
 import { startFixturePortal, type FixturePortal } from "./fixture-portal.js";
-import { settleSignIn, type SettleSignInInput } from "./sign-in.js";
+import { sayOverButton, settleSignIn, type SettleSignInInput } from "./sign-in.js";
 
 let browser: Browser;
 let plain: FixturePortal;
@@ -83,8 +83,13 @@ describe("the two waits", () => {
     const { context, page } = await atTheForm(plain);
     try {
       expect(await settleSignIn(page, input(plain, said))).toEqual({ kind: "succeeded" });
+      // ADR-0130 (P164): a successful press is read too. Two lines, and
+      // neither is a failure.
+      expect(said).toEqual([
+        expect.stringMatching(/^run run_settle: sign-in, just before the press: nothing over the sign-in button \(button#signIn \(static, \d+×\d+ at \d+,\d+\)\)$/u),
+        "run run_settle: sign-in: the button was pressed",
+      ]);
       expect(new URL(page.url()).pathname).toBe("/apply");
-      expect(said).toEqual([]);
     } finally {
       await context.close();
     }
@@ -111,13 +116,16 @@ describe("the two waits", () => {
         kind: "failed",
         failure: "runner_fault",
       });
-      expect(said).toHaveLength(1);
-      expect(said[0]).toContain("the portal did not answer the sign-in");
-      expect(said[0]).toContain("the step timed out");
-      expect(said[0]).not.toContain("could not be pressed");
+      // The two readings of a press that succeeded, then the answer's failure.
+      expect(said).toHaveLength(3);
+      expect(said[0]).toContain("just before the press: nothing over the sign-in button");
+      expect(said[1]).toBe("run run_settle: sign-in: the button was pressed");
+      expect(said[2]).toContain("the portal did not answer the sign-in");
+      expect(said[2]).toContain("the step timed out");
+      expect(said[2]).not.toContain("could not be pressed");
       // Nothing from the page or the URL in the line — the rule ADR-0124 set.
-      expect(said[0]).not.toContain(slow.baseUrl);
-      expect(said[0]).not.toContain(EMAIL);
+      expect(said.join("\n")).not.toContain(slow.baseUrl);
+      expect(said.join("\n")).not.toContain(EMAIL);
     } finally {
       await context.close();
     }
@@ -131,19 +139,24 @@ describe("the two waits", () => {
         kind: "failed",
         failure: "runner_fault",
       });
-      expect(said).toHaveLength(1);
-      expect(said[0]).toContain("the sign-in button could not be pressed");
-      expect(said[0]).toContain("the step timed out");
-      expect(said[0]).toContain("the password box is still on the page");
+      // ADR-0130: the reading just before the press names the cover too, so a
+      // failure is seen against what stood there a moment earlier.
+      expect(said).toHaveLength(2);
+      expect(said[0]).toMatch(/^run run_settle: sign-in, just before the press: over the sign-in button: div#cover \(fixed, \d+×\d+ at 0,0\)$/u);
+      const failed = said[1] ?? "";
+      expect(failed).toContain("the sign-in button could not be pressed");
+      expect(failed).toContain("the step timed out");
+      expect(failed).toContain("the password box is still on the page");
       // ADR-0129: the obstacle, named from the page's structure at the moment
       // of the failure — and Playwright's own check, from its closed phrases.
-      expect(said[0]).toContain("pending: another element intercepts pointer events");
-      expect(said[0]).toContain("at the button's point: div#cover (fixed, ");
-      expect(said[0]).toMatch(/at the button's point: div#cover \(fixed, \d+×\d+ at 0,0\) > button#signIn \(static, /);
-      expect(said[0]).not.toContain("did not answer");
-      expect(said[0]).not.toContain(covered.baseUrl);
+      // This line is UNCHANGED by ADR-0130.
+      expect(failed).toContain("pending: another element intercepts pointer events");
+      expect(failed).toContain("at the button's point: div#cover (fixed, ");
+      expect(failed).toMatch(/at the button's point: div#cover \(fixed, \d+×\d+ at 0,0\) > button#signIn \(static, /);
+      expect(failed).not.toContain("did not answer");
+      expect(said.join("\n")).not.toContain(covered.baseUrl);
       // Structure only: the cover's text, were it a banner, would not be here.
-      expect(said[0]).not.toContain("text:");
+      expect(said.join("\n")).not.toContain("text:");
     } finally {
       await context.close();
     }
@@ -160,7 +173,76 @@ describe("the two waits", () => {
       });
       expect(Date.now() - started, "answered, not waited out").toBeLessThan(10_000);
       expect(new URL(page.url()).pathname).toBe("/login");
-      expect(said).toEqual([]);
+      // The press itself went through; the refusal is the portal's answer.
+      expect(said).toEqual([expect.stringContaining("just before the press: nothing over the sign-in button"), "run run_settle: sign-in: the button was pressed"]);
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+});
+
+describe("the point is read at every press, not only a failed one (ADR-0130, P164)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Attempt 1 of the third conversation named the overlay at a failed
+  // press; attempt 2 pressed through, and nothing was read, because the
+  // runner read the point only when a press failed. Vahid, 2026-09-18:
+  // *"We do not know why the overlay was absent at attempt 2, and anything
+  // built on top of an unmeasured absence is built on a guess. Read the
+  // point at a successful press as well as a failed one, and once as the
+  // login page opens, so attempt 3 names it either way."*
+  // ═══════════════════════════════════════════════════════════════════════
+  function reading(portal: FixturePortal, said: string[]): Parameters<typeof sayOverButton>[1] {
+    return { runId: "run_settle", submitLocator: LOGIN.submitLocator, say: (line) => said.push(line), when: "as the login page opens" };
+  }
+
+  it("says nothing is over the button as a plain login page opens, naming the button's own box", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(plain);
+    try {
+      await sayOverButton(page, reading(plain, said));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(/^run run_settle: sign-in, as the login page opens: nothing over the sign-in button \(button#signIn \(static, \d+×\d+ at \d+,\d+\)\)$/u);
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("names what is over the button as a covered login page opens, structure only", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(covered);
+    try {
+      await sayOverButton(page, reading(covered, said));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(/^run run_settle: sign-in, as the login page opens: over the sign-in button: div#cover \(fixed, \d+×\d+ at 0,0\)$/u);
+      expect(said[0]).not.toContain("text:");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("catches an overlay that ARRIVES after the page opened: nothing at the open, the cover just before the press, the cover at the failure", async () => {
+    // The race attempt 2 may have won and attempt 1 lost, made deterministic:
+    // the page opens clean, a full-viewport layer is added afterwards, and
+    // the three readings disagree in exactly the way that names the moment.
+    const said: string[] = [];
+    const { context, page } = await atTheForm(plain);
+    try {
+      await sayOverButton(page, reading(plain, said));
+      await page.evaluate(() => {
+        const late = document.createElement("div");
+        late.id = "late";
+        late.setAttribute("style", "position:fixed;inset:0;background:transparent;z-index:10");
+        late.textContent = "We use cookies";
+        document.body.append(late);
+      });
+      expect(await settleSignIn(page, input(plain, said, { pressMs: 1_500 }))).toEqual({ kind: "failed", failure: "runner_fault" });
+      expect(said).toHaveLength(3);
+      expect(said[0]).toContain("as the login page opens: nothing over the sign-in button");
+      expect(said[1]).toMatch(/^run run_settle: sign-in, just before the press: over the sign-in button: div#late \(fixed, /u);
+      expect(said[2]).toContain("could not be pressed");
+      expect(said[2]).toContain("at the button's point: div#late (fixed, ");
+      // The layer's text is on the page and in none of the three lines.
+      expect(said.join("\n")).not.toContain("cookies");
     } finally {
       await context.close();
     }

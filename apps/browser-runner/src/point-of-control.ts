@@ -33,3 +33,26 @@ export async function atPointInWords(page: Page, locator: FieldLocator): Promise
   if (point.layers.length === 0) return "nothing at the button's point";
   return `at the button's point: ${point.layers.map(layerInWords).join(" > ")}`;
 }
+
+/**
+ * The same read, said the other way round, for the two moments a press has
+ * NOT failed (ADR-0130): as the page opens, and just before the press. Names
+ * what is OVER the control — the layers above it, top-most first — or that
+ * nothing is, with the control's own box so a later reading of the same
+ * button can be compared to it. The failed-press clause above is unchanged.
+ */
+export async function overControlInWords(page: Page, locator: FieldLocator, name: string): Promise<string> {
+  const control = toPlaywrightLocator(page, locator);
+  if (control === null) return `the ${name}'s point could not be read`;
+  const handle = await control.elementHandle({ timeout: CONTROL_HANDLE_TIMEOUT_MS }).catch(() => null);
+  if (handle === null) return `the ${name}'s point could not be read`;
+  const point = await stackAtPoint(handle, { withText: false }).catch(() => null);
+  if (point === null) return `the ${name}'s point could not be read`;
+  const own = point.layers.at(-1);
+  if (own === undefined) return `nothing at the ${name}'s point`;
+  const above = point.layers.slice(0, -1);
+  return point.covered && above.length > 0
+    ? `over the ${name}: ${above.map(layerInWords).join(" > ")}`
+    : `nothing over the ${name} (${layerInWords(own)})`;
+}
+

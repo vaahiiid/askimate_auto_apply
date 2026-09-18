@@ -4906,6 +4906,16 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P164 — the point is read whichever way the press falls
+
+The first of the three he ordered after the fill log. Attempt 1 had named the overlay at a failed press and attempt 2 had pressed through unread, and his rule for that was the right one: an absence nobody measured is not a fact to build on. So the sign-in now reads the same point three times — as the login page opens, just before the press, and, as before, at a failure — and says each in the same words: nothing over the button, with the button's own box, or the layers that are over it, top-most first, and never a layer's text. Before the press rather than after, because a press that lands may take the page with it.
+
+The fixture made the race deterministic, which is the thing a live portal never will: a layer added after the page opened reads as nothing at the open, as over the button a moment before the press, and as the thing at the point when the press fails. Whatever attempt 3 prints, it prints against those three readings, and the next "why was it absent" is answered from a log. Nothing else moved. No wait, no dismissal, no second press; getting past the overlay is the student's decision and the next phase.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P163 — the fill was silent in the same way the sign-in had been, and the count was a label
 
 Attempt 1 of the third conversation did what P162 was built for: the line named the thing. A full-viewport backdrop with CookieControl's id, at the button's point, at the instant the press failed, with Playwright's own check saying another element was in the way. Five hypotheses on one button; the fifth was measured. Then attempt 2 pressed through and signed in, and nothing was read at that press, because the runner reads the point only when a press fails. So the overlay is sometimes there and nobody knows why it sometimes is not, and he was right that nothing may be built on an unmeasured absence.
