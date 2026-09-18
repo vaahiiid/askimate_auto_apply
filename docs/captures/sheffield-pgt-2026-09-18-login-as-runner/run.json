@@ -1,0 +1,397 @@
+{
+  "runId": "attached-sheffield-pgt-september-direct-2026-09-18T16-01-11-335Z",
+  "mode": "attached_read_only",
+  "target": {
+    "targetId": "sheffield-pgt-september-direct",
+    "institutionName": "University of Sheffield",
+    "allowedHosts": [
+      "sheffield.ac.uk"
+    ]
+  },
+  "cdpEndpoint": "127.0.0.1:9223",
+  "urls": [
+    "https://www.sheffield.ac.uk/postgradapplication/"
+  ],
+  "visited": [
+    "https://www.sheffield.ac.uk/postgradapplication/"
+  ],
+  "failed": [],
+  "readInPlace": false,
+  "blockedRequests": [
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect?rcb=0&frm=0&apvc=1&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dMDAwNW&gtm=45He69g1v76211561za200zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616985~115938465~115938469~118897920~118897930~120385422~120469145~120469153~120847433&tft=1789747273959&tfd=536&fmt=8",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/ccm/collect?rcb=0&frm=0&apvc=1&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dMDAwNW&gtm=45He69g1v76211561za200zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616985~115938465~115938469~118897920~118897930~120385422~120469145~120469153~120847433&tft=1789747273959&tfd=536&fmt=8. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://px.ads.linkedin.com/wa/?medium=fetch&fmt=g",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://px.ads.linkedin.com/wa/?medium=fetch&fmt=g. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://px.ads.linkedin.com/wa/?medium=beacon&fmt=g",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://px.ads.linkedin.com/wa/?medium=beacon&fmt=g. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "GET",
+      "url": "https://tr.snapchat.com/cm/i?pid=50473e86-25d1-48d8-8029-f40b2834d6f6&u_scsid=11b19a83-c899-4ad9-bf33-49ea510c0169&u_sclid=b414b746-7af4-423d-951c-c3d4efc4bec7",
+      "rule": "navigation",
+      "reason": "Attached inspection refused to navigate to https://tr.snapchat.com/cm/i?pid=50473e86-25d1-48d8-8029-f40b2834d6f6&u_scsid=11b19a83-c899-4ad9-bf33-49ea510c0169&u_sclid=b414b746-7af4-423d-951c-c3d4efc4bec7: it is not on this run's list. A page sending itself elsewhere is a finding — most often, the session has ended."
+    },
+    {
+      "method": "POST",
+      "url": "https://pixels.spotify.com/v1/ingest",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://pixels.spotify.com/v1/ingest. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/16651574440/?random=1789747274105&cv=11&fst=1789747274105&fmt=8&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=68&gcp=5",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/rmkt/collect/16651574440/?random=1789747274105&cv=11&fst=1789747274105&fmt=8&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=68&gcp=5. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/16651574440/?random=1789747274115&cv=11&fst=1789747274115&fmt=8&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/rmkt/collect/16651574440/?random=1789747274115&cv=11&fst=1789747274115&fmt=8&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=8",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=8. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=8",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=8. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://2c-1138a2e087744ef69e662051fe044c44.ecs.us-west-1.on.aws/events?cee=no",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://2c-1138a2e087744ef69e662051fe044c44.ecs.us-west-1.on.aws/events?cee=no. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://bded8a3c6ae-1-1053047382554.us-central1.run.app/events?cee=no",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://bded8a3c6ae-1-1053047382554.us-central1.run.app/events?cee=no. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.facebook.com/tr/",
+      "rule": "navigation",
+      "reason": "Attached inspection refused to navigate to https://www.facebook.com/tr/: it is not on this run's list. A page sending itself elsewhere is a finding — most often, the session has ended."
+    },
+    {
+      "method": "POST",
+      "url": "https://analytics-ipv6.tiktokw.us/ipv6/enrich_ipv6",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://analytics-ipv6.tiktokw.us/ipv6/enrich_ipv6. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://analytics.tiktok.com/api/v2/pixel",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://analytics.tiktok.com/api/v2/pixel. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/10929346609/?random=1789747274215&cv=11&fst=1789747274215&fmt=8&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/rmkt/collect/10929346609/?random=1789747274215&cv=11&fst=1789747274215&fmt=8&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect?rcb=14&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-10929346609&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&tft=1789747274221&tfd=798&tids=AW-10929346609&fmt=8",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://www.google.com/ccm/collect?rcb=14&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-10929346609&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&tft=1789747274221&tfd=798&tids=AW-10929346609&fmt=8. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://tr.snapchat.com/p",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://tr.snapchat.com/p. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://tr6.snapchat.com/p",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://tr6.snapchat.com/p. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://analytics.tiktok.com/api/v2/pixel/act",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://analytics.tiktok.com/api/v2/pixel/act. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://tr.snapchat.com/p",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://tr.snapchat.com/p. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://mc.yandex.com/webvisor/105476076?wv-part=1&wv-check=18511&wv-type=0&wmode=0&wv-hit=505106711&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rn=239426657&hidv2=5473578700377686044&browser-info=we%3A1%3Aet%3A1789747275%3Aw%3A1199x943%3Av%3A2652%3Az%3A60%3Ai%3A20260918170115%3Au%3A178912893254959065%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Ast%3A1789747275",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://mc.yandex.com/webvisor/105476076?wv-part=1&wv-check=18511&wv-type=0&wmode=0&wv-hit=505106711&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rn=239426657&hidv2=5473578700377686044&browser-info=we%3A1%3Aet%3A1789747275%3Aw%3A1199x943%3Av%3A2652%3Az%3A60%3Ai%3A20260918170115%3Au%3A178912893254959065%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Ast%3A1789747275. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    },
+    {
+      "method": "POST",
+      "url": "https://mc.yandex.com/webvisor/105476076?wv-part=1&wv-check=18511&wv-type=0&wmode=0&wv-hit=505106711&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rn=239426657&hidv2=5473578700377686044&browser-info=we%3A1%3Aet%3A1789747275%3Aw%3A1199x943%3Av%3A2652%3Az%3A60%3Ai%3A20260918170115%3Au%3A178912893254959065%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Ast%3A1789747275",
+      "rule": "method",
+      "reason": "Discovery mode blocked a POST request to https://mc.yandex.com/webvisor/105476076?wv-part=1&wv-check=18511&wv-type=0&wmode=0&wv-hit=505106711&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rn=239426657&hidv2=5473578700377686044&browser-info=we%3A1%3Aet%3A1789747275%3Aw%3A1199x943%3Av%3A2652%3Az%3A60%3Ai%3A20260918170115%3Au%3A178912893254959065%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Ast%3A1789747275. Only safe, idempotent reads are permitted — discovery must not create, modify or submit anything."
+    }
+  ],
+  "refusedNavigations": [
+    "https://tr.snapchat.com/cm/i?pid=50473e86-25d1-48d8-8029-f40b2834d6f6&u_scsid=11b19a83-c899-4ad9-bf33-49ea510c0169&u_sclid=b414b746-7af4-423d-951c-c3d4efc4bec7",
+    "https://www.facebook.com/tr/"
+  ],
+  "asRunner": true,
+  "presented": {
+    "userAgent": "AskiMate-Runner/1.0",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "note": "the User-Agent HEADER was rewritten at the guard; the page's navigator.userAgent is this browser's own"
+  },
+  "offHostReads": [
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-W5K7W4T"
+    },
+    {
+      "method": "GET",
+      "url": "https://cc.cdn.civiccomputing.com/9/cookieControl-9.x.min.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtag/destination?id=G-TK1DPBM232&cx=c&gtm=4e69g1"
+    },
+    {
+      "method": "GET",
+      "url": "https://apikeys.civiccomputing.com/c/v?d=www.sheffield.ac.uk&p=CookieControl%20Single-Site&v=9&k=bd94747f3b1b433b1a15e172b51bba9dcffc2c34&format=json"
+    },
+    {
+      "method": "GET",
+      "url": "https://static.hotjar.com/c/hotjar-561308.js?sv=7"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-16651574440&cx=c&gtm=4e69g1"
+    },
+    {
+      "method": "GET",
+      "url": "https://snap.licdn.com/li.lms-analytics/insight.min.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://tags.srv.stackadapt.com/events.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://connect.facebook.net/en_US/fbevents.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://analytics.tiktok.com/i18n/pixel/events.js?sdkid=CR6TKMJC77UBVEOEGQ20&lib=ttq"
+    },
+    {
+      "method": "GET",
+      "url": "https://pixel.byspotify.com/ping.min.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://sc-static.net/scevent.min.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://mc.yandex.ru/metrika/tag.js?id=105476076"
+    },
+    {
+      "method": "GET",
+      "url": "https://secure.quantserve.com/quant.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/ccm/collect?rcb=0&frm=0&apvc=1&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&ep.ads_data_redaction=0&gdid=dMDAwNW&gtm=45He69g1v76211561za200zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616985~115938465~115938469~118897920~118897930~120385422~120469145~120469153~120847433&tft=1789747273959&tfd=536&fmt=3"
+    },
+    {
+      "method": "GET",
+      "url": "https://script.hotjar.com/modules.e762be2b6b709245aabb.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://px.ads.linkedin.com/collect?v=2&fmt=js&pid=3351724%2C6273242&time=1789747273989&pageLoadId=33058957-969b-4b58-bc8f-5a6d7e7ee095&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&tm=gtmv2"
+    },
+    {
+      "method": "GET",
+      "url": "https://tr.snapchat.com/config/uk/50473e86-25d1-48d8-8029-f40b2834d6f6.js?v=3.60.0-2608111919"
+    },
+    {
+      "method": "GET",
+      "url": "https://px.ads.linkedin.com/insight_tag_errors.gif?v=2&pid=3351724%2C6273242&error=version%3A%201000024%20%7C%20WebsiteActions-1000024-TypeError%3A%20Failed%20to%20fetch%3B%20ErrorData%3A%20%7B%22domain%22%3A%22sheffield.ac.uk%22%2C%22requestFetcher%22%3A%22fetch-keepalive%22%2C%22body%22%3A%22H4sIAAAAAAAAE12QT2vcMBTEv8ryzlJWfy1btz0kwRBo6S65lFJk%2BXlXRJYVS6aUkO9edhNa6HF4zLz5zRvkMBaw36XU3AhFGmGkUOIHgeLXkOszriUsCSxnjDGhCNQwI1hu2s4oI4zs2obAuMwuJLBQLjhNAeN45%2Fzd9gIEtjWChUutudj9%2Fr%2F7Pi%2Blnlc3upxj8K6GJe2BwC8cSqh4DOfk4jd83bDUfgQLSrGu0cbTQSKnjfeMCqcV7UzTTnqausG3QCC7Mz4tbrx5tJhYN7Yd9e1kqNKaUadGTTnXcmBctUI6IBDKaXWpRFdxBDu5WJBADA%2Fu4zNcxWNwqX6IORQP9g1yGY7VVQRL1fs15SmkFxz7dMj5b8y1zynUiGDh6yfy5iruvqQYEu4O%2F%2FB3D8s6A4ELzmDTFiOBcpvh9Dvf7IfH%2B5%2FP%2FbE%2FfXL2qVSXPN5atsI0HXaSSt0OlPHBU8lQUOm14X6aOGs4vP8BRuVSY%2FcBAAA%3D%22%7D&href=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F"
+    },
+    {
+      "method": "GET",
+      "url": "https://rules.quantcount.com/rules-p-qdQ8HPkT--DL1.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://pixel.quantserve.com/cs?a=p-qdQ8HPkT--DL1&gdpr=0&sf2=1"
+    },
+    {
+      "method": "GET",
+      "url": "https://pixel.quantserve.com/pixel;r=1926571554;labels=_fp.event.UG%20Application%20-%20Conversion%2C_fp.customer.INSERT%2BCUSTOMER%2BTYPE%2C_fp.pcat.INSERT%2BPRODUCT%2BCATEGORY%2C_fp.event.PageView;orderid=INSERT%2BORDER%2BID;revenue=INSERT%2BREVENUE;event=refresh;rf=3;a=p-qdQ8HPkT--DL1;url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F;ns=0;ce=1;qjs=1;qv=b414f28e-20260609162752;ref=;dst=1;et=1789747274015;tzo=-60;ogl=;d=sheffield.ac.uk;uht=2;fpan=0;fpa=P1-91d500ee-c523-48dd-87fd-cc22270ec407;pbc=;_ses=207b906f-04e7-40b4-b38c-ff9df915ccd9;_seg=1;_gacid=1129085457.1789128931;_gasid=TK1DPBM232_1789747244;_gam=a;gdpr=0;mdl="
+    },
+    {
+      "method": "GET",
+      "url": "https://pixels.spotify.com/v1/config/dac70581c43e4b7ca628cdc99fbea536"
+    },
+    {
+      "method": "GET",
+      "url": "https://connect.facebook.net/signals/config/8129989503749915?v=2.9.403&r=stable&domain=www.sheffield.ac.uk&hme=ecef7557496abce7ebfd30d9fec7f02b78383ffbf3f454783aea671f0dea1dfc&ex_m=117%2C234%2C168%2C27%2C81%2C82%2C160%2C77%2C76%2C11%2C178%2C101%2C20%2C152%2C140%2C46%2C84%2C89%2C148%2C173%2C180%2C8%2C4%2C5%2C7%2C6%2C3%2C102%2C114%2C32%2C17%2C31%2C18%2C33%2C34%2C35%2C37%2C55%2C161%2C86%2C125%2C22%2C24%2C51%2C47%2C49%2C48%2C94%2C103%2C107%2C123%2C159%2C162%2C53%2C124%2C29%2C26%2C132%2C78%2C43%2C164%2C163%2C165%2C156%2C154%2C30%2C42%2C66%2C122%2C175%2C79%2C21%2C127%2C92%2C75%2C23%2C96%2C97%2C129%2C95%2C150%2C149%2C153%2C108%2C174%2C177%2C41%2C56%2C126%2C54%2C182%2C109%2C181%2C201%2C248%2C83%2C262%2C261%2C260%2C14%2C25%2C28%2C40%2C62%2C116%2C68%2C10%2C72%2C110%2C111%2C112%2C118%2C143%2C38%2C36%2C145%2C146%2C147%2C142%2C141%2C169%2C85%2C172%2C170%2C171%2C57%2C67%2C136%2C19%2C176%2C52%2C311%2C312%2C313%2C310%2C326%2C351%2C241%2C230%2C69%2C231%2C229%2C354%2C345%2C59%2C242%2C120%2C144%2C91%2C134%2C61%2C133%2C139%2C138%2C65%2C73%2C71%2C166%2C87%2C88%2C128%2C44%2C39%2C60%2C63%2C113%2C179%2C1%2C137%2C16%2C135%2C12%2C2%2C64%2C104%2C15%2C74%2C70%2C131%2C100%2C99%2C184%2C185%2C105%2C106%2C9%2C115%2C183%2C58%2C157%2C98%2C90%2C80%2C130%2C119%2C50%2C158%2C0%2C93%2C151%2C155%2C167%2C45%2C121%2C13%2C186"
+    },
+    {
+      "method": "GET",
+      "url": "https://tags.srv.stackadapt.com/sa.css"
+    },
+    {
+      "method": "GET",
+      "url": "https://tags.srv.stackadapt.com/sa.jpeg"
+    },
+    {
+      "method": "GET",
+      "url": "https://analytics.tiktok.com/i18n/pixel/static/main.MWU2MzIzODM0MQ.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googletagmanager.com/gtag/destination?id=AW-10929346609&cx=c&gtm=4e69g1"
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16651574440/?random=1789747274105&cv=11&fst=1789747274105&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=4"
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/16651574440/?random=1789747274115&cv=11&fst=1789747274115&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=4"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/rmkt/collect/16651574440/?random=1789747274105&cv=11&fst=1789747274105&fmt=3&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=68&gcp=5"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/rmkt/collect/16651574440/?random=1789747274115&cv=11&fst=1789747274115&fmt=3&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&en=page_view&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=3"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/ccm/collect?rcb=9&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-16651574440&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789747274117&tfd=694&tids=AW-16651574440&fmt=3"
+    },
+    {
+      "method": "GET",
+      "url": "https://analytics.tiktok.com/i18n/pixel/static/identify_0504602d.js"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/16651574440/?random=1789747274105&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHcSdWbrSnExb5fMr8fXbpP1-7zhgaMY9-WJzHMc0ZBdmMxuY9qNLK48SyY9Q07PHz8nR6fMJ2sLxM8AMWc5M0Hhb40fZjymVpcQdcJi98Ica79z3dYPAO9FQ&random=4140536661&rmt_tld=0&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.co.uk/pagead/1p-user-list/16651574440/?random=1789747274105&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xecxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHcSdWbrSnExb5fMr8fXbpP1-7zhgaMY9-WJzHMc0ZBdmMxuY9qNLK48SyY9Q07PHz8nR6fMJ2sLxM8AMWc5M0Hhb40fZjymVpcQdcJi98Ica79z3dYPAO9FQ&random=4140536661&rmt_tld=1&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://mc.yandex.com/metrika/advert.gif"
+    },
+    {
+      "method": "GET",
+      "url": "https://mc.yandex.com/watch/105476076?wmode=7&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&charset=utf-8&uah=chu%0A%22Google%20Chrome%22%3Bv%3D%22153%22%2C%22Not_A%20Brand%22%3Bv%3D%228%22%2C%22Chromium%22%3Bv%3D%22153%22%0Acha%0Aarm%0Achb%0A64%0Achf%0A153.0.8010.52%0Achl%0A%22Google%20Chrome%22%3Bv%3D%22153.0.8010.52%22%2C%22Not_A%20Brand%22%3Bv%3D%228.0.0.0%22%2C%22Chromium%22%3Bv%3D%22153.0.8010.52%22%0Achm%0A%3F0%0Achp%0AmacOS%0Achv%0A26.5.2&browser-info=pv%3A1%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-GB%3Av%3A2652%3Acn%3A1%3Adp%3A0%3Als%3A1295989441119%3Ahid%3A760048049%3Az%3A60%3Ai%3A20260918170114%3Aet%3A1789747274%3Ac%3A1%3Arn%3A518658990%3Arqn%3A5%3Au%3A178912893254959065%3Aw%3A1280x720%3As%3A1280x720x30%3Ask%3A1%3Afp%3A232%3Awv%3A2%3Ads%3A0%2C27%2C30%2C2%2C1%2C0%2C%2C97%2C0%2C394%2C394%2C0%2C175%3Aco%3A0%3Acpf%3A1%3Ans%3A1789747273423%3Agi%3AR0ExLjEuMTEyOTA4NTQ1Ny4xNzg5MTI4OTMx%3Arqnl%3A1%3Ast%3A1789747274%3At%3APostgraduate%20Online%20Application%20Form&t=clt(227)clc(0-0-0)rqnt(1)re(1)aw(1)rcm(1)cdl(na)eco(21135617)ti(1)"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/16651574440/?random=1789747274115&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHc5tnMBF-OYrP192ugx_oLsvBvGhAoGMGkxG78lfbsC4-iS6PykZbqiCrlnyTAF0ITOBw7o6nHSfWSg3cdNRHFAlNEwgUNmSzZGfEnaxqk01Cp3uSIq9Fnpw&random=787170328&rmt_tld=0&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.co.uk/pagead/1p-user-list/16651574440/?random=1789747274115&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9201518545z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115938465~115938469~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=9&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHc5tnMBF-OYrP192ugx_oLsvBvGhAoGMGkxG78lfbsC4-iS6PykZbqiCrlnyTAF0ITOBw7o6nHSfWSg3cdNRHFAlNEwgUNmSzZGfEnaxqk01Cp3uSIq9Fnpw&random=787170328&rmt_tld=1&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10929346609/?random=1789747274215&cv=11&fst=1789747274215&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=4"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/rmkt/collect/10929346609/?random=1789747274215&cv=11&fst=1789747274215&fmt=3&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=68&gcp=5"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/ccm/collect?rcb=14&frm=0&apvc=0&ae=g&auid=1001686357.1789128932&dt=Postgraduate%20Online%20Application%20Form&tid=AW-10929346609&dl=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&scrsrc=www.googletagmanager.com&rnd=1015938732.1789747274&navt=n&npa=0&did=dMDAwNW&gdid=dMDAwNW&_tu=CA&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcs=G111&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&tft=1789747274221&tfd=798&tids=AW-10929346609&fmt=3"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/10929346609/?random=1789747274215&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHcW0Gc0CUAYQhvktzEUbX3GjINSBt9boocMTgqV8nnPMBonU52ZI0PUoQNZNvlMSaov994vrepOAve2JSJpKrs5n8ZcOzKhhNU3NQgw4C9JYklhRNCke368A&random=3143127667&rmt_tld=0&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.co.uk/pagead/1p-user-list/10929346609/?random=1789747274215&cv=11&fst=1789747200000&bg=ffffff&guid=ON&async=1&gtm=45be69g1v9171241913z876211561za20gzb76211561zd76211561xeaxf1&gcd=13r3r3r3r5l1&dma=0&tag_exp=115616986~115938465~115938469~118897920~118897930~120213116~120385423~120469145~120469153~120847433&u_w=1280&u_h=720&url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rcb=14&frm=0&tiba=Postgraduate%20Online%20Application%20Form&did=dMDAwNW&gdid=dMDAwNW&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1001686357.1789128932&uaa=arm&uab=64&uafvl=Google%2520Chrome%3B153.0.8010.52%7CNot_A%2520Brand%3B8.0.0.0%7CChromium%3B153.0.8010.52&uamb=0&uam=&uap=macOS&uapv=26.5.2&uaw=0&_tu=CA&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQSXQBAziHcW0Gc0CUAYQhvktzEUbX3GjINSBt9boocMTgqV8nnPMBonU52ZI0PUoQNZNvlMSaov994vrepOAve2JSJpKrs5n8ZcOzKhhNU3NQgw4C9JYklhRNCke368A&random=3143127667&rmt_tld=1&ipr=y"
+    },
+    {
+      "method": "GET",
+      "url": "https://tags.srv.stackadapt.com/saq_pxl?uid=3AqID60RBpES5kKToIN3xA&is_js=true&landing_url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&t=Postgraduate%20Online%20Application%20Form&tip=1CBnEaCshb_PRgfa5YTpErf-DWWEIJE3wSFq5teyBHI&host=https%3A%2F%2Fwww.sheffield.ac.uk&sa_conv_data_css_value=%27CiQwMWEwOTA2NC1mYmEyLTdhZWUtOTIwZS01NzVkYjExOWZmMWIQBBoERU1FQSAs%27&sa_conv_data_image_value=ffd8ffe000104a46494600010101006000600000ffdb004300080606070605080707070909080a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c2837292c30313434341f27393d38323c2e333432ffdb0043010909090c0b0c180d0d1832211c213232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232ffc00011080001000103012200021101031101ffc4001f0000010501010101010100000000000000000102030405060708090a0bffc400b5100002010303020403050504040000017d01020300041105122131410613516107227114328191a1082342b1c11552d1f02433627282090a161718191a25262728292a3435363738393a434445464748494a535455565758595a636465666768696a737475767778797a838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e5e6e7e8e9eaf1f2f3f4f5f6f7f8f9faffc4001f0100030101010101010101010000000000000102030405060708090a0bffc400b51100020102040403040705040400010277000102031104052131061241510761711322328108144291a1b1c109233352f0156272d10a162434e125f11718191a262728292a35363738393a434445464748494a535455565758595a636465666768696a737475767778797a82838485868788898a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae2e3e4e5e6e7e8e9eaf2f3f4f5f6f7f8f9faffda000c03010002110311003f00f7fa28a2803fffd9436951774d574577596a55304d4330794d6a566b4c54646b5a475174595755345a6930784e7a426c595467794f446b334f44675142426f45525531465153426b&l_src=&l_src_d=&u_src=&u_src_d=&shop=false&sa-user-id-v4=s%253ACiQwMWEwOTA2NC1mYmEyLTdhZWUtOTIwZS01NzVkYjExOWZmMWIQBBoERU1FQSAs.Shx1%252FNp1WXSlqvs88%252FrT4BSLJquDaoxCJJFj%252Fndl95A&sa-user-id-v3=s%253A.o6W7wkJsHSTU4%252BLlDruZ%252FwNjVcUZZMvakQpSatDoAgo&sa-user-id-v2=s%253ANJbQDDsEU4BLMjOUCH823l-vhuw.kzFnkFKh%252FNQYs%252F7fFueNM5LeAEz%252Bb1pS4frN3AImM4E&sa-user-id=s%253A0-3496d00c-3b04-5380-4b32-3394087f36de.D6vaw1ZYgufTpwExz5vtXabbSbM2roBKAWxHjZdCnew"
+    },
+    {
+      "method": "GET",
+      "url": "https://mc.yandex.com/webvisor/105476076?wv-part=1&wv-check=18511&wv-type=0&wv-hit=505106711&page-url=https%3A%2F%2Fwww.sheffield.ac.uk%2Fpostgradapplication%2F&rn=239426657&hidv2=5473578700377686044&browser-info=we%3A1%3Aet%3A1789747275%3Aw%3A1199x943%3Av%3A2652%3Az%3A60%3Ai%3A20260918170115%3Au%3A178912893254959065%3Avf%3A1hktibc15jk9pq3bmwwpbu9rn2ra66z%3Ast%3A1789747275&wv-data=AQFEACsAALAJrwcAAQJMAQ0AAQNgAhoEFJEBoAbkBAkAYwBvAG4AdABhAGkAbgBlAHIAAQRAAxoCFNcEoQadAQABBUQEGhXyBKAGgQEAAQZEBSAf-ASMBmEAAQdEBk8f-ATfA2EAAQhEB1Ah-gTbA10AAQlECFch-gTbAxcAAQpACVEB7QH*BI8CFwABC2QKL*4B-wT6ARULAHIAZQB0AHUAcgBuAGUAbQBhAGkAbAAHCwIABWVtYWlsAAEMQAhXASGYBdsDFwABDUAMUQHtAZgFjwIXAAEOZA0v7gGZBfoBFQoAcgBlAHQAdQByAG4AcABhAHMAcwAHDgICCHBhc3N3b3JkAAEPQAhXAiGxBdsDFwABEEAPUQHtAbEFjwIXAAERRBAv7gGyBYIBFQARIwsgJgtTDwEgLAtTDwEPPBI8Cw71ARH1AQsPhgIShgILDpkCEZkCCw-GAhLGAgsOoQQRoQQL"
+    }
+  ],
+  "covering": [
+    {
+      "url": "https://www.sheffield.ac.uk/postgradapplication/",
+      "readings": [
+        {
+          "locator": {
+            "strategy": "name",
+            "value": "loginBtn"
+          },
+          "found": true,
+          "covered": false,
+          "stack": [
+            {
+              "tag": "input",
+              "id": null,
+              "classes": [],
+              "position": "static",
+              "zIndex": "auto",
+              "box": {
+                "x": 238,
+                "y": 690,
+                "width": 130,
+                "height": 22
+              },
+              "role": null,
+              "text": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "crawlDelayMs": 2000,
+  "robots": "not applied: attached to a person's own signed-in session, a named handful of pages, one tab, paced. ADR-0091 governs a crawler; this is not one. Recorded so the choice is visible.",
+  "capturesScrubbed": "input values and textarea bodies removed from pages/*.html; the page itself was not touched",
+  "startedAt": "2026-09-18T16:01:11.335Z"
+}
