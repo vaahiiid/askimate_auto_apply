@@ -65,14 +65,24 @@ export class RunSessionStore {
     readonly now: Date;
   }): Promise<void> {
     await this.#pool.query(
-      `INSERT INTO run_sign_in_failures (run_id, attempts, spent_secret_request_id, last_failure, failed_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO run_sign_in_failures (run_id, attempts, spent_secret_request_id, last_failure, failed_at, attempt_failures)
+       VALUES ($1, $2, $3, $4, $5, $6::text[])
        ON CONFLICT (run_id) DO UPDATE
          SET attempts = run_sign_in_failures.attempts + EXCLUDED.attempts,
              spent_secret_request_id = EXCLUDED.spent_secret_request_id,
              last_failure = EXCLUDED.last_failure,
-             failed_at = EXCLUDED.failed_at`,
-      [input.runId, input.attempted ? 1 : 0, input.spentSecretRequestId, input.failure, input.now],
+             failed_at = EXCLUDED.failed_at,
+             attempt_failures = run_sign_in_failures.attempt_failures || EXCLUDED.attempt_failures`,
+      [
+        input.runId,
+        input.attempted ? 1 : 0,
+        input.spentSecretRequestId,
+        input.failure,
+        input.now,
+        // The code of an attempt MADE (ADR-0124); a hand-out that reached no
+        // portal appends nothing, on the line `attempts` already draws.
+        input.attempted && input.failure !== null ? [input.failure] : [],
+      ],
     );
   }
 
@@ -81,18 +91,25 @@ export class RunSessionStore {
     readonly attempts: number;
     readonly spentSecretRequestId?: string;
     readonly failure: string | null;
+    /** What each attempt MADE failed with, in order (ADR-0124). */
+    readonly attemptFailures: readonly string[];
   } | null> {
     const rows = await this.#pool.query<{
       attempts: number;
       spent_secret_request_id: string | null;
       last_failure: string | null;
-    }>("SELECT attempts, spent_secret_request_id, last_failure FROM run_sign_in_failures WHERE run_id = $1", [runId]);
+      attempt_failures: string[];
+    }>(
+      "SELECT attempts, spent_secret_request_id, last_failure, attempt_failures FROM run_sign_in_failures WHERE run_id = $1",
+      [runId],
+    );
     const row = rows.rows[0];
     if (row === undefined) return null;
     return {
       attempts: row.attempts,
       ...(row.spent_secret_request_id === null ? {} : { spentSecretRequestId: row.spent_secret_request_id }),
       failure: row.last_failure,
+      attemptFailures: row.attempt_failures,
     };
   }
 

@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P157: Run A reached the portal and stopped at the sign-in, twice, and the runner had
+  written two words about it. ADR-0124: the outcome on every turn, a start line on every sign-in
+  attempt, a thrown error through a closed vocabulary that withholds what it cannot repeat, and
+  blocker 36 closed so both attempts' codes reach a person. What Run A proved before it failed is
+  recorded as nine things. One open of ten; Run A parked with a person, awaiting one repeat.
 - 2026-09-17, P156: Run A's step 3 found two things before a student did — the validator read
   the language section's marks where the plan read its optional fact (eighteen violations on the
   signed entry, never run by the P150 test), and a `fix_content` with nothing to ask was a silent

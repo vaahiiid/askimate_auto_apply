@@ -183,3 +183,30 @@ validator reads the section fact (ADR-0123), **no draft changed and the signatur
 same run found that a `fix_content` with nothing to ask was a silent dead end; it stops for a
 person now. Vahid: *"The star is not the evidence. The save is."* This is the whole argument for
 Run A existing, and it is recorded here as such.
+
+## What Run A proved before it stopped — the sign-in, 2026-09-18
+
+The run reached the portal and stopped at the sign-in, twice, with `runner_fault`. A stop at the
+last step of a sign-in is not the same as a stop at the first, and the record should say how far it
+got. Nine things this run established, every one of them previously unobserved against the live
+portal, and all but the last from Vahid's own machine rather than a test:
+
+1. **robots.txt was fetched and allowed the login page.** A disallow would have been
+   `robots_disallows`, not `runner_fault`, and nothing would have opened.
+2. **The runner reached `www.sheffield.ac.uk`** and the login page loaded inside fifteen seconds.
+3. **No CAPTCHA and no second factor** stood on the login page: the challenge probe runs before a
+   character is typed and found neither.
+4. **The e-mail box matched the blueprint's locator** authored in P91 from the signed-out read.
+5. **It accepted the account's address**, which is the re-seed from blocker 31 working end to end.
+6. **The submit button matched its locator**, resolved on the live page.
+7. **The secure box, the vault and the fill agent worked against a real portal:**
+   `secret_received` then `secret_consumed`, twice, each for a password typed once and spent.
+8. **The fill agent typed the password into the real password box** — the Secure Plane's whole
+   path, from the student's keystroke to a portal input, on a live site for the first time.
+9. **ADR-0120's cap did exactly what it was built for:** two attempts, the student told which
+   attempt and what happened, the run stopped for a person, nothing submitted, and nothing on the
+   Sheffield account that Vahid could see.
+
+What it did not establish is why the submit failed, because the error was discarded by a bare
+catch. That is ADR-0124, built the same day. The run stays parked with a person until one repeat
+with the logging in place.

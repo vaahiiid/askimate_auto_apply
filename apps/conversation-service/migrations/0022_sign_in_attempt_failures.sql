@@ -1,0 +1,29 @@
+-- 0022 · What each sign-in attempt failed with, in order (ADR-0124).
+--
+-- Forward-only and reviewed, per ADR-0003.
+--
+-- ── Why `last_failure` was not enough ────────────────────────────────────
+--
+-- 0021 gave the row an attempt count and the code of the LAST report, which
+-- is what ADR-0120 promised a person: which attempt, and what that attempt
+-- did. Run A found the gap in the promise. Vahid, 2026-09-18, reading the
+-- intervention after the run stopped at the sign-in twice:
+--
+--   "when the two codes differ, a person reading one of them is reading half
+--    the story."
+--
+-- A sign-in that lost its connection and then was refused is a different
+-- fault from one refused twice, and the person deciding what to do next needs
+-- both. ADR-0122 had already closed exactly this for a page fill
+-- (`attempt_failures` on the intent row); this is the same column on the path
+-- that never got it.
+--
+-- ── A closed code per attempt MADE, never the portal's text ──────────────
+--
+-- Each element is the runner's failure code from the contract's closed set.
+-- Appended by a report that was an attempt against the world; a hand-out the
+-- runner could not use (`secret_unavailable`, which leaves `attempts`
+-- untouched) appends nothing, so the list and the count draw the same line.
+-- Cleared with the rest of the row when a session next holds.
+ALTER TABLE run_sign_in_failures
+    ADD COLUMN IF NOT EXISTS attempt_failures text[] NOT NULL DEFAULT '{}';

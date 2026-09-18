@@ -46,6 +46,7 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { fillSecret } from "./secret-fill.js";
 import { challengeFailure, detectChallenge } from "./challenge.js";
 import { openSensitiveContext } from "./sensitive.js";
+import { signInStartLine, thrownInWords } from "./runner-log.js";
 import type { PerformOutcome } from "./work-intake.js";
 
 /** How long to wait for a page or a control. Portals are slow; students wait. */
@@ -67,6 +68,15 @@ export interface SignInDeps {
    * nothing but a test of this function alone.
    */
   readonly context?: BrowserContext;
+  /**
+   * Where this attempt says what it is doing (ADR-0124, P157).
+   *
+   * Optional so every existing test builds deps without one. What it receives
+   * has already been through `runner-log`'s vocabulary: our words for a
+   * recognised error, or the class alone when the message could not be
+   * repeated. Nothing from a page reaches it.
+   */
+  readonly log?: (line: string) => void;
 }
 
 /**
@@ -93,6 +103,17 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
   if (target.host !== work.portalHost) return { kind: "failed", failure: "portal_drift" };
 
   // ── 1. Sensitive before anything is typed ──────────────────────────────
+  const say = deps.log ?? ((): void => undefined);
+  // BEFORE anything opens: a runner that dies inside the attempt has still
+  // said it began, and which attempt, and where (ADR-0124).
+  say(
+    signInStartLine({
+      runId: work.runId,
+      ...(work.signInAttempt === undefined ? {} : { attempt: work.signInAttempt }),
+      url: target.toString(),
+    }),
+  );
+
   const supplied = deps.context;
   const context =
     supplied ??
@@ -103,7 +124,8 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
     const page = await context.newPage();
     try {
       await page.goto(target.toString(), { timeout: STEP_TIMEOUT_MS });
-    } catch {
+    } catch (error) {
+      say(`run ${work.runId}: sign-in failed opening the login page — ${thrownInWords(error)}`);
       return { kind: "failed", failure: "runner_fault" };
     }
 
@@ -116,7 +138,8 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
     if (email === null) return { kind: "failed", failure: "portal_drift" };
     try {
       await email.fill(work.email, { timeout: STEP_TIMEOUT_MS });
-    } catch {
+    } catch (error) {
+      say(`run ${work.runId}: sign-in failed typing the e-mail — ${thrownInWords(error)}`);
       return { kind: "failed", failure: "portal_drift" };
     }
 
@@ -155,11 +178,23 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
         page.waitForLoadState("load", { timeout: STEP_TIMEOUT_MS }),
         submit.click({ timeout: STEP_TIMEOUT_MS }),
       ]);
-    } catch {
+    } catch (error) {
       // The password is spent whether or not the click landed, and a sign-in
       // that may or may not have happened creates nothing on the portal: the
       // honest answer is a failure the plane can act on — ask again — rather
       // than an uncertainty a person has to adjudicate.
+      //
+      // THIS is where Run A stopped, twice, and where the silence cost a
+      // whole live run: the error was discarded by a bare `catch`. The race
+      // between the click and the load wait is a hypothesis about it and is
+      // deliberately NOT changed here — Vahid, 2026-09-18: *"It is exactly
+      // the kind of thing that gets 'fixed' on a guess and then the real
+      // cause shows up behind it. One attempt with a real error message is
+      // worth more than a fix that might be right."*
+      say(
+        `run ${work.runId}: sign-in failed at the submit and the load that follows — ` +
+          `${thrownInWords(error)}`,
+      );
       return { kind: "failed", failure: "runner_fault" };
     }
 

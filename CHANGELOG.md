@@ -19,6 +19,30 @@ not shipped artefacts.
 
 ---
 
+## [0.153.0] — 2026-09-18
+
+**P157 — ADR-0124: the runner says what it did, in words it is allowed to say; both attempts'
+codes reach the person (blocker 36, found by Run A, decided by Vahid, 2026-09-18).**
+
+### Added
+
+- `apps/browser-runner/runner-log.ts`: `describeThrown` and `thrownInWords` (a CLOSED pattern set —
+  our phrase for a recognised message, the class alone and "withheld" for anything else),
+  `turnInWords` (the outcome and its code, typed against the real turn result), `signInStartLine`.
+- `ClaimedWork.signInAttempt`: the plane's own count of sign-in attempts, parsed and published,
+  named in the compile-time constraint that keeps free text off the wire.
+- Migration `0022_sign_in_attempt_failures`: `attempt_failures text[]` on `run_sign_in_failures`;
+  the intervention names every attempt's code in order.
+
+### Changed
+
+- The runner's turn line prints the outcome, not `turn: worked`, which said the same thing for a
+  sign-in that succeeded and one that failed twice against a live portal.
+- Every catch in the sign-in path binds its error and says which step failed. The `Promise.all`
+  racing the submit click against the load wait is deliberately unchanged.
+
+---
+
 ## [0.152.0] — 2026-09-17
 
 **P156 — ADR-0123: a star is not a requirement — the validator reads the section fact the plan

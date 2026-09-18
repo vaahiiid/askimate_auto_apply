@@ -460,10 +460,13 @@ describeIfBoth("the journey through the five processes the local-stack script st
     expect(application.personalStatement).toBe("Because it is the course I want.");
     expect(portal.submissions(), "filled, not submitted (ADR-0014)").toEqual([]);
 
-    // It was the runner PROCESS: its log says it worked, and this file never
-    // performed a turn.
+    // It was the runner PROCESS: its log says what the turn DID, and this
+    // file never performed a turn. Since ADR-0124 the line carries the
+    // outcome rather than the word `worked`, which said the same thing for a
+    // turn that succeeded and one that failed twice against a live portal.
     const runnerLog = await readFile(join(dir, "browser-runner.log"), "utf8");
-    expect(runnerLog).toContain("turn: worked");
+    expect(runnerLog).toContain("sign-in/work succeeded");
+    expect(runnerLog, "the word Run A's failure hid behind").not.toContain("turn: worked");
   }, 420_000);
 
   it("the student confirms ONCE that they can sign in — no reset of a password that was always theirs — and the run finishes ready to submit, nothing submitted", async () => {

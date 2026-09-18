@@ -20,6 +20,7 @@ import { runnerPerformer } from "./performer.js";
 import { robotsGate } from "./robots-gate.js";
 import { SessionHold } from "./session-hold.js";
 import { startRunnerSupervisor } from "./supervisor.js";
+import { turnInWords } from "./runner-log.js";
 import { httpWorkIntake } from "./work-intake.js";
 
 export interface StartOptions {
@@ -75,6 +76,8 @@ export async function start(options: StartOptions): Promise<RunningRunner> {
     now,
     // robots.txt before the browser opens, for every unit of work (P135).
     robots: robotsGate({ now }),
+    // ADR-0124: what each attempt is doing, in our words only.
+    log: options.log,
   });
 
   const supervisor = startRunnerSupervisor({
@@ -86,7 +89,13 @@ export async function start(options: StartOptions): Promise<RunningRunner> {
       // The RESULT, never an error object. A thrown error from a browser
       // session can carry a page's text or a URL with a token in it, and this
       // is the process driving the portal.
-      if (result.kind !== "idle") options.log(`turn: ${result.kind}`);
+      //
+      // The OUTCOME, not the fact that a turn ended (ADR-0124). `turn:
+      // worked` said the same thing for a sign-in that succeeded and one that
+      // failed twice against a live portal, which is how Run A produced two
+      // words for its whole account of a real failure.
+      const said = turnInWords(result);
+      if (said !== null) options.log(said);
     },
   });
 

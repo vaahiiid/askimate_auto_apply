@@ -57,6 +57,12 @@ export interface RunnerPerformerDeps {
    * defaulted: a performer that silently had no gate would navigate unread.
    */
   readonly robots: RobotsGate;
+  /**
+   * Where a unit of work says what it is doing (ADR-0124, P157). Optional, so
+   * a test builds deps without one; the production runner always passes it.
+   * Everything written has been through `runner-log`'s vocabulary.
+   */
+  readonly log?: (line: string) => void;
 }
 
 /**
@@ -115,6 +121,8 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
         browser: deps.browser,
         browserEndpoint: deps.browserEndpoint,
         agentBaseUrl: deps.agentBaseUrl,
+        // ADR-0124: the attempt says what it is doing, before and after.
+        ...(deps.log === undefined ? {} : { log: deps.log }),
         ...(deps.agentServiceToken === undefined ? {} : { serviceToken: deps.agentServiceToken }),
         ...(deps.fetch === undefined ? {} : { fetch: deps.fetch }),
         context,

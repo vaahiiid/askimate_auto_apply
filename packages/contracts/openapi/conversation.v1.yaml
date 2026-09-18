@@ -2125,6 +2125,14 @@ components:
           $ref: "#/components/schemas/RegistrationTargets"
         login:
           $ref: "#/components/schemas/LoginTargets"
+        signInAttempt:
+          type: integer
+          minimum: 1
+          description: >-
+            Which attempt this sign-in is, counting from one (ADR-0124).
+            Present for `sign_in`, absent otherwise. The plane counts; the
+            runner is stateless between turns and never invents this. ADR-0120
+            stops the run after the second, so in practice it is 1 or 2.
         plan:
           $ref: "#/components/schemas/TransportedPlan"
         formUrl:

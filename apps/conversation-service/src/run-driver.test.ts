@@ -11469,6 +11469,44 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 
+  it("names BOTH attempts' codes when they differ, so a person is not reading half the story (ADR-0124)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Blocker 36, raised by Vahid at Run A's stop and decided the same day:
+    // *"when the two codes differ, a person reading one of them is reading
+    // half the story."* ADR-0120's record held `last_failure` only, so the
+    // first attempt's code never reached the person — the gap ADR-0122 had
+    // already closed for a page fill and this path never got.
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00771";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-two-codes");
+    try {
+      // First: the browser fell over. Second: the portal refused. Two very
+      // different faults, and the second alone would send a person looking
+      // at the password when the first says the connection never held.
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "runner_fault" } })).toBe(true);
+      const opened = await later.driver.advance({ runId, conversationId: conversation });
+      if (!opened.ok) expect.unreachable(`advance refused: ${opened.refusal.kind}`);
+      const fresh = (await requestsOpened(conversation)).at(-1);
+      if (fresh === undefined) expect.unreachable("the fresh box");
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE } });
+      const second = await later.driver.advance({ runId, conversationId: conversation });
+      if (!second.ok) expect.unreachable(`advance refused: ${second.refusal.kind}`);
+      const lease2 = await takeTheSignIn(later, runId, "signin-two-codes-2");
+      expect(await later.driver.reportWork({ runId, report: { leaseId: lease2, outcome: "failed", failure: "portal_refused" } })).toBe(true);
+
+      const raised = await interventionFor(runId);
+      if (raised === null) expect.unreachable("a person is asked");
+      expect(raised.encountered, "the second attempt's code").toContain("portal_refused");
+      expect(raised.encountered, "AND the first attempt's, which the record used to drop").toContain("runner_fault");
+      expect(raised.encountered).toContain("ADR-0124");
+      // The order is the order they happened in, so "first" and "second" in
+      // the text and the codes in the list cannot disagree.
+      expect(raised.encountered.indexOf("runner_fault")).toBeLessThan(raised.encountered.lastIndexOf("portal_refused"));
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
   it("the second failure: a person is asked, told which attempt, what the portal said and that the reason is undistinguishable; the student is told; never offered again", async () => {
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00743";
     const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-twice");

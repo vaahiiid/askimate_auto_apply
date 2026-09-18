@@ -5770,6 +5770,17 @@ export class RunDriver {
         continue;
       }
 
+      // Which attempt the runner is about to make (ADR-0124). The PLANE's
+      // own count, so the runner's log line names a number that means what it
+      // says; the runner is stateless between turns and must never guess it.
+      // `attempts` is what has been MADE, so the one about to start is the
+      // next: ADR-0120 stops at two, and this is read at the claim, before
+      // that attempt is counted.
+      const signInAttempt =
+        kind === "sign_in"
+          ? ((await this.#options.sessions?.signInFailure(candidate.runId))?.attempts ?? 0) + 1
+          : undefined;
+
       return {
         leaseId: lease.leaseId,
         expiresAt: lease.expiresAt.toISOString(),
@@ -5780,6 +5791,7 @@ export class RunDriver {
         portalHost,
         email: detail.email,
         approach: detail.approach,
+        ...(signInAttempt === undefined ? {} : { signInAttempt }),
         // Present only when the student has actually typed one. A handle is
         // opaque and resolves to nothing outside a live vault (ADR-0026), which
         // is why the component that may hold no secrets may hold this.
@@ -6119,6 +6131,14 @@ export class RunDriver {
     }
 
     const code = input.failure ?? "not reported";
+    // BOTH attempts' codes (ADR-0124). Blocker 36, found by Run A: the record
+    // held the last code only, and Vahid's rule for it — *"when the two codes
+    // differ, a person reading one of them is reading half the story."*
+    const codes = failed?.attemptFailures ?? [];
+    const both =
+      codes.length === 0
+        ? ""
+        : `Every attempt made, in order: ${codes.map((one) => `"${one}"`).join(", ")} (ADR-0124). `;
     await this.#stopForPerson({
       record,
       conversationId,
@@ -6131,6 +6151,7 @@ export class RunDriver {
         `attempt failed with "${code}". The first attempt also failed and the student was told ` +
         `so in the conversation; each attempt was handed a password the student typed once for ` +
         `it, and both are spent — nothing is held. ` +
+        both +
         (input.failure === "portal_refused"
           ? `"portal_refused" on a sign-in means the page was still the login form after the ` +
             `submit: a wrong password and a fault on the portal's side look the same from where ` +

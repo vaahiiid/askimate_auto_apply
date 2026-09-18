@@ -186,6 +186,21 @@ export interface ClaimedWork {
    */
   readonly login?: LoginTargets;
   /**
+   * Which attempt this sign-in is, counting from one (ADR-0124, P157).
+   *
+   * Present for `sign_in`, absent otherwise. The PLANE counts attempts — the
+   * runner is stateless between turns and could only guess — and ADR-0120
+   * stops the run at two, so this is always 1 or 2 in practice.
+   *
+   * It exists because the runner's log had no honest way to say which attempt
+   * it was starting. Vahid, 2026-09-18, after Run A stopped at the sign-in
+   * twice: *"a line at the start of each sign-in attempt, not only at the end:
+   * which attempt, which URL, when. If the runner dies mid-attempt, I want to
+   * know it started."* A number the runner invented would be the thing this
+   * project keeps finding; this one is the plane's own count, carried.
+   */
+  readonly signInAttempt?: number;
+  /**
    * The fill plan, taken apart for transport. ADR-0046.
    *
    * Present for `execute`, absent for `create_account`. `text` and `provenance`
@@ -362,7 +377,17 @@ type OpenStrings<T> = {
             | "formUrl"
           ? never
           : K
-        : K;
+        : // A COUNT is not free text, but it is not exempt by being a number
+          // either: the field is named here, the way the strings above are, so
+          // a `retryBudget` or a `portalErrorCode` added later still fails the
+          // build. `signInAttempt` is the plane's own count of attempts made
+          // (ADR-0124), carried so the runner's log can name the attempt it is
+          // starting without inventing a number.
+          NonNullable<T[K]> extends number
+          ? K extends "signInAttempt"
+            ? never
+            : K
+          : K;
 }[keyof T];
 type AssertNever<T extends never> = T;
 export type NO_WORK_FIELD_IS_FREE_TEXT = AssertNever<OpenStrings<ClaimedWork>>;
@@ -629,6 +654,14 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
   const login = kind === "sign_in" ? parseLogin(record["login"]) : null;
   if (kind === "sign_in" && login === null) return null;
 
+  // A whole positive number or nothing. A malformed count is refused rather
+  // than defaulted: a log line saying "attempt 0" would be a number that does
+  // not mean what it says.
+  const signInAttempt = record["signInAttempt"];
+  if (signInAttempt !== undefined && (!Number.isInteger(signInAttempt) || (signInAttempt as number) < 1)) {
+    return null;
+  }
+
   const plan = kind === "execute" ? parseTransportedPlan(record["plan"]) : null;
   const formUrl = record["formUrl"];
   const advanceLocator = kind === "execute" ? parseLocator(record["advanceLocator"]) : null;
@@ -675,6 +708,7 @@ export function parseClaimedWork(value: unknown): ClaimedWork | null {
     approach: record["approach"],
     ...(handle === undefined ? {} : { secretHandle: handle }),
     ...(registration === null ? {} : { registration }),
+    ...(signInAttempt === undefined ? {} : { signInAttempt: signInAttempt as number }),
     ...(login === null ? {} : { login }),
     ...(plan === null ? {} : { plan }),
     ...(typeof formUrl === "string" && formUrl.length > 0 ? { formUrl } : {}),

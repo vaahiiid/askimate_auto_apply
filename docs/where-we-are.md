@@ -4906,6 +4906,20 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P157 — the runner says what it did
+
+Run A got to the portal and the sign-in failed twice, and the cap built for exactly that stopped the run and told him. What it could not tell him was anything at all about why: the runner had no logging beyond a line that printed the turn's kind, and the word for a turn that ran was the same word for a turn that succeeded, so a real failure against a live portal read as `turn: worked`. Underneath it, five bare catches in the sign-in path that never even bound the error. His reading of that was the right one, and the one I would not have reached on my own: the thing to fix first is not the connection, it is the silence.
+
+The scrub is the part worth being careful about, and he asked for it strict rather than useful. A scrubber decides what to take out, which is a guess about every message it has not seen, and the cost of that guess is a token in a log. So this is a vocabulary instead: a message is matched against a closed set of patterns and what gets printed is the phrase written in our own source, never a slice of what was thrown. A message matching nothing is withheld whole and the line says it was withheld. The one thing quoted from a message is a Chromium network code, which is an engine enum and names no page.
+
+The attempt number could not honestly come from the runner, which is stateless between turns, so it comes from the plane on the work item. And the record now carries every attempt's code rather than the last, which is blocker 36 raised and closed in the same phase at his word: when the two codes differ, a person reading one of them is reading half the story.
+
+What Run A proved before it stopped is in the Run A record now, as nine things rather than a failure: a stop at the last step of the sign-in is not the same as a stop at the first. The submit and load race is untouched, on his instruction, until a log says it is the cause.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P156 — Run A found it before a student did
 
 He ran step 3 and the run stood at a position my sequence did not name, with no question, no message, no intervention and no log line. It was two of our own records disagreeing about one page, the third time: the plan had read the language section's optional fact since P147 and planned nothing for its eighteen starred boxes, the read he signed over said the form did not require them, and the validator read the marks alone and objected to all eighteen. Nothing compared the two until a run did, because the Run A test had checked the plan's blockers and never run the validator on the signed entry. That gap is on the record as its own line, and the test runs the validator now.
