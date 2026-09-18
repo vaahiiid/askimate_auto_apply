@@ -49,7 +49,7 @@ import { randomUUID } from "node:crypto";
 
 import type { ObservedPortalAuthentication, PasswordDelivery } from "@askimate/aas-account";
 import { mayConcludeCase } from "@askimate/aas-account";
-import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, ConsentBanner } from "@askimate/aas-blueprint";
 import type { WorkflowRunStore } from "@askimate/aas-case-store/workflow";
 import { DuplicateSubmissionError } from "@askimate/aas-case-store";
 import type { IntentCompletionDetail } from "@askimate/aas-case-store";
@@ -149,6 +149,8 @@ import {
   pageValuesOf,
   handoffTokenFor,
   browserWorkFor,
+  consentQuestionOf,
+  describeConsentChoice,
   caseStateForStep,
   executePlanOf,
   nextCaseHop,
@@ -199,7 +201,7 @@ import { AUTOMATABLE_STATUSES } from "@askimate/aas-domain";
 import { admits, type Admission } from "@askimate/aas-catalogue";
 import { SESSION_ENDING_FAILURES, WORK_APPROACHES } from "@askimate/aas-contracts";
 import type { WorkFailure } from "@askimate/aas-contracts";
-import type { LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
+import type { LoginConsent, LoginTargets, PriorOutcome } from "@askimate/aas-contracts";
 
 import type { ApplicationBindingStore } from "./application-store.js";
 import type { ConversationEvent } from "@askimate/aas-contracts";
@@ -209,6 +211,7 @@ import type { ConversationEventStore } from "./event-store.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import type { WorkLease, WorkLeaseStore } from "./work-store.js";
 import type { RunSessionStore } from "./session-store.js";
+import type { PortalConsentStore } from "./consent-store.js";
 import type { TransmissionStore } from "./transmission-store.js";
 
 /**
@@ -450,10 +453,41 @@ export interface RunPosition {
  * decisions: `cancel` is always available and carries no hash, so it is not a
  * thing a run WAITS for.
  */
-export interface PendingDecision {
-  readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
-  /** `sha256:<hex>`, from the same source the decision route compares against. */
-  readonly contentHash: string;
+export type PendingDecision =
+  | {
+      readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
+      /** `sha256:<hex>`, from the same source the decision route compares against. */
+      readonly contentHash: string;
+    }
+  /**
+   * ADR-0131. The sign-in met the portal's consent notice and the student has
+   * not chosen on it. The question is the reviewed blueprint's words; the
+   * answer is a `consent_choice` naming one of its ids. No hash.
+   */
+  | {
+      readonly decision: "consent_choice";
+      readonly question: ConsentBannerReading;
+    };
+
+/** A portal's consent notice as the reviewed blueprint records it, for the student (ADR-0131). */
+export interface ConsentBannerReading {
+  readonly portalHost: string;
+  readonly words: string;
+  readonly choices: readonly { readonly id: string; readonly label: string; readonly means: string }[];
+}
+
+/** The student's choice on a portal's consent notice: visible, and changeable to any other (ADR-0131). */
+export interface PortalConsentReading {
+  readonly banner: ConsentBannerReading;
+  readonly chosen: { readonly id: string; readonly label: string; readonly chosenAt: string } | null;
+}
+
+function consentBannerReading(portalHost: string, banner: ConsentBanner): ConsentBannerReading {
+  return {
+    portalHost,
+    words: banner.words,
+    choices: banner.choices.map((choice) => ({ id: choice.id, label: choice.label, means: choice.means })),
+  };
 }
 
 /** A read of a run: where it stands, and what it is waiting for. */
@@ -466,6 +500,11 @@ export interface RunReading {
    * student and a specialist see the same list.
    */
   readonly ownActs: readonly OwnActReading[];
+  /**
+   * ADR-0131: this portal's consent notice and the student's choice on it,
+   * visible and changeable; `null` where the reviewed blueprint records none.
+   */
+  readonly consent: PortalConsentReading | null;
 }
 
 export type RunOutcome =
@@ -711,7 +750,48 @@ function failureInWords(failure: WorkFailure): string {
     case "second_factor_met":
     case "not_recorded":
       return "the portal asked for something I could not give it";
+    case "consent_banner_met":
+      return "the portal showed a notice that has to be answered before I can sign in, and that answer is yours to give";
   }
+}
+
+/**
+ * The runner met the portal's consent notice and pressed nothing on it
+ * (ADR-0131). Said once; the question itself is the run's next step.
+ */
+function consentMetMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `I went to sign in to your account on ${institution}'s application portal and the site put ` +
+    `a notice over the sign-in button that has to be answered first. It is about what the site ` +
+    `may remember about you, and that is your choice to make on your account, not mine, so I ` +
+    `pressed nothing on it. I will ask you which choice you want next, and then ask for your ` +
+    `password again, because the one you typed was spent on this try. Nothing has been submitted.`
+  );
+}
+
+/**
+ * The student's choice on the consent notice is recorded, or changed
+ * (ADR-0131), and what happens with it from now on.
+ */
+function consentRecordedMessage(entry: CatalogueEntry, portalHost: string, label: string, changed: boolean): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `${changed ? "Changed" : "Noted"}: on ${institution}'s notice about cookies (${portalHost}) I will press ` +
+    `"${label}" for you whenever it appears, until you change it here. That choice is yours and it ` +
+    `is recorded as yours.`
+  );
+}
+
+/**
+ * The host a portal's consent choice is recorded under (ADR-0131): the
+ * deployment's login host, as the existing-account declaration uses it.
+ */
+function portalHostOf(entry: CatalogueEntry): string | null {
+  const loginUrl = entry.blueprint.authentication.loginUrl;
+  const observedHost = loginUrl === undefined ? null : hostOf(loginUrl);
+  if (observedHost === null) return null;
+  return deployedHost(entry, observedHost) ?? observedHost;
 }
 
 /**
@@ -1393,6 +1473,13 @@ export interface RunDriverOptions {
    * the session is not tracked and the run fills as it always did.
    */
   readonly sessions?: RunSessionStore;
+  /**
+   * ADR-0131 (P165): the student's choice on each portal's consent banner —
+   * per student and portal, durable across runs, changeable. Optional for the
+   * reason `sessions` is; absent, a banner the runner meets stops the run for
+   * a person as any obstacle does, because no choice can be recorded.
+   */
+  readonly consents?: PortalConsentStore;
   /**
    * What left: the audit record of every document a runner attached
    * (ADR-0022, ADR-0069 — P73), written from the report that settles the
@@ -2429,6 +2516,7 @@ export class RunDriver {
     const state: RunState = await this.#withSessionIfTracked(
       filledOrNot,
       input.record.runId,
+      input.studentRef,
       now,
     );
 
@@ -2440,13 +2528,25 @@ export class RunDriver {
   }
 
   /** What the session store says, applied through the orchestrator's one writer. */
-  async #withSessionIfTracked(state: RunState, runId: RunId, now: Date): Promise<RunState> {
+  async #withSessionIfTracked(state: RunState, runId: RunId, studentRef: StudentId, now: Date): Promise<RunState> {
     const sessions = this.#options.sessions;
     if (sessions === undefined) return state;
     const signInFailed = await sessions.signInFailure(runId);
+    // ── The consent banner, before any password (ADR-0131) ──────────────
+    //
+    // The last sign-in met the portal's consent notice, and the student has
+    // no choice on record for THIS portal: their choice comes first. From the
+    // sign-in record and the consent store, never from a runner's memory.
+    const consents = this.#options.consents;
+    const portalHost = state.account?.portalHost;
+    const consentChoiceNeeded =
+      signInFailed?.failure === "consent_banner_met" && consents !== undefined && portalHost !== undefined
+        ? (await consents.choiceFor(String(studentRef), portalHost)) === null
+        : undefined;
     return withSession(state, {
       signedIn: await sessions.signedIn(runId, now),
       ...(signInFailed === null ? {} : { signInFailed }),
+      ...(consentChoiceNeeded === undefined ? {} : { consentChoiceNeeded }),
     });
   }
 
@@ -3011,7 +3111,9 @@ export class RunDriver {
     // specialist reads, and the one the student's word closes.
     const events = await this.#options.stores.cases.read(record.caseId);
     const ownActs = events.length === 0 ? [] : ownActReadingsOf(fold(events).ownActs);
-    return { run, pending, ownActs };
+    // ADR-0131: the portal's consent notice and the student's choice on it.
+    const consent = await this.#consentReading(entry, record.studentRef);
+    return { run, pending, ownActs, consent };
   }
 
   /**
@@ -3054,11 +3156,41 @@ export class RunDriver {
    * step and it carries no hash, so it is not something the run is *waiting*
    * for. A client offers it always, not because a read said so.
    */
+  /**
+   * This portal's consent notice and the student's choice on it (ADR-0131),
+   * or `null` where the reviewed blueprint records no notice. The words are
+   * the blueprint's; the choice is the store's, shown with its label.
+   */
+  async #consentReading(entry: CatalogueEntry, studentRef: StudentId): Promise<PortalConsentReading | null> {
+    const banner = entry.blueprint.authentication.consent;
+    const consents = this.#options.consents;
+    if (banner === undefined || consents === undefined) return null;
+    const portalHost = portalHostOf(entry);
+    if (portalHost === null) return null;
+    const held = await consents.choiceFor(String(studentRef), portalHost);
+    const choice = held === null ? undefined : banner.choices.find((candidate) => candidate.id === held.choice);
+    return {
+      banner: consentBannerReading(portalHost, banner),
+      chosen:
+        held === null || choice === undefined
+          ? null
+          : { id: choice.id, label: choice.label, chosenAt: held.chosenAt.toISOString() },
+    };
+  }
+
   async #pendingDecision(
     caseId: CaseId,
     conversationId: string,
     step: RunStep,
   ): Promise<PendingDecision | null> {
+    // ADR-0131: the consent question, in the banner's own words. No hash —
+    // the answer is a choice of the student's own, not agreement to
+    // something shown.
+    const consent = consentQuestionOf(step);
+    if (consent !== null) {
+      return { decision: "consent_choice", question: consentBannerReading(consent.portalHost, consent.banner) };
+    }
+
     if (awaitsStudentAuthorisation(step)) {
       return { decision: "authorise", contentHash: step.preview.contentHash };
     }
@@ -3402,6 +3534,35 @@ export class RunDriver {
     // minter of a `ConfirmedValue` — and in the conversation log that recorded
     // the exchange. Nothing about it belongs in the case log, so it returns
     // before `decide` is reached (ADR-0051 §5).
+    if (input.decision.kind === "consent_choice") {
+      // ADR-0131. The student's choice on the portal's consent notice, by the
+      // key the reviewed blueprint gives it. Accepted whenever the portal
+      // records a notice — before the runner meets it, and again later to
+      // CHANGE it — and refused for a key the blueprint does not offer.
+      // Recorded per student and portal, so the same student is not asked
+      // again on this portal and is asked afresh on another.
+      const banner = entry.blueprint.authentication.consent;
+      const consents = this.#options.consents;
+      if (banner === undefined || consents === undefined) return { ok: false, reason: "not_asked" };
+      const chosen = input.decision.choice;
+      const choice = banner.choices.find((candidate) => candidate.id === chosen);
+      if (choice === undefined) return { ok: false, reason: "refused" };
+      const portalHost = portalHostOf(entry);
+      if (portalHost === null) return { ok: false, reason: "refused" };
+      const now = this.#options.now();
+      const before = await consents.choiceFor(String(record.studentRef), portalHost);
+      await consents.record({ studentId: String(record.studentRef), portalHost, choice: choice.id, now });
+      await this.#options.conversations.append({
+        conversationId: input.conversationId,
+        event: {
+          kind: "message",
+          actor: "assistant",
+          content: consentRecordedMessage(entry, portalHost, choice.label, before !== null),
+        },
+      });
+      return { ok: true };
+    }
+
     if (input.decision.kind === "existing_account") {
       // ADR-0110. A fact of the student's, before the yes, where an account is
       // needed and none exists. Refused after the yes (`refused`): the preview
@@ -4817,6 +4978,26 @@ export class RunDriver {
   }
 
   /**
+   * Puts the consent notice's question to the student, once (ADR-0131).
+   *
+   * The words are the orchestrator's, from the reviewed blueprint's notice —
+   * what it says, what each choice means — and the log is the memory: the
+   * same question already in it is not asked again on the next poll. A
+   * re-reviewed notice with different words is a different question.
+   */
+  async #askConsentChoice(conversationId: string, step: RunStep): Promise<void> {
+    const consent = consentQuestionOf(step);
+    if (consent === null) return;
+    const question = describeConsentChoice(consent.portalHost, consent.banner);
+    const events = await this.#options.conversations.since(conversationId, 0);
+    if (events.some((event) => event.kind === "message" && event.content === question)) return;
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "message", actor: "assistant", content: question },
+    });
+  }
+
+  /**
    * Voids an authorisation the content has outgrown, and puts the case back.
    *
    * Idempotent by construction: once voided, `fold` clears
@@ -5591,6 +5772,13 @@ export class RunDriver {
     // already waiting on an answer — writes nothing.
     await this.#askTheStudent(input.conversationId, step);
 
+    // ── The consent notice's question (ADR-0131) ─────────────────────────
+    //
+    // Beside the interview's question and for the same reasons: put to the
+    // student in the conversation, in the notice's own words, and idempotent
+    // by what the log already holds.
+    await this.#askConsentChoice(input.conversationId, step);
+
     // ── The interview's own decision to STOP (ADR-0064) ──────────────────
     //
     // After the ask, because a step that is asking is not stuck. This returns a
@@ -5905,6 +6093,12 @@ export class RunDriver {
       const plan = executePlanOf(situation.step);
       const attachments =
         plan === null ? [] : await this.#heldAttachments(entry, plan, record.studentRef);
+      // ADR-0131: the student's choice on this portal's consent banner, if
+      // any, so the runner presses that button and no other.
+      const consentChoice =
+        kind === "sign_in"
+          ? ((await this.#options.consents?.choiceFor(String(record.studentRef), detail.portalHost))?.choice ?? null)
+          : null;
       const payload = workPayloadFor(
         entry,
         {
@@ -5914,6 +6108,7 @@ export class RunDriver {
           page:
             plan === null ? null : await this.#nextPage(record.runId, entry, plan, attachments),
           attachments,
+          consentChoice,
         },
         detail.portalHost,
       );
@@ -6144,7 +6339,9 @@ export class RunDriver {
     if (signInFailed && this.#options.sessions !== undefined) {
       await this.#options.sessions.signInFailed({
         runId: input.runId,
-        attempted: input.report.failure !== "secret_unavailable",
+        // A hand-out the runner could not use, or a consent notice it pressed
+        // nothing on (ADR-0131), reached no portal: neither is an attempt.
+        attempted: input.report.failure !== "secret_unavailable" && input.report.failure !== "consent_banner_met",
         failure: input.report.failure ?? null,
         spentSecretRequestId: signInSpent ?? null,
         now,
@@ -6356,6 +6553,14 @@ export class RunDriver {
 
     if (input.failure === "secret_unavailable") {
       if (input.spent !== undefined) await say(unusablePasswordMessage(entry));
+      return;
+    }
+    if (input.failure === "consent_banner_met") {
+      // ADR-0131. Not a failure of the sign-in and not counted as one: the
+      // runner met the portal's consent notice and pressed nothing on it.
+      // The student is told that, and the question itself follows as the
+      // run's next step, ahead of any password box.
+      await say(consentMetMessage(entry));
       return;
     }
 
@@ -6870,6 +7075,24 @@ function loginFrom(entry: CatalogueEntry): LoginTargets | null {
   };
 }
 
+/**
+ * The consent notice's buttons for the runner (ADR-0131), or `null` where the
+ * reviewed blueprint records no notice. The student's recorded choice is
+ * carried only when it is still one the blueprint offers: a blueprint
+ * re-reviewed with different choices asks again rather than pressing a
+ * button that no longer means what they chose.
+ */
+function consentTargetsFrom(entry: CatalogueEntry, chosen: string | null | undefined): LoginConsent | null {
+  const banner = entry.blueprint.authentication.consent;
+  if (banner === undefined) return null;
+  const choices = banner.choices.map((choice) => ({
+    id: choice.id,
+    locator: { strategy: choice.locator.strategy, value: choice.locator.value },
+  }));
+  const kept = chosen !== null && chosen !== undefined && choices.some((choice) => choice.id === chosen);
+  return { choices, ...(kept ? { chosen } : {}) };
+}
+
 function registrationFrom(entry: CatalogueEntry): RegistrationTargets | null {
   const page = entry.blueprint.pages.find((candidate) =>
     candidate.sections.some((section) =>
@@ -7181,6 +7404,8 @@ function workPayloadFor(
     readonly page: NextPage | null;
     /** The run's attachments as the preview resolves them (ADR-0069, P73). */
     readonly attachments: readonly PreviewAttachment[];
+    /** ADR-0131: the student's recorded choice on this portal's consent banner, for a sign-in. */
+    readonly consentChoice?: string | null;
   },
   fromBlueprint: string,
 ):
@@ -7218,7 +7443,10 @@ function workPayloadFor(
     const login = loginFrom(entry);
     if (login === null) return null;
     if (hostOf(login.url) !== portalHost) return null;
-    return { portalHost, carries: { login } };
+    // ADR-0131: the consent notice's buttons, and the student's choice on
+    // this portal when they have made one. Keys and locators only.
+    const consent = consentTargetsFrom(entry, input.consentChoice);
+    return { portalHost, carries: { login: { ...login, ...(consent === null ? {} : { consent }) } } };
   }
 
   const plan = input.plan;

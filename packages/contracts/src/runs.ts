@@ -75,6 +75,10 @@ export const RUN_STEP_KINDS = [
   // The resume path (ADR-0101 §3): a runner signs in with the password the
   // student typed once more, before the fill goes on.
   "sign_in",
+  // ADR-0131: the sign-in met the portal's consent banner and the student
+  // has not chosen on it; the run waits for their choice before it asks for
+  // a password again.
+  "consent_choice",
 ] as const;
 export type RunStepKind = (typeof RUN_STEP_KINDS)[number];
 

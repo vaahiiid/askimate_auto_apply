@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P165 — the choice on a consent notice is the student's, and the system asks before it presses
+
+The third of the three he ordered, and the one with a meaning before it had a mechanism. He put it in one sentence: a system that asks for a yes before typing a date of birth cannot decide a cookie choice by itself. So the blueprint now records the notice as a reviewer read it, in its own words, with what each button means in plain terms; the runner tells the notice from any other obstacle by one of its buttons being on the page and presses nothing on it until a choice of the student's is on the work item; the plane treats the meeting as not a failure, puts the question to the student before it asks for a password again, records their answer under their name for that portal and no other, carries it on the next sign-in as a key and a locator, and shows it back with a button for every other choice. A student who chose once on Sheffield is not asked again on Sheffield and is asked afresh on Manchester, which is his condition word for word.
+
+The convenient option is refused and its reason stays where the next person proposing it will read it: telling the student afterwards is not the same as asking. The two I refused he adopted: a consent cookie we wrote would be a fabricated record, and a press forced through the backdrop would assert that a person clicked where a person could not.
+
+What is not done is the Sheffield notice. Nobody has read its words or its buttons — his capture of the login page had no notice on it, and the runner's lines carry structure and never text, by rule. So the mechanism is proved on a fixture notice in the shape attempt 1 measured, and the entry's consent field waits on a read of the real one when it is present, and on his signature. Until then a press the notice intercepts stops for a person, as attempt 1 did, and the line says so.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P164 — the point is read whichever way the press falls
 
 The first of the three he ordered after the fill log. Attempt 1 had named the overlay at a failed press and attempt 2 had pressed through unread, and his rule for that was the right one: an absence nobody measured is not a fact to build on. So the sign-in now reads the same point three times — as the login page opens, just before the press, and, as before, at a failure — and says each in the same words: nothing over the button, with the button's own box, or the layers that are over it, top-most first, and never a layer's text. Before the press rather than after, because a press that lands may take the page with it.

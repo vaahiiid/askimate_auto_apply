@@ -578,6 +578,11 @@ async function main(): Promise<void> {
       console.log(`\n  ${AMBER}SIGN IN${RESET}  ${step.say}`);
       return;
     }
+    if (step.kind === "consent_choice") {
+      // ADR-0131: the portal's consent notice waits on the student's choice.
+      console.log(`\n  ${AMBER}CONSENT${RESET}  ${step.say}`);
+      return;
+    }
 
     // ── The end ───────────────────────────────────────────────────────────
     heading("8", "Where this stops");

@@ -97,6 +97,17 @@ export interface SettleSignInInput {
    * wait to its own failure on a fixture.
    */
   readonly timeouts?: { readonly pressMs?: number; readonly answerMs?: number };
+  /**
+   * The portal's consent banner, when the reviewed blueprint records one
+   * (ADR-0131): where each of its buttons is, so the runner can tell the
+   * banner from any other obstacle, and the button for the student's recorded
+   * choice, when they have made one. With no choice on record the runner
+   * presses nothing on the banner and reports `consent_banner_met`.
+   */
+  readonly consent?: {
+    readonly choices: readonly FieldLocator[];
+    readonly chosen?: FieldLocator;
+  };
 }
 
 /**
@@ -177,10 +188,54 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
     say: input.say,
     when: "just before the press",
   });
+  let error: unknown;
   try {
     await submit.click({ timeout: pressMs, noWaitAfter: true });
     input.say(`run ${input.runId}: sign-in: the button was pressed`);
-  } catch (error) {
+    error = undefined;
+  } catch (thrown) {
+    error = thrown;
+  }
+
+  // ── The consent banner, answered only with the student's own choice ───
+  //
+  // ADR-0131. A press that another element intercepted, on a portal whose
+  // reviewed blueprint records a consent notice, and one of the notice's
+  // buttons on the page: that is the notice. With the student's choice on
+  // record the runner presses THAT button and presses the sign-in once more;
+  // without one it presses nothing and stops with its own code, so the plane
+  // asks the student before any password is asked for again. Vahid: *"a
+  // cookie choice is a choice made on the student's account, in their name."*
+  if (error !== undefined && input.consent !== undefined && pressCheckInWords(error) === "another element intercepts pointer events") {
+    const consent = input.consent;
+    const onThePage = await firstPresent(page, consent.choices);
+    if (onThePage !== null) {
+      if (consent.chosen === undefined) {
+        input.say(
+          `run ${input.runId}: sign-in stopped — the press met the portal's consent notice, and no choice ` +
+            `of the student's is on record for this portal; nothing was pressed on it`,
+        );
+        return { kind: "failed", failure: "consent_banner_met" };
+      }
+      const chosen = await resolve(page, consent.chosen);
+      if (chosen === null) {
+        input.say(`run ${input.runId}: sign-in: the consent notice is on the page but the button for the student's choice is not; nothing was pressed on it`);
+      } else {
+        try {
+          await chosen.click({ timeout: pressMs });
+          input.say(`run ${input.runId}: sign-in: the consent notice was answered with the student's recorded choice`);
+          await submit.click({ timeout: pressMs, noWaitAfter: true });
+          input.say(`run ${input.runId}: sign-in: the button was pressed`);
+          error = undefined;
+        } catch (again) {
+          input.say(`run ${input.runId}: sign-in: the consent notice could not be answered — ${thrownInWords(again)}`);
+          error = again;
+        }
+      }
+    }
+  }
+
+  if (error !== undefined) {
     // The one extra fact for the overlay case: the button was attached and
     // resolvable, the press still failed — is the form still there? A yes
     // says "something is over the button", and the runner's page is one
@@ -373,16 +428,38 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
     // honest answer is a failure the plane can act on — ask again — rather
     // than an uncertainty a person has to adjudicate. `settleSignIn` says
     // WHICH wait failed, and that is the whole point of it.
+    const consent = targets.consent;
     return await settleSignIn(page, {
       runId: work.runId,
       loginUrl: target,
       submitLocator: targets.submitLocator,
       passwordLocator: targets.passwordLocator,
       say,
+      ...(consent === undefined
+        ? {}
+        : {
+            consent: {
+              choices: consent.choices.map((choice) => choice.locator),
+              ...(() => {
+                const chosen = consent.choices.find((choice) => choice.id === consent.chosen);
+                return chosen === undefined ? {} : { chosen: chosen.locator };
+              })(),
+            },
+          }),
     });
   } finally {
     if (supplied === undefined) await context.close().catch(() => undefined);
   }
+}
+
+/** The first of the locators that is on the page right now, or `null` (ADR-0131). */
+async function firstPresent(page: Page, locators: readonly FieldLocator[]): Promise<FieldLocator | null> {
+  for (const locator of locators) {
+    const found = toPlaywrightLocator(page, locator);
+    if (found === null) continue;
+    if ((await found.count().catch(() => 0)) > 0) return locator;
+  }
+  return null;
 }
 
 /** A locator that exists on the page right now, or `null`. */

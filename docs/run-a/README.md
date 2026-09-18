@@ -408,3 +408,21 @@ this conversation would have read `attempt 1`. Fixed in P163, words only: the li
 `failures in this episode: N of 2 allowed`, the student hears no ordinal. What this week's numbers
 meant, with dates, is in the capture README.
 
+## What P163 to P165 changed for attempt 3, and what still waits (2026-09-18)
+
+- **The fill says what it did** (P163, ADR-0124 amended): a line at every place a page fill can
+  stop, the Save press named with what stood at the button's point, the read-back and what was
+  not seen. The two sources of `uncertain (runner_fault)` are two lines.
+- **The sign-in count is named for what it is** (P163): `failures in this episode: N of 2 allowed`;
+  the student hears no ordinal.
+- **The point is read at every press** (P164, ADR-0130): as the login page opens, just before
+  the press, and at a failure. Attempt 3 names the overlay or its absence whichever way it falls.
+- **A consent notice is answered only with the student's own choice** (P165, ADR-0131). The
+  mechanism is whole on the fixture. **The Sheffield entry does not yet record its notice**: its
+  words and buttons have never been read (the 2026-09-18 capture had no notice on the page), so
+  on attempt 3 a press the notice intercepts still stops for a person, and its line now says so
+  with the notice named. To close it: a read of the notice when it is present (runbook, "Reading
+  a portal's consent notice"), the entry's `authentication.consent` authored from it, and Vahid's
+  signature on the changed hash. Then a fourth sign-in meets the question, the choice is his to
+  make on his own account, and the runner presses it for him from then on.
+

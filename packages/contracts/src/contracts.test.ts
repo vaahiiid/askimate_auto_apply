@@ -461,6 +461,10 @@ describe("the wire vocabulary is internally coherent", () => {
     // ADR-0110: the student saying the account already exists and is theirs.
     // No hash and nothing else: a statement about their own account.
     expect(parseStudentDecision({ kind: "existing_account" })).toEqual({ kind: "existing_account" });
+    // ADR-0131: a consent choice names the choice and nothing else; without one it is refused.
+    expect(parseStudentDecision({ kind: "consent_choice", choice: "reject" })).toEqual({ kind: "consent_choice", choice: "reject" });
+    expect(parseStudentDecision({ kind: "consent_choice" })).toBeNull();
+    expect(parseStudentDecision({ kind: "consent_choice", choice: "" })).toBeNull();
     expect(parseStudentDecision({ kind: "existing_account", contentHash: "sha256:abc" })).toEqual({ kind: "existing_account" });
   });
 
@@ -878,6 +882,37 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     if (oldName === null) expect.unreachable("the item still parses without the count");
     expect(oldName.signInFailuresSoFar).toBeUndefined();
     expect("signInAttempt" in oldName).toBe(false);
+  });
+
+  it("carries a consent notice's buttons and the student's choice as keys and locators, and refuses the words (ADR-0131)", () => {
+    const login = {
+      url: "https://apply.example.test/login",
+      emailLocator: { strategy: "id", value: "returnemail" },
+      passwordLocator: { strategy: "id", value: "returnpass" },
+      submitLocator: { strategy: "name", value: "loginBtn" },
+    };
+    const consent = {
+      choices: [
+        { id: "accept", locator: { strategy: "id", value: "ccc-accept" }, label: "Accept all", means: "the site may measure you" },
+        { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+      ],
+      chosen: "reject",
+    };
+    const parsed = parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent } });
+    if (parsed?.login?.consent === undefined) expect.unreachable("the consent targets parse");
+    expect(parsed.login.consent).toEqual({
+      choices: [
+        { id: "accept", locator: { strategy: "id", value: "ccc-accept" } },
+        { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+      ],
+      chosen: "reject",
+    });
+    // The words never cross: dropped, not carried.
+    expect(JSON.stringify(parsed)).not.toContain("measure you");
+    // A choice the notice does not offer, one choice only, or a choice with no locator is refused.
+    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { ...consent, chosen: "settings" } } })).toBeNull();
+    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { choices: [consent.choices[0]] } } })).toBeNull();
+    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { choices: [{ id: "accept" }, { id: "reject" }] } } })).toBeNull();
   });
 
   it("refuses a listing that is not a URL and a locator, and a marker that is not a locator", () => {

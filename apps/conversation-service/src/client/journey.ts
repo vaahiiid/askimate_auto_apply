@@ -94,7 +94,7 @@ interface View {
 const view: View = {
   conversationId: null,
   events: [],
-  run: { run: null, pending: null, ownActs: [] },
+  run: { run: null, pending: null, ownActs: [], consent: null },
   targets: [],
   offer: null,
   preview: null,
@@ -175,7 +175,7 @@ async function refresh(): Promise<void> {
   }
   if (run.ok) view.run = run.value;
   else {
-    view.run = { run: null, pending: null, ownActs: [] };
+    view.run = { run: null, pending: null, ownActs: [], consent: null };
     report(run.code);
   }
 
@@ -390,7 +390,26 @@ function drawPending(): void {
   );
   panel.append(where);
 
-  if (pending !== null) {
+  if (pending !== null && pending.decision === "consent_choice") {
+    // ADR-0131. The portal's consent notice, in its own words, with what each
+    // choice means — and one button per choice. The student's answer is
+    // recorded for this portal and pressed for them from then on.
+    const heading = document.createElement("h2");
+    text(heading, `${pending.question.portalHost} shows a notice before I can sign in — this choice is yours`);
+    const words = document.createElement("blockquote");
+    text(words, pending.question.words);
+    panel.append(heading, words);
+    for (const choice of pending.question.choices) {
+      const line = document.createElement("p");
+      text(line, `"${choice.label}" — ${choice.means}`);
+      line.append(
+        button(choice.label, () => {
+          void answerConsent(choice.id);
+        }),
+      );
+      panel.append(line);
+    }
+  } else if (pending !== null) {
     if (pending.decision === "authorise" && view.preview !== null) {
       const heading = document.createElement("h2");
       text(heading, "Read this before I fill anything in");
@@ -401,16 +420,37 @@ function drawPending(): void {
       panel.append(heading, body);
     }
 
-    const labels: Readonly<Record<api.PendingDecision["decision"], string>> = {
+    const labels: Readonly<Record<Exclude<api.PendingDecision, { decision: "consent_choice" }>["decision"], string>> = {
       authorise: "Yes — this is right, fill it in",
       confirm_value: "Yes, that's right",
       confirm_handoff: "Done — I have completed that",
     };
+    const hashed = pending;
     panel.append(
-      button(labels[pending.decision], () => {
-        void answer(pending.decision, pending.contentHash);
+      button(labels[hashed.decision], () => {
+        void answer(hashed.decision, hashed.contentHash);
       }),
     );
+  }
+
+  // ADR-0131: the student's choice on this portal's consent notice, where one
+  // is recorded — visible, and changeable to any other choice the notice
+  // offers. Vahid: *"they must be able to see what they chose and change it —
+  // not buried, but somewhere they can reach."*
+  const consent = view.run.consent;
+  if (consent !== null && consent.chosen !== null && pending?.decision !== "consent_choice") {
+    const line = document.createElement("p");
+    line.className = "consent";
+    text(line, `On ${consent.banner.portalHost}'s notice about cookies I press "${consent.chosen.label}" for you. Change it: `);
+    for (const choice of consent.banner.choices) {
+      if (choice.id === consent.chosen.id) continue;
+      line.append(
+        button(choice.label, () => {
+          void answerConsent(choice.id);
+        }, "quiet"),
+      );
+    }
+    panel.append(line);
   }
 
   // ADR-0110: a student who already holds the portal account says so here,
@@ -1048,6 +1088,17 @@ async function answerOwnAct(item: string): Promise<void> {
   if (id === null || runId === undefined) return;
   view.notice = "";
   const recorded = await api.decide(id, runId, { kind: "attached_myself", item });
+  if (!recorded.ok) report(recorded.code);
+  await refresh();
+}
+
+/** The student's choice on a consent notice (ADR-0131): a `consent_choice` naming the id. */
+async function answerConsent(choice: string): Promise<void> {
+  const id = view.conversationId;
+  const runId = view.run.run?.runId;
+  if (id === null || runId === undefined) return;
+  view.notice = "";
+  const recorded = await api.decide(id, runId, { kind: "consent_choice", choice });
   if (!recorded.ok) report(recorded.code);
   await refresh();
 }

@@ -56,7 +56,7 @@ import {
   renderHandover,
   studentHandoverItems,
 } from "@askimate/aas-account";
-import type { ApplicationBlueprint } from "@askimate/aas-blueprint";
+import type { ApplicationBlueprint, ConsentBanner } from "@askimate/aas-blueprint";
 import { allFields, checkExecutable } from "@askimate/aas-blueprint";
 import type { HandoffKind, RunId, StudentId, WorkflowCheckpoint } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
@@ -221,6 +221,13 @@ export interface RunState {
       readonly spentSecretRequestId?: string;
       readonly failure: string | null;
     };
+    /**
+     * ADR-0131: the last sign-in met the portal's consent banner and the
+     * student has no choice on record for this portal. The driver derives it
+     * from the sign-in record and the consent store; the step it produces is
+     * `consent_choice`, ahead of any password box.
+     */
+    readonly consentChoiceNeeded?: boolean;
   };
   /**
    * Where this run got to, when it is a durable one.
@@ -319,6 +326,19 @@ export type RunStep =
       readonly portalHost: string;
       readonly email: string;
       readonly approach: AuthenticationApproach;
+    }
+  /**
+   * The sign-in met the portal's consent banner and the student has not
+   * chosen on it (ADR-0131). The run waits for their choice — in the
+   * banner's own words, with what each choice means — BEFORE it asks for a
+   * password again, so a third password is not spent on the same banner.
+   * Nothing automatic answers a consent notice on a student's account.
+   */
+  | {
+      readonly kind: "consent_choice";
+      readonly say: string;
+      readonly portalHost: string;
+      readonly banner: ConsentBanner;
     }
   /**
    * Only the student can do this: an emailed verification link, an MFA code,
@@ -859,6 +879,29 @@ function secretRequestFor(
  * sign-in. (Were it ever, the Secure Plane refuses a handle spent for a
  * purpose it was not opened for — `wrong_purpose` — and the run asks again.)
  */
+/**
+ * The student's question about a consent banner, in the banner's own words
+ * (ADR-0131). Vahid, 2026-09-18: *"the question must be answerable by
+ * someone who does not know what a cookie banner is. Not 'what is your
+ * consent preference' — what the banner actually offers, in the portal's own
+ * words if they are quotable, with what each means in plain terms. If the
+ * honest version of that question is three sentences long, it is three
+ * sentences."* The words and the meanings are the reviewed blueprint's.
+ */
+export function describeConsentChoice(portalHost: string, banner: ConsentBanner): string {
+  const choices = banner.choices
+    .map((choice) => `"${choice.label}" — ${choice.means}`)
+    .join("; ");
+  return (
+    `Before I can sign in on ${portalHost}, the site shows a notice and will not let me press ` +
+    `the sign-in button until it is answered. It is about what the site may remember about you ` +
+    `while you use it, and it is a choice on your account, so it is yours to make and not mine. ` +
+    `The notice says: "${banner.words}" The choices it offers are: ${choices}. Tell me which ` +
+    `you want, and I will press that one for you whenever the notice appears on this site, ` +
+    `until you change it. You can see your choice and change it here at any time.`
+  );
+}
+
 function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
   const approach = account.authentication.approach;
   if (approach !== "student_chosen" || state.inputs.passwordDelivery !== "askimate_secure_channel") {
@@ -891,6 +934,23 @@ function resumeStepFor(state: RunState, account: PortalAccount): RunStep {
   }
 
   const portalHost = account.portalHost;
+
+  // ── The consent banner, before any password is asked for (ADR-0131) ───
+  //
+  // The last sign-in's press met the portal's consent notice and the
+  // student has not chosen on it. Their choice comes first: a password
+  // asked for now would be spent on the same banner. Only where the
+  // reviewed blueprint records the banner — elsewhere the runner's report
+  // stopped the run for a person, as any obstacle does.
+  if (state.session?.consentChoiceNeeded === true && authentication.consent !== undefined) {
+    return {
+      kind: "consent_choice",
+      portalHost,
+      banner: authentication.consent,
+      say: describeConsentChoice(portalHost, authentication.consent),
+    };
+  }
+
   // ADR-0110: for an account the student holds already, this is the START
   // of the run and is said so; the resume wording would tell them they had
   // been signed out of something nothing had signed in to.
@@ -1554,6 +1614,19 @@ export function browserWorkFor(step: RunStep): "create_account" | "sign_in" | "e
 }
 
 /**
+ * The consent question a `consent_choice` step carries, or `null` (ADR-0131).
+ * A narrowing, for the reason `signInWorkOf` is: the driver reads the
+ * result and never a step's kind.
+ */
+export function consentQuestionOf(step: RunStep): {
+  readonly portalHost: string;
+  readonly banner: ConsentBanner;
+} | null {
+  if (step.kind !== "consent_choice") return null;
+  return { portalHost: step.portalHost, banner: step.banner };
+}
+
+/**
  * The account facts a `sign_in` step carries, or `null`. The sibling of
  * `accountWorkOf`, for the same reason it exists.
  */
@@ -1576,6 +1649,7 @@ export function withSession(
   session: {
     readonly signedIn: boolean;
     readonly signInFailed?: NonNullable<RunState["session"]>["signInFailed"];
+    readonly consentChoiceNeeded?: boolean;
   },
 ): RunState {
   return {
@@ -1583,6 +1657,7 @@ export function withSession(
     session: {
       signedIn: session.signedIn,
       ...(session.signInFailed === undefined ? {} : { signInFailed: session.signInFailed }),
+      ...(session.consentChoiceNeeded === undefined ? {} : { consentChoiceNeeded: session.consentChoiceNeeded }),
     },
   };
 }

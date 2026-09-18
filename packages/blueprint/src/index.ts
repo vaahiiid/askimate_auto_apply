@@ -3,6 +3,8 @@ export type {
   ApplicationRoute,
   AuthenticationModel,
   LoginForm,
+  ConsentBanner,
+  ConsentChoice,
   BlueprintField,
   BlueprintId,
   BlueprintPage,

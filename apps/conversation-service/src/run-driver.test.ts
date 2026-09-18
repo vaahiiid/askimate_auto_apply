@@ -103,6 +103,7 @@ import { createConversationApp } from "./app.js";
 import { ApplicationBindingStore } from "./application-store.js";
 import { ConversationEventStore } from "./event-store.js";
 import { RunSessionStore } from "./session-store.js";
+import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
 import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
@@ -141,6 +142,11 @@ const PORT = 5100;
 const BASE = `http://127.0.0.1:${String(PORT)}`;
 const SECRET = "a-test-session-secret-that-is-long-enough";
 const DATABASE = "aas_conversation_runs";
+/** The hash a pending decision carries, or `null` for none or for a consent question (ADR-0131). */
+function hashOfPending(pending: { readonly contentHash?: string } | { readonly decision: "consent_choice" } | null | undefined): string | null {
+  return pending !== null && pending !== undefined && "contentHash" in pending ? (pending.contentHash ?? null) : null;
+}
+
 const NOW = new Date("2026-08-31T10:00:00Z");
 const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00001";
 const OTHER_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00002";
@@ -382,6 +388,8 @@ function buildInstance(
     // ADR-0101 §2, §3. Present in every instance for the same reason: a run
     // whose session is tracked and one that is not must not look alike.
     sessions: new RunSessionStore(instancePool),
+    // ADR-0131: the consent store, for the same reason.
+    consents: new PortalConsentStore(instancePool),
     // ADR-0069, P73: what left, for the same reason.
     transmissions: new TransmissionStore(instancePool),
     // ADR-0048. Present in every instance for the same reason `leases` is: a
@@ -664,6 +672,8 @@ async function captureAuthorisation(
 async function pastTheYes(
   instance: { readonly driver: RunDriver; readonly pool: pg.Pool },
   conversationId: string,
+  /** The entry the instance serves for `GATED_BLUEPRINT`, when it is a variant (ADR-0131). */
+  entry: CatalogueEntry = GATED_ENTRY,
 ): Promise<Awaited<ReturnType<RunDriver["advance"]>>> {
   const started = await instance.driver.start({
     conversationId,
@@ -671,7 +681,7 @@ async function pastTheYes(
     studentStatement: STATEMENT,
   });
   if (!started.ok || started.position.step !== "authorise") return started;
-  await captureAuthorisation(instance.pool, conversationId, GATED_ENTRY);
+  await captureAuthorisation(instance.pool, conversationId, entry);
   return await instance.driver.advance({ runId: started.position.runId, conversationId });
 }
 
@@ -5458,7 +5468,7 @@ describeIfDatabase("a handoff the system cannot do for them", () => {
       expect(reading?.pending?.decision, "the run is asking for this").toBe(
         "confirm_handoff",
       );
-      const hash = reading?.pending?.contentHash ?? null;
+      const hash = hashOfPending(reading?.pending);
       expect(
         hash,
         "the service renders the message and the hash",
@@ -5775,7 +5785,7 @@ describeIfDatabase("the interview loop, closed", () => {
         [conversation],
       );
       expect(
-        reading?.pending?.contentHash,
+        hashOfPending(reading?.pending),
         "the hash the proposal was written with",
       ).toBe(written.rows[0]?.playback_hash);
 
@@ -11736,6 +11746,8 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
   async function aLeasedSignIn(
     conversation: string,
     holder: string,
+    /** What the instances serve for the gated blueprint: the plain entry, or a variant (ADR-0131). */
+    served: { readonly catalogue: TestCatalogue; readonly entry: CatalogueEntry } = { catalogue: CATALOGUE, entry: GATED_ENTRY },
   ): Promise<{
     later: ReturnType<typeof buildInstance>;
     secure: ReturnType<typeof opener>;
@@ -11744,11 +11756,11 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
   }> {
     await ownConversation(conversation);
     const secure = opener();
-    const instance = buildInstance(connectionString(), secure);
+    const instance = buildInstance(connectionString(), secure, served.catalogue);
     let runId = "";
     try {
       await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), ownerOf(conversation));
-      const started = await pastTheYes(instance, conversation);
+      const started = await pastTheYes(instance, conversation, served.entry);
       if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
       runId = started.position.runId;
       const log = new ConversationEventStore(instance.pool);
@@ -11773,13 +11785,13 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       if (creation === null) expect.unreachable("the lease should be free to take");
       expect(await instance.driver.reportWork({ runId, report: { leaseId: `wl_creation_${holder}`, outcome: "succeeded" } })).toBe(true);
       await log.append({ conversationId: conversation, event: { kind: "secret_consumed", requestId: CREATION_REQUEST } });
-      await captureAuthorisation(instance.pool, conversation, GATED_ENTRY);
+      await captureAuthorisation(instance.pool, conversation, served.entry);
     } finally {
       await instance.pool.end();
     }
 
     // Past the ceiling: the session is gone, the run asks for the password again.
-    const later = buildInstance(connectionString(), secure, CATALOGUE, "wired", null, () => LATER);
+    const later = buildInstance(connectionString(), secure, served.catalogue, "wired", null, () => LATER);
     const resumed = await later.driver.advance({ runId, conversationId: conversation });
     if (!resumed.ok) expect.unreachable(`advance refused: ${resumed.refusal.kind}`);
     expect(resumed.position.step).toBe("request_secret");
@@ -12023,6 +12035,152 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     } finally {
       await later.pool.end();
       if (afterwards !== null) await afterwards.pool.end();
+    }
+  }, 300_000);
+
+  // ── ADR-0131: the consent notice, and the student's choice on it (P165) ──
+  const CONSENT_ENTRY: CatalogueEntry = {
+    ...GATED_ENTRY,
+    blueprint: {
+      ...GATED_ENTRY.blueprint,
+      authentication: {
+        ...GATED_ENTRY.blueprint.authentication,
+        consent: {
+          words: "We use cookies to make the site work and, if you agree, to measure how it is used.",
+          choices: [
+            { id: "accept", label: "Accept all cookies", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
+            { id: "reject", label: "Only the cookies the site needs", means: "the site keeps only what it needs to work", locator: { strategy: "id", value: "ccc-reject" } },
+          ],
+        },
+      },
+    },
+  };
+  const CONSENT_CATALOGUE: TestCatalogue = {
+    ...CATALOGUE,
+    find: (id) => Promise.resolve(id === GATED_BLUEPRINT ? CONSENT_ENTRY : null),
+  };
+  const CONSENT_SERVED = { catalogue: CONSENT_CATALOGUE, entry: CONSENT_ENTRY };
+
+  it("the consent notice met at the sign-in: not counted, the student asked in the notice's words BEFORE any password, their choice recorded for the portal, carried on the next sign-in, and changeable (ADR-0131)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid, 2026-09-18: *"a cookie choice is a choice made on the student's
+    // account, in their name… A system that asks for a yes before typing a
+    // date of birth cannot decide this one by itself."* And: *"The choice is
+    // per portal and it is durable, but it is not permanent… they must be able
+    // to see what they chose and change it."*
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00745";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-consent", CONSENT_SERVED);
+    try {
+      const boxes = await requestsOpened(conversation);
+      // 1. The runner met the notice and pressed nothing on it.
+      expect(await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "consent_banner_met" } })).toBe(true);
+      expect(await failureOf(runId), "not an attempt against the portal").toMatchObject({ attempts: 0, failure: "consent_banner_met" });
+      expect(await interventionFor(runId), "not a stop for a person").toBeNull();
+      expect(await statusOf(runId)).toBe("running");
+      const met = (await saidTo(conversation)).filter((content) => content.includes("pressed nothing on it"));
+      expect(met, "told once, in the student's words").toHaveLength(1);
+
+      // 2. The question comes BEFORE the password box: the step is the choice,
+      //    the reading carries the notice's words, and no new box opened.
+      const asked = await later.driver.advance({ runId, conversationId: conversation });
+      if (!asked.ok) expect.unreachable(`advance refused: ${asked.refusal.kind}`);
+      expect(asked.position.step).toBe("consent_choice");
+      expect(await requestsOpened(conversation), "no password asked for yet").toEqual(boxes);
+      const reading = await later.driver.runFor(conversation);
+      expect(reading?.pending).toEqual({
+        decision: "consent_choice",
+        question: {
+          portalHost: "gated.portal.test",
+          words: "We use cookies to make the site work and, if you agree, to measure how it is used.",
+          choices: [
+            { id: "accept", label: "Accept all cookies", means: "the site may also measure how you use it" },
+            { id: "reject", label: "Only the cookies the site needs", means: "the site keeps only what it needs to work" },
+          ],
+        },
+      });
+      expect(reading?.consent?.chosen, "nothing chosen yet, and the notice is readable").toBeNull();
+      const question = (await saidTo(conversation)).filter((content) => content.includes("The notice says:"));
+      expect(question, "the question in the notice's own words").toHaveLength(1);
+      expect(question[0]).toContain("\"Accept all cookies\" — the site may also measure how you use it");
+      expect(question[0]).toContain("yours to make and not mine");
+
+      // 3. A choice the notice does not offer is refused; a real one is recorded.
+      expect(await later.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "settings" } })).toEqual({ ok: false, reason: "refused" });
+      expect(await later.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "reject" } })).toEqual({ ok: true });
+      expect((await saidTo(conversation)).filter((content) => content.startsWith("Noted: "))).toHaveLength(1);
+      const store = new PortalConsentStore(later.pool);
+      expect((await store.choiceFor(ownerOf(conversation), "gated.portal.test"))?.choice, "recorded per student and portal").toBe("reject");
+      expect(await store.choiceFor(ownerOf(conversation), "other.portal.test"), "asked afresh elsewhere").toBeNull();
+      expect((await later.driver.runFor(conversation))?.consent?.chosen).toMatchObject({ id: "reject", label: "Only the cookies the site needs" });
+
+      // 4. Now the password is asked for, and the next sign-in carries the choice.
+      const box = await later.driver.advance({ runId, conversationId: conversation });
+      if (!box.ok) expect.unreachable(`advance refused: ${box.refusal.kind}`);
+      expect(box.position.step).toBe("request_secret");
+      const fresh = (await requestsOpened(conversation)).at(-1);
+      if (fresh === undefined) expect.unreachable("the fresh box");
+      await new ConversationEventStore(later.pool).append({ conversationId: conversation, event: { kind: "secret_received", requestId: fresh, handle: SECOND_HANDLE } });
+      const typed = await later.driver.advance({ runId, conversationId: conversation });
+      if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
+      expect(typed.position.step).toBe("sign_in");
+      // Oldest of all: `claimWork` walks unheld runs oldest first, and other
+      // tests in this file leave runs dated 2000-01-01 behind them, so under the
+      // whole suite this run must be older than every one of those to be first.
+      await pool.query("UPDATE workflow_runs SET updated_at = '1999-01-01' WHERE run_id = $1", [runId]);
+      // `sessions: []`, as a deployed runner declares: a fill for another run
+      // is withheld, and this run's sign-in is the work on offer.
+      const work = await later.driver.claimWork({ holder: "runner-consent", leaseSeconds: 60, sessions: [] });
+      if (work === null || work.runId !== runId) expect.unreachable(`the sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
+      expect(work.login?.consent).toEqual({
+        choices: [
+          { id: "accept", locator: { strategy: "id", value: "ccc-accept" } },
+          { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+        ],
+        chosen: "reject",
+      });
+      // Keys and locators only: the notice's words are not on the wire to the runner.
+      expect(JSON.stringify(work)).not.toContain("measure how");
+      expect(await later.driver.reportWork({ runId, report: { leaseId: work.leaseId, outcome: "succeeded" } })).toBe(true);
+
+      // 5. Changed afterwards, and said so.
+      expect(await later.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "accept" } })).toEqual({ ok: true });
+      expect((await saidTo(conversation)).filter((content) => content.startsWith("Changed: "))).toHaveLength(1);
+      expect((await later.driver.runFor(conversation))?.consent?.chosen?.id).toBe("accept");
+      const record = await store.choiceFor(ownerOf(conversation), "gated.portal.test");
+      expect(record?.choice).toBe("accept");
+      expect(record?.changedAt.getTime(), "the change is dated; the first choice's date is kept").toBeGreaterThanOrEqual(record?.chosenAt.getTime() ?? 0);
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("a choice already on record for the portal is carried on the FIRST sign-in, and the notice is never asked about (ADR-0131)", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00746";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-consent-known", CONSENT_SERVED);
+    try {
+      // The choice made on an earlier run, or earlier in this one: the store's, per student and portal.
+      await new PortalConsentStore(later.pool).record({ studentId: ownerOf(conversation), portalHost: "gated.portal.test", choice: "accept", now: LATER });
+      await pool.query("DELETE FROM work_leases WHERE run_id = $1 AND lease_id = $2", [runId, leaseId]);
+      // 1999, not 2000: oldest of every run this file leaves behind (see above).
+      await pool.query("UPDATE workflow_runs SET updated_at = '1999-01-01' WHERE run_id = $1", [runId]);
+      const work = await later.driver.claimWork({ holder: "runner-consent-known", leaseSeconds: 60, sessions: [] });
+      if (work === null || work.runId !== runId) expect.unreachable(`the sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
+      expect(work.login?.consent?.chosen).toBe("accept");
+      expect((await saidTo(conversation)).filter((content) => content.includes("The notice says:"))).toHaveLength(0);
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
+  it("a consent choice is refused where the portal records no notice (not_asked), so nothing is recorded that nothing would read (ADR-0131)", async () => {
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00747";
+    const { later, runId } = await aLeasedSignIn(conversation, "signin-no-notice");
+    try {
+      expect(await later.driver.recordDecision({ conversationId: conversation, runId, decision: { kind: "consent_choice", choice: "accept" } })).toEqual({ ok: false, reason: "not_asked" });
+      expect((await later.driver.runFor(conversation))?.consent).toBeNull();
+    } finally {
+      await later.pool.end();
     }
   }, 300_000);
 

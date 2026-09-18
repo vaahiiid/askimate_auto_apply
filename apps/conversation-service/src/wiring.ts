@@ -55,6 +55,7 @@ import type { ApplicationCatalogue, CatalogueEntry } from "./run-driver.js";
 import type { SecureRequestOpener } from "./secure-requests.js";
 import { WorkLeaseStore } from "./work-store.js";
 import { RunSessionStore } from "./session-store.js";
+import { PortalConsentStore } from "./consent-store.js";
 import { TransmissionStore } from "./transmission-store.js";
 
 /**
@@ -229,6 +230,8 @@ export function buildRunDriver(wiring: DriverWiring, store: ConversationEventSto
     leases: new WorkLeaseStore(wiring.pool),
     // ADR-0101 §2, §3: who last reported a run's session live, and until when.
     sessions: new RunSessionStore(wiring.pool),
+    // ADR-0131: the student's choice on each portal's consent banner.
+    consents: new PortalConsentStore(wiring.pool),
     // ADR-0069, P73: what left, written from the report that settles each
     // attachment's intent.
     transmissions: new TransmissionStore(wiring.pool),

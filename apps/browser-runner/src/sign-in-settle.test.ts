@@ -19,6 +19,7 @@ let browser: Browser;
 let plain: FixturePortal;
 let slow: FixturePortal;
 let covered: FixturePortal;
+let consenting: FixturePortal;
 
 const EMAIL = "settle@example.test";
 const PASSWORD = "Tr0ub4dor-3-horses!";
@@ -65,9 +66,11 @@ beforeAll(async () => {
   plain = await startFixturePortal();
   slow = await startFixturePortal({ loginAnswerDelayMs: 2_500 });
   covered = await startFixturePortal({ loginButtonCovered: true });
+  consenting = await startFixturePortal({ loginConsentBanner: true });
   await register(plain);
   await register(slow);
   await register(covered);
+  await register(consenting);
 }, 120_000);
 
 afterAll(async () => {
@@ -75,6 +78,7 @@ afterAll(async () => {
   await plain.stop();
   await slow.stop();
   await covered.stop();
+  await consenting.stop();
 });
 
 describe("the two waits", () => {
@@ -243,6 +247,88 @@ describe("the point is read at every press, not only a failed one (ADR-0130, P16
       expect(said[2]).toContain("at the button's point: div#late (fixed, ");
       // The layer's text is on the page and in none of the three lines.
       expect(said.join("\n")).not.toContain("cookies");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+});
+
+describe("a consent notice is answered only with the student's own choice (ADR-0131, P165)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-18: *"a cookie choice is a choice made on the student's
+  // account, in their name, against an institution that may one day be asked
+  // what they consented to. A system that asks for a yes before typing a date
+  // of birth cannot decide this one by itself."* So the runner presses a
+  // consent button only when the work item carries the student's recorded
+  // choice; otherwise it presses nothing and says so with its own code.
+  // ═══════════════════════════════════════════════════════════════════════
+  const ACCEPT = { strategy: "id" as const, value: "ccc-accept" };
+  const REJECT = { strategy: "id" as const, value: "ccc-reject" };
+  const CHOICES = [ACCEPT, REJECT];
+
+  it("stops with consent_banner_met, pressing nothing, when the notice is met and no choice is on record", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(await settleSignIn(page, { ...input(consenting, said, { pressMs: 1_500 }), consent: { choices: CHOICES } })).toEqual({
+        kind: "failed",
+        failure: "consent_banner_met",
+      });
+      expect(said.at(-1)).toBe(
+        "run run_settle: sign-in stopped — the press met the portal's consent notice, and no choice of the student's is on record for this portal; nothing was pressed on it",
+      );
+      // Pressed nothing: the notice is still there, and no consent cookie was set.
+      expect(await page.locator("#ccc-overlay").count()).toBe(1);
+      expect((await context.cookies()).some((cookie) => cookie.name === "portal_consent")).toBe(false);
+      // The notice's words are on the page and in none of the lines.
+      expect(said.join("\n")).not.toContain("cookies");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("presses the button for the student's recorded choice, then the sign-in, and signs in", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(
+        await settleSignIn(page, { ...input(consenting, said), consent: { choices: CHOICES, chosen: REJECT } }),
+      ).toEqual({ kind: "succeeded" });
+      expect(said).toEqual([
+        expect.stringMatching(/just before the press: over the sign-in button: div#ccc-overlay \(fixed, /u),
+        "run run_settle: sign-in: the consent notice was answered with the student's recorded choice",
+        "run run_settle: sign-in: the button was pressed",
+      ]);
+      // The choice the student made, and no other, reached the portal.
+      const consent = (await context.cookies()).find((cookie) => cookie.name === "portal_consent");
+      expect(consent?.value).toBe("reject");
+      expect(page.url()).not.toContain("/login");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("does NOT press a consent button for an obstacle that is not the notice: the plain cover fails as before", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(covered);
+    try {
+      expect(
+        await settleSignIn(page, { ...input(covered, said, { pressMs: 1_500 }), consent: { choices: CHOICES, chosen: ACCEPT } }),
+      ).toEqual({ kind: "failed", failure: "runner_fault" });
+      expect(said.at(-1)).toContain("could not be pressed");
+      expect(said.join("\n")).not.toContain("consent notice");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("the notice, once answered, is not shown again in that browser context — the choice held", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(await settleSignIn(page, { ...input(consenting, said), consent: { choices: CHOICES, chosen: ACCEPT } })).toEqual({ kind: "succeeded" });
+      await page.goto(`${consenting.baseUrl}/login`);
+      expect(await page.locator("#ccc-overlay").count(), "answered once, not shown again").toBe(0);
     } finally {
       await context.close();
     }

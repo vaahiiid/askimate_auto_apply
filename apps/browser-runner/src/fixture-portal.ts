@@ -179,6 +179,14 @@ export interface FixturePortalOptions {
    * and the reader once refused it as the tab going elsewhere.
    */
   readonly loginPixelFrameUrl?: string;
+  /**
+   * ADR-0131. A consent notice over the login form — a fixed, full-viewport
+   * backdrop with a dialog carrying two buttons, the shape Civic CookieControl
+   * put over Sheffield's sign-in button. Pressing either button removes the
+   * backdrop and sets a cookie; a later login page in the same browser context
+   * carries no notice, as the real one behaves once answered.
+   */
+  readonly loginConsentBanner?: boolean;
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -214,12 +222,37 @@ ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
 const BUTTON_COVER = `
   <div id="cover" style="position:fixed;inset:0;background:transparent;z-index:10"></div>`;
 
+/**
+ * A consent notice in the shape of the one attempt 1 met (ADR-0131): a
+ * full-viewport backdrop that takes every click, and a dialog with two
+ * buttons. Either button removes the backdrop and records the choice in a
+ * cookie the portal reads on the next login page.
+ */
+const CONSENT_BANNER = `
+  <div id="ccc-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10">
+    <div id="ccc" role="dialog" aria-modal="true" style="position:fixed;left:20%;top:20%;width:60%;background:#fff;padding:16px">
+      <h2>This site uses cookies</h2>
+      <p>We use cookies to make the site work and, if you agree, to measure how it is used.</p>
+      <button type="button" id="ccc-accept">Accept all cookies</button>
+      <button type="button" id="ccc-reject">Only the cookies the site needs</button>
+    </div>
+  </div>
+  <script>
+    for (const [id, choice] of [["ccc-accept", "accept"], ["ccc-reject", "reject"]]) {
+      document.getElementById(id).addEventListener("click", () => {
+        document.cookie = "portal_consent=" + choice + "; Path=/";
+        document.getElementById("ccc-overlay").remove();
+      });
+    }
+  </script>`;
+
 const LOGIN_PAGE = (
   error: string | null,
   challenge?: FixtureChallenge,
   covered = false,
   tagScriptUrl?: string,
   pixelFrameUrl?: string,
+  consentBanner = false,
 ): string =>
   page(
     "Sign in",
@@ -233,7 +266,7 @@ ${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
   <input type="password" id="password" name="password" required autocomplete="current-password">
 ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="signIn">Sign in</button>
-</form>${covered ? BUTTON_COVER : ""}`,
+</form>${covered ? BUTTON_COVER : ""}${consentBanner ? CONSENT_BANNER : ""}`,
   );
 
 /** The second factor, as portals put it: a code the applicant was emailed. */
@@ -645,6 +678,12 @@ function sessionOf(request: IncomingMessage): string | null {
   return /portal_session=([^;]+)/.exec(cookie)?.[1] ?? null;
 }
 
+/** The consent choice the browser recorded, or `null` (ADR-0131). */
+function consentOf(request: IncomingMessage): string | null {
+  const cookie = request.headers.cookie ?? "";
+  return /portal_consent=([^;]+)/.exec(cookie)?.[1] ?? null;
+}
+
 function send(response: ServerResponse, status: number, html: string, headers: Record<string, string> = {}): void {
   response
     .writeHead(status, { "content-type": "text/html; charset=utf-8", ...headers })
@@ -658,6 +697,7 @@ export async function startFixturePortal(
   const challenge = options.challenge;
   const loginAnswerDelayMs = options.loginAnswerDelayMs ?? 0;
   const covered = options.loginButtonCovered === true;
+  const consentBanner = options.loginConsentBanner === true;
   const tagScriptUrl = options.loginTagScriptUrl;
   const pixelFrameUrl = options.loginPixelFrameUrl;
   const accounts = new Map<string, Account>();
@@ -788,7 +828,10 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && path === "/login") {
-        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl));
+        // The notice is shown until answered; the answer is a cookie, as the
+        // real one keeps it (ADR-0131).
+        const answered = consentOf(request) !== null;
+        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl, consentBanner && !answered));
         return;
       }
 

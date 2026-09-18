@@ -249,6 +249,12 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P165: ADR-0131 — the choice on a consent notice is the student's: the blueprint
+  records the notice, the runner presses only the button for a recorded choice, the plane asks
+  before any password in the notice's own words, the answer is recorded per portal, visible and
+  changeable. Proved on a fixture notice in the shape attempt 1 measured. The Sheffield notice
+  itself is unread; its consent field waits on a read when it is present and on a signature. One
+  open of ten.
 - 2026-09-18, P164: ADR-0130 — the sign-in reads the point as the page opens, just before the
   press and at a failure, and says each in the same words; a late-arriving layer is caught on the
   fixture. Attempt 3 names the overlay or its absence whichever way the press falls. Nothing in

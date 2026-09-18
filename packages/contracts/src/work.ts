@@ -147,6 +147,24 @@ export interface LoginTargets {
   readonly passwordLocator: FillLocator;
   /** The control that submits the form. */
   readonly submitLocator: FillLocator;
+  /**
+   * The portal's consent banner, when the reviewed blueprint records one, and
+   * the student's choice on it when they have made one (ADR-0131).
+   *
+   * Locators and keys only. The banner's words and what each choice means are
+   * the student's to read on the plane; the runner needs to know where each
+   * button is, so it can tell a consent banner from any other obstacle, and
+   * which one the student chose, so it presses that one and nothing else.
+   * Absent `chosen`, the runner presses nothing on the banner and reports
+   * `consent_banner_met`.
+   */
+  readonly consent?: LoginConsent;
+}
+
+export interface LoginConsent {
+  readonly choices: readonly { readonly id: string; readonly locator: FillLocator }[];
+  /** The `id` of the choice the student recorded for this portal, if any. */
+  readonly chosen?: string;
 }
 
 export interface ClaimedWork {
@@ -416,8 +434,27 @@ type NonTargetFields<T> = {
       : K;
 }[keyof T];
 export type REGISTRATION_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<RegistrationTargets>>;
-/** The same door, closed for the login form: a URL and three locators, nothing else. */
-export type LOGIN_CARRIES_ONLY_TARGETS = AssertNever<NonTargetFields<LoginTargets>>;
+/**
+ * The same door, closed for the login form: a URL, three locators, and the
+ * consent notice's targets (ADR-0131) — which are themselves closed below to
+ * choice keys and locators, so the notice's words never ride in behind it.
+ */
+type NonLoginFields<T> = {
+  [K in keyof T]-?: NonNullable<T[K]> extends FillLocator | readonly FillLocator[] | LoginConsent
+    ? never
+    : K extends "url"
+      ? never
+      : K;
+}[keyof T];
+export type LOGIN_CARRIES_ONLY_TARGETS = AssertNever<NonLoginFields<LoginTargets>>;
+type NonConsentFields<T> = { [K in keyof T]-?: K extends "choices" | "chosen" ? never : K }[keyof T];
+export type CONSENT_CARRIES_ONLY_KEYS_AND_LOCATORS = AssertNever<NonConsentFields<LoginConsent>>;
+type NonChoiceFields<T> = {
+  [K in keyof T]-?: K extends "id" ? never : NonNullable<T[K]> extends FillLocator ? never : K;
+}[keyof T];
+export type CONSENT_CHOICE_IS_A_KEY_AND_A_LOCATOR = AssertNever<
+  NonChoiceFields<LoginConsent["choices"][number]>
+>;
 
 /**
  * COMPILE-TIME: a confirmed value cannot travel without its provenance.
@@ -511,6 +548,14 @@ export const WORK_FAILURES = [
    * no error and was not recorded.
    */
   "not_recorded",
+  /**
+   * The sign-in's press met the portal's consent banner, and no choice of the
+   * student's is on record for this portal (ADR-0131). The runner pressed
+   * nothing on it: the choice is the student's. Not counted as a failed
+   * sign-in — nothing was tried against the portal — and the plane asks the
+   * student before any password is asked for again.
+   */
+  "consent_banner_met",
 ] as const;
 export type WorkFailure = (typeof WORK_FAILURES)[number];
 
@@ -951,7 +996,38 @@ function parseLogin(value: unknown): LoginTargets | null {
   const passwordLocator = parseLocator(record["passwordLocator"]);
   const submitLocator = parseLocator(record["submitLocator"]);
   if (emailLocator === null || passwordLocator === null || submitLocator === null) return null;
-  return { url: record["url"], emailLocator, passwordLocator, submitLocator };
+  const consent = record["consent"] === undefined ? undefined : parseLoginConsent(record["consent"]);
+  if (consent === null) return null;
+  return {
+    url: record["url"],
+    emailLocator,
+    passwordLocator,
+    submitLocator,
+    ...(consent === undefined ? {} : { consent }),
+  };
+}
+
+/**
+ * Keys and locators, nothing else: a `words` or a `means` sent here is
+ * dropped rather than carried, because the runner has no use for them and a
+ * runner log must never be handed text it could repeat.
+ */
+function parseLoginConsent(value: unknown): LoginConsent | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const raw = record["choices"];
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const choices: { readonly id: string; readonly locator: FillLocator }[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const choice = entry as Record<string, unknown>;
+    const locator = parseLocator(choice["locator"]);
+    if (!nonEmpty(choice["id"]) || locator === null) return null;
+    choices.push({ id: choice["id"], locator });
+  }
+  const chosen = record["chosen"];
+  if (chosen !== undefined && (!nonEmpty(chosen) || !choices.some((choice) => choice.id === chosen))) return null;
+  return { choices, ...(chosen === undefined ? {} : { chosen }) };
 }
 
 function parseRegistration(value: unknown): RegistrationTargets | null {

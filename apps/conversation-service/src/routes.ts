@@ -1683,6 +1683,9 @@ export function createConversationRoutes(options: ConversationRoutesOptions): Ro
           // ADR-0108. What the student owes the portal, from the case's own
           // record; empty when nothing was left to them.
           ownActs: reading?.ownActs ?? [],
+          // ADR-0131. The portal's consent banner and the student's choice on
+          // it, visible and changeable; `null` where the portal records none.
+          consent: reading?.consent ?? null,
         });
       })().catch(next);
     },

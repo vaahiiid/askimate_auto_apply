@@ -122,6 +122,7 @@ beforeAll(async () => {
     "0020_document_transmissions",
     "0021_sign_in_failures",
     "0022_sign_in_attempt_failures",
+    "0023_student_portal_consents",
   ]);
   store = new ConversationEventStore(pool);
   const student = await pool.query<{ id: string }>(

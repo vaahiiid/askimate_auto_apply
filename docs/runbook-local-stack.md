@@ -339,6 +339,36 @@ button's point. It presses nothing.
 Nothing in the runner acts on what this finds until the finding is named and the next step is
 decided in Vahid's words.
 
+## Reading a portal's consent notice, for the blueprint's `authentication.consent` (ADR-0131)
+
+The runner never carries a notice's words: its lines say `over the sign-in button:
+div#ccc-overlay (fixed, …)` and nothing more, by rule. The words and the buttons a blueprint
+records come from a read a person makes, with the attached reader as the runner, at a moment the
+notice is on the page:
+
+```
+pnpm run inspect:attached sheffield --as-runner --covering name=loginBtn
+```
+
+The `--covering` read keeps each layer's visible text, so the stack over the button names the
+notice and its words when it is there. A read with `nothing over it` is a read at a moment the
+notice was absent (2026-09-18's was); read again. When the stack names the notice, read its
+buttons the same way, one `--covering <strategy>=<value>` per button as the first read shows
+them — nothing here guesses their ids. From the read, author in the signed entry:
+
+```json
+"consent": {
+  "words": "<the notice's own sentence, quoted>",
+  "choices": [
+    { "id": "accept", "label": "<the button's text>", "means": "<what choosing it means, in plain terms>", "locator": { "strategy": "id", "value": "<the button's id>" } },
+    { "id": "reject", "label": "<the button's text>", "means": "<…>", "locator": { "strategy": "id", "value": "<…>" } }
+  ]
+}
+```
+
+Two or more choices with distinct ids; every string is read by a student. The entry's content hash
+moves, so it is signed again. Until it is, a press the notice intercepts stops for a person.
+
 ## Finishing a case whose stop was recorded before P158 (ADR-0126)
 
 A cancellation is two acts. Before commit 412d001 the second act was performed only by an

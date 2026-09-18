@@ -411,8 +411,43 @@ export interface AuthenticationModel {
    * so rather than guessing at a login form with a password in hand.
    */
   readonly login?: LoginForm;
+  /**
+   * The portal's consent banner, when a reviewer has recorded one (ADR-0131,
+   * blocker 47).
+   *
+   * A cookie-consent notice that stands over the login form until it is
+   * answered is a choice made on the student's account, in their name.
+   * Vahid, 2026-09-18: *"a cookie choice is a choice made on the student's
+   * account, in their name, against an institution that may one day be asked
+   * what they consented to. A system that asks for a yes before typing a date
+   * of birth cannot decide this one by itself."* So the blueprint records the
+   * banner's own words and each choice it offers — the button's label, what
+   * choosing it means in plain terms, and where the button is — and the
+   * runner presses nothing on it until the student has chosen. Absent, a
+   * press the banner intercepts stops for a person, as it always did.
+   */
+  readonly consent?: ConsentBanner;
   readonly accountCreationRequired: boolean;
   readonly notes: string;
+}
+
+/** A consent notice that must be answered before the login form can be used. */
+export interface ConsentBanner {
+  /** The notice's own words, quoted from the page, for the student's question. */
+  readonly words: string;
+  /** Every choice the notice offers, in the order it offers them. Two or more. */
+  readonly choices: readonly ConsentChoice[];
+}
+
+/** One choice on a consent notice. */
+export interface ConsentChoice {
+  /** A short key the student's choice is recorded under: `accept`, `reject`, … */
+  readonly id: string;
+  /** The button's own text. */
+  readonly label: string;
+  /** What choosing it means, in plain terms a person who has never met a cookie banner can follow. */
+  readonly means: string;
+  readonly locator: FieldLocator;
 }
 
 /** The three controls a sign-in needs. One password box: a login asks once. */

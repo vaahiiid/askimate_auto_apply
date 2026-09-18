@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.161.0] — 2026-09-18
+
+**P165 — ADR-0131: a consent notice is answered only with the student's own choice (option 2 on
+blocker 47; decided by Vahid, 2026-09-18).**
+
+### Added
+
+- `AuthenticationModel.consent` (blueprint): the notice's words and each choice's label, meaning
+  and locator; parsed by the catalogue, signed content.
+- `LoginTargets.consent` (contract): choice keys and locators, and the student's `chosen` key;
+  `consent_banner_met` in `WORK_FAILURES`; the `consent_choice` decision; the `consent_choice`
+  step and pending question; `consent` on the run reading.
+- `PortalConsentStore` and migration 0023 `student_portal_consents`: one row per student and
+  portal, changeable in place, first choice and last change both dated.
+- The orchestrator's `consent_choice` step ahead of the password box; `describeConsentChoice`.
+- The runner's settle: the notice told from any other obstacle by one of its buttons being on the
+  page; pressed only with the student's recorded choice, then the sign-in again; otherwise
+  nothing pressed and `consent_banner_met`.
+- The fixture portal's `loginConsentBanner`; the student page's question with one button per
+  choice and the recorded choice shown with buttons to change it.
+
+### Changed
+
+- A `consent_banner_met` report is not counted as a failed sign-in and raises no intervention.
+
+---
+
 ## [0.160.0] — 2026-09-18
 
 **P164 — ADR-0130: the point is read at every press, not only a failed one (option 0 on blocker

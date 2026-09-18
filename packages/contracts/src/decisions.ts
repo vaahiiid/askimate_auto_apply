@@ -61,6 +61,7 @@ export const STUDENT_DECISIONS = [
   "cancel",
   "attached_myself",
   "existing_account",
+  "consent_choice",
 ] as const;
 export type StudentDecisionKind = (typeof STUDENT_DECISIONS)[number];
 
@@ -142,6 +143,18 @@ export type StudentDecision =
    */
   | {
       readonly kind: "existing_account";
+    }
+  /**
+   * ADR-0131. The student's choice on a portal's consent banner, by the key
+   * the reviewed blueprint gives it. No hash — a choice of their own on
+   * their own account, not agreement to something shown — accepted whenever
+   * the run's portal records a banner, so it can be made before the runner
+   * meets it and CHANGED afterwards. Per portal and durable: the same
+   * student is not asked again on that portal.
+   */
+  | {
+      readonly kind: "consent_choice";
+      readonly choice: string;
     };
 
 function readString(body: unknown, field: string): string | null {
@@ -168,6 +181,10 @@ export function parseStudentDecision(body: unknown): StudentDecision | null {
   if (kind === "attached_myself") {
     const item = readString(body, "item");
     return item === null ? null : { kind, item };
+  }
+  if (kind === "consent_choice") {
+    const choice = readString(body, "choice");
+    return choice === null ? null : { kind, choice };
   }
   const contentHash = readString(body, "contentHash");
   if (contentHash === null) return null;

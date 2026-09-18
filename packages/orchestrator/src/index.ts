@@ -28,6 +28,8 @@ export {
   handoffMessageOf,
   handoffTokenFor,
   browserWorkFor,
+  consentQuestionOf,
+  describeConsentChoice,
   executePlanOf,
   markFilled,
   nextStep,

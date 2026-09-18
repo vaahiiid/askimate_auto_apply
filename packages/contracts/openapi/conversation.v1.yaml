@@ -639,6 +639,16 @@ paths:
                     oneOf:
                       - $ref: "#/components/schemas/PendingDecision"
                       - type: "null"
+                  consent:
+                    oneOf:
+                      - $ref: "#/components/schemas/PortalConsent"
+                      - type: "null"
+                    description: >-
+                      ADR-0131. The student's choice on this portal's consent
+                      banner, when the reviewed blueprint records one: what
+                      they chose, in the banner's words, and every choice they
+                      could change it to. `null` when the portal records no
+                      banner. Absent from an older service.
                   ownActs:
                     type: array
                     maxItems: 200
@@ -1615,6 +1625,16 @@ components:
           maxLength: 200000
 
     PendingDecision:
+      oneOf:
+        - $ref: "#/components/schemas/HashedPendingDecision"
+        - $ref: "#/components/schemas/ConsentQuestion"
+      description: >-
+        ADR-0061. What the run is waiting for the student to do. Three carry
+        the hash that decision must carry; the fourth (ADR-0131) carries the
+        consent banner's question instead, because the answer is a choice of
+        the student's own and not agreement to something shown.
+
+    HashedPendingDecision:
       type: object
       additionalProperties: false
       required: [decision, contentHash]
@@ -1638,7 +1658,7 @@ components:
           enum: [confirm_value, authorise, confirm_handoff]
           description: >-
             The `kind` to send to the decision route. A subset of
-            `StudentDecisionKind`: the three that are PROMPTED.
+            `StudentDecisionKind`: the three that are PROMPTED with a hash.
         contentHash:
           type: string
           pattern: "^sha256:[0-9a-f]{64}$"
@@ -1650,6 +1670,65 @@ components:
             For `authorise` this is the same value `GET .../runs/{runId}/preview`
             returns; the preview route is how the student reads WHAT they are
             authorising, and this is how a client knows that it must.
+
+    ConsentQuestion:
+      type: object
+      additionalProperties: false
+      required: [decision, question]
+      description: >-
+        ADR-0131. The sign-in met the portal's consent banner and the student
+        has not chosen on it. The question is in the banner's own words with
+        what each choice means, as the reviewed blueprint records them; the
+        answer is a `consent_choice` decision naming one `id`.
+      properties:
+        decision:
+          type: string
+          enum: [consent_choice]
+        question:
+          $ref: "#/components/schemas/ConsentBannerReading"
+
+    ConsentBannerReading:
+      type: object
+      additionalProperties: false
+      required: [portalHost, words, choices]
+      properties:
+        portalHost: { type: string, maxLength: 253 }
+        words: { type: string, maxLength: 2000 }
+        choices:
+          type: array
+          minItems: 2
+          maxItems: 12
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, label, means]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 64 }
+              label: { type: string, maxLength: 200 }
+              means: { type: string, maxLength: 1000 }
+
+    PortalConsent:
+      type: object
+      additionalProperties: false
+      required: [banner, chosen]
+      description: >-
+        ADR-0131. This portal's consent banner as the reviewed blueprint
+        records it, and the student's choice on it — `null` until they have
+        made one. Visible and changeable: any `id` in `banner.choices` may be
+        sent as a `consent_choice` decision at any time.
+      properties:
+        banner:
+          $ref: "#/components/schemas/ConsentBannerReading"
+        chosen:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [id, label, chosenAt]
+              properties:
+                id: { type: string, minLength: 1, maxLength: 64 }
+                label: { type: string, maxLength: 200 }
+                chosenAt: { type: string, format: date-time }
+            - type: "null"
 
     StudentDecision:
       description: >-
@@ -1663,6 +1742,7 @@ components:
         - $ref: "#/components/schemas/CancelDecision"
         - $ref: "#/components/schemas/AttachedMyselfDecision"
         - $ref: "#/components/schemas/ExistingAccountDecision"
+        - $ref: "#/components/schemas/ConsentChoiceDecision"
 
     HashedStudentDecision:
       type: object
@@ -1746,6 +1826,29 @@ components:
           type: string
           enum: [existing_account]
 
+    ConsentChoiceDecision:
+      type: object
+      additionalProperties: false
+      required: [kind, choice]
+      description: >-
+        ADR-0131. The student's choice on the portal's consent banner, by the
+        key the reviewed blueprint gives each choice (`pending.question.choices`
+        or `consent.choices` on the run reading). No hash — a choice of their
+        own on their own account, not agreement to something shown. Accepted
+        whenever the run's portal records a banner, so it can be made before
+        the runner meets the banner and CHANGED afterwards; a key the blueprint
+        does not offer is refused (`not_asked` when the portal records no
+        banner). Per portal and durable: the same student is not asked again
+        on that portal, and is asked afresh on another.
+      properties:
+        kind:
+          type: string
+          enum: [consent_choice]
+        choice:
+          type: string
+          minLength: 1
+          maxLength: 64
+
     CancelDecision:
       type: object
       additionalProperties: false
@@ -1793,6 +1896,7 @@ components:
         - ready_to_submit
         - hand_over_account
         - sign_in
+        - consent_choice
 
     ConversationEvent:
       oneOf:
@@ -2446,6 +2550,7 @@ components:
               captcha_met,
               second_factor_met,
               not_recorded,
+              consent_banner_met,
             ]
           description: >-
             Required exactly when the outcome is not `succeeded`, and refused

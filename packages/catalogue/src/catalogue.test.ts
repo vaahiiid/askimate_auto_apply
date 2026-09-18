@@ -186,6 +186,33 @@ describe("parsing rebuilds rather than casts", () => {
     expect(canonicalText(toCanonical(parsed.value))).toBe(canonicalText(toCanonical(ENTRY)));
   });
 
+  it("carries a consent notice under review and signature, and refuses one with fewer than two choices or a repeated key (ADR-0131)", () => {
+    // The notice's words and each button's label, meaning and place are what
+    // a student is asked with and what the runner presses; both are the
+    // reviewer's, so both are in the content hash a signature binds.
+    const consent = {
+      words: "We use cookies to make the site work.",
+      choices: [
+        { id: "accept", label: "Accept all", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
+        { id: "reject", label: "Only what the site needs", means: "the site keeps only what it needs", locator: { strategy: "id", value: "ccc-reject" } },
+      ],
+    };
+    const withNotice = JSON.parse(documentOf()) as Record<string, unknown>;
+    const authentication = (withNotice["blueprint"] as Record<string, unknown>)["authentication"] as Record<string, unknown>;
+    authentication["consent"] = consent;
+    const parsed = parseReviewedEntry(withNotice);
+    if (!parsed.ok) expect.unreachable(`should parse: ${JSON.stringify(parsed.refusal)}`);
+    expect(parsed.value.blueprint.authentication.consent).toEqual(consent);
+    const plain = parseReviewedEntry(JSON.parse(documentOf()));
+    if (!plain.ok) expect.unreachable("the plain entry parses");
+    expect(contentHash(toCanonical(parsed.value)), "the notice is signed content").not.toBe(contentHash(toCanonical(plain.value)));
+
+    authentication["consent"] = { ...consent, choices: [consent.choices[0]] };
+    expect(parseReviewedEntry(withNotice).ok, "one choice is no choice").toBe(false);
+    authentication["consent"] = { ...consent, choices: [consent.choices[0], { ...consent.choices[1], id: "accept" }] };
+    expect(parseReviewedEntry(withNotice).ok, "a repeated key would record one choice as another").toBe(false);
+  });
+
   it("normalises an EMPTY optional to an absent one, so both hash alike", () => {
     // `campus: ""` and no campus at all mean the same thing to a reviewer, and
     // two tools saving the same artefact disagree about which to write. If they

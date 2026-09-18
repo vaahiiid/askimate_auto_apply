@@ -68,9 +68,32 @@ export interface TargetOffer {
  * is over a message the orchestrator renders, and a client that hashed its own
  * would be hashing whatever it happened to display.
  */
-export interface PendingDecision {
-  readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
-  readonly contentHash: string;
+export type PendingDecision =
+  | {
+      readonly decision: "confirm_value" | "authorise" | "confirm_handoff";
+      readonly contentHash: string;
+    }
+  /**
+   * ADR-0131. The sign-in met the portal's consent banner and the student has
+   * not chosen on it. The question is in the banner's own words with what
+   * each choice means; the answer is a `consent_choice` naming one `id`.
+   */
+  | {
+      readonly decision: "consent_choice";
+      readonly question: ConsentBannerReading;
+    };
+
+/** A portal's consent banner as the reviewed blueprint records it (ADR-0131). */
+export interface ConsentBannerReading {
+  readonly portalHost: string;
+  readonly words: string;
+  readonly choices: readonly { readonly id: string; readonly label: string; readonly means: string }[];
+}
+
+/** The student's choice on a portal's consent banner, visible and changeable (ADR-0131). */
+export interface PortalConsentReading {
+  readonly banner: ConsentBannerReading;
+  readonly chosen: { readonly id: string; readonly label: string; readonly chosenAt: string } | null;
 }
 
 export interface RunReading {
@@ -78,6 +101,8 @@ export interface RunReading {
   readonly pending: PendingDecision | null;
   /** What the student owes the portal, from the case's record (ADR-0108). */
   readonly ownActs: readonly OwnActReading[];
+  /** The portal's consent banner and the student's choice on it; `null` where none is recorded (ADR-0131). */
+  readonly consent: PortalConsentReading | null;
 }
 
 /**
@@ -203,18 +228,53 @@ export function readRun(conversationId: string): Promise<Outcome<RunReading>> {
     const run = body["run"] === null ? null : parseConversationRun(body["run"]);
     if (body["run"] !== null && run === null) return null;
     const raw = asRecord(body["pending"]);
-    const pending =
-      raw === null
-        ? null
-        : {
-            decision: String(raw["decision"]) as PendingDecision["decision"],
-            contentHash: String(raw["contentHash"]),
-          };
+    let pending: PendingDecision | null = null;
+    if (raw !== null) {
+      if (raw["decision"] === "consent_choice") {
+        const question = parseConsentBanner(raw["question"]);
+        if (question === null) return null;
+        pending = { decision: "consent_choice", question };
+      } else {
+        pending = {
+          decision: String(raw["decision"]) as Exclude<PendingDecision, { decision: "consent_choice" }>["decision"],
+          contentHash: String(raw["contentHash"]),
+        };
+      }
+    }
     // ADR-0108. Absent from an older service reads as nothing owed; malformed refuses the read.
     const ownActs = body["ownActs"] === undefined ? [] : parseOwnActs(body["ownActs"]);
     if (ownActs === null) return null;
-    return { run, pending, ownActs };
+    // ADR-0131. Absent from an older service reads as no banner recorded.
+    const consent = body["consent"] === undefined || body["consent"] === null ? null : parsePortalConsent(body["consent"]);
+    if (body["consent"] !== undefined && body["consent"] !== null && consent === null) return null;
+    return { run, pending, ownActs, consent };
   });
+}
+
+function parseConsentBanner(value: unknown): ConsentBannerReading | null {
+  const record = asRecord(value);
+  if (record === null) return null;
+  const choices = record["choices"];
+  if (typeof record["portalHost"] !== "string" || typeof record["words"] !== "string" || !Array.isArray(choices)) return null;
+  const read: { id: string; label: string; means: string }[] = [];
+  for (const entry of choices) {
+    const choice = asRecord(entry);
+    if (choice === null || typeof choice["id"] !== "string" || typeof choice["label"] !== "string" || typeof choice["means"] !== "string") return null;
+    read.push({ id: choice["id"], label: choice["label"], means: choice["means"] });
+  }
+  return { portalHost: record["portalHost"], words: record["words"], choices: read };
+}
+
+function parsePortalConsent(value: unknown): PortalConsentReading | null {
+  const record = asRecord(value);
+  if (record === null) return null;
+  const banner = parseConsentBanner(record["banner"]);
+  if (banner === null) return null;
+  const chosen = record["chosen"];
+  if (chosen === null) return { banner, chosen: null };
+  const held = asRecord(chosen);
+  if (held === null || typeof held["id"] !== "string" || typeof held["label"] !== "string" || typeof held["chosenAt"] !== "string") return null;
+  return { banner, chosen: { id: held["id"], label: held["label"], chosenAt: held["chosenAt"] } };
 }
 
 export function readTargets(): Promise<Outcome<readonly ApplicationTarget[]>> {
@@ -350,7 +410,7 @@ export function reapply(
 export function decide(
   conversationId: string,
   runId: string,
-  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string },
+  decision: { readonly kind: string; readonly contentHash?: string; readonly item?: string; readonly choice?: string },
 ): Promise<Outcome<unknown>> {
   return send(
     `/v1/conversations/${conversationId}/runs/${runId}/decision`,

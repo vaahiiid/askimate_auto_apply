@@ -161,6 +161,7 @@ describe("the run's wire words and the domain's do not drift", () => {
       "ready_to_submit",
       "hand_over_account",
       "sign_in",
+      "consent_choice",
     ];
     expect([...RUN_STEP_KINDS].sort()).toEqual([...kinds].sort());
   });

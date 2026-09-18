@@ -193,6 +193,11 @@ export function phaseFor(step: RunStep): WorkflowPhase {
       // already in the vault — and not a phase of its own, which would be a
       // second word for the same position.
       return "filling";
+    case "consent_choice":
+      // ADR-0131: waiting on the student, for a choice only they can make on
+      // their own account — the phase that already means "the student, not
+      // us" — before any password is asked for again.
+      return "awaiting_student_handoff";
     case "ready_to_submit":
       return "ready_to_submit";
     case "hand_over_account":

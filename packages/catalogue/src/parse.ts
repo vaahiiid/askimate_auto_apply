@@ -44,8 +44,7 @@ import type {
   FieldValidation,
   HandoffPoint,
   RequiredDocument,
-  SubmissionModel,
-} from "@askimate/aas-blueprint";
+  SubmissionModel, ConsentBanner } from "@askimate/aas-blueprint";
 import type {
   FieldMapping,
   MappingSet,
@@ -468,14 +467,39 @@ function readLoginForm(value: unknown, path: string): LoginForm {
   };
 }
 
+/**
+ * A consent notice on the login page (ADR-0131): its own words, and two or
+ * more choices, each with the button's label, what it means in plain terms,
+ * and where it is. Every string is a reviewer's, read by a student.
+ */
+function readConsentBanner(value: unknown, path: string): ConsentBanner {
+  const source = record(value, path);
+  const choices = list(source, "choices", path, (item, itemPath) => {
+    const choice = record(item, itemPath);
+    return {
+      id: text(choice, "id", itemPath),
+      label: text(choice, "label", itemPath),
+      means: text(choice, "means", itemPath),
+      locator: readLocator(choice["locator"], `${itemPath}.locator`),
+    };
+  });
+  if (choices.length < 2) fail(`${path}.choices`, "expected at least two choices");
+  if (new Set(choices.map((choice) => choice.id)).size !== choices.length) {
+    fail(`${path}.choices`, "expected every choice id to be distinct");
+  }
+  return { words: text(source, "words", path), choices };
+}
+
 function readAuthentication(value: unknown, path: string): AuthenticationModel {
   const source = record(value, path);
   const loginUrl = optionalText(source, "loginUrl", path);
   const login = optionalWith(source, "login", path, readLoginForm);
+  const consent = optionalWith(source, "consent", path, readConsentBanner);
   return {
     required: flag(source, "required", path),
     ...(loginUrl === undefined ? {} : { loginUrl }),
     ...(login === undefined ? {} : { login }),
+    ...(consent === undefined ? {} : { consent }),
     accountCreationRequired: flag(source, "accountCreationRequired", path),
     // Notes are free text and an empty note is a real state.
     notes: optionalTextAllowingEmpty(source, "notes", path) ?? fail(`${path}.notes`, "expected a string"),
