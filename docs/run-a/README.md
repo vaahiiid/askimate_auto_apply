@@ -184,6 +184,50 @@ same run found that a `fix_content` with nothing to ask was a silent dead end; i
 person now. Vahid: *"The star is not the evidence. The save is."* This is the whole argument for
 Run A existing, and it is recorded here as such.
 
+## Starting a run in a brand-new conversation, from the raw calls (ADR-0058's two gates)
+
+Verified here on 2026-09-18 against the signed Run A catalogue, as the one student the signature
+admits (a `students` row with the approval's own id, on a scratch stack): offer 201, run 201.
+Another student gets 404 at the offer. The page's *Apply to this for me* button makes exactly these
+two calls, and refuses to make the second with an empty statement box.
+
+```bash
+# 1. Gate 1 — ask the server to put the reviewed target to you. The body is a LOOKUP KEY,
+#    not an authority: every field of the offer comes from the catalogue entry.
+curl -s -b "$JAR" -H 'content-type: application/json' \
+  -d '{"blueprintId":"bp-sheffield-pgt-september-direct"}' \
+  "$CONVERSATION_URL/v1/conversations/$CONV/target-offers"
+#    → 201 { offerHash: "sha256:…", rendered, target }      (404: not admitted, or no such target)
+
+# 2. Gate 2 — your explicit request, naming the offer you were shown. The statement becomes the
+#    case's request evidence, so it must be your own sentence.
+curl -s -b "$JAR" -H 'content-type: application/json' \
+  -d '{"offerHash":"<the offerHash from 1>","studentStatement":"<your sentence>"}' \
+  "$CONVERSATION_URL/v1/conversations/$CONV/runs"
+#    → 201 { runId, caseId, status, phase, step, … }
+#      400 pointers ["/offerHash"]  — the hash is missing or not sha256:<64 hex>
+#      404                          — that offer was not made in THIS conversation
+#      409 content_changed          — the offer was made and the target has since changed
+
+# 3. Read what the run is waiting for. `pending.decision` names the kind and `pending.contentHash`
+#    is the hash the next decision must carry.
+curl -s -b "$JAR" "$CONVERSATION_URL/v1/conversations/$CONV/runs"
+#    → 200 { run: { runId, step, status, … }, pending: { decision, contentHash } | null, ownActs }
+
+# 4. The two decisions, in the order the run asks for them (ADR-0110, ADR-0101):
+curl -s -b "$JAR" -H 'content-type: application/json' -d '{"kind":"existing_account"}' \
+  "$CONVERSATION_URL/v1/conversations/$CONV/runs/$RUN/decision"          # → 204
+curl -s -b "$JAR" -H 'content-type: application/json' \
+  -d '{"kind":"authorise","contentHash":"<pending.contentHash from 3>"}' \
+  "$CONVERSATION_URL/v1/conversations/$CONV/runs/$RUN/decision"          # → 204
+#    A decision the run is not asking for answers 404 (not_asked); a stale hash answers
+#    409 content_changed — re-read 3 and send the hash it shows now.
+```
+
+`GET /v1/conversations/$CONV` is the conversation itself (id, title, ordinal) — not the run.
+`/reapplication/*` is only for a conversation that already holds a concluded case; a fresh one
+answers 404 there, correctly. There is no `/offers` route.
+
 ## Warning to the next reader: this sequence has not been walked to the end
 
 **Nobody has taken this document past step 5 by hand.** Steps 1 to 5 — session, offer, request,
