@@ -228,6 +228,32 @@ curl -s -b "$JAR" -H 'content-type: application/json' \
 `/reapplication/*` is only for a conversation that already holds a concluded case; a fresh one
 answers 404 there, correctly. There is no `/offers` route.
 
+## A third attempt from a fresh conversation, when two cases are already concluded (blocker 46)
+
+Reproduced here on 2026-09-18 on the signed Run A catalogue as the admitted student, two concluded
+cases in two conversations, a fresh third:
+
+```
+prior-outcome, BEFORE any start on the fresh conversation   → 404   (no binding yet)
+target-offers                                               → 201
+runs { offerHash, studentStatement }                        → 409 already_applying,
+                                                              existingCaseId = the FIRST case, concluded: true
+prior-outcome, AFTER that refused start                     → 200, priorCaseId = the LATEST case
+reapplication { studentStatement }                          → 201, a new case carrying priorCaseId = the latest
+```
+
+**The order is the trap.** `adviseReapplication` and `reapply` begin with `bindings.caseFor(conversationId)`
+— the conversation must already be bound to a target — and a fresh conversation has no binding until a
+start is attempted. `withBinding` writes the binding (and an empty `cases` row) and **commits it even
+when the start is refused** with `already_applying`. So the refused start is what makes the
+reapplication pair work, and nothing said so. Then the prior case is found by the **student**
+(`#latestAttempt`), which is why it names the latest case while the 409 names the first: the 409
+comes from the submission key, held by whichever case claimed it first; the advice comes from the
+student's newest attempt. Two routes, two answers to "which prior case", both true.
+
+So the way through, from the raw calls: offer → runs (expect 409) → prior-outcome → reapplication.
+Then the read and the two decisions as above.
+
 ## Warning to the next reader: this sequence has not been walked to the end
 
 **Nobody has taken this document past step 5 by hand.** Steps 1 to 5 — session, offer, request,
