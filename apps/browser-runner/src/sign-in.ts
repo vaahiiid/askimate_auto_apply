@@ -52,6 +52,138 @@ import type { PerformOutcome } from "./work-intake.js";
 /** How long to wait for a page or a control. Portals are slow; students wait. */
 const STEP_TIMEOUT_MS = 15_000;
 
+/**
+ * The two waits at the submit, named apart (ADR-0127).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * MEASURE, DO NOT READ — the reason these are two numbers and not one.
+ *
+ * Until P160 the submit was `Promise.all([waitForLoadState("load"), click()])`
+ * under one fifteen-second ceiling, and it READ as "press, then wait for the
+ * next page to load". It did not do that. Playwright's own contract:
+ * `waitForLoadState` *"resolves immediately"* when the current document has
+ * already reached the state — and the current document was the login page,
+ * loaded by `goto`. So the load wait resolved at once and guarded nothing.
+ * The clock that expired on Run A's repeat was the CLICK's own, which waits
+ * for the button to be pressable and then for the portal's answer to commit.
+ *
+ * The reading was confident, and it was the third piece of code that week to
+ * do something other than what it read as doing. Two waits, two phrases, so
+ * the next log line is a reading of which clock ran out — not a deduction.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+/** The button: attached, visible, enabled, receiving events. Unchanged at fifteen. */
+export const SIGN_IN_PRESS_TIMEOUT_MS = 15_000;
+/**
+ * The portal's answer: its response to the POST committing as a document.
+ * Thirty, not fifteen: the unknown is server time on the portal's own sign-in
+ * handler, which exceeded fifteen once; doubling is a MEASUREMENT, and a second
+ * failure at thirty says the cause is not time. Not sixty — a student watching
+ * the box should not wait a minute to be told nothing.
+ */
+export const SIGN_IN_ANSWER_TIMEOUT_MS = 30_000;
+
+export interface SettleSignInInput {
+  readonly runId: string;
+  /** The login form's own URL, from the reviewed blueprint. */
+  readonly loginUrl: URL;
+  readonly submitLocator: FieldLocator;
+  readonly passwordLocator: FieldLocator;
+  readonly say: (line: string) => void;
+  /**
+   * TESTS ONLY. Production never sets these; the numbers above are the ones
+   * ADR-0127 names, and a test that shortens one does so to drive that one
+   * wait to its own failure on a fixture.
+   */
+  readonly timeouts?: { readonly pressMs?: number; readonly answerMs?: number };
+}
+
+/**
+ * The submit, settled: the press, then the answer, then where it landed.
+ *
+ * Exported and taken to the form already typed, so a test can drive each wait
+ * to its own failure without a fill agent in the loop.
+ */
+export async function settleSignIn(page: Page, input: SettleSignInInput): Promise<PerformOutcome> {
+  const pressMs = input.timeouts?.pressMs ?? SIGN_IN_PRESS_TIMEOUT_MS;
+  const answerMs = input.timeouts?.answerMs ?? SIGN_IN_ANSWER_TIMEOUT_MS;
+
+  const submit = await resolve(page, input.submitLocator);
+  if (submit === null) return { kind: "failed", failure: "portal_drift" };
+
+  // ── The answer, armed before the press ────────────────────────────────
+  //
+  // `framenavigated` on the main frame is the commit of the portal's answer
+  // to the POST — a redirect chain commits once, at its end, and a refused
+  // password that re-renders the form commits too. Armed first so an answer
+  // that arrives during the press is not missed; caught into a value so a
+  // press that fails leaves no rejection dangling.
+  const answered = page
+    .waitForEvent("framenavigated", {
+      predicate: (frame) => frame === page.mainFrame(),
+      timeout: answerMs,
+    })
+    .then((): unknown => null, (error: unknown) => error);
+
+  // ── 1. The press ──────────────────────────────────────────────────────
+  //
+  // `noWaitAfter`: the press measures ONLY whether the button could be
+  // pressed. Waiting for the answer is the next wait's job, under its own
+  // name and its own number.
+  try {
+    await submit.click({ timeout: pressMs, noWaitAfter: true });
+  } catch (error) {
+    // The one extra fact for the overlay case: the button was attached and
+    // resolvable, the press still failed — is the form still there? A yes
+    // says "something is over the button", and the runner's page is one
+    // nobody has read with tags allowed (ADR-0127). A word, never the page.
+    const boxStill = await toPlaywrightLocator(page, input.passwordLocator)
+      ?.isVisible()
+      .catch(() => false);
+    input.say(
+      `run ${input.runId}: sign-in failed — the sign-in button could not be pressed — ` +
+        `${thrownInWords(error)}; the password box is ${boxStill === true ? "still" : "no longer"} on the page`,
+    );
+    return { kind: "failed", failure: "runner_fault" };
+  }
+
+  // ── 2. The answer ─────────────────────────────────────────────────────
+  const outcome = await answered;
+  if (outcome !== null) {
+    input.say(
+      `run ${input.runId}: sign-in failed — the portal did not answer the sign-in — ` +
+        `${thrownInWords(outcome)}`,
+    );
+    return { kind: "failed", failure: "runner_fault" };
+  }
+  // The new document has committed; let it parse before anything is read
+  // from it. Cheap, and bounded by the same ceiling.
+  try {
+    await page.waitForLoadState("domcontentloaded", { timeout: answerMs });
+  } catch (error) {
+    input.say(
+      `run ${input.runId}: sign-in failed — the portal's answer did not finish arriving — ` +
+        `${thrownInWords(error)}`,
+    );
+    return { kind: "failed", failure: "runner_fault" };
+  }
+
+  // ── 3. Where it landed ────────────────────────────────────────────────
+  //
+  // The URL is the only recorded shape of the landing: the work item carries
+  // the login form and nothing about the page after it, and a locator for
+  // that page would be invented. So the rule is the one it always was: still
+  // on the login form, the portal did not accept the password; anywhere
+  // else, it did — and if THAT page asks for a code, the sign-in is gated by
+  // something only the student holds (ADR-0101 §5).
+  if (new URL(page.url()).pathname === input.loginUrl.pathname) {
+    return { kind: "failed", failure: "portal_refused" };
+  }
+  const afterwards = await detectChallenge(page);
+  if (afterwards !== null) return { kind: "failed", failure: challengeFailure(afterwards) };
+  return { kind: "succeeded" };
+}
+
 export interface SignInDeps {
   readonly browser: Browser;
   /** This browser's CDP endpoint, as the fill agent will dial it. */
@@ -170,44 +302,20 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
       };
     }
 
-    // ── 5. Submit, and ask the page ────────────────────────────────────────
-    const submit = await resolve(page, targets.submitLocator);
-    if (submit === null) return { kind: "failed", failure: "portal_drift" };
-    try {
-      await Promise.all([
-        page.waitForLoadState("load", { timeout: STEP_TIMEOUT_MS }),
-        submit.click({ timeout: STEP_TIMEOUT_MS }),
-      ]);
-    } catch (error) {
-      // The password is spent whether or not the click landed, and a sign-in
-      // that may or may not have happened creates nothing on the portal: the
-      // honest answer is a failure the plane can act on — ask again — rather
-      // than an uncertainty a person has to adjudicate.
-      //
-      // THIS is where Run A stopped, twice, and where the silence cost a
-      // whole live run: the error was discarded by a bare `catch`. The race
-      // between the click and the load wait is a hypothesis about it and is
-      // deliberately NOT changed here — Vahid, 2026-09-18: *"It is exactly
-      // the kind of thing that gets 'fixed' on a guess and then the real
-      // cause shows up behind it. One attempt with a real error message is
-      // worth more than a fix that might be right."*
-      say(
-        `run ${work.runId}: sign-in failed at the submit and the load that follows — ` +
-          `${thrownInWords(error)}`,
-      );
-      return { kind: "failed", failure: "runner_fault" };
-    }
-
-    const landed = new URL(page.url());
-    if (landed.pathname === target.pathname) {
-      // Still on the login form: the portal did not accept the password.
-      return { kind: "failed", failure: "portal_refused" };
-    }
-    // Accepted, and answered with a page. If THAT page asks for a code, the
-    // sign-in is gated by something only the student holds (ADR-0101 §5).
-    const afterwards = await detectChallenge(page);
-    if (afterwards !== null) return { kind: "failed", failure: challengeFailure(afterwards) };
-    return { kind: "succeeded" };
+    // ── 5. Submit, and ask the page (ADR-0127) ────────────────────────────
+    //
+    // The password is spent whether or not the press landed, and a sign-in
+    // that may or may not have happened creates nothing on the portal: the
+    // honest answer is a failure the plane can act on — ask again — rather
+    // than an uncertainty a person has to adjudicate. `settleSignIn` says
+    // WHICH wait failed, and that is the whole point of it.
+    return await settleSignIn(page, {
+      runId: work.runId,
+      loginUrl: target,
+      submitLocator: targets.submitLocator,
+      passwordLocator: targets.passwordLocator,
+      say,
+    });
   } finally {
     if (supplied === undefined) await context.close().catch(() => undefined);
   }

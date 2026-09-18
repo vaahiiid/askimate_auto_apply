@@ -4906,6 +4906,18 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P160 — the one wait did not do what it read as doing
+
+The repeat printed a reading, which is what P157 was for: the step timed out, at the submit. Not the error the race would have thrown, so the race is exonerated and stays untouched. But the reading I had offered as the alternative — that fifteen seconds was too short for the load after Sheffield's submit — was wrong as well, and wrong in the way he has now seen three times in a week. The load wait was called before the click, on a page that had already loaded, and Playwright's own contract says such a wait resolves at once. It guarded nothing. The clock that ran out was the click's, which waits for the button to be pressable and then for the portal's answer under one name.
+
+So the split is the fix, and the reason for the split is the correction: two waits, two phrases, each driven to its own failure on the fixture in a real browser — a portal that answers slowly, a transparent element over the button — so that the next line from the live portal is a reading of which clock ran out and not a fourth confident deduction. The press keeps fifteen seconds. The answer gets thirty, and thirty is a measurement: a second failure there says the cause is not time. The landing is confirmed by URL, because the page after Sheffield's submit has never been recorded and a locator for it would be invented.
+
+Two things recorded as decisions rather than sentences. No screenshot on the press failing, because it is a picture of a login form with the student's address in it, into a log file. And on the overlay side the ADR names no banner: tags were refused in every capture and are allowed in the runner, so the runner sees a page nobody has read, and a read with tags allowed is the next diagnostic if attempt 2 lands there.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P159 — the fix was right and it arrived too late for his case
 
 He pulled it, restarted, refreshed, ran the same two calls and got the same 403 — and read the reason himself before I did: the fix changes what a new cancel does, and nothing re-examines a case already half-cancelled. That is exactly right, and this time it is established rather than agreed. A case stopped the old way was built on the fixture and the three doors were measured shut on it: the Worker advances running and suspended runs only, a runner is offered nothing for a stopped case, and a second stop is refused by the table. What is missing is not a design. It is a caller.

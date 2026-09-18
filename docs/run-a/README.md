@@ -214,6 +214,9 @@ Run A is for, and it is the honest state of this file.
   timed out"*, then `failed (runner_fault)`. ADR-0124 did its job: the failure is a reading now,
   not a deduction. It is `TimeoutError`, not the "execution context destroyed" the race hypothesis
   predicted — so the submit/load race is exonerated, and it was right not to fix it on a guess.
+  And the reading behind it was wrong too: the load wait had resolved at once on an already-loaded
+  page and guarded nothing; the click's own clock expired. ADR-0127 splits the submit into the
+  press and the answer, each named, so the next line is a reading of which.
 
 Blockers 37 to 40 in the paragraph above: 40 is closed (ADR-0125), 44 raised and closed
 (ADR-0126); 37, 38 and 39 stay open.

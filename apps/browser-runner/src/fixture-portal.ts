@@ -155,6 +155,18 @@ export type FixtureChallenge = "captcha" | "second_factor";
 
 export interface FixturePortalOptions {
   readonly challenge?: FixtureChallenge;
+  /**
+   * ADR-0127. `POST /login` answers after this many milliseconds — a portal
+   * whose sign-in handler is slower than the runner's press, so the wait that
+   * expires is the one for the ANSWER and the test can say so.
+   */
+  readonly loginAnswerDelayMs?: number;
+  /**
+   * ADR-0127. A fixed, transparent element over the sign-in button, taking
+   * pointer events — the shape of an overlay nobody has read. The button is
+   * attached, visible and enabled, and cannot be pressed.
+   */
+  readonly loginButtonCovered?: boolean;
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -186,7 +198,11 @@ ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
 <p><a href="/private/staff-only">Staff area</a></p>`,
   );
 
-const LOGIN_PAGE = (error: string | null, challenge?: FixtureChallenge): string =>
+/** Over everything, sees every click, says nothing: the overlay case (ADR-0127). */
+const BUTTON_COVER = `
+  <div id="cover" style="position:fixed;inset:0;background:transparent;z-index:10"></div>`;
+
+const LOGIN_PAGE = (error: string | null, challenge?: FixtureChallenge, covered = false): string =>
   page(
     "Sign in",
     `${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
@@ -197,7 +213,7 @@ const LOGIN_PAGE = (error: string | null, challenge?: FixtureChallenge): string 
   <input type="password" id="password" name="password" required autocomplete="current-password">
 ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="signIn">Sign in</button>
-</form>`,
+</form>${covered ? BUTTON_COVER : ""}`,
   );
 
 /** The second factor, as portals put it: a code the applicant was emailed. */
@@ -620,6 +636,8 @@ export async function startFixturePortal(
   options: FixturePortalOptions = {},
 ): Promise<FixturePortal> {
   const challenge = options.challenge;
+  const loginAnswerDelayMs = options.loginAnswerDelayMs ?? 0;
+  const covered = options.loginButtonCovered === true;
   const accounts = new Map<string, Account>();
   const sessions = new Map<string, string>();
   /** Accounts that have signed in but not yet passed the second factor. */
@@ -748,12 +766,17 @@ export async function startFixturePortal(
       }
 
       if (method === "GET" && path === "/login") {
-        send(response, 200, LOGIN_PAGE(null, challenge));
+        send(response, 200, LOGIN_PAGE(null, challenge, covered));
         return;
       }
 
       if (method === "POST" && path === "/login") {
         const body = await readBody(request);
+        // The whole answer held back, redirect and refusal alike: what is
+        // slow is the portal deciding, not the page that follows.
+        if (loginAnswerDelayMs > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, loginAnswerDelayMs));
+        }
         const email = (body.get("email") ?? "").trim().toLowerCase();
         const password = body.get("password") ?? "";
         const account = accounts.get(email);

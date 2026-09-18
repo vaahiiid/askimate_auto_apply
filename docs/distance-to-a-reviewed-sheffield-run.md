@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-18, P160: the repeat's log read `TimeoutError` at the submit — the race exonerated, and
+  the load-wait reading wrong too: it was called on an already-loaded page and guarded nothing.
+  ADR-0127: two waits with two names (press 15 s, answer 30 s), the landing by URL, no screenshot,
+  the overlay side left as an observation to make rather than a banner to guess. Run A parked at
+  request_secret with a fresh box open, awaiting the second password. One open of ten.
 - 2026-09-18, P159: P158 reached the stop and not the cases already stopped. Vahid pulled it and
   read the reason himself; reproduced here on the fixture, with all three doors measured shut on a
   case stopped the old way. ADR-0126: `scripts/local-stack.sh finish-stopped <conversationId>` — the

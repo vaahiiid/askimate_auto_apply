@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.156.0] — 2026-09-18
+
+**P160 — ADR-0127: the submit is two waits with two names, because the one wait did not do what it
+read as doing (found by Run A's repeat, read from the log; decided by Vahid, 2026-09-18).**
+
+### Changed
+
+- `sign-in.ts`: the submit no longer runs `waitForLoadState("load")` alongside the click. That wait
+  was called on a page that had already loaded, resolved at once by Playwright's own contract, and
+  guarded nothing; the clock that expired on Run A was the click's. Now `settleSignIn`: the press
+  (`noWaitAfter`, `SIGN_IN_PRESS_TIMEOUT_MS` 15 s) and the portal's answer (`framenavigated` on the
+  main frame, armed first, `SIGN_IN_ANSWER_TIMEOUT_MS` 30 s), each failing under its own phrase.
+  The press failure adds whether the password box is still on the page — a word, never the page.
+- The landing is confirmed by URL, as before: the page after the submit is unrecorded and a locator
+  would be invented.
+
+### Added
+
+- `startFixturePortal({ loginAnswerDelayMs, loginButtonCovered })`: a portal that answers its
+  sign-in slowly, and one with a transparent element over the button, so each wait is driven to its
+  own failure in a real browser.
+- `sign-in-settle.test.ts`, in the browser lane.
+
+### Decided, and recorded as such
+
+- No screenshot at the press failure. It is a picture of a login form with the student's e-mail in
+  it, into a log file (ADR-0124's rule, applied to the whole page).
+- The overlay case names no consent banner. The runner's page is unobserved — tags refused in every
+  capture, allowed in the runner — and a read with tags allowed is the next diagnostic.
+
+---
+
 ## [0.155.0] — 2026-09-18
 
 **P159 — ADR-0126: a stop recorded before P158 needs a caller of its own (blocker 44, found by Vahid
