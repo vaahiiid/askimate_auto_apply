@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P166 — ADR-0131 amended: a control with no words is never a choice on a consent notice (Vahid's rule, 2026-09-19, after his own read of the Sheffield notice); the parser refuses a blank label; the Sheffield consent block stays unwritten pending his decision |
+| **Phase** | P167 — ADR-0131 amended: option 2 assumes a notice whose choices are each one press, and Sheffield's is not like that; recorded as the mechanism's limit; a named path through the Settings panel waits on Vahid's read, under his condition (every button named and quoted, the path fixed) |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
 | **Tests** | **2,764 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 131 ADRs · all 131 Accepted |

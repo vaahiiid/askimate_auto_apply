@@ -19,6 +19,18 @@ not shipped artefacts.
 
 ---
 
+## [0.163.0] — 2026-09-19
+
+**P167 — the limit of option 2, recorded as option 2's (ADR-0131 amended; decided by Vahid,
+2026-09-19).** Records only, no code.
+
+- The mechanism assumes a notice whose choices are each one press; Sheffield's is not like that,
+  and option 2 as built cannot express *accept all, or a settings panel nobody has read*.
+- His condition for a named path through a panel, verbatim; shape 1 first on his panel read;
+  shape 2 kept available. Nothing built; nothing in the entry.
+
+---
+
 ## [0.162.0] — 2026-09-19
 
 **P166 — a control with no words is never a choice on a notice (ADR-0131 amended; decided by

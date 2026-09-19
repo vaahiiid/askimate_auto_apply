@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-19, P167: option 2 cannot express Sheffield's notice — *accept all*, or a settings
+  panel nobody has read — and the limit is recorded as the mechanism's, not the portal's. Vahid's
+  condition for a named path through the panel is on record; shape 1 waits on his panel read,
+  shape 2 stays available. The entry's consent block is still unwritten.
 - 2026-09-19, P166: the Sheffield notice read by Vahid — *Accept all cookies*, *Settings*, and a
   close control with no words. His rule, recorded in ADR-0131 as the rule and not the portal's
   case: a control with no words is never a choice; the parser refuses a blank label. What the

@@ -120,3 +120,35 @@ only a button the signed entry names.
 What this amendment does not decide: the Sheffield entry's consent block. The notice offers no
 refusal in words — *accept all*, or *Settings*, a second surface nobody has read — and whether
 option 2 as built can express that honestly is answered separately and decided by him.
+
+## Amended — P167, 2026-09-19: the limit of option 2, and the condition under which a path is not a dismissal
+
+**The limit, recorded as option 2's and not as Sheffield's.** The mechanism this ADR built
+assumes a notice whose choices are each one press: a choice is an id, a label, a meaning and one
+locator; the runner presses the chosen button and presses sign-in at once; a notice with one
+honourable choice cannot be authored, because two choices is the floor. Some notices are not like
+that. Sheffield's, as Vahid read it on 2026-09-19, offers *Accept all cookies* and *Settings* — a
+second surface nobody has read — and no refusal in words. Authored as it stands, a student who
+chose *Settings* would have the runner open the panel, press sign-in into it, fail, spend the
+password and count a failure against ADR-0120's two; the parser would not have stopped it. So:
+**option 2 as built cannot express *accept all, or a settings panel nobody has read*.** Vahid:
+*"'It cannot' is the answer I wanted and the one it would have been easiest to stretch. Record
+it as a limit of option 2, not as a defect of Sheffield."*
+
+**The condition under which a path through a panel is a choice, in his words:**
+
+> *"Yes, if every button on the path is named in the entry and quoted to the student, and if the
+> path is fixed rather than discovered at run time. What I refused was the runner learning to
+> click things away. A named sequence, reviewed and signed, is not that."*
+
+Not built. What it would be, when and if the panel read allows it: a choice whose locator becomes
+a fixed list of buttons, each with its own words, all signed content, the student asked in the
+panel's words as well as the notice's; the runner presses the sequence and nothing else, and a
+button on the path that is not on the page stops the sign-in rather than searching for another.
+
+**Two shapes on the table, his order.** Shape 1 — the named path — first, on the condition that
+the Settings panel offers a refusal in words with a save button; he does the panel read from a
+fresh profile with the cookie cleared, Settings pressed and nothing else, structure and words, no
+values. Shape 2 — *accept all, or do not apply through us on this portal* — stays available and
+is not ruled out: *"it may be the true one. But it costs a student the system entirely, so I want
+to know shape 1 is unavailable before I take it."*

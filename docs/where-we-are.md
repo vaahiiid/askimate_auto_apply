@@ -4906,6 +4906,28 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P167 — "it cannot", recorded as the mechanism's limit and not the portal's defect
+
+Option 2 was built for a notice whose choices are each one press. Measured in the code: a choice
+is one locator; the runner presses it and presses sign-in at once; two choices is the floor; the
+parser accepts any two with words. Sheffield's notice offers *Accept all cookies* and *Settings*,
+and nothing that refuses in words. Authored as it stands, *Settings* would send the runner into a
+panel with the sign-in press, fail, spend the password and count a failure. So the built mechanism
+cannot express *accept all, or a settings panel nobody has read*, and it was said so rather than
+stretched. Vahid asked for exactly that, and for it to be recorded as option 2's limit: some
+notices are not like the one it assumes.
+
+He set the condition under which a path through a panel is a choice and not a dismissal — every
+button on the path named in the entry and quoted to the student, the path fixed rather than
+discovered at run time — and the order: shape 1, the named path, first, on his own read of the
+Settings panel; shape 2, *accept all, or do not apply through us on this portal*, kept available
+because it may be the true one and costs a student the system entirely. Nothing is built and
+nothing is in the entry.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P166 — a button nobody can be honestly asked about
 
 Vahid read the Sheffield notice himself, from a fresh profile with the consent cookie cleared,
