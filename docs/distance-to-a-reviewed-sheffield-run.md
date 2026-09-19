@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-19, P166: the Sheffield notice read by Vahid — *Accept all cookies*, *Settings*, and a
+  close control with no words. His rule, recorded in ADR-0131 as the rule and not the portal's
+  case: a control with no words is never a choice; the parser refuses a blank label. What the
+  close control does is not known and is never named. The entry's consent block stays unwritten:
+  whether option 2 can express *accept all, or a settings panel nobody has read* is his decision.
 - 2026-09-18, P165: ADR-0131 — the choice on a consent notice is the student's: the blueprint
   records the notice, the runner presses only the button for a recorded choice, the plane asks
   before any password in the notice's own words, the answer is recorded per portal, visible and

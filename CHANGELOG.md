@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.162.0] — 2026-09-19
+
+**P166 — a control with no words is never a choice on a notice (ADR-0131 amended; decided by
+Vahid, 2026-09-19).**
+
+- `readConsentBanner` refuses a consent choice whose label is blank — empty or whitespace — with
+  the reason in the refusal. Red first: the empty case was already refused, the whitespace case
+  was not.
+- ADR-0131 amended with his rule in his words, the Sheffield notice as he read it (two buttons
+  with words, one close control without), and what the close control does recorded as not known.
+- Nothing written into the Sheffield entry's consent block.
+
+---
+
 ## [0.161.0] — 2026-09-18
 
 **P165 — ADR-0131: a consent notice is answered only with the student's own choice (option 2 on

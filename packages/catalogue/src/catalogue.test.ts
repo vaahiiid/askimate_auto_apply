@@ -213,6 +213,26 @@ describe("parsing rebuilds rather than casts", () => {
     expect(parseReviewedEntry(withNotice).ok, "a repeated key would record one choice as another").toBe(false);
   });
 
+  it("a control with no words is never a choice on a notice — a blank label is refused, however it is blank (ADR-0131, amended P166)", () => {
+    // Vahid, 2026-09-19: "A button whose meaning is set by configuration the
+    // student cannot see is a button nobody can be honestly asked about." A
+    // close control with no text is the case every portal has; the rule is
+    // structural here so the next portal's X cannot be authored as a choice.
+    const withNotice = JSON.parse(documentOf()) as Record<string, unknown>;
+    const authentication = (withNotice["blueprint"] as Record<string, unknown>)["authentication"] as Record<string, unknown>;
+    const choices = (label: string) => [
+      { id: "accept", label: "Accept all", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
+      { id: "close", label, means: "closes the notice", locator: { strategy: "id", value: "ccc-notify-dismiss" } },
+    ];
+    for (const label of ["", " ", "\t\n"]) {
+      authentication["consent"] = { words: "Your cookie choices", choices: choices(label) };
+      const parsed = parseReviewedEntry(withNotice);
+      expect(parsed.ok, `a label of ${JSON.stringify(label)} is no label`).toBe(false);
+      if (parsed.ok) expect.unreachable("refused above");
+      expect(JSON.stringify(parsed.refusal)).toContain("choices[1].label");
+    }
+  });
+
   it("normalises an EMPTY optional to an absent one, so both hash alike", () => {
     // `campus: ""` and no campus at all mean the same thing to a reviewer, and
     // two tools saving the same artefact disagree about which to write. If they

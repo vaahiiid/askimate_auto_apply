@@ -4906,6 +4906,31 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P166 — a button nobody can be honestly asked about
+
+Vahid read the Sheffield notice himself, from a fresh profile with the consent cookie cleared,
+structure and the banner's own words only, nothing clicked. It offers *Accept all cookies*,
+*Settings*, and a close control with no words. He asked what the close control does before any
+entry names it. It could not be found out from here: the vendor's library is refused by this
+environment's network policy, and the portal is off limits by his rule. So it is recorded as not
+known, with the four-step read for his own account and what each of the four outcomes would
+mean — and in every one of them the answer for the entry is the same, because the button's
+meaning is set by configuration the student cannot see.
+
+He made that the rule, in his words, for the next portal's close control as much as this one's:
+a control with no words of its own is never a choice on a notice. It is structural now — the
+parser refuses a blank label, empty or whitespace, red first — and the runner was already unable
+to press a button the signed entry does not name.
+
+Nothing is written into the Sheffield entry. The notice offers no refusal in words: *accept all*,
+or a settings panel nobody has read. Whether option 2 as built can express that honestly, or
+assumes the notice offers its choices directly, is the next answer, and what goes in the entry is
+his decision after it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P165 — the choice on a consent notice is the student's, and the system asks before it presses
 
 The third of the three he ordered, and the one with a meaning before it had a mechanism. He put it in one sentence: a system that asks for a yes before typing a date of birth cannot decide a cookie choice by itself. So the blueprint now records the notice as a reviewer read it, in its own words, with what each button means in plain terms; the runner tells the notice from any other obstacle by one of its buttons being on the page and presses nothing on it until a choice of the student's is on the work item; the plane treats the meeting as not a failure, puts the question to the student before it asks for a password again, records their answer under their name for that portal and no other, carries it on the next sign-in as a key and a locator, and shows it back with a button for every other choice. A student who chose once on Sheffield is not asked again on Sheffield and is asked afresh on Manchester, which is his condition word for word.

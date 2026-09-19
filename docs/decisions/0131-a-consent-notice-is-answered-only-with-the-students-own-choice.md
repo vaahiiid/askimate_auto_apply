@@ -92,3 +92,31 @@ notice intercepts stops for a person, as attempt 1 did.
 - A run that meets a notice with no choice on record costs one password: the one spent on the
   press. The question follows before the next is asked for.
 - Blocker 47 is closed for the mechanism and open for the Sheffield notice's read.
+
+## Amended — P166, 2026-09-19: a control with no words is never a choice
+
+Vahid read the Sheffield notice from a fresh profile on 2026-09-19, structure and the banner's own
+words only, nothing clicked. It offers two buttons with words — *Accept all cookies* and
+*Settings* — and a third with none: the close control, `#ccc-notify-dismiss`. What that third
+button does is not readable from the page: whether it leaves the overlay up, leaves consent unset
+or silently defaults is set by the configuration the page hands the consent library, and that
+configuration is not something a student sees. Reading the library from here was refused by the
+network policy; the portal is off limits by his rule; so what dismiss does is **not known**, and
+the finding, when he makes it on his own account, is a finding and not a dependency.
+
+His rule, in his words, recorded as the rule and not as this portal's case:
+
+> *"A button whose meaning is set by configuration the student cannot see is a button nobody can
+> be honestly asked about. Record that as the rule rather than as this portal's case — it will be
+> true of the next portal's close control too."*
+
+So: **a control with no words of its own is never a choice on a notice.** The reviewer cannot
+quote it, the student cannot be asked about it in the notice's own words, and its meaning can
+change without the button changing. Structurally, `readConsentBanner` refuses a choice whose
+label is blank — empty or whitespace — with the reason in the refusal, so the next portal's X
+cannot be authored as a choice by anyone. The runner was already unable to press it: it presses
+only a button the signed entry names.
+
+What this amendment does not decide: the Sheffield entry's consent block. The notice offers no
+refusal in words — *accept all*, or *Settings*, a second surface nobody has read — and whether
+option 2 as built can express that honestly is answered separately and decided by him.

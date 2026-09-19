@@ -27,9 +27,9 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P165 — ADR-0131: a consent notice is answered only with the student's own choice — asked in the notice's words before any password, recorded per portal, visible and changeable; proved on the fixture, the Sheffield notice waits on a read |
+| **Phase** | P166 — ADR-0131 amended: a control with no words is never a choice on a consent notice (Vahid's rule, 2026-09-19, after his own read of the Sheffield notice); the parser refuses a blank label; the Sheffield consent block stays unwritten pending his decision |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,763 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,764 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 131 ADRs · all 131 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 

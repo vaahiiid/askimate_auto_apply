@@ -476,9 +476,17 @@ function readConsentBanner(value: unknown, path: string): ConsentBanner {
   const source = record(value, path);
   const choices = list(source, "choices", path, (item, itemPath) => {
     const choice = record(item, itemPath);
+    const label = text(choice, "label", itemPath);
+    // ADR-0131, amended P166 (Vahid, 2026-09-19): "A button whose meaning is
+    // set by configuration the student cannot see is a button nobody can be
+    // honestly asked about." A control with no words of its own — every
+    // portal's close control — is never a choice, whatever it does.
+    if (label.trim().length === 0) {
+      fail(`${itemPath}.label`, "expected the button's own words — a control with no words is never a choice");
+    }
     return {
       id: text(choice, "id", itemPath),
-      label: text(choice, "label", itemPath),
+      label,
       means: text(choice, "means", itemPath),
       locator: readLocator(choice["locator"], `${itemPath}.locator`),
     };
