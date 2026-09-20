@@ -4906,6 +4906,37 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P168 — the panel has nothing to save with, and a refusal that is a state rather than a button
+
+Vahid opened the Settings panel on his own account and read it without pressing anything further.
+There is no save button — *Accept all cookies* and *Close Cookie Control* are the only two — and
+the three category toggles carry no `id`, no `name` and no words of their own, so no entry can
+name the analytics one and position is not a name. Shape 1 is refused by the panel itself, and
+nothing was written for it.
+
+One thing in his reading is corrected here rather than repeated: *Close Cookie Control* is not
+the wordless X by another route. It has words, so P166's rule does not reach it. Its defect is
+its own — the words name an action and say nothing about the consequence it records — and the
+record says so, because a rule that does not reach a case should not be made to look as if it
+does.
+
+Opening the panel wrote a cookie by itself: the notice met, nothing accepted, ninety days. If
+closing leaves it that way, the honest refusal on this portal is a state and not a button. Two
+reads can kill that reading without touching anything and only one press can confirm it, and both
+were given to him with what each outcome would mean. Against all of it stands a fact already
+measured: on 2026-09-18, on a fresh profile with no consent cookie at all, the page loaded
+Hotjar, Yandex webvisor, TikTok, LinkedIn, Meta and DoubleClick before anything had been
+consented to.
+
+Shape 3 is the agent's proposal and is not decided: a fixed path of controls that have words,
+every one quoted, followed by a read-back of the consent record so that what the student chose is
+verified rather than trusted. Its cost is named beside it — the option would be described in our
+words rather than the notice's — and that cost is Vahid's to weigh.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P167 — "it cannot", recorded as the mechanism's limit and not the portal's defect
 
 Option 2 was built for a notice whose choices are each one press. Measured in the code: a choice

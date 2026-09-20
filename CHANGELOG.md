@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.164.0] — 2026-09-19
+
+**P168 — the Settings panel refuses shape 1; a refusal, if there is one, is a state (ADR-0131
+amended).** Records only, no code.
+
+- Vahid's panel read: no save button, three category toggles with no `id`, `name` or label text.
+  Shape 1 is not written.
+- `#ccc-close` has words, so P166's rule does not reach it; its own defect is recorded instead.
+- Opening the panel writes `optionalCookies: {}`, `interactedWith: true`, 90 days. The two reads
+  that can refute a durable refusal and the one press that can confirm it, with four outcomes.
+- The 2026-09-18 capture is recorded against every shape: the trackers load before any consent.
+- Shape 3 proposed by the agent and **not decided**, with its cost stated.
+
+---
+
 ## [0.163.0] — 2026-09-19
 
 **P167 — the limit of option 2, recorded as option 2's (ADR-0131 amended; decided by Vahid,

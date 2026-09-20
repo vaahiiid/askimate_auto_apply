@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-19, P168: the Settings panel read — no save button, unnameable toggles — refuses shape
+  1, which is not written. Opening the panel records the notice as met with nothing accepted; two
+  reads can refute a durable refusal and one press can confirm it. Our own capture shows the
+  trackers loading before any consent. Shape 3 (a fixed path of controls with words, plus a
+  read-back that verifies the state) is proposed and undecided. The entry stays unwritten.
 - 2026-09-19, P167: option 2 cannot express Sheffield's notice — *accept all*, or a settings
   panel nobody has read — and the limit is recorded as the mechanism's, not the portal's. Vahid's
   condition for a named path through the panel is on record; shape 1 waits on his panel read,

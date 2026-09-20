@@ -152,3 +152,59 @@ fresh profile with the cookie cleared, Settings pressed and nothing else, struct
 values. Shape 2 — *accept all, or do not apply through us on this portal* — stays available and
 is not ruled out: *"it may be the true one. But it costs a student the system entirely, so I want
 to know shape 1 is unavailable before I take it."*
+
+## Amended — P168, 2026-09-19: shape 1 is refused by the panel itself; the refusal, if there is one, is a state
+
+**The panel read, by Vahid, on his own account.** A fresh profile, the cookie cleared, the banner
+up, *Settings* pressed and nothing else. Three findings kill shape 1, and none of them is about
+Sheffield being careless:
+
+- **There is no save button.** The panel's only buttons are `#ccc-recommended-settings`
+  ("Accept all cookies") and `#ccc-close` ("Close Cookie Control"). A named path that ends in a
+  save cannot be authored where there is nothing to save with.
+- **The three category toggles cannot be named.** They are three identical
+  `input.checkbox-toggle-input` with no `id`, no `name` and no label text of their own. An entry
+  cannot say *the analytics toggle*, and position is not a name (ADR-0109's rule, in a new place).
+- **`#ccc-close` is not excluded by P166's rule, and must not be recorded as if it were.** P166
+  refuses a control with no words; this one has words — *Close Cookie Control*. Its words name an
+  **action** and not the **consequence it records**, which is a different defect and is stated
+  here as its own, so the record does not rest on a rule that does not reach it.
+
+So **shape 1 does not exist on this portal**, and it is not written.
+
+**What the panel wrote by being opened.** Before the press there was no CookieControl cookie.
+After *Settings* and nothing else there was one: `optionalCookies: {}` — empty — with
+`interactedWith: true`, a consent date and a 90-day expiry. Opening the panel records that the
+notice was met, and records no acceptance of anything. Vahid: *"If closing the panel leaves it
+that way, then the honest refusal on this portal is not a button at all: it is that the default
+state, once the notice has been interacted with, accepts nothing."* He declined to assume it.
+
+**What would settle it, and the shape of the answer.** The reads can refute it; only a press can
+confirm it. Two reads can kill it without touching anything — the toggles' `checked` state while
+the panel stands open, and the page's own `CookieControl.load({…})` configuration, where each
+optional category's `initialState` is either `off` (the empty record is a refusal) or `on` (the
+empty record is a not-yet-written acceptance, and *Close* would commit it). If both reads leave it
+open, one press of *Close* decides between four outcomes: the record stays empty (a durable
+refusal); the record names each category as refused (a stronger, explicit refusal); any category
+turns true (*Close* accepts, and shape 2 stands); or the record is cleared, the overlay stays, or
+the banner returns on reload (nothing durable, and shape 2 stands).
+
+**A measured fact that bears on every shape.** The capture of 2026-09-18, taken on a fresh profile
+with no consent cookie at all, records the page loading Hotjar, Yandex Metrika with webvisor,
+TikTok, LinkedIn, Meta and DoubleClick — **before anything was consented to**. Whatever "accept
+nothing" turns out to record, on this portal it is a preference stated after those have already
+loaded once. If the system ever offers it, the student is told that in those terms, because
+offering a refusal that the page has already outrun would be the same fabrication ADR-0131
+refused in options 5 and 6.
+
+**Shape 3, proposed by the agent on 2026-09-19 and NOT decided: the refusal is a state we verify,
+not a button we trust.** The entry names a fixed path of controls that have words — open
+*Settings*, press *Close Cookie Control* — both quoted to the student; the student is asked to
+accept all, or to accept nothing beyond what the site needs; and after the path the runner
+**reads the consent record back** and checks it is the state the student chose, stopping for a
+person if it is not. It meets Vahid's condition — every button named and quoted, the path fixed,
+nothing discovered at run time — and it does not need the buttons' words to carry the consequence,
+because the consequence is measured rather than promised. **Its cost, which is his to weigh:** the
+"accept nothing" option is not one the notice offers in the notice's words. It is a state we
+produce and verify, described in ours. That is a step away from this ADR's promise, and whether
+it is an honest step or a stretched one is his to say, not the agent's.
