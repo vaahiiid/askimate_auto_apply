@@ -23,7 +23,104 @@
         "value": "loginBtn"
       }
     },
-    "accountCreationRequired": true,
+      "consent": {
+      "words": "Your cookie choices. We use some essential cookies to make this website work. We also use cookies to help give you a better experience. By accepting all cookies, you agree to the storing of cookies on your device. Use 'Settings' to manage your preferences",
+      "beforeAnyChoice": "the page has already loaded Google's tag manager before it asks you anything, so something has run whichever answer you give",
+      "choices": [
+        {
+          "id": "accept",
+          "label": "Accept all cookies",
+          "means": "the site may keep track of what you look at and how you use it, and may use that to show you adverts on other websites",
+          "path": [
+            {
+              "label": "Accept all cookies",
+              "locator": {
+                "strategy": "id",
+                "value": "ccc-notify-accept"
+              }
+            }
+          ],
+          "verify": {
+            "cookie": "CookieControl",
+            "mustHold": [
+              {
+                "path": ["interactedWith"],
+                "present": true,
+                "equals": true,
+                "means": "the site has recorded that you answered"
+              },
+              {
+                "path": ["optionalCookies", "functional"],
+                "present": true,
+                "equals": "accepted",
+                "means": "remembering your preferences is on"
+              },
+              {
+                "path": ["optionalCookies", "analytics"],
+                "present": true,
+                "equals": "accepted",
+                "means": "tracking how you use the site is on"
+              },
+              {
+                "path": ["optionalCookies", "marketing"],
+                "present": true,
+                "equals": "accepted",
+                "means": "using it for adverts elsewhere is on"
+              }
+            ]
+          }
+        },
+        {
+          "id": "refuse",
+          "label": "Only what the site needs",
+          "means": "the site keeps only what it needs to show you the pages and keep you signed in, and does not keep track of what you look at or use it for adverts anywhere",
+          "howItIsMade": "this site has no button that says no, so I open its settings and close them again without switching anything on, which is how the site records that you did not agree to the extra parts",
+          "path": [
+            {
+              "label": "Settings",
+              "locator": {
+                "strategy": "css",
+                "value": "#ccc button.ccc-notify-link"
+              }
+            },
+            {
+              "label": "Close Cookie Control",
+              "locator": {
+                "strategy": "id",
+                "value": "ccc-close"
+              }
+            }
+          ],
+          "verify": {
+            "cookie": "CookieControl",
+            "mustHold": [
+              {
+                "path": ["interactedWith"],
+                "present": true,
+                "equals": true,
+                "means": "the site has recorded that you answered"
+              },
+              {
+                "path": ["optionalCookies", "functional"],
+                "present": false,
+                "means": "remembering your preferences was not turned on"
+              },
+              {
+                "path": ["optionalCookies", "analytics"],
+                "present": false,
+                "means": "tracking how you use the site was not turned on"
+              },
+              {
+                "path": ["optionalCookies", "marketing"],
+                "present": false,
+                "means": "using it for adverts elsewhere was not turned on"
+              }
+            ]
+          }
+        }
+      ]
+    },
+  "accountCreationRequired": true,
     "notes": "Sign-in required. Registration and login are the same page, the entry point (read signed out, 2026-09-11, ../sheffield-pgt-2026-09-11-entry/): New Applicants takes e-mail, password and its confirmation before Start Application; Logged in Before takes e-mail and password. Password: student_chosen — the form asks for one, and Vahid's direct statement of 2026-09-11 says he typed the one he chose. No CAPTCHA, no magic link or emailed code on the three pages read. Whether the e-mail must be verified before the form opens (AUTH 4) and what follows the login button (AUTH 5) were not observed. The eleven form pages were read through Vahid's own signed-in session (attached inspection, 2026-09-10)."
   },
   "pages": [

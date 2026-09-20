@@ -244,20 +244,35 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
   });
 
-  it("is SIGNED by Vahid Mohammadi, one signature, his own account only (2026-09-16, commit 3575eb1): the directory loads and admits exactly that account", async () => {
-    // His acts, verbatim from what he pasted back: the reviewer flip, the
-    // hash, the approval naming the UUID the seed printed.
+  it("carries the reviewer flip, and the consent field (P174) moved the hash — so the 2026-09-16 approval NO LONGER covers it and the directory refuses to load", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // AWAITING VAHID'S SECOND SIGNATURE. The status flip is his and stands;
+    // what is gone is the approval, because ADR-0131's consent field is new
+    // signed content and the hash moved with it:
+    //
+    //   sha256:baca64a9…  signed 2026-09-16, covers content that no longer exists
+    //   sha256:21060fca…  the entry as it is now
+    //
+    // Asserted as it actually is rather than as it was, because a test that
+    // claimed the directory still loads would be claiming an approval that
+    // does not exist. When he signs the new hash, `approvals.json` gains his
+    // line, the superseded one goes in the same commit, and this test goes
+    // back to asserting the load and the admission it asserted before:
+    //   admits { kind: "one_account_only", studentId: "af398e01-…", signedBy: "Vahid Mohammadi" }
+    // ═══════════════════════════════════════════════════════════════════
     const value = entry();
     expect(value.blueprint.status).toBe("reviewed");
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    expect(labelledHash(toCanonical(value))).toBe("sha256:baca64a9975b0a2660743de6edc3ba821100417758124d2932a78387ef09e6f9");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9");
+    // The gate biting on a real edit to a real signed entry (ADR-0057).
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    expect(load.ok, "no approval covers this content").toBe(false);
+    if (load.ok) expect.unreachable("refused above");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9",
+    );
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {

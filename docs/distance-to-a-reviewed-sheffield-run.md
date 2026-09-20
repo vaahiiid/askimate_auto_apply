@@ -249,6 +249,9 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-20, P174: the signed consent field is in the Sheffield entry and in the curated draft.
+  The entry's hash moved to `sha256:21060fca…`, so the 2026-09-16 approval is void and the
+  catalogue refuses to load until Vahid signs again; `what-will-be-typed.md` did not move at all.
 - 2026-09-20, P173: the accept half of the Sheffield read-back measured — the portal writes the
   string `"accepted"` — so the draft asserts the exact value, and absence stands as the refusal.
   The reading profile `aas-consent-read` is named in a capture record and retired from capture

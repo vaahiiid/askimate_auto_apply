@@ -4906,6 +4906,29 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P174 — the entry carries the notice, and the signature it had is void
+
+He signed the draft and it is written in, exactly as he read it. The mechanism then did what it
+exists to do: the content hash moved, so the approval he gave on 16 September no longer covers the
+entry, and the catalogue refuses to load until he signs again. That was expected and is the point.
+
+Two hashes, and only one of them moved. The entry's content hash changed; the preview's reference
+did not, and not one line of what will be typed is different. The consent field governs what
+happens before the form, not what goes into any box, and saying which hash moved is the difference
+between a scare and a fact.
+
+The entry's own drift guard caught something worth having: the entry must be the two curated
+drafts plus the signature and nothing else, and the consent block was in the entry alone. It is in
+the draft now, so the entry still cannot drift from the reads it came from.
+
+Nothing was signed on his behalf. The test that asserted the directory loads now asserts that it
+refuses, names the new hash, and carries the admission it will assert again once he signs — a test
+that claimed otherwise would be claiming an approval that does not exist.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P173 — both halves measured, and the profile that measured them
 
 He pressed accept on a fresh profile and read the cookie. The values are the string `"accepted"`,

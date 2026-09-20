@@ -19,6 +19,21 @@ not shipped artefacts.
 
 ---
 
+## [0.170.0] — 2026-09-20
+
+**P174 — the signed consent field written into the Sheffield entry (signed by Vahid,
+2026-09-20).**
+
+- `authentication.consent` in `docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json`, and the
+  same block in `blueprint.draft.curated.json` so the entry still equals its drafts.
+- The entry's content hash moves `sha256:baca64a9…` → `sha256:21060fca…`; the 2026-09-16 approval
+  no longer covers it and the catalogue refuses to load.
+- `what-will-be-typed.md` is unchanged, line for line, and so is its reference hash.
+- The signature test asserts the refusal and the new hash. No approval was written by an agent;
+  the new one, and the removal of the superseded one, wait on Vahid's second signature.
+
+---
+
 ## [0.169.0] — 2026-09-20
 
 **P173 — both halves of the Sheffield consent read-back measured; the reading profile named.**
