@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.169.0] — 2026-09-20
+
+**P173 — both halves of the Sheffield consent read-back measured; the reading profile named.**
+Records only.
+
+- *Accept all cookies* writes `{"functional":"accepted","analytics":"accepted","marketing":"accepted"}`.
+  The draft's accept clauses assert that exact string rather than presence.
+- Recorded as one press, one account, one day — the portal's vocabulary, not a property of the
+  consent library.
+- New capture record `docs/captures/sheffield-consent-2026-09-19/`: all four reads, both presses,
+  the unreadable configuration, what loads with the record empty, and the profile
+  `aas-consent-read`, which now holds every category accepted and must not be used for any
+  further capture.
+
+---
+
 ## [0.168.0] — 2026-09-20
 
 **P172 — a consent path of more than one press says what it means (ADR-0131 amended; decided by

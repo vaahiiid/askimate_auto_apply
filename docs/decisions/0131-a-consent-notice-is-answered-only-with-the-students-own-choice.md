@@ -318,8 +318,9 @@ accept  label: "Accept all cookies"
         path:  "Accept all cookies"     → id      ccc-notify-accept
         verify CookieControl:
                  interactedWith                 present, equals true
-                 optionalCookies.analytics      present
-                 optionalCookies.marketing      present
+                 optionalCookies.functional     present, equals "accepted"
+                 optionalCookies.analytics      present, equals "accepted"
+                 optionalCookies.marketing      present, equals "accepted"
 
 refuse  label: "Only what the site needs"
         means: "the site keeps only what it needs to show you the pages and keep you signed in, and does
@@ -336,15 +337,34 @@ refuse  label: "Only what the site needs"
 `#ccc-notify-dismiss`, the close control with no words, appears nowhere in it, and the parser
 would refuse it if it did.
 
-**What each clause set rests on.** The refusal's clauses are Vahid's own measurement of
-2026-09-19: after *Settings* and after *Close*, `optionalCookies` is empty and `interactedWith` is
-`true`. The accept clauses are **weaker evidence** and are marked so here: nobody has pressed
-*Accept all cookies* and read what it writes. They rest on his earlier read of his own standing
-cookie, which held functional, analytics and marketing all accepted, so the keys are his and the
-presence is inferred from them. Presence rather than an exact value is deliberate: the accepted
-token was never read, and asserting one would be a guess. If the clauses are wrong, a student who
-chooses *accept* is **stopped and handed to a person** rather than signed in — the failure is on
-the safe side, and it is the read-back doing its job rather than a defect.
+**What each clause set rests on — both halves now measured (P173).** The refusal's clauses are
+Vahid's press of 2026-09-19: after *Settings* and after *Close*, `optionalCookies` is `{}` and
+`interactedWith` is `true`. The accept clauses were the weaker half until 2026-09-20, when he
+pressed *Accept all cookies* on a fresh profile and read what it wrote:
+
+```
+optionalCookies: {"functional":"accepted","analytics":"accepted","marketing":"accepted"}
+interactedWith:  true      consentDate set      consentExpiry 90
+```
+
+So the clauses assert the **exact string**, not mere presence. It sharpens the refusal too, in his
+words: *"the same portal writes a string when it means yes and writes nothing at all when it means
+no. Absence is the refusal, and now we know it is absence rather than a falsy value."*
+
+**The caveat that travels with the string.** `"accepted"` is the portal's vocabulary, not ours,
+and a portal that writes it today could write `"granted"` tomorrow. **The exact value is a
+measurement of one press, on one account, on one day** — the same caveat as the close control, and
+it is recorded here so nobody later reads it as a property of Civic CookieControl in general. If
+it changes, a student who chooses *accept* is **stopped and handed to a person** rather than
+signed in: the failure is on the safe side, and it is the read-back doing its job rather than a
+defect. The browser lane already exercises that path — the fixture writes `"accepted"` and a
+clause asserts it.
+
+**The profile.** Every read and both presses were made on `aas-consent-read`, a throwaway created
+for this work, which **now holds every category accepted with a 90-day expiry**. It is named in
+[the capture record](../captures/sheffield-consent-2026-09-19/README.md) together with all four
+reads, because a profile's consent state is part of what a capture means — the lesson of P168's
+withdrawn claim — and nothing further should be captured from it.
 
 ## Amended — P172, 2026-09-20: a path of more than one press says what it means
 

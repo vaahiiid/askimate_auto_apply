@@ -4906,6 +4906,28 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P173 — both halves measured, and the profile that measured them
+
+He pressed accept on a fresh profile and read the cookie. The values are the string `"accepted"`,
+not a boolean, so the draft's accept clauses now assert that exact string instead of mere
+presence — and the refusal is sharper for it: this portal writes a string when it means yes and
+nothing at all when it means no, so absence is the refusal rather than a falsy value.
+
+The string carries the same caveat as the close control, at his instruction: one press, one
+account, one day. It is the portal's vocabulary, not ours, and a portal that writes "accepted"
+today could write something else tomorrow. If it does, a student who accepts is stopped and handed
+to a person, which is the read-back doing its job.
+
+The profile is named now, in a capture record of its own: `aas-consent-read`, which pressed accept
+and holds every category for ninety days, and from which nothing further should be captured. That
+is P168's lesson made durable — a profile's consent state is part of what a capture means, and the
+last time it was not written down an agent read six trackers as evidence of something they were
+not.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P172 — the sentence that says there is no "no"
 
 He read the question, passed it on both his checks, and stopped on one line. A path of two presses
