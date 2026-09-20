@@ -345,3 +345,31 @@ presence is inferred from them. Presence rather than an exact value is deliberat
 token was never read, and asserting one would be a guess. If the clauses are wrong, a student who
 chooses *accept* is **stopped and handed to a person** rather than signed in — the failure is on
 the safe side, and it is the read-back doing its job rather than a defect.
+
+## Amended — P172, 2026-09-20: a path of more than one press says what it means
+
+Vahid read the generated question and passed it on both of his checks, then stopped on one line.
+The old generic sentence for a multi-step path was *"I would press 'Settings', then 'Close Cookie
+Control' — in that order, and nothing else."* His objection:
+
+> *"That reads as if the student is being told our technique, and it invites the question 'why
+> does closing something mean no?'. Which is a fair question with an uncomfortable answer: because
+> the site records a refusal when you close the panel without choosing, not because any button
+> says no. I would rather the sentence said that than hid it… the fact that there is no 'no'
+> button should be in the question rather than inferable from the path."*
+
+So `ConsentChoice.howItIsMade` carries the reviewer's plain-words answer, and the parser
+**requires** it on any path of more than one control — a sequence that is not self-evident from
+its buttons has to explain itself, on this portal and on the next one. The question leads with the
+explanation and still quotes every control, which keeps his earlier condition whole:
+
+```
+"Only what the site needs" — the site keeps only what it needs to show you the pages and keep you
+signed in, and does not keep track of what you look at or use it for adverts anywhere. This site
+has no button that says no, so I open its settings and close them again without switching anything
+on, which is how the site records that you did not agree to the extra parts. That is two presses:
+"Settings", then "Close Cookie Control", and nothing else.
+```
+
+The draft above carries that sentence. The client refuses a reading whose multi-step choice lacks
+it, so a page cannot show the path without the reason.

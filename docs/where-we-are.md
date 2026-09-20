@@ -4906,6 +4906,23 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P172 — the sentence that says there is no "no"
+
+He read the question, passed it on both his checks, and stopped on one line. A path of two presses
+was being described as technique — press this, then that, in that order — which invites a question
+it does not answer: why does closing something mean no? The answer is uncomfortable and is now
+said rather than hidden. This site has no button that says no. The refusal is recorded because the
+panel is opened and closed without switching anything on.
+
+So a multi-press path must carry the reviewer's own explanation, the parser requires it, the
+question leads with it, and the client refuses a reading that lacks it — no page can show the path
+without the reason. Every control is still quoted, which was his earlier condition, and the count
+in the middle of the sentence is spelled rather than a numeral.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P171 — the draft, read before it is signed, and an id nobody had ever seen
 
 He asked to read the Sheffield consent field the way a student reads a preview: the path, every

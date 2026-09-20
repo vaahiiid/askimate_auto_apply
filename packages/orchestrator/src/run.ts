@@ -888,6 +888,13 @@ function secretRequestFor(
  * honest version of that question is three sentences long, it is three
  * sentences."* The words and the meanings are the reviewed blueprint's.
  */
+/** A count a person reads, not a numeral in the middle of a sentence. */
+function pressesInWords(count: number): string {
+  if (count === 1) return "one press";
+  const spelled = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][count];
+  return `${spelled ?? String(count)} presses`;
+}
+
 export function describeConsentChoice(portalHost: string, banner: ConsentBanner): string {
   const choices = banner.choices
     .map((choice) => {
@@ -896,9 +903,17 @@ export function describeConsentChoice(portalHost: string, banner: ConsentBanner)
       // button on the path is named in the entry and quoted to the student,
       // and the path is fixed rather than discovered at run time."*
       const presses = choice.path.map((step) => `"${step.label}"`).join(", then ");
+      // The buttons are always quoted — that is his condition for a sequence
+      // being a choice — but where the entry says what the sequence MEANS, the
+      // meaning leads and the presses follow it. A student should not have to
+      // work out from "Settings, then Close" that this site has no button
+      // saying no (P172).
       const how =
-        choice.path.length === 1 ? `I would press ${presses}` : `I would press ${presses} — in that order, and nothing else`;
-      return `"${choice.label}" — ${choice.means}. ${how}.`;
+        choice.howItIsMade === undefined
+          ? `I would press ${presses}.`
+          : `${choice.howItIsMade[0]?.toUpperCase() ?? ""}${choice.howItIsMade.slice(1)}. That is ` +
+            `${pressesInWords(choice.path.length)}: ${presses}, and nothing else.`;
+      return `"${choice.label}" — ${choice.means}. ${how}`;
     })
     .join(" ");
   return (

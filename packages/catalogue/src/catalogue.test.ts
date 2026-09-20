@@ -211,6 +211,9 @@ describe("parsing rebuilds rather than casts", () => {
         id: "reject",
         label: "Only what the site needs",
         means: "nothing beyond what the site needs to work is stored after your choice",
+        howItIsMade:
+          "this site has no button that says no, so I open its settings and close them again " +
+          "without switching anything on, which is how it records that you did not agree",
         path: [
           { label: "Settings", locator: { strategy: "id", value: "ccc-settings" } },
           { label: "Close Cookie Control", locator: { strategy: "id", value: "ccc-close" } },
@@ -280,6 +283,8 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refusal?.path.map((step) => step.label)).toEqual(["Settings", "Close Cookie Control"]);
     expect(refusal?.verify.mustHold).toHaveLength(2);
 
+    refuses((c) => delete second(c)["howItIsMade"], "a path of more than one press must say what it means", "howItIsMade");
+    refuses((c) => (second(c)["howItIsMade"] = "   "), "and must say it in words", "howItIsMade");
     refuses((c) => ((second(c)["path"] as unknown[]).length = 0), "a path of no steps presses nothing", "path");
     refuses((c) => {
       (second(c)["path"] as Record<string, unknown>[])[1]!["label"] = "  ";

@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-20, P172: a consent path of more than one press must say what it means, so Sheffield's
+  question now states that the site has no button saying no rather than leaving it to be inferred
+  from a path ending in "close". Required by the parser, carried to the student's page, refused by
+  the client when missing.
 - 2026-09-20, P171: the Sheffield consent draft printed for Vahid to read before signing,
   generated rather than typed. An invented locator (`#ccc-settings`) was caught in P170's draft
   and corrected to the class the capture shows. The accept clauses are marked as resting on his

@@ -19,6 +19,19 @@ not shipped artefacts.
 
 ---
 
+## [0.168.0] — 2026-09-20
+
+**P172 — a consent path of more than one press says what it means (ADR-0131 amended; decided by
+Vahid, 2026-09-20).**
+
+- `ConsentChoice.howItIsMade`: required by the parser on any path of more than one control,
+  refused blank. The question leads with it and still quotes every control.
+- Carried on the run reading and the student's page; the client refuses a multi-step choice that
+  lacks it.
+- A press count in prose is spelled out rather than printed as a numeral.
+
+---
+
 ## [0.167.0] — 2026-09-20
 
 **P171 — the Sheffield consent draft put to Vahid, and an invented locator caught in it.**

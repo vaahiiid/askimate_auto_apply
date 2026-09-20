@@ -481,6 +481,8 @@ export interface ConsentBannerReading {
     readonly means: string;
     /** Every control this choice presses, in order, in its own words. */
     readonly path: readonly string[];
+    /** Why that sequence is this choice, where the entry says so (P172). */
+    readonly howItIsMade?: string;
   }[];
 }
 
@@ -502,6 +504,7 @@ function consentBannerReading(portalHost: string, banner: ConsentBanner): Consen
       // Quoted, because a sequence is a choice only when the student can see
       // what it presses (Vahid, 2026-09-19).
       path: choice.path.map((step) => step.label),
+      ...(choice.howItIsMade === undefined ? {} : { howItIsMade: choice.howItIsMade }),
     })),
   };
 }

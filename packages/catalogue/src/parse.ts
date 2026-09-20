@@ -547,11 +547,20 @@ function readConsentChoice(value: unknown, path: string): ConsentChoice {
   const source = record(value, path);
   const steps = list(source, "path", path, readConsentStep);
   if (steps.length === 0) fail(`${path}.path`, "expected at least one control to press");
+  // P172: a sequence that is not self-evident from its buttons has to say what
+  // it means. On a portal with no control that says no, that sentence is where
+  // the student learns there is none — rather than inferring it from a path
+  // that ends in "close".
+  const howItIsMade = steps.length > 1 ? words(source, "howItIsMade", path) : optionalText(source, "howItIsMade", path);
+  if (howItIsMade !== undefined && howItIsMade.trim().length === 0) {
+    fail(`${path}.howItIsMade`, "expected words");
+  }
   return {
     id: text(source, "id", path),
     label: words(source, "label", path),
     means: words(source, "means", path),
     path: steps,
+    ...(howItIsMade === undefined ? {} : { howItIsMade }),
     verify: readConsentVerification(source["verify"], `${path}.verify`),
   };
 }

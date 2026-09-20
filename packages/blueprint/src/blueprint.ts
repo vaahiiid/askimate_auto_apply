@@ -474,6 +474,20 @@ export interface ConsentChoice {
    */
   readonly path: readonly ConsentStep[];
   /**
+   * Why this sequence of presses IS this choice, in plain words — required on
+   * any path of more than one control (ADR-0131, P172).
+   *
+   * Vahid, 2026-09-20, on the generic line a multi-step path used to produce:
+   * *"That reads as if the student is being told our technique, and it invites
+   * the question 'why does closing something mean no?'. Which is a fair
+   * question with an uncomfortable answer: because the site records a refusal
+   * when you close the panel without choosing, not because any button says
+   * no."* So the answer is written down and said, not left to be inferred from
+   * the path: where a portal offers no control that says no, the question says
+   * so. One press needs no explanation and may carry none.
+   */
+  readonly howItIsMade?: string;
+  /**
    * What must be true of the portal's own record once the path has been
    * pressed. Read back and checked; a choice whose record cannot be verified
    * is not offered (ADR-0131, P169).

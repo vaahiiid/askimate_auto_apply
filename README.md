@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P171 — the Sheffield consent draft put to Vahid to read before signing, generated rather than typed; an invented locator caught in it and corrected |
+| **Phase** | P172 — a consent path of more than one press must say what it means, so a portal with no control that says no says so in the question rather than leaving it to be inferred |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
 | **Tests** | **2,770 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 131 ADRs · all 131 Accepted |

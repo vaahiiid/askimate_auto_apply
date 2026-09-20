@@ -12083,6 +12083,9 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
               id: "reject",
               label: "Only the cookies the site needs",
               means: "the site keeps only what it needs to work",
+              howItIsMade:
+                "this site has no button that says no, so I open its settings and close them " +
+                "again without switching anything on, which is how it records that you did not agree",
               path: [
                 { label: "Settings", locator: { strategy: "id", value: "ccc-settings" } },
                 { label: "Close Cookie Control", locator: { strategy: "id", value: "ccc-close" } },
@@ -12153,6 +12156,10 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
               label: "Only the cookies the site needs",
               means: "the site keeps only what it needs to work",
               path: ["Settings", "Close Cookie Control"],
+              // P172: why closing means no, said rather than inferred.
+              howItIsMade:
+                "this site has no button that says no, so I open its settings and close them " +
+                "again without switching anything on, which is how it records that you did not agree",
             },
           ],
         },

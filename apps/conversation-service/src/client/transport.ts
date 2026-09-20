@@ -95,6 +95,8 @@ export interface ConsentBannerReading {
     readonly means: string;
     /** Every control this choice presses, in order, in its own words. */
     readonly path: readonly string[];
+    /** Why that sequence is this choice, where the entry says so (P172). */
+    readonly howItIsMade?: string;
   }[];
 }
 
@@ -267,13 +269,24 @@ function parseConsentBanner(value: unknown): ConsentBannerReading | null {
   // P169: a reading without it would let a page show the question with the
   // half of it that is true and drop the half that is not.
   if (typeof record["beforeAnyChoice"] !== "string") return null;
-  const read: { id: string; label: string; means: string; path: readonly string[] }[] = [];
+  const read: { id: string; label: string; means: string; path: readonly string[]; howItIsMade?: string }[] = [];
   for (const entry of choices) {
     const choice = asRecord(entry);
     if (choice === null || typeof choice["id"] !== "string" || typeof choice["label"] !== "string" || typeof choice["means"] !== "string") return null;
     const path = choice["path"];
     if (!Array.isArray(path) || path.length === 0 || !path.every((step) => typeof step === "string")) return null;
-    read.push({ id: choice["id"], label: choice["label"], means: choice["means"], path: path });
+    const how = choice["howItIsMade"];
+    if (how !== undefined && typeof how !== "string") return null;
+    // P172: a path of more than one press without it would leave the student
+    // to infer from "Settings, then Close" that the site has no way to say no.
+    if (path.length > 1 && how === undefined) return null;
+    read.push({
+      id: choice["id"],
+      label: choice["label"],
+      means: choice["means"],
+      path: path,
+      ...(how === undefined ? {} : { howItIsMade: how }),
+    });
   }
   return {
     portalHost: record["portalHost"],
