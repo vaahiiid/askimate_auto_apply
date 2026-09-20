@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-20, P169: correction. The six trackers in the 2026-09-18 capture were on a profile that
+  had accepted everything, not on an unconsented one; with the record empty only Google Tag
+  Manager loads, so consent gates the rest. The capture's README is corrected. The honesty
+  condition that survives: the tag manager runs before any choice is made.
 - 2026-09-19, P168: the Settings panel read — no save button, unnameable toggles — refuses shape
   1, which is not written. Opening the panel records the notice as met with nothing accepted; two
   reads can refute a durable refusal and one press can confirm it. Our own capture shows the

@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P168 — ADR-0131 amended: the Sheffield Settings panel has no save button and no nameable toggles, so a named path is refused; a refusal, if there is one, is a recorded state, and the shape that would verify it is proposed and undecided |
+| **Phase** | P169 — a correction: the six trackers in the 2026-09-18 capture were on a profile that had accepted everything, not an unconsented one; with the record empty only Google Tag Manager loads, so consent gates the rest |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
 | **Tests** | **2,764 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 131 ADRs · all 131 Accepted |

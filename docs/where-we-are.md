@@ -4923,10 +4923,11 @@ does.
 Opening the panel wrote a cookie by itself: the notice met, nothing accepted, ninety days. If
 closing leaves it that way, the honest refusal on this portal is a state and not a button. Two
 reads can kill that reading without touching anything and only one press can confirm it, and both
-were given to him with what each outcome would mean. Against all of it stands a fact already
-measured: on 2026-09-18, on a fresh profile with no consent cookie at all, the page loaded
-Hotjar, Yandex webvisor, TikTok, LinkedIn, Meta and DoubleClick before anything had been
-consented to.
+were given to him with what each outcome would mean. One thing said here in P168 was wrong and is corrected in P169: the
+agent read the 2026-09-18 capture as six trackers loading before any consent. That profile had
+accepted everything, which is also why it met no notice. With the record empty the page loads
+Google Tag Manager and nothing else, so consent gates the rest — and what survives is the
+honesty condition, that the tag manager runs before any choice is made.
 
 Shape 3 is the agent's proposal and is not decided: a fixed path of controls that have words,
 every one quoted, followed by a read-back of the consent record so that what the student chose is

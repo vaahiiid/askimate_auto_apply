@@ -208,3 +208,26 @@ because the consequence is measured rather than promised. **Its cost, which is h
 "accept nothing" option is not one the notice offers in the notice's words. It is a state we
 produce and verify, described in ours. That is a step away from this ADR's promise, and whether
 it is an honest step or a stretched one is his to say, not the agent's.
+
+## Corrected — P169, 2026-09-20: the six trackers were on an ACCEPTED profile, not an unconsented one
+
+The amendment above says the capture of 2026-09-18 shows Hotjar, Yandex Metrika with webvisor,
+TikTok, LinkedIn, Meta and DoubleClick loading *"before anything was consented to"*. **That is
+wrong, and it was the agent's inference, not a measurement.** It rested on the capture's README
+calling the profile fresh. Vahid, who owns the account, says the profile's CookieControl cookie
+held every category accepted — which is also why that read found no notice on the page at all.
+
+His own reads of 2026-09-19 measure the opposite and settle it. With the consent record empty,
+the page loads **Google Tag Manager only**: no Hotjar, no Yandex, no TikTok, no LinkedIn, no Meta,
+no DoubleClick. **Consent gates them, and an empty record is not decorative.** The six were seen
+because that profile had accepted, and the claim that they load unconsented is withdrawn.
+
+Two things follow rather than one. The first is a correction of fact, above. The second is that
+the capture's README describes a **fresh** profile, and a genuinely cookie-fresh profile would
+have been shown the notice. That description does not hold for the consent cookie, and the
+capture's README says so beside it now.
+
+What survives, and is the honesty condition this ADR carries forward: **Google Tag Manager runs
+before any choice is made.** So "accept nothing beyond what the site needs" is true about what
+follows the choice and false about what already ran, and the student is told that in the
+sentence, not in a note.

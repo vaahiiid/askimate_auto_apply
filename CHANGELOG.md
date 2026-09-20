@@ -19,6 +19,22 @@ not shipped artefacts.
 
 ---
 
+## [0.165.0] — 2026-09-20
+
+**P169 — a correction: the six trackers were on an accepted profile (ADR-0131).** Records only.
+
+- P168 claimed the 2026-09-18 capture showed Hotjar, Yandex webvisor, TikTok, LinkedIn, Meta and
+  DoubleClick loading before any consent. Withdrawn: that profile had accepted every category,
+  which is also why it met no notice. The claim was an inference from the capture's README, not a
+  measurement.
+- Measured instead, by Vahid on 2026-09-19: with the consent record empty the page loads Google
+  Tag Manager only. Consent gates the rest.
+- The capture's README now says its "fresh profile" does not hold for the consent cookie.
+- What survives: the tag manager runs before any choice, so a refusal is true about what follows
+  and false about what already ran.
+
+---
+
 ## [0.164.0] — 2026-09-19
 
 **P168 — the Settings panel refuses shape 1; a refusal, if there is one, is a state (ADR-0131

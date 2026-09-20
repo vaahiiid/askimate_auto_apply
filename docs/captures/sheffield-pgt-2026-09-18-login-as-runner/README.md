@@ -49,6 +49,19 @@ in one line whether that shape is the thing. It is recorded here as the leading 
 if attempt 3 names a bottom-anchored element, nobody later reads it as a lucky guess — and so that,
 if it names something else, this paragraph is seen to have been a candidate and not a finding.
 
+## Correction — this profile had ACCEPTED, and "a fresh profile" does not hold for the cookie
+
+Recorded 2026-09-20 (P169). The line above says *"A fresh profile, signed out, tags allowed"*.
+For the consent cookie that is not so: Vahid, reading his own account on 2026-09-19, found the
+CookieControl cookie holding functional, analytics and marketing all accepted, with a 90-day
+expiry — which is why this read met **no consent notice at all**, and why the 48 off-host reads
+include Hotjar, Yandex Metrika with webvisor, TikTok, LinkedIn, Meta and DoubleClick.
+
+It matters because an agent read that list, in P168, as evidence that those load **before any
+consent**. They do not. On 2026-09-19, with the consent record empty, the same page loads
+**Google Tag Manager only**. Consent gates the rest. The P168 claim is withdrawn in ADR-0131 and
+here; the entries in `run.json` stay as they were written, with this paragraph beside them.
+
 ## What "attempt 1" and "attempt 2" meant in this week's logs (17 and 18 September 2026)
 
 Every runner line above and in the Run A record that reads `sign-in attempt N` was printed
