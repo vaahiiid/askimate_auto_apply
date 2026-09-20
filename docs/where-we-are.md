@@ -4906,6 +4906,30 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P171 — the draft, read before it is signed, and an id nobody had ever seen
+
+He asked to read the Sheffield consent field the way a student reads a preview: the path, every
+control's words, the cookie and its clauses, and the question in full. It is generated through the
+same function that will ask the student, so what he read is what the system would say.
+
+Reading it back against his own capture caught something. P170's draft named `#ccc-settings` for
+the Settings control. There is no such id — his read lists that button with no id at all, only
+classes and the word *Settings* — and the agent had invented it, which is precisely what
+ADR-0109's rule against guessing a locator exists to stop. It is located now by the class the read
+does show, scoped to the notice, and the invention is recorded rather than quietly replaced.
+
+One thing is marked as weaker evidence beside the draft. The refusal's clauses are his own
+measurement. The accept clauses are not: nobody has pressed *Accept all cookies* and read what it
+writes, so the keys come from his earlier read of his own standing cookie and the draft asserts
+presence rather than a token nobody has seen. If that is wrong a student choosing accept is
+stopped and handed to a person, which is the read-back doing its job.
+
+Nothing is signed and the entry is still empty.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P170 — the refusal is a state we verify, not a button we trust
 
 Three reads and one press on his own account settled it. The toggles are all off by default; the

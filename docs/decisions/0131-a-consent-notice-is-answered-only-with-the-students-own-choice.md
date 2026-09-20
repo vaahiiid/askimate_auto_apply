@@ -292,21 +292,56 @@ read-back disabled, that test signs in.
 
 ### Not written: the Sheffield entry
 
-The entry's `authentication.consent` is still empty, and this is the draft it would carry, for
-Vahid to check and sign (ADR-0057 — a reviewed entry is signed content, and no agent signs one):
+The entry's `authentication.consent` is still empty. The draft below is what it would carry, put
+to Vahid to read before it goes near the entry, the same way a student reads a preview. It is
+generated from the field through `describeConsentChoice`, not typed by hand, and it parses as a
+reviewed entry. **No agent signs it** (ADR-0057).
+
+**A correction, recorded rather than quietly fixed.** The first draft of this section named
+`#ccc-settings` as the Settings control. There is no such id. Vahid's banner read of 2026-09-19
+lists that button with **no id at all** — `button` with classes
+`.ccc-notify-button.ccc-link.ccc-tabbable.ccc-notify-link` and the text *Settings* — and the id
+was the agent's invention, of exactly the kind ADR-0109's rule against guessing a locator exists
+to stop. The draft locates it by the class the read does show, scoped to the notice:
+`#ccc button.ccc-notify-link`.
 
 ```
-words:           "Your cookie choices … Use 'Settings' to manage your preferences"  (the notice's own text)
-beforeAnyChoice: "the site's tag manager has already loaded before you are asked"
-choices:
-  accept  "Accept all cookies"  — the site may also measure how you use it and show you adverts elsewhere
-          path:   "Accept all cookies"        → #ccc-notify-accept
-          verify: CookieControl · interactedWith present, optionalCookies.analytics present
-  refuse  "Only what the site needs" — nothing beyond what the site needs is stored after your choice
-          path:   "Settings"                  → #ccc-settings (as the panel read names it)
-                  "Close Cookie Control"      → #ccc-close
-          verify: CookieControl · interactedWith present, optionalCookies.{functional,analytics,marketing} absent
+words:           "Your cookie choices. We use some essential cookies to make this website work. We also use
+                  cookies to help give you a better experience. By accepting all cookies, you agree to the
+                  storing of cookies on your device. Use 'Settings' to manage your preferences"
+beforeAnyChoice: "the page has already loaded Google's tag manager before it asks you anything, so something
+                  has run whichever answer you give"
+
+accept  label: "Accept all cookies"
+        means: "the site may keep track of what you look at and how you use it, and may use that to show
+                you adverts on other websites"
+        path:  "Accept all cookies"     → id      ccc-notify-accept
+        verify CookieControl:
+                 interactedWith                 present, equals true
+                 optionalCookies.analytics      present
+                 optionalCookies.marketing      present
+
+refuse  label: "Only what the site needs"
+        means: "the site keeps only what it needs to show you the pages and keep you signed in, and does
+                not keep track of what you look at or use it for adverts anywhere"
+        path:  "Settings"               → css     #ccc button.ccc-notify-link
+               "Close Cookie Control"   → id      ccc-close
+        verify CookieControl:
+                 interactedWith                 present, equals true
+                 optionalCookies.functional     absent
+                 optionalCookies.analytics      absent
+                 optionalCookies.marketing      absent
 ```
 
-The close control with no words, `#ccc-notify-dismiss`, appears nowhere in it, and the parser
+`#ccc-notify-dismiss`, the close control with no words, appears nowhere in it, and the parser
 would refuse it if it did.
+
+**What each clause set rests on.** The refusal's clauses are Vahid's own measurement of
+2026-09-19: after *Settings* and after *Close*, `optionalCookies` is empty and `interactedWith` is
+`true`. The accept clauses are **weaker evidence** and are marked so here: nobody has pressed
+*Accept all cookies* and read what it writes. They rest on his earlier read of his own standing
+cookie, which held functional, analytics and marketing all accepted, so the keys are his and the
+presence is inferred from them. Presence rather than an exact value is deliberate: the accepted
+token was never read, and asserting one would be a guess. If the clauses are wrong, a student who
+chooses *accept* is **stopped and handed to a person** rather than signed in — the failure is on
+the safe side, and it is the read-back doing its job rather than a defect.

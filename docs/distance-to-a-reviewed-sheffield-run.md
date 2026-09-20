@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-20, P171: the Sheffield consent draft printed for Vahid to read before signing,
+  generated rather than typed. An invented locator (`#ccc-settings`) was caught in P170's draft
+  and corrected to the class the capture shows. The accept clauses are marked as resting on his
+  earlier cookie read rather than a fresh press. The entry is still empty and unsigned.
 - 2026-09-20, P170: shape 3 built. A consent choice is a fixed path of controls that carry their
   own words, and the portal's own record is read back and checked against what the entry says it
   must hold; `consent_not_recorded` stops the sign-in when it disagrees. Proved against a fixture

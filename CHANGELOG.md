@@ -19,6 +19,20 @@ not shipped artefacts.
 
 ---
 
+## [0.167.0] — 2026-09-20
+
+**P171 — the Sheffield consent draft put to Vahid, and an invented locator caught in it.**
+Records only.
+
+- The draft is generated through `describeConsentChoice` and parses as a reviewed entry. Unsigned;
+  the entry's `authentication.consent` is still empty.
+- Correction: P170's draft named `#ccc-settings`. There is no such id; the button carries no id in
+  the capture. Located by its class, scoped to the notice.
+- The accept clauses are marked as weaker evidence: nobody has pressed *Accept all cookies* and
+  read what it writes.
+
+---
+
 ## [0.166.0] — 2026-09-20
 
 **P170 — ADR-0131 shape 3: a consent choice is a fixed path, and the portal's own record is read
