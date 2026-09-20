@@ -186,31 +186,122 @@ describe("parsing rebuilds rather than casts", () => {
     expect(canonicalText(toCanonical(parsed.value))).toBe(canonicalText(toCanonical(ENTRY)));
   });
 
+  /**
+   * A notice in Sheffield's shape (read by Vahid, 2026-09-19): accept-all is one
+   * press, the refusal is a path of two, and each records something different.
+   */
+  const CONSENT = {
+    words: "Your cookie choices. We use some essential cookies to make this website work.",
+    beforeAnyChoice: "a tag manager has already loaded on this page before you are asked",
+    choices: [
+      {
+        id: "accept",
+        label: "Accept all cookies",
+        means: "the site may also measure how you use it and show you adverts elsewhere",
+        path: [{ label: "Accept all cookies", locator: { strategy: "id", value: "ccc-accept" } }],
+        verify: {
+          cookie: "portal_consent",
+          mustHold: [
+            { path: ["interactedWith"], present: true, equals: true, means: "the site has recorded that you answered" },
+            { path: ["optionalCookies", "analytics"], present: true, means: "measuring is on" },
+          ],
+        },
+      },
+      {
+        id: "reject",
+        label: "Only what the site needs",
+        means: "nothing beyond what the site needs to work is stored after your choice",
+        path: [
+          { label: "Settings", locator: { strategy: "id", value: "ccc-settings" } },
+          { label: "Close Cookie Control", locator: { strategy: "id", value: "ccc-close" } },
+        ],
+        verify: {
+          cookie: "portal_consent",
+          mustHold: [
+            { path: ["interactedWith"], present: true, equals: true, means: "the site has recorded that you answered" },
+            { path: ["optionalCookies", "analytics"], present: false, means: "nothing was turned on" },
+          ],
+        },
+      },
+    ],
+  };
+
   it("carries a consent notice under review and signature, and refuses one with fewer than two choices or a repeated key (ADR-0131)", () => {
-    // The notice's words and each button's label, meaning and place are what
-    // a student is asked with and what the runner presses; both are the
-    // reviewer's, so both are in the content hash a signature binds.
-    const consent = {
-      words: "We use cookies to make the site work.",
-      choices: [
-        { id: "accept", label: "Accept all", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
-        { id: "reject", label: "Only what the site needs", means: "the site keeps only what it needs", locator: { strategy: "id", value: "ccc-reject" } },
-      ],
-    };
+    // The notice's words, what already ran before the student was asked, and
+    // each choice's label, meaning, path and read-back: all of it is what a
+    // student is asked with and what the runner presses and checks, so all of
+    // it is the reviewer's and all of it is in the hash a signature binds.
     const withNotice = JSON.parse(documentOf()) as Record<string, unknown>;
     const authentication = (withNotice["blueprint"] as Record<string, unknown>)["authentication"] as Record<string, unknown>;
-    authentication["consent"] = consent;
+    authentication["consent"] = structuredClone(CONSENT);
     const parsed = parseReviewedEntry(withNotice);
     if (!parsed.ok) expect.unreachable(`should parse: ${JSON.stringify(parsed.refusal)}`);
-    expect(parsed.value.blueprint.authentication.consent).toEqual(consent);
+    expect(parsed.value.blueprint.authentication.consent).toEqual(CONSENT);
     const plain = parseReviewedEntry(JSON.parse(documentOf()));
     if (!plain.ok) expect.unreachable("the plain entry parses");
     expect(contentHash(toCanonical(parsed.value)), "the notice is signed content").not.toBe(contentHash(toCanonical(plain.value)));
 
-    authentication["consent"] = { ...consent, choices: [consent.choices[0]] };
-    expect(parseReviewedEntry(withNotice).ok, "one choice is no choice").toBe(false);
-    authentication["consent"] = { ...consent, choices: [consent.choices[0], { ...consent.choices[1], id: "accept" }] };
-    expect(parseReviewedEntry(withNotice).ok, "a repeated key would record one choice as another").toBe(false);
+    const refuses = (mutate: (consent: Record<string, unknown>) => void, why: string): void => {
+      const consent = structuredClone(CONSENT) as unknown as Record<string, unknown>;
+      mutate(consent);
+      authentication["consent"] = consent;
+      expect(parseReviewedEntry(withNotice).ok, why).toBe(false);
+    };
+    refuses((c) => ((c["choices"] as unknown[]).length = 1), "one choice is no choice");
+    refuses((c) => {
+      const choices = c["choices"] as Record<string, unknown>[];
+      choices[1]!["id"] = "accept";
+    }, "a repeated key would record one choice as another");
+  });
+
+  it("a choice is a PATH of controls that have words, and a read-back that says what the portal recorded (ADR-0131, P169)", () => {
+    // Vahid, 2026-09-19: "A named sequence, reviewed and signed, is not that."
+    // The path is fixed and every step carries its own words; the read-back is
+    // what makes the choice a measured state rather than a trusted press.
+    const withNotice = JSON.parse(documentOf()) as Record<string, unknown>;
+    const authentication = (withNotice["blueprint"] as Record<string, unknown>)["authentication"] as Record<string, unknown>;
+    const refuses = (mutate: (consent: Record<string, unknown>) => void, why: string, at: string): void => {
+      const consent = structuredClone(CONSENT) as unknown as Record<string, unknown>;
+      mutate(consent);
+      authentication["consent"] = consent;
+      const parsed = parseReviewedEntry(withNotice);
+      expect(parsed.ok, why).toBe(false);
+      if (parsed.ok) expect.unreachable("refused above");
+      expect(JSON.stringify(parsed.refusal), why).toContain(at);
+    };
+    const second = (c: Record<string, unknown>): Record<string, unknown> =>
+      (c["choices"] as Record<string, unknown>[])[1]!;
+
+    // The two-step path is carried whole, in order.
+    authentication["consent"] = structuredClone(CONSENT);
+    const ok = parseReviewedEntry(withNotice);
+    if (!ok.ok) expect.unreachable(`should parse: ${JSON.stringify(ok.refusal)}`);
+    const refusal = ok.value.blueprint.authentication.consent?.choices[1];
+    expect(refusal?.path.map((step) => step.label)).toEqual(["Settings", "Close Cookie Control"]);
+    expect(refusal?.verify.mustHold).toHaveLength(2);
+
+    refuses((c) => ((second(c)["path"] as unknown[]).length = 0), "a path of no steps presses nothing", "path");
+    refuses((c) => {
+      (second(c)["path"] as Record<string, unknown>[])[1]!["label"] = "  ";
+      // A step with no words is the close control P166 refuses, one level in.
+    }, "a step with no words is never part of a choice", "path[1].label");
+    refuses((c) => {
+      delete second(c)["verify"];
+    }, "a choice that cannot be read back is not offered", "verify");
+    refuses((c) => {
+      ((second(c)["verify"] as Record<string, unknown>)["mustHold"] as unknown[]).length = 0;
+    }, "a read-back that checks nothing is not a read-back", "mustHold");
+    refuses((c) => {
+      (second(c)["verify"] as Record<string, unknown>)["cookie"] = "";
+      // Nothing to read is nothing to verify.
+    }, "the record has to be somewhere", "verify.cookie");
+    refuses((c) => {
+      const holds = (second(c)["verify"] as Record<string, unknown>)["mustHold"] as Record<string, unknown>[];
+      holds[0]!["path"] = [];
+    }, "an assertion about no key asserts nothing", "mustHold[0].path");
+    refuses((c) => {
+      delete c["beforeAnyChoice"];
+    }, "a question that cannot say what already ran offers a refusal wider than the portal honours", "beforeAnyChoice");
   });
 
   it("a control with no words is never a choice on a notice — a blank label is refused, however it is blank (ADR-0131, amended P166)", () => {
@@ -220,12 +311,10 @@ describe("parsing rebuilds rather than casts", () => {
     // structural here so the next portal's X cannot be authored as a choice.
     const withNotice = JSON.parse(documentOf()) as Record<string, unknown>;
     const authentication = (withNotice["blueprint"] as Record<string, unknown>)["authentication"] as Record<string, unknown>;
-    const choices = (label: string) => [
-      { id: "accept", label: "Accept all", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
-      { id: "close", label, means: "closes the notice", locator: { strategy: "id", value: "ccc-notify-dismiss" } },
-    ];
     for (const label of ["", " ", "\t\n"]) {
-      authentication["consent"] = { words: "Your cookie choices", choices: choices(label) };
+      const consent = structuredClone(CONSENT) as unknown as Record<string, unknown>;
+      (consent["choices"] as Record<string, unknown>[])[1]!["label"] = label;
+      authentication["consent"] = consent;
       const parsed = parseReviewedEntry(withNotice);
       expect(parsed.ok, `a label of ${JSON.stringify(label)} is no label`).toBe(false);
       if (parsed.ok) expect.unreachable("refused above");

@@ -890,15 +890,32 @@ function secretRequestFor(
  */
 export function describeConsentChoice(portalHost: string, banner: ConsentBanner): string {
   const choices = banner.choices
-    .map((choice) => `"${choice.label}" — ${choice.means}`)
-    .join("; ");
+    .map((choice) => {
+      // Every button on the path, quoted, because that is the condition Vahid
+      // set for a sequence being a choice rather than a dismissal: *"every
+      // button on the path is named in the entry and quoted to the student,
+      // and the path is fixed rather than discovered at run time."*
+      const presses = choice.path.map((step) => `"${step.label}"`).join(", then ");
+      const how =
+        choice.path.length === 1 ? `I would press ${presses}` : `I would press ${presses} — in that order, and nothing else`;
+      return `"${choice.label}" — ${choice.means}. ${how}.`;
+    })
+    .join(" ");
   return (
     `Before I can sign in on ${portalHost}, the site shows a notice and will not let me press ` +
     `the sign-in button until it is answered. It is about what the site may remember about you ` +
     `while you use it, and it is a choice on your account, so it is yours to make and not mine. ` +
-    `The notice says: "${banner.words}" The choices it offers are: ${choices}. Tell me which ` +
-    `you want, and I will press that one for you whenever the notice appears on this site, ` +
-    `until you change it. You can see your choice and change it here at any time.`
+    `The notice says: "${banner.words}" ` +
+    // In the sentence, not in a note (Vahid, 2026-09-19): a refusal here is
+    // true about what FOLLOWS the choice and false about what already ran, and
+    // a student told only the first half has been told something untrue.
+    `One thing to know before you choose: ${banner.beforeAnyChoice}. Choosing here changes what ` +
+    `happens after your choice; it cannot undo what already ran. ` +
+    `Your choices are: ${choices} ` +
+    `Tell me which you want, and I will do that for you whenever the notice appears on this ` +
+    `site, until you change it. Afterwards I check what the site actually recorded, and if it ` +
+    `does not match what you chose I stop and someone looks at it. You can see your choice and ` +
+    `change it here at any time.`
   );
 }
 

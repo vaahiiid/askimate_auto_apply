@@ -44,7 +44,13 @@ import type {
   FieldValidation,
   HandoffPoint,
   RequiredDocument,
-  SubmissionModel, ConsentBanner } from "@askimate/aas-blueprint";
+  SubmissionModel,
+  ConsentAssertion,
+  ConsentBanner,
+  ConsentChoice,
+  ConsentStep,
+  ConsentVerification,
+} from "@askimate/aas-blueprint";
 import type {
   FieldMapping,
   MappingSet,
@@ -472,30 +478,98 @@ function readLoginForm(value: unknown, path: string): LoginForm {
  * more choices, each with the button's label, what it means in plain terms,
  * and where it is. Every string is a reviewer's, read by a student.
  */
+/**
+ * A string that must carry the control's own words.
+ *
+ * ADR-0131 as amended in P166 (Vahid): *"A button whose meaning is set by
+ * configuration the student cannot see is a button nobody can be honestly
+ * asked about."* Empty or whitespace is no words at all — the close control
+ * every consent library ships — and P169 pushes the same rule one level in, to
+ * every step of a choice's path.
+ */
+function words(source: Record<string, unknown>, key: string, path: string): string {
+  const value = text(source, key, path);
+  if (value.trim().length === 0) {
+    fail(`${path}.${key}`, "expected the control's own words — a control with no words is never a choice");
+  }
+  return value;
+}
+
+/** One control on a choice's path: its own words, and where it is. */
+function readConsentStep(value: unknown, path: string): ConsentStep {
+  const source = record(value, path);
+  return { label: words(source, "label", path), locator: readLocator(source["locator"], `${path}.locator`) };
+}
+
+/** One assertion about the portal's own consent record, checked after the path. */
+function readConsentAssertion(value: unknown, path: string): ConsentAssertion {
+  const source = record(value, path);
+  const keys = textList(source, "path", path);
+  if (keys.length === 0) fail(`${path}.path`, "expected at least one key to read");
+  keys.forEach((key, index) => {
+    if (key.trim().length === 0) fail(`${path}.path[${String(index)}]`, "expected a key");
+  });
+  const present = flag(source, "present", path);
+  const equals = source["equals"];
+  if (equals !== undefined && typeof equals !== "string" && typeof equals !== "boolean") {
+    fail(`${path}.equals`, "expected a string or true or false");
+  }
+  // An exact value for a key that must not be there asserts two things at
+  // once, and the second could never hold: refused rather than ignored.
+  if (equals !== undefined && !present) fail(`${path}.equals`, "expected no value where the key must be absent");
+  return {
+    path: keys,
+    present,
+    ...(equals === undefined ? {} : { equals: equals }),
+    means: words(source, "means", path),
+  };
+}
+
+/**
+ * The read-back: where the portal keeps its record, and what must be true of
+ * it once the path has been pressed.
+ *
+ * A choice with no read-back is a choice we would have to trust a button for,
+ * and what a consent control records is set by configuration nobody outside
+ * the portal can see. So it is required, and a notice whose record cannot be
+ * verified cannot be authored — which is the boundary, not an oversight.
+ */
+function readConsentVerification(value: unknown, path: string): ConsentVerification {
+  const source = record(value, path);
+  const cookie = words(source, "cookie", path);
+  const mustHold = list(source, "mustHold", path, readConsentAssertion);
+  if (mustHold.length === 0) fail(`${path}.mustHold`, "expected at least one assertion to check");
+  return { cookie, mustHold };
+}
+
+/** One choice: what it is called, what it means, how it is made, how it is checked. */
+function readConsentChoice(value: unknown, path: string): ConsentChoice {
+  const source = record(value, path);
+  const steps = list(source, "path", path, readConsentStep);
+  if (steps.length === 0) fail(`${path}.path`, "expected at least one control to press");
+  return {
+    id: text(source, "id", path),
+    label: words(source, "label", path),
+    means: words(source, "means", path),
+    path: steps,
+    verify: readConsentVerification(source["verify"], `${path}.verify`),
+  };
+}
+
 function readConsentBanner(value: unknown, path: string): ConsentBanner {
   const source = record(value, path);
-  const choices = list(source, "choices", path, (item, itemPath) => {
-    const choice = record(item, itemPath);
-    const label = text(choice, "label", itemPath);
-    // ADR-0131, amended P166 (Vahid, 2026-09-19): "A button whose meaning is
-    // set by configuration the student cannot see is a button nobody can be
-    // honestly asked about." A control with no words of its own — every
-    // portal's close control — is never a choice, whatever it does.
-    if (label.trim().length === 0) {
-      fail(`${itemPath}.label`, "expected the button's own words — a control with no words is never a choice");
-    }
-    return {
-      id: text(choice, "id", itemPath),
-      label,
-      means: text(choice, "means", itemPath),
-      locator: readLocator(choice["locator"], `${itemPath}.locator`),
-    };
-  });
+  const choices = list(source, "choices", path, readConsentChoice);
   if (choices.length < 2) fail(`${path}.choices`, "expected at least two choices");
   if (new Set(choices.map((choice) => choice.id)).size !== choices.length) {
     fail(`${path}.choices`, "expected every choice id to be distinct");
   }
-  return { words: text(source, "words", path), choices };
+  return {
+    words: words(source, "words", path),
+    // Required (P169): a question that cannot say what already ran would offer
+    // a refusal wider than the portal can honour.
+    beforeAnyChoice: words(source, "beforeAnyChoice", path),
+    choices,
+  };
 }
 
 function readAuthentication(value: unknown, path: string): AuthenticationModel {

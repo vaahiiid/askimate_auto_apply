@@ -473,7 +473,15 @@ export type PendingDecision =
 export interface ConsentBannerReading {
   readonly portalHost: string;
   readonly words: string;
-  readonly choices: readonly { readonly id: string; readonly label: string; readonly means: string }[];
+  /** What already ran before the student was asked (ADR-0131, P169). */
+  readonly beforeAnyChoice: string;
+  readonly choices: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly means: string;
+    /** Every control this choice presses, in order, in its own words. */
+    readonly path: readonly string[];
+  }[];
 }
 
 /** The student's choice on a portal's consent notice: visible, and changeable to any other (ADR-0131). */
@@ -486,7 +494,15 @@ function consentBannerReading(portalHost: string, banner: ConsentBanner): Consen
   return {
     portalHost,
     words: banner.words,
-    choices: banner.choices.map((choice) => ({ id: choice.id, label: choice.label, means: choice.means })),
+    beforeAnyChoice: banner.beforeAnyChoice,
+    choices: banner.choices.map((choice) => ({
+      id: choice.id,
+      label: choice.label,
+      means: choice.means,
+      // Quoted, because a sequence is a choice only when the student can see
+      // what it presses (Vahid, 2026-09-19).
+      path: choice.path.map((step) => step.label),
+    })),
   };
 }
 
@@ -752,6 +768,8 @@ function failureInWords(failure: WorkFailure): string {
       return "the portal asked for something I could not give it";
     case "consent_banner_met":
       return "the portal showed a notice that has to be answered before I can sign in, and that answer is yours to give";
+    case "consent_not_recorded":
+      return "I made the choice you recorded for that site and the site's own record does not say so, and I will not go on past that";
   }
 }
 
@@ -767,6 +785,27 @@ function consentMetMessage(entry: CatalogueEntry): string {
     `may remember about you, and that is your choice to make on your account, not mine, so I ` +
     `pressed nothing on it. I will ask you which choice you want next, and then ask for your ` +
     `password again, because the one you typed was spent on this try. Nothing has been submitted.`
+  );
+}
+
+/**
+ * The choice was made and the portal's record does not agree (ADR-0131, P169).
+ *
+ * Said plainly, because the student's account is where the buttons were
+ * pressed: what we did, what we checked, that we stopped, and that a person
+ * is looking. No claim about what the site now holds, because that is the
+ * thing that could not be established.
+ */
+function consentNotRecordedMessage(entry: CatalogueEntry): string {
+  const institution = entry.blueprint.institutionName;
+  return (
+    `On ${institution}'s application portal I made the choice you recorded about what the site ` +
+    `may remember about you, and then I checked the site's own record of it — and the record ` +
+    `does not say what you chose. It may have changed how that notice works. I have stopped ` +
+    `there. I did not sign in and nothing has been submitted; the password you typed was put ` +
+    `into the sign-in form before I got that far and is spent, so you will be asked for it ` +
+    `again when this goes on. I am not going to tell you the site is set the way you asked ` +
+    `when I cannot see that it is. Someone is looking at it, and I will come back to you.`
   );
 }
 
@@ -6341,7 +6380,12 @@ export class RunDriver {
         runId: input.runId,
         // A hand-out the runner could not use, or a consent notice it pressed
         // nothing on (ADR-0131), reached no portal: neither is an attempt.
-        attempted: input.report.failure !== "secret_unavailable" && input.report.failure !== "consent_banner_met",
+        attempted:
+          input.report.failure !== "secret_unavailable" &&
+          input.report.failure !== "consent_banner_met" &&
+          // P169: the consent path is pressed BEFORE the sign-in button; a
+          // read-back that does not agree is not an attempt at signing in.
+          input.report.failure !== "consent_not_recorded",
         failure: input.report.failure ?? null,
         spentSecretRequestId: signInSpent ?? null,
         now,
@@ -6553,6 +6597,38 @@ export class RunDriver {
 
     if (input.failure === "secret_unavailable") {
       if (input.spent !== undefined) await say(unusablePasswordMessage(entry));
+      return;
+    }
+    if (input.failure === "consent_not_recorded") {
+      // ADR-0131 as amended in P169. Not a failed sign-in and not counted as
+      // one: nothing was tried against the login form and no password was
+      // spent. But controls WERE pressed on the student's account and what
+      // they recorded cannot be stated, so this stops for a person rather
+      // than being retried — a second identical press would record the same
+      // thing and tell us no more than the first.
+      await this.#stopForPerson({
+        record,
+        conversationId,
+        entry,
+        action: input.action,
+        target: input.target,
+        // The portal did something the reviewed blueprint does not account
+        // for: its consent control no longer records what the entry says it
+        // records. Not an authentication failure — nothing was authenticated.
+        reason: "new_portal_behaviour",
+        say: consentNotRecordedMessage(entry),
+        now: input.now,
+        expected:
+          `The portal's own consent record saying what the student chose, read back after the ` +
+          `path the reviewed entry names (ADR-0131, P169).`,
+        encountered:
+          `The student's recorded consent choice for ${portalHostOf(entry)} was pressed and the ` +
+          `portal's own record does not say what they chose, or could not be read (ADR-0131, ` +
+          `P169: the third shape checks the record rather than trusting the press). Controls were ` +
+          `pressed on the student's account. Nothing was signed in, no password was spent, and ` +
+          `nothing is claimed about what the portal recorded. A person reads what the notice now ` +
+          `does on this portal before the entry's consent block is trusted again.`,
+      });
       return;
     }
     if (input.failure === "consent_banner_met") {
@@ -7087,10 +7163,28 @@ function consentTargetsFrom(entry: CatalogueEntry, chosen: string | null | undef
   if (banner === undefined) return null;
   const choices = banner.choices.map((choice) => ({
     id: choice.id,
-    locator: { strategy: choice.locator.strategy, value: choice.locator.value },
+    steps: choice.path.map((step) => ({ strategy: step.locator.strategy, value: step.locator.value })),
   }));
   const kept = chosen !== null && chosen !== undefined && choices.some((choice) => choice.id === chosen);
-  return { choices, ...(kept ? { chosen } : {}) };
+  if (!kept) return { choices };
+  // The read-back travels with the choice, and only with it (ADR-0131, P169):
+  // the runner presses a path it can check afterwards, or it presses nothing.
+  // Labels, meanings and the notice's words stay here — the runner has no use
+  // for them and a runner log must never be handed text it could repeat.
+  const made = banner.choices.find((choice) => choice.id === chosen);
+  if (made === undefined) return { choices };
+  return {
+    choices,
+    chosen,
+    verify: {
+      cookie: made.verify.cookie,
+      mustHold: made.verify.mustHold.map((clause) => ({
+        path: [...clause.path],
+        present: clause.present,
+        ...(clause.equals === undefined ? {} : { equals: clause.equals }),
+      })),
+    },
+  };
 }
 
 function registrationFrom(entry: CatalogueEntry): RegistrationTargets | null {

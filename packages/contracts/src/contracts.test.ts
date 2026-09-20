@@ -884,35 +884,86 @@ describe("what shows a page was saved crosses the wire as locators and a URL, an
     expect("signInAttempt" in oldName).toBe(false);
   });
 
-  it("carries a consent notice's buttons and the student's choice as keys and locators, and refuses the words (ADR-0131)", () => {
+  it("carries a consent choice's PATH and its read-back as keys, locators and flags, and refuses the words (ADR-0131, P169)", () => {
     const login = {
       url: "https://apply.example.test/login",
       emailLocator: { strategy: "id", value: "returnemail" },
       passwordLocator: { strategy: "id", value: "returnpass" },
       submitLocator: { strategy: "name", value: "loginBtn" },
     };
+    const verify = {
+      cookie: "portal_consent",
+      mustHold: [
+        { path: ["interactedWith"], present: true, equals: true },
+        { path: ["optionalCookies", "analytics"], present: false, means: "measuring is off" },
+      ],
+    };
     const consent = {
       choices: [
-        { id: "accept", locator: { strategy: "id", value: "ccc-accept" }, label: "Accept all", means: "the site may measure you" },
-        { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+        { id: "accept", steps: [{ strategy: "id", value: "ccc-accept" }], label: "Accept all", means: "the site may measure you" },
+        {
+          id: "reject",
+          steps: [
+            { strategy: "id", value: "ccc-settings" },
+            { strategy: "id", value: "ccc-close" },
+          ],
+        },
       ],
       chosen: "reject",
+      verify,
+      words: "Your cookie choices",
     };
     const parsed = parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent } });
     if (parsed?.login?.consent === undefined) expect.unreachable("the consent targets parse");
     expect(parsed.login.consent).toEqual({
       choices: [
-        { id: "accept", locator: { strategy: "id", value: "ccc-accept" } },
-        { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+        { id: "accept", steps: [{ strategy: "id", value: "ccc-accept" }] },
+        {
+          id: "reject",
+          steps: [
+            { strategy: "id", value: "ccc-settings" },
+            { strategy: "id", value: "ccc-close" },
+          ],
+        },
       ],
       chosen: "reject",
+      verify: {
+        cookie: "portal_consent",
+        mustHold: [
+          { path: ["interactedWith"], present: true, equals: true },
+          { path: ["optionalCookies", "analytics"], present: false },
+        ],
+      },
     });
-    // The words never cross: dropped, not carried.
-    expect(JSON.stringify(parsed)).not.toContain("measure you");
-    // A choice the notice does not offer, one choice only, or a choice with no locator is refused.
-    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { ...consent, chosen: "settings" } } })).toBeNull();
-    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { choices: [consent.choices[0]] } } })).toBeNull();
-    expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: { choices: [{ id: "accept" }, { id: "reject" }] } } })).toBeNull();
+    // The words never cross — the notice's, the buttons', or the clauses'.
+    const wire = JSON.stringify(parsed);
+    expect(wire).not.toContain("measure you");
+    expect(wire).not.toContain("Accept all");
+    expect(wire).not.toContain("Your cookie choices");
+    expect(wire).not.toContain("measuring is off");
+
+    const refused = (mutate: (consent: Record<string, unknown>) => void): void => {
+      const broken = structuredClone(consent) as unknown as Record<string, unknown>;
+      mutate(broken);
+      expect(parseClaimedWork({ ...work, kind: "sign_in", login: { ...login, consent: broken } })).toBeNull();
+    };
+    // A choice the notice does not offer; one choice only; a choice with no controls.
+    refused((c) => (c["chosen"] = "settings"));
+    refused((c) => ((c["choices"] as unknown[]).length = 1));
+    refused((c) => ((c["choices"] as Record<string, unknown>[])[1]!["steps"] = []));
+    // P169: chosen and verify travel together, or neither travels. A path the
+    // runner cannot check afterwards is a path it must not press.
+    refused((c) => delete c["verify"]);
+    refused((c) => delete c["chosen"]);
+    // A clause with no key, no flag, or a value it must not have.
+    refused((c) => (((c["verify"] as Record<string, unknown>)["mustHold"] as Record<string, unknown>[])[0]!["path"] = []));
+    refused((c) => delete ((c["verify"] as Record<string, unknown>)["mustHold"] as Record<string, unknown>[])[0]!["present"]);
+    refused((c) => {
+      const clause = ((c["verify"] as Record<string, unknown>)["mustHold"] as Record<string, unknown>[])[1]!;
+      clause["equals"] = "accepted";
+      // `present: false` with a value asserts something that could never hold.
+    });
+    refused((c) => ((c["verify"] as Record<string, unknown>)["cookie"] = ""));
   });
 
   it("refuses a listing that is not a URL and a locator, and a marker that is not a locator", () => {

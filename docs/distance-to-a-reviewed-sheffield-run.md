@@ -249,6 +249,11 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-20, P170: shape 3 built. A consent choice is a fixed path of controls that carry their
+  own words, and the portal's own record is read back and checked against what the entry says it
+  must hold; `consent_not_recorded` stops the sign-in when it disagrees. Proved against a fixture
+  whose "refusal" records an acceptance. The Sheffield entry stays unwritten, drafted in ADR-0131
+  for Vahid's signature; what the close control records rests on one press, one account, one day.
 - 2026-09-20, P169: correction. The six trackers in the 2026-09-18 capture were on a profile that
   had accepted everything, not on an unconsented one; with the record empty only Google Tag
   Manager loads, so consent gates the rest. The capture's README is corrected. The honesty

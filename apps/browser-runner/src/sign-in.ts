@@ -105,8 +105,20 @@ export interface SettleSignInInput {
    * presses nothing on the banner and reports `consent_banner_met`.
    */
   readonly consent?: {
-    readonly choices: readonly FieldLocator[];
-    readonly chosen?: FieldLocator;
+    /** Each choice as the controls that make it. The FIRST of each tells the notice from anything else. */
+    readonly choices: readonly (readonly FieldLocator[])[];
+    /** The student's recorded choice: the path to press, and what the portal must record for it. */
+    readonly chosen?: {
+      readonly steps: readonly FieldLocator[];
+      readonly verify: {
+        readonly cookie: string;
+        readonly mustHold: readonly {
+          readonly path: readonly string[];
+          readonly present: boolean;
+          readonly equals?: string | boolean;
+        }[];
+      };
+    };
   };
 }
 
@@ -208,7 +220,10 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
   // cookie choice is a choice made on the student's account, in their name."*
   if (error !== undefined && input.consent !== undefined && pressCheckInWords(error) === "another element intercepts pointer events") {
     const consent = input.consent;
-    const onThePage = await firstPresent(page, consent.choices);
+    const onThePage = await firstPresent(
+      page,
+      consent.choices.flatMap((steps) => (steps[0] === undefined ? [] : [steps[0]])),
+    );
     if (onThePage !== null) {
       if (consent.chosen === undefined) {
         input.say(
@@ -217,20 +232,68 @@ export async function settleSignIn(page: Page, input: SettleSignInInput): Promis
         );
         return { kind: "failed", failure: "consent_banner_met" };
       }
-      const chosen = await resolve(page, consent.chosen);
-      if (chosen === null) {
-        input.say(`run ${input.runId}: sign-in: the consent notice is on the page but the button for the student's choice is not; nothing was pressed on it`);
-      } else {
-        try {
-          await chosen.click({ timeout: pressMs });
-          input.say(`run ${input.runId}: sign-in: the consent notice was answered with the student's recorded choice`);
-          await submit.click({ timeout: pressMs, noWaitAfter: true });
-          input.say(`run ${input.runId}: sign-in: the button was pressed`);
-          error = undefined;
-        } catch (again) {
-          input.say(`run ${input.runId}: sign-in: the consent notice could not be answered — ${thrownInWords(again)}`);
-          error = again;
+      const chosen = consent.chosen;
+      // ── The path, in order, and nothing else (ADR-0131, P169) ───────────
+      //
+      // A step that is not on the page stops the sign-in rather than sending
+      // the runner looking for another way through: what Vahid refused was
+      // *"the runner learning to click things away"*, and a sequence that
+      // improvises is exactly that. The lines below count controls; they
+      // never carry the controls' words, which are page text (ADR-0124).
+      let pressed = 0;
+      for (const [index, step] of chosen.steps.entries()) {
+        const control = await resolve(page, step);
+        if (control === null) {
+          input.say(
+            `run ${input.runId}: sign-in stopped — the consent notice is on the page but step ` +
+              `${String(index + 1)} of ${String(chosen.steps.length)} of the student's choice is not; ` +
+              `${String(pressed)} pressed, nothing else tried`,
+          );
+          return { kind: "failed", failure: "consent_not_recorded" };
         }
+        try {
+          await control.click({ timeout: pressMs });
+          pressed += 1;
+        } catch (again) {
+          input.say(
+            `run ${input.runId}: sign-in stopped — the student's consent choice could not be made at step ` +
+              `${String(index + 1)} of ${String(chosen.steps.length)} — ${thrownInWords(again)}`,
+          );
+          return { kind: "failed", failure: "consent_not_recorded" };
+        }
+      }
+      input.say(
+        `run ${input.runId}: sign-in: the consent notice was answered with the student's recorded choice — ` +
+          `${String(pressed)} control(s) pressed, in the order the entry names`,
+      );
+
+      // ── The read-back: a measured state, not a trusted press ────────────
+      const record = await consentRecordHolds(page, chosen.verify);
+      if (!record.read) {
+        input.say(
+          `run ${input.runId}: sign-in stopped — the student's consent choice was made and the portal's ` +
+            `record could not be read, so nothing is claimed about what it says`,
+        );
+        return { kind: "failed", failure: "consent_not_recorded" };
+      }
+      if (record.held !== record.total) {
+        input.say(
+          `run ${input.runId}: sign-in stopped — the student's consent choice was made and the portal's ` +
+            `record does not say what they chose: ${String(record.held)} of ${String(record.total)} checks held`,
+        );
+        return { kind: "failed", failure: "consent_not_recorded" };
+      }
+      input.say(
+        `run ${input.runId}: sign-in: the portal's record agrees with the student's choice — ` +
+          `${String(record.total)} of ${String(record.total)} checks held`,
+      );
+
+      try {
+        await submit.click({ timeout: pressMs, noWaitAfter: true });
+        input.say(`run ${input.runId}: sign-in: the button was pressed`);
+        error = undefined;
+      } catch (again) {
+        error = again;
       }
     }
   }
@@ -439,10 +502,15 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
         ? {}
         : {
             consent: {
-              choices: consent.choices.map((choice) => choice.locator),
+              choices: consent.choices.map((choice) => choice.steps),
               ...(() => {
                 const chosen = consent.choices.find((choice) => choice.id === consent.chosen);
-                return chosen === undefined ? {} : { chosen: chosen.locator };
+                // Both or neither: the contract's parser already refuses a
+                // chosen path with no read-back, and this is the second place
+                // that pairing has to hold, where the pressing happens.
+                return chosen === undefined || consent.verify === undefined
+                  ? {}
+                  : { chosen: { steps: chosen.steps, verify: consent.verify } };
               })(),
             },
           }),
@@ -450,6 +518,65 @@ export async function signInToPortal(work: ClaimedWork, deps: SignInDeps): Promi
   } finally {
     if (supplied === undefined) await context.close().catch(() => undefined);
   }
+}
+
+/**
+ * What the portal's own consent record says, against what the signed entry
+ * says it must say (ADR-0131, P169).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * The whole of the third shape is here. What a consent control records is set
+ * by configuration nobody outside the portal can see; on Sheffield it was
+ * observed once, on one account, on one day, and it can change without the
+ * button changing. So the press is not the evidence — this is. Presence and,
+ * where the entry asks for it, an exact value: never truthiness, because a
+ * record that says `"revoked"` says it in a truthy string.
+ *
+ * Counts come back, never content. The record belongs to the portal and the
+ * student; what crosses into a log is how many of the reviewer's own clauses
+ * held.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+async function consentRecordHolds(
+  page: Page,
+  check: {
+    readonly cookie: string;
+    readonly mustHold: readonly {
+      readonly path: readonly string[];
+      readonly present: boolean;
+      readonly equals?: string | boolean;
+    }[];
+  },
+): Promise<{ readonly read: boolean; readonly held: number; readonly total: number }> {
+  const total = check.mustHold.length;
+  const cookies = await page
+    .context()
+    .cookies()
+    .catch(() => []);
+  const found = cookies.find((cookie) => cookie.name === check.cookie);
+  if (found === undefined) return { read: false, held: 0, total };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decodeURIComponent(found.value));
+  } catch {
+    return { read: false, held: 0, total };
+  }
+  let held = 0;
+  for (const clause of check.mustHold) {
+    let cursor: unknown = parsed;
+    let exists = true;
+    for (const key of clause.path) {
+      if (typeof cursor !== "object" || cursor === null || !Object.prototype.hasOwnProperty.call(cursor, key)) {
+        exists = false;
+        break;
+      }
+      cursor = (cursor as Record<string, unknown>)[key];
+    }
+    if (exists !== clause.present) continue;
+    if (clause.equals !== undefined && cursor !== clause.equals) continue;
+    held += 1;
+  }
+  return { read: true, held, total };
 }
 
 /** The first of the locators that is on the page right now, or `null` (ADR-0131). */

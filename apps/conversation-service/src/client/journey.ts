@@ -398,10 +398,22 @@ function drawPending(): void {
     text(heading, `${pending.question.portalHost} shows a notice before I can sign in — this choice is yours`);
     const words = document.createElement("blockquote");
     text(words, pending.question.words);
-    panel.append(heading, words);
+    // P169, Vahid's condition: the half that is not true goes IN the question,
+    // not in a note beside it. A choice here changes what happens after it and
+    // cannot undo what already ran.
+    const already = document.createElement("p");
+    text(
+      already,
+      `Before you choose: ${pending.question.beforeAnyChoice}. Your choice changes what happens ` +
+        `after it; it cannot undo what already ran.`,
+    );
+    panel.append(heading, words, already);
     for (const choice of pending.question.choices) {
       const line = document.createElement("p");
-      text(line, `"${choice.label}" — ${choice.means}`);
+      // Every control on the path, quoted: a sequence is a choice only when
+      // the student can see what it presses.
+      const presses = choice.path.map((step) => `"${step}"`).join(", then ");
+      text(line, `"${choice.label}" — ${choice.means}. I would press ${presses}.`);
       line.append(
         button(choice.label, () => {
           void answerConsent(choice.id);

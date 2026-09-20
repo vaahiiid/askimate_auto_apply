@@ -4906,6 +4906,37 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P170 — the refusal is a state we verify, not a button we trust
+
+Three reads and one press on his own account settled it. The toggles are all off by default; the
+page carries no readable configuration, so that read could neither kill it nor confirm it; with
+the record empty only a tag manager loads, so consent does gate the rest; and closing the panel
+leaves a record that says the notice was met and nothing was accepted, for ninety days. Shape 3
+was live, and he said to build it.
+
+So a choice is no longer a button. It is a fixed path of controls that each carry their own
+words, quoted to the student, pressed in order, and abandoned rather than improvised if a step is
+missing. And the press is no longer the evidence: the entry says what the portal's own record must
+hold afterwards — a key present or absent, or an exact value, never truthiness — and the runner
+reads it back. When it disagrees, or cannot be read, the sign-in ends before the button is pressed
+again, the student is told plainly what was done and that their password is spent, and a person is
+asked, because what failed is our account of the portal rather than anything the student did.
+
+The fixture that proves it is the one whose two presses read as a refusal and record an
+acceptance. No button's words would ever disclose that. The read-back does, and with the read-back
+disabled the same test signs in.
+
+Two things are recorded beside it at his instruction. The configuration was unreadable and what
+the close control does rests on one press, on one account, on one day — which is the argument for
+checking rather than trusting. And the tag manager runs before anyone is asked, so the question
+says, in the sentence, that a choice here changes what follows and cannot undo what already ran.
+
+The Sheffield entry is still unwritten. Its draft is in the ADR, for him to check and sign.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P168 — the panel has nothing to save with, and a refusal that is a state rather than a button
 
 Vahid opened the Settings panel on his own account and read it without pressing anything further.

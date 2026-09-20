@@ -19,6 +19,24 @@ not shipped artefacts.
 
 ---
 
+## [0.166.0] — 2026-09-20
+
+**P170 — ADR-0131 shape 3: a consent choice is a fixed path, and the portal's own record is read
+back and checked (decided by Vahid, 2026-09-19).**
+
+- `ConsentChoice.path` — one or more controls, each with its own words, pressed in order. A
+  missing step stops the sign-in. Blank step labels refused (P166's rule, one level in).
+- `ConsentChoice.verify` — the cookie and the clauses that must hold in it: key present or
+  absent, optionally an exact value. Never truthiness.
+- New failure `consent_not_recorded`: the record disagrees or cannot be read. Not counted against
+  ADR-0120's two; the student is told, including that their password is spent; a person is asked.
+- `ConsentBanner.beforeAnyChoice` — required, measured, and said in the question itself.
+- The student's question quotes every control on every path.
+- Fixture portal: the two-press Settings panel, a JSON record, and a variant whose "refusal"
+  records an acceptance. Red first: with the read-back disabled, that case signs in.
+
+---
+
 ## [0.165.0] — 2026-09-20
 
 **P169 — a correction: the six trackers were on an accepted profile (ADR-0131).** Records only.

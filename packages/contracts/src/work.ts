@@ -162,9 +162,40 @@ export interface LoginTargets {
 }
 
 export interface LoginConsent {
-  readonly choices: readonly { readonly id: string; readonly locator: FillLocator }[];
+  /**
+   * Every choice, as the controls that make it — in order, and nothing else.
+   *
+   * The FIRST step of each is also what tells the notice from any other
+   * obstacle: if one of them is on the page at an intercepted press, the thing
+   * in the way is the notice.
+   */
+  readonly choices: readonly { readonly id: string; readonly steps: readonly FillLocator[] }[];
   /** The `id` of the choice the student recorded for this portal, if any. */
   readonly chosen?: string;
+  /**
+   * What must hold in the portal's own record once the chosen path has been
+   * pressed (ADR-0131, P169). Present exactly when `chosen` is: a path the
+   * runner cannot check afterwards is a path it must not press.
+   */
+  readonly verify?: ConsentCheck;
+}
+
+/** The read-back: where the portal's record is, and what must be true of it. */
+export interface ConsentCheck {
+  readonly cookie: string;
+  readonly mustHold: readonly ConsentClause[];
+}
+
+/**
+ * One clause of the read-back: a key path, whether it must be there, and the
+ * exact value it must hold when presence alone would not tell two states
+ * apart. Never truthiness — a record that says `"revoked"` says it in a
+ * truthy string.
+ */
+export interface ConsentClause {
+  readonly path: readonly string[];
+  readonly present: boolean;
+  readonly equals?: string | boolean;
 }
 
 export interface ClaimedWork {
@@ -447,13 +478,28 @@ type NonLoginFields<T> = {
       : K;
 }[keyof T];
 export type LOGIN_CARRIES_ONLY_TARGETS = AssertNever<NonLoginFields<LoginTargets>>;
-type NonConsentFields<T> = { [K in keyof T]-?: K extends "choices" | "chosen" ? never : K }[keyof T];
+type NonConsentFields<T> = {
+  [K in keyof T]-?: K extends "choices" | "chosen" | "verify" ? never : K;
+}[keyof T];
 export type CONSENT_CARRIES_ONLY_KEYS_AND_LOCATORS = AssertNever<NonConsentFields<LoginConsent>>;
 type NonChoiceFields<T> = {
-  [K in keyof T]-?: K extends "id" ? never : NonNullable<T[K]> extends FillLocator ? never : K;
+  [K in keyof T]-?: K extends "id" ? never : NonNullable<T[K]> extends readonly FillLocator[] ? never : K;
 }[keyof T];
-export type CONSENT_CHOICE_IS_A_KEY_AND_A_LOCATOR = AssertNever<
+export type CONSENT_CHOICE_IS_A_KEY_AND_LOCATORS = AssertNever<
   NonChoiceFields<LoginConsent["choices"][number]>
+>;
+/**
+ * COMPILE-TIME: the read-back carries a cookie's NAME and key paths, never a
+ * value. What the record says is the portal's; what it must say is the
+ * reviewer's, and only the second crosses.
+ */
+type NonCheckFields<T> = { [K in keyof T]-?: K extends "cookie" | "mustHold" ? never : K }[keyof T];
+export type CONSENT_CHECK_IS_A_NAME_AND_KEY_PATHS = AssertNever<NonCheckFields<ConsentCheck>>;
+type NonClauseFields<T> = {
+  [K in keyof T]-?: K extends "path" | "present" | "equals" ? never : K;
+}[keyof T];
+export type CONSENT_CLAUSE_IS_A_PATH_AND_WHAT_IT_MUST_SAY = AssertNever<
+  NonClauseFields<ConsentCheck["mustHold"][number]>
 >;
 
 /**
@@ -556,6 +602,19 @@ export const WORK_FAILURES = [
    * student before any password is asked for again.
    */
   "consent_banner_met",
+  /**
+   * The student's recorded consent choice was pressed and the portal's own
+   * record does not say what they chose — or could not be read at all
+   * (ADR-0131, P169).
+   *
+   * Its own code, and not a sign-in failure: the password was not spent and
+   * nothing was tried against the login form. What a consent control records
+   * is set by configuration nobody outside the portal can see, so the third
+   * shape checks rather than trusts, and this is what the check failing looks
+   * like. The run stops for a person, because buttons were pressed on the
+   * student's account and what they did cannot be stated.
+   */
+  "consent_not_recorded",
 ] as const;
 export type WorkFailure = (typeof WORK_FAILURES)[number];
 
@@ -1017,17 +1076,62 @@ function parseLoginConsent(value: unknown): LoginConsent | null {
   const record = value as Record<string, unknown>;
   const raw = record["choices"];
   if (!Array.isArray(raw) || raw.length < 2) return null;
-  const choices: { readonly id: string; readonly locator: FillLocator }[] = [];
+  const choices: { readonly id: string; readonly steps: readonly FillLocator[] }[] = [];
   for (const entry of raw) {
     if (typeof entry !== "object" || entry === null) return null;
     const choice = entry as Record<string, unknown>;
-    const locator = parseLocator(choice["locator"]);
-    if (!nonEmpty(choice["id"]) || locator === null) return null;
-    choices.push({ id: choice["id"], locator });
+    const rawSteps = choice["steps"];
+    if (!nonEmpty(choice["id"]) || !Array.isArray(rawSteps) || rawSteps.length === 0) return null;
+    if (rawSteps.length > MAX_FILL_LOCATORS) return null;
+    const steps: FillLocator[] = [];
+    for (const step of rawSteps as readonly unknown[]) {
+      const locator = parseLocator(step);
+      if (locator === null) return null;
+      steps.push(locator);
+    }
+    choices.push({ id: choice["id"], steps });
   }
   const chosen = record["chosen"];
   if (chosen !== undefined && (!nonEmpty(chosen) || !choices.some((choice) => choice.id === chosen))) return null;
-  return { choices, ...(chosen === undefined ? {} : { chosen }) };
+  const verify = record["verify"] === undefined ? undefined : parseConsentCheck(record["verify"]);
+  if (verify === null) return null;
+  // Present exactly together: a chosen path with nothing to check afterwards
+  // would be a press the runner has to trust, which is the whole of what
+  // ADR-0131's third shape refuses; and a check with no path to check is a
+  // claim about a press that was never made.
+  if ((chosen === undefined) !== (verify === undefined)) return null;
+  return {
+    choices,
+    ...(chosen === undefined ? {} : { chosen }),
+    ...(verify === undefined ? {} : { verify }),
+  };
+}
+
+/** Keys and booleans: what the record must say, never what it says. */
+function parseConsentCheck(value: unknown): ConsentCheck | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  if (!nonEmpty(record["cookie"])) return null;
+  const raw = record["mustHold"];
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_FILL_LOCATORS) return null;
+  const mustHold: ConsentClause[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const clause = entry as Record<string, unknown>;
+    const keys = clause["path"];
+    const present = clause["present"];
+    if (!Array.isArray(keys) || keys.length === 0 || typeof present !== "boolean") return null;
+    if (!keys.every((key) => nonEmpty(key))) return null;
+    const equals = clause["equals"];
+    if (equals !== undefined && typeof equals !== "string" && typeof equals !== "boolean") return null;
+    if (equals !== undefined && !present) return null;
+    mustHold.push({
+      path: keys,
+      present,
+      ...(equals === undefined ? {} : { equals }),
+    });
+  }
+  return { cookie: record["cookie"], mustHold };
 }
 
 function parseRegistration(value: unknown): RegistrationTargets | null {

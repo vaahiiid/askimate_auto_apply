@@ -186,7 +186,7 @@ export interface FixturePortalOptions {
    * backdrop and sets a cookie; a later login page in the same browser context
    * carries no notice, as the real one behaves once answered.
    */
-  readonly loginConsentBanner?: boolean;
+  readonly loginConsentBanner?: boolean | "settings-records-everything";
 }
 
 /** The widget as the real one renders: a marked div and the response field it writes to. */
@@ -228,22 +228,43 @@ const BUTTON_COVER = `
  * buttons. Either button removes the backdrop and records the choice in a
  * cookie the portal reads on the next login page.
  */
-const CONSENT_BANNER = `
+const CONSENT_BANNER = (settingsRecords: "nothing" | "everything"): string => `
   <div id="ccc-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10">
     <div id="ccc" role="dialog" aria-modal="true" style="position:fixed;left:20%;top:20%;width:60%;background:#fff;padding:16px">
       <h2>This site uses cookies</h2>
       <p>We use cookies to make the site work and, if you agree, to measure how it is used.</p>
       <button type="button" id="ccc-accept">Accept all cookies</button>
-      <button type="button" id="ccc-reject">Only the cookies the site needs</button>
+      <button type="button" id="ccc-settings">Settings</button>
+      <button type="button" id="ccc-notify-dismiss" aria-label=""></button>
+      <div id="ccc-panel" style="display:none">
+        <p>Some of these cookies are essential; others help us improve your experience.</p>
+        <button type="button" id="ccc-close">Close Cookie Control</button>
+      </div>
     </div>
   </div>
   <script>
-    for (const [id, choice] of [["ccc-accept", "accept"], ["ccc-reject", "reject"]]) {
-      document.getElementById(id).addEventListener("click", () => {
-        document.cookie = "portal_consent=" + choice + "; Path=/";
-        document.getElementById("ccc-overlay").remove();
-      });
-    }
+    // Sheffield's shape, measured by Vahid 2026-09-19: opening the panel
+    // records that the notice was met and accepts nothing; closing it leaves
+    // that record standing. \`settingsRecords\` lets a test build the portal
+    // that ACCEPTS behind the same two presses — the case the read-back is
+    // for, and the one no button's words would ever disclose.
+    const write = (optional) => {
+      const record = { interactedWith: true, optionalCookies: optional };
+      document.cookie = "portal_consent=" + encodeURIComponent(JSON.stringify(record)) + "; Path=/";
+    };
+    const everything = { functional: "accepted", analytics: "accepted", marketing: "accepted" };
+    document.getElementById("ccc-accept").addEventListener("click", () => {
+      write(everything);
+      document.getElementById("ccc-overlay").remove();
+    });
+    document.getElementById("ccc-settings").addEventListener("click", () => {
+      write({});
+      document.getElementById("ccc-panel").style.display = "block";
+    });
+    document.getElementById("ccc-close").addEventListener("click", () => {
+      write(${settingsRecords === "everything" ? "everything" : "{}"});
+      document.getElementById("ccc-overlay").remove();
+    });
   </script>`;
 
 const LOGIN_PAGE = (
@@ -252,7 +273,7 @@ const LOGIN_PAGE = (
   covered = false,
   tagScriptUrl?: string,
   pixelFrameUrl?: string,
-  consentBanner = false,
+  consentBanner: false | "nothing" | "everything" = false,
 ): string =>
   page(
     "Sign in",
@@ -266,7 +287,7 @@ ${error === null ? "" : `<p id="error" role="alert">${escapeHtml(error)}</p>`}
   <input type="password" id="password" name="password" required autocomplete="current-password">
 ${challenge === "captcha" ? CAPTCHA_WIDGET : ""}
   <button type="submit" id="signIn">Sign in</button>
-</form>${covered ? BUTTON_COVER : ""}${consentBanner ? CONSENT_BANNER : ""}`,
+</form>${covered ? BUTTON_COVER : ""}${consentBanner === false ? "" : CONSENT_BANNER(consentBanner)}`,
   );
 
 /** The second factor, as portals put it: a code the applicant was emailed. */
@@ -697,7 +718,15 @@ export async function startFixturePortal(
   const challenge = options.challenge;
   const loginAnswerDelayMs = options.loginAnswerDelayMs ?? 0;
   const covered = options.loginButtonCovered === true;
-  const consentBanner = options.loginConsentBanner === true;
+  // `"settings-records-everything"` builds the portal whose two-press path
+  // looks like a refusal and records an acceptance — the case ADR-0131's
+  // read-back exists for, and one no button's words would ever disclose.
+  const consentBanner: false | "nothing" | "everything" =
+    options.loginConsentBanner === true
+      ? "nothing"
+      : options.loginConsentBanner === "settings-records-everything"
+        ? "everything"
+        : false;
   const tagScriptUrl = options.loginTagScriptUrl;
   const pixelFrameUrl = options.loginPixelFrameUrl;
   const accounts = new Map<string, Account>();
@@ -831,7 +860,11 @@ export async function startFixturePortal(
         // The notice is shown until answered; the answer is a cookie, as the
         // real one keeps it (ADR-0131).
         const answered = consentOf(request) !== null;
-        send(response, 200, LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl, consentBanner && !answered));
+        send(
+          response,
+          200,
+          LOGIN_PAGE(null, challenge, covered, tagScriptUrl, pixelFrameUrl, answered ? false : consentBanner),
+        );
         return;
       }
 

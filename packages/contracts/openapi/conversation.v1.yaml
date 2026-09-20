@@ -1690,10 +1690,18 @@ components:
     ConsentBannerReading:
       type: object
       additionalProperties: false
-      required: [portalHost, words, choices]
+      required: [portalHost, words, beforeAnyChoice, choices]
       properties:
         portalHost: { type: string, maxLength: 253 }
         words: { type: string, maxLength: 2000 }
+        beforeAnyChoice:
+          type: string
+          maxLength: 1000
+          description: >-
+            ADR-0131, P169. What already ran on this portal before the student
+            was asked, measured and written in plain words. A refusal is true
+            about what FOLLOWS the choice and false about what already ran, and
+            a client shows this with the question rather than beside it.
         choices:
           type: array
           minItems: 2
@@ -1701,11 +1709,20 @@ components:
           items:
             type: object
             additionalProperties: false
-            required: [id, label, means]
+            required: [id, label, means, path]
             properties:
               id: { type: string, minLength: 1, maxLength: 64 }
               label: { type: string, maxLength: 200 }
               means: { type: string, maxLength: 1000 }
+              path:
+                type: array
+                minItems: 1
+                maxItems: 12
+                description: >-
+                  ADR-0131, P169. Every control pressed to make this choice, in
+                  order, in its own words — quoted to the student, because a
+                  sequence is a choice only when they can see what it presses.
+                items: { type: string, minLength: 1, maxLength: 200 }
 
     PortalConsent:
       type: object
@@ -2551,6 +2568,7 @@ components:
               second_factor_met,
               not_recorded,
               consent_banner_met,
+              consent_not_recorded,
             ]
           description: >-
             Required exactly when the outcome is not `succeeded`, and refused

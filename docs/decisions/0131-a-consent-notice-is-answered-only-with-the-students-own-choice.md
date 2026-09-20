@@ -231,3 +231,82 @@ What survives, and is the honesty condition this ADR carries forward: **Google T
 before any choice is made.** So "accept nothing beyond what the site needs" is true about what
 follows the choice and false about what already ran, and the student is told that in the
 sentence, not in a note.
+
+## Amended — P170, 2026-09-20: shape 3 built — the refusal is a state we verify, not a button we trust
+
+Vahid's reads of 2026-09-19 settled it, and the first outcome of the four was the one that held:
+opening the Settings panel writes the record with nothing accepted, closing it leaves that
+standing, the overlay goes, and the notice does not return on reload. His words: *"Shape 3 is
+live."* And, on what makes a sequence a choice: *"yes, if every button on the path is named in
+the entry and quoted to the student, and if the path is fixed rather than discovered at run
+time."*
+
+**What the reads also settled, against P168's withdrawn claim.** With the consent record empty
+the page loads **Google Tag Manager only** — not Hotjar, Yandex, TikTok, LinkedIn, Meta or
+DoubleClick. Consent gates them; an empty record is not decorative.
+
+### What is built
+
+- **A choice is a path.** `ConsentChoice.path` is one or more `ConsentStep`s, each with the
+  control's own words and its locator. A one-press choice is a path of one. Every step's label
+  must carry words, so P166's rule now reaches one level in. The runner presses the path in
+  order and nothing else: a step that is not on the page **stops the sign-in** rather than
+  sending it looking for another way through.
+- **The press is not the evidence.** `ConsentChoice.verify` names the cookie the portal keeps its
+  record in and the clauses that must hold in it afterwards — a key path, whether the key must be
+  **present**, and optionally the **exact value** it must hold. Never truthiness: a library that
+  writes `"revoked"` writes a truthy string. The runner reads the record back and compares.
+- **Disagreement stops everything.** A clause that does not hold, or a record that cannot be read
+  at all, ends the sign-in with the new failure `consent_not_recorded` — **before** the sign-in
+  button is pressed a second time. Not counted against ADR-0120's two: the login form was never
+  answered. The student is told plainly, including that the password they typed went into the
+  form before the press and is spent, and a person is asked, because what failed is the entry's
+  own account of what the portal does.
+- **What crosses to the runner** is still keys, locators and flags. The notice's words, the
+  buttons' words and the clauses' meanings stay in the plane; four compile-time constraints hold
+  that line, and a test asserts none of those strings appear on the wire.
+- **The student's question carries both halves.** `describeConsentChoice` quotes every control on
+  every path, and says what already ran before they were asked — in the sentence, per his
+  condition: *"something has already loaded before you chose, and this stops what comes after."*
+  `ConsentBanner.beforeAnyChoice` is **required**, so a reviewer who has not measured it cannot
+  author a notice at all.
+
+### The two things he asked to be recorded with it
+
+1. **The configuration was unreadable and the finding rests on one press.** The page carries no
+   inline `CookieControl.load({…})` to read, the vendor's library is refused by this
+   environment's network policy, and what *Close* records was therefore established by **one
+   observed press, on one account, on one day**. If Sheffield changes what that control does,
+   nothing in the reading would notice — which is precisely why the read-back is the mechanism
+   rather than the button's word.
+2. **The refusal is true about what follows and false about what already ran.** The tag manager
+   loads before the student is asked. The question says so.
+
+### Proved on a fixture in Sheffield's shape
+
+The fixture portal now has the two-press panel and writes a JSON record. A second fixture,
+`loginConsentBanner: "settings-records-everything"`, is the portal whose two presses read as a
+refusal and **record an acceptance** — the case no button's words could ever disclose. The runner
+stops on it with `consent_not_recorded` and never signs in. Red first, measured: with the
+read-back disabled, that test signs in.
+
+### Not written: the Sheffield entry
+
+The entry's `authentication.consent` is still empty, and this is the draft it would carry, for
+Vahid to check and sign (ADR-0057 — a reviewed entry is signed content, and no agent signs one):
+
+```
+words:           "Your cookie choices … Use 'Settings' to manage your preferences"  (the notice's own text)
+beforeAnyChoice: "the site's tag manager has already loaded before you are asked"
+choices:
+  accept  "Accept all cookies"  — the site may also measure how you use it and show you adverts elsewhere
+          path:   "Accept all cookies"        → #ccc-notify-accept
+          verify: CookieControl · interactedWith present, optionalCookies.analytics present
+  refuse  "Only what the site needs" — nothing beyond what the site needs is stored after your choice
+          path:   "Settings"                  → #ccc-settings (as the panel read names it)
+                  "Close Cookie Control"      → #ccc-close
+          verify: CookieControl · interactedWith present, optionalCookies.{functional,analytics,marketing} absent
+```
+
+The close control with no words, `#ccc-notify-dismiss`, appears nowhere in it, and the parser
+would refuse it if it did.

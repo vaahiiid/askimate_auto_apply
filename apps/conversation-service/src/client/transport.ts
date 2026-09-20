@@ -87,7 +87,15 @@ export type PendingDecision =
 export interface ConsentBannerReading {
   readonly portalHost: string;
   readonly words: string;
-  readonly choices: readonly { readonly id: string; readonly label: string; readonly means: string }[];
+  /** What already ran before the student was asked (ADR-0131, P169). */
+  readonly beforeAnyChoice: string;
+  readonly choices: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly means: string;
+    /** Every control this choice presses, in order, in its own words. */
+    readonly path: readonly string[];
+  }[];
 }
 
 /** The student's choice on a portal's consent banner, visible and changeable (ADR-0131). */
@@ -256,13 +264,23 @@ function parseConsentBanner(value: unknown): ConsentBannerReading | null {
   if (record === null) return null;
   const choices = record["choices"];
   if (typeof record["portalHost"] !== "string" || typeof record["words"] !== "string" || !Array.isArray(choices)) return null;
-  const read: { id: string; label: string; means: string }[] = [];
+  // P169: a reading without it would let a page show the question with the
+  // half of it that is true and drop the half that is not.
+  if (typeof record["beforeAnyChoice"] !== "string") return null;
+  const read: { id: string; label: string; means: string; path: readonly string[] }[] = [];
   for (const entry of choices) {
     const choice = asRecord(entry);
     if (choice === null || typeof choice["id"] !== "string" || typeof choice["label"] !== "string" || typeof choice["means"] !== "string") return null;
-    read.push({ id: choice["id"], label: choice["label"], means: choice["means"] });
+    const path = choice["path"];
+    if (!Array.isArray(path) || path.length === 0 || !path.every((step) => typeof step === "string")) return null;
+    read.push({ id: choice["id"], label: choice["label"], means: choice["means"], path: path });
   }
-  return { portalHost: record["portalHost"], words: record["words"], choices: read };
+  return {
+    portalHost: record["portalHost"],
+    words: record["words"],
+    beforeAnyChoice: record["beforeAnyChoice"],
+    choices: read,
+  };
 }
 
 function parsePortalConsent(value: unknown): PortalConsentReading | null {

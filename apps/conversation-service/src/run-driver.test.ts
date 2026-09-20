@@ -147,6 +147,21 @@ function hashOfPending(pending: { readonly contentHash?: string } | { readonly d
   return pending !== null && pending !== undefined && "contentHash" in pending ? (pending.contentHash ?? null) : null;
 }
 
+/**
+ * Makes this run the OLDEST unheld run, so `claimWork` offers it next.
+ *
+ * `claimWork` walks candidates `ORDER BY updated_at ASC` with no tiebreaker,
+ * so two tests that both dated their run `2000-01-01` raced on nothing but row
+ * order — which is how the P163 test came to claim another test's sign-in
+ * under the full suite (found in the P170 census). Pushing every OTHER run
+ * forward first makes it deterministic however many runs the file has left
+ * behind.
+ */
+async function nextOnOffer(runId: string): Promise<void> {
+  await pool.query("UPDATE workflow_runs SET updated_at = now() WHERE run_id <> $1", [runId]);
+  await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+}
+
 const NOW = new Date("2026-08-31T10:00:00Z");
 const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00001";
 const OTHER_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00002";
@@ -11515,7 +11530,7 @@ describeIfDatabase("a run that starts on an account the student already holds (A
       expect(typed.position.step).toBe("sign_in");
       expect(typed.position.phase).toBe("filling");
 
-      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       const work = await instance.driver.claimWork({ holder: "runner-c", leaseSeconds: 60, sessions: [] });
       if (work === null) expect.unreachable("the sign-in is work");
       expect(work.runId).toBe(runId);
@@ -12013,7 +12028,7 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       const typed = await afterwards.driver.advance({ runId, conversationId: conversation });
       if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
       expect(typed.position.step).toBe("sign_in");
-      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       const work = await afterwards.driver.claimWork({ holder: "runner-fsf-3", leaseSeconds: 60 });
       if (work === null || work.runId !== runId) expect.unreachable(`the third sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
       expect(work.kind).toBe("sign_in");
@@ -12047,9 +12062,39 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
         ...GATED_ENTRY.blueprint.authentication,
         consent: {
           words: "We use cookies to make the site work and, if you agree, to measure how it is used.",
+          beforeAnyChoice: "a tag manager has already loaded on this page before you are asked",
           choices: [
-            { id: "accept", label: "Accept all cookies", means: "the site may also measure how you use it", locator: { strategy: "id", value: "ccc-accept" } },
-            { id: "reject", label: "Only the cookies the site needs", means: "the site keeps only what it needs to work", locator: { strategy: "id", value: "ccc-reject" } },
+            {
+              id: "accept",
+              label: "Accept all cookies",
+              means: "the site may also measure how you use it",
+              path: [{ label: "Accept all cookies", locator: { strategy: "id", value: "ccc-accept" } }],
+              verify: {
+                cookie: "portal_consent",
+                mustHold: [
+                  { path: ["interactedWith"], present: true, equals: true, means: "the site recorded that you answered" },
+                  { path: ["optionalCookies", "analytics"], present: true, means: "measuring is on" },
+                ],
+              },
+            },
+            {
+              // Sheffield's shape: the refusal is two presses, and what they
+              // record is checked afterwards rather than trusted (P169).
+              id: "reject",
+              label: "Only the cookies the site needs",
+              means: "the site keeps only what it needs to work",
+              path: [
+                { label: "Settings", locator: { strategy: "id", value: "ccc-settings" } },
+                { label: "Close Cookie Control", locator: { strategy: "id", value: "ccc-close" } },
+              ],
+              verify: {
+                cookie: "portal_consent",
+                mustHold: [
+                  { path: ["interactedWith"], present: true, equals: true, means: "the site recorded that you answered" },
+                  { path: ["optionalCookies", "analytics"], present: false, means: "nothing was turned on" },
+                ],
+              },
+            },
           ],
         },
       },
@@ -12093,9 +12138,22 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
         question: {
           portalHost: "gated.portal.test",
           words: "We use cookies to make the site work and, if you agree, to measure how it is used.",
+          // P169: what already ran reaches the student with the question, and
+          // every control each choice presses is quoted to them.
+          beforeAnyChoice: "a tag manager has already loaded on this page before you are asked",
           choices: [
-            { id: "accept", label: "Accept all cookies", means: "the site may also measure how you use it" },
-            { id: "reject", label: "Only the cookies the site needs", means: "the site keeps only what it needs to work" },
+            {
+              id: "accept",
+              label: "Accept all cookies",
+              means: "the site may also measure how you use it",
+              path: ["Accept all cookies"],
+            },
+            {
+              id: "reject",
+              label: "Only the cookies the site needs",
+              means: "the site keeps only what it needs to work",
+              path: ["Settings", "Close Cookie Control"],
+            },
           ],
         },
       });
@@ -12124,23 +12182,38 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       const typed = await later.driver.advance({ runId, conversationId: conversation });
       if (!typed.ok) expect.unreachable(`advance refused: ${typed.refusal.kind}`);
       expect(typed.position.step).toBe("sign_in");
-      // Oldest of all: `claimWork` walks unheld runs oldest first, and other
-      // tests in this file leave runs dated 2000-01-01 behind them, so under the
-      // whole suite this run must be older than every one of those to be first.
-      await pool.query("UPDATE workflow_runs SET updated_at = '1999-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       // `sessions: []`, as a deployed runner declares: a fill for another run
       // is withheld, and this run's sign-in is the work on offer.
       const work = await later.driver.claimWork({ holder: "runner-consent", leaseSeconds: 60, sessions: [] });
       if (work === null || work.runId !== runId) expect.unreachable(`the sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
       expect(work.login?.consent).toEqual({
         choices: [
-          { id: "accept", locator: { strategy: "id", value: "ccc-accept" } },
-          { id: "reject", locator: { strategy: "id", value: "ccc-reject" } },
+          { id: "accept", steps: [{ strategy: "id", value: "ccc-accept" }] },
+          {
+            id: "reject",
+            steps: [
+              { strategy: "id", value: "ccc-settings" },
+              { strategy: "id", value: "ccc-close" },
+            ],
+          },
         ],
         chosen: "reject",
+        // P169: the read-back travels with the chosen path, so the runner
+        // checks the portal's own record rather than trusting the press.
+        verify: {
+          cookie: "portal_consent",
+          mustHold: [
+            { path: ["interactedWith"], present: true, equals: true },
+            { path: ["optionalCookies", "analytics"], present: false },
+          ],
+        },
       });
-      // Keys and locators only: the notice's words are not on the wire to the runner.
+      // Keys, locators and flags only: no words of the notice, the buttons or
+      // the clauses are on the wire to the runner.
       expect(JSON.stringify(work)).not.toContain("measure how");
+      expect(JSON.stringify(work)).not.toContain("Close Cookie Control");
+      expect(JSON.stringify(work)).not.toContain("nothing was turned on");
       expect(await later.driver.reportWork({ runId, report: { leaseId: work.leaseId, outcome: "succeeded" } })).toBe(true);
 
       // 5. Changed afterwards, and said so.
@@ -12155,6 +12228,52 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
     }
   }, 300_000);
 
+  it("the consent path was pressed and the portal's record disagrees: not counted as a sign-in, said plainly, stopped for a person (ADR-0131, P169)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The plane's half of shape 3. The runner pressed controls on the
+    // student's account and could not establish what they recorded, so:
+    // nothing is claimed, the sign-in count is untouched (no password was
+    // spent and the login form was never reached), the student is told in
+    // plain words, and a person is asked — because the thing that failed is
+    // the entry's own account of what the portal does.
+    // ═══════════════════════════════════════════════════════════════════
+    const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00748";
+    const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-consent-drift", CONSENT_SERVED);
+    try {
+      expect(
+        await later.driver.reportWork({ runId, report: { leaseId, outcome: "failed", failure: "consent_not_recorded" } }),
+      ).toBe(true);
+
+      // Not a failed sign-in: the submit was never answered, so ADR-0120's
+      // count is untouched. The handle IS spent — it was handed to the runner
+      // at the claim and typed into the form before the press — and the record
+      // says so, because the student is told so.
+      expect(await failureOf(runId), "the episode's count is untouched").toEqual({
+        attempts: 0,
+        spent: (await requestsOpened(conversation)).at(-1) ?? null,
+        failure: "consent_not_recorded",
+      });
+
+      // The student, in plain words, and with no claim about the portal.
+      const told = (await saidTo(conversation)).filter((content) => content.includes("does not say what you chose"));
+      expect(told, "told once").toHaveLength(1);
+      expect(told[0]).toContain("I did not sign in");
+      expect(told[0]).toContain("nothing has been submitted");
+      expect(told[0], "spent, and said so: it was typed before the press").toContain("is spent");
+      expect(told[0]).toContain("Someone is looking at it");
+
+      // A person, and the run stops rather than pressing the same path again.
+      const intervention = await interventionFor(runId);
+      expect(intervention, "a person is asked").not.toBeNull();
+      // ESCALATED, not uncertain: nothing here is unknown about what WE did —
+      // the path was pressed and the check ran. What is wrong is the entry's
+      // account of what this portal records, and that is a person's to settle.
+      expect(await statusOf(runId)).toBe("escalated");
+    } finally {
+      await later.pool.end();
+    }
+  }, 300_000);
+
   it("a choice already on record for the portal is carried on the FIRST sign-in, and the notice is never asked about (ADR-0131)", async () => {
     const conversation = "01JBXQ8Z9WKTQ6M4H2NPE00746";
     const { later, runId, leaseId } = await aLeasedSignIn(conversation, "signin-consent-known", CONSENT_SERVED);
@@ -12162,8 +12281,7 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       // The choice made on an earlier run, or earlier in this one: the store's, per student and portal.
       await new PortalConsentStore(later.pool).record({ studentId: ownerOf(conversation), portalHost: "gated.portal.test", choice: "accept", now: LATER });
       await pool.query("DELETE FROM work_leases WHERE run_id = $1 AND lease_id = $2", [runId, leaseId]);
-      // 1999, not 2000: oldest of every run this file leaves behind (see above).
-      await pool.query("UPDATE workflow_runs SET updated_at = '1999-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       const work = await later.driver.claimWork({ holder: "runner-consent-known", leaseSeconds: 60, sessions: [] });
       if (work === null || work.runId !== runId) expect.unreachable(`the sign-in should be this run's work, got ${work?.runId ?? "nothing"}`);
       expect(work.login?.consent?.chosen).toBe("accept");
@@ -12224,7 +12342,7 @@ describeIfDatabase("a failed sign-in is tried twice, then stops for a person; th
       const held = await later.driver.advance({ runId, conversationId: conversation });
       if (!held.ok) expect.unreachable(`advance refused: ${held.refusal.kind}`);
       expect((await requestsOpened(conversation)).at(-1), "no box opened on a run a person holds").toBe(fresh);
-      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       const offered = await later.driver.claimWork({ holder: "runner-after-two", leaseSeconds: 60, sessions: [] });
       expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
       if (offered !== null) await pool.query("DELETE FROM work_leases WHERE run_id = $1", [offered.runId]);
@@ -12350,7 +12468,7 @@ describeIfDatabase("a page fill that fails cleanly is tried twice, then stops fo
       expect(told[0]).toContain("not laid out");
       expect(told[0]).toContain("member of the team");
       expect(await statusOf(runId)).toBe("escalated");
-      await pool.query("UPDATE workflow_runs SET updated_at = '2000-01-01' WHERE run_id = $1", [runId]);
+      await nextOnOffer(runId);
       const offered = await instance.driver.claimWork({ holder: "runner-after-two", leaseSeconds: 60, sessions: [runId] });
       expect(offered?.runId, "an escalated run is nobody's work").not.toBe(runId);
       if (offered !== null) await pool.query("DELETE FROM work_leases WHERE run_id = $1", [offered.runId]);

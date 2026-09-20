@@ -186,6 +186,8 @@ export type {
   REGISTRATION_CARRIES_ONLY_TARGETS,
   RegistrationTargets,
   LoginTargets,
+  ConsentCheck,
+  ConsentClause,
   LoginConsent,
   TransportedInstruction,
   TransportedPlan,

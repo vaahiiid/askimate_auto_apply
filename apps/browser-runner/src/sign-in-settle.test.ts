@@ -20,6 +20,8 @@ let plain: FixturePortal;
 let slow: FixturePortal;
 let covered: FixturePortal;
 let consenting: FixturePortal;
+/** The same two presses, and a record that says the opposite (ADR-0131, P169). */
+let lying: FixturePortal;
 
 const EMAIL = "settle@example.test";
 const PASSWORD = "Tr0ub4dor-3-horses!";
@@ -67,10 +69,12 @@ beforeAll(async () => {
   slow = await startFixturePortal({ loginAnswerDelayMs: 2_500 });
   covered = await startFixturePortal({ loginButtonCovered: true });
   consenting = await startFixturePortal({ loginConsentBanner: true });
+  lying = await startFixturePortal({ loginConsentBanner: "settings-records-everything" });
   await register(plain);
   await register(slow);
   await register(covered);
   await register(consenting);
+  await register(lying);
 }, 120_000);
 
 afterAll(async () => {
@@ -79,6 +83,7 @@ afterAll(async () => {
   await slow.stop();
   await covered.stop();
   await consenting.stop();
+  await lying.stop();
 });
 
 describe("the two waits", () => {
@@ -253,18 +258,44 @@ describe("the point is read at every press, not only a failed one (ADR-0130, P16
   }, 30_000);
 });
 
-describe("a consent notice is answered only with the student's own choice (ADR-0131, P165)", () => {
+describe("a consent notice is answered only with the student's own choice (ADR-0131, P165, P169)", () => {
   // ═══════════════════════════════════════════════════════════════════════
   // Vahid, 2026-09-18: *"a cookie choice is a choice made on the student's
   // account, in their name, against an institution that may one day be asked
-  // what they consented to. A system that asks for a yes before typing a date
-  // of birth cannot decide this one by itself."* So the runner presses a
-  // consent button only when the work item carries the student's recorded
-  // choice; otherwise it presses nothing and says so with its own code.
+  // what they consented to."* So the runner presses a consent control only
+  // when the work item carries the student's recorded choice; otherwise it
+  // presses nothing and says so with its own code.
+  //
+  // P169 (shape 3): a choice is a PATH of controls that have words, and the
+  // press is not the evidence — the portal's own record is. What a consent
+  // control records is set by configuration nobody outside the portal can
+  // see, so the runner reads the record back and stops when it disagrees.
   // ═══════════════════════════════════════════════════════════════════════
-  const ACCEPT = { strategy: "id" as const, value: "ccc-accept" };
-  const REJECT = { strategy: "id" as const, value: "ccc-reject" };
-  const CHOICES = [ACCEPT, REJECT];
+  const ACCEPT = [{ strategy: "id" as const, value: "ccc-accept" }];
+  const REFUSE = [
+    { strategy: "id" as const, value: "ccc-settings" },
+    { strategy: "id" as const, value: "ccc-close" },
+  ];
+  const CHOICES = [ACCEPT, REFUSE];
+  /** Sheffield's refusal, as Vahid measured it: the notice met, nothing accepted. */
+  const REFUSED = {
+    cookie: "portal_consent",
+    mustHold: [
+      { path: ["interactedWith"], present: true, equals: true },
+      { path: ["optionalCookies", "analytics"], present: false },
+    ],
+  };
+  const ACCEPTED = {
+    cookie: "portal_consent",
+    mustHold: [
+      { path: ["interactedWith"], present: true, equals: true },
+      { path: ["optionalCookies", "analytics"], present: true, equals: "accepted" },
+    ],
+  };
+  const record = async (context: BrowserContext): Promise<unknown> => {
+    const cookie = (await context.cookies()).find((one) => one.name === "portal_consent");
+    return cookie === undefined ? null : JSON.parse(decodeURIComponent(cookie.value));
+  };
 
   it("stops with consent_banner_met, pressing nothing, when the notice is met and no choice is on record", async () => {
     const said: string[] = [];
@@ -279,7 +310,7 @@ describe("a consent notice is answered only with the student's own choice (ADR-0
       );
       // Pressed nothing: the notice is still there, and no consent cookie was set.
       expect(await page.locator("#ccc-overlay").count()).toBe(1);
-      expect((await context.cookies()).some((cookie) => cookie.name === "portal_consent")).toBe(false);
+      expect(await record(context)).toBeNull();
       // The notice's words are on the page and in none of the lines.
       expect(said.join("\n")).not.toContain("cookies");
     } finally {
@@ -287,33 +318,138 @@ describe("a consent notice is answered only with the student's own choice (ADR-0
     }
   }, 30_000);
 
-  it("presses the button for the student's recorded choice, then the sign-in, and signs in", async () => {
+  it("presses the TWO controls of the student's recorded refusal, in order, reads the record back, and signs in (P169)", async () => {
     const said: string[] = [];
     const { context, page } = await atTheForm(consenting);
     try {
       expect(
-        await settleSignIn(page, { ...input(consenting, said), consent: { choices: CHOICES, chosen: REJECT } }),
+        await settleSignIn(page, {
+          ...input(consenting, said),
+          consent: { choices: CHOICES, chosen: { steps: REFUSE, verify: REFUSED } },
+        }),
       ).toEqual({ kind: "succeeded" });
       expect(said).toEqual([
         expect.stringMatching(/just before the press: over the sign-in button: div#ccc-overlay \(fixed, /u),
-        "run run_settle: sign-in: the consent notice was answered with the student's recorded choice",
+        "run run_settle: sign-in: the consent notice was answered with the student's recorded choice — 2 control(s) pressed, in the order the entry names",
+        "run run_settle: sign-in: the portal's record agrees with the student's choice — 2 of 2 checks held",
         "run run_settle: sign-in: the button was pressed",
       ]);
-      // The choice the student made, and no other, reached the portal.
-      const consent = (await context.cookies()).find((cookie) => cookie.name === "portal_consent");
-      expect(consent?.value).toBe("reject");
+      // The refusal the student made, and no other, reached the portal.
+      expect(await record(context)).toEqual({ interactedWith: true, optionalCookies: {} });
       expect(page.url()).not.toContain("/login");
+      // Counts, never content: no control's words reach a line.
+      expect(said.join("\n")).not.toContain("Settings");
+      expect(said.join("\n")).not.toContain("Close");
     } finally {
       await context.close();
     }
   }, 30_000);
 
-  it("does NOT press a consent button for an obstacle that is not the notice: the plain cover fails as before", async () => {
+  it("a one-press choice is a path of one, and its record is checked the same way", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(
+        await settleSignIn(page, {
+          ...input(consenting, said),
+          consent: { choices: CHOICES, chosen: { steps: ACCEPT, verify: ACCEPTED } },
+        }),
+      ).toEqual({ kind: "succeeded" });
+      expect(said).toContain(
+        "run run_settle: sign-in: the consent notice was answered with the student's recorded choice — 1 control(s) pressed, in the order the entry names",
+      );
+      expect(await record(context)).toEqual({
+        interactedWith: true,
+        optionalCookies: { functional: "accepted", analytics: "accepted", marketing: "accepted" },
+      });
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("STOPS, without signing in, when the path looks like a refusal and the portal records an acceptance (P169)", async () => {
+    // ═════════════════════════════════════════════════════════════════════
+    // The whole of shape 3. This portal's two presses are the student's
+    // refusal by their words and an acceptance by what they write, which is
+    // exactly what no button could ever disclose — the meaning is in
+    // configuration nobody outside the portal can see. The press succeeds;
+    // the read-back is what refuses.
+    // ═════════════════════════════════════════════════════════════════════
+    const said: string[] = [];
+    const { context, page } = await atTheForm(lying);
+    try {
+      expect(
+        await settleSignIn(page, {
+          ...input(lying, said),
+          consent: { choices: CHOICES, chosen: { steps: REFUSE, verify: REFUSED } },
+        }),
+      ).toEqual({ kind: "failed", failure: "consent_not_recorded" });
+      expect(said.at(-1)).toBe(
+        "run run_settle: sign-in stopped — the student's consent choice was made and the portal's record does not say what they chose: 1 of 2 checks held",
+      );
+      // Not signed in: the sign-in button was never pressed after the check.
+      expect(page.url()).toContain("/login");
+      expect(said.join("\n")).not.toContain("the button was pressed");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("STOPS when the portal keeps no record at all to read: nothing is claimed about what it says (P169)", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(
+        await settleSignIn(page, {
+          ...input(consenting, said),
+          consent: {
+            choices: CHOICES,
+            chosen: { steps: REFUSE, verify: { ...REFUSED, cookie: "a_cookie_this_portal_never_writes" } },
+          },
+        }),
+      ).toEqual({ kind: "failed", failure: "consent_not_recorded" });
+      expect(said.at(-1)).toBe(
+        "run run_settle: sign-in stopped — the student's consent choice was made and the portal's record could not be read, so nothing is claimed about what it says",
+      );
+      expect(page.url()).toContain("/login");
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("STOPS when a control on the path is not on the page, rather than looking for another way through (P169)", async () => {
+    const said: string[] = [];
+    const { context, page } = await atTheForm(consenting);
+    try {
+      expect(
+        await settleSignIn(page, {
+          ...input(consenting, said, { pressMs: 1_500 }),
+          consent: {
+            choices: CHOICES,
+            chosen: {
+              steps: [REFUSE[0]!, { strategy: "id" as const, value: "ccc-no-such-control" }],
+              verify: REFUSED,
+            },
+          },
+        }),
+      ).toEqual({ kind: "failed", failure: "consent_not_recorded" });
+      expect(said.at(-1)).toBe(
+        "run run_settle: sign-in stopped — the consent notice is on the page but step 2 of 2 of the student's choice is not; 1 pressed, nothing else tried",
+      );
+    } finally {
+      await context.close();
+    }
+  }, 60_000);
+
+  it("does NOT press a consent control for an obstacle that is not the notice: the plain cover fails as before", async () => {
     const said: string[] = [];
     const { context, page } = await atTheForm(covered);
     try {
       expect(
-        await settleSignIn(page, { ...input(covered, said, { pressMs: 1_500 }), consent: { choices: CHOICES, chosen: ACCEPT } }),
+        await settleSignIn(page, {
+          ...input(covered, said, { pressMs: 1_500 }),
+          consent: { choices: CHOICES, chosen: { steps: ACCEPT, verify: ACCEPTED } },
+        }),
       ).toEqual({ kind: "failed", failure: "runner_fault" });
       expect(said.at(-1)).toContain("could not be pressed");
       expect(said.join("\n")).not.toContain("consent notice");
@@ -326,7 +462,12 @@ describe("a consent notice is answered only with the student's own choice (ADR-0
     const said: string[] = [];
     const { context, page } = await atTheForm(consenting);
     try {
-      expect(await settleSignIn(page, { ...input(consenting, said), consent: { choices: CHOICES, chosen: ACCEPT } })).toEqual({ kind: "succeeded" });
+      expect(
+        await settleSignIn(page, {
+          ...input(consenting, said),
+          consent: { choices: CHOICES, chosen: { steps: ACCEPT, verify: ACCEPTED } },
+        }),
+      ).toEqual({ kind: "succeeded" });
       await page.goto(`${consenting.baseUrl}/login`);
       expect(await page.locator("#ccc-overlay").count(), "answered once, not shown again").toBe(0);
     } finally {

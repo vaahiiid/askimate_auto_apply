@@ -435,19 +435,99 @@ export interface AuthenticationModel {
 export interface ConsentBanner {
   /** The notice's own words, quoted from the page, for the student's question. */
   readonly words: string;
+  /**
+   * What already ran before the student was asked, measured on this portal and
+   * written in plain words (ADR-0131, P169).
+   *
+   * Sheffield's notice is answered on a page that has already loaded Google's
+   * tag manager. A refusal is therefore true about what FOLLOWS the choice and
+   * false about what already ran, and Vahid's condition is that the student is
+   * told so *"in the sentence, not in a note"*. Required, because a reviewer who
+   * has not measured it cannot write it, and a question that does not say it
+   * would be offering a refusal wider than the one the portal can honour.
+   */
+  readonly beforeAnyChoice: string;
   /** Every choice the notice offers, in the order it offers them. Two or more. */
   readonly choices: readonly ConsentChoice[];
 }
 
-/** One choice on a consent notice. */
+/**
+ * One choice on a consent notice: what it is called, what it means, the fixed
+ * sequence of controls that makes it, and what the portal must have recorded
+ * once it is made (ADR-0131 as amended in P169 — shape 3).
+ */
 export interface ConsentChoice {
   /** A short key the student's choice is recorded under: `accept`, `reject`, … */
   readonly id: string;
-  /** The button's own text. */
+  /** What the student is offered, in the notice's words where it has them. */
   readonly label: string;
   /** What choosing it means, in plain terms a person who has never met a cookie banner can follow. */
   readonly means: string;
+  /**
+   * The controls pressed to make this choice, in order. One or more.
+   *
+   * Vahid, 2026-09-19, on why a sequence is not the thing he refused:
+   * *"What I refused was the runner learning to click things away. A named
+   * sequence, reviewed and signed, is not that."* Every step carries its own
+   * words, every step is quoted to the student, and nothing is discovered at
+   * run time: a step that is not on the page stops the sign-in.
+   */
+  readonly path: readonly ConsentStep[];
+  /**
+   * What must be true of the portal's own record once the path has been
+   * pressed. Read back and checked; a choice whose record cannot be verified
+   * is not offered (ADR-0131, P169).
+   */
+  readonly verify: ConsentVerification;
+}
+
+/** One control on a choice's path. */
+export interface ConsentStep {
+  /** The control's own words, quoted from the page. Never blank (P166). */
+  readonly label: string;
   readonly locator: FieldLocator;
+}
+
+/**
+ * The read-back that turns a pressed button into a measured state.
+ *
+ * The whole of shape 3 rests here. What a consent control records is set by
+ * configuration nobody outside the portal can see, it was observed once, on
+ * one account, on one day, and it can change without the button changing. So
+ * the runner does not trust the press: it reads the portal's own record and
+ * checks it says what the student chose, and the run stops for a person when
+ * it does not.
+ */
+export interface ConsentVerification {
+  /** The cookie the notice writes its record into. */
+  readonly cookie: string;
+  /** Every assertion that must hold afterwards. One or more. */
+  readonly mustHold: readonly ConsentAssertion[];
+}
+
+/**
+ * One assertion about the portal's consent record, read back after the path.
+ *
+ * Presence, and optionally an exact value — never truthiness. A consent
+ * library that writes `"revoked"` writes a TRUTHY string, so "the key is
+ * there" and "the thing is on" are different questions and this asks whichever
+ * the reviewer measured. Sheffield's refusal is measured as absence: after the
+ * path, `optionalCookies` holds no category at all.
+ */
+export interface ConsentAssertion {
+  /** The key path into the record's JSON, e.g. `["optionalCookies", "analytics"]`. */
+  readonly path: readonly string[];
+  /** Whether the key must exist at that path at all. */
+  readonly present: boolean;
+  /**
+   * The exact value it must hold, when presence alone would not tell the two
+   * states apart. Only with `present: true`, and compared exactly: this is
+   * what the record must SAY, written by the reviewer who read it, never what
+   * it says.
+   */
+  readonly equals?: string | boolean;
+  /** What this assertion checks, in plain terms, for the reviewer and the record. */
+  readonly means: string;
 }
 
 /** The three controls a sign-in needs. One password box: a login asks once. */
