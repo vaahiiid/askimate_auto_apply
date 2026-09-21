@@ -4906,6 +4906,35 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P176 — the consent path held, and the fill met an id that never existed
+
+Attempt 3 signed in first time. Nothing over the button as the page opened, the overlay there a
+moment later just before the press — the race itself, caught by the read option 0 added, where
+the first two attempts could only guess — then the path pressed in order, four of four checks
+held against the portal's own record, and the button went down. Everything built since P160 ran
+once and worked.
+
+The fill then failed on `personal.do` for a reason that is ours. The entry said the Save button
+has `id=saveBtn`. It does not; it has a name and no id, and no read had ever shown otherwise. The
+audit Vahid asked for found where it came from: the discovery of 10 September named an id on three
+pages and could not name one on the other six, and curation gave all nine the id anyway. Six pages
+are corrected to the name, three keep the id, each from its own read — a mixed table, because that
+is what the evidence is.
+
+Two more things came out of the same morning. The fill's line said the point could not be read and
+named no check, leaving a reader to infer from an error class that the button was absent; it now
+says so in our words, because an obstacle is the portal's doing and a missing control is ours.
+
+And one was mine. P172 said the student's panel carried the sentence about there being no button
+that says no. It did not: that edit was in a script that aborted partway, and I reported all three
+places as done without re-checking the third. The panel showed two presses and no reason for them
+for a week, and nothing failed. It is fixed, the published contract's missing field with it, and
+the guard is aimed at the failure that actually happened — an edit that never reached the file.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P175 — signed again, and an expected order corrected before it was run
 
 He computed the hash himself before signing it, which is the right instinct and the reason the

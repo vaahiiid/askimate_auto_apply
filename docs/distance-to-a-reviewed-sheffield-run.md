@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P176: attempt 3 signed in through the consent path first time, four of four checks
+  held. The fill then failed on an authored `id=saveBtn` that no read ever showed; six pages are
+  corrected to `name=saveBtn` from the captures, three keep the id. The fill's line now names a
+  missing control as such. The entry's hash moved again and waits on Vahid's signature.
 - 2026-09-21, P175: Vahid re-signed the entry at `sha256:21060fca…` and removed the superseded
   approval in the same commit; the catalogue loads again. The order for attempt 3 was corrected
   before it ran: the password box comes before the consent question, and attempt 3 costs two

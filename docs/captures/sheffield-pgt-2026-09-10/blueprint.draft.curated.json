@@ -1273,7 +1273,7 @@
       ],
       "requiredDocuments": [],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page4"
@@ -4576,7 +4576,7 @@
       ],
       "requiredDocuments": [],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page5"
@@ -26963,7 +26963,7 @@
         }
       ],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page8",
@@ -27836,7 +27836,7 @@
       ],
       "requiredDocuments": [],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page9",
@@ -28249,7 +28249,7 @@
       ],
       "requiredDocuments": [],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page10"
@@ -28614,7 +28614,7 @@
       ],
       "requiredDocuments": [],
       "advanceControl": {
-        "strategy": "id",
+        "strategy": "name",
         "value": "saveBtn"
       },
       "nextPageRef": "page11"

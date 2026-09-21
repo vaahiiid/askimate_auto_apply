@@ -512,6 +512,58 @@ describe("the fill says what it did, in words it is allowed to say (ADR-0124 app
     expect(lines.join("\n")).not.toContain("/apply?");
   });
 
+  it("says the Save was NOT ON THE PAGE, in our words, when the entry names a control this page does not carry (P176)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Run A, attempt 3, 2026-09-21. The fill reached personal.do and threw
+    // `LocatorNotFoundError`; the line said *the point could not be read* and
+    // *a check this log does not name*, and left the reader to infer from an
+    // error class that the button was not there. Vahid: *"say in the line
+    // that the locator found nothing, in our words."*
+    //
+    // The two cases are different in whose fault they are. Something over the
+    // button is the portal's; a control the page does not carry is OURS — an
+    // authored locator no read ever showed, which is exactly what
+    // `id=saveBtn` was. A person sent to look at the wrong one loses a day.
+    // ═══════════════════════════════════════════════════════════════════
+    const { lines, log } = collecting();
+    const missing = session({
+      click: () => Promise.reject(new Error("LocatorNotFoundError: no element matches")),
+    });
+    const outcome = await fillApplication(WORK, {
+      session: missing,
+      now: () => NOW,
+      documents: noDocuments,
+      challenge: unchallenged,
+      log,
+      atPoint: cover,
+      isPresent: () => Promise.resolve(false),
+    });
+    expect(outcome).toEqual({ kind: "uncertain", failure: "runner_fault" });
+    const failed = lines.find((line) => line.includes("could not be pressed"));
+    expect(failed).toContain("the save button was not on the page at all — nothing matched what the entry says to press");
+    // NOT the point read: there is no point to read, and saying one was tried
+    // would be the inference this line exists to remove.
+    expect(failed).not.toContain("at the button's point");
+    expect(failed).not.toContain("the point could not be read");
+  });
+
+  it("still reads the point when the control IS on the page: the two cases stay apart (P176)", async () => {
+    const { lines, log } = collecting();
+    const dying = session({ click: () => Promise.reject(new Error("net::ERR_CONNECTION_RESET")) });
+    await fillApplication(WORK, {
+      session: dying,
+      now: () => NOW,
+      documents: noDocuments,
+      challenge: unchallenged,
+      log,
+      atPoint: cover,
+      isPresent: () => Promise.resolve(true),
+    });
+    const failed = lines.find((line) => line.includes("could not be pressed"));
+    expect(failed).toContain("at the button's point: div#cover");
+    expect(failed).not.toContain("was not on the page at all");
+  });
+
   it("withholds a message it does not recognise, naming the class alone", async () => {
     const { lines, log } = collecting();
     const leaking = session({

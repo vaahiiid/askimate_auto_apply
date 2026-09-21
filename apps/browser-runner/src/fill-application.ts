@@ -95,6 +95,18 @@ export interface FillApplicationDeps {
    * Absent, the line says the point was not read rather than guessing.
    */
   readonly atPoint?: (locator: FieldLocator) => Promise<string>;
+  /**
+   * Whether the control the entry names is on the page at all (P176).
+   *
+   * A press can fail because something is over the button, or because there
+   * is no button — an entry naming a control the page does not carry. The
+   * first is the portal's doing and the second is ours, a reviewer's locator
+   * that no read ever showed, and a line that cannot tell them apart sends a
+   * person looking in the wrong place. Vahid found exactly that on
+   * `personal.do`, 2026-09-21: `id=saveBtn` against a page whose Save has a
+   * name and no id.
+   */
+  readonly isPresent?: (locator: FieldLocator) => Promise<boolean>;
 }
 
 export async function fillApplication(
@@ -271,7 +283,19 @@ export async function fillApplication(
     // fill (the other is a throw the intake catches), and the line names it
     // the way the sign-in names its press (ADR-0129): which check was
     // pending, and what stood at the button's point, structure only.
-    const atPoint = deps.atPoint === undefined ? "the point was not read" : await deps.atPoint(advance);
+    // P176, Vahid: *"say in the line that the locator found nothing, in our
+    // words, rather than leaving it to be inferred from the error class."*
+    // A locator that matches nothing has no point to read, and the two say
+    // different things: one is an obstacle, the other is an entry that names
+    // a control this page does not carry — which is what personal.do's
+    // `id=saveBtn` was on 2026-09-21.
+    const found = await deps.isPresent?.(advance);
+    const atPoint =
+      found === false
+        ? "the save button was not on the page at all — nothing matched what the entry says to press"
+        : deps.atPoint === undefined
+          ? "the point was not read"
+          : await deps.atPoint(advance);
     say(
       `${run}: page fill failed — the save button could not be pressed — ${thrownInWords(error)}; ` +
         `pending: ${pressCheckInWords(error)}; ${atPoint}`,

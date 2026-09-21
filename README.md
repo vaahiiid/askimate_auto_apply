@@ -27,9 +27,9 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P175 — the Sheffield entry is signed again and loads; the attempt-3 order corrected before it runs: the password box comes before the consent question, and two passwords are needed |
+| **Phase** | P176 — attempt 3 signed in through the consent path first time; the fill met an authored `id=saveBtn` no read ever showed, and every page's save locator is re-authored from its own capture |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,770 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Tests** | **2,774 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 131 ADRs · all 131 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 

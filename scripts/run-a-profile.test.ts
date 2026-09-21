@@ -244,7 +244,55 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
   });
 
-  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — RE-SIGNED after the consent notice moved the hash (2026-09-21, commit 60b303e): the directory loads and admits exactly that account", async () => {
+  it("locates every page's SAVE by what that page's own read showed — name where no id was ever read (P176)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Found by Run A's attempt 3, 2026-09-21. The fill reached personal.do
+    // and could not press Save: `LocatorNotFoundError`. Vahid read the page
+    // on his own account — `input name=saveBtn`, **no id** — and the entry
+    // said `id=saveBtn`. An authored locator no read had ever shown.
+    //
+    // It was a generalisation. The discovery of 2026-09-10 recorded
+    // `id=saveBtn` on THREE pages (nationality.do, language.app,
+    // documents.do) and, on the other six, a blank or stray label because
+    // there was no id to take. Curation then set `id=saveBtn` on all nine.
+    //
+    // `fieldRef = field.name ?? field.id` (discovery.ts:146), and every one
+    // of the nine carries a `saveBtn` field record — so on the six with no
+    // id, that ref can only have come from the NAME. personal.do confirms it
+    // live. So each page is authored from its own read and not from its
+    // neighbours', which is why this table is mixed rather than tidy.
+    //
+    // nationality.do's captured markup (2026-09-15) shows BOTH
+    // `name="saveBtn"` and `id="saveBtn"`; language.app and documents.do
+    // have the id from the tool's read and no markup of their own, so `name`
+    // there would be the same guess in the other direction.
+    // ═══════════════════════════════════════════════════════════════════
+    const READ: Record<string, { readonly strategy: string; readonly value: string }> = {
+      // The entry page, from the 2026-09-11 entry read.
+      page0: { strategy: "name", value: "startApplicationBtn" },
+      // No id was ever read on these six.
+      page3: { strategy: "name", value: "saveBtn" }, // personal.do — confirmed live, 2026-09-21
+      page4: { strategy: "name", value: "saveBtn" }, // contact.do
+      page7: { strategy: "name", value: "saveBtn" }, // education.do
+      page8: { strategy: "name", value: "saveBtn" }, // employment.do
+      page9: { strategy: "name", value: "saveBtn" }, // equalOpportunities.do
+      page10: { strategy: "name", value: "saveBtn" }, // marketing.do
+      // The tool's own read named an id on these three.
+      page5: { strategy: "id", value: "saveBtn" }, // nationality.do — markup shows name AND id
+      page6: { strategy: "id", value: "saveBtn" }, // language.app
+      page11: { strategy: "id", value: "saveBtn" }, // documents.do
+    };
+    for (const page of entry().blueprint.pages) {
+      const expected = READ[page.pageRef];
+      if (expected === undefined) {
+        expect(page.advanceControl, `${page.pageRef} advances nothing`).toBeUndefined();
+        continue;
+      }
+      expect(page.advanceControl, page.pageRef).toEqual(expected);
+    }
+  });
+
+  it("the save-locator correction (P176) moved the hash again, so the 2026-09-21 approval no longer covers the entry and the directory refuses to load", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Two signatures, and the second is why this test reads as it does. The
     // consent field (ADR-0131, P174) is new signed content, so the hash moved
@@ -268,13 +316,27 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    expect(labelledHash(toCanonical(value))).toBe("sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9");
+    // AWAITING VAHID'S THIRD SIGNATURE (P176). Six pages' save locators were
+    // corrected from `id=saveBtn` to `name=saveBtn`, so the hash moved again
+    // and the 2026-09-21 approval stopped covering the entry. The typed lines
+    // did NOT move — `what-will-be-typed.md` is identical, as it was when the
+    // consent field went in — because a save locator is how a page is left,
+    // not what is put in a box.
+    //
+    //   sha256:21060fca…  signed 2026-09-21, covers content that no longer exists
+    //   sha256:3238406a…  the entry as it is now
+    //
+    // On his signature this goes back to asserting the load and:
+    //   admits { kind: "one_account_only", studentId: "af398e01-…", signedBy: "Vahid Mohammadi" }
+    // and that exactly ONE approval is on file.
+    expect(labelledHash(toCanonical(value))).toBe("sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
-    // ONE approval on file: the superseded one is gone, not merely outvoted.
+    expect(load.ok, "no approval covers this content").toBe(false);
+    if (load.ok) expect.unreachable("refused above");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba",
+    );
+    // Still one approval on file, and it is the superseded one until he signs.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
   });

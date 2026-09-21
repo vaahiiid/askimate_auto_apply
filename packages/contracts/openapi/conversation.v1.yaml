@@ -1714,6 +1714,16 @@ components:
               id: { type: string, minLength: 1, maxLength: 64 }
               label: { type: string, maxLength: 200 }
               means: { type: string, maxLength: 1000 }
+              howItIsMade:
+                type: string
+                maxLength: 1000
+                description: >-
+                  ADR-0131, P172. Why this sequence of presses IS this choice,
+                  in plain words. Required whenever `path` has more than one
+                  entry: a portal with no control that says no is where the
+                  student learns there is none, rather than inferring it from a
+                  path that ends in "close". A client refuses a reading whose
+                  multi-step choice lacks it.
               path:
                 type: array
                 minItems: 1

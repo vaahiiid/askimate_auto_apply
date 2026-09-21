@@ -85,3 +85,33 @@ describe("the words a refusal reaches the student in", () => {
     }
   });
 });
+
+/**
+ * The student's page shows the REASON for a multi-press consent path, not just
+ * the presses (ADR-0131 P172, caught missing by Vahid on the live panel, P176).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * P172 built this in three places and reported all three. Two landed — the
+ * parser requires `howItIsMade` on a path of more than one control, and the
+ * conversation message leads with it — and the third did not: the edit to the
+ * student's page was in a script that aborted partway, and the panel went on
+ * showing "I would press Settings, then Close Cookie Control" with no reason
+ * for it. The claim was wrong for a week and nothing failed.
+ *
+ * So the guard is aimed at the failure that actually happened: an edit that
+ * never reached the file. It reads the client's source, because the panel is
+ * browser code with no unit seam, and a source check that would have caught
+ * this beats a perfect test that does not exist.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("the student's consent panel (ADR-0131, P176)", () => {
+  it("renders a choice's howItIsMade, so the panel says why closing something means no", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const source = readFileSync(fileURLToPath(new URL("./client/journey.ts", import.meta.url)), "utf8");
+    const panel = source.slice(source.indexOf('pending.decision === "consent_choice"'));
+    expect(panel.slice(0, 2_000), "the panel reads the reason").toContain("choice.howItIsMade");
+    // And still quotes every control, which was Vahid's original condition.
+    expect(panel.slice(0, 2_000)).toContain("choice.path.map");
+  });
+});

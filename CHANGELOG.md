@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.172.0] — 2026-09-21
+
+**P176 — the save locators audited from the captures; the fill's line names a missing control; the
+consent panel's missing sentence.**
+
+- Six pages' `advanceControl` corrected from `id=saveBtn` to `name=saveBtn` (personal, contact,
+  education, employment, equalOpportunities, marketing); three keep the id a read actually showed.
+  Pinned per page, with its evidence, in a test that failed first.
+- The fill says *the save button was not on the page at all* when the entry names a control the
+  page does not carry, instead of reporting a point it could not read.
+- The student's consent panel renders `howItIsMade`; P172's edit to it never landed. The published
+  contract gains the same field, also missed. Guarded by a source check.
+- Runbook: a stale `postmaster.pid` after an unclean shutdown. Blocker 43 seen on a real queue.
+- Entry hash `sha256:21060fca…` → `sha256:3238406a…`; `what-will-be-typed.md` unchanged.
+
+---
+
 ## [0.171.0] — 2026-09-21
 
 **P175 — the re-signature landed; the signature test flips back.**

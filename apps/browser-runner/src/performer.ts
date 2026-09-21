@@ -29,6 +29,7 @@ import type { LawfulBasisRegister } from "@askimate/aas-disclosure";
 
 import { createPortalAccount } from "./create-account.js";
 import { documentSourceFor } from "./document-source.js";
+import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 import type { ClaimedWork } from "@askimate/aas-contracts";
 import { fillApplication } from "./fill-application.js";
 import { atPointInWords } from "./point-of-control.js";
@@ -172,6 +173,13 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
       // and what stood at the Save button's point when a press fails.
       ...(deps.log === undefined ? {} : { log: deps.log }),
       atPoint: (locator) => atPointInWords(page, locator),
+      // P176: is the control there at all? An entry that names a control the
+      // page does not carry reads, without this, as an obstacle over a button.
+      isPresent: async (locator) => {
+        const found = toPlaywrightLocator(page, locator);
+        if (found === null) return false;
+        return (await found.count().catch(() => 0)) > 0;
+      },
       documents: documentSourceFor({
         intake: deps.intake,
         work,

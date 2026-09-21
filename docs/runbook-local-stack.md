@@ -111,6 +111,22 @@ instead of `catalogue  fixtures`; the Conversation Service and the Worker both l
 directory at start and refuse to come up on an entry no approval covers. No `AAS_PORTAL_ORIGINS`:
 Run A runs against the origin the blueprint observed, `www.sheffield.ac.uk`.
 
+### Found on a real machine — Postgres will not start after an unclean shutdown, 2026-09-21
+
+Vahid, on his own machine after Run A's attempt 3: Postgres refused to start with **`Bootstrap
+failed: 5`** and would not come back. `pgrep` showed **nothing running**, so nothing held the
+data directory — what held it was a **stale `postmaster.pid`** left by the unclean shutdown.
+
+```
+pgrep -f postgres            # confirm nothing is actually running FIRST
+rm -f <data-dir>/postmaster.pid
+pg_ctl -D <data-dir> start   # or however this machine starts it
+```
+
+**Confirm nothing is running before removing the file.** The pid file is what stops two servers
+writing one data directory, and deleting it while a server is alive invites exactly that. The
+check is the point, not a formality.
+
 ### Found on a real machine — Vahid's step 5, 2026-09-16
 
 The runbook had been run only where Postgres and Redis were already there. On a machine with

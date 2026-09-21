@@ -413,7 +413,15 @@ function drawPending(): void {
       // Every control on the path, quoted: a sequence is a choice only when
       // the student can see what it presses.
       const presses = choice.path.map((step) => `"${step}"`).join(", then ");
-      text(line, `"${choice.label}" — ${choice.means}. I would press ${presses}.`);
+      // P176, found by Vahid on the live panel: P172 put this sentence in the
+      // conversation message and claimed the panel carried it too. It did
+      // not — that edit never landed, and the panel showed the presses with
+      // no reason for them. A student clicks HERE, so the reason belongs here.
+      const how =
+        choice.howItIsMade === undefined
+          ? `I would press ${presses}.`
+          : `${choice.howItIsMade}. That is ${choice.path.length === 1 ? "one press" : `${String(choice.path.length)} presses`}: ${presses}, and nothing else.`;
+      text(line, `"${choice.label}" — ${choice.means}. ${how}`);
       line.append(
         button(choice.label, () => {
           void answerConsent(choice.id);
