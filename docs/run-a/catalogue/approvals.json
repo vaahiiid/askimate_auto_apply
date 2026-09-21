@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:baca64a9975b0a2660743de6edc3ba821100417758124d2932a78387ef09e6f9",
+    "contentHash": "sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-16T19:25:00Z",
+    "approvedAt": "2026-09-21T08:00:00Z",
     "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Read docs/run-a/what-will-be-typed.md before signing."
+    "note": "One signature (ADR-0118): my own account only. Re-signed after the consent notice (ADR-0131) was added; the typed content is unchanged from the 16 September signature."
   }
 ]
