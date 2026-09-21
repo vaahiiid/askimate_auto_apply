@@ -141,7 +141,7 @@ export function runnerPerformer(deps: RunnerPerformerDeps): WorkPerformer {
     if (page === null) return { kind: "failed", failure: "needs_the_student" };
 
     const advance = work.advanceLocator;
-    const session = PlaywrightPreparationSession.attach(page, {
+    const session = await PlaywrightPreparationSession.attach(page, {
       capability: "fillable",
       runId: work.runId,
       allowedHosts: [hostnameOf(work.portalHost)],

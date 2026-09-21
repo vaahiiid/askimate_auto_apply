@@ -17,6 +17,8 @@ import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import { proposeValue, studentId } from "@askimate/aas-domain";
 import { applyConfirmation, isDeclined, renderConfirmed } from "@askimate/aas-profile";
+import type { Page } from "playwright";
+import { chromium } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -36,6 +38,7 @@ import {
   ValueNotAcceptedError,
 } from "./playwright-fill-session.js";
 import { robotsGate } from "./robots-gate.js";
+import { openSensitiveContext } from "./sensitive.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // The pure guard
@@ -134,12 +137,40 @@ describe("the preparation network policy", () => {
 describe("the write log", () => {
   it("says plainly that the portal now holds something", () => {
     const log = new WriteLog();
-    log.record("POST", "https://apply.example.test/apply/save");
+    log.arm();
+    log.record("POST", "https://apply.example.test/apply/save", "navigation");
     expect(log.summarise()).toContain("has stored something");
   });
 
-  it("says so when nothing was sent", () => {
-    expect(new WriteLog().summarise()).toContain("saved nothing");
+  it("says so when nothing was sent — but only once something was watching", () => {
+    const watched = new WriteLog();
+    watched.arm();
+    expect(watched.summarise()).toContain("saved nothing");
+  });
+
+  // P182. This is the sentence blocker 51 would have printed after a run that
+  // saved three pages of a real university's form: the route handler feeding
+  // the log was never installed on the context a deployed fill uses, so the
+  // log was empty for want of a watcher, not for want of a write. Vahid:
+  // "until it is in, nothing the system prints may say 'the portal saved
+  // nothing'." An unarmed log cannot say it, whatever forgets to arm it.
+  it("REFUSES to report an absence when nothing was watching", () => {
+    const summary = new WriteLog().summarise();
+    expect(summary).toContain("NOTHING WATCHED");
+    expect(summary).not.toContain("saved nothing");
+    expect(summary).not.toContain("No state-changing requests were sent");
+  });
+
+  it("splits what navigated from what was asked in the background (ADR-0134)", () => {
+    const log = new WriteLog();
+    log.arm();
+    log.record("POST", "https://apply.example.test/education.do", "navigation");
+    log.record("POST", "https://apply.example.test/getInstitutions.do", "background");
+    const summary = log.summarise();
+    expect(summary).toContain("1 navigated the page");
+    expect(summary).toContain("1 in the background");
+    // A label on the record, never a refusal: both were sent.
+    expect(log.count).toBe(2);
   });
 });
 
@@ -208,7 +239,14 @@ describe("filling a fixture portal", () => {
       // offered nothing and the line could not say whether anything had been
       // asked. This page is that shape, so the answer can be proved through a
       // real browser making a real request.
-      if (req.method === "GET" && req.url?.startsWith("/lookup/search")) {
+      // P182: answered for POST as well as GET. Sheffield's sibling lookup on
+      // this very page is `POST getGradingSystemsForCountry.do?institutionCode=&…`
+      // — a read whose parameters travel in the QUERY STRING — so a fixture
+      // that only answers GET cannot prove the watcher sees the real shape.
+      if (
+        (req.method === "GET" || req.method === "POST") &&
+        req.url?.startsWith("/lookup/search")
+      ) {
         const asked = new URL(req.url, "http://127.0.0.1");
         const forCountry = (asked.searchParams.get("country") ?? "").length > 0;
         res
@@ -221,7 +259,17 @@ describe("filling a fixture portal", () => {
         return;
       }
       if (req.method === "GET" && req.url?.startsWith("/lookup")) {
-        const country = new URL(req.url, "http://127.0.0.1").searchParams.get("country") ?? "";
+        const asked = new URL(req.url, "http://127.0.0.1");
+        const country = asked.searchParams.get("country") ?? "";
+        // P182, two shapes this portal is known or suspected to have:
+        //   post  the search is a POST carrying its parameters in the query
+        //         string, as `getGradingSystemsForCountry.do` is;
+        //   boom  the handler between the keystroke and the search throws, as
+        //         `institutionChanged()` would if its own call failed. The box
+        //         then asks nothing AND the page's script fails, which is the
+        //         pair attempt 6 could not tell apart.
+        const byPost = asked.searchParams.get("post") === "1";
+        const boom = asked.searchParams.get("boom") === "1";
         res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html>
 <html><body>
   <input type="hidden" id="country" value="${country}">
@@ -244,8 +292,9 @@ describe("filling a fixture portal", () => {
     });
     function search() {
       pending = null;
+      ${boom ? 'throw new Error("the portal\'s own handler failed");' : ""}
       var country = document.getElementById("country").value;
-      fetch("/lookup/search?name=" + encodeURIComponent(box.value) + "&studyAbroad=false&country=" + encodeURIComponent(country))
+      fetch("/lookup/search?name=" + encodeURIComponent(box.value) + "&studyAbroad=false&country=" + encodeURIComponent(country)${byPost ? ', { method: "POST" }' : ""})
         .then(function (answer) { return answer.json(); })
         .then(function (offered) {
           var list = document.getElementById("placeOptions");
@@ -583,13 +632,78 @@ describe("filling a fixture portal", () => {
     // value: `name` is the text the reviewer recorded, and on the next box it
     // would be the student's own answer.
     expect(thrown.message).toContain(
-      "GET /lookup/search?name=(set)&studyAbroad=(set)&country=(empty) → 200, 0 entries",
+      "GET /lookup/search?name=(set)&studyAbroad=(set)&country=(empty) (in the background) → 200, 0 entries",
     );
     expect(thrown.message).toContain("the page asked the portal once");
     // Never the values, on either side: not what was typed, not what the
     // portal would have answered for a country that was set.
     expect(thrown.message).not.toContain("University of Sheffield");
     expect(thrown.message).not.toContain("UNITED KINGDOM");
+  }, 30_000);
+
+  it("sees a lookup made by POST — the shape this portal's known lookup has (P182)", async () => {
+    // ══════════════════════════════════════════════════════════════════
+    // Attempt 6 printed *"the page made NO request of its own to the portal"*
+    // while the watcher recorded GET and nothing else. The sibling lookup on
+    // this very page of Sheffield's form is
+    // `POST …/getGradingSystemsForCountry.do?institutionCode=&noCache=…` — a
+    // read whose parameters travel in the query string. If the institution
+    // search has that shape, the sentence was false.
+    // ══════════════════════════════════════════════════════════════════
+    const session = await openSession();
+    await session.goto(`${baseUrl}/lookup?post=1`);
+
+    let thrown: unknown;
+    try {
+      await session.fillTypeahead(
+        PLACE,
+        { optionLocator: PLACE_ENTRIES, text: "University of Sheffield" },
+        confirmedText("SHEFFIELD"),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("the list is empty");
+
+    expect(thrown.message).toContain(
+      "POST /lookup/search?name=(set)&studyAbroad=(set)&country=(empty) (in the background) → 200, 0 entries",
+    );
+    // And it must NOT say the page asked nothing, which is what it said before.
+    expect(thrown.message).not.toContain("made NO request of its own");
+    // The label is the ADR-0134 line: this is the page READING, not writing.
+    expect(thrown.message).toContain("(in the background)");
+    // Still no values, on a POST as on a GET.
+    expect(thrown.message).not.toContain("University of Sheffield");
+  }, 30_000);
+
+  it("says the page's own SCRIPT failed — that it failed, never what it said (P182)", async () => {
+    // Vahid's hypothesis for attempt 6: `institutionChanged()` throws, the box
+    // is never wired, and nothing asks the portal anything. Before this the
+    // runner could not tell that from a search that simply came back empty —
+    // it printed the same line for both. Now the two halves are separable.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/lookup?boom=1&country=UNITED+KINGDOM`);
+
+    let thrown: unknown;
+    try {
+      await session.fillTypeahead(
+        PLACE,
+        { optionLocator: PLACE_ENTRIES, text: "University of Sheffield" },
+        confirmedText("SHEFFIELD"),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("the handler throws");
+
+    expect(thrown.message).toContain("the page's own script FAILED");
+    // The country IS set on this page, and the search still never went out:
+    // the pair that says the fault is the page's code, not the portal's list.
+    expect(thrown.message).toContain("made NO request of its own to the portal");
+    expect(thrown.scriptFailures).toBeGreaterThan(0);
+    // Never the message. An uncaught error on a form page can quote the value
+    // that caused it.
+    expect(thrown.message).not.toContain("the portal's own handler failed");
   }, 30_000);
 
   it("TYPES key by key, so a box whose entries arrive on keyup is filled at all (P180)", async () => {
@@ -631,13 +745,15 @@ describe("filling a fixture portal", () => {
       thrown = error;
     }
     if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("Atlantis is not offered");
-    // P181: the sentence names GET, and says the rest is unwatched. The
-    // watcher records GET only, so a flat "made NO request" was a claim about
-    // methods it cannot see — and the one lookup whose shape this portal's
-    // capture holds is a POST.
-    expect(thrown.message).toContain("the page made NO GET request of its own to the portal");
-    expect(thrown.message).toContain("Requests by any other method are not watched");
-    expect(thrown.message).not.toContain("made NO request of its own");
+    // P181 narrowed this sentence to GET, because the watcher saw GET only and
+    // a flat "made NO request" was a claim about methods it could not see.
+    // P182 widened the WATCHER instead, which is what Vahid asked for, so the
+    // sentence may say it again and means it: every method, on the portal's
+    // own host — the one scope left, and the words name it.
+    expect(thrown.message).toContain("made NO request of its own to the portal, by any method");
+    expect(thrown.message).not.toContain("not watched");
+    // And nobody's script threw either, which is the other half of the answer.
+    expect(thrown.message).toContain("raised no error");
   }, 30_000);
 
   it("says NOTHING about requests when nobody was watching — the difference between none and unknown", async () => {
@@ -786,4 +902,106 @@ describe("filling a fixture portal", () => {
       session.fill({ strategy: "id", value: "middleName" }, confirmedText("x")),
     ).rejects.toThrow(LocatorNotFoundError);
   }, 30_000);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // THE DOOR PRODUCTION USES (P182, blocker 51)
+  // ─────────────────────────────────────────────────────────────────────────
+  //
+  // Every test above opens its session with `open()`, and nothing a deployable
+  // runs calls `open()`. ADR-0046 puts the form behind a login, so
+  // `performer.ts` attaches the fill to the context the sign-in already holds
+  // — and for three weeks `attach()` installed no route handler at all, so the
+  // host allow-list, the robots check on subresources and the record of
+  // everything sent were, in production, absent.
+  //
+  // The check that exists for this class of defect passed, and says in its own
+  // header why: `decidePreparationRequest` HAS a production call site, inside a
+  // method whose own callers are a test and a script. A symbol search cannot
+  // see that. These tests can, because they go through the same door.
+  describe("the guard on an ATTACHED context", () => {
+    const opened: { close: () => Promise<void> }[] = [];
+
+    afterEach(async () => {
+      while (opened.length > 0) await opened.pop()?.close();
+    });
+
+    async function attachSession(
+      search = "",
+    ): Promise<{ session: PlaywrightPreparationSession; page: Page }> {
+      const executablePath = process.env["AAS_CHROMIUM_PATH"];
+      const browser = await chromium.launch({
+        headless: true,
+        ...(executablePath !== undefined && executablePath.length > 0 ? { executablePath } : {}),
+      });
+      opened.push({ close: () => browser.close() });
+      // The same door the held session opens (ADR-0046): a sensitive context,
+      // and a page in it that the fill is handed rather than opening itself.
+      const context = await openSensitiveContext(browser, { userAgent: "aas-test" });
+      const page = await context.newPage();
+      const session = await PlaywrightPreparationSession.attach(page, {
+        capability: "fillable",
+        allowedHosts: ["127.0.0.1"],
+        runId: "run-attached-test",
+        now: () => NOW,
+        clickableControls: [{ strategy: "id", value: "continueBtn" }],
+      });
+      await page.goto(`${baseUrl}/apply${search}`);
+      return { session, page };
+    }
+
+    it("REFUSES a host off the allow-list when the PAGE reaches for it", async () => {
+      const { session, page } = await attachSession();
+      // `localhost` and `127.0.0.1` are the same machine and different
+      // hostnames, which is exactly what an allow-list is about. The fixture
+      // server is reachable either way, so a refusal here is the guard's doing
+      // and not a network failure.
+      const elsewhere = baseUrl.replace("127.0.0.1", "localhost");
+      await page
+        .evaluate(async (url: string) => {
+          await fetch(`${url}/apply/save`, { method: "POST" }).catch(() => undefined);
+        }, elsewhere)
+        .catch(() => undefined);
+
+      const refused = session.blockedRequests();
+      expect(refused.length, "the guard must be on the context a real fill uses").toBeGreaterThan(0);
+      expect(refused.some((entry) => entry.url.includes("localhost"))).toBe(true);
+    }, 30_000);
+
+    it("RECORDS what the page sent, so the run's summary is earned rather than empty", async () => {
+      const { session, page } = await attachSession();
+      const before = saved.length;
+      await page.evaluate(async () => {
+        await fetch("/apply/save", { method: "POST" }).catch(() => undefined);
+      });
+
+      expect(saved.length, "nothing new is refused by this — it went through").toBeGreaterThan(
+        before,
+      );
+      expect(session.writeLog.armed).toBe(true);
+      expect(session.writeLog.count).toBeGreaterThan(0);
+      expect(session.writeLog.summarise()).toContain("has stored something");
+      // ADR-0134: a background fetch is labelled as such, not as a navigation.
+      expect(session.writeLog.summarise()).toContain("1 in the background");
+    }, 30_000);
+
+    it("guards one context ONCE, however many page items attach to it", async () => {
+      const { session, page } = await attachSession();
+      // A run fills page after page in one held context and `performer.ts`
+      // builds a session per page item. Stacked handlers would leave the older
+      // sessions' logs silently empty — the failure this phase exists to remove.
+      const second = await PlaywrightPreparationSession.attach(page, {
+        capability: "fillable",
+        allowedHosts: ["127.0.0.1"],
+        runId: "run-attached-test",
+        now: () => NOW,
+        clickableControls: [],
+      });
+      await page.evaluate(async () => {
+        await fetch("/apply/save", { method: "POST" }).catch(() => undefined);
+      });
+
+      expect(session.writeLog.count, "one request, recorded once").toBe(1);
+      expect(second.writeLog.count, "and both sessions read the same context log").toBe(1);
+    }, 30_000);
+  });
 });

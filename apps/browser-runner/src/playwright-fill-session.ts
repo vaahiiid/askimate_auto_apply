@@ -35,7 +35,7 @@ import { chromium } from "playwright";
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
 
 import { OBSERVE_SCRIPT } from "./observe-script.js";
-import type { ClickDecision } from "./preparation-safety.js";
+import type { ClickDecision, PreparationNetworkPolicy } from "./preparation-safety.js";
 import {
   ClickAllowList,
   HostAllowList,
@@ -45,7 +45,13 @@ import {
   looksLikeSubmission,
 } from "./preparation-safety.js";
 import type { LookupRecord } from "./safety.js";
-import { BlockedRequestLog, LookupLog, lookupsInWords } from "./safety.js";
+import {
+  BlockedRequestLog,
+  LookupLog,
+  ScriptFailureLog,
+  lookupsInWords,
+  scriptFailuresInWords,
+} from "./safety.js";
 import type { RedactedValue } from "./sensitive.js";
 import { openSensitiveContext, redact, sameRedacted } from "./sensitive.js";
 import { detectChallenge, type Challenge } from "./challenge.js";
@@ -137,12 +143,22 @@ export class OptionNotAvailableError extends Error {
    * repository exists to refuse.
    */
   public readonly lookups: readonly LookupRecord[] | undefined;
+  /** Script failures during the fill, or `undefined` when nobody listened (P182). */
+  public readonly scriptFailures: number | undefined;
 
   public constructor(
     locator: FieldLocator,
     wanted: string,
     available: readonly { readonly value: string; readonly label: string }[],
     lookups?: readonly LookupRecord[],
+    /**
+     * How many times the page's own script threw while this box was filled
+     * (P182). `undefined` means nobody listened, and the line stays silent —
+     * the same distinction `lookups` draws.
+     */
+    scriptFailures?: number,
+    /** Requests this run's guard REFUSED during the fill (P182). */
+    refused?: readonly { readonly reason: string }[],
   ) {
     // The wanted value is NOT in the message. It is the student's answer —
     // a nationality, a country of birth — and this message goes into logs,
@@ -169,6 +185,16 @@ export class OptionNotAvailableError extends Error {
         `(${String(wanted.length)} characters). It offers: ` +
         `${available.map((option) => `${option.value} (${option.label})`).join(", ")}. ` +
         `${lookups === undefined ? "" : `${lookupsInWords(lookups)} `}` +
+        // P182: a script that threw, and a request this run's own guard
+        // refused, are the two answers "the page asked nothing" could not
+        // separate. Both are counts and reasons, never a page's own text.
+        `${scriptFailures === undefined ? "" : `${scriptFailuresInWords(scriptFailures)} `}` +
+        `${
+          refused === undefined || refused.length === 0
+            ? ""
+            : `THIS RUN'S OWN GUARD refused ${String(refused.length)} request(s) while the box was ` +
+              `being filled: ${[...new Set(refused.map((entry) => entry.reason))].join(" ")} `
+        }` +
         `The mapping is out of step with the portal and a specialist must review it — the ` +
         `nearest option is not chosen.`,
     );
@@ -176,6 +202,7 @@ export class OptionNotAvailableError extends Error {
     this.wanted = redact(wanted);
     this.available = available;
     this.lookups = lookups;
+    this.scriptFailures = scriptFailures;
   }
 }
 
@@ -209,7 +236,7 @@ const OPTION_WAIT_MS = 5_000;
 const TYPING_DELAY_MS = 50;
 
 /**
- * Records what the PAGE fetched from the portal, in shape (P179).
+ * Records what the PAGE fetched from the portal, in shape (P179, widened P182).
  *
  * ── Why a response listener and not the route guard ───────────────────────
  *
@@ -220,19 +247,24 @@ const TYPING_DELAY_MS = 50;
  * Read-only and bounded, in that order:
  *
  *   - **same host only.** Another host's answer is not this portal's, and the
- *     allow-list has already refused most of them;
- *   - **GET only.** A write was to be `#writes`'s business, and this about
- *     lookups. **P181 found that division does not hold on the path a
- *     deployed run takes:** `#writes` is fed by the route handler that only
- *     `open()` installs, and production attaches to a held context instead —
- *     see the P181 block at the top of ./preparation-safety.ts. So a non-GET
- *     the page makes during a real fill is recorded NOWHERE, and this log's
- *     silence is not evidence that none was made. The words this feeds now
- *     say GET (`lookupsInWords`); widening the watcher is blocker 52;
+ *     allow-list has already refused most of them. This is the ONE scope the
+ *     words still carry, and they say so;
+ *   - **every method, each labelled** navigation or background (P182). It was
+ *     GET only until P181 found that the division of labour it assumed —
+ *     *a write is `#writes`'s business* — did not hold, because `#writes` is
+ *     fed by a route handler that was never installed on the context a
+ *     deployed fill uses. Vahid, 2026-09-21: *"record same-host non-GET in
+ *     the shape GET already uses."* Blocker 52;
  *   - **the body is read only to COUNT it**, only when the portal says it is
  *     JSON, and only under a ceiling. Nothing of the body is kept: not the
  *     entries, not a sample, not the first characters. A count of a list and
- *     a status are the whole record.
+ *     a status are the whole record. Widening to POST does not widen this:
+ *     the record of a request the page navigated with is still a method, a
+ *     path, parameter NAMES and a status;
+ *   - **the query is never read for its values**, which matters more now that
+ *     a POST is recorded: a form the page submits may carry the student's
+ *     answers, and only the parameter names and whether each arrived empty
+ *     are kept, exactly as before.
  *
  * Every failure here is swallowed: a diagnostic that can break a fill is
  * worse than no diagnostic. A body that cannot be read is recorded as
@@ -240,21 +272,32 @@ const TYPING_DELAY_MS = 50;
  */
 const COUNTABLE_BODY_BYTES = 262_144;
 
-function watchLookups(page: Page, log: LookupLog): void {
+function watchPage(page: Page, lookups: LookupLog, failures: ScriptFailureLog): void {
+  // The page's own script threw. The COUNT is the record and the message is
+  // not kept — an uncaught error on a form page can quote the value that
+  // caused it. See `ScriptFailureLog` for the whole of that reasoning.
+  page.on("pageerror", () => {
+    failures.record();
+  });
+
   page.on("response", (response) => {
     void (async () => {
       const request = response.request();
-      if (request.method().toUpperCase() !== "GET") return;
       const here = safeUrl(page.url());
       const asked = safeUrl(response.url());
       if (here === null || asked === null || here.host !== asked.host) return;
-      log.record({
+      lookups.record({
         method: request.method().toUpperCase(),
         path: asked.pathname,
         params: [...asked.searchParams].map(([name, value]) => ({
           name,
           empty: value.trim().length === 0,
         })),
+        // ADR-0134: the line between a page READING a lookup and a page
+        // WRITING the student's data, taken from the request's own structure
+        // rather than from its body or a reviewed list. A portal saves a page
+        // by submitting that page's form, which navigates.
+        kind: request.isNavigationRequest() ? "navigation" : "background",
         status: response.status(),
         answer: await answerShape(response),
       });
@@ -300,17 +343,129 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * The preparation network guard, installed on a context (P182, blocker 51).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THIS IS THE RULE THE SYSTEM ALREADY CLAIMED, PUT WHERE IT WAS ALWAYS
+ * DESCRIBED — on the context a real fill runs in.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * It used to live inside `open()` alone, and nothing a deployable runs calls
+ * `open()`: ADR-0046 puts the form behind a login, so the fill attaches to the
+ * context the sign-in already holds. For three weeks the header of
+ * ./preparation-safety.ts described a host allow-list, a robots check on
+ * subresources and a complete record of everything sent, and none of the three
+ * ran during a real fill (P181). Vahid, 2026-09-21: *"install it on the
+ * attached context. Not as a new rule — as the rule the system already
+ * claims."*
+ *
+ * ── Once per context, and why the logs live here ──────────────────────────
+ *
+ * A run fills page after page in ONE held context, and `performer.ts` builds a
+ * fresh session for each page item. Installing a handler per session would
+ * stack them — Playwright runs only the most recently added handler for a
+ * route, so the older sessions' logs would quietly stop filling while still
+ * reading as empty, which is precisely the failure this phase exists to
+ * remove. So the guard is installed once per context and the logs belong to
+ * the CONTEXT, which is also the truer scope: *what did this run send* is a
+ * question about the run, not about one page of it.
+ *
+ * The policy is replaced, not stacked, on each attach. Within a run the host
+ * and the portal are the same; what changes per work item is the robots
+ * verdict, and the current item's is the one that should apply to the page
+ * doing that item's work.
+ */
+interface ContextGuard {
+  readonly writes: WriteLog;
+  readonly blocked: BlockedRequestLog;
+  current: {
+    readonly policy: PreparationNetworkPolicy;
+    readonly robots: SessionMode["robots"];
+  };
+}
+
+const GUARDED = new WeakMap<BrowserContext, ContextGuard>();
+
+async function guardContext(
+  context: BrowserContext,
+  allowList: HostAllowList,
+  mode: Pick<PreparationMode, "forbiddenEndpoints" | "robots">,
+): Promise<ContextGuard> {
+  const current = {
+    policy: { allowList, forbiddenEndpoints: mode.forbiddenEndpoints ?? [] },
+    robots: mode.robots,
+  };
+
+  const existing = GUARDED.get(context);
+  if (existing !== undefined) {
+    existing.current = current;
+    return existing;
+  }
+
+  const guard: ContextGuard = { writes: new WriteLog(), blocked: new BlockedRequestLog(), current };
+  GUARDED.set(context, guard);
+
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    const { policy, robots: decideRobots } = guard.current;
+    const decision = decidePreparationRequest(request.method(), request.url(), policy);
+
+    if (!decision.allowed) {
+      guard.blocked.record(decision);
+      await route.abort("blockedbyclient");
+      return;
+    }
+    // Applied to every request, not only to navigations (ADR-0091, P135):
+    // a script or a stylesheet under a disallowed path is not fetched.
+    const robots = decideRobots?.(request.url());
+    if (robots !== undefined && !robots.allowed) {
+      guard.blocked.record({
+        allowed: false,
+        method: request.method(),
+        url: request.url(),
+        reason: robots.reason,
+        rule: "robots",
+      });
+      await route.abort("blockedbyclient");
+      return;
+    }
+
+    // Recorded BEFORE it is sent, so the log is complete even if the run dies
+    // mid-request. "What did we send?" must be answerable after a crash.
+    if (isStateChanging(request.method())) {
+      guard.writes.record(
+        request.method(),
+        request.url(),
+        request.isNavigationRequest() ? "navigation" : "background",
+      );
+    }
+    await route.continue();
+  });
+
+  // Last, and only once the handler is actually on the context: until this
+  // line the log must not report an absence of writes. See `WriteLog.arm`.
+  guard.writes.arm();
+  return guard;
+}
+
 export class PlaywrightPreparationSession implements FillableSession {
   #lastNavigationAt: number | null = null;
   readonly #allowList: HostAllowList;
   readonly #clickAllowList: ClickAllowList;
-  readonly #writes = new WriteLog();
+  /**
+   * The context's log, not this session's (P182). A run fills many pages in
+   * one held context, and what it sent is a fact about the run. Until the
+   * guard is installed this is an UNARMED log, which reports that nothing was
+   * watching rather than that nothing was sent.
+   */
+  #writes = new WriteLog();
   readonly #reformatted: {
     readonly locator: FieldLocator;
     readonly intended: RedactedValue;
     readonly stored: RedactedValue;
   }[] = [];
-  readonly #blocked = new BlockedRequestLog();
+  #blocked = new BlockedRequestLog();
   /**
    * What the PAGE asked the portal, for a box that found nothing (P179).
    *
@@ -319,6 +474,15 @@ export class PlaywrightPreparationSession implements FillableSession {
    * back, in shape only — see `LookupRecord` for where that line is drawn.
    */
   readonly #lookups = new LookupLog();
+  /**
+   * How many times the page's own JavaScript threw (P182, blocker 52).
+   *
+   * The count only. If `institutionChanged()` fails, the box behind it is
+   * never wired and a fill that found nothing has a reason — but the message
+   * an uncaught error carries is written by the portal while it is handling
+   * the student's answers, so it is not kept.
+   */
+  readonly #failures = new ScriptFailureLog();
   #browser: Browser | null = null;
   #context: BrowserContext | null = null;
   #page: Page | null = null;
@@ -348,13 +512,21 @@ export class PlaywrightPreparationSession implements FillableSession {
    *
    * `close()` closes nothing here. The context belongs to whoever opened it.
    */
-  public static attach(
+  public static async attach(
     page: Page,
     mode: Omit<PreparationMode, "traceDir">,
-  ): PlaywrightPreparationSession {
+  ): Promise<PlaywrightPreparationSession> {
     const session = new PlaywrightPreparationSession({ ...mode, traceDir: "" });
     session.#page = page;
-    watchLookups(page, session.#lookups);
+    // The guard, on the context this page belongs to (P182, blocker 51).
+    // `attach` became async for exactly this: a route handler that is
+    // installed after the first request has gone is not a guard, and the
+    // caller must wait for it. See `guardContext` for why it is once per
+    // context and why the logs live there.
+    const guard = await guardContext(page.context(), session.#allowList, mode);
+    session.#writes = guard.writes;
+    session.#blocked = guard.blocked;
+    watchPage(page, session.#lookups, session.#failures);
     return session;
   }
 
@@ -389,39 +561,14 @@ export class PlaywrightPreparationSession implements FillableSession {
       content: "globalThis.__name = globalThis.__name || function (f) { return f; };",
     });
 
-    const policy = {
-      allowList: session.#allowList,
-      forbiddenEndpoints: mode.forbiddenEndpoints ?? [],
-    };
-
-    await session.#context.route("**/*", async (route) => {
-      const request = route.request();
-      const decision = decidePreparationRequest(request.method(), request.url(), policy);
-
-      if (!decision.allowed) {
-        session.#blocked.record(decision);
-        await route.abort("blockedbyclient");
-        return;
-      }
-      // Applied to every request, not only to navigations (ADR-0091, P135):
-      // a script or a stylesheet under a disallowed path is not fetched.
-      const robots = mode.robots?.(request.url());
-      if (robots !== undefined && !robots.allowed) {
-        session.#blocked.record({ allowed: false, method: request.method(), url: request.url(), reason: robots.reason });
-        await route.abort("blockedbyclient");
-        return;
-      }
-
-      // Recorded BEFORE it is sent, so the log is complete even if the run dies
-      // mid-request. "What did we send?" must be answerable after a crash.
-      if (isStateChanging(request.method())) {
-        session.#writes.record(request.method(), request.url());
-      }
-      await route.continue();
-    });
+    // The SAME guard the attached path installs, through the same function:
+    // one rule, one place, so a fix to either door reaches both (P182).
+    const guard = await guardContext(session.#context, session.#allowList, mode);
+    session.#writes = guard.writes;
+    session.#blocked = guard.blocked;
 
     session.#page = await session.#context.newPage();
-    watchLookups(session.#page, session.#lookups);
+    watchPage(session.#page, session.#lookups, session.#failures);
     return session;
   }
 
@@ -577,6 +724,8 @@ export class PlaywrightPreparationSession implements FillableSession {
     // Marked BEFORE anything is typed, so what follows is this box's own
     // lookups and not the page's load (P179).
     const askedFrom = this.#lookups.mark();
+    const failedFrom = this.#failures.mark();
+    const refusedFrom = this.#blocked.mark();
     // ── Typed KEY BY KEY, not set in one act (P180) ────────────────────
     //
     // Measured by Vahid on the live form, 2026-09-21: typing `sheff` by hand
@@ -620,7 +769,14 @@ export class PlaywrightPreparationSession implements FillableSession {
       const shown = await offered.evaluateAll((elements) =>
         elements.map((element) => ({ value: (element.getAttribute("data-value") ?? "").trim(), label: (element.textContent ?? "").trim() })),
       );
-      throw new OptionNotAvailableError(locator, value, shown, this.#lookups.since(askedFrom));
+      throw new OptionNotAvailableError(
+        locator,
+        value,
+        shown,
+        this.#lookups.since(askedFrom),
+        this.#failures.since(failedFrom),
+        this.#blocked.since(refusedFrom).map((entry) => ({ reason: entry.reason ?? "no reason given" })),
+      );
     }
     if (looksLikeSubmission(entries.text)) {
       throw new ClickRefusedError({

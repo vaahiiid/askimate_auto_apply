@@ -101,6 +101,19 @@ export class BlockedRequestLog {
   }
 
   /**
+   * Where the log stands now, so one box's fill can say what was refused
+   * DURING it (P182). The same `mark`/`since` pair `LookupLog` uses, and for
+   * the same reason: everything else the page did is somebody else's business.
+   */
+  public mark(): number {
+    return this.#blocked.length;
+  }
+
+  public since(mark: number): readonly GuardDecision[] {
+    return this.#blocked.slice(Math.max(mark, 0));
+  }
+
+  /**
    * True when the portal attempted a state-changing request unprompted.
    *
    * ── Corrected in P58 ──────────────────────────────────────────────────
@@ -365,6 +378,22 @@ export interface LookupRecord {
   /** Path only. The query is next, in shape. */
   readonly path: string;
   readonly params: readonly { readonly name: string; readonly empty: boolean }[];
+  /**
+   * Whether the page NAVIGATED with this request, or made it in the
+   * background (P182, ADR-0134).
+   *
+   * This is the line between *a page reading a lookup* and *a page writing
+   * the student's data*, and it is drawn from the request's own structure —
+   * `isNavigationRequest()` — not from its body, its size or a list somebody
+   * reviewed. A portal saves a page by submitting that page's form, which
+   * navigates; a widget asking what institutions exist does not.
+   *
+   * It is a LABEL on what is recorded and never a reason to refuse. Nothing
+   * is refused by this that was not refused before, because the rule the
+   * repository actually relies on for submission is the click guard, not a
+   * guess about an HTTP request — see the caveat in ADR-0134.
+   */
+  readonly kind: "navigation" | "background";
   readonly status: number;
   /**
    * What came back, in the runner's words: `"7 entries"` when the body is a
@@ -417,7 +446,10 @@ export function lookupInWords(entry: LookupRecord): string {
     entry.params.length === 0
       ? ""
       : `?${entry.params.map((param) => `${param.name}=${param.empty ? "(empty)" : "(set)"}`).join("&")}`;
-  return `${entry.method} ${entry.path}${query} → ${String(entry.status)}, ${entry.answer}`;
+  // The label reads as English, because this line is read by a person deciding
+  // whether a box failed for want of an answer or because the page moved.
+  const kind = entry.kind === "navigation" ? "a page navigation" : "in the background";
+  return `${entry.method} ${entry.path}${query} (${kind}) → ${String(entry.status)}, ${entry.answer}`;
 }
 
 /**
@@ -427,29 +459,89 @@ export function lookupInWords(entry: LookupRecord): string {
  * and a page that asked nothing are a different fault from a box that found
  * nothing because the portal answered with nothing.
  *
- * ── Why every sentence here names GET (P181) ──────────────────────────────
+ * ── What these sentences may and may not claim (P181, then P182) ────────
  *
- * The watcher that fills this log records GET and nothing else. Until P181 the
- * no-request sentence read *"the page made NO request of its own to the
- * portal"*, and that is a claim about every method the log never sees. It was
- * printed to Vahid on attempt 6 about a page whose one lookup we DO hold the
- * shape of — `POST …/getGradingSystemsForCountry.do?institutionCode=&…`, a
- * read whose parameters travel in the query string — so the sentence was
- * asserting the absence of exactly the kind of request it cannot see.
+ * Until P181 the no-request sentence read *"the page made NO request of its
+ * own to the portal"* while the watcher recorded GET and nothing else. That is
+ * a claim about every method it could not see, and it was printed to Vahid on
+ * attempt 6 about a page whose one known lookup is
+ * `POST …/getGradingSystemsForCountry.do?institutionCode=&…` — a read whose
+ * parameters travel in the query string. P181 narrowed the words to GET.
  *
- * A wrong label is worse than none. These words now say GET, and say that the
- * rest is unwatched, until the watcher covers the rest (blocker 52).
+ * P182 widened the watcher instead, which is what he asked for: every method,
+ * on the portal's own host, each labelled navigation or background. So the
+ * sentence may say *no request* again — and it means it, within the one scope
+ * that remains and is stated here: **the portal's own host**. A request to a
+ * third party is not this portal being asked, and the guard refuses most of
+ * them anyway.
  */
 export function lookupsInWords(entries: readonly LookupRecord[]): string {
   if (entries.length === 0) {
     return (
-      `While this box was being filled the page made NO GET request of its own to the portal. ` +
-      `Requests by any other method are not watched, so this says nothing about them.`
+      `While this box was being filled the page made NO request of its own to the portal, ` +
+      `by any method.`
     );
   }
   return (
     `While this box was being filled the page asked the portal ` +
-    `${entries.length === 1 ? "once" : `${String(entries.length)} times`} by GET ` +
-    `(other methods are not watched): ${entries.map(lookupInWords).join("; ")}.`
+    `${entries.length === 1 ? "once" : `${String(entries.length)} times`}: ` +
+    `${entries.map(lookupInWords).join("; ")}.`
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Whether the page's own script failed (P182)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * How many times the page's own JavaScript threw, and nothing else.
+ *
+ * ── Why the message is not kept ───────────────────────────────────
+ *
+ * An uncaught error's message and stack are written by the portal's own code,
+ * and that code is handling the student's answers when it throws. A validator
+ * that rejects a date of birth can say so in the exception. So the count is
+ * the record, and the fact that a script failed at all is the finding: it
+ * separates *the page never asked* from *the page tried and its own code
+ * broke first*, which is the whole question the institution box raises.
+ *
+ * Vahid, 2026-09-21: *"the runner should be able to say so — that a script
+ * failed, not its text."*
+ */
+export class ScriptFailureLog {
+  #count = 0;
+
+  public record(): void {
+    this.#count += 1;
+  }
+
+  public mark(): number {
+    return this.#count;
+  }
+
+  /** How many failures happened after a mark. */
+  public since(mark: number): number {
+    return Math.max(this.#count - Math.max(mark, 0), 0);
+  }
+
+  public get count(): number {
+    return this.#count;
+  }
+}
+
+/**
+ * Script failures in a failure line's words.
+ *
+ * `undefined` means nobody was listening and the line says nothing — the same
+ * distinction `LookupRecord` draws, and for the same reason: silence about a
+ * thing nobody watched must not read as evidence that it did not happen.
+ */
+export function scriptFailuresInWords(failures: number | undefined): string {
+  if (failures === undefined) return "";
+  if (failures === 0) return `The page's own scripts raised no error while this box was being filled.`;
+  return (
+    `While this box was being filled the page's own script FAILED ` +
+    `${failures === 1 ? "once" : `${String(failures)} times`}. What it said is not recorded — an ` +
+    `uncaught error on a form page can quote the value that caused it.`
   );
 }

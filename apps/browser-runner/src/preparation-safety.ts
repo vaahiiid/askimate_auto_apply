@@ -42,34 +42,36 @@
  * network layer too — defence in depth exactly where knowledge exists, and no
  * pretence where it does not.
  *
- * ═══════════════════════════════════════════════════════════════════════════
- * P181: THE NETWORK LAYER DESCRIBED ABOVE IS NOT INSTALLED ON THE PATH A
- * DEPLOYED RUN TAKES. Read this before believing any sentence above about
- * hosts, robots or recording.
- * ═══════════════════════════════════════════════════════════════════════════
+ * ── Where this actually runs, and the three weeks it did not (P181, P182) ─
  *
- * `decidePreparationRequest` is reached from exactly one place in the
- * repository's production files: the `context.route` handler inside
- * `PlaywrightPreparationSession.open`. Nothing a deployable runs calls `open`.
- * It cannot: ADR-0046 says the form is behind a login, so the fill must be
- * attached to the context the account creation or sign-in already holds, and
- * `performer.ts` accordingly builds the session with `attach`, which installs
- * no route handler at all. `SessionHold.open` installs none either.
+ * The NETWORK paragraph above described something that was not happening. The
+ * `context.route` handler that runs `decidePreparationRequest` lived inside
+ * `PlaywrightPreparationSession.open`, and nothing a deployable runs calls
+ * `open`: ADR-0046 puts the form behind a login, so the fill attaches to the
+ * context the sign-in already holds, and `attach` installed no handler. For
+ * three weeks a real fill had no host allow-list on the page's own requests,
+ * no robots check on its subresources, and an empty `WriteLog` — while this
+ * file said otherwise. Found in P181, by reading the code to answer a question
+ * about a dropdown.
  *
- * So during a real fill there is no host allow-list on the page's own
- * requests, no robots check on its subresources, and the `WriteLog` below
- * stays empty however much the portal saves. `summarise()` would answer *"No
- * state-changing requests were sent. The portal saved nothing"* after a run
- * that saved three pages — which is why nothing production runs calls it.
+ * P182 installed it where it was always described: `guardContext` in
+ * ./playwright-fill-session.ts, once per context, through the same function
+ * both doors call. Vahid, 2026-09-21: *"install it on the attached context.
+ * Not as a new rule — as the rule the system already claims."*
  *
- * The TYPE, CLICK and NAME layers are unaffected: they live on the session,
- * not on the context, and `attach` carries all three. The submission
- * guarantee rests on those, as the paragraph above always said it did.
+ * Two honest limits remain, because saying them is cheaper than being wrong:
  *
- * Recorded as blocker 51. Not closed by guesswork: installing this guard on a
- * held context means deciding first how a page READING a lookup by a non-GET
- * method is told from a page WRITING the student's data, and that is Vahid's
- * to decide.
+ *   `forbiddenEndpoints` IS INSTALLED AND ALWAYS EMPTY. Nothing fills it. The
+ *   blueprint's `SubmissionModel` records a page reference and a control, and
+ *   no URL, so there is no submission endpoint anywhere for the runner to
+ *   refuse. The defence in depth described just above is a mechanism with no
+ *   input, and the submission guarantee rests — as this file always said it
+ *   did — on the type and the click guard. Blocker 53.
+ *
+ *   A state-changing request is still PERMITTED, by design. What P182 adds is
+ *   that each one is LABELLED navigation or background (ADR-0134), which is
+ *   the line between a page reading a lookup and a page writing the student's
+ *   data. A label on the record. Nothing new is refused by it.
  */
 
 import type { FieldLocator } from "@askimate/aas-blueprint";
@@ -168,15 +170,56 @@ export class ClickAllowList {
   }
 }
 
-/** Everything preparation sent that could have changed something. */
+/**
+ * Everything preparation sent that could have changed something.
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ * AN EMPTY LOG MEANS NOTHING UNTIL SOMETHING IS WATCHING (P182).
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * For three weeks this class would have answered *"No state-changing requests
+ * were sent. The portal saved nothing"* after a run that saved three pages of
+ * a real university's form, because the route handler that feeds it was never
+ * installed on the context a deployed fill uses (P181, blocker 51). Nothing
+ * printed it, by luck rather than by design: its only caller was a test.
+ *
+ * So the log now knows whether anybody was watching. `arm()` is called by the
+ * guard as it is installed, and an unarmed log refuses to report an absence —
+ * the same rule `LookupRecord.lookups` follows, where `undefined` and `[]` are
+ * kept apart. Vahid, 2026-09-21: *"until it is in, nothing the system prints
+ * may say 'the portal saved nothing'."* This is that, made structural, so it
+ * stays true if some later path forgets to install the guard again.
+ */
 export class WriteLog {
-  readonly #writes: { readonly method: string; readonly url: string }[] = [];
+  readonly #writes: {
+    readonly method: string;
+    readonly url: string;
+    readonly kind: "navigation" | "background";
+  }[] = [];
+  #armed = false;
 
-  public record(method: string, url: string): void {
-    this.#writes.push({ method: method.toUpperCase(), url });
+  /** Called by the guard as it is installed. Until then this log claims nothing. */
+  public arm(): void {
+    this.#armed = true;
   }
 
-  public get entries(): readonly { readonly method: string; readonly url: string }[] {
+  public get armed(): boolean {
+    return this.#armed;
+  }
+
+  /**
+   * @param kind Whether the page NAVIGATED with this request or made it in the
+   * background (ADR-0134). A label on the record, never a reason to refuse.
+   */
+  public record(method: string, url: string, kind: "navigation" | "background"): void {
+    this.#writes.push({ method: method.toUpperCase(), url, kind });
+  }
+
+  public get entries(): readonly {
+    readonly method: string;
+    readonly url: string;
+    readonly kind: "navigation" | "background";
+  }[] {
     return [...this.#writes];
   }
 
@@ -189,9 +232,16 @@ export class WriteLog {
    *
    * Written to be read by a person deciding whether a preparation run did
    * anything it should not have, so it says what was sent rather than that
-   * everything was fine.
+   * everything was fine — and says when it does not know.
    */
   public summarise(): string {
+    if (!this.#armed) {
+      return (
+        "NOTHING WATCHED this run's network, so no state-changing request was recorded. That is " +
+        "not a finding about the portal: it says nothing about what was sent or what the portal " +
+        "stored."
+      );
+    }
     if (this.#writes.length === 0) {
       return "No state-changing requests were sent. The portal saved nothing.";
     }
@@ -202,8 +252,14 @@ export class WriteLog {
     const breakdown = [...byMethod.entries()]
       .map(([method, n]) => `${method}×${String(n)}`)
       .join(", ");
+    // The split a specialist reads first: a navigation is the page submitting
+    // its own form, which is how this portal saves a page; a background
+    // request is the page asking something. Neither is refused (ADR-0134).
+    const navigations = this.#writes.filter((write) => write.kind === "navigation").length;
+    const background = this.#writes.length - navigations;
     return (
-      `${String(this.#writes.length)} state-changing request(s) were sent (${breakdown}). ` +
+      `${String(this.#writes.length)} state-changing request(s) were sent (${breakdown}; ` +
+      `${String(navigations)} navigated the page, ${String(background)} in the background). ` +
       `The portal has stored something as a result of this run.`
     );
   }

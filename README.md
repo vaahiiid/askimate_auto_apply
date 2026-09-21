@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P181 — the guard suspected of emptying the institution box is not the cause: on the path a deployed run takes it is **not installed at all**. Answered from the code; the failure line that overclaimed is corrected to name GET; nothing else built, and the rule for telling a lookup-by-POST from a write is proposed, not chosen |
+| **Phase** | P182 — ADR-0134: the fill's network guard now runs on the context a real fill attaches to, as the record has claimed since ADR-0014; a log nobody armed cannot report an absence; a page reading a lookup is told from a page writing by NAVIGATION, as a label and never a refusal; and the runner can say that the page's own script failed, never what it said |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
-| **Tests** | **2,790 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 133 ADRs · all 133 Accepted |
+| **Tests** | **2,797 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 134 ADRs · all 134 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

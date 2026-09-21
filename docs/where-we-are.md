@@ -4906,6 +4906,76 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P182 — the rule the system already claimed, put where it was always described
+
+He read P181 and did not ask for a design. He asked for the thing the record had been describing
+for three weeks to start happening.
+
+> *"Install it on the attached context. Not as a new rule — as the rule the system already claims.
+> Host allow-list, robots.txt on subresources, forbidden endpoints, on the context the sign-in holds
+> and the fill attaches to. It is the design, restored."*
+
+So the route handler moved out of `open()` and into a function both doors call. It goes on the
+context, not the session, and once — which matters more than it sounds. A run fills page after page
+in one held context and builds a session per page item, and Playwright runs only the most recently
+added handler for a route. A handler per session would have left every earlier session's log
+silently empty while still reading as empty-because-nothing-happened. That is the same shape as the
+defect being fixed, one level down, and it would have been invisible in exactly the same way.
+
+The second half of his instruction was the one worth building carefully.
+
+> *"And until it is in, nothing the system prints may say 'the portal saved nothing' — find every
+> place that summary can reach a person or a record and say what it will say instead."*
+
+Every place turned out to be one place, and it was a test. `WriteLog.summarise()` had no other
+caller in the repository: the sentence never reached a person or a record, by luck and not by
+design. That is not a reassurance, so the log now knows whether anybody was watching. The guard arms
+it as the handler goes on; unarmed, it answers *NOTHING WATCHED this run's network… it says nothing
+about what was sent or what the portal stored*. The test that asserted the old sentence failed the
+moment the change went in, which is how the one caller was found.
+
+On the classification he chose the structural one, and gave the reasons himself: a reviewed list
+costs a re-signature every time a portal grows a lookup, and a size ceiling reads the size of what
+may be the student's data in order to decide whether it is the student's data. Navigation needs
+neither. A portal saves a page by submitting that page's form, which navigates; a widget asking what
+institutions exist does not. It would have classified the 10 September POST correctly with nobody
+naming anything.
+
+And it is a **label**, which is the part to keep hold of. Nothing new is refused by it. The caveat
+the guard's file has carried since it was written is still the true one: reading an HTTP request
+cannot separate saving a draft from sending an application, and the submission guarantee is where it
+has always actually been — the session type has no `submit`, and the click guard admits only the
+controls the plane sent.
+
+Then the instrument, which he was right to insist on:
+
+> *"They are not a guess about the box; they are the instrument that stops the guessing, and the
+> only honest next step."*
+
+The watcher records every method on the portal's own host now, so the line may say *no request* and
+mean it. A `pageerror` listener counts the times the page's own script threw, and the line says that
+it failed — never what it said, because an uncaught error on a form page can quote the value that
+caused it. The fixture grew Sheffield's two shapes to prove both: a search by POST carrying its
+parameters in the query string, and a handler that throws before it fires. With the second, the line
+now reads *made NO request of its own to the portal, by any method* **and** *the page's own script
+FAILED once* — which is exactly the pair attempt 6 could not tell apart.
+
+Three tests go through `attach()`, the door production uses, and all three fail without the fix.
+That is the answer to his last question, about the reachability check. It passed throughout, and its
+own header says why: a function called only by another function that nothing calls passes here.
+Three ways to close that are written into the header now — recursion with a real call graph, a
+register naming each capability's entry point, or a test through the production door — and only the
+third is built, because it was the one this phase needed anyway.
+
+One thing found while installing and said rather than left to imply otherwise: `forbiddenEndpoints`
+is installed and always empty. The blueprint records a submission page and a submission control, and
+no URL. So the third layer of the network guard is a mechanism with no input. It is not the
+submission guarantee and never was. Blocker 53.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P181 — the guard he suspected is not the cause, because it is not installed
 
 He asked for three things read out of the code rather than out of the ADRs, and the first answer

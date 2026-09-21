@@ -140,12 +140,21 @@ describe("the browser lane", () => {
   it("counts a file that launches only through a session class", () => {
     // The five the first version of this predicate missed. Each was measured
     // spawning eight Chromium processes.
+    //
+    // ── Four now, not five (P182) ───────────────────────────────────────
+    //
+    // `preparation.test.ts` was the fifth, and it now launches Chromium
+    // directly as well. That is not drift: the guard on the ATTACHED context
+    // can only be proved by building the context production builds — a
+    // sensitive context, a page handed to `attach()` — which means opening a
+    // browser rather than asking a session class to open one. It stays in the
+    // lane either way, which the line below asserts, and it is no longer an
+    // example of the thing this test is about.
     for (const file of [
       "apps/browser-runner/src/discovery.test.ts",
       "apps/browser-runner/src/inspection.test.ts",
       "apps/browser-runner/src/lwc-observe.test.ts",
       "apps/browser-runner/src/lwc-shadow.test.ts",
-      "apps/browser-runner/src/preparation.test.ts",
     ]) {
       expect(ACTUAL, `${file} launches through a Playwright*Session`).toContain(file);
       expect(
@@ -153,6 +162,9 @@ describe("the browser lane", () => {
         `${file} does not say chromium.launch itself — which is the point`,
       ).toBe(false);
     }
+
+    // Still serialised, by the other half of the predicate.
+    expect(ACTUAL).toContain("apps/browser-runner/src/preparation.test.ts");
   });
 
   it("keeps the setting that actually serialises the lane", () => {

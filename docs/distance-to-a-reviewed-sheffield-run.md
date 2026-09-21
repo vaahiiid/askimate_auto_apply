@@ -249,6 +249,15 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P182: **the fill's network guard now runs where a real fill runs (ADR-0134)**. Host
+  allow-list, robots.txt on subresources and the record of everything sent, installed on the context
+  `attach` is handed — the rule the system already claimed, put where it was always described.
+  A `WriteLog` nobody armed reports *NOTHING WATCHED* instead of *the portal saved nothing*. A page
+  reading a lookup is told from a page writing by NAVIGATION, as a label on the record and never a
+  refusal; the caveat that none of it separates a draft save from a submission stands, and that
+  guarantee stays with the type and the click guard. The runner now sees every method the page uses
+  on the portal's host, and can say that the page's own script failed — never what it said. Three
+  tests go through `attach()` and fail without the fix. Blockers 51 and 52 closed, 53 raised.
 - 2026-09-21, P181: **the guard suspected of emptying the institution box is not the cause — on the
   path a deployed run takes it is not installed at all.** `decidePreparationRequest` has no method rule,
   and the `context.route` handler that would run it lives in `open()`, which production never calls

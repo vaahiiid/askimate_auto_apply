@@ -19,6 +19,40 @@ not shipped artefacts.
 
 ---
 
+## [0.178.0] — 2026-09-21
+
+**P182 — ADR-0134: a guard runs where the fill runs, and labels what it records instead of guessing
+at it.**
+
+- **The guard is installed on the attached context** — `guardContext`, called by `attach` and by
+  `open` alike: host allow-list, robots.txt on every request rather than only navigations, forbidden
+  endpoints, and the record of everything state-changing. `attach` became asynchronous for it,
+  because a handler installed after the first request has gone is not a guard. Blocker 51 closed.
+- **Once per context, logs on the context.** A run fills page after page in one held context;
+  Playwright runs only the most recently added route handler, so a handler per page item would have
+  left the earlier sessions' logs silently empty.
+- **A log nobody armed reports nothing.** `WriteLog.arm()` goes on with the handler. Unarmed, it
+  answers *"NOTHING WATCHED this run's network"* and cannot say *the portal saved nothing*. The one
+  test that asserted the old sentence failed first — and was the only thing that had ever read it.
+- **Lookup told from write by NAVIGATION** (`isNavigationRequest()`): no reviewed list, no body
+  read. A label on the record, never a refusal; nothing new is refused. The alternatives — a
+  reviewed endpoint list, and a body-size ceiling — were refused in Vahid's words.
+- **The instrument, both halves (blocker 52 closed).** The watcher records every method on the
+  portal's own host, each labelled, so the line may say *no request* and mean it; and a `pageerror`
+  listener says the page's own script FAILED, never what it said.
+- **Three tests go through `attach()`, the door production uses**, and all three fail without the
+  fix. The fixture gained Sheffield's own shapes: a search by POST carrying its parameters in the
+  query string, and a handler that throws before it fires.
+- **What the reachability check would need to catch this shape** is written in its own header, three
+  ways, none built. It passed throughout, exactly as its header said it would.
+- Robots refusals on the fill path now carry `rule: "robots"`; without it `portalAttemptedWrite`
+  would have read a disallowed stylesheet as the portal attempting a write (the P58 correction,
+  which the fill path's copy of the handler never had).
+- **Blocker 53 raised:** `forbiddenEndpoints` is installed and always empty — the blueprint records
+  a submission page and control, and no URL.
+
+---
+
 ## [0.177.0] — 2026-09-21
 
 **P181 — the fill's network guard is not installed on the path a deployed run takes; the line that said

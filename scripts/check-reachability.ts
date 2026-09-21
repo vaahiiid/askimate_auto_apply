@@ -45,6 +45,51 @@
  * called only by another function that nothing calls passes here. Closing that
  * gap needs a call graph rather than a symbol search, and claiming otherwise
  * would be the kind of confident overstatement this check exists to catch.
+ *
+ * ── The sentence above was paid for on 2026-09-21 (P181, P182) ────────────
+ *
+ * `decidePreparationRequest` — the fill's network guard, which the record said
+ * refused off-allow-list hosts, applied robots.txt to subresources and kept a
+ * complete account of everything a run sent — had a production call site, and
+ * it was inside `PlaywrightPreparationSession.open`, whose own callers are a
+ * test and a script. Production attaches to a held context instead (ADR-0046
+ * §6), so for three weeks the guard did not run during any real fill. THIS
+ * CHECK PASSED THROUGHOUT, exactly as the paragraph above says it would.
+ *
+ * Vahid: *"A safety guard that exists only in tests is exactly the class of
+ * thing that check exists for. Say what it would take for the check to catch
+ * this shape, even if you do not build it now."* Three answers, cheapest last,
+ * NONE of them built:
+ *
+ *   1. **Ask the question recursively.** The check already knows how to ask
+ *      *does anything in production call X?*. The gap is that it asks once. A
+ *      capability is reachable when its call site sits in a function that is
+ *      itself reachable, and the recursion bottoms out at a deployable's entry
+ *      point. Cost: a real call graph, which means resolving imports, methods
+ *      on classes and functions passed as values — enough machinery that it
+ *      would need its own tests to be trusted, and a check nobody trusts is
+ *      worse than the gap.
+ *
+ *   2. **Name the doors.** A small register: for each containment capability,
+ *      the ENTRY POINT it must be reachable from — `runnerPerformer` for the
+ *      fill guard, the HTTP route for a service gate. The check walks from
+ *      that named function rather than from every production file. Cheaper
+ *      than 1 and it catches this exact shape, because `open()` is not the
+ *      named door. Costs a register that can itself go stale, which is the
+ *      failure mode ADR-0057 was written about.
+ *
+ *   3. **Prove it through the door, in a test.** For a containment rule, a
+ *      test that exercises the PRODUCTION entry point and asserts the guard
+ *      refused something. P182 built that one for the fill guard — the
+ *      "guard on an ATTACHED context" block in preparation.test.ts, which
+ *      goes through `attach()` and fails without the fix. It is the cheapest
+ *      and the strongest, because it proves the behaviour rather than the
+ *      shape of the call graph; and it is the weakest as a CHECK, because
+ *      nothing makes anyone write it for the next guard.
+ *
+ * 1 and 2 are the check's own business and are not decided. 3 is a habit, and
+ * the phase that found this one has it written down instead: a guard whose
+ * only proof opens its own browser is a guard nobody has tested.
  */
 
 import { readdirSync, readFileSync, existsSync, realpathSync } from "node:fs";
