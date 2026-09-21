@@ -1,6 +1,6 @@
 # ADR-0133 — A typeahead is typed into key by key, and a box that finds nothing says what the field behind the earlier control holds
 
-**Status:** Accepted · 2026-09-21 · continues [ADR-0103](./0103-the-blueprint-says-what-the-form-does-between-fields.md) gap 2 and [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) · found by Vahid's hand measurement on the live form, and by the line [ADR-0132](./0132-the-uniqueness-that-protects-a-queue-must-not-outlive-the-resolution.md)'s phase added
+**Status:** Accepted, **Context amended 2026-09-21 (P183)** — the 1.x reasoning is withdrawn for Sheffield, which ships Tom Select 2.3.1; the decision stands and the typing is not reverted · 2026-09-21 · continues [ADR-0103](./0103-the-blueprint-says-what-the-form-does-between-fields.md) gap 2 and [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) · found by Vahid's hand measurement on the live form, and by the line [ADR-0132](./0132-the-uniqueness-that-protects-a-queue-must-not-outlive-the-resolution.md)'s phase added
 **Built in P180**, the same day.
 
 ## Context — a person's keystrokes searched, the runner's fill did not
@@ -16,6 +16,37 @@ So a person's keystrokes fire the search and the runner's fill did not. He also 
 observation of his own: a console test that appeared to show a one-act fill firing nothing was void,
 because his Network panel's type filter hid Fetch/XHR. The evidence is the runner's line, not that
 test.
+
+## AMENDED 2026-09-21 (P183) — the version fork below is NOT Sheffield's reason
+
+Vahid fetched the page's own scripts after attempt 7 and committed them
+(`docs/captures/sheffield-pgt-2026-09-21-education-scripts/`). The header of
+`scripts/tom-select/tom-select.complete.min.js` reads **Tom Select v2.3.1**.
+
+So Sheffield ships **2.x**, and the minified source confirms what the table below says about
+2.x: `se(i,"input",(t=>e.onInput(t)))` — the control input's `input` event, bound on the
+control, with no `keyup` binding on that path. A Playwright `fill()` dispatches `input`. **On
+this page a one-act fill would have reached `onInput` too**, so the 1.x/2.x fork is not why
+attempts 4 to 6 asked the portal nothing.
+
+In his words: *"The key-by-key change is harmless but it did not fix this, and the ADR should
+say that plainly rather than leave 1.x as the explanation."*
+
+**The decision below stands and the typing is NOT reverted.** Typing key by key is what a
+person does, it satisfies both versions, and it costs the portal the same one lookup. What is
+withdrawn is the *claim that it was the cause here*. This ADR closed blocker 49; blocker 49 is
+**reopened** (P181) and the cause is not established.
+
+What the same capture does establish, from `education.js` and the vendored 2.3.1:
+
+- the institution box's `load` function is `loadInstitutionSearch(query, callback)`, which reads
+  `#institutionCountry`.value and calls `GET ./ajax/institution/search.app?name=…&studyAbroad=…&country=…`;
+- `load()` runs only when `canLoad()` is true, which is `!!settings.load && !loadedSearches.hasOwnProperty(query)`;
+- **the construction that would set `settings.load` is inline in `education.do` and no capture
+  holds it.** That is the open question, and it is named as blocker 54 rather than guessed at.
+
+The three paragraphs that follow are kept as the reading of the vendor source that they are.
+They are correct about the two versions and wrong about which one this portal runs.
 
 ## What the vendor code says, and what it cannot say
 

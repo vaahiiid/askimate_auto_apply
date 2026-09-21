@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P182 — ADR-0134: the fill's network guard now runs on the context a real fill attaches to, as the record has claimed since ADR-0014; a log nobody armed cannot report an absence; a page reading a lookup is told from a page writing by NAVIGATION, as a label and never a refusal; and the runner can say that the page's own script failed, never what it said |
+| **Phase** | P183 — Sheffield ships Tom Select **2.3.1**, so ADR-0133's 1.x reasoning is withdrawn (amended, not reverted); `education.js` read: the search URL, what `load()` requires, and that `institutionChanged()` rebuilds nothing; the stray POST explained; two blockers raised |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
 | **Tests** | **2,797 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 134 ADRs · all 134 Accepted |

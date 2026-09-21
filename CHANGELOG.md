@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.179.0] — 2026-09-21
+
+**P183 — the page's own scripts, read: Sheffield ships Tom Select 2.3.1, and ADR-0133's reason was
+wrong.**
+
+- **ADR-0133 amended, not reverted.** `tom-select.complete.min.js` on `education.do` reads *Tom
+  Select v2.3.1*, which binds `input` on the control. A one-act fill dispatches `input`, so
+  attempts 4 to 6 reached `onInput` too and the 1.x/2.x fork is not why they asked nothing. The
+  typing stays: it is what a person does, satisfies both versions, and costs one lookup. Blocker 49
+  stays reopened and the cause is not established.
+- **The load path, from `education.js`.** `loadInstitutionSearch(query, callback)` reads
+  `#institutionCountry`.value and calls
+  `GET ./ajax/institution/search.app?name=…&studyAbroad=…&country=…`; `studyAbroad` comes from a
+  global `erasmusStudyAbroad` the file never declares. `load()` runs only when `canLoad()` —
+  `!!settings.load && !loadedSearches.hasOwnProperty(query)`.
+- **`institutionChanged()` rebuilds nothing.** It reads two values, toggles the India warning and
+  the unlisted block, and calls `loadGradingSystems()`. Nothing in `education.js` destroys,
+  rebuilds, clears or disables the Tom Select, or replaces its load function or settings.
+- **The stray POST is explained.** `loadGradingSystems()`'s first branch is taken whenever
+  `#institution`.value is not one of five named strings — the empty string passes all five — giving
+  `institutionCode=` exactly as observed. Tom Select fires a real `change` on the original element
+  from `updateOriginalInput()`, so the country choice's own change reaches `institutionChanged()`.
+- **What the runner types, confirmed:** the recorded label *University of Sheffield*; the *9
+  characters* in the failure line is the value `SHEFFIELD` it must match on `data-value`.
+- **Blocker 54:** the `new TomSelect(…)` construction is inline in `education.do` and no capture
+  holds it — the one artefact that can say whether `settings.load` is set at all.
+- **Blocker 55:** the lookup log records RESPONSES, so an earlier act's answer can land inside a
+  later box's window while the words say *asked*. Same family as the overclaim P181 corrected.
+
+---
+
 ## [0.178.0] — 2026-09-21
 
 **P182 — ADR-0134: a guard runs where the fill runs, and labels what it records instead of guessing

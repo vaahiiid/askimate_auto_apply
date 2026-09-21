@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P183: **the portal's own scripts, read.** Sheffield ships Tom Select **2.3.1**, which
+  binds `input` — so ADR-0133's 1.x explanation is withdrawn for this portal (amended, typing kept)
+  and blocker 49's cause is still not established. From `education.js`: the institution search is
+  `GET ./ajax/institution/search.app?name=…&studyAbroad=…&country=…`, its country comes from
+  `#institutionCountry`.value, and `load()` runs only when `settings.load` is set and the query is
+  not already cached. `institutionChanged()` rebuilds nothing. The stray POST is the country
+  choice's own consequence with `#institution` still empty. Blockers 54 (the inline construction is
+  uncaptured) and 55 (the lookup log records responses, not requests) raised.
 - 2026-09-21, P182: **the fill's network guard now runs where a real fill runs (ADR-0134)**. Host
   allow-list, robots.txt on subresources and the record of everything sent, installed on the context
   `attach` is handed — the rule the system already claimed, put where it was always described.

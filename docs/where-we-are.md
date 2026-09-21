@@ -4906,6 +4906,65 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P183 — the page's own code, and a reason of mine that turns out to be wrong
+
+He fetched the scripts. The header says **Tom Select v2.3.1**, and the minified source binds
+`se(i,"input",(t=>e.onInput(t)))` on the control input. Which means a one-act fill would have
+reached `onInput` on this page too, and ADR-0133's account of why attempts 4 to 6 asked the portal
+nothing — that Sheffield ships 1.x and a `fill()` fires nothing there — is wrong for Sheffield. The
+ADR is amended to say so at the top, and the typing stays, because typing key by key is what a
+person does, it satisfies either version, and it costs the portal the same single lookup. What is
+withdrawn is the claim that it was the cause. Blocker 49 stays reopened.
+
+**The load path.** `loadInstitutionSearch(query, callback)` is the function the widget's `load`
+option names. It reads `#institutionCountry`.value and calls
+`GET ./ajax/institution/search.app?name=…&studyAbroad=…&country=…` — the same URL he saw by hand on
+the 11th, and the country parameter comes from the hidden select, not from the country widget. One
+thing worth noting: the third argument is a bare global, `erasmusStudyAbroad`, which `education.js`
+never declares.
+
+**What has to be true for `load()` to run**, from the vendored 2.3.1:
+`canLoad(q)` is `!!settings.load && !loadedSearches.hasOwnProperty(q)`. Two conditions, and the
+first is the one we cannot see: `education.js` defines the function and never constructs anything.
+The `new TomSelect(…)` call is inline in `education.do`, and the capture holds only the two external
+scripts. **A box whose instance has no `load` option asks nothing, silently, with no error** — which
+is precisely the shape of every attempt so far. That is blocker 54 and it is a question, not a
+finding.
+
+**`institutionChanged()` does less than he feared.** It reads the institution and country values,
+toggles the India warning and the unlisted block, and calls `loadGradingSystems()`. That is all of
+it. It does not destroy, rebuild, clear or disable the Tom Select, and does not replace its load
+function or its settings — and neither does anything else in the file. So half of his guess is
+refuted by the code.
+
+**The other half is nearly right, and the code names it exactly.** `loadGradingSystems()` is the
+only producer of that URL. Its first branch fires when `#institution`.value is not `null` and not
+any of four sentinel strings — and **the empty string passes all five tests**, which is why the POST
+carried `institutionCode=` with nothing after it. What dispatched the `change`? Tom Select fires a
+real `change` on the original element from `updateOriginalInput()`, on every `addItem` — so the
+country choice's own change reaches `institutionChanged()` while the institution is still empty.
+His instinct that the hidden select was involved was right; the mechanism is the country's widget
+doing its ordinary job, not the runner touching anything.
+
+Which exposes something about our own line. The watcher records **responses**, and the mark is a
+position in that log, so an answer to a request made before the box's fill lands inside the box's
+window — and the sentence says *asked*. That is the same family of overclaim P181 corrected, found
+the same way, and it is blocker 55.
+
+**What the runner types**, since he asked: `entries.text`, the recorded label *University of
+Sheffield*, twenty-three characters. The *9 characters* in the failure line is the value
+`SHEFFIELD` that the chosen entry must carry on `data-value` — what it must match, not what it
+typed. ADR-0109 is being followed.
+
+One thing I checked rather than assumed: whether a second try reuses the page, in which case Tom
+Select's `loadedSearches` cache would make the retype ask nothing by construction. It does not —
+`fillApplication` opens the form once and fills once, and a second attempt is a fresh page. So that
+trap is real but not what happened.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P182 — the rule the system already claimed, put where it was always described
 
 He read P181 and did not ask for a design. He asked for the thing the record had been describing
