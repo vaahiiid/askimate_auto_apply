@@ -249,6 +249,10 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P175: Vahid re-signed the entry at `sha256:21060fca…` and removed the superseded
+  approval in the same commit; the catalogue loads again. The order for attempt 3 was corrected
+  before it ran: the password box comes before the consent question, and attempt 3 costs two
+  passwords rather than one.
 - 2026-09-20, P174: the signed consent field is in the Sheffield entry and in the curated draft.
   The entry's hash moved to `sha256:21060fca…`, so the 2026-09-16 approval is void and the
   catalogue refuses to load until Vahid signs again; `what-will-be-typed.md` did not move at all.

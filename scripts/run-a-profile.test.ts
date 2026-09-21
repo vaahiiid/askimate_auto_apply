@@ -244,21 +244,24 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.portalAuthentication?.mfaOrOtpRequired).toBe(false);
   });
 
-  it("carries the reviewer flip, and the consent field (P174) moved the hash — so the 2026-09-16 approval NO LONGER covers it and the directory refuses to load", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — RE-SIGNED after the consent notice moved the hash (2026-09-21, commit 60b303e): the directory loads and admits exactly that account", async () => {
     // ═══════════════════════════════════════════════════════════════════
-    // AWAITING VAHID'S SECOND SIGNATURE. The status flip is his and stands;
-    // what is gone is the approval, because ADR-0131's consent field is new
-    // signed content and the hash moved with it:
+    // Two signatures, and the second is why this test reads as it does. The
+    // consent field (ADR-0131, P174) is new signed content, so the hash moved
+    // sha256:baca64a9… → sha256:21060fca…, the 16 September approval stopped
+    // covering the entry, and the directory refused to load until he signed
+    // again — which is ADR-0057 biting on a real edit to a real signed entry,
+    // and was asserted as such in the interval.
     //
-    //   sha256:baca64a9…  signed 2026-09-16, covers content that no longer exists
-    //   sha256:21060fca…  the entry as it is now
+    // He computed the hash himself before signing rather than taking it from
+    // an agent's report, and the superseded approval went out in the same
+    // commit as the new one came in: an approval left behind would assert an
+    // approval for content that no longer exists.
     //
-    // Asserted as it actually is rather than as it was, because a test that
-    // claimed the directory still loads would be claiming an approval that
-    // does not exist. When he signs the new hash, `approvals.json` gains his
-    // line, the superseded one goes in the same commit, and this test goes
-    // back to asserting the load and the admission it asserted before:
-    //   admits { kind: "one_account_only", studentId: "af398e01-…", signedBy: "Vahid Mohammadi" }
+    // What did NOT move, and is the reason one signature could replace the
+    // other on unchanged typed content: docs/run-a/what-will-be-typed.md, line
+    // for line, and its own reference hash. The consent field governs what
+    // happens before the form, not what goes into a box.
     // ═══════════════════════════════════════════════════════════════════
     const value = entry();
     expect(value.blueprint.status).toBe("reviewed");
@@ -266,13 +269,14 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
     expect(labelledHash(toCanonical(value))).toBe("sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9");
-    // The gate biting on a real edit to a real signed entry (ADR-0057).
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "no approval covers this content").toBe(false);
-    if (load.ok) expect.unreachable("refused above");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:21060fca2a7a8119056a4a3bb19ac2e4445e7f36f153df308f8f3854a22f67f9",
-    );
+    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    // ONE approval on file: the superseded one is gone, not merely outvoted.
+    const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
+    expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {

@@ -19,6 +19,17 @@ not shipped artefacts.
 
 ---
 
+## [0.171.0] — 2026-09-21
+
+**P175 — the re-signature landed; the signature test flips back.**
+
+- `approvals.json` holds one approval for `sha256:21060fca…`, signed 2026-09-21; the superseded
+  one is gone. The catalogue loads and admits one account only.
+- The test asserts the load, the admission, and that exactly one approval is on file.
+- No code change: the correction to the expected attempt-3 order is a record, not a behaviour.
+
+---
+
 ## [0.170.0] — 2026-09-20
 
 **P174 — the signed consent field written into the Sheffield entry (signed by Vahid,

@@ -4906,6 +4906,24 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P175 — signed again, and an expected order corrected before it was run
+
+He computed the hash himself before signing it, which is the right instinct and the reason the
+signature means anything: an approval taken on an agent's word would be an approval of the agent.
+The superseded one left in the same commit as the new one arrived, so no stale approval sits
+beside a live one — and the test now asserts that count, not just the admission.
+
+The more useful half of this phase was saying no. He set out the order he expected for attempt 3
+and asked to be told if it was wrong. It was, in one place that matters: the consent question
+cannot come before the password box, because the question is raised only by a sign-in that met the
+notice, and a sign-in needs a password. So attempt 3 costs two passwords, not one — the first
+spent meeting the notice, the second on the sign-in that carries his answer. Said before he
+started rather than discovered while he waited.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P174 — the entry carries the notice, and the signature it had is void
 
 He signed the draft and it is written in, exactly as he read it. The mechanism then did what it
