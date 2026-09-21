@@ -166,6 +166,48 @@ export function runInterventionStoreContract(
       expect(await store.open()).toHaveLength(1);
     });
 
+    it("the same stuck action, stuck AGAIN after a resolution, raises a SECOND intervention", async () => {
+      // ── Blocker 48, found on Run A (2026-09-21) ──────────────────────
+      //
+      // The idempotency above is meant to be "one OPEN intervention per stuck
+      // action" — the port says so in `findForAction`'s own words — and it was
+      // written as "one per stuck action, for ever". The difference is
+      // invisible until an action gets stuck twice with a resolution between,
+      // which is exactly what a resolved `did_not_happen` invites: the
+      // specialist says the act did not land, the run carries on, and it
+      // sticks at the same page again.
+      //
+      // What that cost: a paused run with nothing in the queue for it. The
+      // second raise was swallowed by the resolved row, `#pause` read an
+      // `announcedAt` from the first episode and said nothing, and the run
+      // went to `uncertain` — out of `AUTOMATABLE_STATUSES`, so no later poll
+      // could raise it either. Not a duplicate in a queue: an application
+      // stopped where no person can see it.
+      const first = await store.raise(forThisRun());
+      await store.resolve({
+        interventionId: first.interventionId,
+        resolution: resolution({ outcome: "resume" }),
+        reusability: REUSABILITY,
+      });
+
+      const again = await store.raise(
+        forThisRun({ interventionId: makeInterventionId("iv_second_episode") }),
+      );
+
+      expect(again.created, "a resolved intervention does not stand in for the next one").toBe(
+        true,
+      );
+      expect(again.interventionId).not.toBe(first.interventionId);
+      // One in the queue, and it is the new one: the resolved episode stays
+      // resolved and is not reopened under a specialist's name.
+      expect((await store.open()).map((held) => held.interventionId)).toEqual([
+        again.interventionId,
+      ]);
+      expect((await store.findForAction(runId, forThisRun().idempotencyKey))?.interventionId).toBe(
+        again.interventionId,
+      );
+    });
+
     it("a DIFFERENT stuck action on the same run is its own intervention", async () => {
       await store.raise(forThisRun());
       const other = await store.raise(

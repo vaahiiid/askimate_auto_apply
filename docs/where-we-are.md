@@ -4906,6 +4906,54 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P177 — the run nobody could see, and why the queue was empty
+
+He resolved the 18 September intervention on the morning of the 21st, the way he always has, and
+attempt 3 carried on and stopped on the same page. Then the listing showed three runs, one of them
+held by a person since that morning, and nothing at all for anyone to answer. His words: *"a paused
+run exists that no specialist can see and no command can release."*
+
+The cause is one missing condition, written into the schema in P10 and unexercised until now. An
+intervention's key is the stuck action — run, action, target — and the uniqueness on it was meant
+to say *one open intervention per stuck action*, because a run is polled every few seconds and a
+queue full of copies of one problem is unreadable. What was written was `UNIQUE (run_id,
+idempotency_key)` with no condition at all, which says something much stronger: one intervention
+per stuck action for the life of the run, resolved or not. Nothing could tell the two apart until
+an action stuck, was answered, and stuck again — which is exactly what a `did_not_happen`
+resolution invites, since it means *carry on, the act did not land*.
+
+What followed was worse than a duplicate. The second raise collided with the row he had closed that
+morning and came back naming it; the pause read its announcement date, decided the student had
+already been told in September, and said nothing; and the status write then moved the run to
+`uncertain`, which is outside the statuses anything polls. An application stopped where no queue
+shows it and no poll reaches it.
+
+The three questions he asked, answered from the code and not from the symptom. Why no intervention:
+the collision above. How to release it: by no route that existed — the resolution route answers 409
+on a row that is already resolved, and that is right rather than broken (two specialists disagreeing
+is evidence, ADR-0048); the derive path returns a held run without re-stopping it; a re-application
+needs the prior case concluded, and his is not. And whether it is a defect: it is, and it is his
+blocker 43 seen from the other side — there, interventions outliving their cases; here, a case
+outliving its intervention.
+
+Migration 0007 puts the condition where it belongs, so the uniqueness holds over the interventions a
+person still has to answer and a second episode is its own case with its own announcement. That was
+proved red first twice: in the store contract, and on the real database through the driver, where
+the second stop raised nothing and the queue came back empty.
+
+It does not help a run it already happened to, because nothing offers such a run work and the pause
+is only reached from a claim. So there is a second repair beside ADR-0126's, of the same shape and
+with the same scruples: `raise-missing` raises the swallowed intervention through the pause path
+itself, so the record says what it would have said and the student is told in the ordinary words. It
+refuses a run not held by a person, refuses one that already has an intervention and names it,
+refuses one with nothing unfinished in the ledger — inventing a fault to explain a state is worse
+than leaving the state — and it resolves nothing, because an adjudication is a person's act and
+stays one.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P176 — the consent path held, and the fill met an id that never existed
 
 Attempt 3 signed in first time. Nothing over the button as the page opened, the overlay there a

@@ -163,6 +163,9 @@ async function nextOnOffer(runId: string): Promise<void> {
 }
 
 const NOW = new Date("2026-08-31T10:00:00Z");
+
+/** Counts raises, so each one gets an intervention id of its own. */
+let raises = 0;
 const CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00001";
 const OTHER_CONVERSATION = "01JBXQ8Z9WKTQ6M4H2NPC00002";
 const BLUEPRINT = "bp-fixture-pg";
@@ -431,8 +434,14 @@ function buildInstance(
       }),
     },
     ...(notifier === null ? {} : { notifier }),
+    // Readable in a failing test's output, and DIFFERENT on every raise —
+    // which is what production does (`randomUUID`) and what the store's
+    // idempotency is for. It used to be a pure function of the key, so the
+    // second episode of one stuck action (blocker 48) was handed the id of
+    // the first and collided on the primary key instead of being answered by
+    // the uniqueness rule under test.
     newInterventionId: (runId, key) =>
-      `iv_${createHash("sha256").update(key).digest("hex").slice(0, 16)}_${runId.slice(-4)}`,
+      `iv_${createHash("sha256").update(key).digest("hex").slice(0, 12)}_${String((raises += 1)).padStart(3, "0")}_${runId.slice(-4)}`,
     now: clock,
   });
   const app = createConversationApp({
@@ -4071,6 +4080,190 @@ describeIfDatabase("a run that stops on an unfinished action", () => {
       [runId],
     );
     expect(intent.rows[0]?.outcome).toBe("failed_cleanly");
+  }, 300_000);
+
+  it("the SAME page stuck AGAIN after a resolution raises a SECOND intervention, and the student is told again", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Blocker 48, found by Vahid on Run A (2026-09-21), and this is the
+    // sequence that found it — the previous test has just left this run in
+    // its first half.
+    //
+    //   18 Sep  the page fill sticks; an intervention is raised and the
+    //           student is told
+    //   21 Sep  he resolves it `did_not_happen`: the act did not land, carry
+    //           on. The run goes back to `running`
+    //   21 Sep  the same page is offered again and sticks in the same place
+    //           (the entry's save locator was wrong for it)
+    //
+    // What happened then, before migration 0007: the raise collided with the
+    // RESOLVED row under `UNIQUE (run_id, idempotency_key)`, inserted
+    // nothing, and came back naming the intervention he had closed that
+    // morning. `#pause` read its `announcedAt` — the 18th — and said nothing
+    // to the student; the status write then moved the run to `uncertain`,
+    // which is outside `AUTOMATABLE_STATUSES`, so no later poll could reach
+    // it. A paused application with an empty queue behind it and no route
+    // that would release it.
+    //
+    // A second episode is not a duplicate. It is the second time a person
+    // has to look, and it has its own answer.
+    // ═══════════════════════════════════════════════════════════════════
+    const first = await pool.query<{ intervention_id: string }>(
+      "SELECT intervention_id FROM interventions WHERE run_id = $1 AND resolved_at IS NOT NULL",
+      [runId],
+    );
+    expect(first.rowCount, "two resolved episodes behind us").toBe(2);
+    expect(await openInterventions(), "and nothing open").toHaveLength(0);
+    const toldBefore = (await messages()).filter((text) =>
+      text.includes("I have paused"),
+    ).length;
+
+    // The second episode, through the production path: the page is offered
+    // again (ADR-0047 — `failed_cleanly` is offered again), the runner takes
+    // it and never reports, and the next poll finds the unfinished action.
+    await pool.query("DELETE FROM work_leases");
+    const offered = await claim();
+    if (offered === null) expect.unreachable("a cleanly failed page is offered again");
+    expect(offered.formUrl, "the same page as before").toBe(
+      "https://gated.portal.test/study",
+    );
+    await pool.query("DELETE FROM work_leases");
+
+    expect(await claim(), "an unfinished action is not work").toBeNull();
+
+    const open = await openInterventions();
+    expect(open, "the second episode is its own case for a person").toHaveLength(1);
+    expect(
+      open[0]?.escalation.checkpoint.target,
+      "and it names the page that stuck",
+    ).toBe("page-study");
+    expect(
+      [...first.rows].map((row) => row.intervention_id),
+      "a resolved episode is never reopened under the specialist's name",
+    ).not.toContain(open[0]?.interventionId);
+
+    expect(
+      (await messages()).filter((text) => text.includes("I have paused")).length,
+      "told about the second stop as well as the first",
+    ).toBe(toldBefore + 1);
+    expect(await statusOf()).toBe("uncertain");
+  }, 300_000);
+
+  it("the repair REFUSES a run a person can already see", async () => {
+    // Written before the repair is used in anger, on the run that has just
+    // stopped legitimately: raising a second intervention beside a live one
+    // would be the queue-full-of-copies failure the idempotency exists to
+    // prevent, wearing a repair's clothes.
+    const open = await openInterventions();
+    const held = open[0];
+    if (held === undefined) expect.unreachable("the second episode is open");
+
+    const instance = buildInstance(connectionString());
+    try {
+      const refused = await instance.driver.raiseMissingIntervention(conversation);
+      expect(refused.ok, "there is nothing missing").toBe(false);
+      if (!refused.ok && refused.reason === "already_open") {
+        expect(refused.interventionId, "and it names the one to look at").toBe(
+          held.interventionId,
+        );
+      } else {
+        expect.unreachable(`expected already_open, got ${JSON.stringify(refused)}`);
+      }
+    } finally {
+      await instance.pool.end();
+    }
+    expect((await openInterventions()).length, "and wrote nothing").toBe(1);
+  }, 300_000);
+
+  it("the repair raises the intervention a stopped run never got, and tells the student", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The state blocker 48 left behind, reproduced exactly: a run held by a
+    // person, with the intervention for its stuck action RESOLVED and no
+    // open one anywhere. Migration 0007 stops this being reachable again;
+    // it does not help the runs it already happened to, because nothing
+    // offers an `uncertain` run work and `#pause` is only reached from a
+    // claim. This is the missing caller — the same shape as ADR-0126's
+    // `finish-stopped`, for the same kind of hole.
+    //
+    // The resolution here goes through the STORE rather than the driver on
+    // purpose: `resolveIntervention` puts the run back to `running`, which
+    // is the very thing that did NOT happen on Vahid's stack.
+    // ═══════════════════════════════════════════════════════════════════
+    const before = (await openInterventions())[0];
+    if (before === undefined) expect.unreachable("the second episode is open");
+    const toldBefore = (await messages()).filter((text) =>
+      text.includes("I have paused"),
+    ).length;
+
+    const store = new PostgresInterventionStore(pool);
+    await store.resolve({
+      interventionId: before.interventionId,
+      resolution: {
+        specialistId: "specialist_vahid",
+        actionsTaken: "Looked at the portal.",
+        resolution: "Nothing of ours landed on that page.",
+        resolvedAt: NOW,
+        outcome: "resume",
+      },
+      reusability: { scope: "this_case_only", kind: "guidance", signature: "s" },
+    });
+    expect(await statusOf(), "still held, and now invisible").toBe("uncertain");
+    expect(await openInterventions(), "nothing in anybody's queue").toHaveLength(0);
+
+    const instance = buildInstance(connectionString());
+    try {
+      const repaired = await instance.driver.raiseMissingIntervention(conversation);
+      if (!repaired.ok) expect.unreachable(`repair refused: ${repaired.reason}`);
+      expect(repaired.action).toBe("advance_portal_page");
+      expect(repaired.target, "the page that is actually unfinished").toContain("page-study");
+    } finally {
+      await instance.pool.end();
+    }
+
+    const after = await openInterventions();
+    expect(after, "a person can see it now").toHaveLength(1);
+    expect(after[0]?.interventionId).not.toBe(before.interventionId);
+    expect(
+      (await messages()).filter((text) => text.includes("I have paused")).length,
+      "and the student is told, because this stop was never announced",
+    ).toBe(toldBefore + 1);
+    // The repair moves nothing else: the run is still the person's to release,
+    // through the resolution route and nothing this command does.
+    expect(await statusOf()).toBe("uncertain");
+  }, 300_000);
+
+  it("the repair REFUSES a run that is not held by a person", async () => {
+    // The release itself, through the ordinary route — and then the repair
+    // has nothing to act on, which is the guard that keeps it from touching
+    // a live application.
+    const held = (await openInterventions())[0];
+    if (held === undefined) expect.unreachable("the repair raised one");
+
+    const instance = buildInstance(connectionString());
+    try {
+      await instance.driver.resolveIntervention({
+        interventionId: held.interventionId,
+        resolution: {
+          specialistId: "specialist_vahid",
+          actionsTaken: "Looked at the portal.",
+          resolution: "Nothing of ours landed; the page may be attempted again.",
+          resolvedAt: NOW,
+          outcome: "resume",
+        },
+        reusability: { scope: "this_case_only", kind: "guidance", signature: "s" },
+        didHappen: false,
+      });
+      expect(await statusOf(), "released by the resolution, as it always was").toBe("running");
+
+      const refused = await instance.driver.raiseMissingIntervention(conversation);
+      expect(refused.ok, "a running application is not this command's to touch").toBe(false);
+      if (!refused.ok && refused.reason === "not_held") {
+        expect(refused.status).toBe("running");
+      } else {
+        expect.unreachable(`expected not_held, got ${JSON.stringify(refused)}`);
+      }
+    } finally {
+      await instance.pool.end();
+    }
   }, 300_000);
 });
 

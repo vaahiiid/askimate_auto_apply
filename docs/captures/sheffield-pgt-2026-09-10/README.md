@@ -62,9 +62,29 @@ So: **nine form pages** of Part 1, two navigation pages, and **Part 2 (course ch
 The site's search form (`query`, `btnG`) appears on every page as the first `<form>` and is
 excluded from the blueprint by design; it is not the application.
 
-Every form page carries `saveBtn` and `backBtn` (by name and id). The draft builder's advance
-control heuristic picked `saveBtn` on three pages and an empty label or a stray label on the
-other six; the curated blueprint sets it to `id=saveBtn` on all nine.
+Every form page carries `saveBtn` and `backBtn`. The draft builder's advance control heuristic
+picked `saveBtn` on three pages and an empty label or a stray label on the other six; the curated
+blueprint set it to `id=saveBtn` on all nine.
+
+**Corrected 2026-09-21 (P176/P177).** The parenthesis here used to read *"(by name and id)"*, and
+that was an assumption. Run A's attempt 3 could not press Save on `personal.do` — `id=saveBtn`
+against a page whose Save has a **name and no id** — and Vahid then read all six of the pages the
+heuristic could not name, on his own account, read-only:
+
+| page | submit input |
+| --- | --- |
+| `personal.do` | `name=saveBtn`, **no id** |
+| `contact.do` | `name=saveBtn`, **no id** |
+| `employment.do` | `name=saveBtn`, **no id** |
+| `equalOpportunities.do` | `name=saveBtn`, **no id** |
+| `marketing.do` | `name=saveBtn`, **no id** |
+| `education.do?new=true` | `name=saveBtn` **and** `id=saveBtn` |
+
+So the heuristic's silence was not evidence of a missing id: on `education.do` the id is there and
+the tool failed to name it. Five of the six genuinely have no id. The entry now locates the Save
+by **name** on all six (the attribute every one of them carries) and keeps `id` on the three the
+tool did read — `nationality.do`, whose captured markup here shows both, and `language.app` and
+`documents.do`, which have no markup of their own.
 
 ## Fields that depend on other fields
 

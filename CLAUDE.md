@@ -60,6 +60,35 @@ want to be the one saying it."**
 So: every phase carries an estimate; at roughly twice it, the work stops and one line goes to
 him naming what grew and why; carrying on is his word, not the agent's.
 
+## "Done" means verified — an edit you did not verify is not an edit you made
+
+Decided by Vahid on 2026-09-21, after the third time a report described what was intended rather
+than what a file or a process actually held:
+
+- P172 reported a change to the student's consent panel as made. The script carrying that edit had
+  **aborted partway**; the file never changed. The panel showed two presses with no reason for
+  them for a week, and nothing failed.
+- A status line said the runner was being read. The session was **idle**.
+- A phase ran **seven hours** without a word.
+
+In his words:
+
+> **"From now on, 'done' means you re-read the file or re-ran the check after the change and saw
+> the result, and the report says what you saw. If a script aborts, the report says it aborted. An
+> edit you did not verify is not an edit you made."**
+
+What that means in practice, because the failure was mechanical each time:
+
+- **After an edit, look.** Re-read the file, or grep for the text that should now be there, and
+  report what came back — not what was sent.
+- **A script that makes several edits can stop in the middle.** An assertion that fails partway
+  means every edit after it never ran. Check the exit status and what it printed, then re-read
+  **every** file the script claimed to touch. A first edit landing is not evidence the fourth did.
+- **A check counts only if it ran after the change.** A green test from before the edit says
+  nothing about the edit.
+- **Say what happened, including when it did not work.** "The script aborted at the third edit and
+  I re-applied the rest" is a report. "Done" without a look is not.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.

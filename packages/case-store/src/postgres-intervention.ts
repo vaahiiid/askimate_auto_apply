@@ -132,17 +132,24 @@ export class PostgresInterventionStore implements InterventionStore {
   public constructor(private readonly pool: Pool) {}
 
   public async raise(input: RaiseInput): Promise<RaisedIntervention> {
-    // ON CONFLICT DO NOTHING against the uniqueness constraint, so two pollers
+    // ON CONFLICT DO NOTHING against the uniqueness index, so two pollers
     // racing on one stuck run produce one intervention rather than a duplicate
     // and an error. rowCount distinguishes "I created it" from "it was already
     // there", and the caller needs that: it is the difference between telling
     // the student and having told them.
+    //
+    // The predicate is repeated here because it is part of the index's
+    // identity: `ON CONFLICT (cols) WHERE …` is how Postgres is told WHICH
+    // index to infer, and it has to match migration 0007's exactly. What it
+    // buys is blocker 48's fix — the uniqueness holds over the interventions
+    // a person still has to answer, so the same action stuck again AFTER a
+    // resolution raises a new one instead of being swallowed by the old.
     const inserted = await this.pool.query(
       `INSERT INTO interventions
            (intervention_id, run_id, idempotency_key, case_id, student_ref, reason, priority,
             encountered, expected, checkpoint, context, raised_at, lifecycle)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, 'captured')
-       ON CONFLICT ON CONSTRAINT interventions_one_per_stuck_action DO NOTHING`,
+       ON CONFLICT (run_id, idempotency_key) WHERE resolved_at IS NULL DO NOTHING`,
       [
         input.interventionId,
         input.runId,
@@ -186,8 +193,14 @@ export class PostgresInterventionStore implements InterventionStore {
     runId: RunId,
     idempotencyKey: ActionIntent["idempotencyKey"],
   ): Promise<StoredIntervention | null> {
+    // The OPEN one, as the port says — `resolved_at IS NULL` is the same
+    // predicate the unique index carries, so at most one row can match and
+    // `raise` is answering with the row it actually collided with. Before
+    // blocker 48 this read any row, resolved or not, which is how a raise
+    // came back naming an intervention a specialist had already closed.
     const found = await this.pool.query<Row>(
-      `SELECT ${COLUMNS} FROM interventions WHERE run_id = $1 AND idempotency_key = $2`,
+      `SELECT ${COLUMNS} FROM interventions
+         WHERE run_id = $1 AND idempotency_key = $2 AND resolved_at IS NULL`,
       [runId, idempotencyKey],
     );
     const row = found.rows[0];

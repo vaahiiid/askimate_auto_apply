@@ -425,3 +425,32 @@ lower-cased. What it prints is one of three things:
 It performs no transition of its own: it runs the ordinary wind-down, which asks `decide`, which
 applies the same obligations guard as every other path. Running it twice is safe.
 
+### A run held by a person that nobody can see (blocker 48)
+
+The other shape of the same hole, and the one that cost a day on Run A. The symptom: the run
+listing shows a run at `uncertain` or `escalated`, and `GET /internal/v1/interventions` shows
+nothing for it. A specialist cannot act on what is not in their listing, and no poll will ever
+offer the run work again, so nothing moves.
+
+The cause was the uniqueness on `interventions`, which held over every intervention for a stuck
+action rather than the open one, so an action that stuck, was resolved, and stuck again raised
+nothing the second time. Migration 0007 fixes that. It cannot help a run it already happened to:
+
+```bash
+scripts/local-stack.sh raise-missing <CONVERSATION id, as the client shows it>
+```
+
+It raises the intervention through the driver's own pause path, so the record says what it would
+have said and the student is told in the ordinary words. What it prints is one of four things:
+
+- `raised iv_… for "<action>" on <target>.` — it is in the listing now; resolve it as usual, and
+  the resolution is what puts the run back to `running`.
+- `already has an open intervention (iv_…).` — nothing was done; a person can see that one.
+- `is at <status>, not held by a person.` — it acts on `uncertain` and `escalated` only, so it
+  can never touch a live application.
+- `has no unfinished action in the ledger.` — nothing was done, deliberately: the run is held for
+  some other reason, and raising an intervention here would be inventing a fault to explain a
+  state.
+
+It resolves nothing and adjudicates nothing. Running it twice is safe.
+

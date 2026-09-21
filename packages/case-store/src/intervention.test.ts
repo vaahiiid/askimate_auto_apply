@@ -182,13 +182,34 @@ describeIfDatabase("the interventions schema", () => {
     expect(found.rows[0]?.n).toBe("2");
   });
 
-  it("REFUSES a second intervention for one stuck action", async () => {
+  it("REFUSES a second OPEN intervention for one stuck action", async () => {
     await insert(`${HEAD})
                   VALUES ('iv_first', '${RUN}', 'k_dup', 'case_iv', 'stu_iv', ${OPEN})`);
     await expect(
       insert(`${HEAD})
               VALUES ('iv_second', '${RUN}', 'k_dup', 'case_iv', 'stu_iv', ${OPEN})`),
-    ).rejects.toThrow(/interventions_one_per_stuck_action/);
+    ).rejects.toThrow(/interventions_one_open_per_stuck_action/);
+  });
+
+  it("ACCEPTS one for the same stuck action once the first is RESOLVED (blocker 48)", async () => {
+    // The other half of the refusal above, and the half that was missing
+    // until migration 0007. The index the test above proves is PARTIAL:
+    // it holds over the interventions a person still has to answer.
+    //
+    // Without this, a page fill that stuck, was resolved `did_not_happen`,
+    // and stuck again raised nothing — the run went `uncertain` with an
+    // empty queue behind it and no poll that could reach it again. Found on
+    // Run A by Vahid, 2026-09-21.
+    await insert(`${HEAD}, specialist_id, actions_taken, resolution, resolution_outcome,
+                         resolved_at, reusability)
+                  VALUES ('iv_episode_one', '${RUN}', 'k_again', 'case_iv', 'stu_iv', ${OPEN},
+                          's', 'a', 'r', 'resume', now(), '{}'::jsonb)`);
+    await insert(`${HEAD})
+                  VALUES ('iv_episode_two', '${RUN}', 'k_again', 'case_iv', 'stu_iv', ${OPEN})`);
+    const found = await pool.query<{ n: string }>(
+      "SELECT count(*) AS n FROM interventions WHERE idempotency_key = 'k_again'",
+    );
+    expect(found.rows[0]?.n, "both episodes on the record, one of them open").toBe("2");
   });
 
   it("REFUSES an intervention for a run that does not exist", async () => {

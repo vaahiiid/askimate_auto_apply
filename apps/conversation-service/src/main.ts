@@ -182,6 +182,52 @@ export async function start(options: StartOptions): Promise<RunningService | nul
       return null;
     }
 
+    // ── The second repair, and the same shape as the first ───────────────
+    //
+    // Blocker 48. A run held by a person with no intervention behind it is
+    // invisible: no queue shows it and no poll reaches it. This raises the
+    // one that was swallowed, through the driver's own pause path — see
+    // `raiseMissingIntervention`, which refuses everything else.
+    if (options.argv[0] === "raise-missing") {
+      const conversationId = options.argv[1];
+      if (conversationId === undefined) {
+        options.log("raise-missing: give the CONVERSATION id of the stopped run");
+        await pool.end();
+        options.exit(2);
+        return null;
+      }
+      const outcome = await driver.raiseMissingIntervention(conversationId);
+      if (outcome.ok) {
+        options.log(
+          `raise-missing: raised ${outcome.interventionId} for "${outcome.action}" on ` +
+            `${outcome.target}. It is in the specialist listing now, and the student has ` +
+            `been told. Resolve it the way you would any other.`,
+        );
+      } else if (outcome.reason === "already_open") {
+        options.log(
+          `raise-missing: ${conversationId} already has an open intervention ` +
+            `(${outcome.interventionId}). Nothing was done — a person can see this one.`,
+        );
+      } else if (outcome.reason === "not_held") {
+        options.log(
+          `raise-missing: ${conversationId} is at ${outcome.status ?? "no run"}, not held by ` +
+            `a person. Nothing was done — this repair acts on uncertain and escalated only.`,
+        );
+      } else if (outcome.reason === "nothing_unfinished") {
+        options.log(
+          `raise-missing: ${conversationId} has no unfinished action in the ledger, so ` +
+            `there is nothing to raise an intervention ABOUT. Nothing was done: the run is ` +
+            `held for some other reason, and inventing a fault to explain it would be worse ` +
+            `than leaving it.`,
+        );
+      } else {
+        options.log(`raise-missing: ${conversationId} — ${outcome.reason}. Nothing was done.`);
+      }
+      await pool.end();
+      options.exit(outcome.ok ? 0 : 1);
+      return null;
+    }
+
     // ── The provider, reached at STARTUP ─────────────────────────────────
     //
     // Its discovery document is fetched here, so a provider that cannot be

@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.173.0] — 2026-09-21
+
+**P177 — blocker 48: a stop that follows a resolution raised nothing, and the run disappeared from
+every list.**
+
+- **Migration 0007** replaces `interventions`' unconditional `UNIQUE (run_id, idempotency_key)`
+  with a partial unique index over the UNRESOLVED rows. The poller's guarantee is unchanged — one
+  open intervention per stuck action — and what changes is only what happens after a specialist
+  has answered: the next episode of the same stuck action is its own intervention, with its own
+  announcement, rather than nothing at all.
+- `PostgresInterventionStore.raise` infers that index, and `findForAction` answers the OPEN one,
+  as the port's own words have always said it did. `InMemoryInterventionStore` matches.
+- Red first at both levels: the shared store contract, and the run driver on a real database,
+  where the second stop on one page raised nothing and the queue came back empty.
+- `scripts/local-stack.sh raise-missing <conversationId>` — the missing caller for the runs the
+  defect already reached, since nothing offers an `uncertain` run work. It raises through the
+  driver's own pause path, refuses a run not held by a person, refuses one that already has an
+  intervention (naming it), refuses one with nothing unfinished in the ledger, and resolves
+  nothing.
+- The Run A signature test flips back on Vahid's third signature (`d64e75d`,
+  `sha256:3238406a…`): the directory loads, admits his account only, one approval on file.
+- The education-page evidence line corrected to his live measurement — `education.do` carries
+  both a name and an id; the discovery's silence was a gap in the tool, not a fact about the page.
+  The locator is unchanged and the hash is untouched.
+- `CLAUDE.md` carries his rule of 2026-09-21: *"'done' means you re-read the file or re-ran the
+  check after the change and saw the result… An edit you did not verify is not an edit you made."*
+
+---
+
 ## [0.172.0] — 2026-09-21
 
 **P176 — the save locators audited from the captures; the fill's line names a missing control; the

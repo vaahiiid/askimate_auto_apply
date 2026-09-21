@@ -15,6 +15,12 @@
 #                                    Refuses any case not at WINDING_DOWN, and
 #                                    concludes only when nothing is outstanding —
 #                                    the same guard every other path goes through.
+#   scripts/local-stack.sh raise-missing <conversationId>
+#                                    Blocker 48: raises the intervention a
+#                                    stopped run never got, so a person can see
+#                                    it and resolve it. Refuses a run not held
+#                                    by a person, a run that already has one,
+#                                    and a run with nothing unfinished.
 #
 # Configuration, all by environment, all optional except where a value names
 # something only you know:
@@ -262,6 +268,23 @@ cmd_stop() {
   done
 }
 
+cmd_raise_missing() {
+  # Blocker 48, and the same reasoning as the repair below: through the
+  # SERVICE's own binary and env file, so it raises against the catalogue and
+  # the database the service itself runs.
+  local conversation="${1:-}"
+  if [ -z "$conversation" ]; then
+    echo "usage: scripts/local-stack.sh raise-missing <conversationId>" >&2
+    exit 2
+  fi
+  if [ ! -f "$DIR/conversation-service.env" ]; then
+    echo "no env file at $DIR/conversation-service.env — run start first" >&2
+    exit 2
+  fi
+  run_with_env conversation-service apps/conversation-service/src/bin.ts \
+    raise-missing "$conversation"
+}
+
 cmd_finish_stopped() {
   # ADR-0126. The repair runs through the SERVICE's own binary and env file, so
   # it is judged against the same catalogue and the same database the running
@@ -286,5 +309,6 @@ case "${1:-}" in
   status) cmd_status ;;
   stop) cmd_stop ;;
   finish-stopped) shift; cmd_finish_stopped "${1:-}" ;;
-  *) echo "usage: scripts/local-stack.sh start|status|stop|finish-stopped <conversationId>" >&2; exit 2 ;;
+  raise-missing) shift; cmd_raise_missing "${1:-}" ;;
+  *) echo "usage: scripts/local-stack.sh start|status|stop|finish-stopped <conversationId>|raise-missing <conversationId>" >&2; exit 2 ;;
 esac

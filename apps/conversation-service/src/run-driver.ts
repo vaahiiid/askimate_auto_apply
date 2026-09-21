@@ -61,6 +61,7 @@ import { InterventionNotFoundError } from "@askimate/aas-case-store/intervention
 import {
   askimateActor,
   blueprintVersion,
+  CONSEQUENTIAL_ACTIONS,
   openReapplication,
   caseId as makeCaseId,
   courseId as makeCourseId,
@@ -551,6 +552,39 @@ export type FinishStopped =
     }
   /** The case is not stopped, so this may not touch it. Names where it is. */
   | { readonly ok: false; readonly reason: "not_stopped"; readonly state: CaseState };
+
+/**
+ * What `raiseMissingIntervention` found (blocker 48's repair).
+ *
+ * A separate reason for each thing that can be true, because the operator
+ * running it is repairing an application they cannot otherwise see, and
+ * "nothing happened" is not an answer they can act on.
+ */
+export type RaisedMissing =
+  | {
+      readonly ok: true;
+      readonly interventionId: InterventionId;
+      readonly action: ConsequentialAction;
+      readonly target: string;
+    }
+  | {
+      readonly ok: false;
+      readonly reason:
+        | "unknown_conversation"
+        | "unknown_blueprint"
+        | "no_intervention_store"
+        /** Nothing in the ledger is unfinished, so this run is held for some
+         *  other reason and raising one here would be inventing a fault. */
+        | "nothing_unfinished";
+    }
+  /** The run is not held by a person: there is nothing for this to repair. */
+  | { readonly ok: false; readonly reason: "not_held"; readonly status: WorkflowStatus | null }
+  /** A person can already see it. Names the one they should be looking at. */
+  | {
+      readonly ok: false;
+      readonly reason: "already_open";
+      readonly interventionId: InterventionId;
+    };
 
 /**
  * The durable phases from which browser work can exist.
@@ -4530,6 +4564,114 @@ export class RunDriver {
     };
   }
 
+  /**
+   * Raises the intervention a stopped run never got (blocker 48's repair).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * A REPAIR, the same shape as `finishStoppedCase` and for the same reason:
+   * a defect left runs in a state that has no caller left, and the missing
+   * caller is what this is.
+   *
+   * The defect (migration 0007): the uniqueness on `interventions` held over
+   * every intervention for a stuck action rather than the OPEN one, so an
+   * action that stuck, was resolved, and stuck again raised nothing the
+   * second time. `#pause` then read the FIRST episode's `announcedAt`, told
+   * the student nothing, and moved the run to `uncertain` — out of
+   * `AUTOMATABLE_STATUSES`, where no poll can reach it. Found by Vahid on
+   * Run A, 2026-09-21: a paused application with an empty queue behind it.
+   *
+   * 0007 stops it happening again. It cannot help a run it already happened
+   * to, because nothing offers such a run work and `#pause` is only reached
+   * from a claim. So:
+   *
+   *   - it REFUSES a run not held by a person. The two states it acts on are
+   *     the ones a person is supposed to be holding;
+   *   - it REFUSES a run that already has an open intervention, and names it:
+   *     a person can see that one, so there is nothing to repair;
+   *   - it raises through `#pause`, the same path the poll takes, from the
+   *     same ledger — so the intervention says what it would have said, and
+   *     the student is told in the same words. Nothing here writes an
+   *     intervention of its own, and nothing here resolves one: the
+   *     adjudication stays a person's act (ADR-0082 to ADR-0084);
+   *   - it REFUSES when the ledger holds no unfinished action, because then
+   *     the run is stopped for some other reason and a raise would be
+   *     inventing a fault to explain a state.
+   *
+   * Idempotent: run twice, the second says `already_open` and writes nothing.
+   * ═══════════════════════════════════════════════════════════════════════
+   */
+  public async raiseMissingIntervention(conversationId: string): Promise<RaisedMissing> {
+    const interventions = this.#options.interventions;
+    if (interventions === undefined) return { ok: false, reason: "no_intervention_store" };
+
+    const bound = await this.#options.bindings.caseFor(conversationId);
+    if (bound === null) return { ok: false, reason: "unknown_conversation" };
+
+    const runs = await this.#options.stores.runs.findByCase(makeCaseId(bound.caseId));
+    const record = runs.find((run) => isHeldByAPerson(run.status));
+    if (record === undefined) {
+      return { ok: false, reason: "not_held", status: runs[0]?.status ?? null };
+    }
+
+    const open = await interventions.open();
+    const already = open.find((held) => held.runId === record.runId);
+    if (already !== undefined) {
+      return { ok: false, reason: "already_open", interventionId: already.interventionId };
+    }
+
+    if (bound.blueprintId === null) return { ok: false, reason: "unknown_blueprint" };
+    const entry = await this.#entryFor(bound);
+    if (entry === null) return { ok: false, reason: "unknown_blueprint" };
+
+    const stuck = await this.#stuckInTheLedger(record.runId);
+    if (stuck === null) return { ok: false, reason: "nothing_unfinished" };
+
+    await this.#pause({
+      record,
+      entry,
+      conversationId,
+      action: stuck.action,
+      target: stuck.target,
+      verdict: stuck.verdict,
+    });
+
+    const raised = (await interventions.open()).find((held) => held.runId === record.runId);
+    if (raised === undefined) return { ok: false, reason: "nothing_unfinished" };
+    return {
+      ok: true,
+      interventionId: raised.interventionId,
+      action: stuck.action,
+      target: stuck.target,
+    };
+  }
+
+  /**
+   * The first action in this run's ledger that was started and never finished.
+   *
+   * Read from the ledger directly rather than through `#unfinishedAction`,
+   * which needs a `WorkKind` and therefore a live situation — and the runs
+   * this repair exists for are precisely the ones no situation is being
+   * derived for any more. `assessIntent` still supplies the verdict, so the
+   * intervention this produces is the one the poll would have produced.
+   */
+  async #stuckInTheLedger(runId: RunId): Promise<{
+    readonly action: ConsequentialAction;
+    readonly target: string;
+    readonly verdict: "verify_first" | "escalate";
+  } | null> {
+    for (const action of CONSEQUENTIAL_ACTIONS) {
+      const held = await this.#options.stores.runs.listIntents(runId, action);
+      for (const row of held) {
+        if (row.completed !== undefined) continue;
+        const verdict = await this.#verdictFor(runId, action, row.intent.target);
+        if (verdict.kind === "verify_first" || verdict.kind === "escalate") {
+          return { action, target: row.intent.target, verdict: verdict.kind };
+        }
+      }
+    }
+    return null;
+  }
+
   public async mayConclude(
     runId: string,
     conversationId: string,
@@ -5151,8 +5293,16 @@ export class RunDriver {
    *
    * The row is ONE per (run, action, target), unchanged: it is the ledger's
    * primary key and what `interventions.idempotency_key` pairs with, so a
-   * second attempt cannot become a second row without making it possible to
-   * raise a second intervention for one stuck action.
+   * second attempt is a REOPEN of this row rather than a row of its own — the
+   * memory (`attemptsMade`, `attemptFailures`) is what that buys.
+   *
+   * What it does NOT mean, and used to: that one stuck action has one
+   * intervention for ever. Migration 0007 makes that uniqueness partial over
+   * the unresolved rows, so this row can be reopened, stick again, and raise a
+   * SECOND intervention — which is right, because a second episode after a
+   * specialist has answered is the second time a person has to look. Blocker
+   * 48: while the uniqueness was unconditional, that raise was swallowed and
+   * the run stopped where nobody could see it.
    */
   async #beginIntent(input: {
     readonly runId: RunId;

@@ -253,30 +253,45 @@ describe("the catalogue entry for Run A (P152)", () => {
     //
     // It was a generalisation. The discovery of 2026-09-10 recorded
     // `id=saveBtn` on THREE pages (nationality.do, language.app,
-    // documents.do) and, on the other six, a blank or stray label because
-    // there was no id to take. Curation then set `id=saveBtn` on all nine.
+    // documents.do) and, on the other six, a blank or stray label. Curation
+    // then set `id=saveBtn` on all nine.
     //
-    // `fieldRef = field.name ?? field.id` (discovery.ts:146), and every one
-    // of the nine carries a `saveBtn` field record — so on the six with no
-    // id, that ref can only have come from the NAME. personal.do confirms it
-    // live. So each page is authored from its own read and not from its
-    // neighbours', which is why this table is mixed rather than tidy.
+    // MEASURED, 2026-09-21 — Vahid read all six on his own account,
+    // read-only, after the first draft of this table inferred them:
+    //
+    //   personal.do            name only
+    //   contact.do             name only
+    //   employment.do          name only
+    //   equalOpportunities.do  name only
+    //   marketing.do           name only
+    //   education.do?new=true  name AND id    ← the inference was WRONG here
+    //
+    // The locator below is right on all six — every one carries the name —
+    // but the reasoning that produced it was not. It ran: `fieldRef =
+    // field.name ?? field.id` (discovery.ts:146), all nine carry a `saveBtn`
+    // field record, so a page the tool gave no id for must have taken that
+    // ref from the name. True of five. On education.do the id is THERE and
+    // the discovery simply failed to name it — a gap in the tool, not a fact
+    // about the page. A right answer from a wrong premise is still a wrong
+    // premise, and the next page it is used on may not be so lucky.
     //
     // nationality.do's captured markup (2026-09-15) shows BOTH
     // `name="saveBtn"` and `id="saveBtn"`; language.app and documents.do
     // have the id from the tool's read and no markup of their own, so `name`
-    // there would be the same guess in the other direction.
+    // there would be a guess in the other direction — they keep the id, and
+    // the entry is signed at `sha256:3238406a…` with these locators.
     // ═══════════════════════════════════════════════════════════════════
     const READ: Record<string, { readonly strategy: string; readonly value: string }> = {
       // The entry page, from the 2026-09-11 entry read.
       page0: { strategy: "name", value: "startApplicationBtn" },
-      // No id was ever read on these six.
-      page3: { strategy: "name", value: "saveBtn" }, // personal.do — confirmed live, 2026-09-21
-      page4: { strategy: "name", value: "saveBtn" }, // contact.do
-      page7: { strategy: "name", value: "saveBtn" }, // education.do
-      page8: { strategy: "name", value: "saveBtn" }, // employment.do
-      page9: { strategy: "name", value: "saveBtn" }, // equalOpportunities.do
-      page10: { strategy: "name", value: "saveBtn" }, // marketing.do
+      // All six measured by Vahid, 2026-09-21. Five carry the name alone;
+      // education carries both, and the name is what they have in common.
+      page3: { strategy: "name", value: "saveBtn" }, // personal.do — name only
+      page4: { strategy: "name", value: "saveBtn" }, // contact.do — name only
+      page7: { strategy: "name", value: "saveBtn" }, // education.do — name AND id
+      page8: { strategy: "name", value: "saveBtn" }, // employment.do — name only
+      page9: { strategy: "name", value: "saveBtn" }, // equalOpportunities.do — name only
+      page10: { strategy: "name", value: "saveBtn" }, // marketing.do — name only
       // The tool's own read named an id on these three.
       page5: { strategy: "id", value: "saveBtn" }, // nationality.do — markup shows name AND id
       page6: { strategy: "id", value: "saveBtn" }, // language.app
@@ -292,51 +307,46 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("the save-locator correction (P176) moved the hash again, so the 2026-09-21 approval no longer covers the entry and the directory refuses to load", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — RE-SIGNED a THIRD time after the save-locator correction (2026-09-21, commit d64e75d): the directory loads and admits exactly that account", async () => {
     // ═══════════════════════════════════════════════════════════════════
-    // Two signatures, and the second is why this test reads as it does. The
-    // consent field (ADR-0131, P174) is new signed content, so the hash moved
-    // sha256:baca64a9… → sha256:21060fca…, the 16 September approval stopped
-    // covering the entry, and the directory refused to load until he signed
-    // again — which is ADR-0057 biting on a real edit to a real signed entry,
-    // and was asserted as such in the interval.
+    // Three signatures now, and the third is the one this test is about.
     //
-    // He computed the hash himself before signing rather than taking it from
-    // an agent's report, and the superseded approval went out in the same
-    // commit as the new one came in: an approval left behind would assert an
+    //   sha256:baca64a9…  16 September, the entry as first reviewed
+    //   sha256:21060fca…  21 September 08:00, after the consent notice
+    //                     (ADR-0131, P174) became signed content
+    //   sha256:3238406a…  21 September 12:00, after six pages' save locators
+    //                     were corrected from `id=saveBtn` to `name=saveBtn`
+    //
+    // Each move made the previous approval stop covering the entry, and in
+    // each interval the directory REFUSED to load and this test asserted the
+    // refusal — ADR-0057 biting on real edits to a real signed entry rather
+    // than being worked around.
+    //
+    // He computed each hash himself before signing rather than taking it from
+    // an agent's report, and before this one he read all six save buttons on
+    // his own account, read-only, because the correction had been inferred
+    // rather than measured. The superseded approval goes out in the same
+    // commit as the new one comes in: an approval left behind would assert an
     // approval for content that no longer exists.
     //
-    // What did NOT move, and is the reason one signature could replace the
-    // other on unchanged typed content: docs/run-a/what-will-be-typed.md, line
-    // for line, and its own reference hash. The consent field governs what
-    // happens before the form, not what goes into a box.
+    // What did NOT move across either re-signature, and is why one signature
+    // could replace another: docs/run-a/what-will-be-typed.md, line for line,
+    // and its own reference hash. A consent choice governs what happens
+    // before the form; a save locator is how a page is left. Neither is what
+    // goes into a box.
     // ═══════════════════════════════════════════════════════════════════
     const value = entry();
     expect(value.blueprint.status).toBe("reviewed");
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    // AWAITING VAHID'S THIRD SIGNATURE (P176). Six pages' save locators were
-    // corrected from `id=saveBtn` to `name=saveBtn`, so the hash moved again
-    // and the 2026-09-21 approval stopped covering the entry. The typed lines
-    // did NOT move — `what-will-be-typed.md` is identical, as it was when the
-    // consent field went in — because a save locator is how a page is left,
-    // not what is put in a box.
-    //
-    //   sha256:21060fca…  signed 2026-09-21, covers content that no longer exists
-    //   sha256:3238406a…  the entry as it is now
-    //
-    // On his signature this goes back to asserting the load and:
-    //   admits { kind: "one_account_only", studentId: "af398e01-…", signedBy: "Vahid Mohammadi" }
-    // and that exactly ONE approval is on file.
     expect(labelledHash(toCanonical(value))).toBe("sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "no approval covers this content").toBe(false);
-    if (load.ok) expect.unreachable("refused above");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba",
-    );
-    // Still one approval on file, and it is the superseded one until he signs.
+    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    // ONE approval on file: the superseded one is gone, not merely outvoted.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
   });

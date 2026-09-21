@@ -53,8 +53,17 @@ function copy(record: StoredIntervention): StoredIntervention {
 
 export class InMemoryInterventionStore implements InterventionStore {
   readonly #byId = new Map<string, StoredIntervention>();
-  /** `${runId} ${idempotencyKey}` to interventionId. The uniqueness constraint. */
-  readonly #byAction = new Map<string, string>();
+  /**
+   * `${runId} ${idempotencyKey}` to interventionId — the uniqueness constraint,
+   * and it holds over the OPEN one only.
+   *
+   * Blocker 48: it used to hold for ever, so an action that got stuck, was
+   * resolved, and got stuck again raised nothing the second time. The entry is
+   * cleared when the intervention it points at is resolved, which is the
+   * in-memory shape of the partial unique index the Postgres adapter carries
+   * (`… WHERE resolved_at IS NULL`, migration 0007).
+   */
+  readonly #openByAction = new Map<string, string>();
 
   static #actionKey(runId: RunId, key: ActionIntent["idempotencyKey"]): string {
     return `${runId} ${key}`;
@@ -63,7 +72,7 @@ export class InMemoryInterventionStore implements InterventionStore {
   public async raise(input: RaiseInput): Promise<RaisedIntervention> {
     await Promise.resolve();
     const actionKey = InMemoryInterventionStore.#actionKey(input.runId, input.idempotencyKey);
-    const existing = this.#byAction.get(actionKey);
+    const existing = this.#openByAction.get(actionKey);
     if (existing !== undefined) {
       return { interventionId: existing as InterventionId, created: false };
     }
@@ -78,7 +87,7 @@ export class InMemoryInterventionStore implements InterventionStore {
       lifecycle: "captured",
     };
     this.#byId.set(input.interventionId, copy(record));
-    this.#byAction.set(actionKey, input.interventionId);
+    this.#openByAction.set(actionKey, input.interventionId);
     return { interventionId: input.interventionId, created: true };
   }
 
@@ -100,7 +109,7 @@ export class InMemoryInterventionStore implements InterventionStore {
     runId: RunId,
     idempotencyKey: ActionIntent["idempotencyKey"],
   ): Promise<StoredIntervention | null> {
-    const id = this.#byAction.get(InMemoryInterventionStore.#actionKey(runId, idempotencyKey));
+    const id = this.#openByAction.get(InMemoryInterventionStore.#actionKey(runId, idempotencyKey));
     return id === undefined ? null : this.find(id as InterventionId);
   }
 
@@ -146,6 +155,11 @@ export class InMemoryInterventionStore implements InterventionStore {
       lifecycle: "captured",
     };
     this.#byId.set(input.interventionId, copy(resolved));
+    // The action is no longer held by an OPEN intervention, so the next time
+    // it sticks a new one is raised rather than swallowed (blocker 48).
+    this.#openByAction.delete(
+      InMemoryInterventionStore.#actionKey(found.runId, found.idempotencyKey),
+    );
     return copy(resolved);
   }
 }

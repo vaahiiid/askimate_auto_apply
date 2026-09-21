@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P177: Vahid signed the corrected entry (`d64e75d`, `sha256:3238406a…`) and the
+  catalogue loads again — but attempt 3's run could not be restarted. Blocker 48, found and
+  closed: the uniqueness on interventions held over every intervention for a stuck action rather
+  than the open one, so a page that stuck, was resolved, and stuck again raised nothing, and the
+  run went `uncertain` where no poll reaches it. Migration 0007 makes it partial; red first in the
+  store contract and through the driver on a real database. For the run it already happened to,
+  `scripts/local-stack.sh raise-missing <conversationId>` raises the swallowed intervention
+  through the ordinary pause path, so it can be resolved the ordinary way and attempt 4 can start.
 - 2026-09-21, P176: attempt 3 signed in through the consent path first time, four of four checks
   held. The fill then failed on an authored `id=saveBtn` that no read ever showed; six pages are
   corrected to `name=saveBtn` from the captures, three keep the id. The fill's line now names a

@@ -165,6 +165,22 @@ describeIfBoth("the local stack, started by its own script", () => {
     expect(noArgument.output).toContain("usage:");
   }, 120_000);
 
+  it("runs the P177 repair through the REAL command, and refuses what it cannot name", async () => {
+    // Blocker 48's repair, wired and proved the same way as P159's above and
+    // for the same reason: its behaviour is tested against the driver, and
+    // what this asserts is that the binary reaches it at all.
+    const missing = await script("raise-missing", dir, "01JBXQ8Z9WKTQ6M4H2NPNOSUCH0");
+    expect(missing.code, missing.output).toBe(1);
+    expect(missing.output).toContain("unknown_conversation");
+    expect(missing.output).toContain("Nothing was done");
+    expect(missing.output).not.toContain(TEST_DATABASE_URL);
+    expect(missing.output).not.toMatch(/AAS_SESSION_SECRET|[0-9a-f]{64}/);
+
+    const noArgument = await script("raise-missing", dir);
+    expect(noArgument.code, "a repair with no target does nothing").toBe(2);
+    expect(noArgument.output).toContain("usage:");
+  }, 120_000);
+
   it("stops all five on request, and nothing answers afterwards", async () => {
     const stopped = await script("stop", dir);
     expect(stopped.code, stopped.output).toBe(0);
