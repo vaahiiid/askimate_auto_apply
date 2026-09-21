@@ -41,6 +41,35 @@
  * Where the blueprint DOES record the submission endpoint, it is refused at the
  * network layer too — defence in depth exactly where knowledge exists, and no
  * pretence where it does not.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * P181: THE NETWORK LAYER DESCRIBED ABOVE IS NOT INSTALLED ON THE PATH A
+ * DEPLOYED RUN TAKES. Read this before believing any sentence above about
+ * hosts, robots or recording.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * `decidePreparationRequest` is reached from exactly one place in the
+ * repository's production files: the `context.route` handler inside
+ * `PlaywrightPreparationSession.open`. Nothing a deployable runs calls `open`.
+ * It cannot: ADR-0046 says the form is behind a login, so the fill must be
+ * attached to the context the account creation or sign-in already holds, and
+ * `performer.ts` accordingly builds the session with `attach`, which installs
+ * no route handler at all. `SessionHold.open` installs none either.
+ *
+ * So during a real fill there is no host allow-list on the page's own
+ * requests, no robots check on its subresources, and the `WriteLog` below
+ * stays empty however much the portal saves. `summarise()` would answer *"No
+ * state-changing requests were sent. The portal saved nothing"* after a run
+ * that saved three pages — which is why nothing production runs calls it.
+ *
+ * The TYPE, CLICK and NAME layers are unaffected: they live on the session,
+ * not on the context, and `attach` carries all three. The submission
+ * guarantee rests on those, as the paragraph above always said it did.
+ *
+ * Recorded as blocker 51. Not closed by guesswork: installing this guard on a
+ * held context means deciding first how a page READING a lookup by a non-GET
+ * method is told from a page WRITING the student's data, and that is Vahid's
+ * to decide.
  */
 
 import type { FieldLocator } from "@askimate/aas-blueprint";

@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P180 — ADR-0133: the runner types into a typeahead key by key, because Tom Select 1.x listens for `keyup` and a one-act fill dispatches `input`; and a box that finds nothing says what the field behind the earlier control holds |
+| **Phase** | P181 — the guard suspected of emptying the institution box is not the cause: on the path a deployed run takes it is **not installed at all**. Answered from the code; the failure line that overclaimed is corrected to name GET; nothing else built, and the rule for telling a lookup-by-POST from a write is proposed, not chosen |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
 | **Tests** | **2,790 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 133 ADRs · all 133 Accepted |

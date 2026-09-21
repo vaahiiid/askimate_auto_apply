@@ -19,6 +19,39 @@ not shipped artefacts.
 
 ---
 
+## [0.177.0] — 2026-09-21
+
+**P181 — the fill's network guard is not installed on the path a deployed run takes; the line that said
+the page asked nothing is corrected to name GET.**
+
+Three questions answered from the code, in answer to Vahid's reading of attempt 6.
+
+- **What a fill does with a request the PAGE makes that is not a GET, on the portal's own host: it lets
+  it through and records nothing.** `decidePreparationRequest` has no method rule — it refuses on a host
+  off the allow-list, or a URL under a blueprint-recorded `forbiddenEndpoints` prefix, and `performer.ts`
+  passes no such list. Above that, the only `context.route` in the fill session is inside
+  `PlaywrightPreparationSession.open`, which nothing a deployable runs calls and cannot: ADR-0046 puts
+  the form behind a login, so production uses `attach`, which installs no handler. `SessionHold.open`
+  installs none either. **Blocker 51.**
+- **Whether such a request was made during attempt 6: nothing can say.** `#writes` and `#blocked` are fed
+  by the handler that is not installed; the P179 watcher drops every non-GET; the context carries no
+  trace, no video and no HAR.
+- **A record that said more than it knew, corrected.** *"the page made NO request of its own to the
+  portal"* was a claim about methods the watcher cannot see, and this page's one known lookup is
+  `POST …/getGradingSystemsForCountry.do?institutionCode=&noCache=…` — a read whose parameters travel in
+  the query string. The words now name GET and say the rest is unwatched. Red first: the failing run
+  printed back the exact sentence Vahid was sent.
+- **Whether a script error is visible to the runner: no.** There is no `pageerror`, `console`,
+  `requestfailed` or `crash` listener anywhere in the repository. **Blocker 52.**
+- **Why the build did not catch the dead guard.** `check-reachability` asks whether a capability has a
+  production call site; this one has, inside a method whose own callers are a test and a script — the
+  limit the check states about itself in its own header.
+- Blocker 49 **reopened**: ADR-0133's fix stands on its own terms and did not fix the box. Nothing built
+  beyond the corrected sentence; the rule for telling a lookup-by-POST from a write is proposed, not
+  chosen.
+
+---
+
 ## [0.176.0] — 2026-09-21
 
 **P180 — ADR-0133: a typeahead is typed into key by key, and a box that finds nothing says what the

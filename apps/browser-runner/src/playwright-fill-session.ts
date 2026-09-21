@@ -221,8 +221,14 @@ const TYPING_DELAY_MS = 50;
  *
  *   - **same host only.** Another host's answer is not this portal's, and the
  *     allow-list has already refused most of them;
- *   - **GET only.** A write is `#writes`'s business, and this is about
- *     lookups;
+ *   - **GET only.** A write was to be `#writes`'s business, and this about
+ *     lookups. **P181 found that division does not hold on the path a
+ *     deployed run takes:** `#writes` is fed by the route handler that only
+ *     `open()` installs, and production attaches to a held context instead —
+ *     see the P181 block at the top of ./preparation-safety.ts. So a non-GET
+ *     the page makes during a real fill is recorded NOWHERE, and this log's
+ *     silence is not evidence that none was made. The words this feeds now
+ *     say GET (`lookupsInWords`); widening the watcher is blocker 52;
  *   - **the body is read only to COUNT it**, only when the portal says it is
  *     JSON, and only under a ceiling. Nothing of the body is kept: not the
  *     entries, not a sample, not the first characters. A count of a list and

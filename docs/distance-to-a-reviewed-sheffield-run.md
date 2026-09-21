@@ -249,6 +249,15 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P181: **the guard suspected of emptying the institution box is not the cause — on the
+  path a deployed run takes it is not installed at all.** `decidePreparationRequest` has no method rule,
+  and the `context.route` handler that would run it lives in `open()`, which production never calls
+  (ADR-0046 makes the fill attach to the held, signed-in context). So a real fill has no host allow-list
+  on the page's own requests, no robots check on its subresources, and an empty `WriteLog` (blocker 51).
+  Nothing recorded whether a non-GET went out during attempt 6, and the line saying the page asked
+  nothing is corrected to name GET — this page's one known lookup is a POST (blocker 52). No `pageerror`
+  listener exists, so a script that throws is invisible. Blocker 49 reopened. Nothing built but the
+  sentence; the rule for telling a lookup-by-POST from a write is proposed, not chosen.
 - 2026-09-21, P180: **the institution box's cause established and fixed (ADR-0133)**. Vahid's hand
   measurement — typing `sheff` key by key opened the list; the runner's fill asked nothing — and
   Tom Select's own source: 1.x binds `keyup` with no `input` listener, 2.x binds `input`; a

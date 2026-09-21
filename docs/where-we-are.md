@@ -4906,6 +4906,70 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P181 — the guard he suspected is not the cause, because it is not installed
+
+He asked for three things read out of the code rather than out of the ADRs, and the first answer
+turned the question around.
+
+**What a fill does with a request the page makes that is not a GET, on the portal's own host: it
+lets it through, and records nothing.** There are two layers to that and both matter. The decider
+itself, `decidePreparationRequest`, has no method rule at all — by design, and the file says why: a
+portal saves drafts by POST, so a guard that refused writes would refuse the work. It refuses on
+two grounds only, a host off the run's allow-list and a URL under a submission endpoint the
+blueprint records, and the runner passes no such list. And above that decider sits the fact that
+settles it: the only `context.route` in the fill session is inside `open()`, and nothing a
+deployable runs calls `open()`. It cannot — ADR-0046 puts the form behind a login, so the fill must
+attach to the context the sign-in already holds, and `attach()` installs no handler. The session
+hold installs none either. Four route handlers exist in this repository and not one of them is on
+the context a real fill runs in.
+
+So the network layer described at the top of that file does not run during a real fill. No host
+allow-list on the page's own requests. No robots.txt on its subresources. An empty `WriteLog`,
+whose summary would answer *"No state-changing requests were sent. The portal saved nothing"* after
+a run that saved three pages — which is why nothing in production calls it. What is unaffected is
+what the submission guarantee actually rests on, and the file always said so: the session type has
+no `submit`, the click allow-list carries only the controls the plane sent, and a submission-looking
+name is refused. All three live on the session, and `attach` carries them whole.
+
+The refusal he remembered from 10 September is real, and from a different guard on a different
+path: discovery's method rule, which refuses everything that is not a safe read because an
+inspection must not create or modify anything. That is the run that read the page; it is not the
+run that fills it.
+
+**Whether a non-GET went out during attempt 6: nothing can say.** The two logs that would know are
+fed by the handler that is not installed. The lookup watcher records GET and returns on anything
+else. The context carries no trace, no video and no HAR, deliberately, because it fills passport
+numbers. There is no record, and there is no way to make one out of what attempt 6 left behind.
+
+**Which makes the line he was shown wrong, and it is mine.** *"While this box was being filled the
+page made NO request of its own to the portal"* is a claim about every method the watcher never
+sees. It was printed about a page whose one lookup we do hold the shape of —
+`POST …/getGradingSystemsForCountry.do?institutionCode=&noCache=…`, a read whose parameters travel
+in the query string, which is the ordinary shape of these `.do` endpoints. If the institution
+search is built the same way, the box may well have searched and been answered, and the sentence
+said the opposite. It now names GET and says the rest is unwatched. The test for it fails without
+the change, and what it printed when it failed is the sentence he was sent.
+
+**Whether a script error is visible to the runner: no.** There is no `pageerror` listener anywhere
+in the repository, nor `console`, nor `requestfailed`, nor `crash`. The fill session's only page
+listener is the one that watches responses. If `institutionChanged()` threw, nothing would know and
+nothing would say.
+
+And the reason the build did not catch a guard with no live caller is worth writing down, because
+the check that exists for exactly this class of defect passed. It asks whether a capability has a
+production call site. This one has: inside a method whose own callers are a test and a script. Its
+header states that limit about itself — *a function called only by another function that nothing
+calls passes here* — and this is the first time that sentence has been paid for.
+
+Nothing was built beyond the corrected sentence. Blocker 49 is reopened, because the key-by-key fix
+is right on its own terms and did not fix the box. Blockers 51 and 52 are raised. How a page reading
+a lookup by POST is told from a page writing the student's data is proposed three ways and decided
+none — that is his.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P180 — a person's keystrokes searched and the runner's fill did not, and the reason is one line of a library
 
 He measured it by hand on the live form, with nothing saved: country chosen, then `sheff` typed key

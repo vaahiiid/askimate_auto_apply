@@ -426,14 +426,30 @@ export function lookupInWords(entry: LookupRecord): string {
  * The no-request case is the one worth reading twice: a box that found nothing
  * and a page that asked nothing are a different fault from a box that found
  * nothing because the portal answered with nothing.
+ *
+ * ── Why every sentence here names GET (P181) ──────────────────────────────
+ *
+ * The watcher that fills this log records GET and nothing else. Until P181 the
+ * no-request sentence read *"the page made NO request of its own to the
+ * portal"*, and that is a claim about every method the log never sees. It was
+ * printed to Vahid on attempt 6 about a page whose one lookup we DO hold the
+ * shape of — `POST …/getGradingSystemsForCountry.do?institutionCode=&…`, a
+ * read whose parameters travel in the query string — so the sentence was
+ * asserting the absence of exactly the kind of request it cannot see.
+ *
+ * A wrong label is worse than none. These words now say GET, and say that the
+ * rest is unwatched, until the watcher covers the rest (blocker 52).
  */
 export function lookupsInWords(entries: readonly LookupRecord[]): string {
   if (entries.length === 0) {
-    return `While this box was being filled the page made NO request of its own to the portal.`;
+    return (
+      `While this box was being filled the page made NO GET request of its own to the portal. ` +
+      `Requests by any other method are not watched, so this says nothing about them.`
+    );
   }
   return (
     `While this box was being filled the page asked the portal ` +
-    `${entries.length === 1 ? "once" : `${String(entries.length)} times`}: ` +
-    `${entries.map(lookupInWords).join("; ")}.`
+    `${entries.length === 1 ? "once" : `${String(entries.length)} times`} by GET ` +
+    `(other methods are not watched): ${entries.map(lookupInWords).join("; ")}.`
   );
 }

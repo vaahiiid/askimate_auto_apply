@@ -631,7 +631,13 @@ describe("filling a fixture portal", () => {
       thrown = error;
     }
     if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("Atlantis is not offered");
-    expect(thrown.message).toContain("the page made NO request of its own to the portal");
+    // P181: the sentence names GET, and says the rest is unwatched. The
+    // watcher records GET only, so a flat "made NO request" was a claim about
+    // methods it cannot see — and the one lookup whose shape this portal's
+    // capture holds is a POST.
+    expect(thrown.message).toContain("the page made NO GET request of its own to the portal");
+    expect(thrown.message).toContain("Requests by any other method are not watched");
+    expect(thrown.message).not.toContain("made NO request of its own");
   }, 30_000);
 
   it("says NOTHING about requests when nobody was watching — the difference between none and unknown", async () => {
