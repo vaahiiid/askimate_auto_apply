@@ -86,8 +86,12 @@ export interface StoredFillInstruction {
   readonly inputType: FieldInputType;
   readonly locators: readonly FieldLocator[];
   readonly value: StoredFillValue;
-  /** The field this one's options follow (ADR-0103, gap 1), and the control pressed to load them (ADR-0105). */
-  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
+  /** The field this one's options follow (ADR-0103, gap 1), the control pressed to load them (ADR-0105), and where to read what that control set (P180). */
+  readonly optionsAfter?: {
+    readonly fieldRef: string;
+    readonly press?: FieldLocator;
+    readonly holds?: FieldLocator;
+  };
   /** Where a typeahead's entries are found (ADR-0103, gap 2), the text typed for the value, and the escape (ADR-0109). */
   readonly typeahead?: { readonly optionLocator: FieldLocator; readonly text: string; readonly escapeValue?: string };
   /** Which item of a repeating page this is (ADR-0103, gap 3). */
@@ -103,14 +107,23 @@ function copyItem(
 
 /** The dependency, copied field by field. */
 function copyOptionsAfter(
-  after: { readonly fieldRef: string; readonly press?: FieldLocator } | undefined,
-): { readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator } } {
+  after:
+    | { readonly fieldRef: string; readonly press?: FieldLocator; readonly holds?: FieldLocator }
+    | undefined,
+): {
+  readonly optionsAfter?: {
+    readonly fieldRef: string;
+    readonly press?: FieldLocator;
+    readonly holds?: FieldLocator;
+  };
+} {
   return after === undefined
     ? {}
     : {
         optionsAfter: {
           fieldRef: after.fieldRef,
           ...(after.press === undefined ? {} : { press: { strategy: after.press.strategy, value: after.press.value } }),
+          ...(after.holds === undefined ? {} : { holds: { strategy: after.holds.strategy, value: after.holds.value } }),
         },
       };
 }

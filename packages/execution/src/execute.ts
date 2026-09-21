@@ -227,10 +227,46 @@ export async function executePlan(
         // A typeahead is typed into and chosen from (ADR-0103, gap 2). The
         // two kinds stay apart here too.
         const entries = instruction.typeahead;
-        if (instruction.value.kind === "confirmed") {
-          await session.fillTypeahead(locator, entries, instruction.value.value);
-        } else {
-          await session.fillTypeaheadConstant(locator, entries, textOf(instruction.value));
+        try {
+          if (instruction.value.kind === "confirmed") {
+            await session.fillTypeahead(locator, entries, instruction.value.value);
+          } else {
+            await session.fillTypeaheadConstant(locator, entries, textOf(instruction.value));
+          }
+        } catch (error) {
+          // ── What the box it FOLLOWS was really set to (P180) ──────────
+          //
+          // Vahid, 2026-09-21: *"If country 'passed' only because nothing
+          // checked it, then the institution box may be failing because the
+          // country was never really chosen."* He is right that nothing
+          // checked it: a fill's read-back is recorded as a shape and never
+          // compared, and the control a widget fronts is an input the widget
+          // CLEARS once a choice is made — so reading the box says nothing
+          // either way.
+          //
+          // So at the failure, read the field the earlier control sets, and
+          // say whether it holds anything. Not its value: on this chain that
+          // is derived from the student's own education history.
+          const holds = instruction.optionsAfter?.holds;
+          if (holds === undefined) throw error;
+          const set = await session.readValue(holds).catch(() => null);
+          const state =
+            set === null
+              ? "could not be read"
+              : set.trim().length === 0
+                ? "holds NOTHING"
+                : "holds a value";
+          // The NAME is carried over, because it is what `isDrift` reads and
+          // what decides whether the runner reports drift or a refusal. A
+          // diagnostic that reclassified the failure it describes would be
+          // worse than no diagnostic.
+          const said = new Error(
+            `${error instanceof Error ? error.message : String(error)} ` +
+              `The field the earlier control sets (${holds.strategy}="${holds.value}") ${state}.`,
+            { cause: error },
+          );
+          if (error instanceof Error) said.name = error.name;
+          throw said;
         }
       } else if (instruction.value.kind === "confirmed") {
         await session.fill(locator, instruction.value.value);

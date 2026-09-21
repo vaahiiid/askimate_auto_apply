@@ -220,16 +220,30 @@ describe("filling a fixture portal", () => {
           );
         return;
       }
-      if (req.method === "GET" && req.url === "/lookup") {
+      if (req.method === "GET" && req.url?.startsWith("/lookup")) {
+        const country = new URL(req.url, "http://127.0.0.1").searchParams.get("country") ?? "";
         res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html>
 <html><body>
-  <input type="hidden" id="country" value="">
+  <input type="hidden" id="country" value="${country}">
+  <input type="hidden" id="chosen" value="">
   <label for="place">Search for an institution...</label>
   <input type="text" id="place" autocomplete="off">
   <ul id="placeOptions" role="listbox"></ul>
   <script>
+    // Tom Select's own shape, from its source (P180): 1.x binds KEYUP and has
+    // no input listener (tom-select.ts:317 in 1.7.8), and the user's load is
+    // wrapped in a 300 ms TRAILING debounce (loadDebounce, defaults.ts
+    // loadThrottle: 300). Both are reproduced here, because both are what
+    // made the runner's one-act fill ask the portal nothing while a person's
+    // typing asked once.
     var box = document.getElementById("place");
-    box.addEventListener("input", function () {
+    var pending = null;
+    box.addEventListener("keyup", function () {
+      if (pending) window.clearTimeout(pending);
+      pending = window.setTimeout(search, 300);
+    });
+    function search() {
+      pending = null;
       var country = document.getElementById("country").value;
       fetch("/lookup/search?name=" + encodeURIComponent(box.value) + "&studyAbroad=false&country=" + encodeURIComponent(country))
         .then(function (answer) { return answer.json(); })
@@ -242,10 +256,13 @@ describe("filling a fixture portal", () => {
             option.setAttribute("data-selectable", "");
             option.setAttribute("data-value", entry.value);
             option.textContent = entry.label;
+            option.addEventListener("click", function () {
+              document.getElementById("chosen").value = entry.value;
+            });
             list.appendChild(option);
           });
         });
-    });
+    }
   </script>
 </body></html>`);
         return;
@@ -573,6 +590,32 @@ describe("filling a fixture portal", () => {
     // portal would have answered for a country that was set.
     expect(thrown.message).not.toContain("University of Sheffield");
     expect(thrown.message).not.toContain("UNITED KINGDOM");
+  }, 30_000);
+
+  it("TYPES key by key, so a box whose entries arrive on keyup is filled at all (P180)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // The fix, and the measurement behind it. Vahid, on the live form,
+    // 2026-09-21: typing `sheff` by hand opened the list with all eleven
+    // entries; the runner's fill asked the portal nothing — P179's line is
+    // what showed that.
+    //
+    // The cause is in Tom Select's source and it is a version fork: 1.x
+    // binds `keyup` and has NO `input` listener; 2.x binds `input` instead.
+    // Playwright's `fill` dispatches one `input` event, so on a 1.x page it
+    // fires nothing at all. Typing satisfies both, because a keystroke fires
+    // keydown, keypress, input AND keyup.
+    //
+    // This page is 1.x's shape. With a one-act fill this test finds an empty
+    // list and throws; with typing it chooses the entry.
+    // ═══════════════════════════════════════════════════════════════════
+    const session = await openSession();
+    await session.goto(`${baseUrl}/lookup?country=UNITED+KINGDOM`);
+    await session.fillTypeahead(
+      PLACE,
+      { optionLocator: PLACE_ENTRIES, text: "University of Sheffield" },
+      confirmedText("SHEFFIELD"),
+    );
+    expect(await session.readValue({ strategy: "id", value: "chosen" })).toBe("SHEFFIELD");
   }, 30_000);
 
   it("says the page asked NOTHING when the entries are already there — the other half of the answer", async () => {

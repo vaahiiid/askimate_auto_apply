@@ -459,8 +459,14 @@ class RecordingSession implements ApplicationSession {
   /** Typeahead choices, with whether the text was the student's (P95). */
   public readonly chosen: { locator: FieldLocator; optionLocator: FieldLocator; text: string; confirmed: boolean }[] = [];
 
+  /** What a locator reads back (P180). Absent means the empty string. */
+  public readonly holding = new Map<string, string>();
+
   public fillTypeahead(locator: FieldLocator, entries: { optionLocator: FieldLocator }, value: ConfirmedValue<string>): Promise<void> {
     this.acts.push(`choose ${locator.value}`);
+    if (locator.value === this.#failOn && this.#failWith !== null) {
+      return Promise.reject(this.#failWith);
+    }
     const text = (value as unknown as { value: string }).value;
     this.chosen.push({ locator, optionLocator: entries.optionLocator, text, confirmed: true });
     this.filled.push({ locator, text, confirmed: true });
@@ -469,6 +475,9 @@ class RecordingSession implements ApplicationSession {
 
   public fillTypeaheadConstant(locator: FieldLocator, entries: { optionLocator: FieldLocator }, text: string): Promise<void> {
     this.acts.push(`choose ${locator.value}`);
+    if (locator.value === this.#failOn && this.#failWith !== null) {
+      return Promise.reject(this.#failWith);
+    }
     this.chosen.push({ locator, optionLocator: entries.optionLocator, text, confirmed: false });
     this.filled.push({ locator, text, confirmed: false });
     return Promise.resolve();
@@ -533,6 +542,10 @@ class RecordingSession implements ApplicationSession {
   }
 
   public readValue(locator: FieldLocator): Promise<string> {
+    // P180: a locator whose value was set with `holding` reads that, so a
+    // test can hold what the field BEHIND a control says.
+    const held = this.holding.get(locator.value);
+    if (held !== undefined) return Promise.resolve(held);
     const entry = [...this.filled].reverse().find((f) => f.locator.value === locator.value);
     return Promise.resolve(entry?.text ?? "");
   }
@@ -640,6 +653,100 @@ describe("executing a plan", () => {
     expect(report.completed).toBe(true);
     expect(session.filled.map((f) => f.text)).toContain("02/04/1999");
     expect(session.attached[0]?.documentId).toBe("doc-passport-1");
+  });
+
+  // ── P180: what the field BEHIND the earlier control holds ─────────────
+  //
+  // Vahid, 2026-09-21: *"the ADR-0106 read-back never compares the country
+  // box's value. If country 'passed' only because nothing checked it, then the
+  // institution box may be failing because the country was never really
+  // chosen."*
+  //
+  // He is right that nothing checked it. A fill's read-back is recorded as a
+  // shape and never compared, and the control a widget fronts is an input the
+  // widget CLEARS at the choice — so reading the box says nothing either way.
+  // The `<select>` behind it is what the page posts and what a dependent
+  // lookup consults, and the blueprint has always known which that is
+  // (`frontedBy`). It now travels with the plan and is read at the failure.
+  //
+  // Never its VALUE: on Sheffield's chain the country is derived from the
+  // student's own education history. Set or not set is the whole answer.
+  //
+  // Built here rather than from a fixture blueprint because two instructions
+  // are the whole case, and a plan is data.
+  const dependentTypeahead = (): Parameters<typeof executePlan>[1] => ({
+    blueprintId: "bp-lookup",
+    blueprintVersion: "lookup-v1",
+    mappingSetId: "set-lookup",
+    instructions: [
+      {
+        fieldRef: "place-ts-control",
+        label: "Search for an institution...",
+        inputType: "typeahead",
+        locators: [{ strategy: "id", value: "place-ts-control" }],
+        value: {
+          kind: "reviewed_constant",
+          constant: {
+            text: "University of Sheffield",
+            rationale: "the one institution the synthetic profile holds",
+            mappingSetId: "set-lookup",
+            reviewedBy: "Vahid Mohammadi",
+          } as unknown as Extract<
+            Parameters<typeof executePlan>[1]["instructions"][number]["value"],
+            { kind: "reviewed_constant" }
+          >["constant"],
+        },
+        typeahead: {
+          optionLocator: { strategy: "css", value: "#place-ts-dropdown [role=option]" },
+          text: "University of Sheffield",
+        },
+        optionsAfter: {
+          fieldRef: "country-ts-control",
+          holds: { strategy: "id", value: "country" },
+        },
+      },
+    ],
+    uploads: [],
+    credentials: [],
+    blockers: [],
+    handoffs: [],
+    hidden: [],
+    repeats: [],
+    unmapped: [],
+  });
+
+  const emptyList = (): Error => {
+    const error = new Error(
+      `The portal's "place-ts-control" list does not offer the confirmed value ` +
+        `(9 characters). It offers: .`,
+    );
+    error.name = "OptionNotAvailableError";
+    return error;
+  };
+
+  it("says the field behind the earlier control HOLDS NOTHING when it does not (P180)", async () => {
+    const session = new RecordingSession();
+    session.failOn("place-ts-control", emptyList());
+    session.holding.set("country", "   ");
+
+    const failed = failures(await executePlan(session, dependentTypeahead(), documentSource, CONTEXT));
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.drift, "still drift: the error's name is carried over").toBe(true);
+    expect(failed[0]?.error).toContain('The field the earlier control sets (id="country") holds NOTHING.');
+    // Appended, not substituted: the portal's own words are still there.
+    expect(failed[0]?.error).toContain("It offers: .");
+  });
+
+  it("says it HOLDS a value when it does, and never says which (P180)", async () => {
+    const session = new RecordingSession();
+    session.failOn("place-ts-control", emptyList());
+    session.holding.set("country", "UNITED KINGDOM");
+
+    const failed = failures(await executePlan(session, dependentTypeahead(), documentSource, CONTEXT));
+    expect(failed[0]?.error).toContain('(id="country") holds a value.');
+    expect(failed[0]?.error, "the country is derived from the student's own history").not.toContain(
+      "UNITED KINGDOM",
+    );
   });
 
   it("types a reviewed constant through its OWN method, never as confirmed data", async () => {

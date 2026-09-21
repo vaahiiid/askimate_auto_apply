@@ -87,7 +87,22 @@ export interface FillInstruction {
    * told to select before selecting; the field it follows precedes this one in
    * the plan, because `checkUsable` refused any other order.
    */
-  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FieldLocator };
+  readonly optionsAfter?: {
+    readonly fieldRef: string;
+    readonly press?: FieldLocator;
+    /**
+     * Where to READ what the earlier control actually set, when it fronts a
+     * field of its own (P180).
+     *
+     * A Tom Select box is an `<input>` the widget clears once a choice is
+     * made, so reading the box says nothing; the `<select>` behind it is what
+     * the page posts and what a dependent lookup consults. Carried here so
+     * that a box which finds nothing can say whether the field it follows was
+     * really set — never its VALUE, which on this chain is derived from the
+     * student's own education history.
+     */
+    readonly holds?: FieldLocator;
+  };
   /**
    * Where the entries of a typeahead are found (ADR-0103, gap 2), the text the
    * reviewer recorded for the value this instruction names (ADR-0109), and the
@@ -347,6 +362,16 @@ export function planFill(
 
   // ADR-0103 gap 4: which slots have a companion, and which fields are one.
   const fieldsByRef = new Map(allFields(blueprint).map((field) => [field.fieldRef, field]));
+  // P180: the blueprint's `frontedBy` read backwards — which field a CONTROL
+  // sets, by the control's own ref. A dependent box that finds nothing can
+  // then say whether the box it follows really set anything, which reading
+  // that box cannot answer: the widget clears its own input at the choice.
+  const setBy = new Map<string, FieldLocator>();
+  for (const field of allFields(blueprint)) {
+    const first = field.locators[0];
+    if (field.frontedBy === undefined || first === undefined) continue;
+    setBy.set(field.frontedBy, first);
+  }
   const companionOf = new Map(
     allRequiredDocuments(blueprint)
       .filter((document) => document.companion !== undefined)
@@ -377,7 +402,7 @@ export function planFill(
         },
       },
       instruction: {
-        ...instructionShape(field),
+        ...instructionShape(field, setBy),
         value: { kind: "reviewed_constant", constant: deferredConstant(mappingSet, companion.whenDeferred) },
         defers: slotRef,
       },
@@ -457,7 +482,7 @@ export function planFill(
         // the runner can enter it — `checkUsable` has already held that the
         // field is special-category and the form offers this value.
         instructions.push({
-          ...instructionShape(field),
+          ...instructionShape(field, setBy),
           value: { kind: "form_refusal", refusal: reviewedFormRefusal(mappingSet, mapping.source) },
         });
         break;
@@ -512,7 +537,7 @@ export function planFill(
 
       case "constant":
         instructions.push({
-          ...instructionShape(field),
+          ...instructionShape(field, setBy),
           value: {
             kind: "reviewed_constant",
             constant: reviewedConstant(mappingSet, mapping.source),
@@ -548,7 +573,7 @@ export function planFill(
         }
 
         instructions.push({
-          ...instructionShape(field),
+          ...instructionShape(field, setBy),
           value: { kind: "confirmed", value: rendered.value, fieldKey },
         });
         break;
@@ -631,7 +656,7 @@ export function planFill(
         if (mapping === undefined) continue;
         if (mapping.source.kind === "constant") {
           itemInstructions.push({
-            ...instructionShape(field),
+            ...instructionShape(field, setBy),
             value: { kind: "reviewed_constant", constant: reviewedConstant(mappingSet, mapping.source) },
             item,
           });
@@ -665,7 +690,7 @@ export function planFill(
           continue;
         }
         itemInstructions.push({
-          ...instructionShape(field),
+          ...instructionShape(field, setBy),
           value: { kind: "confirmed", value: rendered.value, fieldKey },
           item,
         });
@@ -869,6 +894,7 @@ function hiddenAmong(
 
 function instructionShape(
   field: BlueprintField,
+  setBy: ReadonlyMap<string, FieldLocator>,
 ): Pick<FillInstruction, "fieldRef" | "label" | "inputType" | "locators" | "optionsAfter" | "typeahead"> {
   return {
     fieldRef: field.fieldRef,
@@ -883,6 +909,11 @@ function instructionShape(
             ...(field.optionsAfter.press === undefined
               ? {}
               : { press: { strategy: field.optionsAfter.press.strategy, value: field.optionsAfter.press.value } }),
+            // Absent when the earlier control fronts nothing: a plain
+            // `<select>` IS the field, and reading it needs no indirection.
+            ...(setBy.get(field.optionsAfter.fieldRef) === undefined
+              ? {}
+              : { holds: setBy.get(field.optionsAfter.fieldRef) as FieldLocator }),
           },
         }),
     ...(field.typeahead === undefined

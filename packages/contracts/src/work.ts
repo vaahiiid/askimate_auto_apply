@@ -345,8 +345,12 @@ export interface TransportedInstruction {
   readonly inputType: string;
   readonly locators: readonly FillLocator[];
   readonly value: TransportedValue;
-  /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier; and the control pressed to load them (ADR-0105), a locator. */
-  readonly optionsAfter?: { readonly fieldRef: string; readonly press?: FillLocator };
+  /** The field this one's options follow (ADR-0103, gap 1): a fieldRef, an identifier; the control pressed to load them (ADR-0105), a locator; and where to READ what that earlier control actually set (P180), a locator. */
+  readonly optionsAfter?: {
+    readonly fieldRef: string;
+    readonly press?: FillLocator;
+    readonly holds?: FillLocator;
+  };
   /** Where a typeahead's entries are found (ADR-0103, gap 2): a locator; the text typed for the value and the escape's value (ADR-0109). */
   readonly typeahead?: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string };
   /** Which item of a repeating page this is (ADR-0103, gap 3): two counts. */
@@ -947,7 +951,9 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
     const parsed = parseTransportedValue(held["value"]);
     if (parsed === null) return null;
     const after = held["optionsAfter"];
-    let optionsAfter: { readonly fieldRef: string; readonly press?: FillLocator } | undefined;
+    let optionsAfter:
+      | { readonly fieldRef: string; readonly press?: FillLocator; readonly holds?: FillLocator }
+      | undefined;
     if (after !== undefined) {
       if (typeof after !== "object" || after === null) return null;
       const named = (after as Record<string, unknown>)["fieldRef"];
@@ -955,7 +961,16 @@ function parseTransportedPlan(value: unknown): TransportedPlan | null {
       const pressRaw = (after as Record<string, unknown>)["press"];
       const press = pressRaw === undefined ? null : parseLocator(pressRaw);
       if (pressRaw !== undefined && press === null) return null;
-      optionsAfter = { fieldRef: named, ...(press === null ? {} : { press }) };
+      // P180: a locator, parsed by the same closed rule as every other — a
+      // malformed one is a refusal, not a silently dropped diagnostic.
+      const holdsRaw = (after as Record<string, unknown>)["holds"];
+      const holds = holdsRaw === undefined ? null : parseLocator(holdsRaw);
+      if (holdsRaw !== undefined && holds === null) return null;
+      optionsAfter = {
+        fieldRef: named,
+        ...(press === null ? {} : { press }),
+        ...(holds === null ? {} : { holds }),
+      };
     }
     const entries = held["typeahead"];
     let typeahead: { readonly optionLocator: FillLocator; readonly text: string; readonly escapeValue?: string } | undefined;

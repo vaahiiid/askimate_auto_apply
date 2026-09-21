@@ -198,6 +198,17 @@ export class LocatorNotFoundError extends Error {
 const OPTION_WAIT_MS = 5_000;
 
 /**
+ * Between keystrokes when typing into a typeahead (P180).
+ *
+ * Under Tom Select's 300 ms `loadThrottle` on purpose, so that one box costs
+ * the portal one lookup rather than one per character — the same as a person
+ * typing at speed. Not zero: a burst with no gap is not what any page was
+ * built for, and the pacing rule this repository follows is about being an
+ * ordinary visitor rather than a fast one.
+ */
+const TYPING_DELAY_MS = 50;
+
+/**
  * Records what the PAGE fetched from the portal, in shape (P179).
  *
  * ── Why a response listener and not the route guard ───────────────────────
@@ -560,7 +571,30 @@ export class PlaywrightPreparationSession implements FillableSession {
     // Marked BEFORE anything is typed, so what follows is this box's own
     // lookups and not the page's load (P179).
     const askedFrom = this.#lookups.mark();
-    await box.fill(entries.text);
+    // ── Typed KEY BY KEY, not set in one act (P180) ────────────────────
+    //
+    // Measured by Vahid on the live form, 2026-09-21: typing `sheff` by hand
+    // opened the list with all eleven entries at once; the runner's fill
+    // asked the portal nothing at all — which P179's line is what showed.
+    //
+    // The reason is in Tom Select's own source, and it is a version fork:
+    // 1.x binds `keyup` (`tom-select.ts:317` in 1.7.8) and has no `input`
+    // listener, while 2.x binds `input` instead (2.0.0 onwards). Playwright's
+    // `fill` sets `.value` and dispatches ONE `input` event, so on a 1.x page
+    // nothing runs: no `load()`, no `refreshOptions()`. Which version this
+    // portal ships is not established — no capture holds its scripts — but
+    // typing satisfies BOTH, because a keystroke fires `keydown`, `keypress`,
+    // `input` and `keyup`.
+    //
+    // It costs the portal no more than a person does: Tom Select debounces
+    // the user's `load` by `loadThrottle` (300 ms, a trailing debounce in
+    // `loadDebounce`), so a burst of keystrokes under that interval is ONE
+    // request, fired once the typing stops.
+    //
+    // Cleared first, because a retry on the same page meets a box that still
+    // holds the last attempt's text.
+    await box.fill("");
+    await box.pressSequentially(entries.text, { delay: TYPING_DELAY_MS });
 
     const page = this.#requirePage();
     const offered = toPlaywrightLocator(page, entries.optionLocator);

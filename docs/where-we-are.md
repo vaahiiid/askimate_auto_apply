@@ -4906,6 +4906,55 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P180 — a person's keystrokes searched and the runner's fill did not, and the reason is one line of a library
+
+He measured it by hand on the live form, with nothing saved: country chosen, then `sheff` typed key
+by key into the institution box, and the list opened at once with all eleven entries. The runner's
+fill had asked the portal nothing — which the line P179 added is what showed.
+
+He also withdrew an observation of his own before anyone had to question it: a console test that
+appeared to show the same thing was void, because his Network panel's type filter hid Fetch and XHR.
+The evidence is the runner's line, not the test. That correction is worth as much as the measurement
+— it is the difference between two pieces of evidence and one.
+
+The reason is in Tom Select's own source, and it is a version fork. **1.x** binds `keyup`
+(`tom-select.ts:317` in 1.7.8) and has no `input` listener at all; `onKeyUp` is what calls `load`.
+**2.x** binds `input` instead, from 2.0.0 on. Playwright's `fill` sets the value and dispatches one
+`input` event — so on a 1.x page it fires nothing: no search, no refresh, an empty dropdown.
+
+Which version this portal ships, I cannot establish: no capture in this repository holds that page's
+HTML or its script URLs. Said rather than guessed. The measurement is the better evidence about the
+version anyway — a one-act fill asked nothing, which is 1.x's behaviour and not 2.x's — and the fix
+does not depend on knowing: a keystroke fires `keydown`, `keypress`, `input` and `keyup`, which
+satisfies both.
+
+The question he said mattered more was why the country box passed when the institution box did not,
+and the answer is not luck. `onFocus` calls `refreshOptions` in both versions, and a fill focuses
+the box before typing. The country list is **local** — its entries are the select's — so focus alone
+renders them, the locator finds *United Kingdom*, and the click chooses it; no search is needed. The
+institution list is **remote**, and stays empty until `load` runs, which on 1.x only a keystroke
+does.
+
+But his deeper point was right and stands on its own: nothing ever verified the country. A fill's
+read-back is recorded as a shape and compared to nothing, and the input a Tom Select fronts is
+cleared by the widget the moment a choice is made — so reading the box says nothing either way.
+"Country passed" was an inference from the absence of an error. The blueprint has always known which
+field each control sets; that relation now travels with the plan, and a box that finds nothing says
+whether the field it depends on holds a value or holds nothing. Never which value: on this chain the
+country is derived from the student's own education history.
+
+Typing costs the portal nothing extra, which is worth stating because it could have. Tom Select
+wraps the page's own lookup in a 300 ms **trailing** debounce, so keystrokes 50 ms apart produce one
+request, fired when the typing stops — the same as a person typing at speed, not one per character.
+
+Proved red first on a page built in 1.x's shape — `keyup` only, a 300 ms debounce, a list that comes
+from the server — where a one-act fill cannot fill the box at all and asks nothing, and typing asks
+once and chooses the entry.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P179 — the box answered in one line, and the line learned to ask the next question
 
 Attempt 5 cost one password and one attempt, and the line P178 added did its job on the first

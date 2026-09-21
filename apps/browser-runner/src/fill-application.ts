@@ -402,6 +402,10 @@ function toStoredPlan(wire: NonNullable<ClaimedWork["plan"]>): StoredFillPlan {
               ...(instruction.optionsAfter.press === undefined
                 ? {}
                 : { press: { strategy: instruction.optionsAfter.press.strategy, value: instruction.optionsAfter.press.value } }),
+              // P180: where to read what the earlier control actually set.
+              ...(instruction.optionsAfter.holds === undefined
+                ? {}
+                : { holds: { strategy: instruction.optionsAfter.holds.strategy, value: instruction.optionsAfter.holds.value } }),
             },
           }),
       ...(instruction.typeahead === undefined

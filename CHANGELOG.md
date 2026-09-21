@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.176.0] — 2026-09-21
+
+**P180 — ADR-0133: a typeahead is typed into key by key, and a box that finds nothing says what the
+field behind the earlier control holds.**
+
+- **The cause, from Tom Select's published source.** 1.x binds `keyup` and has no `input` listener
+  (`tom-select.ts:317` in 1.7.8); 2.x binds `input` instead (2.0.0 onwards). Playwright's `fill`
+  dispatches one `input` event, so on a 1.x page it fires nothing — no `load`, no `refreshOptions`.
+  Which version Sheffield ships is **not established**: no capture holds that page's scripts.
+- **Typed key by key at 50 ms**, under Tom Select's 300 ms trailing `loadThrottle` debounce, so one
+  box costs the portal one lookup — the same as a person typing at speed.
+- **Why the country box passed and the institution box did not:** the country list is local, so
+  `onFocus` → `refreshOptions` renders its entries with no search; the institution list is remote
+  and empty until `load` runs. A real reason — and nothing verified it, which is fixed below.
+- **The blueprint's `frontedBy` now travels with the plan** (`optionsAfter.holds`), through the
+  stored plan and the wire. A box that finds nothing says whether the field the earlier control
+  sets **holds a value** or **holds NOTHING** — never which, because on this chain it is derived
+  from the student's own education history.
+- Red first at both levels: through a real browser on a page in 1.x's shape, and on the executor.
+- **Blocker 49 closed.**
+
+---
+
 ## [0.175.0] — 2026-09-21
 
 **P179 — the institution box answered: the list was empty. The line now says what the page asked

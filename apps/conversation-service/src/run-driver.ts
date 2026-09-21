@@ -7830,6 +7830,11 @@ function toWirePlan(stored: StoredFillPlan): TransportedPlan {
               ...(instruction.optionsAfter.press === undefined
                 ? {}
                 : { press: { strategy: instruction.optionsAfter.press.strategy, value: instruction.optionsAfter.press.value } }),
+              // P180: where the runner may read what the earlier control set,
+              // for a box that finds nothing. A locator, never a value.
+              ...(instruction.optionsAfter.holds === undefined
+                ? {}
+                : { holds: { strategy: instruction.optionsAfter.holds.strategy, value: instruction.optionsAfter.holds.value } }),
             },
           }),
       ...(instruction.typeahead === undefined

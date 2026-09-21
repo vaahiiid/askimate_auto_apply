@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P180: **the institution box's cause established and fixed (ADR-0133)**. Vahid's hand
+  measurement — typing `sheff` key by key opened the list; the runner's fill asked nothing — and
+  Tom Select's own source: 1.x binds `keyup` with no `input` listener, 2.x binds `input`; a
+  Playwright fill dispatches one `input` event. Which version this portal ships is not established.
+  The runner now types key by key at 50 ms, under the widget's 300 ms trailing debounce, so a box
+  costs one lookup. The country box passed because its list is local and focus renders it — and
+  nothing had verified it, so the blueprint's `frontedBy` now travels with the plan and a failing
+  box says whether the field it depends on holds anything. Blocker 49 closed.
 - 2026-09-21, P179: **attempt 5 answered the institution box**: the portal's list came back
   empty, so the mapping was never the fault and the entry is not re-signed. A failed lookup now
   reports the page's own requests in shape — path, parameter names and whether each arrived empty,
