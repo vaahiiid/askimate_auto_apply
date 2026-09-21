@@ -610,6 +610,59 @@ describe("the fill says what it did, in words it is allowed to say (ADR-0124 app
     expect(lines.join("\n")).not.toContain("not a valid name");
   });
 
+  it("says what the page OFFERED when a box drifted, so a missing entry can be told from a missing box", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Attempt 4, 2026-09-21: `education.do` failed with
+    // `1 of 19 boxes did not take its value (drift): institution-ts-control`
+    // and that is all it said. Two explanations on the record predicted the
+    // same words — a mapping naming a value the list no longer carries, and
+    // a box the page does not lay out the way the entry says — and they lead
+    // to different work: one changes the signed entry, the other does not.
+    //
+    // Vahid: *"If the log line cannot tell them apart, say what it read in
+    // the box and what it expected, in the runner's allowed words, and make
+    // the next line say that."*
+    //
+    // Only for DRIFT. Those two errors are the runner's OWN — one names the
+    // locators it tried, the other names the portal's option list and gives
+    // the value it wanted as a character count, because that value may be
+    // the student's. A `refused` came from the portal and keeps its silence,
+    // which the test above this one holds.
+    // ═══════════════════════════════════════════════════════════════════
+    const { lines, log } = collecting();
+    const drifting = session({
+      fill: () => {
+        const error = new Error(
+          `The portal's "institution-ts-control" list does not offer the confirmed value ` +
+            `(9 characters). It offers: 0159 (University of Sheffield), 1CB (Sheffield College).`,
+        );
+        error.name = "OptionNotAvailableError";
+        return Promise.reject(error);
+      },
+    });
+    const outcome = await fillApplication(WORK, { session: drifting, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(outcome).toEqual({ kind: "failed", failure: "portal_drift" });
+    expect(lines.at(-2)).toMatch(/^run run_1: page fill failed — 1 of 1 boxes did not take its value \(drift\): given_name$/u);
+    expect(lines.at(-1)).toBe(
+      `run run_1: given_name — The portal's "institution-ts-control" list does not offer the ` +
+        `confirmed value (9 characters). It offers: 0159 (University of Sheffield), 1CB (Sheffield College).`,
+    );
+  });
+
+  it("keeps a REFUSED box's words to itself, even now the drifted ones are said", async () => {
+    // The boundary the line above must not cross. A portal that rejects a
+    // value says so in its own words, about the student's answer, and those
+    // words are not the runner's to repeat.
+    const { lines, log } = collecting();
+    const refusing = session({
+      fill: () => Promise.reject(new Error("the portal said: 'Niloofar' is not a valid name for field #given_name")),
+    });
+    await fillApplication(WORK, { session: refusing, now: () => NOW, documents: noDocuments, challenge: unchallenged, log });
+    expect(lines.at(-1)).toMatch(/^run run_1: page fill failed — 1 of 1 boxes did not take its value \(refused\): given_name$/u);
+    expect(lines.join("\n")).not.toContain("not a valid name");
+    expect(lines.join("\n")).not.toContain("Niloofar");
+  });
+
   it("says when the browser did not land on the form, without printing where it landed", async () => {
     const { lines, log } = collecting();
     const bounced = session({ currentUrl: () => Promise.resolve("https://portal.test/login?next=%2Fapply&sid=tok_secret") });

@@ -258,6 +258,31 @@ export async function fillApplication(
         `not take ${failed.length === 1 ? "its" : "their"} value (${drifted ? "drift" : "refused"}): ` +
         failed.map((outcome) => outcome.fieldRef).join(", "),
     );
+    // ── And, for a DRIFT, what the page actually offered (P178) ──────────
+    //
+    // Attempt 4 on the first real form stopped on `institution-ts-control`
+    // with the line above and nothing else, and two explanations already on
+    // the record predicted exactly those words: a mapping naming a value the
+    // portal's list no longer carries, and a box the page does not lay out
+    // the way the entry says. They lead to different work — one changes a
+    // signed entry and costs a signature, the other does not — and the line
+    // could not tell them apart.
+    //
+    // Vahid, 2026-09-21: *"If the log line cannot tell them apart, say what
+    // it read in the box and what it expected, in the runner's allowed
+    // words, and make the next line say that."*
+    //
+    // ONLY for drift, and that is the whole boundary. Those two errors are
+    // the runner's own and their words are chosen: `LocatorNotFoundError`
+    // names the locators it tried, `OptionNotAvailableError` names the
+    // PORTAL'S option list — not the student's data — and gives the value it
+    // wanted as a character count precisely because that value may be. A
+    // `refused` came from the portal, about the student's answer, and keeps
+    // its silence.
+    for (const outcome of failed) {
+      if (!outcome.drift) continue;
+      say(`${run}: ${outcome.fieldRef} — ${outcome.error}`);
+    }
     return {
       kind: "failed",
       failure: drifted ? "portal_drift" : "portal_refused",

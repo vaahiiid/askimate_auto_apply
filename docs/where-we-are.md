@@ -4906,6 +4906,59 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P178 — three pages of a real form, and a line that could not say why the fourth stopped
+
+Attempt 4 is the furthest this has ever got. The repair released the run, the resolution put it
+back, one password, and then: signed in through the consent path with the choice recorded and
+four of four checks holding, and three pages of Sheffield's own application filled, saved and
+read back with every filled value seen. Personal details, contact details, nationality and
+residence. Vahid confirmed the first of those from the other end, on his own account, against
+the portal's summary page rather than against our read-back — they agree.
+
+Then `education.do` stopped on one box of nineteen, twice, and the run stopped for a person
+exactly as ADR-0122 says it should. What it said was *1 of 19 boxes did not take its value
+(drift): institution-ts-control*, and that was all it said.
+
+He put two explanations and asked which, or neither, before anything was built. The answer is
+neither, established rather than guessed.
+
+The second one — a typeahead that renders its chosen entry somewhere other than the box the
+runner reads, so the read-back sees an empty box — is **ruled out by the executor**. An ordinary
+field's read-back is recorded as a shape and never compared to what was intended. The only
+read-back in the whole plan that is compared to an expected value is a document's companion
+field, and a mismatch there produces a note, not a failure. That limit is real; it cannot produce
+this message.
+
+The first one — the mapping naming `SHEFFIELD` while the list carries `0159` — would produce
+exactly this message, because the runner's match is on the text AND the value and nothing would
+satisfy both. But it is not established, and the record and his memory differ on the one thing
+that decides it: the capture record dates the `0159` copy to 11 September and the `SHEFFIELD`
+read to the 13th, and ADR-0109 carries his own words resolving that contradiction — the earlier
+copy was from a different box, mislabelled, and the later read was cross-checked against the
+`<select>` the form actually posts. He now dates the `0159` copy to the 14th. If that is a third
+read, the question is open again; if it is the 11th remembered late, it was answered a week ago.
+That is his to settle and not the record's to settle for him.
+
+And there is a third neither of us named: the entries never arriving inside the five-second
+bounded wait. It reads identically.
+
+So the line cannot tell three live possibilities apart — and the runner already knew which,
+because the error it threw names the portal's own list. It just did not say it. It does now, for
+a drifted box only: those two errors are ours, one naming the locators it tried and the other the
+portal's option list with the wanted value given as a character count, because that value may be
+the student's. A box the portal *refused* keeps its silence, and a test of its own holds that
+line.
+
+The other thing attempt 4 made real is a consequence ADR-0110 accepted in advance: his account
+now holds a mixture. Section A of the summary page reads *Niloofar Hosseini, born 02 April 1999*
+beside his own *Mrs* and *Female* — those two boxes are unmapped, so the plan leaves them empty
+and the runner never touched them. Written down field by field, because "the mixture is
+accepted" and "here is the mixture" are different records, and only the second one is evidence.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P177 — the run nobody could see, and why the queue was empty
 
 He resolved the 18 September intervention on the morning of the 21st, the way he always has, and

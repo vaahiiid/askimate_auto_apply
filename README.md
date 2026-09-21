@@ -27,9 +27,9 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P177 — blocker 48: the uniqueness on interventions held for ever rather than over the open one, so a page that stuck, was resolved, and stuck again raised nothing and the run went where nobody could see it. Migration 0007, and a repair for the runs it already stranded |
-| **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ❌ never run against a real portal — that needs the Sheffield entry signed (one signature, his own account only), Bedrock credentials for the product, and his account on the day |
-| **Tests** | **2,782 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Phase** | P178 — attempt 4 filled and SAVED three pages of a real university's form, each read back with every value seen; the fourth stopped on one box, and the line that could not say why now says what the page offered |
+| **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
+| **Tests** | **2,784 passing · 144 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 132 ADRs · all 132 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 

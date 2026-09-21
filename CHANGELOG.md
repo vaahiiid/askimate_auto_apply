@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.174.0] — 2026-09-21
+
+**P178 — attempt 4 filled and saved three pages of a real form; the line that stopped it on the
+fourth now says what the page offered.**
+
+- The runner's page-fill failure line gains a second line **per drifted box**: the error's own
+  words. `LocatorNotFoundError` names the locators it tried; `OptionNotAvailableError` names the
+  portal's option list and gives the wanted value as a character count, because that value may be
+  the student's. A `portal_refused` box keeps its silence — its words came from the portal, about
+  the student's answer — and a test of its own holds that boundary. Red first.
+- **Blocker 49 raised:** the institution box on `education.do`. Of the two causes Vahid named,
+  ADR-0106's rendering limit is ruled out by the executor (an ordinary field's read-back is
+  recorded, never compared), and the mapping-versus-list one is consistent but not established —
+  the record dates his `0159` copy to 2026-09-11 and the `SHEFFIELD` read to 2026-09-13, which
+  ADR-0109 settled in his own words. A third, the entries not arriving inside the five-second
+  wait, reads the same. The new line settles all three on the next attempt.
+- **The ADR-0110 mixture, accepted in advance, recorded as having happened**, field by field, in
+  `docs/run-a/README.md`: `forename`, `surname` and the three date-of-birth boxes on
+  `personal.do` now hold the synthetic profile's values, beside `titleCode` (*Mrs*) and `sex`
+  (*Female*), which are unmapped and untouched.
+
+---
+
 ## [0.173.0] — 2026-09-21
 
 **P177 — blocker 48: a stop that follows a resolution raised nothing, and the run disappeared from

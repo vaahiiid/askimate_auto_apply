@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P178: **attempt 4 filled and saved three pages of Sheffield's own form** —
+  `personal.do`, `contact.do`, `nationality.do` — each pressed, read back and every filled value
+  seen, after signing in through the consent path with the choice recorded. `education.do`
+  stopped on one box of nineteen, twice, and the run stopped for a person under ADR-0122. Of the
+  two causes Vahid named for that box, ADR-0106's rendering limit is ruled out by the executor
+  and the mapping-versus-list one is not established; the runner's line now carries a drifted
+  box's own error, which names the portal's option list and settles it on the next attempt.
+  Blocker 49 raised. The ADR-0110 mixture is now a fact on his account, recorded field by field.
 - 2026-09-21, P177: Vahid signed the corrected entry (`d64e75d`, `sha256:3238406a…`) and the
   catalogue loads again — but attempt 3's run could not be restarted. Blocker 48, found and
   closed: the uniqueness on interventions held over every intervention for a stuck action rather

@@ -107,3 +107,16 @@ And later the same day, on the handover checklist item the consequences below ha
   process with the Fill Agent typing over CDP, the form filled, no creation intent ever opened,
   the portal holding exactly the one account. And in the driver against a real database, and
   in the orchestrator, account and domain packages.
+
+## Observed — 2026-09-21, attempt 4
+
+The mixture this decision accepted is no longer hypothetical. Attempt 4 filled and **saved** three
+pages of Sheffield's real form on Vahid's own account, and section A of the portal's summary page
+now reads *Niloofar Hosseini, born 02 April 1999* — the synthetic profile's name and date of
+birth — beside *Mrs* and *Female*, which are his, because `titleCode` and `sex` are unmapped in
+the signed entry, the plan leaves them empty, and the runner never touched them.
+
+Recorded field by field in [`docs/run-a/README.md`](../run-a/README.md). Nothing here changes:
+this is the consequence written down in *What this decides, and what it does not*, happening.
+It is also why the decision is scoped to his own account under one signature — on anyone else's
+account the same mixture would be two people's details in one application.

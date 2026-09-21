@@ -184,6 +184,40 @@ same run found that a `fix_content` with nothing to ask was a silent dead end; i
 person now. Vahid: *"The star is not the evidence. The save is."* This is the whole argument for
 Run A existing, and it is recorded here as such.
 
+## What attempt 4 put on a real account — the ADR-0110 mixture, now a fact
+
+Attempt 4, 2026-09-21. The runner signed in through the consent path, filled and **saved** three
+pages of Sheffield's real form, and read each one back with every filled value seen:
+`personal.do`, `contact.do`, `nationality.do`. It stopped on `education.do?new=true` before any
+save, so nothing of the fourth page reached the portal — Vahid confirmed both ends afterwards on
+his own account, and section E still lists his two qualifications and no third.
+
+ADR-0110 accepted that a run on an account the student already holds would leave the account
+holding a mixture: what the plan fills is the profile's, what the plan leaves empty stays the
+account holder's. That was a consequence written down in advance. **It has now happened**, and
+these are the fields.
+
+**Changed to the synthetic profile's values** — the boxes the plan fills, from
+`what-will-be-typed.md`, which is the signed record of exactly these:
+
+| Page | Boxes now holding the synthetic profile's values |
+|---|---|
+| `personal.do` | `forename`, `surname`, `dobDay`, `dobMonth`, `dobYear` |
+| `contact.do` | `email`, `confirmEmail`, `corrAddress1`, `corrTown`, `corrCountry`, `corrPostcode`, `corrPostcode2`, `corrIntlPostcode` |
+| `nationality.do` | the boxes of the nationality mapping set the profile's answers make visible (`visibleWhen`, P90): funding nationality, country of birth, permanent residence, the residence history blocks it fills, the status claims, the passport number, and the UK-study block |
+
+Section A of `summary.do` now reads **Niloofar Hosseini, born 02 April 1999** — confirmed by
+Vahid on the live portal, independently of the runner's own read-back.
+
+**Still the account holder's, because the plan leaves them empty and the runner never touched
+them** — on `personal.do`, `titleCode` (*Mrs*) and `sex` (*Female*), both unmapped in the signed
+entry and both listed under *Left empty* in `what-will-be-typed.md`. So one page of a real
+application now carries a synthetic name and date of birth beside a real title and gender.
+
+That is the mixture, exactly as ADR-0110 accepted it, and it is why that decision is scoped to
+**his own account and one signature**: on anyone else's account the same mixture would be two
+people's details in one application.
+
 ## Starting a run in a brand-new conversation, from the raw calls (ADR-0058's two gates)
 
 Verified here on 2026-09-18 against the signed Run A catalogue, as the one student the signature
