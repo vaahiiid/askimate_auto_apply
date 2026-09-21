@@ -4906,6 +4906,63 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P179 — the box answered in one line, and the line learned to ask the next question
+
+Attempt 5 cost one password and one attempt, and the line P178 added did its job on the first
+try:
+
+    institution-ts-control — The portal's "institution-ts-control" list does
+    not offer the confirmed value (9 characters). It offers: .
+
+Empty. So the mapping was never the fault — there was no list for `SHEFFIELD` to disagree with —
+and nothing is re-signed. Two of the three possibilities are closed by one line, which is what a
+line is for.
+
+What is left is why the list was empty, and Vahid put four candidates from things already on the
+record: the country (the search takes it as a parameter, and the country box is itself a typeahead
+whose choice has to reach the hidden select the search reads); whether the request went out at all;
+whether a fill that sets a value in one act fires what a person's typing fires; and whether five
+seconds is enough against a round trip measured once by hand.
+
+The runner could already tell exactly one of them apart, and only by accident of what it keeps: a
+request the allow-list or the robots gate refuses is in `#blocked`. The route guard sees requests
+and never sees answers, and nothing read the hidden select. So three of four were invisible.
+
+They are not now. A box that finds nothing says what the page asked the portal while it was being
+filled: the path in full, each query parameter by name and whether it arrived with anything in it,
+and the answer as a status and a count of entries. `country=(empty)` names the first candidate;
+no record at all names the second and third together; a slow answer names the fourth.
+
+The boundary took the most thought. The path is the portal's and naming it is what makes the line
+useful. The query is not: on this box `name=` carries the text a reviewer recorded, and on the next
+box it would carry the student's own answer — so parameters appear by name and by whether they were
+empty, and never by value. The answer is the portal's, and a count is all that is kept of it: the
+runner has no way to know that some other portal's lookup does not return the student's own saved
+answers. And the absence of a record had to be made to mean two different things, because it does:
+nobody watching is not the same as watching and seeing nothing, and a default that conflated them
+would have had every caller that does not watch assert that the portal was never asked.
+
+Proved through a real browser against a page in the real form's shape — a search that takes a second
+parameter and answers nothing without it — because a diagnostic that has never met a real request
+is a guess about one.
+
+The other half of the day was a correction of ours. He re-read his own 11 September copy of the
+institution dropdown: `id="institution-ts-dropdown"`, entries `institution-opt-1` to `-11`. That is
+this box. The explanation ADR-0109 recorded — that the copy showing `0159` came from a different box
+and was mislabelled — is wrong, and the disagreement between `0159` and `SHEFFIELD`, two reads of one
+box two days apart with identical labels in identical order, is real and unresolved. His decision in
+that ADR stands: the mapping names the value, the reviewer records the text, both must match. What
+changes is the standing of the risk he weighed when he made it — a value that moves on the portal's
+side is now something observed here, not something imagined. The fill's behaviour is the mitigation
+and it is the right one: a value the list no longer carries is a loud refusal, never a quiet
+approximation.
+
+He also corrected his own date, unprompted, before the record had to.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P178 — three pages of a real form, and a line that could not say why the fourth stopped
 
 Attempt 4 is the furthest this has ever got. The repair released the run, the resolution put it
@@ -4938,6 +4995,12 @@ copy was from a different box, mislabelled, and the later read was cross-checked
 `<select>` the form actually posts. He now dates the `0159` copy to the 14th. If that is a third
 read, the question is open again; if it is the 11th remembered late, it was answered a week ago.
 That is his to settle and not the record's to settle for him.
+
+> **Settled the next day, and not the way this paragraph expected.** He re-read his own copy: the
+> date is the 11th, as the record had it, and he corrected that himself — but the markup in the
+> copy is `id="institution-ts-dropdown"` with entries `institution-opt-1` to `-11`, which is this
+> box. So the explanation ADR-0109 carried is wrong and the disagreement is real and open. See
+> P179 and blocker 50.
 
 And there is a third neither of us named: the entries never arriving inside the five-second
 bounded wait. It reads identically.

@@ -1099,15 +1099,33 @@ are distinguishable. That was the question."* Answered: under a value-naming rul
 **And the values have moved.** Against a copy he took from the same box on 2026-09-11 —
 same country, same typed text — every value differs and the order and the text are identical:
 `0159` → `SHEFFIELD`, `1CB` → `SCH40189`, `ZWM` → `SCH40484`, `ZDW` → `SHE0512`, and *Not in
-list* `9004` → its own label. His two candidates, neither chosen: the earlier copy was taken
-from a different box on the same page and mislabelled (*"the likelier and it is my mistake if
+list* `9004` → its own label. His two candidates, neither chosen at the time: the earlier copy was
+taken from a different box on the same page and mislabelled (*"the likelier and it is my mistake if
 so"*), or Sheffield's lookup returns different identifiers at different times.
+
+> **CORRECTED by Vahid, 2026-09-21 — the first candidate is wrong, and the disagreement is real.**
+>
+> He re-read his own copy. The markup in it is `id="institution-ts-dropdown"` with entries
+> `institution-opt-1` to `institution-opt-11` — **the institution box**, not another one. So the
+> explanation that removed his doubt on 2026-09-13, and that ADR-0109 records, does not hold: the
+> `0159` / `SHEFFIELD` disagreement is between two reads of the SAME box two days apart, and it is
+> **unresolved**.
+>
+> The date in the paragraph above is right and the one he gave in passing on the 21st was not: the
+> screenshot that came with the copy is named `2026-09-11_at_21_35_55`. He misdated it, said so,
+> and the record keeps the 11th.
+>
+> What this does NOT change: the decision in ADR-0109 — name the value AND record the text, both
+> must match at the fill — which is his and stands. What it changes is the standing of the risk he
+> weighed when he made it. See the amendment on ADR-0109 itself.
 
 **One fact from this repository.** The earlier copy never entered the record: P102 above ends
 *"the copy is still to arrive"*, and no file here holds `0159`, `1CB`, `ZWM`, `ZDW` or `9004`.
 So nothing recorded is contradicted; the contradiction is between two of his copies, and the
 first is the one the record cannot examine. That is not a resolution — it is why the day-later
-read is his to make and not something the record can substitute for.
+read is his to make and not something the record can substitute for. **And on 2026-09-21 he made
+it, against his own copy, and it went the other way: the copy is of this box.** The reason the
+record could not settle it is exactly the reason given here — it never held the copy.
 
 **The value-versus-text decision is held, on his instruction.** In his words: *"I argued for
 naming the value because values outlast text. On this evidence I cannot say that. I have one

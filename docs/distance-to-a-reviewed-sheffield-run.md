@@ -249,6 +249,13 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-21, P179: **attempt 5 answered the institution box**: the portal's list came back
+  empty, so the mapping was never the fault and the entry is not re-signed. A failed lookup now
+  reports the page's own requests in shape — path, parameter names and whether each arrived empty,
+  the answer as a status and a count — which separates Vahid's four remaining candidates. His
+  correction recorded where it was wrong: the `0159` copy is of this box (2026-09-11), so
+  ADR-0109's account of that contradiction is withdrawn and blocker 50 is open; the decision
+  itself stands.
 - 2026-09-21, P178: **attempt 4 filled and saved three pages of Sheffield's own form** —
   `personal.do`, `contact.do`, `nationality.do` — each pressed, read back and every filled value
   seen, after signing in through the consent path with the choice recorded. `education.do`

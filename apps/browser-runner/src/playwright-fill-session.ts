@@ -44,7 +44,8 @@ import {
   isStateChanging,
   looksLikeSubmission,
 } from "./preparation-safety.js";
-import { BlockedRequestLog } from "./safety.js";
+import type { LookupRecord } from "./safety.js";
+import { BlockedRequestLog, LookupLog, lookupsInWords } from "./safety.js";
 import type { RedactedValue } from "./sensitive.js";
 import { openSensitiveContext, redact, sameRedacted } from "./sensitive.js";
 import { detectChallenge, type Challenge } from "./challenge.js";
@@ -125,25 +126,56 @@ export class OptionNotAvailableError extends Error {
   /** The portal's own list. Not the student's data, so kept in full. */
   public readonly available: readonly { readonly value: string; readonly label: string }[];
 
+  /**
+   * What the page asked the portal while this box was being filled (P179).
+   *
+   * `undefined` and `[]` are DIFFERENT and the distinction is the point:
+   * `undefined` means nobody was watching, so the line says nothing about
+   * requests; `[]` means somebody was, and the page asked for nothing. A
+   * default of `[]` would have made every caller that does not watch assert
+   * that the portal was never asked — which is the class of claim this
+   * repository exists to refuse.
+   */
+  public readonly lookups: readonly LookupRecord[] | undefined;
+
   public constructor(
     locator: FieldLocator,
     wanted: string,
     available: readonly { readonly value: string; readonly label: string }[],
+    lookups?: readonly LookupRecord[],
   ) {
     // The wanted value is NOT in the message. It is the student's answer —
     // a nationality, a country of birth — and this message goes into logs,
     // escalations and specialist reports. The portal's own option list is the
     // portal's, and naming it is what makes the error actionable.
+    //
+    // ── And, when the list is EMPTY, what the page asked for (P179) ───────
+    //
+    // Attempt 5 on the first real form: `It offers: .` — nothing, and the
+    // line stopped there. An empty list has at least four causes on this
+    // portal's record (blocker 49) and the option list cannot separate them,
+    // because the difference is in what the page asked and what came back.
+    // Vahid, 2026-09-21: *"make the next failure line say … what the country
+    // box holds at that moment, whether a request to search.app went out, and
+    // what it answered — status and entry count, never the entries' text."*
+    //
+    // `lookupsInWords` is where that boundary is drawn: paths in full,
+    // parameters by name and whether they arrived empty, the answer as a
+    // status and a count. The query's VALUES never appear — on this box one
+    // of them is the text the reviewer recorded, and on the next box it would
+    // be the student's own answer.
     super(
       `The portal's "${locator.value}" list does not offer the confirmed value ` +
         `(${String(wanted.length)} characters). It offers: ` +
         `${available.map((option) => `${option.value} (${option.label})`).join(", ")}. ` +
+        `${lookups === undefined ? "" : `${lookupsInWords(lookups)} `}` +
         `The mapping is out of step with the portal and a specialist must review it — the ` +
         `nearest option is not chosen.`,
     );
     this.locator = locator;
     this.wanted = redact(wanted);
     this.available = available;
+    this.lookups = lookups;
   }
 }
 
@@ -165,6 +197,88 @@ export class LocatorNotFoundError extends Error {
  */
 const OPTION_WAIT_MS = 5_000;
 
+/**
+ * Records what the PAGE fetched from the portal, in shape (P179).
+ *
+ * ── Why a response listener and not the route guard ───────────────────────
+ *
+ * The guard sees requests before they go and decides whether they may; it
+ * cannot see what came back. The question a box that found nothing raises is
+ * exactly about what came back, so this listens for the answers.
+ *
+ * Read-only and bounded, in that order:
+ *
+ *   - **same host only.** Another host's answer is not this portal's, and the
+ *     allow-list has already refused most of them;
+ *   - **GET only.** A write is `#writes`'s business, and this is about
+ *     lookups;
+ *   - **the body is read only to COUNT it**, only when the portal says it is
+ *     JSON, and only under a ceiling. Nothing of the body is kept: not the
+ *     entries, not a sample, not the first characters. A count of a list and
+ *     a status are the whole record.
+ *
+ * Every failure here is swallowed: a diagnostic that can break a fill is
+ * worse than no diagnostic. A body that cannot be read is recorded as
+ * `not read`, which is itself worth knowing.
+ */
+const COUNTABLE_BODY_BYTES = 262_144;
+
+function watchLookups(page: Page, log: LookupLog): void {
+  page.on("response", (response) => {
+    void (async () => {
+      const request = response.request();
+      if (request.method().toUpperCase() !== "GET") return;
+      const here = safeUrl(page.url());
+      const asked = safeUrl(response.url());
+      if (here === null || asked === null || here.host !== asked.host) return;
+      log.record({
+        method: request.method().toUpperCase(),
+        path: asked.pathname,
+        params: [...asked.searchParams].map(([name, value]) => ({
+          name,
+          empty: value.trim().length === 0,
+        })),
+        status: response.status(),
+        answer: await answerShape(response),
+      });
+    })().catch(() => undefined);
+  });
+}
+
+function safeUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+/** A status and a count, or why there is no count. Never the body itself. */
+async function answerShape(response: {
+  headers: () => Record<string, string>;
+  body: () => Promise<Buffer>;
+}): Promise<string> {
+  const type = (response.headers()["content-type"] ?? "").toLowerCase();
+  if (!type.includes("json")) return "not json";
+  let body: Buffer;
+  try {
+    body = await response.body();
+  } catch {
+    return "not read";
+  }
+  if (body.byteLength > COUNTABLE_BODY_BYTES) return "too large to count";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body.toString("utf8"));
+  } catch {
+    return "not json";
+  }
+  // A top-level list is the shape this portal's lookups answer with. Anything
+  // else is reported as not a list rather than guessed at: counting a key of
+  // an object nobody has read would be an invention about the portal.
+  return Array.isArray(parsed) ? `${String(parsed.length)} entries` : "not a list";
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -180,6 +294,14 @@ export class PlaywrightPreparationSession implements FillableSession {
     readonly stored: RedactedValue;
   }[] = [];
   readonly #blocked = new BlockedRequestLog();
+  /**
+   * What the PAGE asked the portal, for a box that found nothing (P179).
+   *
+   * Separate from `#blocked` and `#writes`, which record what the guard
+   * refused and what we sent. This records what the page fetched and what came
+   * back, in shape only — see `LookupRecord` for where that line is drawn.
+   */
+  readonly #lookups = new LookupLog();
   #browser: Browser | null = null;
   #context: BrowserContext | null = null;
   #page: Page | null = null;
@@ -215,6 +337,7 @@ export class PlaywrightPreparationSession implements FillableSession {
   ): PlaywrightPreparationSession {
     const session = new PlaywrightPreparationSession({ ...mode, traceDir: "" });
     session.#page = page;
+    watchLookups(page, session.#lookups);
     return session;
   }
 
@@ -281,6 +404,7 @@ export class PlaywrightPreparationSession implements FillableSession {
     });
 
     session.#page = await session.#context.newPage();
+    watchLookups(session.#page, session.#lookups);
     return session;
   }
 
@@ -433,6 +557,9 @@ export class PlaywrightPreparationSession implements FillableSession {
       });
     }
     const box = await this.#resolve([locator]);
+    // Marked BEFORE anything is typed, so what follows is this box's own
+    // lookups and not the page's load (P179).
+    const askedFrom = this.#lookups.mark();
     await box.fill(entries.text);
 
     const page = this.#requirePage();
@@ -453,7 +580,7 @@ export class PlaywrightPreparationSession implements FillableSession {
       const shown = await offered.evaluateAll((elements) =>
         elements.map((element) => ({ value: (element.getAttribute("data-value") ?? "").trim(), label: (element.textContent ?? "").trim() })),
       );
-      throw new OptionNotAvailableError(locator, value, shown);
+      throw new OptionNotAvailableError(locator, value, shown, this.#lookups.since(askedFrom));
     }
     if (looksLikeSubmission(entries.text)) {
       throw new ClickRefusedError({

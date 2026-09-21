@@ -337,3 +337,103 @@ export class RequestTally {
     );
   }
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// What the page asked the portal while a box was being filled (P179)
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * One same-host GET the page made, as much of it as the runner may repeat.
+ *
+ * ── The boundary, and why it is drawn here ────────────────────────────────
+ *
+ * The PATH is the portal's own, and naming it is what makes a lookup
+ * actionable. The QUERY is not: on this portal the institution search carries
+ * `?name=…`, which is whatever was typed into the box — a reviewed constant
+ * for one field and the student's own answer for the next. So the query is
+ * reduced to the shape it has: each parameter's NAME, and whether it arrived
+ * with anything in it. That answers "did the country reach the search?"
+ * without printing a single value.
+ *
+ * The ANSWER is the portal's: a status, and a count when the body is a list.
+ * Never the entries themselves — the runner has no way to know that an
+ * institution list is not, on some other portal, a list of the student's own
+ * saved answers.
+ */
+export interface LookupRecord {
+  readonly method: string;
+  /** Path only. The query is next, in shape. */
+  readonly path: string;
+  readonly params: readonly { readonly name: string; readonly empty: boolean }[];
+  readonly status: number;
+  /**
+   * What came back, in the runner's words: `"7 entries"` when the body is a
+   * JSON list, and otherwise why it is not counted — `"not json"`,
+   * `"not a list"`, `"not read"`, `"too large to count"`.
+   */
+  readonly answer: string;
+}
+
+/**
+ * The last few lookups, so a box that found nothing can say what the page
+ * asked for and what came back.
+ *
+ * Bounded on purpose: this holds responses from a live portal in memory, and
+ * an unbounded log of them on a page that polls would grow without limit.
+ * `mark()` and `since()` scope it to one box's fill — everything else on the
+ * page is somebody else's business.
+ */
+export class LookupLog {
+  readonly #entries: LookupRecord[] = [];
+  readonly #ceiling: number;
+
+  public constructor(ceiling = 50) {
+    this.#ceiling = ceiling;
+  }
+
+  public record(entry: LookupRecord): void {
+    this.#entries.push(entry);
+    if (this.#entries.length > this.#ceiling) this.#entries.shift();
+  }
+
+  /** Where the log stands now. */
+  public mark(): number {
+    return this.#entries.length;
+  }
+
+  /** What was recorded after a mark — capped, because a line is read by a person. */
+  public since(mark: number, most = 5): readonly LookupRecord[] {
+    return this.#entries.slice(Math.max(mark, 0)).slice(0, most);
+  }
+
+  public get count(): number {
+    return this.#entries.length;
+  }
+}
+
+/** One lookup, in the words the runner is allowed. */
+export function lookupInWords(entry: LookupRecord): string {
+  const query =
+    entry.params.length === 0
+      ? ""
+      : `?${entry.params.map((param) => `${param.name}=${param.empty ? "(empty)" : "(set)"}`).join("&")}`;
+  return `${entry.method} ${entry.path}${query} → ${String(entry.status)}, ${entry.answer}`;
+}
+
+/**
+ * What the page asked while a box was being filled, for a failure's own words.
+ *
+ * The no-request case is the one worth reading twice: a box that found nothing
+ * and a page that asked nothing are a different fault from a box that found
+ * nothing because the portal answered with nothing.
+ */
+export function lookupsInWords(entries: readonly LookupRecord[]): string {
+  if (entries.length === 0) {
+    return `While this box was being filled the page made NO request of its own to the portal.`;
+  }
+  return (
+    `While this box was being filled the page asked the portal ` +
+    `${entries.length === 1 ? "once" : `${String(entries.length)} times`}: ` +
+    `${entries.map(lookupInWords).join("; ")}.`
+  );
+}

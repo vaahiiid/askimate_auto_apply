@@ -200,6 +200,56 @@ describe("filling a fixture portal", () => {
         res.writeHead(200, { "content-type": "text/html" }).end(sheffieldSummary);
         return;
       }
+      // ── A lookup box in the first real form's shape (P179) ───────────
+      //
+      // Sheffield's institution search takes the chosen COUNTRY as a
+      // parameter and answers nothing without it, and its entries arrive by
+      // fetch rather than with the page. Attempt 5 met exactly that: the box
+      // offered nothing and the line could not say whether anything had been
+      // asked. This page is that shape, so the answer can be proved through a
+      // real browser making a real request.
+      if (req.method === "GET" && req.url?.startsWith("/lookup/search")) {
+        const asked = new URL(req.url, "http://127.0.0.1");
+        const forCountry = (asked.searchParams.get("country") ?? "").length > 0;
+        res
+          .writeHead(200, { "content-type": "application/json" })
+          .end(
+            JSON.stringify(
+              forCountry ? [{ value: "SHEFFIELD", label: "University of Sheffield" }] : [],
+            ),
+          );
+        return;
+      }
+      if (req.method === "GET" && req.url === "/lookup") {
+        res.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html>
+<html><body>
+  <input type="hidden" id="country" value="">
+  <label for="place">Search for an institution...</label>
+  <input type="text" id="place" autocomplete="off">
+  <ul id="placeOptions" role="listbox"></ul>
+  <script>
+    var box = document.getElementById("place");
+    box.addEventListener("input", function () {
+      var country = document.getElementById("country").value;
+      fetch("/lookup/search?name=" + encodeURIComponent(box.value) + "&studyAbroad=false&country=" + encodeURIComponent(country))
+        .then(function (answer) { return answer.json(); })
+        .then(function (offered) {
+          var list = document.getElementById("placeOptions");
+          list.innerHTML = "";
+          offered.forEach(function (entry) {
+            var option = document.createElement("li");
+            option.setAttribute("role", "option");
+            option.setAttribute("data-selectable", "");
+            option.setAttribute("data-value", entry.value);
+            option.textContent = entry.label;
+            list.appendChild(option);
+          });
+        });
+    });
+  </script>
+</body></html>`);
+        return;
+      }
       if (req.method === "POST" && req.url === "/apply/save") {
         saved.push(req.url);
         res.writeHead(204).end();
@@ -473,6 +523,93 @@ describe("filling a fixture portal", () => {
     await expect(session.fillTypeahead(BIRTH_COUNTRY, entries("Ital"), confirmedText("ITALY"))).rejects.toThrow(OptionNotAvailableError);
     expect(await session.readValue(CODE)).toBe("");
   }, 60_000); // six bounded waits, each the runner's own five seconds
+
+  // ── P179: a box that found nothing says what the page ASKED for ───────
+
+  const PLACE: FieldLocator = { strategy: "id", value: "place" };
+  const PLACE_ENTRIES: FieldLocator = {
+    strategy: "css",
+    value: '#placeOptions [role="option"][data-selectable]',
+  };
+
+  it("says what the page asked the portal and what came back, when the list arrives EMPTY", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Attempt 5 on the first real form, 2026-09-21. The line said:
+    //
+    //   institution-ts-control — The portal's "institution-ts-control" list
+    //   does not offer the confirmed value (9 characters). It offers: .
+    //
+    // Empty, and nothing else. Four causes on the record read the same way
+    // (blocker 49), and the option list cannot separate them, because the
+    // difference is in what the page asked for and what the portal answered.
+    //
+    // This page is the real form's shape: the search takes the chosen country
+    // and answers nothing without it, and the entries arrive by fetch.
+    // ═══════════════════════════════════════════════════════════════════
+    const session = await openSession();
+    await session.goto(`${baseUrl}/lookup`);
+
+    let thrown: unknown;
+    try {
+      await session.fillTypeahead(
+        PLACE,
+        { optionLocator: PLACE_ENTRIES, text: "University of Sheffield" },
+        confirmedText("SHEFFIELD"),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("the list is empty");
+
+    // The request went out, and the parameter that would have found something
+    // arrived empty. That is the whole answer, and neither half of it is a
+    // value: `name` is the text the reviewer recorded, and on the next box it
+    // would be the student's own answer.
+    expect(thrown.message).toContain(
+      "GET /lookup/search?name=(set)&studyAbroad=(set)&country=(empty) → 200, 0 entries",
+    );
+    expect(thrown.message).toContain("the page asked the portal once");
+    // Never the values, on either side: not what was typed, not what the
+    // portal would have answered for a country that was set.
+    expect(thrown.message).not.toContain("University of Sheffield");
+    expect(thrown.message).not.toContain("UNITED KINGDOM");
+  }, 30_000);
+
+  it("says the page asked NOTHING when the entries are already there — the other half of the answer", async () => {
+    // The same failure with no request behind it. `birthCountry`'s entries
+    // are in the page, so a box that finds nothing there is a different
+    // fault from one whose lookup came back empty, and the line says which.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    let thrown: unknown;
+    try {
+      await session.fillTypeahead(BIRTH_COUNTRY, entries("Atlantis"), confirmedText("ATLANTIS"));
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("Atlantis is not offered");
+    expect(thrown.message).toContain("the page made NO request of its own to the portal");
+  }, 30_000);
+
+  it("says NOTHING about requests when nobody was watching — the difference between none and unknown", async () => {
+    // `awaitOption` raises the same error for a list that is already on the
+    // page, and it does not watch. An empty record there would read as *the
+    // page asked for nothing*, which nobody established. The line is silent
+    // instead, and that silence is the honest answer.
+    const session = await openSession();
+    await session.goto(`${baseUrl}/apply`);
+    await session.fill({ strategy: "id", value: "nationality" }, confirmedText("IR"));
+    let thrown: unknown;
+    try {
+      await session.awaitOption({ strategy: "id", value: "passportCountry" }, "GB");
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof OptionNotAvailableError)) expect.unreachable("GB is not offered");
+    expect(thrown.lookups, "nobody watched, and the error says so by holding nothing").toBeUndefined();
+    expect(thrown.message).not.toContain("asked the portal");
+    expect(thrown.message).not.toContain("NO request");
+  }, 30_000);
 
   it("REFUSES the form's ESCAPE by its value, whatever it reads as — closing P102's OPEN case", async () => {
     // Sheffield's institution list ends with "Not in list", whose value is

@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.175.0] — 2026-09-21
+
+**P179 — the institution box answered: the list was empty. The line now says what the page asked
+for and what came back.**
+
+- A typeahead that finds no entry reports **the page's own lookups during that box's fill**: the
+  path in full, each query parameter by name and whether it arrived empty, and the answer as a
+  status and an entry count. The query's values never appear — on one box that is the reviewer's
+  recorded text, on the next it would be the student's answer — and nothing of a response body is
+  kept but its count.
+- `OptionNotAvailableError.lookups` distinguishes **`undefined` (nobody watched)** from **`[]`
+  (watched, nothing asked)**. A default of `[]` would have made every caller that does not watch
+  assert that the portal was never asked.
+- Red first, through a real browser against a page in the first real form's shape: a search that
+  takes a second parameter and answers nothing without it.
+- **Blocker 49 rewritten** around Vahid's four candidates for the empty list, with which one the
+  runner could already tell apart (only a refusal the guard recorded) and what each answer now
+  looks like.
+- **Blocker 50 raised, and ADR-0109 amended.** His correction, against his own copy: the markup
+  showing `0159` is `id="institution-ts-dropdown"` with entries `institution-opt-1` to `-11` —
+  the institution box, taken 2026-09-11. The ADR's account of the contradiction as a mislabelled
+  copy is withdrawn; its **decision stands**, and the risk it weighed is now observed on this
+  portal rather than conceivable.
+
+---
+
 ## [0.174.0] — 2026-09-21
 
 **P178 — attempt 4 filled and saved three pages of a real form; the line that stopped it on the

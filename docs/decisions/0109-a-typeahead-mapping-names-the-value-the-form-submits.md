@@ -85,3 +85,41 @@ And on the escape, whose value on that form is its own label:
 - No mapping to either Sheffield box is signed: the institution box's entries are recorded so
   that one can be; the country box's are the captured `<select>`'s, still to be recorded on the
   box itself when a mapping is authored.
+
+## Amended — 2026-09-21: the evidence that removed the doubt was wrong
+
+**The decision above stands unchanged.** A typeahead mapping names the value, the reviewer records
+the text, both must match at the fill, and the preview shows the student the words. That is his and
+he has not revisited it.
+
+What is withdrawn is the *Context*'s account of why the doubt went away. It says the earlier copy —
+the one showing `0159` for *University of Sheffield* — "had been from a different box, mislabelled".
+On 2026-09-21 Vahid re-read that copy:
+
+> the markup in that copy was `id="institution-ts-dropdown"` with entries `institution-opt-1` to
+> `-11`, which is the institution box, not a different one — so the `0159` / `SHEFFIELD`
+> disagreement is real, and it is still unresolved.
+
+So: the copy is of this box, taken on 2026-09-11 (the screenshot with it is named
+`2026-09-11_at_21_35_55`; he had said the 14th in passing and corrected it himself). Two reads of the
+same box, two days apart, same country and same typed text, identical labels in identical order, and
+**every value different**.
+
+### What that changes
+
+- The consequence recorded below — *"A value that moves on the portal's side breaks a mapping
+  pinned to it — the risk he weighed. The evidence for it was his own mislabelled copy"* — is
+  **wrong in its second sentence**. The evidence was a real read of the real box, and the risk is
+  therefore **observed on this portal, not merely conceivable**. It is open.
+- The mitigation named there still stands and is the right one: the `<select>` the form posts is
+  what a drift test reads. It has been read once, on 2026-09-13, and it agreed with `SHEFFIELD`.
+  One agreement two days after one disagreement does not close the question.
+- Nothing about the fill changes. The runner requires the text and the value, and a value the list
+  no longer carries is a loud refusal rather than a wrong choice — which is precisely the behaviour
+  that makes an unstable value safe to discover rather than dangerous to rely on.
+
+### Why it did not cost a signature on 2026-09-21
+
+Attempt 5's failure was **not** this. The box answered with an empty list and the runner's line now
+says why: the page's own lookup came back with nothing in it. The value question was never reached.
+Recorded as blocker 49's second half, and open.
