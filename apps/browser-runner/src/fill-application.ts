@@ -279,8 +279,14 @@ export async function fillApplication(
     // wanted as a character count precisely because that value may be. A
     // `refused` came from the portal, about the student's answer, and keeps
     // its silence.
+    // P186: printed when the WORDS ARE OURS, which is a superset of drift.
+    // A control the page does not show is not drift — the blueprint is right
+    // about the page — and the reason is still the runner's own check to
+    // state. A message the PORTAL produced about the student's answer is
+    // still never printed, and `ours` is the closed list that says which is
+    // which.
     for (const outcome of failed) {
-      if (!outcome.drift) continue;
+      if (outcome.ours !== true && !outcome.drift) continue;
       say(`${run}: ${outcome.fieldRef} — ${outcome.error}`);
     }
     return {

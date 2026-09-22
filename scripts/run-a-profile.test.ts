@@ -307,7 +307,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is UNSIGNED after the P185 month correction moved the hash: the directory REFUSES it, loudly, and waits for Vahid to sign the new one", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — RE-SIGNED a FOURTH time after the P185 month-spelling correction (2026-09-22, commit db5fe3d): the directory loads and admits exactly that account", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Three signatures now, and the third is the one this test is about.
     //
@@ -342,32 +342,29 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
     expect(labelledHash(toCanonical(value))).toBe("sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef");
     // ═══════════════════════════════════════════════════════════════════
-    // UNSIGNED as of P185, and the directory REFUSES it. This is the control
-    // working, not a defect.
+    // SIGNED again on 2026-09-22 (commit db5fe3d), a FOURTH signature.
     //
-    // Attempt 8 met the portal's refusal on "Sep": the education date maps
-    // sent three month names the select does not offer (ADR-0136). Correcting
-    // them changed what will be typed — Sept, June, July — and changing what
-    // will be typed moves the hash, which voids the signature. Vahid, before
-    // the first signature: "If anything in either changes afterwards — a
-    // label, a value, a condition — the hash moves and the approval is void,
-    // and I would rather that happened loudly than be worked around."
+    // P185 corrected the education month maps from `Sep`/`Jun`/`Jul` to the
+    // select's own `Sept`/`June`/`July`, which changed what will be typed and
+    // so moved the hash and voided the third signature. The approval was
+    // removed rather than re-pointed — an agent cannot sign for him — and this
+    // test asserted the refusal while the entry waited.
     //
-    // So the approval is REMOVED rather than re-pointed. An agent cannot
-    // re-sign on his behalf: a hash written into approvals.json by anything
-    // but him is a signature he did not give. The entry waits, refused, until
-    // he signs the hash above — which is the one thing this test asserts.
+    // He signed the new hash himself. What changed between the two signatures
+    // is three typed values in what-will-be-typed.md, and unlike the previous
+    // two re-signatures it IS what goes into a box.
+    //
+    // P186 corrected this test back: the assertion that the directory refuses
+    // was true for eight hours and false the moment he signed.
     // ═══════════════════════════════════════════════════════════════════
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "an unapproved entry does not load").toBe(false);
-    if (load.ok) expect.unreachable("checked above");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef",
-    );
-    // NO approval on file: the void one is gone, not left behind asserting an
-    // approval for content that no longer exists.
+    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    // ONE approval on file: the voided one is gone, not merely outvoted.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
-    expect(approvals, "no signature until Vahid gives one").toHaveLength(0);
+    expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {

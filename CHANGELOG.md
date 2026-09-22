@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.182.0] — 2026-09-22
+
+**P186 — ADR-0137: a refusal in the runner's own words may be said; the portal's words about the
+student's answer still may not.**
+
+- **Attempt 9:** the corrected month maps took (`Sept`, `June`, `July`) and the institution box held
+  again. `certificateStatus` refused, and the line said nothing.
+- **Read from `education.js`, and Vahid's reading holds.** `endDateChanged` shows
+  `preCompletionDocuments` on ONE branch — the end or award date in the FUTURE — and hides it on
+  both others. That branch returns early; the two that do not then tick `certificateNotRequired`
+  and `transcriptNotRequired` themselves. So for a finished qualification the page hides that pair
+  AND assigns it, which is what his own summary.do reads: *Not required or uploaded elsewhere*.
+- **Not established:** that the two radio groups are DOM children of `#preCompletionDocuments`. No
+  capture holds the page's HTML. The new line settles it on the next attempt.
+- **Built:** `ControlNotActionableError` with a closed set of the runner's own checks —
+  `not_visible`, `not_enabled`, `not_editable`, `not_present`, `did_not_settle` — and `ours`
+  beside `drift` on every outcome, so a failure line may print the runner's words and never the
+  portal's. An act on a control is bounded at five seconds rather than thirty. Red first, on a
+  radio inside a `display:none` container and on a disabled box.
+- **Not built:** the `visibleWhen` for the two slots. `FieldCondition` compares another field's
+  VALUE; Sheffield's rule compares a DATE to today, with the award date replacing the end date when
+  there is one. Blocker 57, three options, none chosen.
+- **`main` was red on arrival:** the re-signature commit (db5fe3d) added the approval without
+  updating the P185 test that asserted the entry was unsigned. Corrected.
+
+---
+
 ## [0.181.0] — 2026-09-22
 
 **P185 — ADR-0136: an option map is checked against the list that was captured, by the build.**

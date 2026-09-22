@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-22, P186: **attempt 9's silent box, read out of the portal's own code (ADR-0137)**. The
+  page shows the two pre-completion document rows only when the end or award date is in the FUTURE,
+  and for a finished qualification hides them and ticks `certificateNotRequired` /
+  `transcriptNotRequired` itself — which is what Vahid's own summary.do reads. The refused line now
+  names the runner's own check (`not_visible`, `not_enabled`, …) in a closed set, and an act on a
+  control is bounded at five seconds. The `visibleWhen` is NOT built: Sheffield's rule is a date
+  comparison against today and `FieldCondition` compares field values. Blocker 57, three options,
+  none chosen.
 - 2026-09-22, P185: **attempt 8 filled the institution box — 18 of 19 — and one month name refused
   (ADR-0136)**. The set sent `Sep`; Sheffield's list says `Sept`, and June and July are four
   letters too, so all three of the synthetic profile's education months would have failed. All 45

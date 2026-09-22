@@ -4906,6 +4906,60 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P186 — what the page does not show, and a line that would not say so
+
+The month maps took. The institution box held. One box refused and the line said the word
+`refused` and stopped, which is what P178 decided it should do and what nine attempts have now
+cost.
+
+His reading of the record was right, and `education.js` says more than he framed. `endDateChanged`
+has three branches. The first fires when the end date — or the AWARD date, which replaces it when
+there is one — is later than the first of the current month: still in progress. Only that branch
+shows `preCompletionDocuments`, and it returns before anything else runs. The other two hide it,
+`display:none`, and then tick `certificateNotRequired` and `transcriptNotRequired` themselves when
+those radios are unset.
+
+So for a qualification that has finished, the page both hides that pair and answers it. Which is
+exactly what his own summary page says for both of his real qualifications: *Not required or
+uploaded elsewhere*. The portal set them. The blueprint records six document slots on that page and
+`certificateStatus` and `transcriptStatus` are the first two — his four-of-six count, confirmed
+from our own record.
+
+One thing I have not established and will not claim: that those two radio groups are DOM children
+of `#preCompletionDocuments`. No capture holds that page's HTML. What I have is the pair of names,
+the branch that hides the container, the same region ticking exactly those two radios, his count,
+and his summary line. That is a strong chain and it is still a chain. The line built this phase
+settles it from the runner's own mouth, which is better than another inference.
+
+The line. P178's boundary was *drift may speak, a refusal may not*, on the reasoning that a refusal
+came from the portal about the student's answer. That is true of a validation message and false as
+a rule. The question is not whether it was drift; it is **whose words these are**. So there is now
+a closed list of errors this repository raises itself, and an outcome carries `ours` beside
+`drift`. A control that cannot be set is diagnosed by the runner's own checks — not visible, not
+enabled, not editable, not present — read from the element's own state, quoting nothing of the page
+and nothing of the student.
+
+An act on a control is also bounded at five seconds now. Playwright waits thirty by default, which
+is right for a page still loading and absurd for a control the page has decided not to show: the
+answer will not change and the run pays half a minute to learn nothing.
+
+What I did not build is the thing he asked for, and the reason is worth stating plainly rather than
+working around. He asked for *the visibleWhen the page actually uses*. The page's rule is a date
+comparison against today, with the award date substituting for the end date when one exists.
+`FieldCondition` is equals, not_equals, is_checked, is_not_empty and in — all over another field's
+VALUE. There is no way to say *later than the first of this month* in it. I could invent an
+operator; inventing one would make the plan time-dependent, and a plan is built once, signed, and
+executed later. That is blocker 57 with three options and none chosen, because choosing it is his.
+
+And `main` was red when I arrived. His re-signature added the approval without touching the test I
+wrote last phase asserting the entry was unsigned — true for eight hours, false the moment he
+signed. Corrected here, and worth noting as a shape: a test that asserts a temporary state has to
+be taken down by whoever ends it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P185 — the box took its value, and the month did not
 
 Attempt 8 on his own account: eighteen of nineteen boxes on the education page took their values,

@@ -31,6 +31,7 @@ import {
 } from "./preparation-safety.js";
 import {
   ClickRefusedError,
+  ControlNotActionableError,
   LocatorNotFoundError,
   OptionNotAvailableError,
   PlaywrightPreparationSession,
@@ -313,6 +314,20 @@ describe("filling a fixture portal", () => {
         });
     }
   </script>
+</body></html>`);
+        return;
+      }
+      // P186: a radio group the page HIDES, the shape attempt 9 met on
+      // Sheffield — `certificateStatus` inside a container `endDateChanged`
+      // sets to `display:none` for a qualification that has finished.
+      if (req.method === "GET" && req.url === "/hidden-radio") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(`<!doctype html>
+<html><body>
+  <div id="preCompletionDocuments" style="display:none">
+    <input type="radio" name="certificateStatus" value="Uploaded"> now
+    <input type="radio" name="certificateStatus" value="UploadLater"> later
+  </div>
+  <input type="text" id="disabledBox" disabled value="">
 </body></html>`);
         return;
       }
@@ -892,6 +907,50 @@ describe("filling a fixture portal", () => {
   it("refuses to navigate off the allow-listed host", async () => {
     const session = await openSession();
     await expect(session.goto("https://www.ulster.ac.uk/")).rejects.toThrow(/allow-list/);
+  }, 30_000);
+
+  it("SAYS which of its own checks refused, for a control the page does not show (P186)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Attempt 9 on Sheffield, 2026-09-22: `page fill failed — 1 of 19 boxes
+    // did not take its value (refused): certificateStatus`, and nothing more.
+    // The reason had to be inferred from a capture, a summary page and a
+    // count of rows. Vahid: "a silent failure line costs a password each
+    // time."
+    // ═══════════════════════════════════════════════════════════════════
+    const session = await openSession();
+    await session.goto(`${baseUrl}/hidden-radio`);
+
+    let thrown: unknown;
+    try {
+      await session.fillConstant({ strategy: "name", value: "certificateStatus" }, "UploadLater");
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof ControlNotActionableError)) {
+      expect.unreachable(`expected the runner's own check, got ${String(thrown)}`);
+    }
+    expect(thrown.check).toBe("not_visible");
+    expect(thrown.message).toContain("NOT VISIBLE");
+    expect(thrown.message).toContain("certificateStatus");
+    // The runner's own words, and nothing of the page's: no label, no value,
+    // no validation text.
+    expect(thrown.message).toContain("the runner's own check, not the portal's words");
+    expect(thrown.message).not.toContain("later");
+  }, 30_000);
+
+  it("tells a control it cannot see from one it cannot use (P186)", async () => {
+    const session = await openSession();
+    await session.goto(`${baseUrl}/hidden-radio`);
+    let thrown: unknown;
+    try {
+      await session.fillConstant({ strategy: "id", value: "disabledBox" }, "anything");
+    } catch (error) {
+      thrown = error;
+    }
+    if (!(thrown instanceof ControlNotActionableError)) expect.unreachable("expected our own check");
+    // Visible, and not usable: a different finding, and the line says which.
+    expect(thrown.check).toBe("not_enabled");
+    expect(thrown.message).toContain("NOT ENABLED");
   }, 30_000);
 
   it("reports blueprint drift rather than looking for something similar", async () => {

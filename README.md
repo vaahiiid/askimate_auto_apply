@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P185 — ADR-0136: attempt 8 filled the institution box and one month name refused. Every option map audited against the captured list; the build now refuses one the list does not hold. The entry is unsigned until Vahid re-signs |
+| **Phase** | P186 — ADR-0137: a refusal in the runner's own words may be said. Attempt 9's silent box read out of `education.js`: the page hides the two pre-completion document rows for a finished qualification and ticks them itself. The condition is a date comparison the schema cannot express — blocker 57, three options, none chosen |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
-| **Tests** | **2,799 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 136 ADRs · all 136 Accepted |
+| **Tests** | **2,801 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 137 ADRs · all 137 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

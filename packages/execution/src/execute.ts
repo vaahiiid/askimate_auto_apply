@@ -143,6 +143,13 @@ export type ExecutionOutcome =
        * with this particular run (brief §3.2).
        */
       readonly drift: boolean;
+      /**
+       * Whether the error's words are the RUNNER'S OWN and may be said (P186).
+       * A superset of `drift`: a control the page does not show is not drift —
+       * the blueprint is right about the page — but the reason is ours to
+       * state. Optional so a caller that does not set it is unchanged.
+       */
+      readonly ours?: boolean;
     };
 
 export interface ExecutionReport {
@@ -289,6 +296,7 @@ export async function executePlan(
         fieldRef: instruction.fieldRef,
         error: error instanceof Error ? error.message : String(error),
         drift: isDrift(error),
+        ours: isOurs(error),
       });
       return report(outcomes, plan, false, transmissions);
     }
@@ -389,6 +397,7 @@ export async function executePlan(
         fieldRef: upload.fieldRef,
         error: error instanceof Error ? error.message : String(error),
         drift: isDrift(error),
+        ours: isOurs(error),
       });
       return report(outcomes, plan, false, transmissions);
     }
@@ -400,6 +409,30 @@ export async function executePlan(
 function isDrift(error: unknown): boolean {
   const name = (error as { name?: unknown } | null)?.name;
   return name === "LocatorNotFoundError" || name === "OptionNotAvailableError";
+}
+
+/**
+ * Whether this error's WORDS ARE THE RUNNER'S OWN, and so may be said (P186).
+ *
+ * P178 let a failure line print a drifted box's error and kept every other
+ * failure silent, because *"a `refused` came from the portal, about the
+ * student's answer"*. True of a portal's validation message; not true of the
+ * runner's own checks. Attempt 9 spent a password on a line that said
+ * `refused` and nothing else, about a control the page simply does not show.
+ *
+ * So the question is not *was this drift* but *whose words are these*. Every
+ * name here belongs to an error this repository raises, in wording it chose,
+ * quoting nothing of the page and nothing of the student.
+ */
+function isOurs(error: unknown): boolean {
+  const name = (error as { name?: unknown } | null)?.name;
+  return (
+    name === "LocatorNotFoundError" ||
+    name === "OptionNotAvailableError" ||
+    name === "ControlNotActionableError" ||
+    name === "ClickRefusedError" ||
+    name === "RobotsDisallowedError"
+  );
 }
 
 function report(

@@ -213,6 +213,88 @@ export class OptionNotAvailableError extends Error {
   }
 }
 
+/**
+ * The control is on the page and the runner could not set it (P186).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * WHY A `refused` MAY NOW SAY SOMETHING, WHEN P178 DECIDED IT MAY NOT
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * P178 drew the line at drift: `LocatorNotFoundError` and
+ * `OptionNotAvailableError` are the RUNNER'S OWN errors, in words it chose,
+ * and a `refused` keeps its silence because *"a `refused` came from the
+ * portal, about the student's answer"*.
+ *
+ * That is right about a portal's validation message and wrong as a rule about
+ * every refusal, and attempt 9 is what showed the cost. One box on a real
+ * form reported `refused` and nothing else; the reason — almost certainly a
+ * radio inside a container the page hides for a completed qualification — had
+ * to be inferred from a capture, a summary page and a count of rows. Vahid:
+ * *"Nine attempts have taught me that a silent failure line costs a password
+ * each time."*
+ *
+ * So the distinction moves from *drift or not* to **whose words these are**.
+ * This error's words are the runner's, from a CLOSED set of checks it ran
+ * itself against the element's own state. It quotes nothing of the page and
+ * nothing of the student. A message the PORTAL produced about the student's
+ * answer is still never printed.
+ */
+export class ControlNotActionableError extends Error {
+  public override readonly name = "ControlNotActionableError";
+  public readonly locator: FieldLocator;
+  /** A closed set. Nothing here is read from the page's own text. */
+  public readonly check: ControlCheck;
+
+  public constructor(locator: FieldLocator, check: ControlCheck) {
+    super(
+      `The portal's "${locator.value}" control is on the page and could not be set: ` +
+        `${IN_WORDS[check]}. This is the runner's own check, not the portal's words.`,
+    );
+    this.locator = locator;
+    this.check = check;
+  }
+}
+
+export type ControlCheck =
+  | "not_visible"
+  | "not_enabled"
+  | "not_editable"
+  | "not_present"
+  | "did_not_settle";
+
+/** The runner's own errors, which say what they mean already. */
+const OWN_ERRORS: ReadonlySet<string> = new Set([
+  "LocatorNotFoundError",
+  "OptionNotAvailableError",
+  "ValueNotAcceptedError",
+  "ClickRefusedError",
+  "RobotsDisallowedError",
+  "ControlNotActionableError",
+]);
+
+const IN_WORDS: Record<ControlCheck, string> = {
+  not_visible: "it is NOT VISIBLE \u2014 the page has it, and does not show it",
+  not_enabled: "it is NOT ENABLED",
+  not_editable: "it is NOT EDITABLE",
+  not_present: "it is NOT PRESENT any more \u2014 it was there when the fill began",
+  did_not_settle: "it never became ready to be set, and the runner did not learn why",
+};
+
+/**
+ * Which of the runner's own checks a control fails, if any.
+ *
+ * Read in the order a person would: is it there, can it be seen, can it be
+ * used. Every read is guarded, because a diagnostic that throws while
+ * explaining a failure explains nothing.
+ */
+async function whyNotActionable(target: Locator): Promise<ControlCheck> {
+  if ((await target.count().catch(() => 0)) === 0) return "not_present";
+  if (!(await target.isVisible().catch(() => true))) return "not_visible";
+  if (!(await target.isEnabled().catch(() => true))) return "not_enabled";
+  if (!(await target.isEditable().catch(() => true))) return "not_editable";
+  return "did_not_settle";
+}
+
 export class LocatorNotFoundError extends Error {
   public override readonly name = "LocatorNotFoundError";
   public constructor(public readonly locators: readonly FieldLocator[]) {
@@ -260,6 +342,19 @@ const FOCUS_STABLE_READS = 4;
  * empty after three is a finding, and the failure says so.
  */
 const TYPING_ATTEMPTS = 3;
+
+/**
+ * How long one act on a control may wait to become possible (P186).
+ *
+ * Playwright's default is thirty seconds, which is right for a page that is
+ * still loading and wrong for a control the page has decided not to show:
+ * there the answer will not change, and the run pays half a minute per box to
+ * learn nothing. Five seconds is the same bound `OPTION_WAIT_MS` uses for a
+ * list that must arrive from a server — generous for a page that is merely
+ * busy, short enough that a page with several hidden boxes still reports in
+ * the time a person would wait.
+ */
+const ACTION_TIMEOUT_MS = 5_000;
 
 /**
  * Records what the PAGE fetched from the portal, in shape (P179, widened P182).
@@ -979,6 +1074,22 @@ export class PlaywrightPreparationSession implements FillableSession {
   }
 
   async #type(locator: FieldLocator, text: string): Promise<void> {
+    // The runner's own checks run around the whole of it (P186). An
+    // actionability failure — a radio the page hides, a box it disables —
+    // arrives from Playwright as a timeout whose words are about waiting; it
+    // is turned into a named check so the failure line can say which.
+    // Errors the runner raises deliberately pass through untouched.
+    try {
+      await this.#typeInto(locator, text);
+    } catch (error) {
+      if (error instanceof Error && OWN_ERRORS.has(error.name)) throw error;
+      const target = toPlaywrightLocator(this.#requirePage(), locator);
+      const check = target === null ? "not_present" : await whyNotActionable(target.first());
+      throw new ControlNotActionableError(locator, check);
+    }
+  }
+
+  async #typeInto(locator: FieldLocator, text: string): Promise<void> {
     const target = await this.#resolve([locator]);
 
     const tagName = (await target.evaluate((element) => element.tagName)).toLowerCase();
@@ -995,7 +1106,7 @@ export class PlaywrightPreparationSession implements FillableSession {
       if (!available.some((option) => option.value === text)) {
         throw new OptionNotAvailableError(locator, text, available);
       }
-      await target.selectOption(text);
+      await target.selectOption(text, { timeout: ACTION_TIMEOUT_MS });
       return;
     }
 
@@ -1017,7 +1128,7 @@ export class PlaywrightPreparationSession implements FillableSession {
         .locator(`input[type="radio"][name="${cssEscape(name ?? "")}"][value="${cssEscape(text)}"]`);
       if ((await group.count()) === 0) {
         if ((text === "true" || text === "yes" || text === "on") && (await members.count()) <= 1) {
-          await target.check();
+          await target.check({ timeout: ACTION_TIMEOUT_MS });
           return;
         }
         const available = await target
@@ -1028,18 +1139,18 @@ export class PlaywrightPreparationSession implements FillableSession {
           );
         throw new OptionNotAvailableError(locator, text, available);
       }
-      await group.first().check();
+      await group.first().check({ timeout: ACTION_TIMEOUT_MS });
       return;
     }
     if (type === "checkbox") {
       // A checkbox carrying a student's answer is set from that answer, never
       // ticked because the form wants it ticked.
-      if (text === "true" || text === "yes" || text === "on") await target.check();
-      else await target.uncheck();
+      if (text === "true" || text === "yes" || text === "on") await target.check({ timeout: ACTION_TIMEOUT_MS });
+      else await target.uncheck({ timeout: ACTION_TIMEOUT_MS });
       return;
     }
 
-    await target.fill(text);
+    await target.fill(text, { timeout: ACTION_TIMEOUT_MS });
 
     // ── Read back what the portal actually took ────────────────────────────
     //
