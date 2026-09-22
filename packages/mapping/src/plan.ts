@@ -36,7 +36,7 @@ import type {
 import { allFields, allRequiredDocuments } from "@askimate/aas-blueprint";
 import type { ConfirmedValue, UnavailableReason } from "@askimate/aas-domain";
 import { isFieldUnavailable, unwrapConfirmed } from "@askimate/aas-domain";
-import type { ConfirmedProfile, OrdinaryFieldKey, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
+import type { ConfirmedProfile, FormatRule, OrdinaryFieldKey, ProfileFieldKey, RenderRefusal } from "@askimate/aas-profile";
 import { renderConfirmed, renderConfirmedItem, resolveField } from "@askimate/aas-profile";
 
 import type { CredentialPurpose, ReviewedConstant, ReviewedFormRefusal, UsableMappingSet } from "./mapping.js";
@@ -292,8 +292,14 @@ export interface UnmappedField {
 export interface HiddenField {
   readonly fieldRef: string;
   readonly label: string;
-  /** The field whose planned value hides this one. */
-  readonly whenFieldRef: string;
+  /** The field whose planned value hides this one. Absent when the ENTRY hides it (ADR-0138). */
+  readonly whenFieldRef?: string;
+  /**
+   * ADR-0138: the entry's own answer that means the form never asks for this
+   * document slot — the path read, and what this entry holds there. Carried
+   * instead of `whenFieldRef` because no control on the page decides it.
+   */
+  readonly whenEntrySays?: { readonly part: string; readonly holds: string };
   /** On a repeating page, WHICH entry hides it — the condition is answered per item (ADR-0104). */
   readonly item?: { readonly index: number; readonly count: number };
 }
@@ -646,12 +652,57 @@ export function planFill(
     const list = unwrapConfirmed(resolution);
     const count = Array.isArray(list) ? list.length : 0;
     const governedOnPage = conditionsOf({ ...blueprint, pages: [page] }).filter((entry) => entry.conditions.length > 0);
+    // ADR-0138: the slots of THIS page, through the blueprint's own accessor —
+    // the planning path reads a slot's reviewed properties (its companion, its
+    // read-back, its condition) and never the declaration itself (ADR-0066).
+    const slotsOnPage = allRequiredDocuments({ ...blueprint, pages: [page] });
     for (let index = 0; index < count; index++) {
       const item = { index, count };
       const itemInstructions: FillInstruction[] = [];
       const itemHandoffs: HandoffRequirement[] = [];
       const itemBlockers: FillBlocker[] = [];
+      // ── ADR-0138: a slot the form does not ask this entry for ────────────
+      //
+      // Answered against THIS entry's own facts, before anything is planned
+      // for it: a document slot whose `askedWhen` does not hold is not
+      // planned, not previewed and not set, and neither is its companion. The
+      // two go together — the companion is a statement ABOUT the slot, and a
+      // statement about a slot the page never shows is a statement made into
+      // a control that is not there (Run A, attempt 9: `certificateStatus`
+      // refused twice, and would have gone on refusing).
+      const notAsked = new Map<string, HiddenField>();
+      for (const document of slotsOnPage) {
+        const asked = document.askedWhen;
+        if (asked === undefined) continue;
+        const path = asked.part.join(".");
+        const read = renderConfirmedItem(resolution, index, partFormat(asked.part));
+        const slot = fieldsByRef.get(document.fieldRef);
+        if (!read.rendered) {
+          // The entry does not answer the fact the reviewer keyed this slot
+          // to. Loud, not defaulted: a slot planned or dropped on a guess is
+          // the class of thing the fill exists to avoid.
+          itemBlockers.push({
+            kind: "render_refused",
+            fieldRef: document.fieldRef,
+            label: slot?.label ?? document.label,
+            fieldKey,
+            refusal: read.refusal,
+          });
+          continue;
+        }
+        const holds = unwrapConfirmed(read.value);
+        if (asked.is.includes(holds)) continue;
+        const hiddenFor = (fieldRef: string, label: string): void => {
+          notAsked.set(fieldRef, { fieldRef, label, whenEntrySays: { part: path, holds }, item });
+        };
+        hiddenFor(document.fieldRef, slot?.label ?? document.label);
+        const companion = document.companion;
+        if (companion !== undefined) {
+          hiddenFor(companion.fieldRef, fieldsByRef.get(companion.fieldRef)?.label ?? companion.fieldRef);
+        }
+      }
       for (const field of fields) {
+        if (notAsked.has(field.fieldRef)) continue;
         const mapping = mappingFor(mappingSet, field.fieldRef);
         if (mapping === undefined) continue;
         if (mapping.source.kind === "constant") {
@@ -724,6 +775,10 @@ export function planFill(
       handoffs.push(...itemHandoffs.filter((handoff) => shownHere(handoff.fieldRef)));
       blockers.push(...itemBlockers.filter((blocker) => shownHere(blocker.fieldRef)));
       for (const hiddenField of hiddenHere.values()) itemHidden.push({ ...hiddenField, item });
+      // ADR-0138: recorded as hidden for THIS entry, so `validatePlan` reads a
+      // slot the form does not ask for as neither filled nor missing — the
+      // same reading a `visibleWhen` gets, for the same reason.
+      itemHidden.push(...notAsked.values());
     }
     repeats.push({ pageRef: page.pageRef, title: page.title, fieldKey, count });
   }
@@ -823,6 +878,18 @@ function listsExceedingForm(
     });
   }
   return blockers;
+}
+
+/**
+ * A slot condition's path as the rule that reads it (ADR-0138).
+ *
+ * `["end", "kind"]` becomes `part end → part kind → text`, which is the SAME
+ * rule a mapping's `part` format uses — so one path language is read one way,
+ * and a reviewer authoring a condition and a reviewer authoring a mapping are
+ * writing the same thing.
+ */
+function partFormat(part: readonly string[]): FormatRule {
+  return part.reduceRight<FormatRule>((then, path) => ({ kind: "part", path, then }), { kind: "text" });
 }
 
 /** Every field with the conditions that govern it: its own, and its section's. */

@@ -1,4 +1,4 @@
-REVIEWED — blueprint 0.2.26, mapping set 0.3.32, reviewed by Vahid Mohammadi.
+REVIEWED — blueprint 0.2.27, mapping set 0.3.33, reviewed by Vahid Mohammadi.
 Profile: 18 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
 
 University of Sheffield — MSc Management and International Business, 2027-09
@@ -59,10 +59,6 @@ Education — one qualification; the applicant adds one entry per qualification:
     Date of Award:: 2022
     Grading System:: UK Bachelors Degree (BA, BSc)  (sent as "7")
     grade: 2.1
-    Proof of Registration This is any document showing you are a student at the institution for example a document confirming your registration or a certificate of study.: I will upload proof of registration later  (sent as "UploadLater")
-        (set by AskiMate: Nothing is sent in this act: the student attaches this document themselves, and the portal is told it is coming later — a statement about when, not a claim about the document (ADR-0107).)
-    Most Recent Transcript This is a breakdown of the marks/scores you received most recently, for example at the end of your previous year of study.: I will upload my transcript later  (sent as "UploadLater")
-        (set by AskiMate: Nothing is sent in this act: the student attaches this document themselves, and the portal is told it is coming later — a statement about when, not a claim about the document (ADR-0107).)
     Final Academic Certificate This is the certificate you received after passing your qualification. This document should include a signature or stamp from the institution. Please note that if you are of: I will upload my final certificate later  (sent as "UploadLater")
         (set by AskiMate: Nothing is sent in this act: the student attaches this document themselves, and the portal is told it is coming later — a statement about when, not a claim about the document (ADR-0107).)
     Final Academic Transcript This is a breakdown of the marks/scores you received after passing your qualification.This document should include a signature or stamp from the institution.Please note that : I will upload my final transcript later  (sent as "UploadLater")
@@ -71,13 +67,11 @@ Education — one qualification; the applicant adds one entry per qualification:
         (set by AskiMate: Nothing is sent in this act: the student attaches this document themselves, and the portal is told it is coming later — a statement about when, not a claim about the document (ADR-0107).)
     Final Academic Transcript Translation This is an official translation of the transcript you received after passing your qualification. This document should include a signature or stamp from the transl: I will upload my transcript translation later  (sent as "UploadLater")
         (set by AskiMate: Nothing is sent in this act: the student attaches this document themselves, and the portal is told it is coming later — a statement about when, not a claim about the document (ADR-0107).)
-    You attach yourself: certificate
-    You attach yourself: transcript
     You attach yourself: officialCertTranslation
     You attach yourself: officialTranTranslation
     You attach yourself: certificateTranslation
     You attach yourself: transcriptTranslation
-    We are telling University of Sheffield that your certificate, your transcript, your officialCertTranslation, your officialTranTranslation, your certificateTranslation and your transcriptTranslation are coming later.
+    We are telling University of Sheffield that your officialCertTranslation, your officialTranTranslation, your certificateTranslation and your transcriptTranslation are coming later.
     You attach them yourself. The application is not complete until you do.
     Nobody is watching this, and nobody will remind you.
   Left empty: unlistedInstitution; If your subject is not in the list please enter it here:; unlistedGrade; Unlisted grade description:; Please tick here if this is this the highest qualification level you have taken:
@@ -121,4 +115,4 @@ We did not answer these for you:
     Not answered on your behalf. Instead we entered "Prefer not to say".
     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
 
-Reference: sha256:0644c3663344cbb28fb1d1a130d09788e952c7538d18e401a5a7c9b1b33cf4b8
+Reference: sha256:b472215f211517d62a50dbf8e6cb4189ce08743c2b8fcf738e90b79fb692ba10

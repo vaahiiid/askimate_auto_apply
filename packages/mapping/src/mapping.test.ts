@@ -1157,6 +1157,78 @@ describe("a page filled once per item of a list (P96, gap 3)", () => {
     expect(plan.repeats[0]?.count).toBe(2);
   });
 
+  // ── ADR-0138: a slot the form asks only SOME entries for ────────────────
+
+  /** The certificate slot asked only while the qualification has not ended. */
+  const askedWhileStudying = (part: readonly string[] = ["end", "kind"]): ApplicationBlueprint =>
+    withEducation((page) => ({
+      ...page,
+      requiredDocuments: page.requiredDocuments.map((document) =>
+        document.fieldRef === "qualification_certificate"
+          ? {
+              ...document,
+              askedWhen: {
+                part,
+                is: ["expected"],
+                because: "the page asks for proof of registration only while the qualification is still running",
+              },
+            }
+          : document,
+      ),
+    }));
+  const STILL_STUDYING = [
+    { ...QUALIFICATIONS[0], end: { kind: "expected", date: { year: 2027, month: 6 } } },
+    QUALIFICATIONS[1],
+  ];
+
+  it("does not plan, preview or set a slot the form does not ask THIS entry for — nor its companion (ADR-0138)", () => {
+    // Run A, attempt 9: `certificateStatus` refused twice on Sheffield's
+    // education page. The control is inside a block the page shows only while
+    // the qualification has not ended, and the student's qualification was
+    // finished — so the runner was typing into a control that was not there.
+    // The condition is the STUDENT'S fact, on the slot, answered per entry.
+    const blueprint = askedWhileStudying();
+    const check = checkUsable(SET, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", STILL_STUDYING]]));
+
+    // Entry 0 is still running: the slot and its companion are both planned.
+    expect(plan.handoffs.filter((h) => h.fieldRef === "qualification_certificate").map((h) => h.item?.index)).toEqual([0]);
+    const statuses = plan.instructions.filter((i) => i.fieldRef === "qualification_certificate_status");
+    expect(statuses.map((i) => [i.item?.index, textOf(i.value)])).toEqual([[0, "later"]]);
+
+    // Entry 1 has finished: neither is planned, and BOTH are recorded as not
+    // asked for, with the entry's own answer that decided it.
+    expect(plan.hidden.filter((h) => h.item?.index === 1)).toEqual([
+      { fieldRef: "qualification_certificate", label: "Certificate", whenEntrySays: { part: "end.kind", holds: "completed" }, item: { index: 1, count: 2 } },
+      { fieldRef: "qualification_certificate_status", label: "Certificate status", whenEntrySays: { part: "end.kind", holds: "completed" }, item: { index: 1, count: 2 } },
+    ]);
+    expect(plan.blockers).toEqual([]);
+  });
+
+  it("asks for the slot for EVERY entry when the slot carries no condition, as it always did (ADR-0138)", () => {
+    const check = checkUsable(SET, BLUEPRINT);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(BLUEPRINT, check.mappingSet, withConfirmed(COMPLETE_PROFILE, [["education.prior_qualifications", STILL_STUDYING]]));
+    expect(plan.handoffs.filter((h) => h.fieldRef === "qualification_certificate").map((h) => h.item?.index)).toEqual([0, 1]);
+    expect(plan.instructions.filter((i) => i.fieldRef === "qualification_certificate_status").map((i) => i.item?.index)).toEqual([0, 1]);
+    expect(plan.hidden.some((h) => h.fieldRef === "qualification_certificate")).toBe(false);
+  });
+
+  it("STOPS when the entry does not answer the fact the slot is keyed to, rather than guessing either way (ADR-0138)", () => {
+    const blueprint = askedWhileStudying(["finished"]);
+    const check = checkUsable(SET, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.kind);
+    const plan = planFill(blueprint, check.mappingSet, WITH_QUALIFICATIONS);
+    expect(plan.blockers.map((b) => [b.kind, b.fieldRef])).toEqual([
+      ["render_refused", "qualification_certificate"],
+      ["render_refused", "qualification_certificate"],
+    ]);
+    const blocker = plan.blockers[0];
+    if (blocker?.kind !== "render_refused") expect.unreachable("asked");
+    expect(blocker.refusal.kind).toBe("no_such_part");
+  });
+
   it("REFUSES a document or a condition off the page on a repeating page, and a list that is not one", () => {
     // Until ADR-0119 a handoff on a non-document field of a repeating page
     // was refused here too; it is now the student's own act per entry, tested

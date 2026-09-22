@@ -4906,6 +4906,85 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P187 — the condition in the student's own words
+
+Nine attempts have cost one box each. The ninth cost `certificateStatus`, twice, and the answer
+turned out not to be a locator or a timing or a widget. The control was not there.
+
+Sheffield's education page asks for a *proof of registration* and a *most recent transcript* only
+while a qualification is still running. `endDateChanged` compares the award date — or the end date
+when there is no award date — with the first of this month, and on the one branch where that is
+still ahead it shows the block and returns. On the other two it hides the block and ticks both
+radios *Not required* itself. The synthetic student finished in June 2022. The block was hidden.
+The runner was typing into a page that had already answered the question, and the portal's refusal
+was correct.
+
+Three ways to answer it went to Vahid, and he took the middle one and said why the other two were
+worse than they look.
+
+Reading the page at fill time was the obvious one, and it is the one that breaks the promise the
+whole preview rests on: *"a signed plan must not depend on the day it runs."* A plan signed in
+September and run in October would enter different things for the same student, and what he signed
+would have described a day that had passed.
+
+Carrying on past any control the page does not show was the safe-looking one, and it is worse:
+
+> *"The student authorised 'we are telling Sheffield your proof of registration is coming later',
+> and under C the runner would skip that act while the page records 'not required' in its place.
+> The student said yes to a statement that was never made, and the portal holds a different one."*
+
+That is the sentence this system exists to keep true, and it is worth writing down that the option
+which would have quietened the failure is the one that would have broken it.
+
+So: the condition goes on the slot, in the student's own terms, and it is signed. `askedWhen` names
+a path into the repeating page's own entry — `end.kind` — the answers the form asks for, and the
+reviewer's reason in their own words. A qualification that is `expected` gets both slots. One that
+is `completed` gets neither, and neither does its companion, because a statement *about* a slot the
+page never shows is a statement made into a control that is not there.
+
+`discontinued` he did not know, and asked to have read rather than guessed. The page has no notion
+of it: `education.js` never mentions a discontinued qualification. It goes by the date, and a
+qualification the student left ended when they left. So it hides the block, the same as completed,
+and the one rule `is: ["expected"]` covers all three answers.
+
+## What B is not
+
+B is not the page's literal rule, and the gap has a case with a real student in it. Somebody who
+has finished but whose award date is still ahead — finished in June, graduating in November — is
+shown the block by the page, and the plan would not set it. Then: two radios unanswered, an entry
+this portal drops without a word, and a listing count that reads back one fewer than it entered and
+reports the page **uncertain**, not saved.
+
+He took it, and the reason is the right one:
+
+> *"That is a loud failure, and I accept it for an edge that a student who has finished but not yet
+> been awarded would hit."*
+
+A loud failure on a narrow case beats a plan whose meaning depends on the day. It is in the ADR by
+name so the next person to meet it recognises it rather than rediscovers it.
+
+## What moved in the preview
+
+Four lines and one clause, for the synthetic student's one completed qualification:
+
+- *Proof of Registration …: I will upload proof of registration later  (sent as "UploadLater")*
+- *Most Recent Transcript …: I will upload my transcript later  (sent as "UploadLater")*
+- *You attach yourself: certificate*
+- *You attach yourself: transcript*
+- and the coming-later sentence loses *your certificate, your transcript*.
+
+Two of those are values the portal will no longer be told, which is a different kind of change from
+the consent re-signature and the save-locator re-signature: those governed how a page is reached
+and left. This one is what goes in a box. The fourth signature is void, the approval is removed
+rather than re-pointed, and the entry waits.
+
+The preview now shows four documents for that qualification. The page shows four. They agree for
+the first time.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P186 — what the page does not show, and a line that would not say so
 
 The month maps took. The institution box held. One box refused and the line said the word

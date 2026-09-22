@@ -400,6 +400,19 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
       ...(whenNotProviding === undefined ? {} : { whenNotProviding }),
     };
   });
+  // ADR-0138: the entries this slot is asked for, on a page that repeats.
+  const askedWhen = optionalWith(source, "askedWhen", path, (value, at) => {
+    const held = record(value, at);
+    const part = textList(held, "part", at);
+    const is = textList(held, "is", at);
+    // A path with no parts reads the entry itself, and an empty list of
+    // answers is a slot asked for NOTHING. Both are almost certainly a
+    // half-written condition, and neither may pass as a rule about a document.
+    if (part.length === 0) fail(`${at}.part`, "names no part of the entry to read");
+    if (part.some((step) => step.trim().length === 0)) fail(`${at}.part`, "has a blank step");
+    if (is.length === 0) fail(`${at}.is`, "names no answer the form asks this slot for");
+    return { part, is, because: text(held, "because", at) };
+  });
   // ADR-0106: what the page shows when a file is held here.
   const recorded = optionalWith(source, "recorded", path, readLocator);
   return {
@@ -410,6 +423,7 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
     required: flag(source, "required", path),
     ...(requiredWhen === undefined ? {} : { requiredWhen }),
     ...(companion === undefined ? {} : { companion }),
+    ...(askedWhen === undefined ? {} : { askedWhen }),
     ...(recorded === undefined ? {} : { recorded }),
   };
 }
@@ -443,12 +457,26 @@ function readPage(value: unknown, path: string): BlueprintPage {
       ...(recorded === undefined ? {} : { recorded }),
     };
   });
+  const requiredDocuments = list(source, "requiredDocuments", path, readRequiredDocument);
+  // ADR-0138: the condition is answered against the page's own entry, so on a
+  // page that does not repeat there is nothing to answer it against. Refused
+  // here rather than ignored at plan time: a slot carrying a rule that decides
+  // nothing would read to a reviewer as a rule that decides something.
+  if (repeats === undefined) {
+    const conditioned = requiredDocuments.find((document) => document.askedWhen !== undefined);
+    if (conditioned !== undefined) {
+      fail(
+        `${path}.requiredDocuments`,
+        `"${conditioned.fieldRef}" is asked for only some entries, on a page that does not repeat`,
+      );
+    }
+  }
   return {
     pageRef: text(source, "pageRef", path),
     title: text(source, "title", path),
     ...(url === undefined ? {} : { url }),
     sections: list(source, "sections", path, readSection),
-    requiredDocuments: list(source, "requiredDocuments", path, readRequiredDocument),
+    requiredDocuments,
     ...(advanceControl === undefined ? {} : { advanceControl }),
     ...(nextPageRef === undefined ? {} : { nextPageRef }),
     ...(repeats === undefined ? {} : { repeats }),

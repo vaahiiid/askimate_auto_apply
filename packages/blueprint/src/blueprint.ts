@@ -238,6 +238,52 @@ export interface FieldCondition {
   readonly values?: readonly string[];
 }
 
+/**
+ * The entries of a repeating page for which the form asks for a document slot
+ * (ADR-0138).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A `visibleWhen` condition is over ANOTHER CONTROL'S VALUE, which is the
+ * right shape when the portal's own script watches a control. It is the wrong
+ * shape here. Sheffield's education page shows its *proof of registration* and
+ * *most recent transcript* slots only while the qualification has not ended —
+ * `education.js`'s `endDateChanged` compares the award date, or the end date
+ * when no award date is given, with the current month. Two things follow.
+ *
+ * First, the fact that decides it is the STUDENT'S, not the form's: whether
+ * this qualification is finished. Second, the page's own test reads a clock,
+ * and a signed plan must not depend on the day it runs (Vahid, 2026-09-22:
+ * *"a signed plan must not depend on the day it runs"*).
+ *
+ * So the condition is written on the SLOT, in the student's own terms, against
+ * the repeating page's own entry — answered per entry, like every other
+ * condition inside a repeat (ADR-0104). When it does not hold, the slot is not
+ * planned, not previewed and not set, and neither is its companion: the
+ * student authorises four documents for a finished qualification because four
+ * is what the page shows.
+ *
+ * The divergence this accepts is named in ADR-0138 and is deliberate: a
+ * qualification the student has COMPLETED but whose award date is still in the
+ * future is shown the block by the page and not set by the plan.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface SlotAskedWhen {
+  /**
+   * The path into the repeating page's entry, part by part — `["end", "kind"]`
+   * reads a qualification's `end.kind`. Read through the same rule a mapping's
+   * `part` format uses, so a reviewer reads one path language, not two.
+   */
+  readonly part: readonly string[];
+  /** The entry's answers for which the form DOES ask for this slot. */
+  readonly is: readonly string[];
+  /**
+   * The reviewer's own words for why the form does not ask otherwise — signed
+   * with the rest of the entry, because the reason is the thing a later reader
+   * needs and a hash over the condition alone would not carry it.
+   */
+  readonly because: string;
+}
+
 /** A group of fields. */
 export interface BlueprintSection {
   readonly sectionRef: string;
@@ -333,6 +379,14 @@ export interface RequiredDocument {
      */
     readonly whenNotProviding?: string;
   };
+  /**
+   * The entries this slot is asked for, on a page that repeats (ADR-0138).
+   *
+   * Absent — the ordinary case — the slot is asked for every entry. Present on
+   * a page that does not repeat, the entry is refused at parse: there is no
+   * entry to answer it against.
+   */
+  readonly askedWhen?: SlotAskedWhen;
   /**
    * What the page shows, reopened after a save, when a file is held in this
    * slot — a filename, a *remove* link, a *provided* mark (ADR-0106). A file

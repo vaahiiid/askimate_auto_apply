@@ -249,6 +249,17 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-22, P187: **blocker 57 decided B by Vahid, and built (ADR-0138)**. A document slot may
+  carry `askedWhen` — a path into the repeating page's own entry, the answers the form asks for,
+  and the reviewer's reason — answered per entry before anything is planned for it. Sheffield's
+  two pre-completion slots and their companions are no longer planned, previewed or set for a
+  qualification whose `end.kind` is `completed` or `discontinued`; `expected` still gets both. The
+  page has no notion of `discontinued` and goes by the date, which for a qualification the student
+  left is past — read, not guessed. The known divergence, accepted by him: a completed
+  qualification awarded in the future would be shown the block, and the entry would be dropped
+  silently with the listing count reporting *uncertain*. What will be typed lost two values, two
+  hand-off lines and two names from the coming-later sentence, so the entry's hash moved and its
+  fourth signature is void — it waits on him again.
 - 2026-09-22, P186: **attempt 9's silent box, read out of the portal's own code (ADR-0137)**. The
   page shows the two pre-completion document rows only when the end or award date is in the FUTURE,
   and for a finished qualification hides them and ticks `certificateNotRequired` /

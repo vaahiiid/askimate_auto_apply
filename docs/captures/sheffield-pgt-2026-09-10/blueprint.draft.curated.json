@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.26",
+  "version": "0.2.27",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -26859,6 +26859,16 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "askedWhen": {
+            "part": [
+              "end",
+              "kind"
+            ],
+            "is": [
+              "expected"
+            ],
+            "because": "Sheffield shows the proof-of-registration and most-recent-transcript block only while the qualification has not ended: education.js's endDateChanged compares the award date — or the end date when no award date is given — with the current month, and hides the block, ticking both radios to \"Not required\" itself, once that month has passed. A qualification the student has completed or discontinued ended in the past, so the page never asks. Read from the page's own script, committed at 33aa901 (P187, ADR-0138)."
           }
         },
         {
@@ -26879,6 +26889,16 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "askedWhen": {
+            "part": [
+              "end",
+              "kind"
+            ],
+            "is": [
+              "expected"
+            ],
+            "because": "Sheffield shows the proof-of-registration and most-recent-transcript block only while the qualification has not ended: education.js's endDateChanged compares the award date — or the end date when no award date is given — with the current month, and hides the block, ticking both radios to \"Not required\" itself, once that month has passed. A qualification the student has completed or discontinued ended in the past, so the page never asks. Read from the page's own script, committed at 33aa901 (P187, ADR-0138)."
           }
         },
         {

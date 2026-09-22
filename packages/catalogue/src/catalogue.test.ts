@@ -483,6 +483,70 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("whenDeferred");
   });
 
+  it("round-trips a slot asked only for some entries, and refuses one that decides nothing (ADR-0138)", () => {
+    /** The education page's certificate slot, with `askedWhen` as given. */
+    const withAsked = (asked: unknown, pageRef = "page-education"): Record<string, unknown> => {
+      const document = JSON.parse(documentOf()) as Record<string, unknown>;
+      const pages = (document["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+      for (const candidate of pages) {
+        if (candidate["pageRef"] !== pageRef) continue;
+        const slots = candidate["requiredDocuments"] as Record<string, unknown>[];
+        const slot = slots[0];
+        if (slot === undefined) expect.unreachable(`${pageRef} has a slot`);
+        if (asked === undefined) delete slot["askedWhen"];
+        else slot["askedWhen"] = asked;
+      }
+      return document;
+    };
+    const good = { part: ["end", "kind"], is: ["expected"], because: "the page asks for it only while the qualification is running" };
+    const parsed = parseReviewedEntry(withAsked(good));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const education = parsed.value.blueprint.pages.find((candidate) => candidate.pageRef === "page-education");
+    expect(education?.requiredDocuments[0]?.askedWhen).toEqual(good);
+
+    // A condition binds to the entry's content: change any of its three parts
+    // and the approval that covered the old one no longer covers this (ADR-0057).
+    const other = parseReviewedEntry(withAsked({ ...good, is: ["expected", "discontinued"] }));
+    if (!other.ok) expect.unreachable(other.refusal.detail);
+    expect(hashOf(toCanonical(other.value))).not.toBe(hashOf(toCanonical(parsed.value)));
+    const reworded = parseReviewedEntry(withAsked({ ...good, because: "something else entirely" }));
+    if (!reworded.ok) expect.unreachable(reworded.refusal.detail);
+    expect(hashOf(toCanonical(reworded.value)), "the reason is signed content, not a comment").not.toBe(
+      hashOf(toCanonical(parsed.value)),
+    );
+
+    // A half-written condition never passes as a rule about a document.
+    for (const [broken, where] of [
+      [{ ...good, part: [] }, "part"],
+      [{ ...good, part: ["end", "  "] }, "part"],
+      [{ ...good, is: [] }, "is"],
+      [{ part: ["end", "kind"], is: ["expected"] }, "because"],
+    ] as const) {
+      const refused = parseReviewedEntry(withAsked(broken));
+      if (refused.ok) expect.unreachable(`a condition with no ${where} decides nothing`);
+      expect(refused.refusal.path).toContain(where);
+    }
+
+    // And on a page that does not repeat there is no entry to answer it
+    // against: refused, rather than read by a reviewer as a rule that bites.
+    const standing = parseReviewedEntry(
+      (() => {
+        const document = JSON.parse(documentOf({ ...ENTRY, blueprint: GATED_PORTAL_WITH_DOCUMENTS_BLUEPRINT })) as Record<string, unknown>;
+        const pages = (document["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+        for (const candidate of pages) {
+          if (candidate["pageRef"] !== "page-documents") continue;
+          const slot = (candidate["requiredDocuments"] as Record<string, unknown>[])[0];
+          if (slot === undefined) expect.unreachable("the documents page has a slot");
+          slot["askedWhen"] = good;
+        }
+        return document;
+      })(),
+    );
+    if (standing.ok) expect.unreachable("a page that does not repeat has no entry to answer the condition");
+    expect(standing.refusal.path).toContain("requiredDocuments");
+    expect(standing.refusal.detail).toContain("does not repeat");
+  });
+
   it("refuses a fieldRef that two pages share, naming the second — every key downstream assumes one (P93)", () => {
     // Found on the Sheffield draft, not designed: the language page and the
     // education page both call their file input `certificate` and its status

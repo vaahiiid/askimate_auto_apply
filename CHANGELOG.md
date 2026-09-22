@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.183.0] — 2026-09-22
+
+**P187 — ADR-0138: a document slot carries the condition the form shows it by, in the student's own
+terms. Blocker 57 decided B by Vahid.**
+
+- **Added** `SlotAskedWhen` and `RequiredDocument.askedWhen` — `{ part, is, because }` — the entries
+  of a repeating page the form asks a document slot for, read off the entry itself rather than off
+  another control, through the same `part` rule a mapping's format uses.
+- **Changed** `planFill`: the condition is answered PER ENTRY, before anything is planned for that
+  entry. When it does not hold, neither the slot nor its companion is planned, previewed or set —
+  a statement about a slot the page never shows is a statement made into a control that is not
+  there. Both are recorded in `plan.hidden` with `whenEntrySays: { part, holds }`, so
+  `validatePlan` reads them as neither filled nor missing.
+- **Added** two refusals: an entry that does not answer the path stops the plan (`render_refused`)
+  rather than guessing either way, and `askedWhen` on a page that does not repeat is refused at
+  parse — a rule that decides nothing would read as a rule that decides something.
+- **Changed** Sheffield's entry and curated draft: `askedWhen: { part: ["end","kind"], is:
+  ["expected"] }` on `certificate` and `transcript`, with the reason quoting `education.js`.
+  Blueprint 0.2.26 → **0.2.27**, mapping set 0.3.32 → **0.3.33**.
+- **The entry's fourth signature is VOID.** `docs/run-a/what-will-be-typed.md` loses the two
+  *UploadLater* lines, the two *You attach yourself* lines and two names from the coming-later
+  sentence: four documents previewed for a completed qualification, which is what the page shows.
+  The approval was removed rather than re-pointed, and the directory refuses the entry until Vahid
+  signs `sha256:cdb4356128ee269aebffdcb35d236588731c721e2ccb2ce11a3ce8826bf5bf82` himself.
+- **The known divergence, named and accepted:** the page compares the AWARD date (else the end
+  date) with today, so a completed qualification awarded in the future is shown the block while the
+  plan does not set it — the save leaves two radios unanswered, the portal drops the entry
+  silently, and the listing count reports *uncertain*, not succeeded.
+
+---
+
 ## [0.182.0] — 2026-09-22
 
 **P186 — ADR-0137: a refusal in the runner's own words may be said; the portal's words about the

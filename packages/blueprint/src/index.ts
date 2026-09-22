@@ -25,6 +25,7 @@ export type {
   FieldValidation,
   HandoffPoint,
   RequiredDocument,
+  SlotAskedWhen,
   SubmissionModel,
 } from "./blueprint.js";
 export {

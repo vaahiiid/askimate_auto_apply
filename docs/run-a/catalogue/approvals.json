@@ -1,10 +1,1 @@
-[
-  {
-    "contentHash": "sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef",
-    "authoredBy": "Vahid Mohammadi",
-    "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-22T12:00:00Z",
-    "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Re-signed after the education month maps were corrected to the captured spellings (Sept, June, July). Three typed values moved; nothing else."
-  }
-]
+[]

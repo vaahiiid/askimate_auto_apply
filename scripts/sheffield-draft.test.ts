@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.26");
+    expect(blueprint.version).toBe("0.2.27");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -390,8 +390,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.26");
-    expect(mappingSet.version).toBe("0.3.32");
+    expect(blueprint.version).toBe("0.2.27");
+    expect(mappingSet.version).toBe("0.3.33");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -869,7 +869,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(checkUsable(naming("SHE0512"), withoutCountryEntries).usable).toBe(false);
   });
 
-  it("plan each qualification's six radios as UploadLater in the page's own words, and NotRequired appears nowhere (P108)", () => {
+  it("plan each qualification's document radios as UploadLater in the page's own words — six while it is running, four once it has ended (P108, ADR-0138) — and NotRequired appears nowhere", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
     const withOne = withConfirmed([
@@ -881,20 +881,57 @@ describe("the Sheffield drafts, under the real checks", () => {
     ]);
     const plan = planFill(blueprint, check.mappingSet, withOne);
     const radios = plan.instructions.filter((i) => i.fieldRef.endsWith("Status") && i.item !== undefined);
+    // ═══════════════════════════════════════════════════════════════════
+    // FOUR, not six, since ADR-0138 (P187). This qualification is
+    // `completed`, and Sheffield shows the proof-of-registration and
+    // most-recent-transcript block only while a qualification is still
+    // running — so those two slots and their two radios are not planned.
+    // Run A's attempt 9 met exactly that: `certificateStatus` refused twice,
+    // because the control was not on the page.
+    // ═══════════════════════════════════════════════════════════════════
     expect(radios.map((i) => [i.fieldRef, textOf(i.value), i.defers])).toEqual([
-      ["certificateStatus", "UploadLater", "certificate"],
-      ["transcriptStatus", "UploadLater", "transcript"],
       ["officialCertTranslStatus", "UploadLater", "officialCertTranslation"],
       ["officialTranTranslStatus", "UploadLater", "officialTranTranslation"],
       ["certificateTranslationStatus", "UploadLater", "certificateTranslation"],
       ["transcriptTranslationStatus", "UploadLater", "transcriptTranslation"],
     ]);
+    // The two that are not planned are RECORDED as not asked for, against the
+    // entry's own answer — never dropped silently.
+    expect(
+      plan.hidden.filter((h) => h.whenEntrySays !== undefined).map((h) => [h.fieldRef, h.whenEntrySays?.part, h.whenEntrySays?.holds]),
+    ).toEqual([
+      ["certificate", "end.kind", "completed"],
+      ["certificateStatus", "end.kind", "completed"],
+      ["transcript", "end.kind", "completed"],
+      ["transcriptStatus", "end.kind", "completed"],
+    ]);
+    // A qualification the student has not finished IS asked for both, and all
+    // six are planned — the condition is the entry's, answered per entry.
+    const studying = withConfirmed([
+      ...PROFILE_ENTRIES,
+      [
+        "education.prior_qualifications",
+        [{ level: "Bachelor's degree", subject: "Industrial Engineering", institution: "Sharif University of Technology", countryCode: "IR", start: { year: 2017, month: 9 }, end: { kind: "expected", date: { year: 2027, month: 6 } }, grade: "17.2", gradeScale: "iran_20_point" }],
+      ],
+    ]);
+    const running = planFill(blueprint, check.mappingSet, studying);
+    expect(running.instructions.filter((i) => i.fieldRef.endsWith("Status") && i.item !== undefined).map((i) => i.fieldRef)).toEqual([
+      "certificateStatus",
+      "transcriptStatus",
+      "officialCertTranslStatus",
+      "officialTranTranslStatus",
+      "certificateTranslationStatus",
+      "transcriptTranslationStatus",
+    ]);
     // What the student is told quotes the page — including the one that
     // says "proof of registration" where the slot says "degree certificate",
     // which is why that pairing is flagged for Iman and not asserted here.
-    const told = plan.handoffs.filter((h) => h.deferred !== undefined).map((h) => h.deferred?.displayText);
+    const told = running.handoffs.filter((h) => h.deferred !== undefined).map((h) => h.deferred?.displayText);
     expect(told).toContain("I will upload proof of registration later");
     expect(told).toContain("I will upload my transcript translation later");
+    expect(plan.handoffs.filter((h) => h.deferred !== undefined).map((h) => h.deferred?.displayText), "and not for a finished one").not.toContain(
+      "I will upload proof of registration later",
+    );
     expect(JSON.stringify([plan.instructions, plan.handoffs, plan.uploads, plan.blockers])).not.toContain("NotRequired");
     expect(JSON.stringify([plan.instructions, plan.handoffs, plan.uploads, plan.blockers])).not.toContain("NotSending");
   });

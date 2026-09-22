@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P186 — ADR-0137: a refusal in the runner's own words may be said. Attempt 9's silent box read out of `education.js`: the page hides the two pre-completion document rows for a finished qualification and ticks them itself. The condition is a date comparison the schema cannot express — blocker 57, three options, none chosen |
+| **Phase** | P187 — ADR-0138: a document slot carries the condition the form shows it by, in the student's own terms. Blocker 57 decided **B** by Vahid: for a qualification that has ended, Sheffield's two pre-completion slots and their companions are not planned, previewed or set — four documents previewed, which is what the page shows. The entry changed, so its fourth signature is void and it waits on him |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
-| **Tests** | **2,801 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 137 ADRs · all 137 Accepted |
+| **Tests** | **2,805 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 138 ADRs · all 138 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what
