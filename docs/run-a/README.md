@@ -99,7 +99,14 @@ on the international path; the six education slots are the student's own act), t
 own refs for the submission key (`inst-sheffield`, `course-sheffield-msc-management-and-
 international-business`, `2027-09`) and `passwordDelivery: askimate_secure_channel`.
 
-**It is not signed.** Both artefacts still say `draft`, the set names no reviewer, and
+> **Out of date from here to the end of this section, and kept as the record of how the entry was
+> first assembled (2026-09-16, drafts 0.2.25 / 0.3.31).** It has been signed five times since; the
+> current content is blueprint **0.2.28**, mapping set **0.3.34**, signed at
+> `sha256:e2a10113…` (commit `eb4e83e`). **Run A was made on 2026-09-22** — see
+> [`../what-run-a-proved.md`](../what-run-a-proved.md). The three signing acts below are still how
+> a signature is given.
+
+**It was not signed when this was written.** Both artefacts still said `draft`, the set named no reviewer, and
 `pnpm run catalogue check docs/run-a/catalogue` refuses the directory for exactly that. The
 signature is three acts, his, in this order, after the read below:
 

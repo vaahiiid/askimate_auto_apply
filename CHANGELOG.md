@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.186.0] — 2026-09-22
+
+**Run A is done — the standing record, the distance to zero, and the two blockers it answered.**
+
+- **Added** [`docs/what-run-a-proved.md`](./docs/what-run-a-proved.md): what Run A proved on a real
+  portal on a real account; what it cost (ten attempts, five signatures, twenty-seven blockers
+  numbered 31 to 57 — sixteen closed, eleven open), with the ones that would have reached a real
+  student separated into the seven that would have failed **silently** and the four that were loud;
+  what it did **not** prove (Part 2, course choice, supporting documents, a second portal, a created
+  account, a real student, the interview, Bedrock); and the real mixture now on Vahid's own account,
+  accepted under ADR-0110 and recorded rather than reversed.
+- **Changed** `docs/distance-to-a-reviewed-sheffield-run.md`: **zero of ten — Run A was made on
+  2026-09-22.** The reporting line every report carries changes with it. Item 10 (Part 2) was never
+  on its path and is still unread; items 3, 4 and 5 remain open for the product.
+- **Closed** blocker 1 (real portal discovery) and blocker 4 (an account) — the two the run itself
+  answered. Every other open blocker is left exactly as it stood.
+- **Changed** the state document's one-paragraph version and this repository's README to say what
+  the run did and, in the same place, what it did not.
+
+Nothing was built and no test changed. No new phase until Vahid says what comes next.
+
+---
+
 ## [0.185.0] — 2026-09-22
 
 **P189 — the fifth signature on the Run A entry, and the refusal test taken down.**

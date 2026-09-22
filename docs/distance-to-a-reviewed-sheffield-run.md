@@ -1,8 +1,21 @@
 # The distance to an end-to-end run against a reviewed Sheffield entry
 
-**As of:** 2026-09-13 (P119) · **For:** Vahid · **Kept current:** every phase that changes an item
-below updates this file; every report quotes the count of items and the declared-but-unreachable
-number.
+> ## Run A was made on 2026-09-22. The distance is zero.
+>
+> Attempt 10 signed in through the consent path, filled, saved and read back six pages of Part 1 on
+> Vahid's own account under the fifth signature, handed over and reached `ready_to_submit` with
+> **nothing submitted**. The portal's own line: *"Completed Part 1 — You have now completed all the
+> required fields in this section and can now return to the overview to make your course choices."*
+> He checked `summary.do` by hand, section by section, against `what-will-be-typed.md`: every value
+> matches what he signed.
+>
+> **What it proved, what it cost and what it did NOT prove is the standing record —
+> [`what-run-a-proved.md`](./what-run-a-proved.md).** This file stays as the list that got there,
+> because the items and their history are the evidence of how far it actually was.
+
+**As of:** 2026-09-13 (P119), **answered 2026-09-22** · **For:** Vahid · **Kept current:** every
+phase that changes an item below updates this file; every report quotes the count of items and the
+declared-but-unreachable number.
 
 Vahid, 2026-09-13: *"what is left before a run could be made end to end against a reviewed
 Sheffield entry — not the whole blocker list, just what stands between here and that. I have lost
@@ -197,7 +210,9 @@ In the order they bite, each with who holds it and the evidence.
     the blueprint has no page for it and no submission model. Run A ends at the end of Part 1.
     **Vahid, 2026-09-14:** *"not now. Run A ends at the end of Part 1 and I am not extending it
     before it has happened once."* Not on Run A's path by his word; kept here so the count stays
-    honest about what Run A is.
+    honest about what Run A is. **It has now happened once (2026-09-22), and Part 2 is still
+    unread** — the portal's completion line invites a return to the overview to make the course
+    choices, and nothing here does that. Whether Run A is extended is his word, not this file's.
 
 **Not on Run A's path, and why:** Bedrock (blocker 3) — the profile can be confirmed through the
 service's own page with the deterministic client, as the journey does; the vault's bucket
@@ -241,14 +256,25 @@ Nothing here is built; the sheet is written when he asks for one.
 
 - *Declared-but-unreachable: four* — the reachability check's count of declared capabilities
   with no production caller, reviewed (`pnpm run reachability`).
-- *Distance to Run A: one item open of ten* — this file's list, by count, with what moved. Item
-  10 (Part 2) is the one, and it is not on Run A's path by his word. Items
-  3, 4 and 5 cost Run A nothing on the synthetic profile and remain open for the product; they are
-  struck above for Run A and not closed. Vahid, 2026-09-16: *"A number that does not mean what it
-  says is the thing this project keeps finding."*
+- *Distance to Run A: zero of ten — Run A was made on 2026-09-22* — this file's list, by count.
+  Nothing on it stands between here and Run A any more, because Run A happened. Item 10 (Part 2)
+  was never on its path by his word and is still unread; items 3, 4 and 5 cost Run A nothing on the
+  synthetic profile and remain open **for the product**, struck above for Run A and not closed.
+  Vahid, 2026-09-16: *"A number that does not mean what it says is the thing this project keeps
+  finding."* So the number now means: the run this file was written to measure has been made, and
+  it is not a claim about Run B, Part 2, a second portal or a real student —
+  [`what-run-a-proved.md`](./what-run-a-proved.md) is where those are written down.
 
 ## What moved
 
+- **2026-09-22 — RUN A WAS MADE.** Attempt 10: sign-in through the consent path with the choice
+  recorded and read back (4 of 4), `education.do?new=true`, `employment.do` and
+  `equalOpportunities.do` each saved and read back, `handing_over`, his confirmation, and
+  `ready_to_submit` with nothing submitted. The education entry's two pre-completion rows read
+  *"Not required or uploaded elsewhere"* on `summary.do`, set by the page itself — ADR-0138's
+  prediction from `education.js`, confirmed by the portal. **The distance is zero.** What it proved,
+  what it cost (ten attempts, five signatures, twenty-seven blockers numbered 31 to 57) and what it
+  did not prove are in [`what-run-a-proved.md`](./what-run-a-proved.md).
 - 2026-09-22, P188: **the sentence that says what the university is being told named four field
   names, two of them the wrong document (ADR-0139)**. Found by Vahid reading P187's preview before
   signing. A slot now carries the page's own heading, read off the companion row's captured label
