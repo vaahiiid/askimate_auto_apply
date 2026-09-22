@@ -63,7 +63,7 @@
     "Nationality (page5), P150 (2026-09-16): the synthetic profile for Run A holds a University of Sheffield BSc, which is a UK study at university level, so the page asks which qualification from its own list — the box P142 left unmapped as blocker 25's shape. Mapped the way P149 mapped the institution box, for that one profile: 'BSc Business Management' → UG DEGREE, nothing else named, anything else a loud blocker. Blocker 25 stays open for a real student on this page as on the education page."
   ],
   "mappingSetId": "map-sheffield-pgt-2027-09",
-  "version": "0.3.31",
+  "version": "0.3.32",
   "status": "draft",
   "blueprintId": "bp-sheffield-pgt-september-direct",
   "blueprintVersion": "0.2.26",
@@ -476,10 +476,10 @@
                 "3": "Mar",
                 "4": "Apr",
                 "5": "May",
-                "6": "Jun",
-                "7": "Jul",
+                "6": "June",
+                "7": "July",
                 "8": "Aug",
-                "9": "Sep",
+                "9": "Sept",
                 "10": "Oct",
                 "11": "Nov",
                 "12": "Dec"
@@ -488,7 +488,7 @@
           }
         }
       },
-      "note": "Start:* — the month select's values are three-letter names, 'Jan'…'Dec'; the qualification's start month (1–12) maps onto them. Per qualification (ADR-0112)."
+      "note": "Start:* — the month select's values are the select's own names; the qualification's start month (1–12) maps onto them. Per qualification (ADR-0112). MONTH NAMES CORRECTED IN P185: this select's own names, as the 2026-09-10 capture recorded them and the 2026-09-14 reads confirmed — Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec. June, July and Sept are FOUR letters. The set sent 'Sep' and attempt 8 met the portal's refusal on it; 'Jun' and 'Jul' would have followed (ADR-0136)."
     },
     {
       "fieldRef": "startDateYear",
@@ -531,10 +531,10 @@
                   "3": "Mar",
                   "4": "Apr",
                   "5": "May",
-                  "6": "Jun",
-                  "7": "Jul",
+                  "6": "June",
+                  "7": "July",
                   "8": "Aug",
-                  "9": "Sep",
+                  "9": "Sept",
                   "10": "Oct",
                   "11": "Nov",
                   "12": "Dec"
@@ -544,7 +544,7 @@
           }
         }
       },
-      "note": "End:* — the end always carries a date (completed, expected, or discontinued — the student's claim; the date is what the form takes)."
+      "note": "End:* — the end always carries a date (completed, expected, or discontinued — the student's claim; the date is what the form takes). MONTH NAMES CORRECTED IN P185: this select's own names, as the 2026-09-10 capture recorded them and the 2026-09-14 reads confirmed — Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec. June, July and Sept are FOUR letters. The set sent 'Sep' and attempt 8 met the portal's refusal on it; 'Jun' and 'Jul' would have followed (ADR-0136)."
     },
     {
       "fieldRef": "endDateYear",
@@ -589,10 +589,10 @@
                 "3": "Mar",
                 "4": "Apr",
                 "5": "May",
-                "6": "Jun",
-                "7": "Jul",
+                "6": "June",
+                "7": "July",
                 "8": "Aug",
-                "9": "Sep",
+                "9": "Sept",
                 "10": "Oct",
                 "11": "Nov",
                 "12": "Dec"
@@ -601,7 +601,7 @@
           }
         }
       },
-      "note": "Date of Award: — unstarred. The award date the certificate carries, held on its own and never derived from the end; left EMPTY when the student has none (ADR-0112)."
+      "note": "Date of Award: — unstarred. The award date the certificate carries, held on its own and never derived from the end; left EMPTY when the student has none (ADR-0112). MONTH NAMES CORRECTED IN P185: this select's own names, as the 2026-09-10 capture recorded them and the 2026-09-14 reads confirmed — Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec. June, July and Sept are FOUR letters. The set sent 'Sep' and attempt 8 met the portal's refusal on it; 'Jun' and 'Jul' would have followed (ADR-0136)."
     },
     {
       "fieldRef": "awardDateYear",

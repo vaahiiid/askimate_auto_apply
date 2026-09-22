@@ -307,7 +307,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — RE-SIGNED a THIRD time after the save-locator correction (2026-09-21, commit d64e75d): the directory loads and admits exactly that account", async () => {
+  it("is UNSIGNED after the P185 month correction moved the hash: the directory REFUSES it, loudly, and waits for Vahid to sign the new one", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Three signatures now, and the third is the one this test is about.
     //
@@ -340,15 +340,34 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    expect(labelledHash(toCanonical(value))).toBe("sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef");
+    // ═══════════════════════════════════════════════════════════════════
+    // UNSIGNED as of P185, and the directory REFUSES it. This is the control
+    // working, not a defect.
+    //
+    // Attempt 8 met the portal's refusal on "Sep": the education date maps
+    // sent three month names the select does not offer (ADR-0136). Correcting
+    // them changed what will be typed — Sept, June, July — and changing what
+    // will be typed moves the hash, which voids the signature. Vahid, before
+    // the first signature: "If anything in either changes afterwards — a
+    // label, a value, a condition — the hash moves and the approval is void,
+    // and I would rather that happened loudly than be worked around."
+    //
+    // So the approval is REMOVED rather than re-pointed. An agent cannot
+    // re-sign on his behalf: a hash written into approvals.json by anything
+    // but him is a signature he did not give. The entry waits, refused, until
+    // he signs the hash above — which is the one thing this test asserts.
+    // ═══════════════════════════════════════════════════════════════════
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((p) => p.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
-    // ONE approval on file: the superseded one is gone, not merely outvoted.
+    expect(load.ok, "an unapproved entry does not load").toBe(false);
+    if (load.ok) expect.unreachable("checked above");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef",
+    );
+    // NO approval on file: the void one is gone, not left behind asserting an
+    // approval for content that no longer exists.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
-    expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+    expect(approvals, "no signature until Vahid gives one").toHaveLength(0);
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {
@@ -382,7 +401,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.26, mapping set 0.3.31, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.26, mapping set 0.3.32, reviewed by Vahid Mohammadi.");
     // P153: the read's four label defects gone — the hidden selects are not
     // "left empty", the radios read Yes/No, the date selects carry the row's question.
     expect(output).not.toContain("institutionCode");

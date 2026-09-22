@@ -1,4 +1,4 @@
-REVIEWED — blueprint 0.2.26, mapping set 0.3.31, reviewed by Vahid Mohammadi.
+REVIEWED — blueprint 0.2.26, mapping set 0.3.32, reviewed by Vahid Mohammadi.
 Profile: 18 value(s) from the file given. Every line below is what the run would type, attach or leave, for that profile.
 
 University of Sheffield — MSc Management and International Business, 2027-09
@@ -51,11 +51,11 @@ Education — one qualification; the applicant adds one entry per qualification:
     Qualification:: BSc
     Search:: business
     Results:: Business Management
-    Start:: Sep
+    Start:: Sept
     Start:: 2019
-    End:: Jun
+    End:: June
     End:: 2022
-    Date of Award:: Jul
+    Date of Award:: July
     Date of Award:: 2022
     Grading System:: UK Bachelors Degree (BA, BSc)  (sent as "7")
     grade: 2.1
@@ -121,4 +121,4 @@ We did not answer these for you:
     Not answered on your behalf. Instead we entered "Prefer not to say".
     Why: Ethnic origin is Article 9 data this system does not hold. The form's own 'Prefer not to say' option (998) is selected: a stated refusal, not the student's answer.
 
-Reference: sha256:11354004fbd5621fba033f34d6578d123240843afdbe2173b0bab3cafbb45ea4
+Reference: sha256:0644c3663344cbb28fb1d1a130d09788e952c7538d18e401a5a7c9b1b33cf4b8

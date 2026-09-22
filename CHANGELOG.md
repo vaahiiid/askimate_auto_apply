@@ -19,6 +19,32 @@ not shipped artefacts.
 
 ---
 
+## [0.181.0] — 2026-09-22
+
+**P185 — ADR-0136: an option map is checked against the list that was captured, by the build.**
+
+- **Attempt 8: 18 of 19 boxes on `education.do` took their values**, the institution box among
+  them — P184's fix held on the live site, first time in eight attempts.
+- **The one that did not:** `startDateMonth`. The set sent `Sep`; Sheffield's list says `Sept`.
+  Three of its twelve names are four letters (June, July, Sept) and the synthetic profile's
+  education dates are exactly those three months — all three would have failed in turn.
+- **The audit — all 45 option maps against the blueprint's recorded options:** 41 agreed, 3 did
+  not (`startDateMonth`, `endDateMonth`, `awardDateMonth`), 1 has no list to check
+  (`subjectSearch`, a free-text box). Every nationality, visa, employment, date-of-birth, country,
+  radio, qualification, grading and grade map was read from a capture and is correct.
+- **Where "three-letter names" came from:** ADR-0112's Built (P134) note, written as a fact four
+  days after the 2026-09-10 capture that records `June, July, Sept`. Nothing on the record
+  supports it. Withdrawn in ADR-0112.
+- **Built:** `checkUsable` refuses `option_map_not_offered` — the question ADR-0102 asks of a
+  refusal, asked of the maps that carry the student's own answers. Red first.
+- **What moved in `what-will-be-typed.md`:** `Start:: Sep→Sept`, `End:: Jun→June`,
+  `Date of Award:: Jul→July`, the set version, and its own reference hash. Five lines of 124.
+- **The entry is UNSIGNED.** The content hash moved, so the approval is void and was removed
+  rather than re-pointed; the directory refuses the entry until Vahid signs
+  `sha256:56388e658f98955236f0a609afc0696fa295c415dba39a86c42c94f6877f21ef`. Blocker 56.
+
+---
+
 ## [0.180.0] — 2026-09-22
 
 **P184 — ADR-0135: the widget you just used takes the focus back, and the next box's keystrokes

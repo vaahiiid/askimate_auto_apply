@@ -285,6 +285,20 @@ export type MappingRefusal =
   | { readonly kind: "form_refusal_misused"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A refusal value the field's options do not hold, or a field with no options to refuse with. */
   | { readonly kind: "form_refusal_not_offered"; readonly detail: string; readonly fieldRefs: readonly string[] }
+  /**
+   * An OPTION MAP naming a value the field's captured options do not hold (ADR-0136).
+   *
+   * The same question `form_refusal_not_offered` asks, asked of the maps that carry the
+   * student's own answers rather than of a refusal. It was not asked for a year of this
+   * repository's life, and the cost was eight attempts at one page: the education date maps
+   * sent `Sep`, `Jun` and `Jul` while the blueprint on the same page recorded `Sept`, `June`
+   * and `July` — read correctly from the very first capture, on 2026-09-10, and never compared
+   * against the map authored four days later from what a month list usually looks like.
+   *
+   * A reviewer cannot be asked to hold twelve spellings in their head against a list they read
+   * a week earlier. The build can.
+   */
+  | { readonly kind: "option_map_not_offered"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A `formSays` the form's captured text does not contain. */
   | { readonly kind: "form_refusal_composed"; readonly detail: string; readonly fieldRefs: readonly string[] }
   /** A cover naming a field that is not special-category, not in the blueprint, mapped, or covered twice. */
@@ -326,6 +340,26 @@ export type MappingCheck =
  * signature admits is the approval registry's record, where a single
  * signature admits the signer's own account and nothing else.
  */
+/**
+ * Every value an option map writes into the form, anywhere in a format tree.
+ *
+ * A format nests — `part` then `option`, `option` alone — so this walks rather than looking at
+ * the top level, which is how three of the six month maps could differ from the other three
+ * without anything noticing.
+ */
+function optionValuesNamedBy(format: unknown): string[] {
+  if (Array.isArray(format)) return format.flatMap((entry) => optionValuesNamedBy(entry));
+  if (format === null || typeof format !== "object") return [];
+  const node = format as Record<string, unknown>;
+  const here =
+    node["kind"] === "option" && typeof node["options"] === "object" && node["options"] !== null
+      ? Object.values(node["options"] as Record<string, unknown>).filter(
+          (value): value is string => typeof value === "string",
+        )
+      : [];
+  return [...here, ...Object.values(node).flatMap((value) => optionValuesNamedBy(value))];
+}
+
 export function checkUsable(
   mappingSet: MappingSet,
   blueprint: ApplicationBlueprint,
@@ -549,6 +583,57 @@ export function checkUsable(
       coveredOnce.add(covered);
     }
   }
+  // ── Every option map against the list the blueprint recorded (ADR-0136) ──
+  //
+  // Read from the CAPTURED options, never from what the value looks like. A map is a promise
+  // that the portal will accept what it names, and the only thing on the record that can keep
+  // that promise is the list discovery read off the page.
+  //
+  // Fields with no captured options are skipped rather than refused: a text box legitimately
+  // has none, and a map onto one is checked by nothing here. `checkUsable` already refuses a
+  // field that is not in the blueprint at all, so what is skipped is narrow and deliberate.
+  const mapsNotOffered: string[] = [];
+  const mapDetails: string[] = [];
+  for (const mapping of mappingSet.mappings) {
+    if (mapping.source.kind !== "profile_field") continue;
+    const field = fieldsByRef.get(mapping.fieldRef);
+    if (field === undefined || field.options === undefined || field.options.length === 0) continue;
+    // A field whose options ARRIVE AFTER another is set (ADR-0103 gap 1) is
+    // skipped, and this is the one exception worth spelling out.
+    //
+    // Its captured options are ONE observation of a list the page loads at
+    // fill time — the eleven institutions one search returned, the grading
+    // systems for one institution — not the list the student's own answer
+    // will meet. Refusing a map against a partial observation would refuse
+    // correct maps, and the `end-to-end` demo's `passport_country` is exactly
+    // that: a country list the fixture portal fills after the nationality,
+    // captured empty by discovery and mapped correctly by the reviewer.
+    //
+    // The three maps this check was built for are static selects with their
+    // whole list on the page, which is why the capture is authoritative there.
+    if (field.optionsAfter !== undefined) continue;
+    const offered = new Set(field.options.map((option) => option.value));
+    const named = [...new Set(optionValuesNamedBy(mapping.source.format))];
+    const missing = named.filter((value) => !offered.has(value));
+    if (missing.length === 0) continue;
+    mapsNotOffered.push(mapping.fieldRef);
+    mapDetails.push(`${mapping.fieldRef} names ${missing.map((v) => `"${v}"`).join(", ")}`);
+  }
+  if (mapsNotOffered.length > 0) {
+    return {
+      usable: false,
+      refusal: {
+        kind: "option_map_not_offered",
+        fieldRefs: mapsNotOffered,
+        detail:
+          `An option map names a value the field's captured options do not hold: ` +
+          `${mapDetails.join("; ")}. A map is a promise that the portal will accept what it ` +
+          `names, and the captured list is the only thing on the record that can keep it \u2014 ` +
+          `never what the value looks like (ADR-0136).`,
+      },
+    };
+  }
+
   if (notOffered.length > 0) {
     return {
       usable: false,

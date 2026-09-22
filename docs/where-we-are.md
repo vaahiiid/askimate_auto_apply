@@ -4906,6 +4906,59 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P185 — the box took its value, and the month did not
+
+Attempt 8 on his own account: eighteen of nineteen boxes on the education page took their values,
+the institution box among them. P184's fix held on the live site, which is what it was built to
+find out.
+
+The nineteenth was `startDateMonth`, and the failure line did its job — it printed the portal's
+whole list beside the value we sent. We send `Sep`. Sheffield says `Sept`. And June and July are
+four letters there as well, so the synthetic profile's three education months — September, June,
+July — would have failed one after another.
+
+So: audit every option map, not only education's. Forty-five of them, against the options the
+blueprint records from the captures. Forty-one agree. Three do not, and they are the three
+education dates. One has no list to check against, and that is right: `subjectSearch` is a
+free-text box, and what goes in it is a search term rather than a choice.
+
+The other month maps are the interesting part, because they are correct and they say why. The
+nationality one: *by the select's own names (Jan … June, July … Sept … Dec, as captured)*. The
+visa expiry: *in the select's own spellings*. Employment's: the full English names, which is what
+that page's capture records. Every map whose note names a reading is right. The only wrong ones
+are the three whose note asserts a shape.
+
+Where the shape came from is on the record, and it is worse than unsourced. ADR-0112's Built
+section, P134: *"the months by the selects' three-letter names."* The first capture of that page
+was taken on 10 September and records `June`, `July`, `Sept`. The claim was written four days
+later. The blueprint inside the signed entry says the same true thing, a few hundred lines from
+the map that contradicts it. And the same ADR's last consequence names the task that was skipped:
+*"the reviewer's option maps onto the observed lists."*
+
+It is the `saveBtn` shape exactly — authored from what a control usually looks like rather than
+from what this one said.
+
+What is built is the comparison nobody was doing. `checkUsable` already refuses a refusal value the
+field's options do not hold; it now refuses an option map the same way, walking the format tree
+because a format nests — which is how three of six month maps could differ from the other three
+with nothing noticing. A reviewer cannot hold twelve spellings against a list they read a week
+earlier. The build can, on every mapping, every time.
+
+And what he asked about, precisely: `what-will-be-typed.md` moved in **five lines of a hundred and
+twenty-four**. Three of them are typed values — `Start:: Sep` to `Sept`, `End:: Jun` to `June`,
+`Date of Award:: Jul` to `July`. The other two are the mapping set's version and the document's own
+reference hash. Nothing else on the page changed.
+
+Which means the entry's content hash moved, and the signature is void. The approval is **removed**,
+not re-pointed at the new hash: a hash written into `approvals.json` by anything but him is a
+signature he did not give. The directory now refuses the entry and the tests assert that refusal,
+naming the hash he signs. That is ADR-0057 doing the thing he asked it to do — loudly, rather than
+worked around.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P184 — the box was never asked anything, because it was never typed into
 
 He answered blocker 54 off the live widget — `load` is set, with the settings he read out — and

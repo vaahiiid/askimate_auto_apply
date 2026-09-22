@@ -269,7 +269,9 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(plan.repeats.find((r) => r.pageRef === "page7")?.count).toBe(2);
     const typed = (index: number) =>
       Object.fromEntries(plan.instructions.filter((i) => i.item?.index === index && ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear", "awardDateMonth", "awardDateYear"].includes(i.fieldRef)).map((i) => [i.fieldRef, textOf(i.value)]));
-    expect(typed(0)).toEqual({ startDateMonth: "Sep", startDateYear: "2018", endDateMonth: "Jun", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
+    // P185: "Sep" and "Jun" until attempt 8 met the portal's refusal — this select's
+    // own names are Sept and June, as the 2026-09-10 capture recorded (ADR-0136).
+    expect(typed(0)).toEqual({ startDateMonth: "Sept", startDateYear: "2018", endDateMonth: "June", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
     // P148 (ADR-0119): the degree, required to save, typed per qualification from the
     // synthetic profile's level onto Sheffield's own award title; the unlisted box hidden.
     const degrees = plan.instructions.filter((i) => i.fieldRef === "degree").map((i) => [i.item?.index, textOf(i.value)]);
@@ -292,7 +294,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The one still running: its expected end is typed as the date it is,
     // and the award boxes are left empty because there is no award — the
     // student's statement, not our inference.
-    expect(typed(1)).toEqual({ startDateMonth: "Sep", startDateYear: "2024", endDateMonth: "Jun", endDateYear: "2026", awardDateMonth: "", awardDateYear: "" });
+    expect(typed(1)).toEqual({ startDateMonth: "Sept", startDateYear: "2024", endDateMonth: "June", endDateYear: "2026", awardDateMonth: "", awardDateYear: "" });
     for (const ref of ["startDateMonth", "startDateYear", "endDateMonth", "endDateYear"]) {
       expect(plan.blockers.map((b) => b.fieldRef), ref).not.toContain(ref);
     }
@@ -389,7 +391,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.26");
-    expect(mappingSet.version).toBe("0.3.31");
+    expect(mappingSet.version).toBe("0.3.32");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");

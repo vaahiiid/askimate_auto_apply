@@ -249,6 +249,14 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-22, P185: **attempt 8 filled the institution box — 18 of 19 — and one month name refused
+  (ADR-0136)**. The set sent `Sep`; Sheffield's list says `Sept`, and June and July are four
+  letters too, so all three of the synthetic profile's education months would have failed. All 45
+  option maps audited against the captured lists: 41 agreed, 3 were assumed and are corrected, 1
+  has no list. `checkUsable` now refuses an option map the captured list does not hold. The claim
+  came from ADR-0112's build note, written four days after the capture that refutes it —
+  withdrawn. What will be typed moved in three values, so the entry's hash moved and its signature
+  is void: the approval is removed and the entry waits for Vahid to re-sign (blocker 56).
 - 2026-09-22, P184: **the institution box is solved, by measurement (ADR-0135)**. A fixture serving
   the committed 2.3.1 bundle and `education.js` byte for byte, constructed with the settings read
   off the live widget, reproduced the live failure at once — and then showed why: the widget the

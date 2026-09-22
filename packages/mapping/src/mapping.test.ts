@@ -604,6 +604,45 @@ describe("ADR-0102 — use the refusal the form offers", () => {
     expect(refusal.kind).toBe("form_refusal_misused");
   });
 
+  it("REFUSES an option map naming a value the field's captured options do not hold (ADR-0136)", () => {
+    // ══════════════════════════════════════════════════════════════════
+    // Attempt 8 on Sheffield, 2026-09-22. Eighteen of nineteen boxes took their
+    // values; `startDateMonth` did not, because the set sent "Sep" and the
+    // portal's list says "Sept" — as does the blueprint, on the same page, read
+    // from a capture taken twelve days earlier. `Jun` and `Jul` would have
+    // failed next, on the end and award dates.
+    //
+    // Nothing compared the map against the list. This is that comparison.
+    // ══════════════════════════════════════════════════════════════════
+    // The fixture already maps `nationality`; this bends THAT map rather than
+    // adding a second one, because a duplicate is refused before this check.
+    const bent: MappingSet = {
+      ...FIXTURE_MAPPING_SET,
+      blueprintVersion: BLUEPRINT.version,
+      mappings: FIXTURE_MAPPING_SET.mappings
+        .filter((mapping) => mapping.source.kind !== "student_handoff")
+        .map((mapping) =>
+          mapping.fieldRef === "nationality"
+            ? {
+                ...mapping,
+                source: {
+                  kind: "profile_field" as const,
+                  fieldKey: "identity.nationality" as const,
+                  format: { kind: "option" as const, options: { IR: "IRANIAN" } },
+                },
+              }
+            : mapping,
+        ),
+    };
+    const sent = refusalOf({ ...bent, mappings: [...bent.mappings, ...SENSITIVE_REFUSAL_MAPPINGS] });
+    expect(sent.kind).toBe("option_map_not_offered");
+    if (sent.kind !== "option_map_not_offered") expect.unreachable("kind checked above");
+    expect(sent.fieldRefs).toContain("nationality");
+    // The line names the value, because the reviewer's next act is to compare
+    // it against the list they captured.
+    expect(sent.detail).toContain('"IRANIAN"');
+  });
+
   it("REFUSES a refusal the form does not offer: a value not in the options, or a text box", () => {
     const notAnOption = refusalOf(
       withMappings([

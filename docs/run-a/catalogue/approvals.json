@@ -1,10 +1,1 @@
-[
-  {
-    "contentHash": "sha256:3238406aa4fec5d3301aa7e4f3101d86a75fa696d9c7b81f7b897f7224f262ba",
-    "authoredBy": "Vahid Mohammadi",
-    "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-21T12:00:00Z",
-    "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Re-signed after the save locators were corrected to name=saveBtn on six pages; measured live on all six before signing. Typed content unchanged."
-  }
-]
+[]

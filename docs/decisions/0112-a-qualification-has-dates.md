@@ -1,6 +1,6 @@
 # ADR-0112 — A qualification has dates: a start and an end as month and year, and an award date held on its own
 
-**Status:** Accepted · 2026-09-14 · decides blocker 27 · continues 0111 (the shape of a month-and-year, the end that is never a blank) and 0103 (gap 3)
+**Status:** Accepted, **one build-note claim withdrawn 2026-09-22 (P185)** — the months are not three-letter names; the decision about a qualification's dates stands · 2026-09-14 · decides blocker 27 · continues 0111 (the shape of a month-and-year, the end that is never a blank) and 0103 (gap 3)
 **Decided by:** Vahid Mohammadi, in his own words, 2026-09-14. The shape confirmed by him on 2026-09-15, all four parts as proposed, with one condition on the extraction; built in P134.
 
 ## Context
@@ -129,7 +129,7 @@ and `end` mapped to the end selects in every case.
 - Every literal that carried `completionYear` — seven test files and the gated fixture's
   mapping — moved to a start and a completed end.
 - Set 0.3.22: `startDateMonth`, `startDateYear`, `endDateMonth`, `endDateYear` per
-  qualification, the months by the selects' three-letter names; `awardDateMonth` and
+  qualification, ~~the months by the selects' three-letter names~~ — **WITHDRAWN 2026-09-22 (P185): that was an assumption about the list, not a read of it, and the capture of 2026-09-10 already said otherwise. This select's own names are Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec. Corrected, and the build now refuses an option map the captured list does not hold — see [ADR-0136](./0136-an-option-map-is-checked-against-the-list-that-was-captured.md)**; `awardDateMonth` and
   `awardDateYear` left empty when there is no award. The draft (0.2.21) is unchanged.
 - `scripts/sheffield-draft.test.ts`: the four date selects leave the plan's `no_mapping`
   blockers (forty remain, all on the three unmapped pages); two qualifications typed once each,
