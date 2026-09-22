@@ -4906,6 +4906,86 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P188 — four field names in the sentence that matters
+
+P187's preview came out at four documents, matching the page, and he read it before signing:
+
+> *"We are telling University of Sheffield that your officialCertTranslation, your
+> officialTranTranslation, your certificateTranslation and your transcriptTranslation are coming
+> later."*
+
+Four of the portal's field names in the one line that states what the university is being told. And
+two of them name the wrong document: `officialCertTranslation` is the row Sheffield heads **Final
+Academic Certificate**, and `officialTranTranslation` is **Final Academic Transcript**. The student
+read *translation* four times, and two of the four were the degree certificate and the final
+transcript themselves.
+
+He drew the boundary against his own earlier decision, which is the part worth keeping:
+
+> *"I let seven field names stand in the preview on the 16th because they were beside values that
+> were right, and they mattered to a developer, not a student. This is different: it is the
+> sentence that says what we are telling the university, it is the part the student authorises, and
+> it names the wrong document."*
+
+A field name beside a correct value in a list of boxes is a developer's convenience. A field name
+inside the sentence that says what the university is being told is a student authorising something
+they cannot read — and when the name is wrong, authorising something that is not true.
+
+## Which capture — the answer is neither of the two he offered
+
+He named two sources and asked which was used. Honestly: neither.
+
+His read of the page, on the 11th and again on the 22nd, is a person's report. It is right, and a
+build cannot check it. That is exactly the shape ADR-0136 was written about: a reading written down
+as a fact with nothing to hold it to.
+
+The radios' option labels are captured, but they name an **act** rather than a document — *"I will
+upload my final certificate later"*. Taking the name from them would give *your final certificate*
+where the page's heading says *Final Academic Certificate*, and for the two translation slots would
+lose *Final Academic* altogether.
+
+What this repository actually holds is the companion radio's `row_text` label, captured on
+**2026-09-10** by discovery. Two of the three later reads of that page carry it character for
+character; the third carries the field references instead, because that read could not reach the row
+text positionally (P126). Two agree, one is silent, none contradicts:
+
+```
+officialCertTranslStatus
+  "Final Academic Certificate This is the certificate you received after passing your
+   qualification. This document should include a signature or stamp from the institution.
+   Please note that if you are of"
+```
+
+Heading fused to help paragraph, truncated mid-sentence. All six read that way.
+
+The tempting move is to split heading from help by a pattern — every one of the six continues
+*"This is …"*. That is `Sep` and `Sept` again in a new costume: it works on the six in front of us
+and fails silently on the seventh. So the split is a person's judgement, written down, and the
+**build** holds the person to the capture: the title must be a whole-word prefix of the text it was
+read from, and the text quoted must BE the companion's captured label on that page. A reviewer
+cannot invent words and cannot quote a reading that is not in the file.
+
+## What moves
+
+```
+- You attach yourself: officialCertTranslation
++ You attach yourself: Final Academic Certificate
+```
+
+and the sentence itself, now in Sheffield's own words for its own documents. Where a slot has no
+captured title the preview says *a document this form does not name* — it does not quietly print a
+field name, because that silence is what this fixed.
+
+The two pre-completion slots are named too, though Run A's preview no longer shows them: *Proof of
+Registration* and *Most Recent Transcript*. Neither matches the entry's authored label either.
+
+He signs P187 and P188 together, once, which is the right call — there was no sense in signing a
+hash that would move again within the hour.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P187 — the condition in the student's own words
 
 Nine attempts have cost one box each. The ninth cost `certificateStatus`, twice, and the answer

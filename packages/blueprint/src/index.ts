@@ -26,6 +26,7 @@ export type {
   HandoffPoint,
   RequiredDocument,
   SlotAskedWhen,
+  SlotTitle,
   SubmissionModel,
 } from "./blueprint.js";
 export {

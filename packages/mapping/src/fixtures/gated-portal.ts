@@ -318,6 +318,9 @@ export const GATED_PORTAL_BLUEPRINT: ApplicationBlueprint = {
             whenDeferred: "later",
             whenNotProviding: "none",
           },
+          // ADR-0139: the page's own name for the document, and the captured
+          // text it was read out of — the companion row's label, exactly.
+          title: { text: "Certificate", readFrom: "Certificate status" },
         },
       ],
       // Saves ONE qualification and shows the list again — not "Save and

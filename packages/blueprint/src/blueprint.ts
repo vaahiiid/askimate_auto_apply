@@ -239,6 +239,55 @@ export interface FieldCondition {
 }
 
 /**
+ * The page's own name for a document, for the sentence the student authorises
+ * (ADR-0139).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A slot has three names and only one of them belongs in front of a student.
+ *
+ *   `fieldRef`        the portal's name for the file input — `officialCert-
+ *                     Translation`. A developer's handle.
+ *   `label`           what a reviewer called it when the entry was authored —
+ *                     *Official certificate translation*. Authored, not read,
+ *                     and on Sheffield it is WRONG: that slot is the FINAL
+ *                     ACADEMIC CERTIFICATE, not a translation of anything.
+ *   `title`           the page's own heading for the document. THIS one.
+ *
+ * Until P188 the preview put `label`'s field name into the sentence that says
+ * what the university is being told, so a student read *"we are telling the
+ * University of Sheffield that your officialCertTranslation … is coming
+ * later"* — four field names, two of them naming the wrong document. Vahid,
+ * 2026-09-22: *"it is the sentence that says what we are telling the
+ * university, it is the part the student authorises, and it names the wrong
+ * document. ADR-0059 is broken on exactly the line that matters."*
+ *
+ * ── Why the capture is quoted beside the title ────────────────────────────
+ *
+ * The only captured text for these headings is discovery's `row_text`, which
+ * fuses the heading to the help paragraph and truncates it: *"Final Academic
+ * Certificate This is the certificate you received after passing your
+ * qualification. …"*. Splitting heading from help by a pattern — every one of
+ * Sheffield's six happens to continue *"This is …"* — would be an assumption
+ * about a list written down as a fact, which is the ADR-0136 failure exactly.
+ *
+ * So a person reads where the heading ends, and the build checks they did not
+ * invent words: `text` must be a whole-word prefix of `readFrom`, and where
+ * the slot has a companion on the same page, `readFrom` must be that field's
+ * captured label, character for character. The reviewer's judgement is the
+ * split; the words are the capture's.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface SlotTitle {
+  /** The page's words for this document, and nothing else — no help text. */
+  readonly text: string;
+  /**
+   * The captured text `text` was read out of, quoted whole. Where the slot has
+   * a companion on its page, this must BE that field's captured label.
+   */
+  readonly readFrom: string;
+}
+
+/**
  * The entries of a repeating page for which the form asks for a document slot
  * (ADR-0138).
  *
@@ -379,6 +428,16 @@ export interface RequiredDocument {
      */
     readonly whenNotProviding?: string;
   };
+  /**
+   * The page's own name for this document (ADR-0139) — what the student reads
+   * in *"you attach yourself"* and in the sentence that says what the
+   * university is being told.
+   *
+   * Absent, the preview says the page does not name it rather than falling
+   * back to `fieldRef`: a sentence a student authorises never carries a
+   * developer's handle for a document (Vahid, 2026-09-22).
+   */
+  readonly title?: SlotTitle;
   /**
    * The entries this slot is asked for, on a page that repeats (ADR-0138).
    *

@@ -131,6 +131,14 @@ export interface PreviewHandoff {
   readonly item?: PreviewItem;
   /** What the portal is told beside the slot while the student attaches it (ADR-0107). */
   readonly deferred?: { readonly fieldRef: string; readonly label: string; readonly text: string; readonly displayText?: string };
+  /**
+   * The page's own name for the document (ADR-0139). `label` is the portal's
+   * field name, which is a developer's handle and on Sheffield named the wrong
+   * document; this is what the two sentences below say. Absent when no capture
+   * names the slot, and the preview then SAYS so rather than printing a field
+   * name at a student.
+   */
+  readonly documentTitle?: string;
 }
 
 /**
@@ -502,6 +510,7 @@ export function buildPreview(
     ...(handoff.item === undefined
       ? {}
       : { item: { index: handoff.item.index, count: handoff.item.count, title: pageTitleOf.get(handoff.fieldRef) ?? "" } }),
+    ...(handoff.documentTitle === undefined ? {} : { documentTitle: handoff.documentTitle }),
     ...(handoff.deferred === undefined ? {} : { deferred: { ...handoff.deferred } }),
   }));
 
@@ -726,10 +735,32 @@ export function renderPreview(preview: SubmissionPreview): string {
   // words: *"Not a footnote at the bottom, not a count — under the page it
   // belongs to, in the student's words, saying which boxes they are filling
   // themselves and that the application is not complete until they do."*
+  // ── ADR-0139: a document is named to a student by the page's own heading ──
+  //
+  // Until P188 both sentences below printed `handoff.label`, which for a file
+  // input is the portal's field name. Sheffield's read like this:
+  //
+  //   We are telling University of Sheffield that your officialCertTranslation,
+  //   your officialTranTranslation, … are coming later.
+  //
+  // Four field names in the sentence that says what the university is being
+  // told — and two of them name the wrong document: `officialCertTranslation`
+  // is the page's *Final Academic Certificate*, not a translation of anything.
+  // Vahid, 2026-09-22: *"it is the part the student authorises, and it names
+  // the wrong document. ADR-0059 is broken on exactly the line that matters."*
+  //
+  // With no captured title the preview says so. It does NOT fall back to the
+  // field name: a developer's handle in a sentence a student authorises is the
+  // failure this fixes, and printing one silently would keep it.
+  const UNNAMED = "a document this form does not name";
+  const documentName = (handoff: PreviewHandoff): string =>
+    handoff.documentTitle === undefined ? UNNAMED : handoff.documentTitle;
   const deferralLines = (own: readonly PreviewHandoff[], indent: string): readonly string[] => {
     const deferred = own.filter((handoff) => handoff.deferred !== undefined);
     if (deferred.length === 0) return [];
-    const names = deferred.map((handoff) => `your ${handoff.label}`);
+    const names = deferred.map((handoff) =>
+      handoff.act === "attach" ? (handoff.documentTitle === undefined ? UNNAMED : `your ${handoff.documentTitle}`) : `your ${handoff.label}`,
+    );
     const list = names.length === 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1] ?? ""}`;
     return [
       `${indent}We are telling ${preview.institutionName} that ${list} ${names.length === 1 ? "is" : "are"} coming later.`,
@@ -741,7 +772,11 @@ export function renderPreview(preview: SubmissionPreview): string {
   const ownActLines = (own: readonly PreviewHandoff[], indent: string): readonly string[] => {
     const lines: string[] = [];
     for (const handoff of own) {
-      lines.push(handoff.act === "attach" ? `${indent}You attach yourself: ${handoff.label}` : `${indent}You fill in yourself: ${handoff.label}`);
+      lines.push(
+        handoff.act === "attach"
+          ? `${indent}You attach yourself: ${documentName(handoff)}`
+          : `${indent}You fill in yourself: ${handoff.label}`,
+      );
     }
     const filled = own.filter((handoff) => handoff.act === "fill");
     if (filled.length > 0) {

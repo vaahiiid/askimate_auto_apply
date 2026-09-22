@@ -214,6 +214,13 @@ function list<T>(
   return value.map((item, index) => read(item, `${path}.${key}[${String(index)}]`));
 }
 
+/** A required string that may not be blank — `text` already refuses a non-string. */
+function title_(source: Record<string, unknown>, key: string, path: string): string {
+  const held = text(source, key, path);
+  if (held.trim().length === 0) fail(`${path}.${key}`, "is blank");
+  return held;
+}
+
 function textList(source: Record<string, unknown>, key: string, path: string): readonly string[] {
   return list(source, key, path, (item, itemPath) => {
     if (typeof item !== "string") fail(itemPath, "expected a string");
@@ -400,6 +407,22 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
       ...(whenNotProviding === undefined ? {} : { whenNotProviding }),
     };
   });
+  // ADR-0139: the page's own name for this document, and the captured text it
+  // was read out of. The reviewer's judgement is where the heading ends; the
+  // words are the capture's, and the prefix check holds them to it.
+  const title = optionalWith(source, "title", path, (value, at) => {
+    const held = record(value, at);
+    const text = title_(held, "text", at);
+    const readFrom = title_(held, "readFrom", at);
+    if (!readFrom.startsWith(text) || (readFrom.length > text.length && readFrom[text.length] !== " ")) {
+      fail(
+        `${at}.text`,
+        `is not how the captured text begins — a document's name in front of a student is read from ` +
+          `the page, never composed (ADR-0139)`,
+      );
+    }
+    return { text, readFrom };
+  });
   // ADR-0138: the entries this slot is asked for, on a page that repeats.
   const askedWhen = optionalWith(source, "askedWhen", path, (value, at) => {
     const held = record(value, at);
@@ -423,6 +446,7 @@ function readRequiredDocument(value: unknown, path: string): RequiredDocument {
     required: flag(source, "required", path),
     ...(requiredWhen === undefined ? {} : { requiredWhen }),
     ...(companion === undefined ? {} : { companion }),
+    ...(title === undefined ? {} : { title }),
     ...(askedWhen === undefined ? {} : { askedWhen }),
     ...(recorded === undefined ? {} : { recorded }),
   };
@@ -457,7 +481,25 @@ function readPage(value: unknown, path: string): BlueprintPage {
       ...(recorded === undefined ? {} : { recorded }),
     };
   });
+  const sections = list(source, "sections", path, readSection);
   const requiredDocuments = list(source, "requiredDocuments", path, readRequiredDocument);
+  // ADR-0139: where a slot has a companion on this page, the text a title was
+  // read out of must BE that field's captured label. A reviewer quoting a
+  // capture that is not in the file is the failure this catches, and it is the
+  // same class as ADR-0136's: a claim about the page, checked against the page.
+  const labelOnPage = new Map(
+    sections.flatMap((section) => section.fields.map((field) => [field.fieldRef, field.label] as const)),
+  );
+  for (const document of requiredDocuments) {
+    const companionRef = document.companion?.fieldRef;
+    if (document.title === undefined || companionRef === undefined) continue;
+    const captured = labelOnPage.get(companionRef);
+    if (captured === undefined || captured === document.title.readFrom) continue;
+    fail(
+      `${path}.requiredDocuments.title.readFrom`,
+      `for "${document.fieldRef}" is not the captured label of "${companionRef}" on this page`,
+    );
+  }
   // ADR-0138: the condition is answered against the page's own entry, so on a
   // page that does not repeat there is nothing to answer it against. Refused
   // here rather than ignored at plan time: a slot carrying a rule that decides
@@ -475,7 +517,7 @@ function readPage(value: unknown, path: string): BlueprintPage {
     pageRef: text(source, "pageRef", path),
     title: text(source, "title", path),
     ...(url === undefined ? {} : { url }),
-    sections: list(source, "sections", path, readSection),
+    sections,
     requiredDocuments,
     ...(advanceControl === undefined ? {} : { advanceControl }),
     ...(nextPageRef === undefined ? {} : { nextPageRef }),

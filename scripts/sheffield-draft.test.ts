@@ -129,7 +129,7 @@ describe("the Sheffield drafts, under the real checks", () => {
     // The two marks flagged for Iman are carried as observed, not dropped.
     expect(fields.find((f) => f.fieldRef === "unlistedDegree")?.validations.map((v) => v.kind)).toContain("required");
     expect(fields.find((f) => f.fieldRef === "languageCertificateStatus")?.validations.map((v) => v.kind)).toContain("required");
-    expect(blueprint.version).toBe("0.2.27");
+    expect(blueprint.version).toBe("0.2.28");
   });
 
   it("carry the education chain's dependent lists as OBSERVED with an institution and a grading system chosen (P132, distance item 5)", () => {
@@ -390,8 +390,8 @@ describe("the Sheffield drafts, under the real checks", () => {
   });
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
-    expect(blueprint.version).toBe("0.2.27");
-    expect(mappingSet.version).toBe("0.3.33");
+    expect(blueprint.version).toBe("0.2.28");
+    expect(mappingSet.version).toBe("0.3.34");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -922,6 +922,20 @@ describe("the Sheffield drafts, under the real checks", () => {
       "officialTranTranslStatus",
       "certificateTranslationStatus",
       "transcriptTranslationStatus",
+    ]);
+    // ADR-0139: the six slots are named to the student by the PAGE'S own
+    // heading — read off each companion row's captured label, and checked by
+    // the parser to be its opening words. Four of the six were named by the
+    // portal's field name until P188, and two of those named the wrong
+    // document: `officialCertTranslation` is the Final Academic Certificate.
+    const educationPage = blueprint.pages.find((page) => page.pageRef === "page7");
+    expect(educationPage?.requiredDocuments.map((d) => [d.fieldRef, d.title?.text])).toEqual([
+      ["certificate", "Proof of Registration"],
+      ["transcript", "Most Recent Transcript"],
+      ["officialCertTranslation", "Final Academic Certificate"],
+      ["officialTranTranslation", "Final Academic Transcript"],
+      ["certificateTranslation", "Final Academic Certificate Translation"],
+      ["transcriptTranslation", "Final Academic Transcript Translation"],
     ]);
     // What the student is told quotes the page — including the one that
     // says "proof of registration" where the slot says "degree certificate",

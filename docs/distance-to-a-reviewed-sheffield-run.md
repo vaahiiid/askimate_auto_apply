@@ -249,6 +249,13 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-22, P188: **the sentence that says what the university is being told named four field
+  names, two of them the wrong document (ADR-0139)**. Found by Vahid reading P187's preview before
+  signing. A slot now carries the page's own heading, read off the companion row's captured label
+  (2026-09-10) and held to it by the build — a whole-word prefix, and the quotation must be that
+  label. Where nothing names a slot the preview says so rather than printing a field name. Neither
+  source he offered was used, and the ADR says why: a screen read has nothing for a build to check,
+  and an option label names an act rather than a document. One signature covers P187 and P188.
 - 2026-09-22, P187: **blocker 57 decided B by Vahid, and built (ADR-0138)**. A document slot may
   carry `askedWhen` — a path into the repeating page's own entry, the answers the form asks for,
   and the reviewer's reason — answered per entry before anything is planned for it. Sheffield's

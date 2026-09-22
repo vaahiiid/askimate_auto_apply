@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.184.0] — 2026-09-22
+
+**P188 — ADR-0139: a document is named to a student by the page's own heading, never by the portal's
+field name.**
+
+- **Added** `SlotTitle` and `RequiredDocument.title` — `{ text, readFrom }` — the page's own name for
+  a document and the captured text it was read out of, quoted whole.
+- **Changed** the preview: *"You attach yourself: …"* and *"We are telling … are coming later"* say
+  the title. With no captured title they say *"a document this form does not name"* rather than
+  falling back to `fieldRef` — the silent fallback is the failure being fixed.
+- **Added** two parser checks: `text` must be a whole-word prefix of `readFrom`, and where the slot
+  has a companion on the same page, `readFrom` must BE that field's captured label. The reviewer's
+  judgement is where the heading ends; the words are the capture's.
+- **Changed** Sheffield's entry and curated draft: all six slots titled from the companion rows'
+  `row_text` labels, captured 2026-09-10. Blueprint 0.2.27 → **0.2.28**, mapping set 0.3.33 →
+  **0.3.34**.
+- **Found by Vahid reading P187's own preview**, which named four documents by field name and two of
+  them wrongly: `officialCertTranslation` is the page's *Final Academic Certificate*, not a
+  translation. ADR-0059 was broken on the one line the student authorises.
+- **One signature covers P187 and P188.** The entry's hash is
+  `sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080`; P187's `sha256:cdb43561…`
+  was never signed.
+
+---
+
 ## [0.183.0] — 2026-09-22
 
 **P187 — ADR-0138: a document slot carries the condition the form shows it by, in the student's own

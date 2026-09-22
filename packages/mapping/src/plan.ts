@@ -203,6 +203,12 @@ export interface HandoffRequirement {
    * preview says it in the student's words, and the hash holds it.
    */
   readonly deferred?: { readonly fieldRef: string; readonly label: string; readonly text: string; readonly displayText?: string };
+  /**
+   * The page's own name for the document (ADR-0139), when a capture holds one.
+   * `label` is the portal's field name and is a developer's handle; this is
+   * what belongs in the sentence a student authorises.
+   */
+  readonly documentTitle?: string;
 }
 
 /** What the portal is told beside a handed slot (ADR-0107). */
@@ -383,6 +389,12 @@ export function planFill(
       .filter((document) => document.companion !== undefined)
       .map((document) => [document.fieldRef, document.companion] as const),
   );
+  // ADR-0139: the page's own name for each slot, for the student's sentence.
+  const titleOf = new Map(
+    allRequiredDocuments(blueprint).flatMap((document) =>
+      document.title === undefined ? [] : [[document.fieldRef, document.title.text] as const],
+    ),
+  );
   // ADR-0106: what each slot shows when a file is held in it.
   const recordedOf = new Map(
     allRequiredDocuments(blueprint).flatMap((document) =>
@@ -500,6 +512,7 @@ export function planFill(
           label: field.label,
           reason: mapping.source.reason,
           inputType: field.inputType,
+          ...(titleOf.get(field.fieldRef) === undefined ? {} : { documentTitle: titleOf.get(field.fieldRef) as string }),
           ...deferral.handoff,
         });
         if (deferral.instruction !== null) instructions.push(deferral.instruction);
@@ -723,6 +736,7 @@ export function planFill(
             reason: mapping.source.reason,
             inputType: field.inputType,
             item,
+            ...(titleOf.get(field.fieldRef) === undefined ? {} : { documentTitle: titleOf.get(field.fieldRef) as string }),
             ...deferral.handoff,
           });
           if (deferral.instruction !== null) itemInstructions.push({ ...deferral.instruction, item });

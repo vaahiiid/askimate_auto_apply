@@ -483,6 +483,60 @@ describe("parsing rebuilds rather than casts", () => {
     expect(refused.refusal.path).toContain("whenDeferred");
   });
 
+  it("round-trips the page's own name for a document, and refuses one that was not read off the capture (ADR-0139)", () => {
+    /** The education page's certificate slot, with `title` as given. */
+    const withTitle = (title: unknown): Record<string, unknown> => {
+      const document = JSON.parse(documentOf()) as Record<string, unknown>;
+      const pages = (document["blueprint"] as Record<string, unknown>)["pages"] as Record<string, unknown>[];
+      for (const candidate of pages) {
+        if (candidate["pageRef"] !== "page-education") continue;
+        const slot = (candidate["requiredDocuments"] as Record<string, unknown>[])[0];
+        if (slot === undefined) expect.unreachable("the education page has a slot");
+        if (title === undefined) delete slot["title"];
+        else slot["title"] = title;
+      }
+      return document;
+    };
+    // The fixture's companion row reads "Certificate status"; the heading is
+    // the words before the help text, and the capture is quoted beside it.
+    const good = { text: "Certificate", readFrom: "Certificate status" };
+    const parsed = parseReviewedEntry(withTitle(good));
+    if (!parsed.ok) expect.unreachable(parsed.refusal.detail);
+    const education = parsed.value.blueprint.pages.find((candidate) => candidate.pageRef === "page-education");
+    expect(education?.requiredDocuments[0]?.title).toEqual(good);
+
+    // The name a student reads is signed content: change it and the approval
+    // that covered the old one no longer covers this (ADR-0057).
+    const renamed = parseReviewedEntry(withTitle({ text: "Certificate status", readFrom: "Certificate status" }));
+    if (!renamed.ok) expect.unreachable(renamed.refusal.detail);
+    expect(hashOf(toCanonical(renamed.value))).not.toBe(hashOf(toCanonical(parsed.value)));
+
+    // Words that are not the capture's, and a split mid-word: both refused.
+    // This is ADR-0136's rule applied to a label — a claim about the page,
+    // checked against the page, never composed.
+    for (const broken of [
+      { text: "Degree certificate", readFrom: "Certificate status" },
+      { text: "Certif", readFrom: "Certificate status" },
+      { text: "", readFrom: "Certificate status" },
+    ]) {
+      const refused = parseReviewedEntry(withTitle(broken));
+      if (refused.ok) expect.unreachable(`"${broken.text}" is not how the captured text begins`);
+      expect(refused.refusal.path).toContain("text");
+    }
+
+    // And the capture quoted must BE the companion's captured label on that
+    // page — a reviewer cannot quote a reading that is not in the file.
+    const invented = parseReviewedEntry(withTitle({ text: "Certificate", readFrom: "Certificate something else" }));
+    if (invented.ok) expect.unreachable("the quoted capture is not the companion's label");
+    expect(invented.refusal.path).toContain("readFrom");
+
+    // Absent is allowed: not every page names its slots, and the preview says
+    // so rather than printing a field name at a student.
+    const silent = parseReviewedEntry(withTitle(undefined));
+    if (!silent.ok) expect.unreachable(silent.refusal.detail);
+    expect(silent.value.blueprint.pages.find((p) => p.pageRef === "page-education")?.requiredDocuments[0]?.title).toBeUndefined();
+  });
+
   it("round-trips a slot asked only for some entries, and refuses one that decides nothing (ADR-0138)", () => {
     /** The education page's certificate slot, with `askedWhen` as given. */
     const withAsked = (asked: unknown, pageRef = "page-education"): Record<string, unknown> => {

@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P187 — ADR-0138: a document slot carries the condition the form shows it by, in the student's own terms. Blocker 57 decided **B** by Vahid: for a qualification that has ended, Sheffield's two pre-completion slots and their companions are not planned, previewed or set — four documents previewed, which is what the page shows. The entry changed, so its fourth signature is void and it waits on him |
+| **Phase** | P188 — ADR-0139: a document is named to a student by the page's own heading, never by the portal's field name. Found by Vahid reading P187's preview: the sentence saying what the university is being told named four field names, two of them the wrong document. The entry now carries each slot's heading, read off the capture and checked against it; one signature covers P187's condition and this wording |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
-| **Tests** | **2,805 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 138 ADRs · all 138 Accepted |
+| **Tests** | **2,807 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 139 ADRs · all 139 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

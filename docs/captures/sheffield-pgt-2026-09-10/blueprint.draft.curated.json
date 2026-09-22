@@ -1,6 +1,6 @@
 {
   "blueprintId": "bp-sheffield-pgt-september-direct",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "status": "draft",
   "institutionName": "University of Sheffield",
   "courseName": "MSc Management and International Business",
@@ -26860,6 +26860,10 @@
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
           },
+          "title": {
+            "text": "Proof of Registration",
+            "readFrom": "Proof of Registration This is any document showing you are a student at the institution for example a document confirming your registration or a certificate of study."
+          },
           "askedWhen": {
             "part": [
               "end",
@@ -26890,6 +26894,10 @@
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
           },
+          "title": {
+            "text": "Most Recent Transcript",
+            "readFrom": "Most Recent Transcript This is a breakdown of the marks/scores you received most recently, for example at the end of your previous year of study."
+          },
           "askedWhen": {
             "part": [
               "end",
@@ -26919,6 +26927,10 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "title": {
+            "text": "Final Academic Certificate",
+            "readFrom": "Final Academic Certificate This is the certificate you received after passing your qualification. This document should include a signature or stamp from the institution. Please note that if you are of"
           }
         },
         {
@@ -26939,6 +26951,10 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "title": {
+            "text": "Final Academic Transcript",
+            "readFrom": "Final Academic Transcript This is a breakdown of the marks/scores you received after passing your qualification.This document should include a signature or stamp from the institution.Please note that "
           }
         },
         {
@@ -26959,6 +26975,10 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "title": {
+            "text": "Final Academic Certificate Translation",
+            "readFrom": "Final Academic Certificate Translation This is an official translation of the certificate you received after passing your qualification. This document should include a signature or stamp from the tran"
           }
         },
         {
@@ -26979,6 +26999,10 @@
             "whenAttached": "Uploaded",
             "whenDeferred": "UploadLater",
             "whenNotProviding": "NotSending"
+          },
+          "title": {
+            "text": "Final Academic Transcript Translation",
+            "readFrom": "Final Academic Transcript Translation This is an official translation of the transcript you received after passing your qualification. This document should include a signature or stamp from the transl"
           }
         }
       ],

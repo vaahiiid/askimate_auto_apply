@@ -1081,6 +1081,59 @@ describe("a page filled once per item, in the preview (P96)", () => {
     expect(text).toContain("  Institution: Sharif University of Technology");
   });
 
+  it("names a document to the student by the PAGE'S name for it, never the portal's field name (ADR-0139)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Found on Run A's own preview, 2026-09-22. The sentence that says what
+    // the university is being told read:
+    //
+    //   We are telling University of Sheffield that your officialCertTranslation,
+    //   your officialTranTranslation, … are coming later.
+    //
+    // Four of the portal's field names in the one line the student
+    // authorises — and two of them name the WRONG document:
+    // `officialCertTranslation` is the page's *Final Academic Certificate*,
+    // not a translation of anything. Vahid: *"it names the wrong document.
+    // ADR-0059 is broken on exactly the line that matters."*
+    //
+    // So the title is what is said, and the label — which is where the field
+    // name leaks in — is not. Proved by making the two differ.
+    // ═══════════════════════════════════════════════════════════════════
+    const named = (title: { text: string; readFrom: string } | undefined) => ({
+      ...GATED_PORTAL_BLUEPRINT,
+      pages: GATED_PORTAL_BLUEPRINT.pages.map((page) => ({
+        ...page,
+        requiredDocuments: page.requiredDocuments.map((document) => {
+          if (document.fieldRef !== "qualification_certificate") return document;
+          const { title: _fixtureTitle, ...rest } = document;
+          return { ...rest, label: "qualification_certificate", ...(title === undefined ? {} : { title }) };
+        }),
+      })),
+    });
+    const render = (blueprint: typeof GATED_PORTAL_BLUEPRINT): string => {
+      const check = checkUsable(GATED_PORTAL_MAPPING_SET, blueprint);
+      if (!check.usable) expect.unreachable(check.refusal.kind);
+      const built = buildPreview(blueprint, planFill(blueprint, check.mappingSet, profile(QUALIFICATIONS)), new Map());
+      if (!built.built) expect.unreachable(built.refusal.detail);
+      return renderPreview(built.preview);
+    };
+
+    const titled = render(named({ text: "Final Academic Certificate", readFrom: "Final Academic Certificate status" }));
+    expect(titled).toContain("  You attach yourself: Final Academic Certificate");
+    expect(titled).toContain("  We are telling Gated University that your Final Academic Certificate is coming later.");
+    expect(titled, "the field name never reaches a sentence the student authorises").not.toContain("qualification_certificate");
+
+    // No captured title: the preview SAYS so. It does not quietly fall back to
+    // the field name, which is the whole failure being fixed.
+    const untitled = render(named(undefined));
+    expect(untitled).toContain("  You attach yourself: a document this form does not name");
+    expect(untitled).toContain("  We are telling Gated University that a document this form does not name is coming later.");
+    expect(untitled).not.toContain("qualification_certificate");
+
+    // A box the student FILLS still reads as its question: only a document is
+    // named by a title, because only a document has one.
+    expect(titled).not.toContain("You fill in yourself: a document");
+  });
+
   it("says under EACH entry what the student attaches themselves, apart from what was filled (ADR-0104)", () => {
     // Vahid, 2026-09-11: *"under each qualification, the student must be able
     // to see which documents they are attaching themselves and which ones we

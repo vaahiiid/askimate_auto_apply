@@ -117,6 +117,18 @@ describe("the synthetic profile for Run A (P150)", () => {
     expect(text).toContain('Select the country the institution is based in:: United Kingdom  (sent as "UNITED KINGDOM")');
     expect(text).toContain('Search for an institution...: University of Sheffield  (sent as "SHEFFIELD")');
     expect(text).not.toContain("institutionCountry-ts-control");
+    // ADR-0139: the sentence that says what the university is being told names
+    // documents by the PAGE'S own headings. Until P188 it read *"your
+    // officialCertTranslation, your officialTranTranslation, …"* — four of the
+    // portal's field names, two of them the wrong document.
+    expect(text).toContain(
+      "We are telling University of Sheffield that your Final Academic Certificate, your Final Academic Transcript, " +
+        "your Final Academic Certificate Translation and your Final Academic Transcript Translation are coming later.",
+    );
+    for (const slot of ["certificate", "transcript", "officialCertTranslation", "officialTranTranslation", "certificateTranslation", "transcriptTranslation"]) {
+      expect(text, `no field name reaches the student: ${slot}`).not.toContain(`You attach yourself: ${slot}`);
+    }
+    expect(text).not.toContain("a document this form does not name");
   });
 
   it("prints the values and writes nothing without --write", async () => {
@@ -307,7 +319,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is UNSIGNED after ADR-0138 dropped the two pre-completion slots: the directory REFUSES it, loudly, and waits for Vahid to sign the new one", async () => {
+  it("is UNSIGNED after ADR-0138 and ADR-0139: the directory REFUSES it, loudly, and waits for Vahid to sign the new one", async () => {
     // ═══════════════════════════════════════════════════════════════════
     // Four signatures so far, each superseded by the next:
     //
@@ -331,7 +343,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    expect(labelledHash(toCanonical(value))).toBe("sha256:cdb4356128ee269aebffdcb35d236588731c721e2ccb2ce11a3ce8826bf5bf82");
+    expect(labelledHash(toCanonical(value))).toBe("sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080");
     // ═══════════════════════════════════════════════════════════════════
     // UNSIGNED as of P187, and the directory REFUSES it. This is the control
     // working, not a defect.
@@ -348,6 +360,13 @@ describe("the catalogue entry for Run A (P152)", () => {
     // Unlike the consent and save-locator re-signatures, this one IS what
     // goes into a box: two values the portal will no longer be told.
     //
+    // ADR-0139, the same phase: the sentence that says what the university is
+    // being told named FOUR of the portal's field names, two of them the wrong
+    // document — `officialCertTranslation` is the page's *Final Academic
+    // Certificate*, not a translation. The six slots now carry the page's own
+    // heading, read off the companion row's captured label, and the preview
+    // says those. He signs B and the wording together, once.
+    //
     // So the approval is REMOVED rather than re-pointed. An agent cannot
     // re-sign on his behalf: a hash written into approvals.json by anything
     // but him is a signature he did not give. The entry waits, refused, until
@@ -357,7 +376,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(load.ok, "an unapproved entry does not load").toBe(false);
     if (load.ok) expect.unreachable("checked above");
     expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:cdb4356128ee269aebffdcb35d236588731c721e2ccb2ce11a3ce8826bf5bf82",
+      "No approval exists for sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080",
     );
     // NO approval on file: the void one is gone, not left behind asserting an
     // approval for content that no longer exists.
@@ -396,7 +415,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.27, mapping set 0.3.33, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.34, reviewed by Vahid Mohammadi.");
     // P153: the read's four label defects gone — the hidden selects are not
     // "left empty", the radios read Yes/No, the date selects carry the row's question.
     expect(output).not.toContain("institutionCode");
