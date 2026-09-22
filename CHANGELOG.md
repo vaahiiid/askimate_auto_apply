@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.187.0] — 2026-09-22
+
+**P190 — three records before the build. P191 — the interview's twelve scalar fields.**
+
+- **Added** [`docs/the-agent-portal-possibility.md`](./docs/the-agent-portal-possibility.md) and
+  **blocker 58**: if Sheffield has an agent route, it deletes the held-credential question, deletes
+  account creation, and makes submission honest by construction. The machinery transfers; what gets
+  harder is contractual, not technical.
+- **Added** [`docs/decision-sheet-holding-the-students-password.md`](./docs/decision-sheet-holding-the-students-password.md):
+  the shape (durable ciphertext, per-case key destroyed at conclusion, callback-only, counted use),
+  what it trades, which ADRs change — **ADR-0020 §1 is the crux, not ADR-0101** — and, at his
+  instruction, what we do if the portal's terms forbid sharing a password, which is a question about
+  what the student can honestly agree to rather than a DPIA question.
+- **Added blocker 59**: ADR-0108's own-act machinery runs for an e-mail verification click but does
+  not fit — wrong shape, wrong timing, and it **blocks the run** rather than outliving it. It belongs
+  to the stop family. Depends on blocker 37.
+- **Added** twelve field specs to `packages/interview/src/field-specs.ts`: country of birth, sex,
+  intended start, the three finance fields, residence country, the three ADR-0115 claims, in-UK-now
+  and UK entry date. Seven fields could be asked for; nineteen now can.
+- **Added** three parsers that refuse rather than guess: `yesNo` (null for *maybe*), `yearMonth`
+  (refuses `09/08`, never invents a day), `money` (**refuses a bare number** — an amount with no
+  currency is not an amount).
+- **Changed** one existing test rather than weakening it: the escalation test named a field that now
+  has a question, so it names `contact.address`, which is a composite and its own phase.
+- **Not added, deliberately:** the five guardian fields, reachable only on the minor path — a
+  mandatory-review category that deserves its own phase.
+
+---
+
 ## [0.186.0] — 2026-09-22
 
 **Run A is done — the standing record, the distance to zero, and the two blockers it answered.**

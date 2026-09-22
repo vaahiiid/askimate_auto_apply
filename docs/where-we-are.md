@@ -4906,6 +4906,114 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P190–P191 — the twelve fields a person used to type, and three records before them
+
+The next direction changes four decisions and one of them is his own from August. Before building
+anything, three records, because two of them change what the building is.
+
+## The agent portal, which may make three of the four questions disappear
+
+He asked for this as its own finding rather than a note. He is right that it is one.
+
+Every route this system has taken assumes the student holds the account and we operate it. UK
+universities routinely accept applications from education agents, and the usual mechanism is not an
+agent driving the applicant's account — it is the agent's own portal and the agent's own account.
+Universitio is an education consultancy.
+
+If Sheffield has that route: the held-credential question disappears, because the credential is ours
+and an operational secret is a solved class of problem. Account creation disappears, because there
+is no student account to create. And submission becomes honest by construction, because an agent
+portal exists so a named agent can submit for an applicant — which is the thing the declaration on
+the final page would otherwise make dishonest.
+
+The machinery transfers. Discovery, the blueprint schema, the mapping set, the usable check, the
+plan, the preview, the content hash, the approval registry, the read-back and the network guard are
+all portal-agnostic by design. A new route is a new entry, not a new system. And if the route has
+structured intake rather than a portal, the browser runner is unnecessary on it — every one of Run
+A's ten lost attempts was a browser problem.
+
+What gets harder is not engineering: an agency agreement, a fresh controller/processor analysis, and
+possibly a student who cannot see their own application until an offer. Named in the record, not
+buried.
+
+## The password sheet, and the clause that is not a DPIA question
+
+The sheet prices the shape: durable ciphertext, a per-case key destroyed at conclusion, callback-only
+access kept exactly, single-use replaced by counted-use bound to one case and one host. It trades
+*nothing at rest* for *nothing readable after the case ends*.
+
+He asked for one addition and it turned out to be the most important part:
+
+> *"say what we do when the portal's own terms forbid sharing a password… If it is there, holding
+> the credential is not a DPIA question, it is a question about whether the student can honestly
+> agree to it."*
+
+That reorders the analysis. Consent governs what **we** may do with a student's data; it does not
+release the student from an agreement they made with their university. If the clause is there, a
+student agreeing to let us hold it is agreeing to break that agreement, and no lawful basis of ours
+fixes that.
+
+One thing the sheet says rather than avoids: **the disclosure already happens**, the moment they type
+into the box, and has for all ten attempts. Holding extends its duration; it does not create a new
+category of act. That is worth being precise about rather than comfortable about.
+
+## E-mail verification: ADR-0108's machinery runs, and does not fit
+
+He proposed the own-act shape for the verification click — tell them in chat, a button when they
+have done it, never touch the mailbox. The shape is right. The machinery is the wrong one, in three
+places, and the third is the one that decides it.
+
+The event is shaped for a document slot: a `key` that is a field reference and an entry index, a
+page, and what the portal was told beside it. A verification link has none of those. The timing is
+wrong: own acts are appended *with the yes, from the preview the student authorised* — verification
+is discovered after the account is created, in no preview at all. And the semantics differ where it
+matters: an unattached document leaves the application incomplete and the case concludes anyway,
+because ADR-0108 deliberately chases nobody. An unverified address **blocks the run** — no sign-in,
+no fill.
+
+So it belongs to the stop family, not the debt family, and that vocabulary already exists: the
+intervention path, the CAPTCHA and second-factor stops, and `awaiting_email_verification` sitting in
+`ownership.ts` since the account package was written. Park the run, say what the portal's page said,
+take their word as a resume decision, and re-check by attempting the sign-in rather than by reading
+anything. ADR-0020 §5 stays whole.
+
+With one dependency worth knowing before it is built: **blocker 37** — a sign-in stop can be raised
+but never resolved — is still open. Building this on top of it would raise a stop nobody can clear.
+
+## And then the twelve fields
+
+Twenty of twenty-seven had no question, so the profile was seeded from a file. Twelve of them are one
+value each, and those are now asked.
+
+The interesting part is not the questions, it is the three parsers, because each one refuses where it
+would have been easy to guess.
+
+`yesNo` reads yes or no and returns null for *maybe*, *sometimes* and *I think so*. These are
+ADR-0115's claims — *"The history is what they remembered; the answer is what they claim. Those are
+different, and only one of them is signed at the bottom of an application."* A hedge is not a usable
+reading of a question somebody signs.
+
+`yearMonth` reads `2019-09` and *September 2019*, and refuses `09/08` for exactly the reason the date
+of birth refuses `02/04/1999`: it is two different answers to two different readers. It never invents
+a day, because the registry holds month and year and Sheffield asks for a day *"because it asks a
+day, not because anyone knows it."*
+
+`money` refuses a bare number. Twenty thousand is not an amount of money until the student says of
+what, and defaulting it to sterling because the university is British is `Sep`/`Sept` in a new
+costume.
+
+Six tests, all six red first on a missing spec. One existing test moved rather than being weakened:
+it escalated on `finance.sponsor_name`, which now has a question, so it escalates on
+`contact.address`, which is a composite and its own phase.
+
+Not built, deliberately: the five guardian fields. They are reachable only on the minor path, which
+is a mandatory-review category, and that path deserves a phase that looks at it rather than a spec
+added in passing.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P188 — four field names in the sentence that matters
 
 P187's preview came out at four documents, matching the page, and he read it before signing:

@@ -10,6 +10,7 @@ export type {
   Address,
   LanguageTestResult,
   Money,
+  YearMonth,
   ProfileFieldKey,
   ProfileFieldType,
   ProfileFieldTypes,

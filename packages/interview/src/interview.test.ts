@@ -198,8 +198,19 @@ describe("asking, and then escalating rather than guessing", () => {
     }
   });
 
+  it("ASKS for a scalar field it could not ask for before (P191)", async () => {
+    // The mirror of the test below, and the one that proves the phase did
+    // something: before P191 this field escalated with "will not improvise".
+    const action = await nextAction(start(["residence.in_uk_now"]), model);
+    expect(action.kind).toBe("ask");
+  });
+
   it("escalates rather than improvising a question for an unknown field", async () => {
-    const action = await nextAction(start(["finance.sponsor_name"]), model);
+    // P191 gave `finance.sponsor_name` a question, so this test moved to one
+    // that still has none. `contact.address` is a composite — several parts,
+    // one thing — and is its own phase; until then the interview stops here
+    // rather than inventing a way to ask for it.
+    const action = await nextAction(start(["contact.address"]), model);
     expect(action.kind).toBe("escalate");
     if (action.kind === "escalate") {
       expect(action.reason).toContain("will not improvise");
@@ -324,6 +335,106 @@ describe("what the interview is not allowed to ask for", () => {
       return CREDENTIAL_WORDS.some((word) => text.includes(word));
     });
     expect(offending.map(([key]) => key)).toEqual([]);
+  });
+
+  // ── P191: the registry's scalar fields can be asked for ──────────────────
+  //
+  // Twenty of the registry's twenty-seven fields had no question, so a person
+  // edited a file. Vahid, 2026-09-22: *"Nothing above matters to a real student
+  // until that is closed."* This phase closes the twelve that are one value
+  // each; the composites and the list-valued groups are their own phases.
+
+  const SCALARS = [
+    "identity.country_of_birth",
+    "identity.sex",
+    "study.intended_start",
+    "finance.funding_source",
+    "finance.sponsor_name",
+    "finance.available_funds",
+    "residence.country",
+    "residence.in_uk_now",
+    "residence.always_in_residence_country",
+    "residence.always_in_eu",
+    "residence.outside_residence_country_last_three_years",
+    "residence.uk_entry_date",
+  ] as const;
+
+  it("can ask for every scalar field in the registry (P191)", () => {
+    const missing = SCALARS.filter((key) => FIELD_SPECS[key] === undefined);
+    expect(missing, "a field with no question is a field a person edits into a file by hand").toEqual([]);
+  });
+
+  it("reads a yes or a no, and refuses anything that is neither (P191)", () => {
+    // ADR-0115: these are CLAIMS the student makes, asked and never derived
+    // from the history. A claim read wrong is signed at the bottom of an
+    // application, so a doubtful answer is asked again rather than guessed.
+    const spec = FIELD_SPECS["residence.in_uk_now"];
+    if (spec === undefined) expect.unreachable("asked for above");
+    for (const yes of ["yes", "Yes", " y ", "yeah", "yep", "true"]) expect(spec.parse(yes), yes).toBe(true);
+    for (const no of ["no", "No", "n", "nope", "false"]) expect(spec.parse(no), no).toBe(false);
+    for (const neither of ["maybe", "sometimes", "I think so", "", "   ", "not sure", "on and off"]) {
+      expect(spec.parse(neither), neither).toBeNull();
+    }
+  });
+
+  it("reads a month and a year, and refuses a form that could be read two ways (P191)", () => {
+    // ADR-0115, his words: Sheffield asks a day "because it asks a day, not
+    // because anyone knows it". The registry holds month and year, so the
+    // question asks for month and year and nothing invents a day.
+    const spec = FIELD_SPECS["residence.uk_entry_date"];
+    if (spec === undefined) expect.unreachable("asked for above");
+    expect(spec.parse("2019-09")).toEqual({ year: 2019, month: 9 });
+    expect(spec.parse("September 2019")).toEqual({ year: 2019, month: 9 });
+    expect(spec.parse(" sept 2019 ")).toEqual({ year: 2019, month: 9 });
+    // 09/08 could be either order, and 2019-13 is not a month.
+    for (const refused of ["09/08", "2019-13", "2019-00", "September", "2019", "the autumn of 2019", ""]) {
+      expect(spec.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("refuses an amount with no currency rather than choosing one (P191)", () => {
+    // The same rule as ADR-0112's award date: a value with a part we chose is
+    // worse than no value. "20000" is not an amount of money until the student
+    // says of what.
+    const spec = FIELD_SPECS["finance.available_funds"];
+    if (spec === undefined) expect.unreachable("asked for above");
+    expect(spec.parse("£20,000")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
+    expect(spec.parse("GBP 20000")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
+    expect(spec.parse("20000 gbp")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
+    expect(spec.parse("€1500.50")).toEqual({ amountMinorUnits: 150_050, currency: "EUR" });
+    for (const refused of ["20000", "twenty thousand", "£", "about £20,000", "20000 pounds-ish", ""]) {
+      expect(spec.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("keeps what the student typed for the open ones, and refuses an empty answer (P191)", () => {
+    for (const key of ["identity.country_of_birth", "identity.sex", "study.intended_start", "finance.funding_source", "finance.sponsor_name", "residence.country"] as const) {
+      const spec = FIELD_SPECS[key];
+      if (spec === undefined) expect.unreachable(`${key} asked for above`);
+      expect(spec.parse("  Iran  "), key).toBe("Iran");
+      expect(spec.parse("   "), key).toBeNull();
+      expect(spec.parse(""), key).toBeNull();
+    }
+  });
+
+  it("explains itself for every scalar it asks for, and names the shape wanted (P191)", () => {
+    // A question with no reason is interrogation, not conversation — the rule
+    // this file opens with. Held for the new ones, not just the first seven.
+    for (const key of SCALARS) {
+      const spec = FIELD_SPECS[key];
+      if (spec === undefined) expect.unreachable(`${key} asked for above`);
+      expect(spec.rationale.length, key).toBeGreaterThan(20);
+      expect(spec.expectedShape.length, key).toBeGreaterThan(3);
+    }
+  });
+
+  it("does not ask a guardian's details in this phase, and says why (P191)", () => {
+    // Guardian fields are reachable only on the minor path, which is a
+    // mandatory-review category. Asking is not deciding, but the path deserves
+    // a phase that looks at it rather than a spec added in passing.
+    for (const key of ["guardian.given_name", "guardian.family_name", "guardian.relationship", "guardian.email", "guardian.mobile"] as const) {
+      expect(FIELD_SPECS[key], key).toBeUndefined();
+    }
   });
 
   it("still asks for the things it SHOULD, so this is not passing by emptiness", () => {
