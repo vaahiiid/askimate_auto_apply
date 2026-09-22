@@ -249,6 +249,15 @@ Nothing here is built; the sheet is written when he asks for one.
 
 ## What moved
 
+- 2026-09-22, P184: **the institution box is solved, by measurement (ADR-0135)**. A fixture serving
+  the committed 2.3.1 bundle and `education.js` byte for byte, constructed with the settings read
+  off the live widget, reproduced the live failure at once — and then showed why: the widget the
+  runner has just finished with takes the focus back about ninety milliseconds after its entry is
+  clicked, so the next box's keystrokes land in it. Ours, not the portal's. The runner now drains
+  the focus at the end of the act that caused it, reads the box back, retypes bounded at three, and
+  says plainly when a box did not take what was typed; the lookup log records a request when it is
+  asked. Blockers 49 and 55 closed, 54 answered. It does not claim Sheffield will fill — the fixture
+  is the portal's code, not the portal.
 - 2026-09-21, P183: **the portal's own scripts, read.** Sheffield ships Tom Select **2.3.1**, which
   binds `input` — so ADR-0133's 1.x explanation is withdrawn for this portal (amended, typing kept)
   and blocker 49's cause is still not established. From `education.js`: the institution search is

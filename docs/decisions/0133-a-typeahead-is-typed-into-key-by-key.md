@@ -1,6 +1,6 @@
 # ADR-0133 — A typeahead is typed into key by key, and a box that finds nothing says what the field behind the earlier control holds
 
-**Status:** Accepted, **Context amended 2026-09-21 (P183)** — the 1.x reasoning is withdrawn for Sheffield, which ships Tom Select 2.3.1; the decision stands and the typing is not reverted · 2026-09-21 · continues [ADR-0103](./0103-the-blueprint-says-what-the-form-does-between-fields.md) gap 2 and [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) · found by Vahid's hand measurement on the live form, and by the line [ADR-0132](./0132-the-uniqueness-that-protects-a-queue-must-not-outlive-the-resolution.md)'s phase added
+**Status:** Accepted, **Context amended 2026-09-21 (P183) and 2026-09-22 (P184)** — the cause is ADR-0135's; — the 1.x reasoning is withdrawn for Sheffield, which ships Tom Select 2.3.1; the decision stands and the typing is not reverted · 2026-09-21 · continues [ADR-0103](./0103-the-blueprint-says-what-the-form-does-between-fields.md) gap 2 and [ADR-0109](./0109-a-typeahead-mapping-names-the-value-the-form-submits.md) · found by Vahid's hand measurement on the live form, and by the line [ADR-0132](./0132-the-uniqueness-that-protects-a-queue-must-not-outlive-the-resolution.md)'s phase added
 **Built in P180**, the same day.
 
 ## Context — a person's keystrokes searched, the runner's fill did not
@@ -43,7 +43,11 @@ What the same capture does establish, from `education.js` and the vendored 2.3.1
   `#institutionCountry`.value and calls `GET ./ajax/institution/search.app?name=…&studyAbroad=…&country=…`;
 - `load()` runs only when `canLoad()` is true, which is `!!settings.load && !loadedSearches.hasOwnProperty(query)`;
 - **the construction that would set `settings.load` is inline in `education.do` and no capture
-  holds it.** That is the open question, and it is named as blocker 54 rather than guessed at.
+  holds it.** That was the open question, and it is now answered: Vahid read the live instance off
+  the element on 2026-09-22 — `load` IS set. **And the cause was found in P184 and is not here at
+  all:** the previous widget takes the focus back about ninety milliseconds after its entry is
+  clicked, and the runner's keystrokes for the next box land in it. See
+  [ADR-0135](./0135-the-widget-you-just-used-takes-the-focus-back.md), which closes blocker 49.
 
 The three paragraphs that follow are kept as the reading of the vendor source that they are.
 They are correct about the two versions and wrong about which one this portal runs.

@@ -29,7 +29,7 @@ import type { FieldLocator } from "@askimate/aas-blueprint";
 import type { TypeaheadEntries } from "@askimate/aas-execution";
 import type { ConfirmedValue } from "@askimate/aas-domain";
 import { unwrapConfirmed } from "@askimate/aas-domain";
-import type { Browser, BrowserContext, Locator, Page } from "playwright";
+import type { Browser, BrowserContext, Locator, Page, Request } from "playwright";
 import { chromium } from "playwright";
 
 import { toPlaywrightLocator } from "@askimate/aas-browser-fill";
@@ -159,6 +159,12 @@ export class OptionNotAvailableError extends Error {
     scriptFailures?: number,
     /** Requests this run's guard REFUSED during the fill (P182). */
     refused?: readonly { readonly reason: string }[],
+    /**
+     * Set when the box did not take the text that was typed into it (P184) —
+     * the runner's own fault, named rather than left to be inferred from an
+     * empty list.
+     */
+    typingWentElsewhere?: string,
   ) {
     // The wanted value is NOT in the message. It is the student's answer —
     // a nationality, a country of birth — and this message goes into logs,
@@ -195,6 +201,7 @@ export class OptionNotAvailableError extends Error {
             : `THIS RUN'S OWN GUARD refused ${String(refused.length)} request(s) while the box was ` +
               `being filled: ${[...new Set(refused.map((entry) => entry.reason))].join(" ")} `
         }` +
+        `${typingWentElsewhere === undefined ? "" : `${typingWentElsewhere} `}` +
         `The mapping is out of step with the portal and a specialist must review it — the ` +
         `nearest option is not chosen.`,
     );
@@ -234,6 +241,25 @@ const OPTION_WAIT_MS = 5_000;
  * ordinary visitor rather than a fast one.
  */
 const TYPING_DELAY_MS = 50;
+
+/**
+ * How long, and how many times, to watch the page's focus before typing
+ * (P184). Two settled reads are enough for a `setTimeout(…, 0)` handoff; the
+ * ceiling is there so a page that never settles costs a bounded wait and not
+ * a hung run.
+ */
+const FOCUS_SETTLE_MS = 50;
+const FOCUS_SETTLE_ATTEMPTS = 20;
+/** Consecutive unchanged reads that count as settled — 200 ms of quiet. */
+const FOCUS_STABLE_READS = 4;
+
+/**
+ * How many times the runner will retype a box that did not take the text
+ * (P184). Three, because the fault it works around is a race with the
+ * previous widget's deferred refocus and one retry clears it; a box still
+ * empty after three is a finding, and the failure says so.
+ */
+const TYPING_ATTEMPTS = 3;
 
 /**
  * Records what the PAGE fetched from the portal, in shape (P179, widened P182).
@@ -280,16 +306,26 @@ function watchPage(page: Page, lookups: LookupLog, failures: ScriptFailureLog): 
     failures.record();
   });
 
-  page.on("response", (response) => {
-    void (async () => {
-      const request = response.request();
-      const here = safeUrl(page.url());
-      const asked = safeUrl(response.url());
-      if (here === null || asked === null || here.host !== asked.host) return;
-      lookups.record({
+  // ── Recorded when it is ASKED, answered when it is answered (P184) ─────
+  //
+  // Two listeners, one record. The request listener fixes what P183 found:
+  // the log's positions were answer times, so an earlier act's answer fell
+  // inside a later box's window while the words said *asked* (blocker 55).
+  // It also makes the state nobody could report visible — a search that went
+  // out and has not come back reads `no answer yet`, where before it read the
+  // same as a search that was never fired at all.
+  const asked = new WeakMap<Request, number>();
+
+  page.on("request", (request) => {
+    const here = safeUrl(page.url());
+    const going = safeUrl(request.url());
+    if (here === null || going === null || here.host !== going.host) return;
+    asked.set(
+      request,
+      lookups.asked({
         method: request.method().toUpperCase(),
-        path: asked.pathname,
-        params: [...asked.searchParams].map(([name, value]) => ({
+        path: going.pathname,
+        params: [...going.searchParams].map(([name, value]) => ({
           name,
           empty: value.trim().length === 0,
         })),
@@ -298,11 +334,64 @@ function watchPage(page: Page, lookups: LookupLog, failures: ScriptFailureLog): 
         // rather than from its body or a reviewed list. A portal saves a page
         // by submitting that page's form, which navigates.
         kind: request.isNavigationRequest() ? "navigation" : "background",
-        status: response.status(),
-        answer: await answerShape(response),
-      });
+      }),
+    );
+  });
+
+  page.on("response", (response) => {
+    void (async () => {
+      const token = asked.get(response.request());
+      if (token === undefined) return;
+      lookups.answered(token, response.status(), await answerShape(response));
     })().catch(() => undefined);
   });
+}
+
+/**
+ * Waits until the page has stopped moving its own focus, then clears it (P184).
+ *
+ * Bounded by attempts rather than by a clock, like the option wait: a
+ * session's clock is injectable and a test's may stand still.
+ *
+ * The blur at the end is the part that matters. Waiting alone would leave the
+ * PREVIOUS widget holding focus, and a widget that holds focus is a widget
+ * that can be typed into by accident.
+ */
+async function settleFocus(page: Page): Promise<void> {
+  let previous: string | null = null;
+  let stable = 0;
+  for (let attempt = 0; attempt < FOCUS_SETTLE_ATTEMPTS; attempt++) {
+    const holder = await page
+      .evaluate(() => document.activeElement?.id ?? document.activeElement?.tagName ?? null)
+      .catch(() => null);
+    stable = holder === previous ? stable + 1 : 0;
+    previous = holder;
+    // STAYS settled, not merely looks settled for one sample. Tom Select's
+    // chain is `open()` → `focus()` → `setTimeout(onFocus, 0)` → `openOnFocus`
+    // → `open()` again, and it was traced taking about ninety milliseconds to
+    // run out. A single matching pair of reads can fall inside that.
+    if (stable >= FOCUS_STABLE_READS) break;
+    await page.waitForTimeout(FOCUS_SETTLE_MS);
+  }
+  await page
+    .evaluate(() => {
+      const held = document.activeElement;
+      if (held instanceof HTMLElement) held.blur();
+    })
+    .catch(() => undefined);
+}
+
+/** Which element holds the focus, as page structure and never as content. */
+async function focusedElementInWords(page: Page): Promise<string> {
+  const held = await page
+    .evaluate(() => {
+      const element = document.activeElement;
+      if (element === null) return null;
+      const id = element.id;
+      return id.length > 0 ? `#${id}` : element.tagName.toLowerCase();
+    })
+    .catch(() => null);
+  return held ?? "an element the runner could not name";
 }
 
 function safeUrl(value: string): URL | null {
@@ -748,10 +837,54 @@ export class PlaywrightPreparationSession implements FillableSession {
     //
     // Cleared first, because a retry on the same page meets a box that still
     // holds the last attempt's text.
-    await box.fill("");
-    await box.pressSequentially(entries.text, { delay: TYPING_DELAY_MS });
-
     const page = this.#requirePage();
+    // ── The focus this widget's neighbour gives back (P184) ────────────
+    //
+    // MEASURED, on the portal's own code at its own version: after a
+    // typeahead entry is CHOSEN, Tom Select returns focus to that widget's
+    // control input — and it does so on a `setTimeout(…, 0)` inside `focus()`,
+    // which lands AFTER Playwright's click promise has already resolved. The
+    // next instruction focuses its own box, starts typing, and two characters
+    // in the focus goes back to the previous widget. The rest of the name is
+    // typed into the box the run had already finished with.
+    //
+    // That is why seven attempts at Sheffield's institution box found an empty
+    // list with no request, no script error and the country correctly set: the
+    // box was never asked anything, because it never received the query. A
+    // person does not type into the next field within milliseconds of choosing
+    // in the previous one, which is why it worked by hand every time.
+    //
+    // So the focus is settled before anything is typed: waited until the
+    // page's own `activeElement` stops moving, then cleared, so no widget is
+    // holding it when this box is focused.
+    //
+    // TRACED, not guessed: patching `HTMLElement.prototype.focus` on the page
+    // named the caller — `de.open` → `de.focus` → `control_input.focus()` on
+    // the COUNTRY widget, about ninety milliseconds after Playwright's click
+    // on its entry had already resolved. Waiting for the focus to look
+    // settled does not catch that, because at the moment it is sampled it HAS
+    // settled, on the right box; the theft is still queued.
+    //
+    // So the typing does not depend on winning that race. It types, reads the
+    // box back, and if the box did not take the text it takes the focus again
+    // and retypes — bounded, because a box that will not take text after
+    // three tries is a finding and not something to keep hammering.
+    let tookText: string | null = null;
+    for (let attempt = 0; attempt < TYPING_ATTEMPTS; attempt++) {
+      await settleFocus(page);
+      await box.fill("");
+      await box.pressSequentially(entries.text, { delay: TYPING_DELAY_MS });
+      tookText = await box.inputValue().catch(() => null);
+      if (tookText === entries.text) break;
+    }
+
+    const typingWentElsewhere =
+      tookText !== null && tookText !== entries.text
+        ? `The box did NOT take what was typed \u2014 ${
+            tookText.length === 0 ? "it is empty" : `it holds ${String(tookText.length)} characters`
+          }, and the page's focus was on ${await focusedElementInWords(page)}. Nothing was asked ` +
+          `because nothing was typed into this box.`
+        : undefined;
     const offered = toPlaywrightLocator(page, entries.optionLocator);
     if (offered === null) throw new LocatorNotFoundError([entries.optionLocator]);
     const exact = offered
@@ -776,6 +909,7 @@ export class PlaywrightPreparationSession implements FillableSession {
         this.#lookups.since(askedFrom),
         this.#failures.since(failedFrom),
         this.#blocked.since(refusedFrom).map((entry) => ({ reason: entry.reason ?? "no reason given" })),
+        typingWentElsewhere,
       );
     }
     if (looksLikeSubmission(entries.text)) {
@@ -786,6 +920,12 @@ export class PlaywrightPreparationSession implements FillableSession {
       });
     }
     await exact.first().click();
+    // The chosen widget is not finished when the click resolves: `open()` ends
+    // in `focus()`, and `openOnFocus` re-arms it, so it goes on taking the
+    // focus back for about ninety milliseconds afterwards. Drained HERE, at
+    // the end of the act that caused it, so the next instruction starts on a
+    // page that has stopped moving (P184).
+    await settleFocus(page);
   }
 
   /**

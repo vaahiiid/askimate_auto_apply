@@ -394,11 +394,23 @@ export interface LookupRecord {
    * guess about an HTTP request — see the caveat in ADR-0134.
    */
   readonly kind: "navigation" | "background";
-  readonly status: number;
+  /**
+   * The status, once there is one. `undefined` means the request went out and
+   * **nothing had come back** by the time the line was written (P184).
+   *
+   * That state is not a curiosity, it is the one attempt 7 could not report.
+   * The log used to be written from responses alone, so a search that was
+   * fired and not yet answered was indistinguishable from a search that was
+   * never fired — and the sentence said *the page made NO request*. A portal
+   * that is merely slow and a widget that is not wired read the same, which
+   * is a difference worth four attempts.
+   */
+  readonly status: number | undefined;
   /**
    * What came back, in the runner's words: `"7 entries"` when the body is a
    * JSON list, and otherwise why it is not counted — `"not json"`,
-   * `"not a list"`, `"not read"`, `"too large to count"`.
+   * `"not a list"`, `"not read"`, `"too large to count"`; or
+   * `"no answer yet"` when the request is still in flight.
    */
   readonly answer: string;
 }
@@ -413,17 +425,56 @@ export interface LookupRecord {
  * page is somebody else's business.
  */
 export class LookupLog {
-  readonly #entries: LookupRecord[] = [];
+  #entries: LookupRecord[] = [];
   readonly #ceiling: number;
 
   public constructor(ceiling = 50) {
     this.#ceiling = ceiling;
   }
 
-  public record(entry: LookupRecord): void {
-    this.#entries.push(entry);
+  /**
+   * A request, recorded as it goes out (P184).
+   *
+   * ── Why the position in this log is the moment of ASKING ──────────────
+   *
+   * It used to be the moment of answering, because the log was written from
+   * the response listener alone. `mark()` and `since()` scope a box's fill by
+   * position, so an answer to a request made BEFORE the box was reached
+   * landed inside the box's window — and the words said *asked*. Attempt 7
+   * read *"While this box was being filled the page asked the portal once:
+   * POST getGradingSystemsForCountry.do"*, and the code's reading is that
+   * this was the COUNTRY choice's own consequence arriving late (P183,
+   * blocker 55).
+   *
+   * Recording at request time fixes both halves at once: a record belongs to
+   * the box that caused it, and a request with no answer yet is visible as
+   * exactly that.
+   *
+   * The returned token is how the answer finds its record again. It survives
+   * the ceiling trimming below — a token for a trimmed record simply finds
+   * nothing, which is correct.
+   */
+  public asked(entry: Omit<LookupRecord, "status" | "answer">): number {
+    const token = this.#nextToken++;
+    this.#tokens.set(token, { ...entry, status: undefined, answer: "no answer yet" });
+    this.#entries.push(this.#tokens.get(token) as LookupRecord);
     if (this.#entries.length > this.#ceiling) this.#entries.shift();
+    return token;
   }
+
+  /** What came back, against the request that asked for it. */
+  public answered(token: number, status: number, answer: string): void {
+    const held = this.#tokens.get(token);
+    if (held === undefined) return;
+    const answeredRecord: LookupRecord = { ...held, status, answer };
+    // Replaced in place, so the record keeps the POSITION it was asked at.
+    const at = this.#entries.indexOf(held);
+    if (at >= 0) this.#entries[at] = answeredRecord;
+    this.#tokens.delete(token);
+  }
+
+  #nextToken = 0;
+  readonly #tokens = new Map<number, LookupRecord>();
 
   /** Where the log stands now. */
   public mark(): number {
@@ -449,7 +500,8 @@ export function lookupInWords(entry: LookupRecord): string {
   // The label reads as English, because this line is read by a person deciding
   // whether a box failed for want of an answer or because the page moved.
   const kind = entry.kind === "navigation" ? "a page navigation" : "in the background";
-  return `${entry.method} ${entry.path}${query} (${kind}) → ${String(entry.status)}, ${entry.answer}`;
+  const came = entry.status === undefined ? entry.answer : `${String(entry.status)}, ${entry.answer}`;
+  return `${entry.method} ${entry.path}${query} (${kind}) → ${came}`;
 }
 
 /**

@@ -4906,6 +4906,62 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P184 — the box was never asked anything, because it was never typed into
+
+He answered blocker 54 off the live widget — `load` is set, with the settings he read out — and
+typed the runner's own text into the box by hand, key by key, and the list came. Which left one
+thing: the runner's act. So: build the fixture, exactly.
+
+The committed capture, served byte for byte. The widget constructed with his settings. Sheffield's
+own `loadInstitutionSearch` behind a local search endpoint. The runner driven at it through
+`attach()`. It reproduced the failure on the first run, and not approximately — no request by any
+method, the grading POST with an empty institution code, no script error, the country set, and the
+same sentence word for word.
+
+Then I stopped reasoning about it and measured. Through the runner's own sequence:
+
+```
+after fill(''):   active: institution-ts-control        institution: ""   country: ""
+after 4 chars:    active: institutionCountry-ts-control institution: ""   country: "iv"
+after the rest:   active: institutionCountry-ts-control institution: ""   country: "y of Sheffield"
+```
+
+The keystrokes went into the box the run had already finished with. Patching
+`HTMLElement.prototype.focus` on the page named the caller rather than leaving it to be inferred:
+`de.open` → `de.focus` → `control_input.focus()` on the COUNTRY widget, about ninety milliseconds
+after Playwright's click on its entry had already resolved. The vendor source says why it does not
+stop: `open()` ends in `focus()`, `focus()` queues `setTimeout(onFocus, 0)`, and `onFocus` with
+`openOnFocus` calls `open()` again. The chain outlives the click that started it.
+
+It is ours. A person cannot type into the next field milliseconds after choosing in the previous
+one, which is exactly why it worked by hand every single time, and why four explanations that all
+blamed the portal survived as long as they did.
+
+The fix took three goes and the first two are worth recording. Waiting until the focus *looked*
+settled failed four runs in five, because at the moment it is sampled it has settled — on the right
+box — and the theft is still queued. Retyping on a read-back failure also failed, because each
+retype races the same chain. What works is draining the focus at the end of the act that caused it
+and requiring it to STAY settled across four consecutive reads, which is longer than the ninety
+milliseconds measured. Five runs in five, both before and after.
+
+And the part I would keep even if none of this had been the cause: the box is now read back, and a
+box that did not take what was typed says so, naming the element that holds the focus. Seven
+attempts went into a box whose failure line could not tell *the portal offered nothing* from *we
+never asked it anything*, because nothing ever read back what was typed. That is the repository's
+own rule about verifying an edit, and it had never been applied to typing.
+
+The lookup log also records a request when it is asked now, not when it is answered. Two things
+follow: an earlier act's answer can no longer be reported as a later box's doing, and a request
+that went out and has not come back reads as exactly that — where before it read the same as a
+request that was never made at all.
+
+What this does not claim is that Sheffield will fill. The fixture is the portal's code, not the
+portal. It says the fault was ours and that this instance of it is gone.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P183 — the page's own code, and a reason of mine that turns out to be wrong
 
 He fetched the scripts. The header says **Tom Select v2.3.1**, and the minified source binds

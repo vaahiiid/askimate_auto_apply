@@ -19,6 +19,38 @@ not shipped artefacts.
 
 ---
 
+## [0.180.0] — 2026-09-22
+
+**P184 — ADR-0135: the widget you just used takes the focus back, and the next box's keystrokes
+land in it.**
+
+- **The fixture, built exactly as asked.** The committed capture served byte for byte —
+  `tom-select.complete.min.js` (2.3.1) and `education.js` — the widget constructed with the settings
+  Vahid read off the live instance, Sheffield's own `loadInstitutionSearch` behind a local search
+  endpoint, and the runner driven at it through `attach()`. It reproduced the live failure on the
+  first run: no request by any method, the grading `POST …?institutionCode=` with an empty code, no
+  script error, country set, the same line word for word.
+- **Then measured.** Reading the widget's state through the runner's sequence showed the focus on
+  `institutionCountry-ts-control` and the country box holding `y of Sheffield`. Patching
+  `HTMLElement.prototype.focus` named the caller: `de.open` → `de.focus` on the COUNTRY widget,
+  about ninety milliseconds after the click on its entry had resolved. `open()` ends in `focus()`,
+  `focus()` queues `setTimeout(onFocus, 0)`, and `openOnFocus` calls `open()` again.
+- **Ours, not the portal's.** A person cannot type into the next field milliseconds after choosing
+  in the previous one — which is why it worked by hand every time.
+- **Built:** the focus is drained at the end of the act that caused it and must stay settled across
+  four consecutive reads (an earlier version that broke on the first matching pair still failed four
+  runs in five); the box is read back and retyped, bounded at three; and a box that still did not
+  take the text says so, naming the element holding the focus as structure, never as content.
+- **The lookup log records a request when it is ASKED**, not when it is answered — so an earlier
+  act's answer cannot be reported as a later box's doing, and a request with no answer yet reads as
+  exactly that instead of as no request at all. Blocker 55 closed.
+- Blocker 49 **closed** after seven attempts and four wrong explanations, all four tabulated in the
+  ADR. Blocker 54 answered by Vahid's own read of the live instance.
+- **What this does not claim:** that Sheffield will now fill. The fixture is the portal's code, not
+  the portal.
+
+---
+
 ## [0.179.0] — 2026-09-21
 
 **P183 — the page's own scripts, read: Sheffield ships Tom Select 2.3.1, and ADR-0133's reason was
