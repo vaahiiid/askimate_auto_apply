@@ -167,6 +167,11 @@ entry's hash is therefore `sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec969
 and `sha256:cdb43561…` — P187's — was never signed and never will be. An agent never writes an
 approval hash.
 
+**Signed 2026-09-22, commit `eb4e83e`** — the fifth signature on this entry, his own account only,
+from his own hash computation: *"Signed eb4e83e, sha256:e2a10113…, from my own hash computation."*
+The directory loads again, and the test that asserted the refusal was taken down in the same breath
+(P189).
+
 **The two pre-completion slots are named too**, though Run A's own preview does not show them: a
 qualification still running is told *Proof of Registration* and *Most Recent Transcript*, which is
 what the page heads them and is not what the entry's authored `label` says either (*Degree

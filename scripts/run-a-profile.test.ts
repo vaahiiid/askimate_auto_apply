@@ -319,9 +319,9 @@ describe("the catalogue entry for Run A (P152)", () => {
     }
   });
 
-  it("is UNSIGNED after ADR-0138 and ADR-0139: the directory REFUSES it, loudly, and waits for Vahid to sign the new one", async () => {
+  it("is SIGNED by Vahid Mohammadi, one signature, his own account only — a FIFTH time, once for ADR-0138 and ADR-0139 together (2026-09-22, commit eb4e83e): the directory loads and admits exactly that account", async () => {
     // ═══════════════════════════════════════════════════════════════════
-    // Four signatures so far, each superseded by the next:
+    // Five signatures now, each superseding the last:
     //
     //   sha256:baca64a9…  16 September, the entry as first reviewed
     //   sha256:21060fca…  21 September 08:00, after the consent notice
@@ -331,12 +331,38 @@ describe("the catalogue entry for Run A (P152)", () => {
     //   sha256:56388e65…  22 September, after the education month maps were
     //                     corrected to the select's own Sept / June / July
     //                     (ADR-0136, P185)
+    //   sha256:e2a10113…  22 September, THIS one — ADR-0138 and ADR-0139
+    //                     together, the condition and the wording
     //
     // Each move made the previous approval stop covering the entry, and in
     // each interval the directory REFUSED to load and this test asserted the
     // refusal — ADR-0057 biting on real edits to a real signed entry rather
     // than being worked around. He computed every hash himself before signing
-    // rather than taking it from an agent's report.
+    // rather than taking it from an agent's report; the superseded approval
+    // goes out in the same commit as the new one comes in, because an approval
+    // left behind would assert an approval for content that no longer exists.
+    //
+    // ── What the fifth signature covers, and why it is ONE ───────────────
+    //
+    // `sha256:cdb43561…` existed for about an hour between P187 and P188 and
+    // was never signed. Vahid, reading P187's preview before signing it:
+    // *"There is no point signing cdb43561 and re-signing in an hour."*
+    //
+    //   ADR-0138 — a completed qualification is not asked for its proof of
+    //   registration or its most recent transcript, so those two slots and
+    //   their companions are not planned, previewed or set. The preview shows
+    //   four documents, which is what the page shows.
+    //
+    //   ADR-0139 — the sentence that says what the university is being told
+    //   named FOUR of the portal's field names, two of them the wrong
+    //   document: `officialCertTranslation` is the page's *Final Academic
+    //   Certificate*, not a translation of anything. The six slots now carry
+    //   the page's own heading, read off each companion row's captured label
+    //   and held to it by the parser.
+    //
+    // Both are what goes into a box, or what a student is told goes into one,
+    // which is what separates this from the consent and save-locator
+    // re-signatures: those governed how a page is reached and left.
     // ═══════════════════════════════════════════════════════════════════
     const value = entry();
     expect(value.blueprint.status).toBe("reviewed");
@@ -344,44 +370,14 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
     expect(labelledHash(toCanonical(value))).toBe("sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080");
-    // ═══════════════════════════════════════════════════════════════════
-    // UNSIGNED as of P187, and the directory REFUSES it. This is the control
-    // working, not a defect.
-    //
-    // Attempt 9 met the portal's refusal on `certificateStatus`: the runner
-    // was setting a radio inside a block Sheffield only shows while the
-    // qualification is still running, and the synthetic student's is
-    // finished. Blocker 57, decided B by Vahid on 2026-09-22: the condition
-    // goes on the SLOT, in the student's own terms (ADR-0138). The two
-    // pre-completion slots and their companions are no longer planned for a
-    // completed qualification, so the preview lost two typed lines and two
-    // hand-off lines, which moved the hash and voided the fourth signature.
-    //
-    // Unlike the consent and save-locator re-signatures, this one IS what
-    // goes into a box: two values the portal will no longer be told.
-    //
-    // ADR-0139, the same phase: the sentence that says what the university is
-    // being told named FOUR of the portal's field names, two of them the wrong
-    // document — `officialCertTranslation` is the page's *Final Academic
-    // Certificate*, not a translation. The six slots now carry the page's own
-    // heading, read off the companion row's captured label, and the preview
-    // says those. He signs B and the wording together, once.
-    //
-    // So the approval is REMOVED rather than re-pointed. An agent cannot
-    // re-sign on his behalf: a hash written into approvals.json by anything
-    // but him is a signature he did not give. The entry waits, refused, until
-    // he signs the hash above — which is the one thing this test asserts.
-    // ═══════════════════════════════════════════════════════════════════
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    expect(load.ok, "an unapproved entry does not load").toBe(false);
-    if (load.ok) expect.unreachable("checked above");
-    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
-      "No approval exists for sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080",
-    );
-    // NO approval on file: the void one is gone, not left behind asserting an
-    // approval for content that no longer exists.
+    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
+    expect(load.catalogue.size).toBe(1);
+    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
+    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
+    // ONE approval on file: the voided one is gone, not merely outvoted.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
-    expect(approvals, "no signature until Vahid gives one").toHaveLength(0);
+    expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {

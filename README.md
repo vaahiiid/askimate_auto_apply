@@ -27,7 +27,7 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P188 — ADR-0139: a document is named to a student by the page's own heading, never by the portal's field name. Found by Vahid reading P187's preview: the sentence saying what the university is being told named four field names, two of them the wrong document. The entry now carries each slot's heading, read off the capture and checked against it; one signature covers P187's condition and this wording |
+| **Phase** | P189 — the fifth signature. Vahid signed `sha256:e2a10113…` (commit `eb4e83e`), one signature for ADR-0138's pre-completion condition and ADR-0139's document headings together, his own account only, from his own hash computation. The directory loads again; the test that asserted the refusal is down, and two records that named the unsigned hash are corrected |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and, on 2026-09-21, against the real one**: signed in through the consent path and three pages of Sheffield's own postgraduate form filled, saved and read back on Vahid's account, under the signed entry (one signature, his own account only) · ❌ not finished — the fourth page stopped on one box and the run is with a person; no application has been submitted, and the product still needs Bedrock credentials |
 | **Tests** | **2,807 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
 | **Decisions** | 139 ADRs · all 139 Accepted |

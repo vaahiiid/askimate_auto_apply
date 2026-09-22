@@ -1,7 +1,7 @@
 # ADR-0138 — A document slot carries the condition the form shows it by, in the student's own terms
 
-**Status:** Accepted · 2026-09-22 · decides **blocker 57**, raised by attempt 9 · continues [ADR-0104](./0104-a-repeating-pages-documents-are-the-students-own-act.md) (a condition inside a repeat is answered per entry), [ADR-0105](./0105-a-slots-companion-is-handed-with-its-slot-and-a-list-may-be-loaded-by-a-press.md) and [ADR-0107](./0107-a-handed-slots-companion-says-later.md) (a handed slot's companion says *later*)
-**Decided by:** Vahid Mohammadi, in his own words, 2026-09-22 — option **B**, against the two alternatives the sheet put beside it. **Built in P187**, the same day. Voids the entry's signature — see *Consequences*.
+**Status:** Accepted, **one Consequences claim corrected 2026-09-22 (P189)** — the hash it named as awaiting a signature was never signed; the decision itself stands · 2026-09-22 · decides **blocker 57**, raised by attempt 9 · continues [ADR-0104](./0104-a-repeating-pages-documents-are-the-students-own-act.md) (a condition inside a repeat is answered per entry), [ADR-0105](./0105-a-slots-companion-is-handed-with-its-slot-and-a-list-may-be-loaded-by-a-press.md) and [ADR-0107](./0107-a-handed-slots-companion-says-later.md) (a handed slot's companion says *later*)
+**Decided by:** Vahid Mohammadi, in his own words, 2026-09-22 — option **B**, against the two alternatives the sheet put beside it. **Built in P187**, the same day. Voided the entry's signature; **signed together with ADR-0139 on 2026-09-22** (`eb4e83e`) — see *Consequences*.
 
 ## Context — one radio refused, twice
 
@@ -195,10 +195,17 @@ one clause for the synthetic student's completed qualification:
 ```
 
 Two of those are values the portal will no longer be told — unlike the consent and save-locator
-re-signatures, this one **is** what goes into a box. The approval is removed rather than
-re-pointed, and the directory refuses the entry until Vahid signs
-`sha256:cdb4356128ee269aebffdcb35d236588731c721e2ccb2ce11a3ce8826bf5bf82` himself. An agent never
-writes an approval hash.
+re-signatures, this one **is** what goes into a box. The approval was removed rather than
+re-pointed, and the directory refused the entry until he signed it himself. An agent never writes an
+approval hash.
+
+**Amended 2026-09-22, the same day.** This section first named
+`sha256:cdb4356128ee269aebffdcb35d236588731c721e2ccb2ce11a3ce8826bf5bf82` as the hash awaiting a
+signature. It was never signed. Reading this preview, Vahid found the fault ADR-0139 fixes and said
+*"There is no point signing cdb43561 and re-signing in an hour"*, so the two changes moved the hash
+once, together. **The signed hash is
+`sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080`**, signed by Vahid
+Mohammadi on 2026-09-22, his own account only, commit `eb4e83e`, from his own hash computation.
 
 **Blocker 50 is untouched** by this: the `0159`/`SHEFFIELD` value disagreement on the institution
 typeahead is still open.

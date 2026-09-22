@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.185.0] — 2026-09-22
+
+**P189 — the fifth signature on the Run A entry, and the refusal test taken down.**
+
+- **Signed** by Vahid Mohammadi, commit `eb4e83e`:
+  `sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080`, his own account only,
+  from his own hash computation — one signature for ADR-0138's pre-completion condition and
+  ADR-0139's document headings together.
+- **Changed** `scripts/run-a-profile.test.ts`: the assertion that the directory REFUSES the entry
+  was true for two hours and false the moment he signed. It now asserts the signed state — the
+  directory loads and admits exactly that account, with one approval on file and no stale one beside
+  it.
+- **Corrected** two records that described the present and were wrong: ADR-0138's *Consequences* and
+  this repository's state table both named `sha256:cdb43561…` as the hash awaiting a signature. It
+  was never signed — reading P187's preview he found the ADR-0139 fault and said *"There is no point
+  signing cdb43561 and re-signing in an hour"* — so the hash moved once, for both changes.
+- **Left as they stand:** the journal (`where-we-are.md`) and the earlier changelog entries, which
+  record what was true at the time and are supposed to.
+
+---
+
 ## [0.184.0] — 2026-09-22
 
 **P188 — ADR-0139: a document is named to a student by the page's own heading, never by the portal's
