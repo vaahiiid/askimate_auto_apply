@@ -17,6 +17,7 @@
  */
 
 import type { Money, ProfileFieldKey, ProfileFieldTypes, YearMonth } from "@askimate/aas-profile";
+import { readCountry } from "@askimate/aas-profile";
 
 /**
  * A field the student answers in one utterance.
@@ -327,25 +328,23 @@ const addressLine = (raw: string): string | null => {
 };
 
 /**
- * A two-letter ISO-3166 country code, and nothing else.
+ * A country, as the reviewed ISO 3166-1 alpha-2 table holds it.
  *
- * **"Iran" is refused.** Turning a country name into `IR` is a lookup, and the
- * only honest ways to do one are a reviewed table or a refusal (Vahid,
- * 2026-09-23: *"a value the student did not state is never supplied by us"*).
- * A half-table would work for some students and silently fail for others,
- * which is worse than a refusal because the failure is invisible.
+ * ── What changed in P195, and why it is not a softening ──────────────────
  *
- * There is no reviewed country table in this repository yet. Until there is,
- * this asks for the code and says so — see `docs/where-we-are.md` for the gap
- * this leaves, which also covers the three free-text country fields.
+ * P192 refused *"Iran"*. Turning a country's name into `IR` was a lookup, and
+ * there was no reviewed table to do it with — so the honest choices were a
+ * refusal or a half-table that works for some students and fails invisibly for
+ * others. It refused, and said so.
  *
- * The shape is checked, not the membership: `ZZ` is a well-formed code that no
- * country holds, and refusing it would need the table this does not have.
+ * Blocker 61 built the table (Vahid, 2026-09-23: *"the list itself reviewed
+ * and hashed like a blueprint, and refuse anything not in it"*), so the lookup
+ * is now an artefact somebody can check rather than a guess. A name resolves;
+ * nothing else does. **Membership is checked, not shape**: `ZZ` is a
+ * well-formed code that nobody is assigned and it is refused, which is exactly
+ * what a regular expression could not do.
  */
-const countryCodeIso2 = (raw: string): string | null => {
-  const value = raw.trim().toUpperCase();
-  return /^[A-Z]{2}$/.test(value) ? value : null;
-};
+const countryCodeIso2 = (raw: string): string | null => readCountry(raw)?.code ?? null;
 
 /** Specs for the fields the first end-to-end run needs. */
 export const FIELD_SPECS: Partial<{
@@ -573,10 +572,10 @@ export const FIELD_SPECS: Partial<{
       {
         partKey: "countryCode",
         rationale:
-          "The country, as its two-letter code — IR for Iran, GB for the United Kingdom. " +
-          "I ask for the code rather than working it out from the country's name, because " +
-          "guessing it wrong would put the wrong country on your application.",
-        expectedShape: "a two-letter country code, e.g. IR or GB",
+          "The country. Its name or its two-letter code both work — Iran or IR, the United " +
+          "Kingdom or GB. If I do not recognise what you tell me I will say so and ask again, " +
+          "rather than putting a country on your application that you did not name.",
+        expectedShape: "a country, by name or by its two-letter code, e.g. Iran or IR",
         parse: countryCodeIso2,
       },
     ],

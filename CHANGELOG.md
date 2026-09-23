@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.191.0] — 2026-09-23
+
+**P195 — blocker 61 closed: the country table is a reviewed artefact.**
+
+- **Added** [ADR-0141](./docs/decisions/0141-the-country-table-is-a-reviewed-artefact.md) and
+  `packages/profile/src/countries.data.ts` + `countries.ts`: ISO 3166-1 alpha-2, 249 entries derived
+  from ICU's region data minus 31 codes ISO does not assign, each with its reason. A test re-runs
+  the derivation; `280 − 31 = 249` is asserted rather than trusted.
+- **Added** `canonicalCountries`, `countriesHash`, `assertCountriesUnchanged` and
+  `CountryTableChangedError` — the table is tamper-evident, and `readCountry` checks it before every
+  lookup.
+- **Changed** `countryCodeIso2` to `readCountry(raw)?.code ?? null`: membership is checked rather
+  than shape (`ZZ` and `XK` are refused), and a NAME now resolves, so the question asks for *"its
+  name or its two-letter code"* instead of demanding an ISO code from the student.
+- **Changed** one P192 test that asserted the opposite — rewritten, not deleted, with the reversal
+  and its reason written into it.
+- **Added blocker 64**: the three free-text country fields are unchanged, because converting them
+  moves the signed entry's content hash and voids Vahid's signature. A deliberate stop.
+
+---
+
 ## [0.190.0] — 2026-09-23
 
 **P194 — blocker 60 closed: a field with several parts survives the request that asked for it.**

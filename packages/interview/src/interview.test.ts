@@ -630,18 +630,33 @@ describe("what the interview is not allowed to ask for", () => {
     }
   });
 
-  it("refuses a country name where the registry holds a code, rather than looking one up (P192)", () => {
-    // Vahid, 2026-09-23: *"a value the student did not state is never supplied
-    // by us, however obvious the default looks from where we sit."* Turning
-    // "Iran" into "IR" is a lookup, and there is no reviewed country table in
-    // this repository — so the question asks for the code and says so.
+  it("reads a country through the REVIEWED table, and refuses what it does not hold (P195)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // This test asserted the opposite in P192, and the change is Vahid's.
+    //
+    // Then: *"Iran"* was refused, because turning a name into `IR` was a
+    // lookup and there was no table to do it with — and a half-table failing
+    // invisibly is worse than a refusal. Now (blocker 61, decided 2026-09-23):
+    // *"build it as a reviewed artefact… the list itself reviewed and hashed
+    // like a blueprint, and refuse anything not in it."* With the artefact in
+    // place the lookup is checkable, so the name resolves.
+    //
+    // The rule did not soften. What changed is that there is now something to
+    // look in.
+    // ═══════════════════════════════════════════════════════════════════
     const spec = FIELD_SPECS["contact.address"];
     if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite, asked for above");
     const country = spec.parts.find((part) => part.partKey === "countryCode");
     if (country === undefined) return expect.unreachable("countryCode is a part");
+
     expect(country.parse("IR")).toBe("IR");
     expect(country.parse(" gb ")).toBe("GB");
-    for (const refused of ["Iran", "United Kingdom", "IRN", "I", ""]) {
+    expect(country.parse("Iran"), "the name a student would actually type").toBe("IR");
+    expect(country.parse("united kingdom")).toBe("GB");
+
+    // MEMBERSHIP, not shape. `ZZ` and `XK` are well formed and nobody is
+    // assigned them; a regular expression would have taken both.
+    for (const refused of ["ZZ", "XK", "EU", "Persia", "IRN", "I", ""]) {
       expect(country.parse(refused), refused).toBeNull();
     }
   });

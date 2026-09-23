@@ -70,3 +70,21 @@ export {
   rehydrateProfile,
   toStoredEntry,
 } from "./persistence.js";
+
+/**
+ * The reviewed ISO 3166-1 alpha-2 table (blocker 61, decided by Vahid 2026-09-23).
+ *
+ * Registry vocabulary: the set of values a country-typed field may hold. In
+ * this package rather than beside the catalogue's hashing because the
+ * catalogue already depends on this one, and the other direction is a cycle.
+ */
+export type { Country } from "./countries.data.js";
+export { COUNTRIES, NOT_ASSIGNED } from "./countries.data.js";
+export {
+  CountryTableChangedError,
+  REVIEWED_COUNTRIES_HASH,
+  assertCountriesUnchanged,
+  canonicalCountries,
+  countriesHash,
+  readCountry,
+} from "./countries.js";

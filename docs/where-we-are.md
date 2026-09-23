@@ -4906,6 +4906,54 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P195 — the country table, and a refusal lifted honestly
+
+P192 refused *"Iran"*. The reasoning was right — turning a name into `IR` was a lookup, there was no
+table to do it with, and a half-table fails invisibly for exactly the students it does not cover —
+and the result was a question no student can answer. Asking somebody for their own country's ISO
+code is asking them to do our homework.
+
+His decision closed the gap without softening the rule:
+
+> *"build it as a reviewed artefact, not a lookup you generate. ISO 3166-1 alpha-2, the list itself
+> reviewed and hashed like a blueprint, and refuse anything not in it. A half-table failing
+> invisibly is exactly the failure mode we spent this week finding."*
+
+**Derived, not remembered.** ICU's own region data gives 280 two-letter regions. ICU carries more
+than ISO assigns, so 31 are subtracted — twelve exceptionally reserved, fourteen formerly assigned,
+one user-assigned, four CLDR inventions — each with its reason written beside it. **280 − 31 = 249**,
+which is the published count of officially assigned codes, and a test **re-runs the whole
+derivation** rather than asserting it. Get one exclusion wrong and the count moves.
+
+**Frozen, so it cannot drift.** The canonical form is one `CODE⇥Name` line per country in code
+order — not JSON, because a canonical form exists so one list hashes one way and JSON offers a dozen
+ways to write the same object. Three tamperings are tested: a country added, removed, renamed.
+
+**Membership, not shape.** `ZZ` is a well-formed two-letter code that nobody is assigned; so are
+`XK`, `EU` and `UK`. All four are refused. That is the thing a regular expression could not do, and
+the whole reason for the table.
+
+And because the lookup is now an artefact somebody can check, a **name resolves**. The student types
+`Iran` or `IR`. The rule did not soften — there is now something to look in. The P192 test that
+asserted the opposite was rewritten rather than deleted, carrying the reversal and its reason.
+
+## Two things said plainly rather than implied
+
+**Nobody has signed this list.** The hash makes it tamper-evident; it is not an approval. What
+stands behind the content is the derivation and the tests that re-run it. Whether it should carry
+his signature is his call, raised not decided — the same second-reviewer gap blocker 2 names.
+
+**And the three free-text country fields are untouched.** `identity.nationality`,
+`identity.country_of_birth` and `residence.country` still hold whatever was typed. Converting them
+would change what Sheffield is told, which **moves the entry's content hash and voids his
+signature** — ADR-0057 working exactly as he asked it to. So the conversion, the mapping-set change
+and the re-signature belong together in one phase he chooses to start. Blocker 64, raised rather
+than worked around.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P193–P194 — four decisions recorded, and the question that stopped being dropped
 
 ## Blocker 60, closed where it was found
