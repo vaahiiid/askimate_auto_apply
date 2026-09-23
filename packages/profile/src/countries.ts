@@ -33,11 +33,27 @@ import { COUNTRIES } from "./countries.data.js";
  * `assertCountriesUnchanged` throws, so the list cannot drift quietly the way
  * the test count drifted 136 before ADR-0084.
  *
- * It is NOT a signature. Nobody has signed this list, and the same gap that
- * blocker 2 names — a second reviewer — applies to it. What stands behind the
- * CONTENT is the derivation recorded in `countries.data.ts` and the tests that
- * re-run it, not anybody's approval. Said here rather than implied, because a
- * hash beside the word "reviewed" invites the reader to assume more.
+ * It is NOT a signature, and that is DELIBERATE — not an oversight for somebody
+ * to tidy up later by adding one.
+ *
+ * Vahid, 2026-09-23, asked for the reason to live here rather than only in a
+ * report, in his own words:
+ *
+ *   *"no signature, and say why in the file itself rather than only in a
+ *   report. A derivation that re-runs and 249 matching the published count is
+ *   stronger evidence than my signature would be — I cannot check 249 codes
+ *   and would be signing your arithmetic. Record that as the reason, so nobody
+ *   later reads the missing signature as an oversight and adds one to tidy it
+ *   up."*
+ *
+ * So what stands behind the CONTENT is the derivation recorded in
+ * `countries.data.ts` and the test that re-runs it — 280 ICU regions minus 31
+ * named non-assignments, and 249 is the published count. A signature here would
+ * assert a check nobody performed, which is the kind of record ADR-0082 to
+ * ADR-0084 spent three phases removing.
+ *
+ * **If you are about to add an approval to this artefact: don't.** Strengthen
+ * the derivation instead.
  */
 export const REVIEWED_COUNTRIES_HASH =
   "sha256:3081f7eb3e7796ffab6ded953fa69c9b00e9048e703d92d6d14053b2189e204a";

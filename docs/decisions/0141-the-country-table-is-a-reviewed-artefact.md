@@ -69,18 +69,63 @@ Said plainly, because a hash beside the word *reviewed* invites a reader to assu
 
 - The hash makes the table **tamper-evident**. It cannot drift quietly the way the test count
   drifted 136 before ADR-0084.
-- **Nobody has signed it.** What stands behind the content is the derivation above and the tests
-  that re-run it — not anybody's approval. The second-reviewer gap that [blocker 2](../state-of-the-system.md#6-open-blockers)
-  names applies to this artefact too, and whether it should carry a signature of Vahid's is
-  **his call, raised not decided**.
+- **Nobody has signed it, and nobody should.** Put to Vahid and decided by him, 2026-09-23:
+
+  > *"no signature, and say why in the file itself rather than only in a report. A derivation that
+  > re-runs and 249 matching the published count is stronger evidence than my signature would be —
+  > I cannot check 249 codes and would be signing your arithmetic. Record that as the reason, so
+  > nobody later reads the missing signature as an oversight and adds one to tidy it up."*
+
+  The reason is written into `countries.ts` itself, beside the hash, ending with the instruction to
+  a future reader: **if you are about to add an approval to this artefact, don't — strengthen the
+  derivation instead.** A signature here would assert a check nobody performed, which is the kind
+  of record ADR-0082 to ADR-0084 spent three phases removing.
+
+## A country has TWO mappings, not one
+
+Vahid, 2026-09-23, before the conversion phase exists, so that it inherits this rather than
+rediscovering it:
+
+> *"A country has two mappings, not one. The student's answer to a code is ours and general. The
+> code to whatever a given portal's select calls it is the portal's, and belongs in its entry,
+> reviewed and signed per portal."*
+
+| | Whose | Where it lives | Scope |
+|---|---|---|---|
+| student's answer → code | **ours** | this table | general, one for the whole system |
+| code → what a portal's control submits | **the portal's** | its catalogue entry's mapping set | per portal, per FIELD, reviewed and signed with the entry |
+
+**Sheffield proves it inside one entry.** Measured from the signed
+`docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json` — one country, one portal, **three labels
+and four distinct submitted values**, and `IR` is not among them:
+
+| Field | Label shown | Value submitted |
+|---|---|---|
+| `corrCountry`, `permCountry` (page 4) | `Iran` | `IRAN` |
+| `fundingNationality`, `secondFundingNationality`, `countryOfBirth` (page 5) | `Iran [Iran, Islamic Republic of]` | `IR:O` |
+| `permanentResidence` (page 5) | `Iran, Islamic Republic of` | `Iran, Islamic Republic of:O` |
+| `previousCountry1`–`4` (page 5) | `Iran` | `IRAN:O` |
+| `institutionCountry` (page 7) | `Iran` | `IRAN` |
+
+So the per-portal half is **not a future need**: it already exists in the signed entry, already keyed
+by the code, and already disagrees with itself field by field. What does not exist is the first
+half — the student's answer reaching it as a code at all.
 
 ## What this does NOT do
 
 **The three free-text country fields are unchanged**: `identity.nationality`,
-`identity.country_of_birth` and `residence.country` still hold whatever the student typed. Converting
-them to codes would change what gets typed into Sheffield's form, which **moves the entry's content
-hash and voids Vahid's signature** (ADR-0057). That is a deliberate stop, not an oversight — see
-[blocker 64](../state-of-the-system.md#6-open-blockers).
+`identity.country_of_birth` and `residence.country` still hold whatever the student typed. Held on
+Vahid's word, 2026-09-23: *"hold it. The three country fields stay free text and the entry stays as
+signed. Bring me the conversion together with whatever else moves the hash, when the composites are
+done and we know the full set. I would rather spend one signature than one per phase."*
+
+> **A correction, because the reason first given for this stop was wrong.** P195 told him converting
+> them *"moves the entry's content hash and voids your signature"*. Measured afterwards rather than
+> assumed: `loadReviewedEntry` computes `hashOf(toCanonical(reviewed))` over the **entry** —
+> blueprint, mapping set, admits, refs. **The profile is not in it.** Changing how the interview
+> reads a country changes a stored profile value, not the entry, so no signature is spent. The hold
+> stands because he said hold; the cost he weighed does not exist. See
+> [blocker 64](../state-of-the-system.md#6-open-blockers) for what measurement found underneath it.
 
 ## Consequences
 

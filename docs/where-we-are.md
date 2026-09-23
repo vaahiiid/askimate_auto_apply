@@ -4906,6 +4906,80 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P196 — four records, and a correction I owe him
+
+## The correction first, because the wrong version is on main
+
+P195 told him that converting the three free-text country fields *"moves the entry's content hash
+and voids your signature"*, and he decided to hold blocker 64 partly on that cost. **The claim was
+wrong.** Measured rather than assumed: `loadReviewedEntry` computes `hashOf(toCanonical(reviewed))`
+over the **entry** — blueprint, mapping set, admits, refs. The profile is not in it. Changing how
+the interview reads a country changes a stored profile value, not the entry. **No signature is
+spent.**
+
+The hold stands, because he said hold and that is his to say. But he weighed a cost that does not
+exist, and he should get to weigh it again.
+
+**And underneath it, something worse.** The three "free-text" country fields **already hold ISO
+codes**. `docs/run-a/synthetic-profile.json` stores `"IR"` for all three, and the reviewed mapping
+set is already keyed by `IR`. A person typed that in by hand — the P191 problem exactly. Meanwhile
+the interview parses all three with `trimmed`, so a student typing *"Iranian"* stores text the
+mapping keyed `IR` cannot match.
+
+Run A filled those fields only because the code was seeded by hand. For a real student they are
+already broken, and that has nothing to do with the conversion decision.
+
+## No signature, and the reason now lives in the file
+
+> *"no signature, and say why in the file itself rather than only in a report. A derivation that
+> re-runs and 249 matching the published count is stronger evidence than my signature would be — I
+> cannot check 249 codes and would be signing your arithmetic. Record that as the reason, so nobody
+> later reads the missing signature as an oversight and adds one to tidy it up."*
+
+So `countries.ts` carries it beside the hash, ending with the instruction to whoever comes next: if
+you are about to add an approval to this artefact, don't — strengthen the derivation instead.
+
+## A country has two mappings, and only one of them exists
+
+His rule, written before the conversion phase so that phase inherits it: the student's answer to a
+code is **ours** and general; the code to whatever a portal's control submits is **the portal's**,
+per portal and per field, reviewed and signed with its entry.
+
+Sheffield proves it inside one signed entry. One country, three labels, **four distinct submitted
+values**, and `IR` is not among them:
+
+```
+corrCountry, permCountry                         Iran                              → IRAN
+fundingNationality, secondFundingNationality,
+countryOfBirth                                   Iran [Iran, Islamic Republic of]  → IR:O
+permanentResidence                               Iran, Islamic Republic of         → Iran, Islamic Republic of:O
+previousCountry1..4                              Iran                              → IRAN:O
+institutionCountry                               Iran                              → IRAN
+```
+
+The per-portal half is not a future need. It is already in the entry, already keyed by the code, and
+already disagrees with itself field by field. What is missing is the first half.
+
+## The question with no answer, now with a name
+
+A student names a country the table holds and the portal's list does not offer. His instruction:
+
+> *"That is not a parse failure and should not read as one. I still have no answer for it and I
+> would rather it were an open question with a name than a silent failure later."*
+
+He is right that it is not a parse failure: the student answered correctly and the table agrees with
+them. What failed is the portal's vocabulary — a fact about the form, not about the answer. Reading
+it as a bad answer would re-ask a question the student already got right, three times, and then
+escalate saying no usable answer could be obtained, which would be false.
+
+Three shapes it might take, none chosen: the ADR-0102 family (use the refusal the form offers, if it
+offers one); an ADR-0065 specialist stop; or a `value_unexpressible` blocker distinct from
+`value_unavailable`. Blocker 66.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P195 — the country table, and a refusal lifted honestly
 
 P192 refused *"Iran"*. The reasoning was right — turning a name into `IR` was a lookup, there was no

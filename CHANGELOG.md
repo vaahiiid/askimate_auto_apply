@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.192.0] — 2026-09-23
+
+**P196 — four records before the composites, and a correction.** Records only; no behaviour changed.
+
+- **Changed** `packages/profile/src/countries.ts`: the reason there is **no signature** now lives in
+  the file, in Vahid's words, ending with the instruction not to add one to tidy it up.
+- **Corrected blocker 64.** P195 said converting the three country fields would move the entry's
+  content hash and void Vahid's signature. Measured: `loadReviewedEntry` hashes the entry, not the
+  profile — **no signature is spent**. The hold stands on his word; the cost he weighed does not
+  exist.
+- **Recorded, from measurement**, that the three "free-text" country fields already hold ISO codes
+  seeded by hand, and that the interview's `trimmed` parser would store text the mapping cannot
+  match — so they are already broken for a real student.
+- **Added blocker 65**: a country has two mappings, not one — ours (answer → code) and the portal's
+  (code → what its control submits), the second per portal and per field. Sheffield submits four
+  distinct values for Iran across one entry, none of them `IR`.
+- **Added blocker 66**: a country the table holds that a portal does not offer. Not a parse failure,
+  and it must not read as one. Named, with three candidate shapes and none chosen.
+- **Changed** [ADR-0141](./docs/decisions/0141-the-country-table-is-a-reviewed-artefact.md) to carry
+  all four.
+
+---
+
 ## [0.191.0] — 2026-09-23
 
 **P195 — blocker 61 closed: the country table is a reviewed artefact.**
