@@ -96,7 +96,13 @@ export function assertCountriesUnchanged(countries: readonly Country[] = COUNTRI
 }
 
 /** Case- and punctuation-insensitive, so `st. lucia` finds `St. Lucia`. */
-function normalise(text: string): string {
+/**
+ * The ONE normalisation used to compare a country's text with anything else —
+ * exported since P200 so the mapping derivation joins the portal's option text
+ * the same way `readCountry` reads a student's answer. Two normalisers would
+ * be two answers to the same question.
+ */
+export function normaliseCountryText(text: string): string {
   return text
     .trim()
     .toLowerCase()
@@ -120,7 +126,7 @@ const BY_CODE: ReadonlyMap<string, Country> = new Map(
 const BY_NAME: ReadonlyMap<string, Country> = (() => {
   const seen = new Map<string, Country | null>();
   for (const country of COUNTRIES) {
-    const key = normalise(country.name);
+    const key = normaliseCountryText(country.name);
     seen.set(key, seen.has(key) ? null : country);
   }
   return new Map(
@@ -140,5 +146,5 @@ export function readCountry(raw: string): Country | null {
   const value = raw.trim();
   if (value.length === 0) return null;
   if (/^[A-Za-z]{2}$/.test(value)) return BY_CODE.get(value.toUpperCase()) ?? null;
-  return BY_NAME.get(normalise(value)) ?? null;
+  return BY_NAME.get(normaliseCountryText(value)) ?? null;
 }

@@ -4906,6 +4906,114 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P200 — the derivation, and a page that asks him to read only the disagreements
+
+He set the terms before I built anything:
+
+> *"Not 249 lines to approve blind — I would be signing your join again, which is what we just
+> agreed I should not do."*
+
+> *"The ones a strict join matches exactly, listed as a count with a spot-check I can make myself.
+> The ones it does not — the 15 to 18 per cent — listed in full, each with our name, the portal's
+> option text, and its submitted value, so I read only the disagreements. That is a page I can
+> actually check, and Iran will be on it."*
+
+## What the portal has, before a line is read
+
+He asked for this first, and he was right to: it says what the portal simply does not have.
+
+| field | options are | offered | strict join | to read | portal options nothing claimed |
+|---|---|---|---|---|---|
+| `fundingNationality` | ISO codes | 242 | **235 / 249** | 14 | 6 |
+| `countryOfBirth` | ISO codes | 242 | **235 / 249** | 14 | 6 |
+| `corrCountry` | names | 259 | 212 / 249 | **37** | 47 |
+| `permanentResidence` | names | 261 | 205 / 249 | **44** | 54 |
+| `previousCountry1` | names | 260 | 211 / 249 | **38** | 49 |
+| `institutionCountry` | names | 255 | 212 / 249 | **37** | 43 |
+
+The split he called is the one the data supports. Where the portal submits a **code**, the join is
+the identity on a code the reviewed table already holds — there is nothing to guess and nothing to
+read. Where it submits a **name**, the join is a comparison between two authorities that disagree,
+and it misses 15–18%, silently, including `IR` itself.
+
+## The spot-check, and why one row of it matters
+
+Every 25th match, the same rows each run. This one is the argument for the whole split:
+
+| code | our name | the portal's option text | submitted value |
+|---|---|---|---|
+| `CZ` | Czechia | Czech Republic | `CZ:E` |
+
+The names disagree completely and the mapping is still exactly right, because the join was on the
+code. That is what "derived" buys. On a name-valued field the same country is a row he has to read.
+
+## Iran is on the page
+
+| code | our name | proposed option text (UNVERIFIED) | submitted value |
+|---|---|---|---|
+| `IR` | Iran | Iran, Islamic Republic of | `Iran, Islamic Republic of:O` |
+
+The candidate column is a proposal and is marked so everywhere it is printed. The proposer is
+deliberately weak: it pairs *Iran* with *Iran, Islamic Republic of* and *Czechia* with *Czech
+Republic*, and it refuses to pair *Côte d'Ivoire* with *Ivory Coast* — that one is blank, and a
+blank is the honest answer. A proposer that reached far enough to catch Ivory Coast would pair
+anything with anything, which is the half-table blocker 61 refused.
+
+Beside each field's disagreements the page also lists **what the portal offers that nothing
+claimed**. The two lists together are the whole disagreement, so he can finish a pairing from the
+page rather than going to look the options up.
+
+## What holds it
+
+Twelve tests, including one named for the mistake that made them necessary: P199's first pass
+stripped Sheffield's `:H` and `:O` fee-status suffixes and not its `:E`, and reported Germany,
+France, Spain and Austria as missing from a list that has them — 51 where the truth was 14. The
+test asserts every single-letter suffix strips.
+
+The page is held against drift the way the census is: the committed file must equal a fresh
+derivation, so a stale generated document cannot sit in the repository looking current. And
+`pnpm run country-mappings` is now a published command, which means P51's guard demanded a check
+that it still works — it got one.
+
+## What is NOT done, deliberately
+
+Nothing is applied to the entry. Writing the option maps in moves its content hash, and that is the
+signature he offered to spend once. The page is the thing to read first.
+
+## Three decisions of his, recorded
+
+**Blocker 68 — taken.** The model proposes, the reviewed table constrains, the student confirms.
+His reason: *"a model may help us read, never decide what is stored"*, and the same path serves
+extraction reading `"IRANIAN"` off a passport, *"which is the better test of it, since nobody is
+there to confirm."*
+
+His condition is part of the decision, and it lands on something P199 built:
+
+> *"the student's confirmation must show both — what they said and what will be stored. 'Iranian →
+> Iran (IR)'. A confirmation that shows only the result is a confirmation of our guess, not of
+> their answer."*
+
+P199's playback reads `Iran (IR)`. For a value the student typed that is enough. For one the model
+read it is not — it shows the result without the reading that produced it, which is exactly the gap
+he names. The blocker records that, so building it does not quietly inherit a half-done playback.
+
+**Blocker 66 — (c), with (b) as what it does**, for the reason the evidence gave: the blueprint
+already holds the option list, so the system can tell *our mapping lacks it* from *the portal lacks
+it*, and a student deserves to be told which.
+
+**Blocker 70 — raised separately**, at his instruction, and not folded into 66's shape. Cyprus is
+one code meeting several options, and what those options ask for is *which Cyprus, and therefore
+which fee status* — a question the registry has no field for. Measured across four selects, no two
+agree: nationality offers only `XA:E` and `XB:O`, non-ISO codes of Sheffield's own, with no plain
+Cyprus at all; residence offers three; correspondence offers plain `CYPRUS` **and** `CYPRUS
+(EUROPEAN UNION)`; and `previousCountry1` offers two options with the **same visible label** and
+different submitted values, which is only survivable because ADR-0109 makes a mapping name the
+submitted value rather than the text.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P199 — blocker 64 taken, and the entry turned out to be the part that was right
 
 He re-weighed the hold once P196's correction reached him:

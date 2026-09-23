@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.196.0] — 2026-09-23
+
+**P200 — the country-mapping derivation, and the review page for what it cannot settle.**
+
+- **Added** `scripts/derive-country-mappings.ts` and `pnpm run country-mappings`: a strict join
+  between the portal's own option list (carried in the blueprint) and the reviewed ISO table
+  ([ADR-0141](./docs/decisions/0141-the-country-table-is-a-reviewed-artefact.md)). The two Sheffield
+  selects that submit ISO codes derive at **235 of 249** with nothing guessed; the four that submit
+  names join at 205–212 and go to a reviewer, which is the split Vahid called.
+- **Added** `docs/run-a/country-mapping-review.md`, generated. Per field: what the portal offers
+  before a line is read; a spot-check of every 25th match, the same rows each run; the
+  disagreements in full with our name, the portal's option text and its submitted value; and the
+  portal options nothing claimed. Iran is on it — our *Iran* against *Iran, Islamic Republic of*.
+- **Added** twelve tests pinning the join, including one named for P199's own error: a suffix strip
+  that read `:H` and `:O` and not `:E` reported 51 missing codes where the truth was 14. The page is
+  held against drift the way the census is — the committed file must equal a fresh derivation.
+- **Exported** `normaliseCountryText` from the profile package, so the derivation joins text the
+  same way `readCountry` reads it. Two normalisers would be two answers to one question.
+- **Recorded** three decisions of Vahid's: blocker 68 taken (the model proposes, the reviewed table
+  constrains, the student confirms) **with his condition that the confirmation show both** —
+  *"Iranian → Iran (IR)"*, which P199's playback does not yet do; blocker 66 decided (c) with (b);
+  and blocker 70 raised separately for Cyprus, a gap in what we model rather than what we map.
+- **Nothing was applied to the reviewed entry.** Writing the option maps in moves its content hash,
+  which is the signature he offered to spend once, after reading the page.
+
+---
+
 ## [0.195.0] — 2026-09-23
 
 **P199 — blocker 64 taken: the three country fields read through the reviewed table.**

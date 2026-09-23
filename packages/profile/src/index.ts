@@ -90,6 +90,7 @@ export {
   CountryTableChangedError,
   REVIEWED_COUNTRIES_HASH,
   assertCountriesUnchanged,
+  normaliseCountryText,
   canonicalCountries,
   countriesHash,
   readCountry,

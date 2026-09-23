@@ -160,6 +160,36 @@ describe("the published demonstrations", () => {
     });
   });
 
+  describe("country-mappings", () => {
+    // P200. It writes `docs/run-a/country-mapping-review.md`, the page Vahid
+    // reads before signing blocker 69. Re-running it must produce the same
+    // bytes — `derive-country-mappings.test.ts` holds that — so running it
+    // here is a no-op on the repository and a real check on the command.
+    const ran = run("derive-country-mappings.ts");
+
+    it("derives the six country fields and says what the portal offered", () => {
+      expect(ran.code, ran.out).toBe(0);
+      for (const fieldRef of ["fundingNationality", "countryOfBirth", "permanentResidence"]) {
+        expect(ran.out, fieldRef).toContain(fieldRef);
+      }
+      // The two halves of Vahid's split, visible in the command's own output.
+      expect(ran.out).toContain("iso_code");
+      expect(ran.out).toContain("name");
+      expect(ran.out).toContain("matched 235/249");
+    });
+
+    it("leaves the committed page exactly as it was", () => {
+      const page = readFileSync(
+        join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-review.md"),
+        "utf8",
+      );
+      expect(page).toContain("What the portal has, before a single line is read");
+      expect(page, "Iran is the row he said would be on the page").toContain(
+        "Iran, Islamic Republic of",
+      );
+    });
+  });
+
   describe("interventions", () => {
     const bare = run("interventions.ts", [], { AAS_SERVICE_CERT: "" });
 
@@ -251,7 +281,7 @@ describe("the published demonstrations", () => {
     ];
     const GUARDED_HERE = [
       "extraction-demo", "interview-demo", "catalogue", "interventions", "inspect-discovery",
-      "inspect:attached", "inspect-dependencies",
+      "inspect:attached", "inspect-dependencies", "country-mappings",
     ];
 
     const unguarded = published.filter(
