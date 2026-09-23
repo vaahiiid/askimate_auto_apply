@@ -601,7 +601,8 @@ export function receiveConfirmation(
       return {
         kind: "not_understood",
         state: withoutPending(state),
-        reason: `Could not read a ${spec.expectedShape} from the correction "${response.correction}".`,
+        // P199: no article — the shape carries its own. See deterministic.ts.
+        reason: `Could not read ${spec.expectedShape} from the correction "${response.correction}".`,
       };
     }
   }

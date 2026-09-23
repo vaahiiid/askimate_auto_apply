@@ -19,6 +19,39 @@ not shipped artefacts.
 
 ---
 
+## [0.195.0] — 2026-09-23
+
+**P199 — blocker 64 taken: the three country fields read through the reviewed table.**
+
+- **Changed** `identity.nationality`, `identity.country_of_birth` and `residence.country` to parse
+  through the reviewed ISO 3166-1 table ([ADR-0141](./docs/decisions/0141-the-country-table-is-a-reviewed-artefact.md)).
+  *Iran*, *iran* and *IR* all store `IR`; `Atlantis` and `ZZ` are refused and asked again rather
+  than stored. Red first. A P191 test asserting the opposite contract was rewritten carrying the
+  reversal, not deleted.
+- **Measured, and it is the answer to the question Vahid asked:** the signed Sheffield entry
+  **already** carries the per-field portal spellings — all nine country-typed mappings are `option`
+  maps keyed by ISO alpha-2, four spellings of one country inside one entry. The entry did not
+  change; **no signature was spent**. Blocker 65's title (*"only one of them exists"*) was corrected
+  in place: its second half was already built.
+- **Added** `COUNTRY_FIELD_KEYS` / `isCountryField` to the profile registry, and the confirmation
+  now plays back `Iran (IR)` rather than `IR` — a student who typed *Iran* was being asked to agree
+  to something they never said.
+- **Fixed** the refusal template, which read *"Could not read a a date of birth, e.g. …"*: every
+  `expectedShape` already carries its own article, in all 33 of them.
+- **Raised** blocker 68 — the country vocabulary has three producers (interview, extraction reading
+  `"IRANIAN"` off a passport, a hand-edited fixture) and one ISO-keyed consumer; reading a demonym
+  needs a table ICU cannot derive. Three options, one recommended, none taken.
+- **Raised** blocker 69 — the reviewed mapping set carries 8 countries of 249 against a portal
+  select of 242–262. Derivable at 235/249 for the two code-valued fields; a name join misses 15–18%
+  silently, `IR` among them, so the three name-valued fields need review rather than derivation.
+- **Answered** blocker 66 with a reading and costs, including a case none of us had named: Sheffield
+  has no `CY` but `XA`/`XB` for Cyprus, so one code meets several options, and no country select
+  offers an *Other*. **Accepted** blocker 67 for now, in Vahid's words, to be revisited at vitest 3.2.
+- **Added** to `CLAUDE.md`: a check that reports nothing is indistinguishable from a check that
+  found nothing.
+
+---
+
 ## [0.194.0] — 2026-09-23
 
 **P198 — a red suite that said nothing.**

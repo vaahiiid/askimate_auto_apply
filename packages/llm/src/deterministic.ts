@@ -80,7 +80,12 @@ export class DeterministicModelClient implements ModelClient {
     if (parsed === null) {
       return Promise.resolve({
         kind: "not_understood",
-        reason: `Could not read a ${request.expectedShape} from "${utterance}".`,
+      // P199: no article here. Every `expectedShape` carries its own ("a
+      // date of birth, e.g. …", "yes or no", "the country you were born
+      // in"), so prefixing one produced "Could not read a a date of birth"
+      // in a sentence the STUDENT reads. Visible in the end-to-end
+      // transcript since P191 and read past every time.
+        reason: `Could not read ${request.expectedShape} from "${utterance}".`,
       });
     }
 

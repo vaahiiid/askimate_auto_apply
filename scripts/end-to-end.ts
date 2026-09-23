@@ -155,7 +155,14 @@ const SCRIPT: Partial<Record<ProfileFieldKey, string[]>> = {
   "identity.family_name": ["Hosseini"],
   // Refused first — 02/04 is April 2nd here and February 4th in America.
   "identity.date_of_birth": ["02/04/1999", "2 April 1999"],
-  "identity.nationality": ["Iranian"],
+  // Refused first, like the date above, and for a reason worth seeing in the
+  // transcript: *Iranian* is a nationality, and the registry field is the
+  // COUNTRY the reviewed mapping set is keyed by (P199, blocker 64). ICU
+  // ships no demonyms, so the reviewed table cannot read one; the re-ask
+  // names the shape and the student answers the country. Whether the demonym
+  // should be read at all is blocker 68, and it is NOT decided by this
+  // script answering the second time.
+  "identity.nationality": ["Iranian", "Iran"],
 };
 
 const used = new Map<string, number>();
@@ -331,7 +338,12 @@ async function main(): Promise<void> {
         source: {
           kind: "profile_field",
           fieldKey: "identity.nationality",
-          format: { kind: "option", options: { Iranian: "IR", British: "GB" } },
+          // Keyed by the ISO code the profile now holds (P199), as the
+          // reviewed Sheffield entry's nine country mappings already were.
+          // It was keyed by the DEMONYM until 2026-09-23 — a fixture that
+          // agreed with nothing but itself, which is the defect this phase
+          // was about.
+          format: { kind: "option", options: { IR: "IR", GB: "GB" } },
         },
       },
       {
@@ -339,7 +351,12 @@ async function main(): Promise<void> {
         source: {
           kind: "profile_field",
           fieldKey: "identity.nationality",
-          format: { kind: "option", options: { Iranian: "IR", British: "GB" } },
+          // Keyed by the ISO code the profile now holds (P199), as the
+          // reviewed Sheffield entry's nine country mappings already were.
+          // It was keyed by the DEMONYM until 2026-09-23 — a fixture that
+          // agreed with nothing but itself, which is the defect this phase
+          // was about.
+          format: { kind: "option", options: { IR: "IR", GB: "GB" } },
         },
       },
       { fieldRef: "passport", source: { kind: "document", documentRef: "passport" } },

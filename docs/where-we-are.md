@@ -4906,6 +4906,124 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P199 — blocker 64 taken, and the entry turned out to be the part that was right
+
+He re-weighed the hold once P196's correction reached him:
+
+> *"Not because the signature is free, but because you found the real defect underneath it. Those
+> three fields store whatever the student types, the mapping is keyed IR, and Run A only worked
+> because a person wrote IR into a file by hand. That is broken for every real student today, and
+> it is the same class as saveBtn and Sep — a value that looks right because someone authored it,
+> not because anything read it."*
+
+And he asked that the correction live in the blocker rather than only in a phase row, because *"the
+reason a decision was made matters as much as the decision when someone re-reads it."* It does now.
+
+## The interview side, which is what he asked for
+
+`identity.nationality`, `identity.country_of_birth` and `residence.country` parse through the
+reviewed table (ADR-0141). *Iran*, *iran*, ` Iran `, *IR* and *ir* all store `IR`; *United Kingdom*
+stores `GB`; *Atlantis* and `ZZ` are refused and asked again rather than stored. Three tests, all
+red first — `expected 'Iran' to be 'IR'` — and a P191 test that asserted the opposite contract was
+**rewritten carrying the reversal**, not deleted: keeping the student's text was right for those two
+fields when there was no table to read a name with, and is wrong now that there is one.
+
+## The mapping side: nothing was needed, and that is the answer to his question
+
+He asked me to say whether the entry must change to carry a per-field portal spelling. Measured on
+the signed entry — **it already does, for every one of them**:
+
+| target field | profile field | `IR` maps to |
+|---|---|---|
+| `corrCountry` | `contact.address` → `countryCode` | `IRAN` |
+| `permanentResidence` | `residence.country` | `Iran, Islamic Republic of:O` |
+| `previousCountry1..4` | `residence.history[n]` → `countryCode` | `IRAN:O` |
+| `fundingNationality` | `identity.nationality` | `IR:O` |
+| `countryOfBirth` | `identity.country_of_birth` | `IR:O` |
+| `institutionCountry-ts-control` | `education.prior_qualifications` → `countryCode` | `IRAN` |
+
+Nine mappings, every one an `option` map keyed by ISO alpha-2, four different spellings of one
+country inside one signed entry. That is blocker 65's second half — *the code to whatever a given
+portal's select calls it* — **already built and already reviewed**, not future work. So blocker 65's
+own title, *"only one of them exists"*, was wrong, and is corrected in place.
+
+**The entry did not change. Its hash did not move. No signature was spent.**
+
+## What the fix exposed, which matters more than the fix
+
+The end-to-end demonstration's scripted student answers **"Iranian"** — because that is what people
+say when asked their nationality. With the parser fixed, the transcript read:
+
+```
+AskiMate  Your nationality determines which entry requirements and visa rules apply…
+Student   Iranian
+·         Could not read the country you are a national of… from "Iranian".
+   … twice more …
+ESCALATE  Asked for "Nationality" 3 times without obtaining a usable answer.
+```
+
+A student who answered their question correctly, told that nobody could get a usable answer from
+them. That is blocker 66's complaint — *"not a parse failure and should not read as one"* — arriving
+in the one place we can already see it.
+
+I did not close it by authoring a demonym table. **ICU ships no demonyms**, so unlike the country
+table there is no derivation to re-run: it would be 249 strings of my authorship, which is precisely
+what ADR-0141 exists to refuse. It is **blocker 68**, with three options and the one I would take —
+the model proposes, the reviewed table constrains, the student confirms. The demonstration now
+answers the country on the second turn and keeps the refusal visible in the transcript, which is the
+demonstration working around the gap rather than the gap being closed, and the blocker says so.
+
+The same blocker carries a second producer nobody had lined up against the first: **extraction reads
+`"IRANIAN"` off the passport**, verbatim, which is what extraction is for and must stay. Three
+producers write this field — interview, extraction, a hand-edited fixture — and the consumer is
+keyed by the code.
+
+## Two more, measured
+
+**The reviewed mapping set carries eight countries of 249** — GB, IR, IN, PK, CN, NG, TR, US —
+against a portal select of 242 to 262. Everyone else is a `render_refused` blocker today, and that
+is not blocker 66: Sheffield offers their country perfectly well. It is **blocker 69**, and it is
+the signature he offered to spend, because extending the option maps moves the entry's hash.
+
+How much of it can be derived rather than authored, since that decides whether it costs a review:
+
+| field | options are | joins |
+|---|---|---|
+| `fundingNationality`, `countryOfBirth` | ISO codes | **235 of 249** — the 14 misses genuine |
+| `corrCountry`, `permanentResidence`, `previousCountry1` | names | 205–212 of 249 — the misses are *spelling* |
+
+The name-join misses are Czechia/Czech Republic, Côte d'Ivoire/Ivory Coast, Congo - Kinshasa,
+Hong Kong SAR China — **and `IR` itself**, which Sheffield spells *Iran, Islamic Republic of*. A
+name join is a guess with a 15–18% silent miss rate on the very country Run A used. So: derive the
+two code-valued fields, **review** the three name-valued ones.
+
+**And a case for blocker 66 that none of us had named.** Sheffield's nationality select has no `CY`.
+It carries `XA:E` *Cyprus (European Union)* and `XB:O` *Cyprus (Non-European Union)*, codes of its
+own invention; residence splits Cyprus three ways. So the hard case is not *the portal omits your
+country* — it is **one code, several options**: the portal's list is finer than the table, and it is
+asking something our registry does not hold. Choosing one would be choosing an answer for the
+student. There is also no generic escape: none of the five country selects has an *Other* or *Not
+listed* option, which is why shape (a) — use the refusal the form offers — is unavailable on the
+first real portal we have.
+
+## Smaller, both student-facing
+
+The confirmation asked a student who typed *Iran* to agree to `IR`. It now reads **`Iran (IR)`**,
+from the same reviewed table, the way the authorisation preview already did. And every refusal said
+*"Could not read a a date of birth, e.g. …"* — the template prefixed an article to shapes that
+already carry their own, in all 33 of them. Visible in the transcript since P191 and read past every
+time.
+
+## One number I got wrong, and caught
+
+My first pass at the derivation gap reported 51 unmatched codes for the nationality select,
+including Germany and France. That was my regex stripping Sheffield's `:H` and `:O` suffixes and not
+its `:E` and `:Q`. Re-measured: 14. Nothing was reported until it was checked.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P198 — a red suite that said nothing, and the four places it could have spoken from
 
 CI run 327 failed on `08a9f2e` — a commit that changed docs, the changelog, the README, the

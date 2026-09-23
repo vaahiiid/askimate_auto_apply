@@ -20,11 +20,14 @@ export type {
   UkStudyLevel,
 } from "./fields.js";
 export type { ListValuedFieldKey } from "./fields.js";
+export type { CountryFieldKey } from "./fields.js";
 export {
+  COUNTRY_FIELD_KEYS,
   FIELD_LABELS,
   FINANCIAL_FIELDS,
   LIST_VALUED_FIELD_KEYS,
   PROFILE_FIELD_KEYS,
+  isCountryField,
   isFinancialField,
 } from "./fields.js";
 

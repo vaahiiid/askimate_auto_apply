@@ -89,6 +89,23 @@ What that means in practice, because the failure was mechanical each time:
 - **Say what happened, including when it did not work.** "The script aborted at the third edit and
   I re-applied the rest" is a report. "Done" without a look is not.
 
+### A check that reports nothing is indistinguishable from a check that found nothing
+
+Added 2026-09-23 at Vahid's instruction, after nine background watchers waited on a condition that
+could never become true — each one polled for a process whose name its own command line contained,
+so each was waiting for itself. They ran for hours and said nothing, and nothing is exactly what a
+clean result looks like.
+
+So, before trusting any check — a watcher, a grep that "found no problems", a guard, a CI filter:
+
+- **Ask what it would print if the thing it watches were on fire.** If the answer is "nothing", it
+  is not a check, and its silence is not evidence.
+- **Make it fail once on purpose** and read what comes back. P198 did this to a wait that had gone
+  red saying `expected 'Loading…' to contain 'received'` — three words that fitted two different
+  failures — and the three seconds that proved the message spared the next person an hour.
+- **Silence is a reading you have to earn**, not the default. A guard that ran only in tests, a
+  grep whose pattern matched itself, a watcher polling for its own process: all three looked calm.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.

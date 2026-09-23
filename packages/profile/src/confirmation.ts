@@ -30,6 +30,8 @@ import type { ConfirmationProvenance, ConfirmedValue, ProposedValue } from "@ask
 import { unwrapProposed } from "@askimate/aas-domain";
 
 import type { ProfileFieldKey, ProfileFieldType } from "./fields.js";
+import { isCountryField } from "./fields.js";
+import { readCountry } from "./countries.js";
 
 /**
  * What the student did when shown the agent's interpretation.
@@ -152,13 +154,34 @@ export function renderForConfirmation<K extends ProfileFieldKey>(
   label: string,
 ): string {
   const proposal = unwrapProposed(proposed);
-  const rendered = formatValue(proposal.value);
+  // ── P199: a country is shown as a country ───────────────────────────────
+  //
+  // The value stored is the ISO code, because the reviewed mapping sets are
+  // keyed by it. Asking a student who typed *Iran* to confirm `IR` asks them
+  // to agree to something they never said. So the code is shown WITH the
+  // reviewed table's name for it — the same way the authorisation preview
+  // already renders it (`Nationality: Iran  (sent as "IR")`) — and the value
+  // being stored is still exactly what is displayed inside the brackets.
+  // Faithful and readable, rather than faithful alone.
+  const rendered = countryNameFor(key, proposal.value) ?? formatValue(proposal.value);
   const heard =
     proposal.origin === "conversation"
       ? `You said: "${proposal.verbatim}"`
       : `From your document: "${proposal.verbatim}"`;
 
   return `${heard}\n\nI've recorded your ${label.toLowerCase()} as: ${rendered}\n\nIs that right?`;
+}
+
+/**
+ * `Iran (IR)` for a country-typed field holding a code the reviewed table
+ * knows; `null` for everything else, including a country field whose value is
+ * not a code the table holds — which cannot happen through the interview and
+ * must not be papered over if it ever does.
+ */
+function countryNameFor(key: ProfileFieldKey, value: unknown): string | null {
+  if (!isCountryField(key) || typeof value !== "string") return null;
+  const country = readCountry(value);
+  return country === null ? null : `${country.name} (${country.code})`;
 }
 
 /** Formats a value for display. Deterministic — never model-written. */

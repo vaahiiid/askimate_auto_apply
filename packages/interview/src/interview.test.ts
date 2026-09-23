@@ -693,7 +693,17 @@ describe("what the interview is not allowed to ask for", () => {
   });
 
   it("keeps what the student typed for the open ones, and refuses an empty answer (P191)", () => {
-    for (const key of ["identity.country_of_birth", "identity.sex", "study.intended_start", "finance.funding_source", "finance.sponsor_name", "residence.country"] as const) {
+    // ── Two fields LEFT this list in P199, and the reversal is the point ───
+    //
+    // `identity.country_of_birth` and `residence.country` were here when P191
+    // wrote this test, and keeping what the student typed was right for them
+    // then: there was no reviewed country table to read a name with, and a
+    // half-table was worse than none. With the table built (ADR-0141) and the
+    // reviewed mapping set keyed by ISO alpha-2, keeping the text is what is
+    // now wrong — it stores `"Iran"` against an option map keyed `IR`. Their
+    // contract is asserted above, in the P199 block; what remains here is the
+    // fields that really are the student's own words.
+    for (const key of ["identity.sex", "study.intended_start", "finance.funding_source", "finance.sponsor_name"] as const) {
       const spec = scalarSpec(key);
       expect(spec.parse("  Iran  "), key).toBe("Iran");
       expect(spec.parse("   "), key).toBeNull();
@@ -861,5 +871,60 @@ describe("what the interview is not allowed to ask for", () => {
     // A tripwire over an empty list is not a tripwire.
     expect(Object.keys(FIELD_SPECS).length).toBeGreaterThan(3);
     expect(Object.keys(FIELD_SPECS)).toContain("identity.given_name");
+  });
+});
+
+describe("the three country fields read through the reviewed table (P199, blocker 64)", () => {
+  // ── Why this test exists ─────────────────────────────────────────────────
+  //
+  // Run A filled Sheffield's nationality, country-of-birth and residence boxes
+  // only because a person had written `IR` into `docs/run-a/synthetic-profile
+  // .json` by hand. The reviewed mapping set is keyed by ISO alpha-2 — nine
+  // country-typed mappings, every one an option map on the code — and the
+  // interview stored whatever the student typed. So a student answering *Iran*
+  // stored `"Iran"`, the option map holds no such key, and the fill refuses.
+  //
+  // It is the saveBtn and Sep failure again: a value that looked right because
+  // somebody authored it, not because anything read it.
+  const COUNTRY_FIELDS: readonly ProfileFieldKey[] = [
+    "identity.nationality",
+    "identity.country_of_birth",
+    "residence.country",
+  ];
+
+  it("stores the CODE the mapping is keyed by, whichever way the student writes the country", () => {
+    for (const key of COUNTRY_FIELDS) {
+      const spec = scalarSpec(key);
+      // The three spellings a student actually uses, and the code itself.
+      for (const written of ["Iran", "iran", " Iran ", "IR", "ir"]) {
+        expect(spec.parse(written), `${key} ← ${JSON.stringify(written)}`).toBe("IR");
+      }
+      expect(spec.parse("United Kingdom"), key).toBe("GB");
+      expect(spec.parse("South Korea"), key).toBe("KR");
+    }
+  });
+
+  it("refuses what the table does not hold, rather than storing it and failing at the portal", () => {
+    for (const key of COUNTRY_FIELDS) {
+      const spec = scalarSpec(key);
+      // `ZZ` is well-formed and assigned to nobody; the rest are not countries.
+      // A demonym is refused TOO, and deliberately — see blocker 68. ICU ships
+      // no demonyms, so reading "Iranian" would need a second reviewed table
+      // with no derivation behind it, and that is Vahid's call, not this
+      // parser's.
+      for (const refused of ["Atlantis", "ZZ", "", "  ", "Iranian"]) {
+        expect(spec.parse(refused), `${key} ← ${JSON.stringify(refused)}`).toBeNull();
+      }
+    }
+  });
+
+  it("says the shape it wants, so a student who writes a nationality is asked once and gets it right", () => {
+    for (const key of COUNTRY_FIELDS) {
+      const spec = scalarSpec(key);
+      // The re-ask is built from `expectedShape`, and it is the only thing a
+      // student who typed "Iranian" has to go on.
+      expect(spec.expectedShape, key).toContain("country");
+      expect(spec.expectedShape, key).toMatch(/Iran|e\.g\./);
+    }
   });
 });

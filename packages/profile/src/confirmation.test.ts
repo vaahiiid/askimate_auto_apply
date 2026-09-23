@@ -175,3 +175,34 @@ describe("what the student is shown", () => {
     expect(rendered).toContain("02 APR 2008");
   });
 });
+
+describe("a country is confirmed by its name, not only by its code (P199)", () => {
+  // The student typed "Iran". Storing `IR` is right — the reviewed mapping set
+  // is keyed by the code — but asking them to confirm `IR` asks them to agree
+  // to something they did not say. The preview already solved this tension the
+  // other way round (`Nationality: Iran  (sent as "IR")`); the confirmation
+  // now reads the same way, from the same reviewed table.
+  it("plays back the table's name with the code beside it", () => {
+    const playback = renderForConfirmation(
+      "identity.nationality",
+      heard("IR", "Iran"),
+      "Nationality",
+    );
+    expect(playback).toContain("Iran (IR)");
+  });
+
+  it("does the same for the other two country fields", () => {
+    for (const key of ["identity.country_of_birth", "residence.country"] as const) {
+      expect(renderForConfirmation(key, heard("GB", "United Kingdom"), "Country")).toContain(
+        "United Kingdom (GB)",
+      );
+    }
+  });
+
+  it("leaves every other field's value exactly as it was", () => {
+    // `IR` is not a country here — it is whatever the student said — and a
+    // field that is not country-typed must not be reinterpreted as one.
+    expect(renderForConfirmation("identity.sex", heard("IR", "IR"), "Sex")).toContain(": IR");
+    expect(renderForConfirmation("identity.sex", heard("IR", "IR"), "Sex")).not.toContain("(IR)");
+  });
+});

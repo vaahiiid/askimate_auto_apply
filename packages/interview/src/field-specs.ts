@@ -467,10 +467,28 @@ export const FIELD_SPECS: Partial<{
     expectedShape: "a date of birth, e.g. 1999-04-02 or 2 April 1999",
     parse: isoDate,
   },
+  // ── P199, blocker 64: the three country fields read through the table ────
+  //
+  // These three stored whatever was typed until 2026-09-23, and the reviewed
+  // Sheffield mapping set is keyed by ISO alpha-2 — nine country-typed
+  // mappings, every one an option map on the code. So Run A filled them only
+  // because a person had written `IR` into the synthetic profile by hand; a
+  // student answering *Iran* stored `"Iran"`, which the option map has no key
+  // for, and the fill refused. Vahid, 2026-09-23: *"That is broken for every
+  // real student today, and it is the same class as saveBtn and Sep — a value
+  // that looks right because someone authored it, not because anything read
+  // it."*
+  //
+  // `countryCodeIso2` is not a normalisation we invented: it is a lookup in
+  // the reviewed table (ADR-0141), and anything the table does not hold is
+  // refused and asked again. A DEMONYM — *Iranian*, *British*, *Dutch* — is
+  // refused with everything else, because ICU ships no demonyms and reading
+  // one would need a second table with no derivation behind it. That is
+  // blocker 68, and it is his to decide, not this parser's to assume.
   "identity.nationality": {
     rationale: "Your nationality determines which entry requirements and visa rules apply.",
-    expectedShape: "a nationality or country",
-    parse: trimmed,
+    expectedShape: "the country you are a national of, e.g. Iran or IR — the country rather than the nationality",
+    parse: countryCodeIso2,
   },
   "contact.email": {
     rationale:
@@ -492,8 +510,8 @@ export const FIELD_SPECS: Partial<{
 
   "identity.country_of_birth": {
     rationale: "Applications ask where you were born separately from your nationality, because the two are often different.",
-    expectedShape: "a country",
-    parse: trimmed,
+    expectedShape: "the country you were born in, e.g. Iran or IR",
+    parse: countryCodeIso2,
   },
   "identity.sex": {
     rationale:
@@ -532,8 +550,8 @@ export const FIELD_SPECS: Partial<{
   // application."*
   "residence.country": {
     rationale: "Your country of permanent residence decides which fee status and entry requirements apply to you.",
-    expectedShape: "a country",
-    parse: trimmed,
+    expectedShape: "the country you permanently live in, e.g. Iran or IR",
+    parse: countryCodeIso2,
   },
   "residence.in_uk_now": {
     rationale: "Whether you are in the UK right now changes what the application asks you next.",

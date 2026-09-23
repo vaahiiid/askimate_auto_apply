@@ -307,6 +307,31 @@ export const LIST_VALUED_FIELD_KEYS = [
   "immigration.previous_visa_refusals",
 ] as const satisfies readonly ProfileFieldKey[];
 export type ListValuedFieldKey = (typeof LIST_VALUED_FIELD_KEYS)[number];
+
+/**
+ * The fields whose value is an ISO 3166-1 alpha-2 CODE from the reviewed table
+ * (ADR-0141), not a country's name in the student's words.
+ *
+ * Named here for the same reason the list-valued keys are: nothing at runtime
+ * can otherwise tell one of these from any other string field, and two places
+ * need to — the interview, which must read what the student wrote through the
+ * table, and the confirmation, which must show them a country rather than a
+ * code they never typed.
+ *
+ * `contact.address` is NOT here: its country lives in a part (`countryCode`),
+ * already read through the table since P195, and a composite is confirmed
+ * part by part.
+ */
+export const COUNTRY_FIELD_KEYS = [
+  "identity.nationality",
+  "identity.country_of_birth",
+  "residence.country",
+] as const satisfies readonly ProfileFieldKey[];
+export type CountryFieldKey = (typeof COUNTRY_FIELD_KEYS)[number];
+
+export function isCountryField(key: ProfileFieldKey): key is CountryFieldKey {
+  return (COUNTRY_FIELD_KEYS as readonly ProfileFieldKey[]).includes(key);
+}
 export type ProfileFieldType<K extends ProfileFieldKey> = ProfileFieldTypes[K];
 
 /** Every field key, for iteration. */
