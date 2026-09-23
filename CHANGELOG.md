@@ -19,6 +19,26 @@ not shipped artefacts.
 
 ---
 
+## [0.197.0] — 2026-09-23
+
+**P201 — blocker 68 built to the edge of the model, and a record corrected.**
+
+- **Corrected** P200's claim that the confirmation *"shows the result without the reading that
+  produced it"*. Measured: it renders `You said: "Iranian"` above `Iran (IR)`, and always has. What
+  was missing was anything holding it — his condition was true by accident, and is now three tests.
+- **Moved** `readCountryCode` into the package that owns the reviewed table, so the interview and
+  the extraction plan read a country through one gate rather than two copies of one.
+- **Fixed** the passport extraction plan, which read `parse: nonEmpty`: a data page printing
+  `IRANIAN` wrote the string `IRANIAN` into a field every reviewed mapping keys by ISO code. The
+  test asserting `"IRANIAN"` was rewritten carrying the reversal, and a hostile-model test added —
+  *Atlantis*, *Persia*, `ZZ` and the demonym itself all get nothing through.
+- **Lowered** two counts honestly rather than editing a fixture: the passport demonstration's
+  grounded readings 7 → 6, with the reason in the assertion. A passport prints a demonym, and a
+  document is not falsified to suit a parser.
+- **Not built:** the model's own reading, which needs Bedrock credentials (blocker 3).
+
+---
+
 ## [0.196.0] — 2026-09-23
 
 **P200 — the country-mapping derivation, and the review page for what it cannot settle.**

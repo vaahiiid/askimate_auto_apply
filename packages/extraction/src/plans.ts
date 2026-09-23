@@ -28,6 +28,7 @@ import type {
   ProfileFieldType,
   Qualification,
 } from "@askimate/aas-profile";
+import { readCountryCode } from "@askimate/aas-profile";
 import type { DocumentType } from "@askimate/aas-domain";
 
 /** Which date on the document this is, in the validity engine's terms. */
@@ -309,13 +310,30 @@ const PASSPORT: ExtractionPlan = {
         };
       },
     }),
+    // ── P201, blocker 68: a passport's nationality reaches the registry
+    // through the reviewed table, or it does not reach it at all ──────────
+    //
+    // This read `parse: nonEmpty` until 2026-09-23, so a data page printing
+    // `IRANIAN` put the string `IRANIAN` into `identity.nationality` — a
+    // field every reviewed mapping keys by ISO alpha-2. It went in looking
+    // fine and failed at the portal, which is the shape of defect this
+    // repository keeps finding.
+    //
+    // The gate is the same one the interview uses, and it is the CONSTRAINT
+    // half of Vahid's decision: *"a model may help us read, never decide what
+    // is stored."* A model reads the data page and returns text; only text
+    // the reviewed table resolves becomes a value. A passport that says
+    // `IRANIAN` and a model that answers `Iran` gives `IR`; a model that
+    // answers `Atlantis`, or invents a plausible code, gives nothing — and
+    // the document's own span is still quoted verbatim beside it, so the
+    // student confirms what the passport said next to what will be stored.
     scalar({
       fieldKey: "identity.nationality",
       labels: ["Nationality", "Citizenship"],
       hint: "the nationality field on the data page",
-      expectedShape: "a nationality",
+      expectedShape: "the country this person is a national of, e.g. Iran or IR — the country rather than the nationality",
       required: true,
-      parse: nonEmpty,
+      parse: readCountryCode,
     }),
     {
       kind: "document_date",

@@ -93,5 +93,6 @@ export {
   normaliseCountryText,
   canonicalCountries,
   countriesHash,
+  readCountryCode,
   readCountry,
 } from "./countries.js";

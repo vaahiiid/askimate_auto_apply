@@ -96,7 +96,15 @@ describe("the published demonstrations", () => {
       const accepted = (demo.out.match(/quoted from page 1:/g) ?? []).length;
       // Seven since ADR-0117: the passport's number, expiry and issuing
       // country are one reading of three parts, quoted line by line.
-      expect(accepted, "a demonstration of grounded reading with no grounded reading").toBeGreaterThanOrEqual(7);
+      // SEVEN until P201, and the one that left is worth keeping visible. The
+      // fixture passport prints `Nationality  IRANIAN`, because that is what a
+      // passport prints, and `identity.nationality` now reads through the
+      // reviewed country table (blocker 68). The deterministic client parses
+      // the printed line literally, so it resolves nothing and proposes
+      // nothing — honest, and exactly what a model is for (blocker 3). The
+      // fixture was NOT edited to print `Iran`: a document is not falsified to
+      // suit a parser.
+      expect(accepted, "a demonstration of grounded reading with no grounded reading").toBeGreaterThanOrEqual(6);
       expect(demo.out, "the one passport value is shown as its parts, not as [object Object]").toMatch(
         /✓\s+identity\.passport\s+\{"kind":"held","number":"K12345678"/,
       );

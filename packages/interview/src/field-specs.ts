@@ -24,7 +24,7 @@ import type {
   UkStudyLevel,
   YearMonth,
 } from "@askimate/aas-profile";
-import { readCountry } from "@askimate/aas-profile";
+import { readCountryCode } from "@askimate/aas-profile";
 
 /**
  * A field the student answers in one utterance.
@@ -351,7 +351,10 @@ const addressLine = (raw: string): string | null => {
  * well-formed code that nobody is assigned and it is refused, which is exactly
  * what a regular expression could not do.
  */
-const countryCodeIso2 = (raw: string): string | null => readCountry(raw)?.code ?? null;
+// P201: the one parser, from the package that owns the table. It was written
+// here in P195 and moved out when extraction needed the same gate — three
+// callers had to agree, and two copies of an agreement are not one.
+const countryCodeIso2 = readCountryCode;
 
 /**
  * A score, exactly as the certificate writes it.

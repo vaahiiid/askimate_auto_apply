@@ -206,3 +206,51 @@ describe("a country is confirmed by its name, not only by its code (P199)", () =
     expect(renderForConfirmation("identity.sex", heard("IR", "IR"), "Sex")).not.toContain("(IR)");
   });
 });
+
+describe("a confirmation shows BOTH what was said and what will be stored (P201, blocker 68)", () => {
+  // Vahid's condition on taking the model-proposes option, 2026-09-23:
+  //
+  //   *"the student's confirmation must show both — what they said and what
+  //   will be stored. 'Iranian → Iran (IR)'. A confirmation that shows only
+  //   the result is a confirmation of our guess, not of their answer."*
+  //
+  // The shape already did this — `You said: "…"` above the stored value — and
+  // P201 measured that before recording otherwise. What it did NOT have was
+  // anything holding it, which is why a condition he stated is now a test
+  // rather than a property that happens to be true.
+  it("keeps the student's own words beside the country the table resolved", () => {
+    const playback = renderForConfirmation(
+      "identity.nationality",
+      heard("IR", "Iranian"),
+      "Nationality",
+    );
+    expect(playback, "what they said").toContain('"Iranian"');
+    expect(playback, "what will be stored").toContain("Iran (IR)");
+  });
+
+  it("does the same when a DOCUMENT was read and nobody was there to confirm at the time", () => {
+    // The passport says IRANIAN; the model reads Iran; the table gives IR; and
+    // the student still meets both before it is theirs. This is the case he
+    // called the better test of the design.
+    const fromPassport = proposeValue({
+      value: "IR",
+      origin: "document" as const,
+      verbatim: "Nationality  IRANIAN",
+      confidence: 0.95,
+    });
+    const playback = renderForConfirmation("identity.nationality", fromPassport, "Nationality");
+    expect(playback).toContain("From your document:");
+    expect(playback, "the document's own words").toContain("IRANIAN");
+    expect(playback, "what will be stored").toContain("Iran (IR)");
+  });
+
+  it("shows the words even when they are a whole sentence rather than a country", () => {
+    const playback = renderForConfirmation(
+      "residence.country",
+      heard("IR", "I'm Iranian, living in Tehran"),
+      "Country of residence",
+    );
+    expect(playback).toContain("I'm Iranian, living in Tehran");
+    expect(playback).toContain("Iran (IR)");
+  });
+});

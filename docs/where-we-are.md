@@ -4906,6 +4906,88 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P201 — blocker 68 built to the edge of the model, and a record of mine corrected
+
+## The correction first, because the wrong version is on main
+
+P200's record said that P199's confirmation *"shows the result without the reading that produced
+it"*, and that his condition was therefore unmet. Measuring it took one command:
+
+```
+--- the model read a demonym (what blocker 68 will produce) ---
+You said: "Iranian"
+
+I've recorded your nationality as: Iran (IR)
+
+Is that right?
+```
+
+It has always shown both. I wrote the gap into the blocker without running the thing I was
+describing — the exact failure the "done means verified" rule exists for, in the same week I put a
+new rule about silent checks into `CLAUDE.md`.
+
+What was actually missing is worth more than the thing I claimed was missing: **nothing held it**.
+His condition was satisfied by accident of a shape nobody had asserted, and an accident survives
+until someone refactors it. It is three tests now — the student's words beside the stored value,
+the same for a document reading, and the same when the utterance is a whole sentence rather than a
+country.
+
+## The constraint, made one thing
+
+`readCountryCode` now lives in the package that owns the reviewed table. The interview had its own
+copy from P195; extraction needed the same gate; three callers that must agree cannot each hold
+their own answer. That is the same defect as `saveBtn` and `Sep`, one level up.
+
+This is also the half of his decision that can be built without a model:
+
+> *"a model may help us read, never decide what is stored."*
+
+`InterpretationRequest.parse` and `ExtractionRequest.parse` are the only doors a model's reading
+passes through, and for a country-typed field that door is now the reviewed table's own. A model
+cannot introduce a country the table does not hold, however confidently it answers.
+
+## The gap that was hiding in extraction
+
+The passport plan read `parse: nonEmpty`. A data page printing
+
+```
+Nationality  IRANIAN
+```
+
+put the **string** `IRANIAN` into `identity.nationality` — a field every reviewed mapping keys by
+ISO alpha-2. It went in looking fine and failed at the portal, which is this repository's signature
+defect, found again.
+
+Gated now. The test that asserted `"IRANIAN"` was rewritten carrying the reversal rather than
+deleted, and a second test points a hostile model at the door: *Atlantis*, *Persia*, `ZZ`, and the
+demonym itself all get nothing through.
+
+He was right that this is the better test of the design. In the interview a student is there to
+confirm; reading a passport, nobody is — so the constraint is the only thing standing between a
+model's guess and an application.
+
+## Two counts lowered honestly
+
+The passport demonstration's grounded readings went **7 → 6**, and the end-to-end student is still
+re-asked after saying *"Iranian"*. Both are true statements about a system with no model wired in,
+and both stay visible:
+
+- The fixture passport was **not** edited to print `Iran`. A passport prints a demonym; falsifying
+  the document to suit the parser is the same move as changing a scripted student's answer, which
+  P199 refused for the same reason.
+- The demonstration's guard carries the reason in the assertion, so the next person to see `6` is
+  told what the seventh was and where it went.
+
+## What is left, and it is not mine
+
+The model. Without Bedrock credentials (**blocker 3**, with Vahid) the deterministic client parses
+literally, so a demonym resolves to nothing. Everything around that — the proposal shape, the
+constraint, the confirmation showing both, the extraction path — is built and held.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P200 — the derivation, and a page that asks him to read only the disagreements
 
 He set the terms before I built anything:
@@ -4993,9 +5075,13 @@ His condition is part of the decision, and it lands on something P199 built:
 > Iran (IR)'. A confirmation that shows only the result is a confirmation of our guess, not of
 > their answer."*
 
-P199's playback reads `Iran (IR)`. For a value the student typed that is enough. For one the model
-read it is not — it shows the result without the reading that produced it, which is exactly the gap
-he names. The blocker records that, so building it does not quietly inherit a half-done playback.
+P199's playback reads `Iran (IR)`.
+
+> **Corrected in P201.** The sentence that stood here said this was *"not enough on its own"*
+> because it *"shows the result without the reading that produced it"*. That was wrong, and
+> measuring it took one command: the playback renders `You said: "Iranian"` above the stored value,
+> so it has always shown both. What it lacked was anything holding it — his condition was true by
+> accident. It is three tests now.
 
 **Blocker 66 — (c), with (b) as what it does**, for the reason the evidence gave: the blueprint
 already holds the option list, so the system can tell *our mapping lacks it* from *the portal lacks

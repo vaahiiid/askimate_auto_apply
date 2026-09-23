@@ -19,6 +19,7 @@ import {
   proposedFields,
   ungrounded,
 } from "./extract.js";
+import { planFor } from "./plans.js";
 import { PlainTextExtractor } from "./text.js";
 import type { DocumentText } from "./text.js";
 import {
@@ -56,7 +57,23 @@ describe("extracting a passport", () => {
       expiry: new Date("2031-06-13T00:00:00Z"),
       issuingCountry: "ISLAMIC REPUBLIC OF IRAN",
     });
-    expect(byKey.get("identity.nationality")?.value).toBe("IRANIAN");
+    // ── REVERSED IN P201, and the reversal is the point (blocker 68) ──────
+    //
+    // This asserted `"IRANIAN"` until 2026-09-23, and it was a faithful test
+    // of a plan that put a demonym into a field every reviewed mapping keys
+    // by ISO alpha-2. It went in looking fine and failed at the portal.
+    //
+    // The plan now reads through the reviewed table. The deterministic client
+    // parses the printed line literally, and `IRANIAN` is not a country the
+    // table holds — so NOTHING is proposed, which is the honest outcome when
+    // no model is there to read it. With a model (blocker 3, Bedrock) the
+    // reading is `Iran` against a shape that asks for the country, and the
+    // same gate turns that into `IR`. Either way a demonym cannot become a
+    // stored value: *"a model may help us read, never decide what is stored."*
+    expect(
+      byKey.get("identity.nationality"),
+      "a demonym must not enter a field the portal keys by code",
+    ).toBeUndefined();
     expect(byKey.get("identity.date_of_birth")?.value).toEqual(new Date("1999-04-02T00:00:00Z"));
     expect(byKey.get("document.expiresAt")?.value).toEqual(new Date("2031-06-13T00:00:00Z"));
   });
@@ -318,5 +335,40 @@ describe("a model that invents values", () => {
     // Six true facts and one improved grade is not a qualification.
     expect(extracted(report)).toHaveLength(0);
     expect(ungrounded(report)[0]?.reason).toContain("grade");
+  });
+});
+
+describe("a country reaches the registry through the reviewed table, or not at all (P201, blocker 68)", () => {
+  // Vahid, 2026-09-23, taking the option: *"The model proposes, the reviewed
+  // table constrains, the student confirms… a model may help us read, never
+  // decide what is stored. And the same path serves extraction reading
+  // 'IRANIAN' off a passport, which is the better test of it, since nobody is
+  // there to confirm."*
+  //
+  // So this exercises the CONSTRAINT with a model that answers whatever it is
+  // told to. The plan's `parse` is the only door, and it is the reviewed
+  // table's own.
+  const plan = (): { parse: (raw: string) => unknown } => {
+    const passport = planFor("passport");
+    if (passport === undefined) return expect.unreachable("there is a plan for passports");
+    const item = passport.targets.find(
+      (candidate) => "fieldKey" in candidate && candidate.fieldKey === "identity.nationality",
+    );
+    if (item === undefined) return expect.unreachable("the passport plan reads a nationality");
+    return item as { parse: (raw: string) => unknown };
+  };
+
+  it("takes a country the table holds, however the model writes it", () => {
+    expect(plan().parse("Iran")).toBe("IR");
+    expect(plan().parse("IR")).toBe("IR");
+    expect(plan().parse("  united kingdom  ")).toBe("GB");
+  });
+
+  it("REFUSES what the table does not hold, however confident the model is", () => {
+    // A model that invents a country, a plausible-looking code nobody is
+    // assigned, or answers with the demonym it read, gets nothing through.
+    for (const invented of ["Atlantis", "ZZ", "IRANIAN", "Persia", "the Islamic Republic", ""]) {
+      expect(plan().parse(invented), invented).toBeNull();
+    }
   });
 });

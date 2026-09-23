@@ -141,6 +141,25 @@ const BY_NAME: ReadonlyMap<string, Country> = (() => {
  * well-formed code nobody is assigned (`ZZ`) and a name it does not carry. The
  * interview then asks again; it never approximates.
  */
+/**
+ * The reviewed table's own parser: a country's CODE, or null.
+ *
+ * Lives here rather than in each caller because three of them now need it and
+ * they must agree — the interview reading a student's answer (P199), the
+ * extraction plan reading a passport's data page (P201), and anything else
+ * that writes a country-typed registry field. A second copy would be a second
+ * answer to the same question, which is how `saveBtn` and `Sep` happened.
+ *
+ * This is also the CONSTRAINT half of blocker 68, decided by Vahid on
+ * 2026-09-23: *"a model may help us read, never decide what is stored."* A
+ * model's reading is raw text, and it reaches a profile field only through
+ * this function, so a model cannot introduce a country the reviewed table
+ * does not hold however confidently it answers.
+ */
+export function readCountryCode(raw: string): string | null {
+  return readCountry(raw)?.code ?? null;
+}
+
 export function readCountry(raw: string): Country | null {
   assertCountriesUnchanged();
   const value = raw.trim();
