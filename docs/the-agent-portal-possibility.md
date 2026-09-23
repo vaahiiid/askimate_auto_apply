@@ -4,7 +4,11 @@
 agent portal with its own agent account, that is a different product and probably a better one — we
 would be submitting as Universitio on the student's behalf rather than driving the student's own
 account."* Recorded here as a **live possibility**, not a footnote, at his instruction. **Nothing is
-built and nothing is decided.** Whether it exists is his read, in progress.
+built and nothing is decided.**
+
+> **Updated 2026-09-23 — question 1 is answered: the route EXISTS on this portal.** See *What is
+> known, and what is not* below. Questions 2 to 5 are unread, and the existence of a login page
+> settles none of them.
 
 ---
 
@@ -84,11 +88,49 @@ shape holds.
 
 ---
 
-## What would settle it
+## What is known, and what is not (2026-09-23)
 
-His read, in progress. The questions that decide it:
+**From a site search by Vahid, not from the portal.** Nothing here was read on the application
+system itself, and no account of any kind was used.
 
-1. **Does Sheffield have an agent or representative route at all**, and is it named on the site?
+**Known — the route exists on this portal:**
+
+- `sheffield.ac.uk/postgradapplication/representative…` — *"University Representative Login:
+  Student recruitment representatives can sign in here."* A representative login **on the same
+  application system**.
+- An **Agent Representation Authority Form**.
+- A **"Notification of Use of Services of a Recognised Agent"** form.
+- **Agent training pages**.
+- A **"Representatives in your region"** section, written for students.
+
+So Sheffield runs a representative login on the same application system, and has a **formal agent
+process with its own paperwork**. That is question 1 answered, and it is more than question 1 asked
+for: the paperwork means the process is defined rather than ad hoc.
+
+**Not known, and NOT to be inferred from the login page's existence** — Vahid's instruction, in his
+own words: *"What it requires, whether a representative may submit, and whether it is a separate
+portal or the same one under a different login are all unread. Do not infer any of them from the
+login page's existence."*
+
+| | Unread |
+|---|---|
+| What the route **requires** | The Authority Form and the Notification form exist; what they oblige, of whom, and on what terms is unread |
+| Whether a representative **may submit** | A login is not a submission right. The declaration on the final page is the thing to read, and it has not been |
+| Whether it is a **separate portal or the same one under a different login** | The URL sits under `/postgradapplication/`, which is suggestive and is not evidence. It decides whether the blueprint machinery transfers whole, partly, or not at all |
+
+**And a business fact, not an engineering one.** Vahid: *"we are not an agent, and becoming one is a
+business step I will take when I take it."* Nothing here is a route this system can take today.
+
+---
+
+## What would settle the rest
+
+Questions 2 to 5, unchanged. Question 1 is answered above.
+
+The questions that decide it:
+
+1. ~~**Does Sheffield have an agent or representative route at all**, and is it named on the site?~~
+   **Answered 2026-09-23: yes**, with its own login and its own paperwork. See above.
 2. **Does it cover postgraduate taught direct applications**, or only certain programmes or regions?
 3. **Does it require an agency agreement**, and what does becoming an approved agent involve?
 4. **Is it a portal, or structured intake?** A portal means the same machinery against new pages; an
@@ -102,9 +144,21 @@ the *how to apply* pages; the international office's pages for counsellors.
 
 ## Status
 
-**Open, undecided, unbuilt.** It does not block item 1 (the interview), which is the same work on
-either route — the registry's fields are the student's facts regardless of who submits them. It
-would substantially change items 2, 4 and 5, all of which are unstarted.
+**Open. The route exists; its terms are unread.**
 
-If the read comes back positive, the right next act is a decision sheet weighing the two routes
-side by side, not a build.
+Vahid, 2026-09-23, closing the question for now: *"Keep the current path — the student's own account
+— as what we build. The agent route is a live alternative with real evidence behind it, not a
+plan."*
+
+So nothing changes in what is built. The student's own account (ADR-0020, ADR-0101, ADR-0110) stays
+the path. What changed today is the **quality of the alternative**: it was a possibility argued from
+how UK universities generally work, and it is now a route with a named login and named forms on the
+portal this system already targets. That is the difference between a hypothesis and an unread
+document.
+
+It still does not block item 1 (the interview), which is the same work on either route — the
+registry's fields are the student's facts regardless of who submits them. It would substantially
+change items 2, 4 and 5, all of which are unstarted.
+
+The right next act remains a decision sheet weighing the two routes side by side, **after** the
+terms are read — and reading them is downstream of a business step that is Vahid's to take.

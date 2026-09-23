@@ -630,7 +630,24 @@ export const FIELD_SPECS: Partial<{
   //      cannot be asked through this chat. ADR-0013's B2 determination
   //      (`MINOR_ROUTE`) rests on the guardian's consent, which means the
   //      guardian must at some point be reached — and nothing in this system
-  //      reaches them. Raised, not decided: see `docs/where-we-are.md`.
+  //      reaches them.
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // THESE QUESTIONS EXISTING DOES NOT MAKE A MINOR SERVICEABLE.
+  //
+  // Vahid, 2026-09-23, deciding blocker 62: *"a minor is not served until the
+  // guardian route is real. Not a stop-for-a-person, not a message in the
+  // student's chat — no application is prepared for a minor until there is a
+  // way for the guardian to be reached, told, and to consent in their own
+  // right. … A mandatory review with nobody to review to is worse than no
+  // route."*
+  //
+  // It is a PRODUCT PRECONDITION, recorded beside the second-reviewer one
+  // (blocker 62, beside blocker 2), and it would take a second conversation, a
+  // separate identity for the guardian, and a consent record that is their own
+  // act. Written here, where the questions are, so nobody reads "the guardian
+  // fields are built" as "a minor can use this".
+  // ═══════════════════════════════════════════════════════════════════════
   "guardian.given_name": {
     rationale:
       "Because you are under 18, the university asks for a parent or guardian's details, and a " +

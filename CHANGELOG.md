@@ -19,6 +19,28 @@ not shipped artefacts.
 
 ---
 
+## [0.189.0] — 2026-09-23
+
+**P193 — four decisions of Vahid's recorded, before the work they govern.** Records only; no code.
+
+- **Changed blocker 60** to lead with the method that found it: the real driver, pointed at the
+  case, rather than reasoning about it.
+- **Decided blocker 62 and moved it** out of the interview's gaps and beside blocker 2, as a
+  **product precondition**: a minor is not served until the guardian route is real. Recorded with
+  roughly what that route would take — a second conversation, a separate identity, a consent record
+  that is the guardian's own act — in three places a reader could land: the blocker,
+  [ADR-0140](./docs/decisions/0140-a-field-with-several-parts-is-asked-part-by-part.md), and beside
+  the guardian specs in `packages/interview/src/field-specs.ts`.
+- **Decided blocker 61's shape**: the country table is a **reviewed artefact**, ISO 3166-1 alpha-2,
+  reviewed and hashed like a blueprint, refusing anything not in it — not a generated lookup. Second
+  in the order: after blocker 60, before the three remaining composites.
+- **Updated blocker 58 and [the agent-portal sheet](./docs/the-agent-portal-possibility.md)**: the
+  representative route **exists** on this portal, found by site search rather than by reading the
+  portal. Its terms, whether a representative may submit, and whether it is the same system under a
+  different login are **unread and not inferred**. The student's own account stays what is built.
+
+---
+
 ## [0.188.0] — 2026-09-23
 
 **P192 — the fields whose value has several parts, and the guardian path built inside the phase.**

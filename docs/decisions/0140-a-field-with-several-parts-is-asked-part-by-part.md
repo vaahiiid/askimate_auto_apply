@@ -110,7 +110,28 @@ afterwards:
 3. **This is a third party's personal data**, given by someone who is not in the conversation. The
    guardian has not consented to anything here and cannot be asked through this chat — while the B2
    determination for the minor route (`MINOR_ROUTE`) rests on *the guardian's consent*. Nothing in
-   this system reaches the guardian. **Raised, not decided**: [blocker 62](../state-of-the-system.md#6-open-blockers).
+   this system reaches the guardian.
+
+> ### ⚠️ Building these questions did not make a minor serviceable
+>
+> Raised in this phase and **decided by Vahid on 2026-09-23**, in his own words:
+>
+> *"a minor is not served until the guardian route is real. Not a stop-for-a-person, not a message
+> in the student's chat — no application is prepared for a minor until there is a way for the
+> guardian to be reached, told, and to consent in their own right. … A mandatory review with nobody
+> to review to is worse than no route."*
+>
+> So this is a **product precondition**, recorded beside the second-reviewer precondition
+> ([blocker 62](../state-of-the-system.md#6-open-blockers), beside blocker 2) rather than as a gap
+> in the interview. Roughly what the route would take: **a second conversation** with its own log
+> and lifecycle; **a separate identity** for the guardian, authenticated in their own right, which
+> today's OIDC path issues only to the student; and **a consent record that is the guardian's own
+> act**, minted from what they confirmed rather than inferred from the student's yes. Not built, and
+> not priced as small.
+>
+> His reason for wanting it written here, where the questions are: *"I am not asking you to build
+> it. I am asking that nobody later reads 'the guardian fields are built' as 'a minor can use
+> this'."*
 
 ## What this does NOT do
 
