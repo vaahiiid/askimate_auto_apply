@@ -159,6 +159,43 @@ export interface ValueProposedEvent extends EventBase {
   readonly playbackHash: string;
 }
 
+/**
+ * One PART of a field whose value has several, read and held (ADR-0140).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ITS OWN KIND, NOT A `value_proposed` WITH A COMPOUND KEY.
+ *
+ * A proposal is a reading put to the student and awaiting their yes. A part
+ * read is neither: nothing is shown, nothing is agreed, and the value it
+ * carries is a fragment that will never enter the profile on its own. Folding
+ * it into `value_proposed` would make `open_value_proposals` — the view that
+ * answers "what is this conversation waiting on?" — report a part as an
+ * outstanding confirmation, and a client could offer the student a way to
+ * agree to half an address.
+ *
+ * ── Why it exists at all (blocker 60) ────────────────────────────────────
+ *
+ * The run driver rebuilds the interview from this log on every request. P192
+ * measured what that meant for a composite, through the real driver: the first
+ * line of an address was asked, answered, and dropped with the request, and
+ * the same question came back. A part answered in one request has to be
+ * readable in the next, and this is where it lives.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * No `playbackHash`, for `value_asked`'s reason: there is nothing to confirm
+ * yet. The confirmation comes once, against the whole assembled value, and it
+ * is the `value_proposed` that follows the last part which carries the hash.
+ */
+export interface ValuePartReadEvent extends EventBase {
+  readonly kind: "value_part_read";
+  /** The composite field, e.g. `contact.address`. */
+  readonly fieldKey: string;
+  /** Which part of it, e.g. `line1`. Names a `FieldPart.partKey`. */
+  readonly partKey: string;
+  /** The structured reading of this part alone. `unknown` for ADR-0040's reason. */
+  readonly proposal: unknown;
+}
+
 /** The student agreed to exactly the reading `playbackHash` names. */
 export interface ValueConfirmedEvent extends EventBase {
   readonly kind: "value_confirmed";
@@ -238,6 +275,7 @@ export type ConversationEvent =
   | SecretRejectedEvent
   | ValueAskedEvent
   | ValueProposedEvent
+  | ValuePartReadEvent
   | ValueConfirmedEvent
   | ValueRejectedEvent
   | TargetOfferedEvent
@@ -382,6 +420,13 @@ export function parseConversationEvent(raw: unknown): ConversationEvent | null {
       const proposal = source["proposal"];
       if (fieldKey === null || playbackHash === null || proposal === undefined) return null;
       return { ...base, kind: "value_proposed", fieldKey, proposal, playbackHash };
+    }
+    case "value_part_read": {
+      const fieldKey = readString(source, "fieldKey");
+      const partKey = readString(source, "partKey");
+      const proposal = source["proposal"];
+      if (fieldKey === null || partKey === null || proposal === undefined) return null;
+      return { ...base, kind: "value_part_read", fieldKey, partKey, proposal };
     }
     case "value_confirmed": {
       const fieldKey = readString(source, "fieldKey");

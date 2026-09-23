@@ -91,6 +91,11 @@ export type AppendableEvent =
   | { readonly kind: "value_asked"; readonly fieldKey: string }
   | { readonly kind: "value_proposed"; readonly fieldKey: string;
       readonly proposal: unknown; readonly playbackHash: string }
+  // One PART of a field whose value has several (ADR-0140, blocker 60). No
+  // playback hash: nothing was shown and nothing is agreed. The confirmation
+  // comes once, on the `value_proposed` that follows the last part.
+  | { readonly kind: "value_part_read"; readonly fieldKey: string;
+      readonly partKey: string; readonly proposal: unknown }
   | { readonly kind: "value_confirmed"; readonly fieldKey: string;
       readonly playbackHash: string }
   // ── The target exchange (ADR-0058) ────────────────────────────────────
@@ -246,6 +251,15 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
         proposal: row["proposal"],
         playbackHash: row["playback_hash"] as string,
       };
+    case "value_part_read":
+      return {
+        kind,
+        ordinal,
+        createdAt,
+        fieldKey: row["field_key"] as string,
+        partKey: row["part_key"] as string,
+        proposal: row["proposal"],
+      };
     case "target_offered":
       return {
         kind,
@@ -287,7 +301,7 @@ function rowToEvent(row: Record<string, unknown>): ConversationEvent {
 
 const SELECT_EVENT = `
   SELECT e.ordinal, e.created_at, e.kind, e.actor, e.request_id, e.handle,
-         e.reason_code, e.channel, e.expires_at, e.field_key, e.proposal,
+         e.reason_code, e.channel, e.expires_at, e.field_key, e.part_key, e.proposal,
          e.playback_hash, e.offer_hash, e.target_blueprint_id,
          e.target_content_hash, e.prior_case_id, e.prior_outcome, e.advice,
          e.suggested_intake, b.content, b.redacted_at
@@ -493,13 +507,13 @@ export class ConversationEventStore {
     const written = await client.query(
       `INSERT INTO conversation_events
          (conversation_id, ordinal, kind, actor, body_id, request_id, handle,
-          reason_code, channel, expires_at, field_key, proposal, playback_hash,
+          reason_code, channel, expires_at, field_key, part_key, proposal, playback_hash,
           offer_hash, target_blueprint_id, target_content_hash,
           prior_case_id, prior_outcome, advice, suggested_intake)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13,
-               $14, $15, $16, $17, $18, $19, $20)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14,
+               $15, $16, $17, $18, $19, $20, $21)
        RETURNING ordinal, created_at, kind, actor, request_id, handle, reason_code,
-                 channel, expires_at, field_key, proposal, playback_hash,
+                 channel, expires_at, field_key, part_key, proposal, playback_hash,
                  offer_hash, target_blueprint_id, target_content_hash,
                  prior_case_id, prior_outcome, advice, suggested_intake`,
       [
@@ -517,7 +531,11 @@ export class ConversationEventStore {
         event.kind === "secret_requested" ? event.channel : null,
         event.kind === "secret_requested" ? event.expiresAt : null,
         isProposalEvent(event) ? event.fieldKey : null,
-        event.kind === "value_proposed" ? JSON.stringify(event.proposal) : null,
+        // Only a part read names a part, per `only_a_part_read_names_a_part`.
+        event.kind === "value_part_read" ? event.partKey : null,
+        event.kind === "value_proposed" || event.kind === "value_part_read"
+          ? JSON.stringify(event.proposal)
+          : null,
         event.kind === "value_proposed" || event.kind === "value_confirmed"
           ? event.playbackHash
           : null,

@@ -1175,22 +1175,6 @@ function contentRejectedMessage(entry: CatalogueEntry): string {
   );
 }
 
-/**
- * What the student reads when a field is one this conversation cannot collect.
- *
- * Not `unobtainableMessage`: nothing went wrong in the conversation and the
- * student was not asked as many times as we should — they were not asked at
- * all. Saying "I have asked as many times as I should" would be untrue, which
- * is exactly the kind of sentence ADR-0084 was written about.
- */
-function cannotBeAskedHereMessage(entry: CatalogueEntry, what: string): string {
-  return (
-    `Your ${entry.blueprint.institutionName} application asks for your ${what}, and I am not ` +
-    `able to take that one in this conversation yet. I have passed it to a member of the team, ` +
-    `who will take it from you directly. Nothing you have already given me is lost, and your ` +
-    `application has not been submitted.`
-  );
-}
 
 /**
  * What the student reads when the interview has run out of ways to ask.
@@ -1254,41 +1238,54 @@ const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
  */
 function interviewAsk(step: RunStep): ProfileFieldKey | null {
   const action = interviewActionOf(step);
-  if (action === null || action.kind !== "ask") return null;
-  // A question about ONE PART of a field (P192) is not one this driver can
-  // take an answer to — see `partsCannotBeCarried` for why — so it is not an
-  // ask as far as the message path is concerned. The run is stopped for a
-  // person instead, before the student is asked at all.
-  return action.partKey === undefined ? action.fieldKey : null;
+  // A question about ONE PART of a field is an ask like any other (ADR-0140).
+  // P192 had to answer `null` here, because the answer could not be kept
+  // between requests; `value_part_read` is what changed that — see
+  // `partsReadFrom`.
+  return action !== null && action.kind === "ask" ? action.fieldKey : null;
 }
 
 /**
- * A question this driver must not put, because it could not keep the answer.
+ * The parts of each composite field this log is mid-walk on (ADR-0140).
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * P192 gave the interview fields with several parts: `contact.address` is six
- * questions, `identity.passport` up to four, and the answers accumulate in
- * `InterviewState.partial` until the whole value is put for confirmation.
+ * BLOCKER 60, CLOSED. This driver rebuilds the interview from the conversation
+ * log on every request, and before ADR-0140 the log had no room for a part: a
+ * student's answer to the first line of their address was read, dropped with
+ * the request, and the same question came back. Measured through the real
+ * driver in P192, not reasoned about, which is why P192 stopped the run
+ * instead of asking.
  *
- * THIS DRIVER CANNOT KEEP THEM. It rebuilds the interview from the
- * conversation log on every request (`interviewFrom`), and the log carries one
- * event per FIELD — `value_proposed`, ADR-0051 — and none for a part. A
- * student's answer to the first line of their address would be read, dropped
- * with the request, and the same question asked again, for ever.
- *
- * Before P192 such a field escalated cleanly: `nextAction` had no question for
- * it and said so. Turning that clean stop into a silent loop would be the
- * worse outcome of the two, so the stop is kept until the log can carry a
- * part. Both `contact.address` and `identity.passport` are already named by
- * the Sheffield draft mapping set, so this is not hypothetical.
+ * `value_part_read` is where a part lives between requests, and this is the
+ * read of it.
  * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A walk ENDS at the confirmation exchange. Once a field has been confirmed or
+ * rejected, its parts are finished with — stored, corrected or refused — and
+ * resurrecting them would leave the field stranded: every part answered, no
+ * value pending, and nothing left to ask. So a `value_proposed` for the field
+ * closes its walk, and the events stay on the log as the record of what was
+ * said without being read back into the state.
  */
-function partsCannotBeCarried(
-  action: InterviewAction,
-): { readonly fieldKey: ProfileFieldKey; readonly partKey: string } | null {
-  return action.kind === "ask" && action.partKey !== undefined
-    ? { fieldKey: action.fieldKey, partKey: action.partKey }
-    : null;
+function partsReadFrom(
+  events: readonly ConversationEvent[],
+): ReadonlyMap<ProfileFieldKey, ReadonlyMap<string, ProposedValue<unknown>>> {
+  const walks = new Map<ProfileFieldKey, Map<string, ProposedValue<unknown>>>();
+  for (const event of events) {
+    if (event.kind === "value_part_read") {
+      const field = event.fieldKey as ProfileFieldKey;
+      const walk = walks.get(field) ?? new Map<string, ProposedValue<unknown>>();
+      walk.set(event.partKey, event.proposal as ProposedValue<unknown>);
+      walks.set(field, walk);
+      continue;
+    }
+    // The whole value has been assembled and put, so the walk is over. A
+    // rejection that follows re-opens the field, and the parts do NOT come
+    // back with it: `receiveConfirmation` drops them, and a correction is
+    // asked for part by part from the beginning.
+    if (event.kind === "value_proposed") walks.delete(event.fieldKey as ProfileFieldKey);
+  }
+  return walks;
 }
 
 /**
@@ -1324,6 +1321,9 @@ function interviewFrom(input: {
   const open = openProposal(input.events);
   return {
     ...base,
+    // Blocker 60: the walk of a composite field, rebuilt from the log rather
+    // than lost with the request that read it (ADR-0140).
+    partial: partsReadFrom(input.events),
     attempts: attemptsFrom(input.events),
     // The last few turns, so a re-asked question fits the conversation. Only
     // messages: a proposal is not something anybody said.
@@ -4334,7 +4334,25 @@ export class RunDriver {
       await this.#askTheStudent(input.conversationId, situated.step);
       return;
     }
+    // A part of a composite, or the whole value. `#putToTheStudent` is a
+    // no-op without a pending confirmation, so the two are not exclusive in
+    // code — but they are in fact: `receiveAnswer` sets `pending` exactly when
+    // the part it just read was the last applicable one.
+    await this.#recordThePart(input.conversationId, asking, situated.state.interview, outcome.state);
     await this.#putToTheStudent(input.conversationId, outcome.state);
+
+    // ── And the walk's NEXT question, in this same request ───────────────
+    //
+    // A scalar answer gets the playback back immediately; a part answered
+    // mid-walk must get the next question just as immediately, or the student
+    // sends a line of their address into silence and waits for a poll. The
+    // action is derived FRESH from the state the answer produced — the step
+    // this request was situated on was computed before the answer and still
+    // names the part that has just been read.
+    if (outcome.state.pending === undefined) {
+      const next = await nextAction(outcome.state, this.#options.model);
+      if (next.kind === "ask") await this.#putTheQuestion(input.conversationId, next);
+    }
   }
 
   /**
@@ -4365,6 +4383,53 @@ export class RunDriver {
     });
     if (!situation.ok) return null;
     return { entry, record, state: situation.state, step: situation.step };
+  }
+
+  /**
+   * Writes the part just read to the log (ADR-0140, blocker 60).
+   *
+   * ═══════════════════════════════════════════════════════════════════════
+   * Without this the answer dies with the request. `interviewFrom` rebuilds
+   * the interview from the log every time, so a part that is not written is a
+   * part that was never answered — and the student is asked the same question
+   * again, for ever. P192 measured exactly that through the real driver.
+   * ═══════════════════════════════════════════════════════════════════════
+   *
+   * Derived by DIFFERENCE, between the walk before the answer and the walk
+   * after it, rather than by asking the interview which part it just read.
+   * Two reasons: the interview's `receiveAnswer` deliberately takes no part
+   * argument — the part is a fact about the state, not about the caller — and
+   * a difference cannot drift from what was actually stored the way a second
+   * return value could.
+   *
+   * Nothing is written when the walk ended on this answer: the whole value is
+   * then pending, and `#putToTheStudent` writes the `value_proposed` that
+   * carries it. Writing both would put the last part on the log twice, once
+   * alone and once inside the assembled value.
+   */
+  async #recordThePart(
+    conversationId: string,
+    fieldKey: ProfileFieldKey,
+    before: InterviewState,
+    after: InterviewState,
+  ): Promise<void> {
+    // The whole value is pending: the walk finished, and the proposal carries
+    // every part. Nothing to record on its own.
+    if (after.pending !== undefined) return;
+
+    const had = before.partial.get(fieldKey);
+    const has = after.partial.get(fieldKey);
+    if (has === undefined) return;
+
+    const fresh = [...has].filter(([partKey]) => had?.has(partKey) !== true);
+    /* c8 ignore next -- unreachable: an understood answer adds exactly one part */
+    if (fresh.length !== 1) return;
+    const [partKey, proposal] = fresh[0]!;
+
+    await this.#options.conversations.append({
+      conversationId,
+      event: { kind: "value_part_read", fieldKey, partKey, proposal },
+    });
   }
 
   /**
@@ -4425,11 +4490,25 @@ export class RunDriver {
   async #askTheStudent(conversationId: string, step: RunStep): Promise<void> {
     const action = interviewActionOf(step);
     if (action === null || action.kind !== "ask") return;
-    // A question about one PART of a field is not put at all: this driver
-    // could not keep the answer, so asking would be taking something from the
-    // student and dropping it. `#stopForUnobtainable` stops the run instead.
-    if (partsCannotBeCarried(action) !== null) return;
+    await this.#putTheQuestion(conversationId, action);
+  }
 
+  /**
+   * Appends a question and the words that carry it, under the conversation lock.
+   *
+   * Shared by the two callers that have a question to put: the advance path,
+   * which takes it off the step, and the answer path, which derives a fresh
+   * one when a composite's walk has moved on to its next part (ADR-0140).
+   *
+   * Extracted in P194 rather than duplicated, because the lock and the
+   * already-outstanding check are the whole safety of this operation — two
+   * clients racing, or a poll arriving beside a message — and a second copy
+   * would be a second place to get them subtly wrong.
+   */
+  async #putTheQuestion(
+    conversationId: string,
+    action: Extract<InterviewAction, { kind: "ask" }>,
+  ): Promise<void> {
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
       const events = await this.#options.conversations.since(conversationId, 0);
       // A question already stands, or a reading is waiting to be confirmed.
@@ -4835,51 +4914,22 @@ export class RunDriver {
   ): Promise<boolean> {
     const action = interviewActionOf(step);
     if (action === null) return false;
-    const unkeepable = partsCannotBeCarried(action);
-    if (
-      action.kind !== "escalate" &&
-      action.kind !== "request_document" &&
-      unkeepable === null
-    ) {
-      return false;
-    }
+    if (action.kind !== "escalate" && action.kind !== "request_document") return false;
 
     // `fieldKey` is OPTIONAL on an escalate. Both branches of `nextAction` that
     // produce one set it today, but the type permits its absence and a driver
     // that indexed a label map with `undefined` would crash on the one path
     // that most needs to work. Absent, the stop is still recorded — it just
     // cannot name the field, and says so rather than inventing one.
-    const field =
-      action.kind === "escalate"
-        ? action.fieldKey
-        : unkeepable !== null
-          ? unkeepable.fieldKey
-          : undefined;
+    const field = action.kind === "escalate" ? action.fieldKey : undefined;
     // What could not be obtained, as a stable identifier a specialist can act
     // on. Never the model's prose: `target` is part of the idempotency key, so
     // a sentence that varied between calls would raise a second intervention
     // for the same stuck field.
     const target =
-      action.kind === "request_document"
-        ? `document:${action.documentType}`
-        : `interview:${field ?? "unspecified"}`;
-
-    // What a specialist reads first. An escalate and a document request name
-    // their own reason; a part-ask has none to give, because nothing went
-    // wrong in the conversation — the limit is this driver's.
-    const encountered =
-      unkeepable !== null
-        ? `"${FIELD_LABELS[unkeepable.fieldKey]}" is asked in several parts, and this driver ` +
-          `rebuilds the interview from the conversation log on every request. The log carries ` +
-          `one event per field (ADR-0051) and none for a part, so the answer to ` +
-          `"${unkeepable.partKey}" could not be kept and the question would be asked again for ` +
-          `ever. The run is stopped instead of looping.`
-        : action.kind === "escalate"
-          ? action.reason
-          : action.kind === "request_document"
-            ? action.reason
-            : /* c8 ignore next -- unreachable: the three kinds above are the only ones past the guard */
-              "The interview cannot go on.";
+      action.kind === "escalate"
+        ? `interview:${field ?? "unspecified"}`
+        : `document:${action.documentType}`;
 
     await this.#raiseForSpecialist({
       entry: input.entry,
@@ -4888,7 +4938,7 @@ export class RunDriver {
       caseId: input.caseId,
       priority: "high",
       target,
-      encountered,
+      encountered: action.reason,
       expected:
         action.kind === "request_document"
           ? `The student's ${action.documentType}. THIS SYSTEM CANNOT ACCEPT ONE: there is no ` +
@@ -4899,15 +4949,10 @@ export class RunDriver {
       message:
         action.kind === "request_document"
           ? documentNeededMessage(input.entry, action.documentType)
-          : unkeepable !== null
-            ? cannotBeAskedHereMessage(
-                input.entry,
-                FIELD_LABELS[unkeepable.fieldKey].toLowerCase(),
-              )
-            : unobtainableMessage(
-                input.entry,
-                field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
-              ),
+          : unobtainableMessage(
+              input.entry,
+              field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
+            ),
       now,
     });
 

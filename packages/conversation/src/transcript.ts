@@ -143,8 +143,12 @@ export function projectEvent(event: UnpositionedEvent, position: Position): Tran
     // ordinary message event beside these. The proposal is the structured
     // record that makes their confirmation applicable; rendering it too would
     // show the same reading twice, once in prose and once as data.
+    //
+    // A part read (ADR-0140) is the same and then some: it has no prose beside
+    // it at all, because the reading is not shown until the whole value is.
     case "value_asked":
     case "value_proposed":
+    case "value_part_read":
     case "value_confirmed":
     case "value_rejected":
       return { render: "nothing", position };

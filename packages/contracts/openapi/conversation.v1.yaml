@@ -1934,6 +1934,7 @@ components:
         - { $ref: "#/components/schemas/SecretRejectedEvent" }
         - { $ref: "#/components/schemas/ValueAskedEvent" }
         - { $ref: "#/components/schemas/ValueProposedEvent" }
+        - { $ref: "#/components/schemas/ValuePartReadEvent" }
         - { $ref: "#/components/schemas/ValueConfirmedEvent" }
         - { $ref: "#/components/schemas/ValueRejectedEvent" }
         - { $ref: "#/components/schemas/TargetOfferedEvent" }
@@ -1951,6 +1952,7 @@ components:
           secret_rejected: "#/components/schemas/SecretRejectedEvent"
           value_asked: "#/components/schemas/ValueAskedEvent"
           value_proposed: "#/components/schemas/ValueProposedEvent"
+          value_part_read: "#/components/schemas/ValuePartReadEvent"
           value_confirmed: "#/components/schemas/ValueConfirmedEvent"
           value_rejected: "#/components/schemas/ValueRejectedEvent"
           target_offered: "#/components/schemas/TargetOfferedEvent"
@@ -2042,6 +2044,40 @@ components:
             contract, and a second description of a type would be a second
             place for it to drift.
         playbackHash: { type: string, pattern: "^sha256:[0-9a-f]{64}$" }
+
+    ValuePartReadEvent:
+      type: object
+      additionalProperties: false
+      required: [kind, ordinal, createdAt, fieldKey, partKey, proposal]
+      description: >
+        One PART of a field whose value has several, read and held (ADR-0140).
+
+        Its own kind rather than a proposal with a compound key. A proposal is a
+        reading put to the student and awaiting their yes; a part read is
+        neither — nothing was shown, nothing is agreed, and the value it
+        carries is a fragment that will never enter the profile on its own.
+        Folding it into value_proposed would let a client offer the student a
+        way to agree to half an address.
+
+        It exists because the run driver rebuilds the interview from this log on
+        every request. Without a place for a part, a student's answer to the
+        first line of an address was read, dropped with the request, and the
+        same question came back.
+
+        No playbackHash, for value_asked's reason: there is nothing to confirm
+        yet. The confirmation comes once, on the value_proposed that follows the
+        last part and carries the whole assembled value.
+      properties:
+        kind: { type: string, enum: [value_part_read] }
+        ordinal: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        fieldKey: { type: string }
+        partKey: { type: string }
+        proposal:
+          description: >
+            The structured reading of this part alone. Its shape belongs to the
+            profile package and is deliberately not described here, for
+            ValueProposedEvent's reason.
 
     ValueConfirmedEvent:
       type: object

@@ -4906,6 +4906,62 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P193–P194 — four decisions recorded, and the question that stopped being dropped
+
+## Blocker 60, closed where it was found
+
+P192 built the parts machinery and then measured, through the real driver, what the driver did with
+it: asked the first line of an address, read the answer, dropped it with the request, and asked the
+same question again. It stopped the run rather than shipping that loop.
+
+Vahid's instruction about how the blocker should read is the point of the phase:
+
+> *"A question asked and the answer silently dropped is the same class as the guard that ran only in
+> tests: the system doing something other than what it reports. And you found it by pointing the
+> real driver at it rather than reasoning about it — that is the method, and it should be the first
+> line of the blocker."*
+
+So the log now carries `value_part_read`, and the walk survives. **Its own event kind**, not a
+`value_proposed` with a compound key: `open_value_proposals` is the view that answers *"what is this
+conversation waiting on?"*, and a part folded into that kind would be an outstanding confirmation —
+a client could offer the student a way to agree to half an address.
+
+Two asymmetries are deliberate and both are tested. **The last part is not written alone**, because
+the proposal that follows carries the whole assembled value and writing both would log that part
+twice. And **a walk ends at that proposal**: the parts are not read back afterwards, or the field
+would sit with every part answered and nothing left to ask.
+
+The proof is six turns, each a separate driver instance with its own pool, because that is what
+"survives a request" means. And the removal of P192's stop is held by the same source-text guard
+(P29) that named it — the guard failed first, which is it doing its job.
+
+## Three decisions of his, and one finding
+
+**A minor is not served until the guardian route is real.** His decision, and it moved blocker 62
+out of the interview's gaps and beside blocker 2, where the second-reviewer precondition sits:
+
+> *"no application is prepared for a minor until there is a way for the guardian to be reached,
+> told, and to consent in their own right. … A mandatory review with nobody to review to is worse
+> than no route."*
+
+Roughly what that takes is written down in three places a reader could land — the blocker, ADR-0140,
+and beside the guardian specs in the code — for the reason he gave: *"nobody later reads 'the
+guardian fields are built' as 'a minor can use this'."*
+
+**The country table is a reviewed artefact.** ISO 3166-1 alpha-2, reviewed and hashed like a
+blueprint, refusing anything not in it. Not a lookup generated from somewhere. Next, after this.
+
+**And Sheffield's representative route exists.** Found by site search, not by reading the portal:
+a *"University Representative Login"* on the same application system, an Agent Representation
+Authority Form, a *"Notification of Use of Services of a Recognised Agent"* form, agent training
+pages. What it requires, whether a representative may submit, and whether it is the same system
+under a different login are **unread, and not inferred from a login page existing**. Nothing changes
+in what is built.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P192 — the fields whose value has several parts, and the path nobody walks
 
 ## The composites were not data. They were machinery.

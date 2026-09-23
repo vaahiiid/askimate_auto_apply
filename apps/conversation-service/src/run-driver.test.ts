@@ -6745,18 +6745,16 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
       source.indexOf("async #stopIfTheInterviewGaveUp"),
     );
     //
-    // P192 added a THIRD kind to the same guard — a question about one part of
-    // a composite field, which this driver cannot keep the answer to — so the
-    // assertion reads the condition in pieces rather than as one line.
+    // P192 briefly added a THIRD kind here — a question about one part of a
+    // composite, which the driver could not keep the answer to. P194 removed
+    // it, because `value_part_read` made the walk possible and a real path is
+    // not a stop. The two kinds below are the ones that remain, and this
+    // assertion is back to the shape P29 gave it.
     const condition = guard.slice(0, 1200);
     expect(
       condition,
-      "every kind the interview can stop on, not just the reachable one",
-    ).toContain('action.kind !== "escalate"');
-    expect(condition).toContain('action.kind !== "request_document"');
-    expect(condition, "and the part-ask the driver cannot carry (P192)").toContain(
-      "unkeepable === null",
-    );
+      "both kinds the interview can stop on, not just the reachable one",
+    ).toContain('action.kind !== "escalate" && action.kind !== "request_document"');
     expect(
       guard.slice(0, 6000),
       "and the document branch still names the document",
@@ -9466,87 +9464,167 @@ const ADDRESS_REQUIRED: CatalogueEntry = {
   },
 };
 
-describeIfDatabase("a field with several parts is not asked for through the driver (P192)", () => {
+describeIfDatabase("a field with several parts survives the request that asked for it (P194)", () => {
   // ═══════════════════════════════════════════════════════════════════════
-  // P192 gave the interview parts: `contact.address` is six questions and
-  // `identity.passport` is up to four, and the answers live in
-  // `InterviewState.partial` until the whole value is put for confirmation.
+  // Blocker 60, closed. P192 measured the failure through the real driver: an
+  // entry whose required field was repointed to `contact.address` asked *"the
+  // first line of your address"*, took the answer, dropped it with the
+  // request, and stayed `running` — because `interviewFrom` rebuilds the
+  // interview from the conversation log on every request, and the log carried
+  // one event per FIELD and none for a PART.
   //
-  // THIS DRIVER CANNOT KEEP THEM. It rebuilds the interview from the
-  // conversation log on every request (`interviewFrom`), and the log has one
-  // event per FIELD — `value_proposed` (ADR-0051) — and none for a part. So a
-  // student's answer to the first line of their address would be read,
-  // dropped, and the same question asked again for ever.
+  // So P192 stopped the run rather than asking. This closes it properly: the
+  // log carries `value_part_read`, and the walk survives.
   //
-  // Both `contact.address` and `identity.passport` are already named by the
-  // Sheffield draft mapping set, so this is not hypothetical. Before P192 such
-  // a field escalated cleanly ("the agent will not improvise a question"); the
-  // parts machinery must not turn that clean stop into a silent loop.
+  // EVERY TURN BELOW IS A SEPARATE DRIVER INSTANCE with its own pool — `say()`
+  // builds one per call. That is the whole point: if the parts lived only in
+  // memory, the second question would be the first one again.
   // ═══════════════════════════════════════════════════════════════════════
-  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX19201";
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX19401";
+  let owner = "";
+  let runId = "";
 
-  it("stops for a specialist rather than asking a question whose answer it cannot keep", async () => {
-    const owner = await ownConversation(conversation);
-    const instance = buildInstance(
-      connectionString(),
-      opener(),
-      catalogueOf(ADDRESS_REQUIRED),
+  async function assistantSaid(): Promise<readonly string[]> {
+    const rows = await pool.query<{ content: string }>(
+      `SELECT mb.content AS content
+         FROM conversation_events e
+         JOIN message_bodies mb ON mb.id = e.body_id
+        WHERE e.conversation_id = $1 AND e.actor = 'assistant'
+        ORDER BY e.ordinal ASC`,
+      [conversation],
     );
+    return rows.rows.map((row) => row.content);
+  }
+
+  async function say(what: string): Promise<void> {
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(ADDRESS_REQUIRED));
     try {
-      await confirmTheInterview(
-        new PostgresConfirmedProfileStore(instance.pool),
-        owner,
-      );
+      const written = await new ConversationEventStore(instance.pool).append({
+        conversationId: conversation,
+        event: { kind: "message", actor: "student", content: what },
+      });
+      await instance.driver.answerStudent({ conversationId: conversation, event: written.event });
+    } finally {
+      await instance.pool.end();
+    }
+  }
+
+  beforeAll(async () => {
+    owner = await ownConversation(conversation);
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(ADDRESS_REQUIRED));
+    try {
+      await confirmTheInterview(new PostgresConfirmedProfileStore(instance.pool), owner);
       const started = await instance.driver.start({
         conversationId: conversation,
         blueprintId: BLUEPRINT,
         studentStatement: STATEMENT,
       });
-      if (!started.ok)
-        expect.unreachable(`start refused: ${started.refusal.kind}`);
-
-      const seen = await instance.driver.advance({
-        runId: started.position.runId,
-        conversationId: conversation,
-      });
-      if (!seen.ok) expect.unreachable(`advance refused: ${seen.refusal.kind}`);
-      expect(seen.position.status, "a loop is not a conversation").toBe("escalated");
-
-      const raised = await pool.query<{ reason: string; target: string }>(
-        `SELECT reason, checkpoint->>'target' AS target
-           FROM interventions WHERE run_id = $1`,
-        [started.position.runId],
-      );
-      expect(raised.rowCount, "one intervention").toBe(1);
-      expect(raised.rows[0]?.reason).toBe("information_unobtainable");
-      expect(raised.rows[0]?.target, "and it names WHICH field").toBe(
-        "interview:contact.address",
-      );
-
-      // And nothing was asked: the student never saw a question this driver
-      // could not have kept the answer to.
-      const said = await pool.query<{ content: string }>(
-        `SELECT mb.content AS content
-           FROM conversation_events e
-           JOIN message_bodies mb ON mb.id = e.body_id
-          WHERE e.conversation_id = $1 AND mb.content IS NOT NULL`,
-        [conversation],
-      );
-      const asked = said.rows.map((row) => row.content).join(" ").toLowerCase();
-      expect(asked, "the student was told, in words").toContain(
-        "not able to take that one in this conversation yet",
-      );
-      // And the truth of it: they were never asked, so the message must not
-      // say they were asked as many times as we should (ADR-0084).
-      expect(asked, "nothing untrue about how often they were asked").not.toContain(
-        "as many times as i should",
-      );
-      expect(asked, "no part of an address was asked for").not.toContain(
-        "the first line of your address",
-      );
+      if (!started.ok) expect.unreachable(`start refused: ${started.refusal.kind}`);
+      runId = started.position.runId;
     } finally {
       await instance.pool.end();
     }
+  }, 300_000);
+
+  it("asks the FIRST part, and the run stays live rather than stopping", async () => {
+    // P192's behaviour was a stop for a specialist, because the answer could
+    // not be kept. It can now.
+    const said = await assistantSaid();
+    expect(said.join(" ").toLowerCase()).toContain("first line of your address");
+    const status = await pool.query<{ status: string }>(
+      "SELECT status FROM workflow_runs WHERE run_id = $1",
+      [runId],
+    );
+    expect(status.rows[0]?.status, "no stop: the walk is possible now").toBe("running");
+  }, 300_000);
+
+  it("asks the SECOND part after the first is answered — in a new driver instance", async () => {
+    await say("12 Valiasr Street");
+    const said = await assistantSaid();
+    // The question that matters: NOT the first line again.
+    expect(said.at(-1)?.toLowerCase(), "the walk moved on").toContain("second line");
+  }, 300_000);
+
+  it("records the part on the LOG, which is what makes it survive", async () => {
+    const rows = await pool.query<{ field_key: string; part_key: string; proposal: unknown }>(
+      `SELECT field_key, part_key, proposal FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_part_read' ORDER BY ordinal ASC`,
+      [conversation],
+    );
+    expect(rows.rowCount, "one part read, for line1").toBe(1);
+    expect(rows.rows[0]?.field_key).toBe("contact.address");
+    expect(rows.rows[0]?.part_key).toBe("line1");
+  }, 300_000);
+
+  it("walks the whole address across six requests and puts ONE confirmation", async () => {
+    for (const utterance of ["-", "Tehran", "-", "1966733411", "IR"]) {
+      await say(utterance);
+    }
+    const proposals = await pool.query<{ field_key: string }>(
+      `SELECT field_key FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_proposed'`,
+      [conversation],
+    );
+    expect(proposals.rowCount, "one proposal for the whole value, not one per part").toBe(1);
+    expect(proposals.rows[0]?.field_key).toBe("contact.address");
+
+    const said = await assistantSaid();
+    expect(said.at(-1)?.toLowerCase(), "and it plays the whole address back").toContain("valiasr");
+    expect(said.at(-1)?.toLowerCase()).toContain("tehran");
+  }, 300_000);
+
+  it("writes the CONFIRMED address into the profile when the student agrees", async () => {
+    // The yes is a DECISION bound to the playback hash, not a chat message —
+    // the same sanctioned path a scalar's confirmation takes. A message here
+    // would be read as a correction, which is exactly what it should be read
+    // as: "yes" typed into a box is not the act the hash binds.
+    const hash = await pool.query<{ playback_hash: string }>(
+      `SELECT playback_hash FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_proposed'`,
+      [conversation],
+    );
+    const instance = buildInstance(connectionString(), opener(), catalogueOf(ADDRESS_REQUIRED));
+    try {
+      const agreed = await instance.driver.recordDecision({
+        conversationId: conversation,
+        runId,
+        decision: { kind: "confirm_value", contentHash: hash.rows[0]!.playback_hash },
+      });
+      expect(agreed, "the confirmation was accepted").toEqual({ ok: true });
+    } finally {
+      await instance.pool.end();
+    }
+
+    const stored = await pool.query<{ value: unknown }>(
+      "SELECT value FROM profile_entries WHERE student_id = $1 AND field_key = $2",
+      [owner, "contact.address"],
+    );
+    expect(stored.rowCount, "the whole value entered the profile").toBe(1);
+    expect(stored.rows[0]?.value).toMatchObject({
+      line1: "12 Valiasr Street",
+      city: "Tehran",
+      postalCode: "1966733411",
+      countryCode: "IR",
+    });
+  }, 300_000);
+
+  it("forgets the parts once the value is confirmed, so the field is not re-walked", async () => {
+    const read = await pool.query<{ n: string }>(
+      `SELECT count(*) AS n FROM conversation_events
+        WHERE conversation_id = $1 AND kind = 'value_part_read'`,
+      [conversation],
+    );
+    // The events stay on the log — it is a log — but the rebuild must not
+    // resurrect them into `partial` once a confirmation closed the field.
+    // FIVE, not six, and the difference is the design: the last part is not
+    // written on its own, because the `value_proposed` that follows it carries
+    // the whole assembled value — including that part. Writing both would put
+    // it on the log twice, once alone and once inside the value.
+    expect(Number(read.rows[0]!.n), "five parts, and the sixth inside the proposal").toBe(5);
+    const said = await assistantSaid();
+    expect(said.at(-1)?.toLowerCase(), "and it has moved on, not asked line 1 again").not.toContain(
+      "first line of your address",
+    );
   }, 300_000);
 });
 

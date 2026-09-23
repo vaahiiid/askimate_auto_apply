@@ -139,6 +139,7 @@ beforeAll(async () => {
     "0021_sign_in_failures",
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
+    "0024_a_part_of_a_value_is_on_the_log",
   ]);
 
   const student = await pool.query<{ id: string }>(
@@ -292,6 +293,19 @@ describeIfDatabase("the database refuses a word it does not know", () => {
              (conversation_id, ordinal, kind, prior_case_id, prior_outcome, advice)
            VALUES ($1, $2, $3, 'case_prior', 'withdrawn', 'none')`,
           [conversation, ordinal, kind],
+        );
+        continue;
+      }
+      // A part read carries a field, a PART and a reading, and no playback
+      // hash: nothing was shown, so `a_playback_hash_belongs_to_the_exchange`
+      // excludes it and `only_a_part_read_names_a_part` requires the part
+      // (ADR-0140).
+      if (kind === "value_part_read") {
+        await pool.query(
+          `INSERT INTO conversation_events
+             (conversation_id, ordinal, kind, field_key, part_key, proposal)
+           VALUES ($1, $2, $3, 'contact.address', 'line1', $4::jsonb)`,
+          [conversation, ordinal, kind, JSON.stringify({ value: "12 Valiasr Street" })],
         );
         continue;
       }
@@ -1093,6 +1107,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0021_sign_in_failures",
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
+        "0024_a_part_of_a_value_is_on_the_log",
       ]);
       expect(await migrate(fresh, MIGRATIONS_DIR)).toEqual([]);
     } finally {
@@ -1149,6 +1164,7 @@ describeIfDatabase("migrations are forward-only and applied once", () => {
     "0021_sign_in_failures",
     "0022_sign_in_attempt_failures",
     "0023_student_portal_consents",
+    "0024_a_part_of_a_value_is_on_the_log",
     ]);
     // Zero-padded, so 0002 sorts after 0001 and before 0010 — which an
     // unpadded numeric sort of filenames gets wrong.

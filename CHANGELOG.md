@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.190.0] — 2026-09-23
+
+**P194 — blocker 60 closed: a field with several parts survives the request that asked for it.**
+
+- **Added** the `value_part_read` conversation event ([ADR-0140](./docs/decisions/0140-a-field-with-several-parts-is-asked-part-by-part.md) §7)
+  — its own kind, not a `value_proposed` with a compound key, so `open_value_proposals` cannot
+  report half an address as an outstanding confirmation. No `playbackHash`: nothing is shown, so
+  there is nothing to confirm.
+- **Added** migration `0024_a_part_of_a_value_is_on_the_log.sql`: the kind, a `part_key` column,
+  `only_a_part_read_names_a_part`, and `only_a_proposal_carries_a_value` widened to the two kinds
+  that carry a reading. `a_playback_hash_belongs_to_the_exchange` and the `open_value_proposals`
+  view are deliberately untouched.
+- **Changed** the run driver: `interviewFrom` rebuilds `InterviewState.partial` from the log,
+  `#recordThePart` writes each part by difference, and the walk's next question goes out in the same
+  request rather than waiting for a poll.
+- **Removed** P192's stop — the driver no longer refuses to put a part question, and
+  `cannotBeAskedHereMessage` is gone with it. P29's source-text guard is back to naming two kinds.
+- **Added** `ValuePartReadEvent` to the published conversation contract.
+
+---
+
 ## [0.189.0] — 2026-09-23
 
 **P193 — four decisions of Vahid's recorded, before the work they govern.** Records only; no code.

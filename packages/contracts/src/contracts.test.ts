@@ -652,6 +652,9 @@ describe("bytes from the network to a target event", () => {
       secret_rejected: { requestId: `sr_${"0".repeat(32)}`, reason: "already_submitted" },
       value_asked: { fieldKey: "contact.email" },
       value_proposed: { fieldKey: "contact.email", proposal: { value: "x" }, playbackHash: OFFER },
+      // ADR-0140. No playbackHash: a part is not put to the student, so there
+      // is nothing for one to bind.
+      value_part_read: { fieldKey: "contact.address", partKey: "line1", proposal: { value: "x" } },
       value_confirmed: { fieldKey: "contact.email", playbackHash: OFFER },
       value_rejected: { fieldKey: "contact.email" },
       target_offered: { offerHash: OFFER, targetBlueprintId: "bp-x", targetContentHash: CONTENT },

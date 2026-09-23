@@ -66,16 +66,28 @@ An unreadable part re-asks **the same part**; it is never skipped with the value
 *"No, flat 4"* could be a new first line or a new second line, and choosing between them is us
 supplying the answer. The parts are dropped and the walk starts over.
 
-**7. The run driver stops rather than asking a part it cannot keep the answer to.**
+**7. A part answered in one request is readable in the next — `value_part_read` on the log.**
 
 The driver rebuilds the interview from the conversation log on every request (`interviewFrom`), and
-the log carries one event per FIELD — `value_proposed`, ADR-0051 — and **none for a part**. So a
-student's answer to the first line of their address would be read, dropped with the request, and the
-same question asked again for ever. Before P192 such a field escalated cleanly; a silent loop is
-worse than a clean stop, so the stop is kept: the question is **not put at all**, and the run is
-handed to a person with a message that says it was not asked — not that we asked as many times as we
-should, which would be untrue (ADR-0084). Both `contact.address` and `identity.passport` are already
-named by the Sheffield draft mapping set, so this is not hypothetical. Closing it is [blocker 60](../state-of-the-system.md#6-open-blockers).
+the log carried one event per FIELD — `value_proposed`, ADR-0051 — and **none for a part**. Measured
+in P192 through the real driver, not reasoned about: a student's answer to the first line of their
+address was read, dropped with the request, and the same question came back.
+
+> **P192 stopped the run; P194 made the walk work.** For one phase the driver refused to put a part
+> question at all, because a silent loop is worse than a clean stop. `value_part_read` replaced that
+> stop with the thing it was standing in for — and the stop's removal is itself held by a test, so
+> the two cannot both be believed at once.
+
+The new kind is **its own**, not a `value_proposed` with a compound key. `open_value_proposals` is
+the view that answers *"what is this conversation waiting on?"*; a part folded into that kind would
+be reported as an outstanding confirmation, and a client could offer the student a way to agree to
+half an address. It carries no `playbackHash`, for `value_asked`'s reason: nothing has been shown,
+so there is nothing to confirm. **The last part is not written alone** — the `value_proposed` that
+follows it carries the whole assembled value, and writing both would put that part on the log twice.
+A walk **ends** at the proposal: once the whole value is put, the parts are not read back into the
+state, or the field would be stranded with every part answered and nothing to ask.
+
+Closed [blocker 60](../state-of-the-system.md#6-open-blockers) in P194.
 
 ## The parser rule, applied to every parser this phase wrote
 

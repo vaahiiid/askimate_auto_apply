@@ -28,6 +28,7 @@ export const SCHEMA_EVENT_KINDS = [
   "secret_rejected",
   "value_asked",
   "value_proposed",
+  "value_part_read",
   "value_confirmed",
   "value_rejected",
   "target_offered",
