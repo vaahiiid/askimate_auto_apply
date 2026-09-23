@@ -12,7 +12,8 @@ import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm"
 import type { ProfileFieldKey } from "@askimate/aas-profile";
 import { emptyProfile, resolveField } from "@askimate/aas-profile";
 
-import { FIELD_SPECS } from "./field-specs.js";
+import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
+import { FIELD_SPECS, isComposite } from "./field-specs.js";
 import type { InterviewState } from "./interview.js";
 import {
   MAX_ATTEMPTS_PER_FIELD,
@@ -24,6 +25,20 @@ import {
 } from "./interview.js";
 
 const NOW = new Date("2026-08-26T12:00:00Z");
+
+/** The spec for a field answered in one utterance, narrowed for the parser tests. */
+/** Every spec, at one type, so a rule can be held over all of them at once. */
+function allSpecs(): readonly (readonly [string, FieldSpec<unknown>])[] {
+  const entries: readonly (readonly [string, FieldSpec<unknown>])[] = Object.entries(FIELD_SPECS);
+  return entries;
+}
+
+function scalarSpec(key: ProfileFieldKey): ScalarFieldSpec<unknown> {
+  const spec: FieldSpec<unknown> | undefined = FIELD_SPECS[key];
+  if (spec === undefined) return expect.unreachable(`${key} has no spec`);
+  if (isComposite(spec)) return expect.unreachable(`${key} is a composite, not a scalar`);
+  return spec;
+}
 const model = new DeterministicModelClient();
 
 const REQUIRED: readonly ProfileFieldKey[] = [
@@ -206,15 +221,128 @@ describe("asking, and then escalating rather than guessing", () => {
   });
 
   it("escalates rather than improvising a question for an unknown field", async () => {
-    // P191 gave `finance.sponsor_name` a question, so this test moved to one
-    // that still has none. `contact.address` is a composite — several parts,
-    // one thing — and is its own phase; until then the interview stops here
-    // rather than inventing a way to ask for it.
-    const action = await nextAction(start(["contact.address"]), model);
+    // This test has moved twice, each time to a field that still has no
+    // question: `finance.sponsor_name` gained one in P191, `contact.address`
+    // in P192. `education.highest_qualification` is a `Qualification` — the
+    // shape of one entry of the list-valued class Vahid held pending his read
+    // of Part 2 — so giving it parts would settle what he reserved.
+    const action = await nextAction(start(["education.highest_qualification"]), model);
     expect(action.kind).toBe("escalate");
     if (action.kind === "escalate") {
       expect(action.reason).toContain("will not improvise");
     }
+  });
+});
+
+/**
+ * P192 — a field whose value has several parts.
+ *
+ * Twelve of the registry's fields are one value each and P191 gave them
+ * questions. Six are NOT: an address has six parts, a passport is a statement
+ * or three facts, a language test carries a record of component scores. A
+ * `parse` that takes one utterance and returns a whole `Address` would have to
+ * invent the parts the student did not say — which is the rule Vahid stated on
+ * 2026-09-23, generalising from the money parser: *"a value the student did not
+ * state is never supplied by us, however obvious the default looks from where
+ * we sit."*
+ *
+ * So the interview asks part by part, and the student confirms ONCE, at the end,
+ * against the whole value — because the whole value is what enters the profile.
+ */
+describe("a field with several parts is asked part by part (P192)", () => {
+  it("asks the first part of a composite rather than the whole thing at once", async () => {
+    const action = await nextAction(start(["identity.passport"]), model);
+    expect(action.kind).toBe("ask");
+    if (action.kind === "ask") {
+      expect(action.fieldKey).toBe("identity.passport");
+      expect(action.partKey, "the ask names which part it is asking for").toBe("kind");
+    }
+  });
+
+  it("asks nothing further once the student says they have none, and confirms the statement (ADR-0117)", async () => {
+    // *"a student who does not have a thing has three empty values and nothing
+    // anywhere saying why. Fold them."* The `none` arm ends the questioning:
+    // asking for a number after that would be asking for something the student
+    // has just said does not exist.
+    const outcome = await receiveAnswer(start(["identity.passport"]), "identity.passport", "I don't have one", model);
+    expect(outcome.kind).toBe("understood");
+    const next = await nextAction(outcome.state, model);
+    expect(next.kind, "all applicable parts answered, so it confirms").toBe("confirm");
+    if (next.kind === "confirm") expect(next.say).toContain("none");
+  });
+
+  it("walks the parts of a held passport, in order, and confirms only at the end", async () => {
+    let state = start(["identity.passport"]);
+    const answers: readonly [string, string][] = [
+      ["kind", "yes I have one"],
+      ["number", "X12345678"],
+      ["expiry", "2031-04-02"],
+      ["issuingCountry", "Iran"],
+    ];
+    for (const [partKey, utterance] of answers) {
+      const action = await nextAction(state, model);
+      expect(action.kind, `before ${partKey}`).toBe("ask");
+      if (action.kind === "ask") expect(action.partKey, "the parts are asked in order").toBe(partKey);
+      const outcome = await receiveAnswer(state, "identity.passport", utterance, model);
+      expect(outcome.kind, partKey).toBe("understood");
+      state = outcome.state;
+    }
+    const done = await nextAction(state, model);
+    expect(done.kind, "one confirmation, for the whole value").toBe("confirm");
+
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "identity.passport");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual({
+      kind: "held",
+      number: "X12345678",
+      expiry: new Date("2031-04-02T00:00:00Z"),
+      issuingCountry: "Iran",
+    });
+  });
+
+  it("refuses a part it cannot read, and does not move on (P192)", async () => {
+    // The same rule as every other parser: an expiry of "next year" is null,
+    // not a guess, and the part is asked again rather than skipped.
+    let state = start(["identity.passport"]);
+    state = (await receiveAnswer(state, "identity.passport", "yes", model)).state;
+    state = (await receiveAnswer(state, "identity.passport", "X12345678", model)).state;
+    const bad = await receiveAnswer(state, "identity.passport", "sometime next year", model);
+    expect(bad.kind).toBe("not_understood");
+    const again = await nextAction(bad.state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") expect(again.partKey, "still on the expiry").toBe("expiry");
+  });
+
+  it("carries an optional part that the student leaves out, rather than inventing one", async () => {
+    // `Address.line2` and `region` are optional in the registry. A student who
+    // skips them gets an address without them — never a line invented to fill
+    // the shape.
+    let state = start(["contact.address"]);
+    for (const utterance of ["12 Valiasr Street", "-", "Tehran", "-", "1966733411", "IR"]) {
+      const outcome = await receiveAnswer(state, "contact.address", utterance, model);
+      expect(outcome.kind, utterance).toBe("understood");
+      state = outcome.state;
+    }
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const address = resolveField(confirmed.state.profile, "contact.address");
+    if (isFieldUnavailable(address)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(address)).toEqual({
+      line1: "12 Valiasr Street",
+      city: "Tehran",
+      postalCode: "1966733411",
+      countryCode: "IR",
+    });
+  });
+
+  it("escalates on a composite field it has no parts for, exactly as for a scalar", async () => {
+    // `education.highest_qualification` is a Qualification — the same shape as
+    // one entry of the list-valued class Vahid held pending his read of Part 2.
+    // Giving it parts here would settle the entry shape he reserved, so it has
+    // none, and the interview stops rather than improvising.
+    const action = await nextAction(start(["education.highest_qualification"]), model);
+    expect(action.kind).toBe("escalate");
+    if (action.kind === "escalate") expect(action.reason).toContain("will not improvise");
   });
 });
 
@@ -330,9 +458,16 @@ describe("what the interview is not allowed to ask for", () => {
   ];
 
   it("has no field spec that is a credential", () => {
-    const offending = Object.entries(FIELD_SPECS).filter(([key, spec]) => {
-      const text = `${key} ${spec.rationale} ${spec.expectedShape}`.toLowerCase();
-      return CREDENTIAL_WORDS.some((word) => text.includes(word));
+    // P192: a composite's parts carry student-facing text of their own, so the
+    // tripwire reads them too. A rule that covered only the field would have
+    // let a `password` part in under a field named something else.
+    const offending = allSpecs().filter(([key, spec]) => {
+      const text = isComposite(spec)
+        ? `${key} ${spec.rationale} ${spec.parts
+            .map((part) => `${part.partKey} ${part.rationale} ${part.expectedShape}`)
+            .join(" ")}`
+        : `${key} ${spec.rationale} ${spec.expectedShape}`;
+      return CREDENTIAL_WORDS.some((word) => text.toLowerCase().includes(word));
     });
     expect(offending.map(([key]) => key)).toEqual([]);
   });
@@ -368,8 +503,7 @@ describe("what the interview is not allowed to ask for", () => {
     // ADR-0115: these are CLAIMS the student makes, asked and never derived
     // from the history. A claim read wrong is signed at the bottom of an
     // application, so a doubtful answer is asked again rather than guessed.
-    const spec = FIELD_SPECS["residence.in_uk_now"];
-    if (spec === undefined) expect.unreachable("asked for above");
+    const spec = scalarSpec("residence.in_uk_now");
     for (const yes of ["yes", "Yes", " y ", "yeah", "yep", "true"]) expect(spec.parse(yes), yes).toBe(true);
     for (const no of ["no", "No", "n", "nope", "false"]) expect(spec.parse(no), no).toBe(false);
     for (const neither of ["maybe", "sometimes", "I think so", "", "   ", "not sure", "on and off"]) {
@@ -381,8 +515,7 @@ describe("what the interview is not allowed to ask for", () => {
     // ADR-0115, his words: Sheffield asks a day "because it asks a day, not
     // because anyone knows it". The registry holds month and year, so the
     // question asks for month and year and nothing invents a day.
-    const spec = FIELD_SPECS["residence.uk_entry_date"];
-    if (spec === undefined) expect.unreachable("asked for above");
+    const spec = scalarSpec("residence.uk_entry_date");
     expect(spec.parse("2019-09")).toEqual({ year: 2019, month: 9 });
     expect(spec.parse("September 2019")).toEqual({ year: 2019, month: 9 });
     expect(spec.parse(" sept 2019 ")).toEqual({ year: 2019, month: 9 });
@@ -396,8 +529,7 @@ describe("what the interview is not allowed to ask for", () => {
     // The same rule as ADR-0112's award date: a value with a part we chose is
     // worse than no value. "20000" is not an amount of money until the student
     // says of what.
-    const spec = FIELD_SPECS["finance.available_funds"];
-    if (spec === undefined) expect.unreachable("asked for above");
+    const spec = scalarSpec("finance.available_funds");
     expect(spec.parse("£20,000")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
     expect(spec.parse("GBP 20000")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
     expect(spec.parse("20000 gbp")).toEqual({ amountMinorUnits: 2_000_000, currency: "GBP" });
@@ -409,8 +541,7 @@ describe("what the interview is not allowed to ask for", () => {
 
   it("keeps what the student typed for the open ones, and refuses an empty answer (P191)", () => {
     for (const key of ["identity.country_of_birth", "identity.sex", "study.intended_start", "finance.funding_source", "finance.sponsor_name", "residence.country"] as const) {
-      const spec = FIELD_SPECS[key];
-      if (spec === undefined) expect.unreachable(`${key} asked for above`);
+      const spec = scalarSpec(key);
       expect(spec.parse("  Iran  "), key).toBe("Iran");
       expect(spec.parse("   "), key).toBeNull();
       expect(spec.parse(""), key).toBeNull();
@@ -421,19 +552,140 @@ describe("what the interview is not allowed to ask for", () => {
     // A question with no reason is interrogation, not conversation — the rule
     // this file opens with. Held for the new ones, not just the first seven.
     for (const key of SCALARS) {
-      const spec = FIELD_SPECS[key];
-      if (spec === undefined) expect.unreachable(`${key} asked for above`);
+      const spec = scalarSpec(key);
       expect(spec.rationale.length, key).toBeGreaterThan(20);
       expect(spec.expectedShape.length, key).toBeGreaterThan(3);
     }
   });
 
-  it("does not ask a guardian's details in this phase, and says why (P191)", () => {
-    // Guardian fields are reachable only on the minor path, which is a
-    // mandatory-review category. Asking is not deciding, but the path deserves
-    // a phase that looks at it rather than a spec added in passing.
-    for (const key of ["guardian.given_name", "guardian.family_name", "guardian.relationship", "guardian.email", "guardian.mobile"] as const) {
-      expect(FIELD_SPECS[key], key).toBeUndefined();
+  // ── P192: the guardian path, which is a mandatory-review category ───────
+  //
+  // Vahid, 2026-09-23: *"They are reachable only on the minor path and that is
+  // exactly why they should not wait: a path that is rarely taken and never
+  // built is the one that fails in front of a real person."*
+
+  const GUARDIAN = [
+    "guardian.given_name",
+    "guardian.family_name",
+    "guardian.relationship",
+    "guardian.email",
+    "guardian.mobile",
+  ] as const;
+
+  it("can ask for every guardian field, so the minor path is built rather than assumed (P192)", () => {
+    const missing = GUARDIAN.filter((key) => FIELD_SPECS[key] === undefined);
+    expect(missing, "the rarely-taken path is the one that fails in front of a real person").toEqual([]);
+  });
+
+  it("tells a minor that a person will check this part, rather than only routing it (P192)", async () => {
+    // Anything involving a minor is a mandatory human review, every time,
+    // regardless of confidence (brief §2.5). That changes what the student is
+    // TOLD, not only who reads it afterwards: a student who is told a person
+    // will look is not surprised by the wait that follows.
+    const said = (
+      await Promise.all(
+        GUARDIAN.map(async (key) => {
+          const action = await nextAction(start([key]), model);
+          return action.kind === "ask" ? action.say : "";
+        }),
+      )
+    ).join(" ");
+    expect(said, "at least one of the guardian questions names the person who checks").toMatch(
+      /a person here checks|a person here checks everything/i,
+    );
+  });
+
+  it("says whose details these are, because they are a third party's (P192)", () => {
+    // The guardian is not in this conversation and has consented to nothing
+    // here. The least the question can do is be clear that it is asking about
+    // someone else — see `field-specs.ts` for the gap that leaves.
+    for (const key of ["guardian.email", "guardian.mobile"] as const) {
+      const spec = scalarSpec(key);
+      expect(spec.rationale.toLowerCase(), key).toContain("not yours");
+    }
+  });
+
+  it("never asks whether the student is a minor — that is determined (P192)", () => {
+    // ADR-0011: minority comes from the date of birth. A question inviting a
+    // student to answer around a safeguard is the one question this registry
+    // must not contain.
+    const asked = allSpecs()
+      .map(([key, spec]) =>
+        `${key} ${spec.rationale} ${isComposite(spec) ? spec.parts.map((part) => part.rationale).join(" ") : spec.expectedShape}`,
+      )
+      .join(" ")
+      .toLowerCase();
+    // The ban is on ASKING. Telling a minor why they are being asked for a
+    // guardian — "because you are under 18" — states back a determination that
+    // was already made from their date of birth, which is the opposite failure
+    // and the honest thing to do.
+    for (const forbidden of [
+      "are you under 18",
+      "under eighteen",
+      "are you a minor",
+      "how old are you",
+      "what is your age",
+    ]) {
+      expect(asked, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  it("refuses a country name where the registry holds a code, rather than looking one up (P192)", () => {
+    // Vahid, 2026-09-23: *"a value the student did not state is never supplied
+    // by us, however obvious the default looks from where we sit."* Turning
+    // "Iran" into "IR" is a lookup, and there is no reviewed country table in
+    // this repository — so the question asks for the code and says so.
+    const spec = FIELD_SPECS["contact.address"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite, asked for above");
+    const country = spec.parts.find((part) => part.partKey === "countryCode");
+    if (country === undefined) return expect.unreachable("countryCode is a part");
+    expect(country.parse("IR")).toBe("IR");
+    expect(country.parse(" gb ")).toBe("GB");
+    for (const refused of ["Iran", "United Kingdom", "IRN", "I", ""]) {
+      expect(country.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("asks a composite again rather than reading a correction to the whole of it (P192)", async () => {
+    // "no, flat 4" could be a new first line or a new second line, and
+    // choosing between them is us supplying the answer.
+    let state = start(["contact.address"]);
+    for (const utterance of ["12 Valiasr Street", "-", "Tehran", "-", "1966733411", "IR"]) {
+      state = (await receiveAnswer(state, "contact.address", utterance, model)).state;
+    }
+    const outcome = receiveConfirmation(state, { agreed: false, correction: "flat 4" }, NOW);
+    expect(outcome.kind).toBe("not_understood");
+    if (outcome.kind === "not_understood") expect(outcome.reason).toContain("part by part");
+    // And it starts again from the first part rather than being stranded.
+    const again = await nextAction(outcome.state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") expect(again.partKey).toBe("line1");
+  });
+
+  it("counts attempts per PART, so one unreadable answer does not exhaust a six-part field (P192)", async () => {
+    // Counting per field would escalate an address after two readable answers
+    // and one unreadable one — which is not three failures, it is one.
+    let state = start(["contact.address"]);
+    state = (await receiveAnswer(state, "contact.address", "12 Valiasr Street", model)).state;
+    state = (await receiveAnswer(state, "contact.address", "-", model)).state;
+    state = (await receiveAnswer(state, "contact.address", "Tehran", model)).state;
+    expect(state.attempts.get("contact.address#line1")).toBe(1);
+    expect(state.attempts.get("contact.address"), "the field itself was never the question").toBeUndefined();
+    const action = await nextAction(state, model);
+    expect(action.kind, "three answers in, still asking").toBe("ask");
+  });
+
+  it("escalates on a part asked three times without a usable answer (P192)", async () => {
+    let state = start(["identity.passport"]);
+    state = (await receiveAnswer(state, "identity.passport", "yes", model)).state;
+    state = (await receiveAnswer(state, "identity.passport", "X12345678", model)).state;
+    for (const unreadable of ["sometime next year", "soon", "I'd have to check"]) {
+      state = (await receiveAnswer(state, "identity.passport", unreadable, model)).state;
+    }
+    const action = await nextAction(state, model);
+    expect(action.kind).toBe("escalate");
+    if (action.kind === "escalate") {
+      expect(action.reason, "the escalation names the part, not just the field").toContain("expiry");
     }
   });
 

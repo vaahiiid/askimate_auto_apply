@@ -30,6 +30,7 @@
  */
 
 import type { ModelText, ProposedValue } from "@askimate/aas-domain";
+import { proposeValue, unwrapProposed } from "@askimate/aas-domain";
 import type { ModelClient, NotUnderstood } from "@askimate/aas-llm";
 import { isNotUnderstood } from "@askimate/aas-llm";
 import type {
@@ -48,8 +49,8 @@ import {
   renderForConfirmation,
 } from "@askimate/aas-profile";
 
-import type { FieldSpec } from "./field-specs.js";
-import { FIELD_SPECS } from "./field-specs.js";
+import type { CompositeFieldSpec, FieldPart, FieldSpec, PartAnswers } from "./field-specs.js";
+import { FIELD_SPECS, OMITTED, isComposite, partParser } from "./field-specs.js";
 
 /**
  * What AskiMate Chat should do next.
@@ -60,7 +61,19 @@ import { FIELD_SPECS } from "./field-specs.js";
 export type InterviewAction =
   /** Say this to the student, and send their reply back. */
   /** `OrdinaryFieldKey`: the interview cannot ask what this system may not hold (ADR-0102). */
-  | { readonly kind: "ask"; readonly say: ModelText; readonly fieldKey: OrdinaryFieldKey }
+  | {
+      readonly kind: "ask";
+      readonly say: ModelText;
+      readonly fieldKey: OrdinaryFieldKey;
+      /**
+       * Which part of the field this asks for, when the field has several.
+       *
+       * Absent for a field answered in one utterance. Present so the chat
+       * layer, and the log, can tell "asked again" from "asked for the next
+       * part" — they look the same otherwise, and one of them is a failure.
+       */
+      readonly partKey?: string;
+    }
   /** Ask the student to upload a document, in the conversation. */
   | {
       readonly kind: "request_document";
@@ -115,8 +128,23 @@ export interface InterviewState {
   /** Documents already collected and confirmed. */
   readonly collectedDocuments: readonly string[];
   readonly pending?: PendingConfirmation;
-  /** How many times each field has been asked. Drives rephrasing and escalation. */
-  readonly attempts: ReadonlyMap<ProfileFieldKey, number>;
+  /**
+   * Parts of a composite field answered but not yet assembled, per field.
+   *
+   * Cleared the moment the whole value is put for confirmation, and again on
+   * every outcome of that confirmation — a half-answered address left behind
+   * would be asked around rather than asked for.
+   */
+  readonly partial: ReadonlyMap<ProfileFieldKey, PartReadings>;
+  /**
+   * How many times each QUESTION has been asked. Drives rephrasing and escalation.
+   *
+   * Keyed by the question, not the field: for a field answered in one
+   * utterance those are the same thing, and for a composite the question is a
+   * part (`identity.passport#expiry`). Counting per field would escalate a
+   * six-part address after two readable answers and one unreadable one.
+   */
+  readonly attempts: ReadonlyMap<string, number>;
   /** Recent turns, so questions fit the conversation. */
   readonly transcript: readonly string[];
 }
@@ -142,6 +170,7 @@ export function newInterview(input: {
     requiredFields: input.requiredFields,
     requiredDocuments: input.requiredDocuments,
     collectedDocuments: [],
+    partial: new Map(),
     attempts: new Map(),
     transcript: [],
   };
@@ -161,6 +190,79 @@ function withoutPending(state: InterviewState): InterviewState {
 
 function specFor(key: ProfileFieldKey): FieldSpec<unknown> | undefined {
   return FIELD_SPECS[key];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Fields with several parts
+// ───────────────────────────────────────────────────────────────────────────
+
+/** The parts of one composite field that have been read, by `partKey`. */
+type PartReadings = ReadonlyMap<string, ProposedValue<unknown>>;
+
+const NO_READINGS: PartReadings = new Map();
+
+/** The values alone, which is what `askWhen` and `assemble` are given. */
+function valuesOf(readings: PartReadings): PartAnswers {
+  return new Map([...readings].map(([partKey, reading]) => [partKey, unwrapProposed(reading).value]));
+}
+
+/** Names a question for the attempt count: the field, or one part of it. */
+function questionKey(fieldKey: ProfileFieldKey, partKey?: string): string {
+  return partKey === undefined ? fieldKey : `${fieldKey}#${partKey}`;
+}
+
+/**
+ * The next part of a composite that still needs an answer.
+ *
+ * In spec order, skipping any part the answers so far make inapplicable — a
+ * student who has just said they have no passport is not then asked for its
+ * number (ADR-0117).
+ */
+function nextPart(
+  spec: CompositeFieldSpec<unknown>,
+  readings: PartReadings,
+): FieldPart<unknown> | undefined {
+  const answered = valuesOf(readings);
+  return spec.parts.find(
+    (part) => !readings.has(part.partKey) && (part.askWhen?.(answered) ?? true),
+  );
+}
+
+/** A question there is something to ask: the whole field, or one part of it. */
+type OpenQuestion =
+  | { readonly kind: "field"; readonly spec: FieldSpec<unknown> }
+  | { readonly kind: "part"; readonly spec: CompositeFieldSpec<unknown>; readonly part: FieldPart<unknown> };
+
+/** What a field is currently waiting to be asked. */
+type Question =
+  | OpenQuestion
+  /** No spec: the interview stops rather than improvising a question (ADR-0007). */
+  | { readonly kind: "undefined_field" }
+  /**
+   * Every applicable part is answered and nothing is pending.
+   *
+   * Unreachable by design — `receiveAnswer` puts the assembled value for
+   * confirmation on the same call that answers the last part, and every exit
+   * from `receiveConfirmation` clears the parts. Named and reported rather
+   * than silently re-asked, because the alternative is a loop the student
+   * cannot get out of.
+   */
+  | { readonly kind: "stranded" };
+
+function questionFor(state: InterviewState, fieldKey: ProfileFieldKey): Question {
+  const spec = specFor(fieldKey);
+  if (spec === undefined) return { kind: "undefined_field" };
+  if (!isComposite(spec)) return { kind: "field", spec };
+
+  const part = nextPart(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  return part === undefined ? { kind: "stranded" } : { kind: "part", spec, part };
+}
+
+/** Forgets the parts read for one field. */
+function withoutParts(state: InterviewState, fieldKey: ProfileFieldKey): InterviewState {
+  const partial = new Map(state.partial);
+  partial.delete(fieldKey);
+  return { ...state, partial };
 }
 
 /**
@@ -193,43 +295,77 @@ export async function nextAction(
 
   // Fields before documents: an upload request lands better once the agent
   // knows who it is talking to.
-  const nextField = outstanding.find(
-    (key) => (state.attempts.get(key) ?? 0) < MAX_ATTEMPTS_PER_FIELD,
-  );
+  // What each outstanding field is waiting to be asked. For a composite that
+  // is one PART, so a six-part address is six questions rather than one asked
+  // six times — and the attempt count, which escalates, counts the right thing.
+  const asking = outstanding.map((fieldKey) => ({ fieldKey, question: questionFor(state, fieldKey) }));
 
-  if (nextField !== undefined) {
-    const spec = specFor(nextField);
-    if (spec === undefined) {
-      return {
-        kind: "escalate",
-        fieldKey: nextField,
-        reason:
-          `No question is defined for "${nextField}". The agent will not improvise one for a ` +
-          `field it does not understand.`,
-      };
-    }
-
-    const say = await model.composeQuestion({
-      fieldKey: nextField,
-      label: FIELD_LABELS[nextField],
-      rationale: spec.rationale,
-      conversationContext: state.transcript.slice(-6),
-      previousAttempts: state.attempts.get(nextField) ?? 0,
-    });
-
-    return { kind: "ask", say, fieldKey: nextField };
-  }
-
-  // A field that ran out of attempts blocks the case.
-  const exhausted = outstanding.find(
-    (key) => (state.attempts.get(key) ?? 0) >= MAX_ATTEMPTS_PER_FIELD,
-  );
-  if (exhausted !== undefined) {
+  const undefinedField = asking.find((candidate) => candidate.question.kind === "undefined_field");
+  if (undefinedField !== undefined) {
     return {
       kind: "escalate",
-      fieldKey: exhausted,
+      fieldKey: undefinedField.fieldKey,
       reason:
-        `Asked for "${FIELD_LABELS[exhausted]}" ${String(MAX_ATTEMPTS_PER_FIELD)} times without ` +
+        `No question is defined for "${undefinedField.fieldKey}". The agent will not improvise ` +
+        `one for a field it does not understand.`,
+    };
+  }
+
+  const stranded = asking.find((candidate) => candidate.question.kind === "stranded");
+  if (stranded !== undefined) {
+    return {
+      kind: "escalate",
+      fieldKey: stranded.fieldKey,
+      reason:
+        `Every part of "${FIELD_LABELS[stranded.fieldKey]}" has been answered, but the value was ` +
+        `never put to the student for confirmation and cannot now be. Re-asking would lose the ` +
+        `answers already given, so a specialist should look at this.`,
+    };
+  }
+
+  // Past the two returns above, every remaining question is one that can be
+  // asked. Said in the types rather than left to the reader.
+  const askable = asking.filter(
+    (candidate): candidate is { fieldKey: OrdinaryFieldKey; question: OpenQuestion } =>
+      candidate.question.kind === "field" || candidate.question.kind === "part",
+  );
+
+  const partKeyOf = (question: OpenQuestion): string | undefined =>
+    question.kind === "part" ? question.part.partKey : undefined;
+
+  const next = askable.find(
+    ({ fieldKey, question }) =>
+      (state.attempts.get(questionKey(fieldKey, partKeyOf(question))) ?? 0) < MAX_ATTEMPTS_PER_FIELD,
+  );
+
+  if (next !== undefined) {
+    const { fieldKey, question } = next;
+    const partKey = partKeyOf(question);
+    const label = FIELD_LABELS[fieldKey];
+    const say = await model.composeQuestion({
+      fieldKey: questionKey(fieldKey, partKey),
+      // A part names itself: "Passport — expiry". The student is being asked
+      // for one thing, and the label says which thing, not just which field.
+      label: question.kind === "part" ? `${label} — ${question.part.partKey}` : label,
+      rationale: question.kind === "part" ? question.part.rationale : question.spec.rationale,
+      conversationContext: state.transcript.slice(-6),
+      previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
+    });
+
+    return { kind: "ask", say, fieldKey, ...(partKey === undefined ? {} : { partKey }) };
+  }
+
+  // A question that ran out of attempts blocks the case.
+  const exhausted = askable[0];
+  if (exhausted !== undefined) {
+    const partKey = partKeyOf(exhausted.question);
+    const label = FIELD_LABELS[exhausted.fieldKey];
+    return {
+      kind: "escalate",
+      fieldKey: exhausted.fieldKey,
+      reason:
+        `Asked for "${partKey === undefined ? label : `${label} — ${partKey}`}" ` +
+        `${String(MAX_ATTEMPTS_PER_FIELD)} times without ` +
         `obtaining a usable answer. A specialist should look at this rather than the application ` +
         `proceeding without it.`,
     };
@@ -288,20 +424,60 @@ export async function receiveAnswer(
   }
 
   const transcript = [...state.transcript, `student: ${utterance}`];
+  const label = FIELD_LABELS[fieldKey];
+
+  // ── A field answered in one utterance ──────────────────────────────────
+  if (!isComposite(spec)) {
+    const attempts = new Map(state.attempts);
+    attempts.set(fieldKey, (attempts.get(fieldKey) ?? 0) + 1);
+
+    const read: ProposedValue<unknown> | NotUnderstood = await model.interpretAnswer({
+      fieldKey,
+      label,
+      utterance,
+      expectedShape: spec.expectedShape,
+      parse: spec.parse,
+    });
+
+    // The attempt still counts. Otherwise a student who keeps answering
+    // unusably would be asked forever, and the escalation would never fire.
+    return isNotUnderstood(read)
+      ? { kind: "not_understood", state: { ...state, transcript, attempts }, reason: read.reason }
+      : {
+          kind: "understood",
+          state: { ...state, transcript, attempts, pending: { fieldKey, proposed: read } },
+        };
+  }
+
+  // ── A field answered part by part ──────────────────────────────────────
+  //
+  // Which part this answers is derived from the state rather than passed in:
+  // the caller answers "the question that was just asked", and only the state
+  // knows which part that was.
+  const question = nextPart(spec, state.partial.get(fieldKey) ?? NO_READINGS);
+  if (question === undefined) {
+    return {
+      kind: "not_understood",
+      state,
+      reason: `Every part of "${label}" has already been answered; there is no question open.`,
+    };
+  }
+
   const attempts = new Map(state.attempts);
-  attempts.set(fieldKey, (attempts.get(fieldKey) ?? 0) + 1);
+  const asked = questionKey(fieldKey, question.partKey);
+  attempts.set(asked, (attempts.get(asked) ?? 0) + 1);
 
   const interpreted: ProposedValue<unknown> | NotUnderstood = await model.interpretAnswer({
-    fieldKey,
-    label: FIELD_LABELS[fieldKey],
+    fieldKey: asked,
+    label: `${label} — ${question.partKey}`,
     utterance,
-    expectedShape: spec.expectedShape,
-    parse: spec.parse,
+    expectedShape: question.expectedShape,
+    parse: partParser(question),
   });
 
   if (isNotUnderstood(interpreted)) {
-    // The attempt still counts. Otherwise a student who keeps answering
-    // unusably would be asked forever, and the escalation would never fire.
+    // The part stays unanswered, so the SAME part is asked again: an
+    // unreadable expiry is not a reason to move on with the expiry left blank.
     return {
       kind: "not_understood",
       state: { ...state, transcript, attempts },
@@ -309,10 +485,66 @@ export async function receiveAnswer(
     };
   }
 
+  const readings: PartReadings = new Map([
+    ...(state.partial.get(fieldKey) ?? NO_READINGS),
+    [question.partKey, interpreted],
+  ]);
+
+  // More parts to ask: hold what has been read and carry on. Nothing is put
+  // for confirmation yet, because the student confirms the WHOLE value.
+  if (nextPart(spec, readings) !== undefined) {
+    const partial = new Map(state.partial).set(fieldKey, readings);
+    return { kind: "understood", state: { ...state, transcript, attempts, partial } };
+  }
+
+  const whole = spec.assemble(valuesOf(readings));
+  if (whole === null) {
+    // Every part was readable and they still do not make a value. That is a
+    // defect in the spec, not in what the student said, and saying so beats
+    // storing a value with a part nobody gave it. The parts are dropped so the
+    // field is asked again from the beginning rather than left stranded.
+    return {
+      kind: "not_understood",
+      state: { ...withoutParts(state, fieldKey), transcript, attempts },
+      reason:
+        `Read every part of "${label}", but they do not make a complete ${label.toLowerCase()}.`,
+    };
+  }
+
   return {
     kind: "understood",
-    state: { ...state, transcript, attempts, pending: { fieldKey, proposed: interpreted } },
+    state: {
+      ...withoutParts(state, fieldKey),
+      transcript,
+      attempts,
+      pending: { fieldKey, proposed: wholeOf(whole, readings) },
+    },
   };
+}
+
+/**
+ * The assembled value as one proposal, carrying every part the student said.
+ *
+ * `verbatim` is the parts' own words, each under its name, because that is
+ * what the confirmation shows back: *"You said: …"* has to be true of a value
+ * built from six answers as much as of one built from a single sentence.
+ *
+ * The confidence is the LOWEST of the parts. A value is no better read than
+ * its worst-read part, and averaging would let five confident parts bury a
+ * doubtful one — which is the direction that ends with a wrong passport number
+ * nobody looked at.
+ */
+function wholeOf(value: unknown, readings: PartReadings): ProposedValue<unknown> {
+  const parts = [...readings].map(([partKey, reading]) => ({ partKey, ...unwrapProposed(reading) }));
+  return proposeValue({
+    value,
+    origin: "conversation",
+    verbatim: parts
+      .filter((part) => part.value !== OMITTED)
+      .map((part) => `${part.partKey}: ${part.verbatim}`)
+      .join("; "),
+    confidence: parts.reduce((lowest, part) => Math.min(lowest, part.confidence), 1),
+  });
 }
 
 /**
@@ -338,6 +570,7 @@ export function receiveConfirmation(
   }
 
   const label = FIELD_LABELS[pending.fieldKey];
+
   const presentedText = renderForConfirmation(
     pending.fieldKey,
     pending.proposed as ProposedValue<ProfileFieldType<ProfileFieldKey>>,
@@ -349,6 +582,20 @@ export function receiveConfirmation(
   // available — the student would have said "no" and been overruled.
   let corrected: unknown = null;
   if (!response.agreed && response.correction !== undefined) {
+    // A composite has no whole-value parser, and inventing one here would be
+    // the failure this phase exists to avoid: "no, flat 4" could be a new
+    // first line or a new second line, and choosing between them is us
+    // supplying an answer. So the field is asked again, part by part.
+    if (isComposite(spec)) {
+      return {
+        kind: "not_understood",
+        state: withoutParts(withoutPending(state), pending.fieldKey),
+        reason:
+          `"${label}" is made of several parts, and "${response.correction}" cannot be read as a ` +
+          `correction to the whole of it without guessing which part changed. It will be asked ` +
+          `for again, part by part.`,
+      };
+    }
     corrected = spec.parse(response.correction);
     if (corrected === null) {
       return {
@@ -374,10 +621,16 @@ export function receiveConfirmation(
     },
   });
 
+  // Whatever the student said, the parts read for this field are finished
+  // with: stored, corrected or refused, the walk that produced them is over.
+  // Leaving them would strand the field — `questionFor` would find no part to
+  // ask and no value to confirm.
+  const settled = withoutParts(withoutPending(state), pending.fieldKey);
+
   if (isDeclined(result)) {
     return {
       kind: "declined",
-      state: withoutPending(state),
+      state: settled,
       reason: result.reason,
     };
   }
@@ -385,7 +638,7 @@ export function receiveConfirmation(
   return {
     kind: response.agreed ? "confirmed" : "corrected",
     state: {
-      ...withoutPending(state),
+      ...settled,
       profile: writeConfirmed(state.profile, result, now),
     },
   };

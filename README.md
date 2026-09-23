@@ -27,10 +27,10 @@ what each cut leaves uncaught.
 
 | | |
 |---|---|
-| **Phase** | P191 — the interview's first phase: the twelve registry fields it could not ask for, with three parsers that refuse rather than guess. Seven fields could be asked for; nineteen now can. Before it, P190's three records — [the agent-portal possibility](./docs/the-agent-portal-possibility.md), [the password sheet](./docs/decision-sheet-holding-the-students-password.md), and why an e-mail verification click is a stop rather than a debt |
+| **Phase** | P192 — the interview's second phase: the fields whose value has several parts, asked part by part and confirmed once ([ADR-0140](./docs/decisions/0140-a-field-with-several-parts-is-asked-part-by-part.md)), with the five guardian fields built inside it and what a mandatory-review category means for the wording said plainly. 26 of the registry's 35 fields now have a question, up from 19. The run driver **stops rather than asking a part whose answer the conversation log cannot carry** — measured before it was guarded |
 | **Status** | ✅ The whole journey runs end to end against a **replayed** portal, with real PostgreSQL and Redis · ✅ **and against the real one**: Run A completed on 2026-09-22 — signed in through the consent path and filled, saved and read back six pages of Sheffield's own postgraduate form on Vahid's account, under one signature admitting that account and no other, stopping at `ready_to_submit` · ❌ **no application has been submitted, and nothing here submits** · ❌ not proved: Part 2, course choice, supporting documents, a second portal, a created account, a real student; the product still needs a second reviewer and Bedrock credentials |
-| **Tests** | **2,815 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
-| **Decisions** | 139 ADRs · all 139 Accepted |
+| **Tests** | **2,829 passing · 145 files · zero skipped**, in two lanes — browsers serial, everything else parallel · typecheck, lint, boundary, reachability and contract checks green |
+| **Decisions** | 140 ADRs · all 140 Accepted |
 | **Infrastructure provisioned** | **One bucket, one customer-managed key, one revoked role** — created by Vahid on 2026-09-09 to verify the S3 checksum binding (ADR-0092 §4); the bucket can become the vault. Nothing deployed. Spend is no longer $0: a CMK carries a flat monthly charge and two verification runs made a handful of requests — the amount is the billing console's to state, not this file's to guess |
 
 **▶ [State of the system](./docs/state-of-the-system.md) — the standing account.** What is built, what

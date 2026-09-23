@@ -114,7 +114,7 @@ import type {
 } from "@askimate/aas-domain";
 import { noticeFor } from "@askimate/aas-notify";
 import type { SpecialistNotifier } from "@askimate/aas-notify";
-import type { InterviewState } from "@askimate/aas-interview";
+import type { InterviewAction, InterviewState } from "@askimate/aas-interview";
 import {
   newInterview,
   nextAction,
@@ -1176,6 +1176,23 @@ function contentRejectedMessage(entry: CatalogueEntry): string {
 }
 
 /**
+ * What the student reads when a field is one this conversation cannot collect.
+ *
+ * Not `unobtainableMessage`: nothing went wrong in the conversation and the
+ * student was not asked as many times as we should — they were not asked at
+ * all. Saying "I have asked as many times as I should" would be untrue, which
+ * is exactly the kind of sentence ADR-0084 was written about.
+ */
+function cannotBeAskedHereMessage(entry: CatalogueEntry, what: string): string {
+  return (
+    `Your ${entry.blueprint.institutionName} application asks for your ${what}, and I am not ` +
+    `able to take that one in this conversation yet. I have passed it to a member of the team, ` +
+    `who will take it from you directly. Nothing you have already given me is lost, and your ` +
+    `application has not been submitted.`
+  );
+}
+
+/**
  * What the student reads when the interview has run out of ways to ask.
  *
  * Deliberately NOT `reviewMessage`. That one says "this is a rule we apply
@@ -1237,7 +1254,41 @@ const NEVER_MIND_THE_CLOCK_MS = 100 * 365 * 24 * 60 * 60 * 1000;
  */
 function interviewAsk(step: RunStep): ProfileFieldKey | null {
   const action = interviewActionOf(step);
-  return action !== null && action.kind === "ask" ? action.fieldKey : null;
+  if (action === null || action.kind !== "ask") return null;
+  // A question about ONE PART of a field (P192) is not one this driver can
+  // take an answer to — see `partsCannotBeCarried` for why — so it is not an
+  // ask as far as the message path is concerned. The run is stopped for a
+  // person instead, before the student is asked at all.
+  return action.partKey === undefined ? action.fieldKey : null;
+}
+
+/**
+ * A question this driver must not put, because it could not keep the answer.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * P192 gave the interview fields with several parts: `contact.address` is six
+ * questions, `identity.passport` up to four, and the answers accumulate in
+ * `InterviewState.partial` until the whole value is put for confirmation.
+ *
+ * THIS DRIVER CANNOT KEEP THEM. It rebuilds the interview from the
+ * conversation log on every request (`interviewFrom`), and the log carries one
+ * event per FIELD — `value_proposed`, ADR-0051 — and none for a part. A
+ * student's answer to the first line of their address would be read, dropped
+ * with the request, and the same question asked again, for ever.
+ *
+ * Before P192 such a field escalated cleanly: `nextAction` had no question for
+ * it and said so. Turning that clean stop into a silent loop would be the
+ * worse outcome of the two, so the stop is kept until the log can carry a
+ * part. Both `contact.address` and `identity.passport` are already named by
+ * the Sheffield draft mapping set, so this is not hypothetical.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+function partsCannotBeCarried(
+  action: InterviewAction,
+): { readonly fieldKey: ProfileFieldKey; readonly partKey: string } | null {
+  return action.kind === "ask" && action.partKey !== undefined
+    ? { fieldKey: action.fieldKey, partKey: action.partKey }
+    : null;
 }
 
 /**
@@ -4374,6 +4425,10 @@ export class RunDriver {
   async #askTheStudent(conversationId: string, step: RunStep): Promise<void> {
     const action = interviewActionOf(step);
     if (action === null || action.kind !== "ask") return;
+    // A question about one PART of a field is not put at all: this driver
+    // could not keep the answer, so asking would be taking something from the
+    // student and dropping it. `#stopForUnobtainable` stops the run instead.
+    if (partsCannotBeCarried(action) !== null) return;
 
     await this.#options.bindings.withConversationLock(conversationId, async (): Promise<null> => {
       const events = await this.#options.conversations.since(conversationId, 0);
@@ -4780,22 +4835,51 @@ export class RunDriver {
   ): Promise<boolean> {
     const action = interviewActionOf(step);
     if (action === null) return false;
-    if (action.kind !== "escalate" && action.kind !== "request_document") return false;
+    const unkeepable = partsCannotBeCarried(action);
+    if (
+      action.kind !== "escalate" &&
+      action.kind !== "request_document" &&
+      unkeepable === null
+    ) {
+      return false;
+    }
 
     // `fieldKey` is OPTIONAL on an escalate. Both branches of `nextAction` that
     // produce one set it today, but the type permits its absence and a driver
     // that indexed a label map with `undefined` would crash on the one path
     // that most needs to work. Absent, the stop is still recorded — it just
     // cannot name the field, and says so rather than inventing one.
-    const field = action.kind === "escalate" ? action.fieldKey : undefined;
+    const field =
+      action.kind === "escalate"
+        ? action.fieldKey
+        : unkeepable !== null
+          ? unkeepable.fieldKey
+          : undefined;
     // What could not be obtained, as a stable identifier a specialist can act
     // on. Never the model's prose: `target` is part of the idempotency key, so
     // a sentence that varied between calls would raise a second intervention
     // for the same stuck field.
     const target =
-      action.kind === "escalate"
-        ? `interview:${field ?? "unspecified"}`
-        : `document:${action.documentType}`;
+      action.kind === "request_document"
+        ? `document:${action.documentType}`
+        : `interview:${field ?? "unspecified"}`;
+
+    // What a specialist reads first. An escalate and a document request name
+    // their own reason; a part-ask has none to give, because nothing went
+    // wrong in the conversation — the limit is this driver's.
+    const encountered =
+      unkeepable !== null
+        ? `"${FIELD_LABELS[unkeepable.fieldKey]}" is asked in several parts, and this driver ` +
+          `rebuilds the interview from the conversation log on every request. The log carries ` +
+          `one event per field (ADR-0051) and none for a part, so the answer to ` +
+          `"${unkeepable.partKey}" could not be kept and the question would be asked again for ` +
+          `ever. The run is stopped instead of looping.`
+        : action.kind === "escalate"
+          ? action.reason
+          : action.kind === "request_document"
+            ? action.reason
+            : /* c8 ignore next -- unreachable: the three kinds above are the only ones past the guard */
+              "The interview cannot go on.";
 
     await this.#raiseForSpecialist({
       entry: input.entry,
@@ -4804,21 +4888,26 @@ export class RunDriver {
       caseId: input.caseId,
       priority: "high",
       target,
-      encountered: action.reason,
+      encountered,
       expected:
-        action.kind === "escalate"
-          ? `A usable answer for ${field ?? "the outstanding field"}, obtained in conversation ` +
-            `with the student.`
-          : `The student's ${action.documentType}. THIS SYSTEM CANNOT ACCEPT ONE: there is no ` +
+        action.kind === "request_document"
+          ? `The student's ${action.documentType}. THIS SYSTEM CANNOT ACCEPT ONE: there is no ` +
             `upload path, and the disclosure (ADR-0022) and retention (ADR-0023) decisions it ` +
-            `depends on are not approved. A person must arrange it outside this service.`,
+            `depends on are not approved. A person must arrange it outside this service.`
+          : `A usable answer for ${field ?? "the outstanding field"}, obtained in conversation ` +
+            `with the student.`,
       message:
-        action.kind === "escalate"
-          ? unobtainableMessage(
-              input.entry,
-              field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
-            )
-          : documentNeededMessage(input.entry, action.documentType),
+        action.kind === "request_document"
+          ? documentNeededMessage(input.entry, action.documentType)
+          : unkeepable !== null
+            ? cannotBeAskedHereMessage(
+                input.entry,
+                FIELD_LABELS[unkeepable.fieldKey].toLowerCase(),
+              )
+            : unobtainableMessage(
+                input.entry,
+                field === undefined ? "some of what I need" : FIELD_LABELS[field].toLowerCase(),
+              ),
       now,
     });
 

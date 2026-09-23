@@ -6744,14 +6744,21 @@ describeIfDatabase("a declared document, measured rather than assumed", () => {
     const guard = source.slice(
       source.indexOf("async #stopIfTheInterviewGaveUp"),
     );
+    //
+    // P192 added a THIRD kind to the same guard — a question about one part of
+    // a composite field, which this driver cannot keep the answer to — so the
+    // assertion reads the condition in pieces rather than as one line.
+    const condition = guard.slice(0, 1200);
     expect(
-      guard.slice(0, 900),
-      "both kinds the interview can stop on, not just the reachable one",
-    ).toContain(
-      'action.kind !== "escalate" && action.kind !== "request_document"',
+      condition,
+      "every kind the interview can stop on, not just the reachable one",
+    ).toContain('action.kind !== "escalate"');
+    expect(condition).toContain('action.kind !== "request_document"');
+    expect(condition, "and the part-ask the driver cannot carry (P192)").toContain(
+      "unkeepable === null",
     );
     expect(
-      guard.slice(0, 4000),
+      guard.slice(0, 6000),
       "and the document branch still names the document",
     ).toContain("document:${action.documentType}");
     // And the reason it cannot run today, stated where a reader will find it.
@@ -9434,6 +9441,114 @@ function catalogueOf(entry: CatalogueEntry): TestCatalogue {
     find: (id) => Promise.resolve(id === BLUEPRINT ? entry : null),
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// S2. P192 — a field with several parts cannot be asked for through the driver
+// ───────────────────────────────────────────────────────────────────────────
+
+/** `FIXTURE_MAPPING_SET` with a required field mapped to a COMPOSITE key. */
+const ADDRESS_REQUIRED: CatalogueEntry = {
+  ...ENTRY,
+  mappingSet: {
+    ...FIXTURE_MAPPING_SET,
+    mappings: FIXTURE_MAPPING_SET.mappings.map((mapping) =>
+      mapping.fieldRef === "email"
+        ? {
+            ...mapping,
+            source: {
+              kind: "profile_field" as const,
+              fieldKey: "contact.address" as const,
+              format: { kind: "text" as const },
+            },
+          }
+        : mapping,
+    ),
+  },
+};
+
+describeIfDatabase("a field with several parts is not asked for through the driver (P192)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // P192 gave the interview parts: `contact.address` is six questions and
+  // `identity.passport` is up to four, and the answers live in
+  // `InterviewState.partial` until the whole value is put for confirmation.
+  //
+  // THIS DRIVER CANNOT KEEP THEM. It rebuilds the interview from the
+  // conversation log on every request (`interviewFrom`), and the log has one
+  // event per FIELD — `value_proposed` (ADR-0051) — and none for a part. So a
+  // student's answer to the first line of their address would be read,
+  // dropped, and the same question asked again for ever.
+  //
+  // Both `contact.address` and `identity.passport` are already named by the
+  // Sheffield draft mapping set, so this is not hypothetical. Before P192 such
+  // a field escalated cleanly ("the agent will not improvise a question"); the
+  // parts machinery must not turn that clean stop into a silent loop.
+  // ═══════════════════════════════════════════════════════════════════════
+  const conversation = "01JBXQ8Z9WKTQ6M4H2NPX19201";
+
+  it("stops for a specialist rather than asking a question whose answer it cannot keep", async () => {
+    const owner = await ownConversation(conversation);
+    const instance = buildInstance(
+      connectionString(),
+      opener(),
+      catalogueOf(ADDRESS_REQUIRED),
+    );
+    try {
+      await confirmTheInterview(
+        new PostgresConfirmedProfileStore(instance.pool),
+        owner,
+      );
+      const started = await instance.driver.start({
+        conversationId: conversation,
+        blueprintId: BLUEPRINT,
+        studentStatement: STATEMENT,
+      });
+      if (!started.ok)
+        expect.unreachable(`start refused: ${started.refusal.kind}`);
+
+      const seen = await instance.driver.advance({
+        runId: started.position.runId,
+        conversationId: conversation,
+      });
+      if (!seen.ok) expect.unreachable(`advance refused: ${seen.refusal.kind}`);
+      expect(seen.position.status, "a loop is not a conversation").toBe("escalated");
+
+      const raised = await pool.query<{ reason: string; target: string }>(
+        `SELECT reason, checkpoint->>'target' AS target
+           FROM interventions WHERE run_id = $1`,
+        [started.position.runId],
+      );
+      expect(raised.rowCount, "one intervention").toBe(1);
+      expect(raised.rows[0]?.reason).toBe("information_unobtainable");
+      expect(raised.rows[0]?.target, "and it names WHICH field").toBe(
+        "interview:contact.address",
+      );
+
+      // And nothing was asked: the student never saw a question this driver
+      // could not have kept the answer to.
+      const said = await pool.query<{ content: string }>(
+        `SELECT mb.content AS content
+           FROM conversation_events e
+           JOIN message_bodies mb ON mb.id = e.body_id
+          WHERE e.conversation_id = $1 AND mb.content IS NOT NULL`,
+        [conversation],
+      );
+      const asked = said.rows.map((row) => row.content).join(" ").toLowerCase();
+      expect(asked, "the student was told, in words").toContain(
+        "not able to take that one in this conversation yet",
+      );
+      // And the truth of it: they were never asked, so the message must not
+      // say they were asked as many times as we should (ADR-0084).
+      expect(asked, "nothing untrue about how often they were asked").not.toContain(
+        "as many times as i should",
+      );
+      expect(asked, "no part of an address was asked for").not.toContain(
+        "the first line of your address",
+      );
+    } finally {
+      await instance.pool.end();
+    }
+  }, 300_000);
+});
 
 describeIfDatabase("stopping is available while a person is looking", () => {
   // ═══════════════════════════════════════════════════════════════════════

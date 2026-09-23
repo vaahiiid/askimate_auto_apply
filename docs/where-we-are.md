@@ -4906,6 +4906,94 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P192 — the fields whose value has several parts, and the path nobody walks
+
+## The composites were not data. They were machinery.
+
+`FieldSpec.parse` was `(raw: string) => T | null`: one utterance, one whole value. Six of the
+registry's fields are not that. An address has six parts, two optional. A passport is either a
+statement that there is none or a number, an expiry and an issuing country. A `parse` for either
+would have to supply the parts the student did not say — which is the rule Vahid had already given
+as standing, generalising from P191's money parser:
+
+> *"a value the student did not state is never supplied by us, however obvious the default looks
+> from where we sit."*
+
+So: each part is its own question with its own reason and its own parser, asked in order, skipping
+any the earlier answers make inapplicable; and **one confirmation, against the whole value**, because
+the whole value is what enters the profile. An optional part is still asked — silence is not an
+answer — but may be answered with *there is none*, and then there is none.
+
+Two smaller decisions that came out of writing it. **Attempts are counted per question**, not per
+field: counting per field would escalate a six-part address after two readable answers and one
+unreadable one, which is not three failures. And **a correction to the whole of a composite is
+refused**: *"no, flat 4"* could be a new first line or a new second line, and choosing between them
+is us answering.
+
+## The parser rule, and the country code
+
+`heldOrNone` refuses *"I might be able to find it"*. `passportNumber` refuses `soon` — which it did
+not, until a test of mine failed for the wrong reason and showed a four-letter word reading as a
+passport number; the parser was tightened rather than the test loosened.
+
+The one worth stating plainly is `countryCodeIso2`. **It refuses "Iran".** Turning a country name
+into `IR` is a lookup, this repository has no reviewed country table, and a half-table would work
+for some students and fail invisibly for others. So the question asks for the two-letter code and
+explains why. That is honest and it is not good: a student may well not know their own country's
+ISO code. Blocker 61, raised rather than papered over. The same gap sits under the three free-text
+country fields.
+
+## The guardian fields, and what a mandatory-review category means for how they are asked
+
+He asked for these inside this phase rather than after it, and the reason is the whole point:
+
+> *"a path that is rarely taken and never built is the one that fails in front of a real person."*
+
+Three things follow, and they change the **wording**, not only the routing.
+
+**Minority is determined, never asked.** It comes from the date of birth. There is no *"are you
+under 18?"* in the registry and a test forbids one — a question like that invites a student to
+answer around a safeguard. Telling a minor *"because you are under 18"* is the opposite act, and is
+allowed: it states back a determination already made.
+
+**The answers feed a stop, not a continuation.** Being a minor blocks nothing by itself; anything
+involving a minor is a mandatory human review, every time. So collecting these does not release the
+case, and the questions say so — a student who is told a person will look is not surprised by the
+wait.
+
+**And it is a third party's personal data.** The guardian is not in the conversation, has consented
+to nothing, and cannot be asked through it — while the lawful basis for the minor route is *the
+guardian's consent*. Nothing in this system reaches the guardian. Blocker 62, raised, his call.
+
+## The gap the phase opened, measured before it was guarded
+
+The run driver rebuilds the interview from the conversation log on every request. The log carries
+one event per FIELD and none for a part. So the parts machinery, through the driver, does this:
+
+```
+ask  "the first line of your address — the number and street"
+      → answer read → dropped with the request → status: running
+ask  "the first line of your address — the number and street"
+```
+
+Measured through the real driver, not reasoned about. Both `contact.address` and `identity.passport`
+are already named by the Sheffield draft mapping set, so it is not hypothetical. Before this phase
+such a field escalated cleanly; a silent loop is worse than a clean stop, so the question is now
+**not put at all** and a person is told — with a message that says it was not asked, rather than
+that we asked as many times as we should, which would be untrue. Blocker 60.
+
+## Held, on purpose
+
+`education.highest_qualification` has no parts. It is a `Qualification`, which is the shape of one
+entry of the list-valued class he reserved pending his read of Part 2, and giving it parts here
+would settle what he reserved. It still escalates with *"will not improvise"*, and a test holds it
+there. The three remaining composites — the language test, the UK status claims, the UK study — are
+a next phase; the machinery they need is built.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P190–P191 — the twelve fields a person used to type, and three records before them
 
 The next direction changes four decisions and one of them is his own from August. Before building

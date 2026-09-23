@@ -1,5 +1,18 @@
 # Decision sheet — holding the student's portal password
 
+> ## The answer to this sheet, if the clause is there
+>
+> **Consent governs what *we* may do with a student's data. It does not release the student from an
+> agreement they made with their university.**
+>
+> So if Sheffield's terms say the password must not be shared, a student cannot consent their way
+> out of it, our lawful basis being sound would not make their disclosure permitted, and **we do not
+> build the hold.** Vahid, 2026-09-23, reading this sheet: *"If the clause is there, your position
+> is mine: we do not build the hold. I will know when I read."*
+>
+> Everything below is the shape it would take if the clause is **not** there, and the cost of the
+> alternatives if it is. The read decides, and it is his.
+
 **For:** Vahid · **Raised:** 2026-09-22, by him · **Status:** open, undecided, unbuilt
 **Because:** the product intent is that the student does everything through our chat. Today they
 type their university password into the secure box **once per attempt** — he typed six across ten —
@@ -71,12 +84,11 @@ His instruction, and the reason this section is here rather than in an appendix:
 > near-universal and you named it yourself. If it is there, holding the credential is not a DPIA
 > question, it is a question about whether the student can honestly agree to it."*
 
-He is right, and it changes the order of the analysis. **If Sheffield's terms say the student must
-not disclose their password to anyone, then:**
+He is right, and it changes the order of the analysis, which is why the answer is now at the top of
+this sheet rather than here. **If Sheffield's terms say the student must not disclose their password
+to anyone, then:**
 
-- The student cannot consent their way out of it. Consent governs what *we* may do with their data;
-  it does not release them from an agreement they made with the university. Our lawful basis being
-  sound would not make their disclosure permitted.
+- The student cannot consent their way out of it, for the reason stated at the top.
 - **The disclosure has already happened**, at the moment they type it into our box — which is true
   today, on the current design, and has been true for all ten attempts. Holding it does not create
   that problem; it extends its duration and makes it durable. That distinction is worth being precise

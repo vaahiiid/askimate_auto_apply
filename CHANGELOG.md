@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.188.0] — 2026-09-23
+
+**P192 — the fields whose value has several parts, and the guardian path built inside the phase.**
+
+- **Added** [ADR-0140](./docs/decisions/0140-a-field-with-several-parts-is-asked-part-by-part.md):
+  a field with several parts is asked part by part, and confirmed once. `FieldSpec` becomes a union
+  of `ScalarFieldSpec` and `CompositeFieldSpec`; a composite is an ordered list of `FieldPart`s plus
+  an `assemble`.
+- **Added** `FieldPart`, `PartAnswers`, `OMITTED`, `partParser` and `isComposite` to
+  `packages/interview`; `InterviewState` gains `partial`, and `InterviewAction.ask` gains an
+  optional `partKey`.
+- **Changed** `InterviewState.attempts` to be keyed by QUESTION (`identity.passport#expiry`) rather
+  than by field, so one unreadable part does not exhaust a six-part field.
+- **Added** specs for `identity.passport`, `contact.address` and the five guardian fields. Counted
+  against `PROFILE_FIELD_KEYS`: 26 of the registry's 35 fields now have a question — 21 of the 30
+  ordinary ones and all five guardian — up from 19.
+- **Changed** the run driver: a question about one part of a composite is **not put at all** and the
+  run is stopped for a person, because the conversation log carries one event per field and none for
+  a part, so the answer could not be kept. Measured through the real driver before it was guarded —
+  see **blocker 60**.
+- **Added** `cannotBeAskedHereMessage`: the student is told the field was not asked, rather than
+  that we asked as many times as we should, which would be untrue (ADR-0084).
+- **Added blocker 61** (no reviewed country table, so `Address.countryCode` asks for an ISO code),
+  **blocker 62** (the minor route's lawful basis is the guardian's consent, and nothing reaches the
+  guardian) and **blocker 63** (`Address.postalCode` is required and many countries issue none).
+- **Not built, on purpose**: `education.highest_qualification` has no parts — it is a
+  `Qualification`, the shape of one entry of the list-valued class held pending Vahid's read of
+  Part 2 — and still escalates with *"the agent will not improvise a question"*.
+
+---
+
 ## [0.187.0] — 2026-09-22
 
 **P190 — three records before the build. P191 — the interview's twelve scalar fields.**
