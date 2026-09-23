@@ -49,6 +49,8 @@ import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aa
 import { PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { startFixturePortal, type FixturePortal } from "@askimate/aas-browser-runner";
 
+import { secureFrameSaysReceived } from "./secure-frame-acknowledgement.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const REDIS_URL = process.env["AAS_TEST_REDIS_URL"] ?? "redis://127.0.0.1:56379";
 // Its own port range (4960–4969, which no other suite listens on) and its own
@@ -396,9 +398,16 @@ describeIfBoth("the journey through the five processes the local-stack script st
       await frame.locator("#secure-password").fill(PASSWORD);
       await frame.locator("#secure-confirmation").fill(PASSWORD);
       await frame.locator("#secure-submit").click();
-      await expect
-        .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
-        .toContain("received");
+      // P198: the words this wait fails with live in one place, because the
+      // same wait is made in four, and CI 327 proved the one line it used to
+      // fail with said nothing about which failure it was.
+      await secureFrameSaysReceived({
+        page,
+        frame,
+        pageErrors: thrown,
+        run: async () => (await readRun()).run,
+        logs,
+      });
       // The Secure Service's OWN loop delivers the receipt; the page learns it
       // from the log and takes the frame down.
       await expect

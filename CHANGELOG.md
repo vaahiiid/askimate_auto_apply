@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.194.0] — 2026-09-23
+
+**P198 — a red suite that said nothing.**
+
+- **Fixed** the failure message for the secure frame's acknowledgement, which was
+  `expected 'Loading…' to contain 'received'` — the placeholder `controlDocument` ships with, and
+  hides on a successful mount without rewriting. Those words cover two different failures: the
+  password never went (the frame's own `#secure-error` says why, and the run is still at
+  `awaiting_secret`), or it went and the page never said so (the run has moved on, and what failed
+  is the sentence the student reads). CI 327 was the second, and establishing that took reading the
+  five other tests in the same file.
+- **Added** `scripts/secure-frame-acknowledgement.ts`, the one place the wait and its words now
+  live for the four sites that make it — `local-stack-journey`, `local-stack-existing-account` and
+  twice in `journey.test.ts`. On failure it reports `#state`, `#secure-error`, how many frames are
+  still mounted, and **the run as the service reports it**, which is the fact that separates the
+  two failures. Verified by breaking it on purpose (three-second ceiling, impossible word) and
+  reading the message: `frames still mounted: 0`, `"phase":"filling"`.
+- **Unchanged** deliberately: all four twenty-second ceilings. Raising them would fix the assertion
+  rather than the contention, which is what Vahid ruled out on 2026-09-08 (P47). The contention
+  that is left — the browser lane runs beside the other lane's 145 files on a four-vCPU runner — is
+  **blocker 67**, with the two fixes available at vitest 2.1.9 and what each costs.
+- **Fixed** two counts that had drifted: the README's *140 ADRs · all 140 Accepted*, stale since
+  P195 added the 141st, and §7's *twenty-one* browser-lane files, stale since P122 made it
+  twenty-two. Both measured rather than read.
+
+---
+
 ## [0.193.0] — 2026-09-23
 
 **P197 — the three remaining composites.**

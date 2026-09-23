@@ -4906,6 +4906,93 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P198 — a red suite that said nothing, and the four places it could have spoken from
+
+CI run 327 failed on `08a9f2e` — a commit that changed docs, the changelog, the README, the
+version manifests and one comment block, and no behaviour at all. The whole failure was one line:
+
+```
+AssertionError: expected 'Loading…' to contain 'received'
+```
+
+## What those words actually say
+
+`Loading…` is the text `controlDocument` ships in `<p id="state">`. The control script reveals the
+form on a successful mount and **hides** that paragraph without rewriting it; only a successful
+submit writes over it. So the assertion's message reported the placeholder, and the placeholder
+means exactly one thing: *the frame mounted and has not answered*.
+
+Two different failures wear that sentence.
+
+- **The password never went.** The submit was refused, and the frame's own `#secure-error` line
+  says why. The run is still at `awaiting_secret`. This is a defect in the secure path.
+- **The password went and the page never said so.** The run has moved on; what failed is the
+  sentence the *student* reads before the box is taken away. This is a defect in what the student
+  is told — or, on a loaded machine, in nothing at all.
+
+In CI 327 it was the second. Nothing in the failure said so. The way I established it was to read
+the **five other tests in the same file**, which passed: the account existed at the student's
+address and the run had reached the handover. A failure message that needs the rest of the suite
+read back to it is not a message.
+
+## The wait is made in four places
+
+`scripts/local-stack-journey.test.ts`, `scripts/local-stack-existing-account.test.ts`, and twice in
+`scripts/journey.test.ts` — four copies of the same twenty-second poll, four copies of the same
+silence. `scripts/browser-test-files.ts` records the lesson from the last time this shape was met:
+*"That fix was right for that test and wrong as a strategy."* So the words live in one place now,
+`scripts/secure-frame-acknowledgement.ts`, and on failure they report:
+
+- `#state`, with what the placeholder means said in the message rather than left to be looked up;
+- `#secure-error`, the frame's own word on a refusal;
+- how many frames are still mounted — `0` means the page already took the box down;
+- **the run as the service reports it**, which is the one fact that separates the two failures;
+- the page's thrown errors and the five processes' logs, where the caller has them.
+
+## Proved by breaking it
+
+Estimated at about an hour and a half; it ran roughly that. The verification was to make it fail on
+purpose — the ceiling cut to three seconds and an impossible word — and read what came back:
+
+```
+the secure frame never said the password was received: Error: Matcher did not succeed in 3000ms
+#state: "(the frame is gone, or would not answer)" …
+frames still mounted: 0 (0 means the page took the box down …)
+the run, as the SERVICE reports it … {"…","status":"running","phase":"filling","step":"execute"…}
+```
+
+`phase: "filling"` at three seconds: the password had gone, the runner was already at work, and the
+frame was already down. That is the second failure, named, in the message, with no other test read.
+The helper was then restored and all four sites run green — `local-stack-existing-account` and
+`local-stack-journey` together (12 tests), `journey.test.ts` (14).
+
+## What I did not do, and why
+
+I did not raise the ceiling. Twenty seconds to ninety would have made CI 327 pass, and it is the
+thing Vahid ruled out on 2026-09-08 when P47 met this exact shape:
+
+> *"a suite that goes red for reasons that turn out not to matter teaches everyone to discount red,
+> and the cost lands on the day a real failure arrives and gets waved through. Fix the contention
+> rather than the assertions."*
+
+P47's lane serialises the browser files against **each other**. It does not serialise them against
+the other lane's 145 files on the same four-vCPU runner, and that is the contention that is left.
+The one-line fix for it — per-project `sequence.groupOrder` — arrived in vitest 3.2, and this
+repository is on 2.1.9. What remains is two invocations (which ends the overlap and breaks the
+census, since `scripts/census.ts` reads one `results.json` whose arithmetic is checked) or fewer
+workers globally (which slows the files that have no browser in them to protect the ones that do).
+Neither is small, both cost CI time, and the choice is his. It is **blocker 67**.
+
+Two records fixed in passing, both measured rather than read. The README had said *140 ADRs · all
+140 Accepted* since P195 added the 141st — `docs/decisions/README.md` had it right; the front page
+did not. And §7 of the state document had said the browser lane holds *twenty-one* files; it has
+held twenty-two since P122 put `local-stack-existing-account.test.ts` in it. Neither is large, and
+both are the same failure this phase is about: a record saying something other than what is there.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P197 — the three remaining composites, and what each one taught
 
 The machinery was P192's. What was new is that each of the three met a shape it had not.

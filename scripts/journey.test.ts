@@ -123,6 +123,8 @@ import {
 } from "@askimate/aas-secure-service";
 import { refusalText } from "@askimate/aas-conversation";
 
+import { secureFrameSaysReceived } from "./secure-frame-acknowledgement.js";
+
 const CONVERSATION_PORT = 4901;
 /** The vault stand-in: the passport's bytes, served to the runner on the URL the plane mints. */
 const VAULT_PORT = 4907;
@@ -1101,10 +1103,10 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
     await frame.locator("#secure-confirmation").fill(PASSWORD);
     await frame.locator("#secure-submit").click();
     // The frame's own word — `#state` is the element the control writes to
-    // (`data-testid="secure-state"` is its name for a test, not its id).
-    await expect
-      .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
-      .toContain("received");
+    // (`data-testid="secure-state"` is its name for a test, not its id). P198
+    // put the wait and the words it fails with in one place, for the four
+    // sites that make it.
+    await secureFrameSaysReceived({ page, frame });
 
     // The Secure Plane tells the Conversation Plane through its OUTBOX — the
     // same `internalAppend` `background.ts` drains with, called once here
@@ -1371,9 +1373,7 @@ describeIfDatabase("a student asks, and ends up with an account they own", () =>
       ).toBe(false);
       await frame.locator("#secure-password").fill(PASSWORD);
       await frame.locator("#secure-submit").click();
-      await expect
-        .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
-        .toContain("received");
+      await secureFrameSaysReceived({ page, frame });
       await context.close();
       const drained = await secureOutbox.publish(
         internalAppend({

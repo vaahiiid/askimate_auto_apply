@@ -50,6 +50,8 @@ import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aa
 import { PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { startFixturePortal, type FixturePortal } from "@askimate/aas-browser-runner";
 
+import { secureFrameSaysReceived } from "./secure-frame-acknowledgement.js";
+
 const ROOT = join(import.meta.dirname, "..");
 const REDIS_URL = process.env["AAS_TEST_REDIS_URL"] ?? "redis://127.0.0.1:56379";
 // Its own port range (4970–4979, which no other suite listens on) and its own
@@ -421,9 +423,15 @@ describeIfBoth("the journey through the five processes the local-stack script st
       // shows (`requiresConfirmation`) is hidden here, and is left alone.
       expect(await frame.locator("#secure-confirmation").isVisible(), "no confirmation box for a sign-in").toBe(false);
       await frame.locator("#secure-submit").click();
-      await expect
-        .poll(async () => await frame.locator("#state").textContent(), { timeout: 20_000 })
-        .toContain("received");
+      // P198: the same wait as the journey file's, failing with the same
+      // words, from the one place they live.
+      await secureFrameSaysReceived({
+        page,
+        frame,
+        pageErrors: thrown,
+        run: async () => (await readRun()).run,
+        logs,
+      });
       // The Secure Service's OWN loop delivers the receipt; the page learns it
       // from the log and takes the frame down.
       await expect
