@@ -4906,6 +4906,120 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P202 — he read the page and found the trap in it
+
+> *"The page is exactly the right shape — I read the disagreements, not 249 lines. Two things
+> before I go through it."*
+
+Both were real, and one of them was dangerous.
+
+## Congo
+
+The page offered one option to two countries:
+
+```
+CD  Congo - Kinshasa      → Congo   (Congo:O)
+CG  Congo - Brazzaville   → Congo   (Congo:O)
+```
+
+> *"Two countries, one proposal, same submitted value. If I approved that page as it stands, a
+> student from one would have the other on their application."*
+
+He asked first whether Sheffield holds two Congos or one. Measured — it holds two, **in every
+country select**, and its own code-valued list says which is which:
+
+| select | the two options |
+|---|---|
+| `fundingNationality` | `CG:O` *Congo* · `CD:O` *Congo (Democratic Republic)* |
+| `permanentResidence` | `Congo:O` · `Congo (Democratic Republic):O` |
+| `corrCountry` | `CONGO` · `CONGO (DEMOCRATIC REPUBLIC)` |
+| `previousCountry1` | `CONGO:O` · `CONGO (DEMOCRATIC REPUBLIC):O` |
+
+So the proposer had found the first and stopped. And his instruction went past the instance:
+
+> *"Either way, refuse to propose the same submitted value for two different codes — make that a
+> rule in the derivation rather than something I have to catch by eye. Any code whose proposal
+> collides with another's is printed as a collision, not as a candidate."*
+
+That is a rule now. Any submitted value proposed for more than one country is withdrawn from all of
+them and shown together, because the disagreement is *between* them and reading one row could not
+settle it. It is held by a test that fails without it — disabling the rule puts `Congo:O` back on
+`CD` and the test says so.
+
+## The blanks were two different facts
+
+> *"'Antarctica — nothing resembles it' is almost certainly true… But North Korea, South Korea,
+> Laos, Myanmar and Czechia are countries a UK university certainly lists, so a blank there means
+> the proposer failed, not that the portal lacks it."*
+
+And he named the mechanism himself:
+
+> *"Czechia is the proof: the code-valued field's spot-check shows Sheffield calls it 'Czech
+> Republic', so the name is right there in another list on the same portal."*
+
+So there is a second pass now, and it uses **only the portal's own vocabulary**: take the label the
+portal's code-valued select gives that code, and look for it in the name-valued list. Both sides
+are expanded by the portal's own bracketing, because Sheffield writes aliases two ways —
+`Korea (South) [Korea, Republic of]`, `Ivory Coast [Côte D'ivoire]`, `Burma (Myanmar)` — and a
+different select picks a different one of them.
+
+Exact match only, and ambiguity is refused rather than resolved. One thing had to be got right:
+comparing aliases *first* made both Congos ambiguous again, because stripping a parenthetical turns
+`Congo (Democratic Republic)` into `Congo`. The whole label is compared first, and only labels that
+still do not match fall through to their aliases.
+
+What it settles, on `permanentResidence`:
+
+| code | our name | the portal's own name for the code | found in the list |
+|---|---|---|---|
+| `CZ` | Czechia | Czech Republic | `Czech Republic:E` |
+| `KP` | North Korea | Korea (North) [Korea, Democratic People's Republic of] | `Korea, Democratic People's Republic of:O` |
+| `KR` | South Korea | Korea (South) [Korea, Republic of] | `Korea, Republic of:O` |
+| `CI` | Côte d'Ivoire | Ivory Coast [Côte D'ivoire] | `Ivory Coast (Cote d'Ivoire):O` |
+| `MM` | Myanmar (Burma) | Myanmar (Burma) [The Republic…] | `Burma (Myanmar):O` |
+| `HK` | Hong Kong SAR China | Hong Kong (Special Administrative Region…) | `Hong Kong:O` |
+
+And what it **refuses**: residence spells Laos `Lao PDR`, and the code list says
+`Laos [Lao People's Democratic Republic]`. Neither is the other. Pairing an abbreviation is a
+person's call, so `LA` stays a blank he reads — which is the pass proving it does not reach.
+
+Antarctica survives as absent, as he predicted. So does `CI` on the three uppercase lists, which
+genuinely have no Ivory Coast option at all — checked rather than assumed.
+
+## What it cost him
+
+| field | offered | derived | corroborated | **to read** | absent |
+|---|---|---|---|---|---|
+| `fundingNationality` | 242 | 235 | 0 | **1** | 13 |
+| `countryOfBirth` | 242 | 235 | 0 | **1** | 13 |
+| `corrCountry` | 259 | 212 | 14 | **5** | 18 |
+| `permanentResidence` | 261 | 205 | 22 | **5** | 17 |
+| `previousCountry1` | 260 | 211 | 14 | **6** | 18 |
+| `institutionCountry` | 255 | 212 | 14 | **4** | 19 |
+
+**37–44 rows a field became 4–6.** The page now says of every row how it got there — derived,
+corroborated by the portal itself, a guess to read, absent, or withdrawn as a collision — and how
+far to trust each kind, in a table at the top.
+
+## Two things that went wrong getting here, both said plainly
+
+The census needed four runs, not two. **Twice the container killed Postgres and Redis mid-run** —
+the third time this session — and the suite went red with `No PostgreSQL at …`, which is the
+services dying rather than the code failing. And **I broke the demonstrations guard and did not
+notice**, because I re-ran the derivation's own tests after changing the command's output line and
+not the guard that reads it. That is the rule in `CLAUDE.md` about a check counting only if it ran
+after the change, failed by me, in the phase after I added a rule about checks. The guard now
+asserts the two columns that matter — `corroborated` and `collisions` — rather than a string.
+
+Run 2 of the census then hit the browser contention accepted as **blocker 67**, in a fourth file:
+`student-client.test.ts`, `page.waitForFunction: Timeout 20000ms`. Runs 1 and 3 were green, all
+three wrote an identical census table, and the occurrence is logged against the blocker rather than
+re-argued.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P201 — blocker 68 built to the edge of the model, and a record of mine corrected
 
 ## The correction first, because the wrong version is on main

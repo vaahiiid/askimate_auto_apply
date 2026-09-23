@@ -19,6 +19,27 @@ not shipped artefacts.
 
 ---
 
+## [0.198.0] — 2026-09-23
+
+**P202 — the two defects Vahid found reading the review page.**
+
+- **Added** a collision rule to the derivation: any submitted value proposed for more than one ISO
+  code is withdrawn from all of them and printed as a collision, never as a candidate. The page had
+  offered Sheffield's single `Congo` option to both `CD` and `CG` — *"a student from one would have
+  the other on their application"*. Held by a test that fails without the rule.
+- **Measured** that Sheffield offers **two** Congos in every country select, and that its own
+  code-valued list names them: `CG:O` *Congo*, `CD:O` *Congo (Democratic Republic)*.
+- **Added** a second pass that searches the portal's list by the portal's OWN name for a code,
+  taken from its code-valued selects, expanding both sides by the portal's bracketing. It settles
+  Congo both ways round, Czechia, both Koreas, Ivory Coast, Myanmar and Hong Kong — and refuses
+  `Lao PDR` against `Laos`, because an abbreviation is a person's call. The whole label is compared
+  before its aliases, or `Congo (Democratic Republic)` aliases back to `Congo` and both are lost.
+- **Changed** the page to print four kinds apart — derived, corroborated by the portal, a guess to
+  read, absent — with a table at the top saying how far to trust each. **What needs reading fell
+  from 37–44 a field to 4–6.**
+
+---
+
 ## [0.197.0] — 2026-09-23
 
 **P201 — blocker 68 built to the edge of the model, and a record corrected.**

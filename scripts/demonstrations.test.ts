@@ -183,7 +183,12 @@ describe("the published demonstrations", () => {
       // The two halves of Vahid's split, visible in the command's own output.
       expect(ran.out).toContain("iso_code");
       expect(ran.out).toContain("name");
-      expect(ran.out).toContain("matched 235/249");
+      // The columns Vahid's split turns on, in the command's own output:
+      // what derives, what the portal corroborated, and whether any
+      // submitted value was proposed for two countries (P202).
+      expect(ran.out).toContain("derived 235/249");
+      expect(ran.out, "the second pass ran").toMatch(/corroborated\s+\d+/);
+      expect(ran.out, "the collision rule ran and said so").toMatch(/collisions\s+\d+/);
     });
 
     it("leaves the committed page exactly as it was", () => {

@@ -9,13 +9,16 @@ import { describe, expect, it } from "vitest";
 
 import { COUNTRIES } from "@askimate/aas-profile";
 
-import type { PortalOption } from "./derive-country-mappings.js";
+import type { Derivation, PortalOption } from "./derive-country-mappings.js";
 import {
   COUNTRY_FIELD_REFS,
   bareValue,
+  derivationsFrom,
   deriveCountryMapping,
   optionMapOf,
   optionsFromEntry,
+  portalAliases,
+  portalLabelsForCodes,
   reviewPage,
   shapeOf,
 } from "./derive-country-mappings.js";
@@ -95,9 +98,7 @@ describe("the strict join is exact, and says so by missing", () => {
 
 describe("the reviewed Sheffield entry, derived", () => {
   it("derives the two code-valued fields and leaves the rest to be read", () => {
-    const derived = COUNTRY_FIELD_REFS.map((ref) =>
-      deriveCountryMapping(ref, optionsFromEntry(ENTRY, ref)),
-    );
+    const derived: readonly Derivation[] = derivationsFrom(ENTRY);
     const byRef = new Map(derived.map((d) => [d.fieldRef, d]));
 
     for (const ref of ["fundingNationality", "countryOfBirth"]) {
@@ -122,7 +123,8 @@ describe("the reviewed Sheffield entry, derived", () => {
   });
 
   it("puts Iran on the page he has to read, which is how he knew the page was honest", () => {
-    const d = deriveCountryMapping("permanentResidence", optionsFromEntry(ENTRY, "permanentResidence"));
+    const d = derivationsFrom(ENTRY).find((x) => x.fieldRef === "permanentResidence");
+    if (d === undefined) return expect.unreachable("permanentResidence is derived");
     const iran = d.unmatched.find((u) => u.country.code === "IR");
     expect(iran?.candidate?.value).toBe("Iran, Islamic Republic of:O");
   });
@@ -139,8 +141,7 @@ describe("the reviewed Sheffield entry, derived", () => {
 
 describe("the page", () => {
   it("is deterministic — the same derivation writes the same bytes", () => {
-    const derive = (): string =>
-      reviewPage(COUNTRY_FIELD_REFS.map((ref) => deriveCountryMapping(ref, optionsFromEntry(ENTRY, ref))));
+    const derive = (): string => reviewPage(derivationsFrom(ENTRY));
     expect(derive()).toBe(derive());
   });
 
@@ -152,17 +153,112 @@ describe("the page", () => {
       join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-review.md"),
       "utf8",
     );
-    const fresh = reviewPage(
-      COUNTRY_FIELD_REFS.map((ref) => deriveCountryMapping(ref, optionsFromEntry(ENTRY, ref))),
-    );
+    const fresh = reviewPage(derivationsFrom(ENTRY));
     expect(committed, "run `pnpm run country-mappings`").toBe(fresh);
   });
 
   it("says what the portal offers before asking him to read anything", () => {
-    const page = reviewPage([
-      deriveCountryMapping("fundingNationality", optionsFromEntry(ENTRY, "fundingNationality")),
-    ]);
+    const page = reviewPage(derivationsFrom(ENTRY).slice(0, 1));
     expect(page).toContain("What the portal has, before a single line is read");
-    expect(page).toContain("| `fundingNationality` | ISO codes | 242 | 235 / 249 |");
+    expect(page).toContain("| `fundingNationality` | ISO codes | 242 | 235 |");
+  });
+});
+
+describe("one option cannot be two countries (P202)", () => {
+  // Vahid, reading the first page, 2026-09-23:
+  //
+  //   *"Two countries, one proposal, same submitted value. If I approved that
+  //   page as it stands, a student from one would have the other on their
+  //   application… refuse to propose the same submitted value for two
+  //   different codes — make that a rule in the derivation rather than
+  //   something I have to catch by eye."*
+  //
+  // The real entry no longer produces one, because pass 2 settles Congo from
+  // the portal's own code list. The rule is held here on a list built to
+  // collide, so it stays true when the data stops proving it.
+  it("withdraws BOTH proposals and prints them as a collision", () => {
+    const derived = deriveCountryMapping("test", [
+      option("Congo:O", "Congo"),
+      // No `Congo (Democratic Republic)`, so name resemblance offers the one
+      // Congo to both CD and CG — which is exactly what the first page did.
+    ]);
+    for (const code of ["CD", "CG"]) {
+      const entry = derived.unmatched.find((u) => u.country.code === code);
+      expect(entry?.candidate, code).toBeNull();
+      expect(entry?.why, code).toContain("WITHDRAWN");
+      expect(entry?.why, code).toContain("one option cannot be two countries");
+    }
+    expect(derived.collisions).toHaveLength(1);
+    expect(derived.collisions[0]?.countries.map((c) => c.code).sort()).toEqual(["CD", "CG"]);
+  });
+
+  it("does not withdraw a proposal that is the only one for its option", () => {
+    const derived = deriveCountryMapping("test", [option("Iran, Islamic Republic of:O", "Iran, Islamic Republic of")]);
+    expect(derived.collisions).toHaveLength(0);
+    expect(derived.unmatched.find((u) => u.country.code === "IR")?.candidate?.value).toBe(
+      "Iran, Islamic Republic of:O",
+    );
+  });
+});
+
+describe("the portal corroborating itself (P202)", () => {
+  // Vahid: *"search the portal's list for each blank by something other than
+  // our name, and say which blanks survive that. Czechia is the proof: the
+  // code-valued field's spot-check shows Sheffield calls it 'Czech Republic',
+  // so the name is right there in another list on the same portal."*
+  const labels = (): ReadonlyMap<string, string> =>
+    portalLabelsForCodes(COUNTRY_FIELD_REFS.map((ref) => optionsFromEntry(ENTRY, ref)));
+
+  it("reads the portal's own name for a code out of its code-valued selects", () => {
+    expect(labels().get("CZ")).toBe("Czech Republic");
+    expect(labels().get("CD")).toBe("Congo (Democratic Republic)");
+    expect(labels().get("CG")).toBe("Congo");
+  });
+
+  it("settles Czechia, which our name never could", () => {
+    const residence = derivationsFrom(ENTRY).find((d) => d.fieldRef === "permanentResidence");
+    const cz = residence?.unmatched.find((u) => u.country.code === "CZ");
+    expect(cz?.kind).toBe("portal_corroborated");
+    expect(cz?.candidate?.value).toBe("Czech Republic:E");
+  });
+
+  it("settles the TWO Congos the right way round, which is the whole point", () => {
+    // Sheffield genuinely offers both, and its code list says which is which.
+    // Getting these crossed would put one country on the other's application.
+    for (const d of derivationsFrom(ENTRY)) {
+      if (d.shape === "iso_code") continue;
+      const cd = d.unmatched.find((u) => u.country.code === "CD");
+      const cg = d.unmatched.find((u) => u.country.code === "CG");
+      expect(cd?.kind, d.fieldRef).toBe("portal_corroborated");
+      expect(cg?.kind, d.fieldRef).toBe("portal_corroborated");
+      expect(cd?.candidate?.label, d.fieldRef).toBe("Congo (Democratic Republic)");
+      expect(cg?.candidate?.label, d.fieldRef).toBe("Congo");
+    }
+  });
+
+  it("splits the blanks: Korea and Ivory Coast are found, Antarctica is not", () => {
+    const residence = derivationsFrom(ENTRY).find((d) => d.fieldRef === "permanentResidence");
+    const kindOf = (code: string): string | undefined =>
+      residence?.unmatched.find((u) => u.country.code === code)?.kind;
+    // Countries a UK university certainly lists — the proposer had failed, not
+    // the portal.
+    for (const found of ["KP", "KR", "CI", "MM", "HK"]) expect(kindOf(found), found).toBe("portal_corroborated");
+    // And one that really is not there.
+    expect(kindOf("AQ")).toBe("absent");
+  });
+
+  it("refuses an abbreviation rather than reaching for it", () => {
+    // Residence spells Laos `Lao PDR`; the code list says `Laos [Lao People¿s
+    // Democratic Republic]`. Neither is the other, and pairing them is a
+    // person's call, so it stays a blank he reads.
+    const residence = derivationsFrom(ENTRY).find((d) => d.fieldRef === "permanentResidence");
+    expect(residence?.unmatched.find((u) => u.country.code === "LA")?.kind).toBe("absent");
+  });
+
+  it("expands a portal label into the names the portal itself put in it", () => {
+    expect([...portalAliases("Korea (South) [Korea, Republic of]")]).toContain("korea republic of");
+    expect([...portalAliases("Ivory Coast [Côte D'ivoire]")]).toContain("ivory coast");
+    // Nothing is invented: every alias is text the portal printed.
+    expect([...portalAliases("Iran")]).toEqual(["iran"]);
   });
 });
