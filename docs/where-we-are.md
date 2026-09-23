@@ -4906,6 +4906,60 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P197 — the three remaining composites, and what each one taught
+
+The machinery was P192's. What was new is that each of the three met a shape it had not.
+
+## A record whose keys the student supplies
+
+`LanguageTestResult.componentScores` is a `Record<string, string>` — Listening, Reading, Writing,
+Speaking for IELTS, and something else for every other test. Four named parts would have been a
+half-table for everything that is not IELTS, so it is **one part with a pair parser**: the student
+writes `Listening 7.5, Reading 8, Writing 6.5, Speaking 7` and the names are theirs, not renamed to a
+vocabulary of ours.
+
+And the rule lands hardest here. **A component is never inferred from the overall.** An IELTS 7.5 is
+a mean and a dozen component sets produce it; filling one in from the other would invent a number
+that goes on an application. A test holds it: `7.5` alone parses to nothing.
+
+The same reasoning keeps a score as text. IELTS reports 7.5, TOEFL 102, PTE 65, the CEFR B2 — four
+scales. A number would make 7.5 and 102 the same kind of thing and lose what either means. The
+portal is told what the certificate says; the comparing is the university's.
+
+## Seven claims, and none of them derivable
+
+`immigration.uk_status` is seven booleans. Every one of them is a question the form asks and the
+student answers — `british_passport` is **not** read off `identity.passport.issuingCountry`, and
+`eu_passport` is **not** read off nationality. ADR-0115's sentence is the whole of it: *"The history
+is what they remembered; the answer is what they claim. Those are different, and only one of them is
+signed at the bottom of an application."*
+
+A test walks all seven and asserts none is optional, because an optional claim would be a claim we
+could quietly leave out.
+
+## The third `none` arm, and a period nobody may round
+
+*No* to previous UK study ends the field — the five questions behind it are not asked, which is
+ADR-0117's shape for the third time.
+
+`yearsAndMonths` refuses **"about 3 years"** and a bare `3`. The Home Office counts time on a student
+visa exactly, and an approximation of it is a number we made up. The question says so, and offers
+*none* to a student who is not sure, so the honest answer has somewhere to go.
+
+`ukStudyLevel` reads only the six the question lists. *"A masters"* is not one of them, and deciding
+it means `university` would be us answering.
+
+## Where the interview now stands
+
+Counted, not claimed. The ordinary fields still without a question are exactly six: the five
+list-valued keys, and `education.highest_qualification` — which is the shape of one entry of that
+class, held pending his read of Part 2. A test asserts that exact list, so the held class cannot
+shrink by accident while he is not looking.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P196 — four records, and a correction I owe him
 
 ## The correction first, because the wrong version is on main

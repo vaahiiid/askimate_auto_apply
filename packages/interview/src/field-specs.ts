@@ -16,7 +16,14 @@
  * plausible one. An ambiguous date is null, not a guess.
  */
 
-import type { Money, ProfileFieldKey, ProfileFieldTypes, YearMonth } from "@askimate/aas-profile";
+import type {
+  Money,
+  ProfileFieldKey,
+  ProfileFieldTypes,
+  UkStatusClaims,
+  UkStudyLevel,
+  YearMonth,
+} from "@askimate/aas-profile";
 import { readCountry } from "@askimate/aas-profile";
 
 /**
@@ -345,6 +352,101 @@ const addressLine = (raw: string): string | null => {
  * what a regular expression could not do.
  */
 const countryCodeIso2 = (raw: string): string | null => readCountry(raw)?.code ?? null;
+
+/**
+ * A score, exactly as the certificate writes it.
+ *
+ * NOT parsed to a number, deliberately. IELTS reports 7.5, TOEFL iBT reports
+ * 102, PTE reports 65 and the CEFR reports B2 — four scales, and a number
+ * would make 7.5 and 102 the same kind of thing while losing what either
+ * means. The portal is told what the certificate says; the comparing is the
+ * university's.
+ */
+const score = (raw: string): string | null => {
+  const value = raw.trim();
+  return value.length > 0 && value.length <= 20 ? value : null;
+};
+
+/**
+ * The component scores, as pairs the student read off their certificate.
+ *
+ * ── Never inferred from the overall ──────────────────────────────────────
+ *
+ * An IELTS 7.5 overall says nothing about the listening score: it is a mean,
+ * and a dozen component sets produce it. A system that filled one in from the
+ * other would be inventing a number that goes on an application — the exact
+ * shape of Vahid's rule, on the part that most invites breaking it.
+ *
+ * One part rather than four, because the components differ by test — IELTS has
+ * four skills, some tests report more — and a fixed set of four would be a
+ * half-table for every test that is not IELTS. The student names them.
+ */
+const componentScores = (raw: string): Readonly<Record<string, string>> | null => {
+  const pairs = raw
+    .split(/[,;\n]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (pairs.length === 0) return null;
+
+  const read: Record<string, string> = {};
+  for (const pair of pairs) {
+    // `Listening 7.5`, `Listening: 7.5`, `Listening - 7.5`. The NAME is the
+    // student's; nothing is renamed to a vocabulary of ours.
+    const match = /^(.+?)\s*[:–—-]?\s+([A-Za-z0-9.+]{1,10})$/.exec(pair);
+    if (match === null) return null;
+    const name = (match[1] ?? "").trim();
+    const value = (match[2] ?? "").trim();
+    if (name.length === 0 || value.length === 0) return null;
+    read[name] = value;
+  }
+  return read;
+};
+
+/** The six levels the registry holds, as the question lists them to the student. */
+const UK_STUDY_LEVELS: Readonly<Record<string, UkStudyLevel>> = {
+  "english language": "english_language",
+  school: "school",
+  foundation: "foundation",
+  "study abroad or exchange": "study_abroad_or_exchange",
+  "study abroad": "study_abroad_or_exchange",
+  exchange: "study_abroad_or_exchange",
+  university: "university",
+  other: "other",
+};
+
+/**
+ * One of the six levels, read from the options the question named.
+ *
+ * A closed set the registry already holds, and the question lists it — so
+ * matching what the student picked is READING their choice, not guessing at
+ * it. Anything off the list is asked again: *"a masters"* is not one of the
+ * six, and deciding it means `university` would be us answering.
+ */
+const ukStudyLevel = (raw: string): UkStudyLevel | null =>
+  UK_STUDY_LEVELS[raw.trim().toLowerCase().replace(/\s+/g, " ")] ?? null;
+
+/**
+ * A length of time on a visa, in years and months.
+ *
+ * **"about 3 years" is refused**, and so is a bare `3`. The Home Office counts
+ * this period exactly; an approximation of it is a number we made up, which is
+ * the Sep/Sept rule and the money rule in their third setting.
+ */
+const yearsAndMonths = (raw: string): { years: number; months: number } | null => {
+  const value = raw.trim().toLowerCase();
+  if (/\b(about|around|roughly|approx|approximately|or so|ish)\b/.test(value)) return null;
+
+  const both = /^(\d{1,2})\s*years?\s+(\d{1,2})\s*months?$/.exec(value);
+  if (both !== null) return { years: Number(both[1]), months: Number(both[2]) };
+
+  const years = /^(\d{1,2})\s*years?$/.exec(value);
+  if (years !== null) return { years: Number(years[1]), months: 0 };
+
+  const months = /^(\d{1,3})\s*months?$/.exec(value);
+  if (months !== null) return { years: 0, months: Number(months[1]) };
+
+  return null;
+};
 
 /** Specs for the fields the first end-to-end run needs. */
 export const FIELD_SPECS: Partial<{
@@ -680,6 +782,201 @@ export const FIELD_SPECS: Partial<{
       "A phone number for your parent or guardian, for the same reason. Theirs, not yours.",
     expectedShape: "a phone number",
     parse: phoneNumber,
+  },
+
+  // ── P197: the three remaining composites ────────────────────────────────
+
+  "education.english_language_test": {
+    rationale:
+      "Universities set an English language condition, and they need the test you took, what you " +
+      "scored and when. I take it straight from your certificate — I do not work any part of it " +
+      "out from any other part.",
+    parts: [
+      {
+        partKey: "test",
+        rationale: "Which test you took, as the certificate names it.",
+        expectedShape: "the test's name, e.g. IELTS Academic, TOEFL iBT, PTE Academic",
+        parse: trimmed,
+      },
+      {
+        partKey: "overallScore",
+        rationale: "Your overall result, exactly as the certificate prints it.",
+        expectedShape: "an overall score, e.g. 7.5 or 102 or B2",
+        parse: score,
+      },
+      {
+        partKey: "componentScores",
+        // The rule's hardest case: an overall is a mean, and a dozen component
+        // sets produce the same one. Nothing here is derived from it.
+        rationale:
+          "The score for each part of the test, as your certificate lists them. Universities set " +
+          "a minimum for each part separately, so I need them from you — the overall score does " +
+          "not tell me what they were.",
+        expectedShape: "each part and its score, e.g. Listening 7.5, Reading 8, Writing 6.5, Speaking 7",
+        parse: componentScores,
+      },
+      {
+        partKey: "testDate",
+        rationale:
+          "Most universities only accept a test taken within the last two years, so they ask when " +
+          "you sat it.",
+        expectedShape: "a date, e.g. 2025-06-14 or 14 June 2025",
+        parse: isoDate,
+      },
+      {
+        partKey: "certificateNumber",
+        rationale:
+          "Some universities use this to verify the result with the test provider. If your " +
+          "certificate does not show one, say none.",
+        expectedShape: "the certificate or test report number, or none",
+        parse: trimmed,
+        optional: true,
+      },
+    ],
+    assemble: (answered) => {
+      const test = answered.get("test");
+      const overallScore = answered.get("overallScore");
+      const components = answered.get("componentScores");
+      const testDate = answered.get("testDate");
+      if (
+        typeof test !== "string" ||
+        typeof overallScore !== "string" ||
+        components === undefined ||
+        components === OMITTED ||
+        typeof components !== "object" ||
+        !(testDate instanceof Date)
+      ) {
+        return null;
+      }
+      const certificateNumber = answered.get("certificateNumber");
+      return {
+        test,
+        overallScore,
+        componentScores: components as Readonly<Record<string, string>>,
+        testDate,
+        ...(typeof certificateNumber === "string" ? { certificateNumber } : {}),
+      };
+    },
+  },
+
+  // ADR-0115: seven CLAIMS, each asked and none derived. `british_passport`
+  // is NOT read off `identity.passport.issuingCountry` and `eu_passport` is
+  // NOT read off nationality — *"The history is what they remembered; the
+  // answer is what they claim. Those are different, and only one of them is
+  // signed at the bottom of an application."*
+  "immigration.uk_status": {
+    rationale:
+      "The form asks a short list of questions about your status in the UK. Each one is your own " +
+      "answer — I do not work any of them out from your passport or your nationality.",
+    parts: (
+      [
+        ["british_passport", "whether you hold a British passport"],
+        ["indefinite_leave", "whether you have indefinite leave to remain or enter"],
+        ["refugee_status", "whether you have refugee status in the UK"],
+        ["migrant_worker", "whether you are in the UK as a migrant worker"],
+        ["spouse_of_uk_citizen", "whether you are the spouse or civil partner of a UK citizen"],
+        ["eu_passport", "whether you hold an EU passport"],
+        ["spouse_of_eu_citizen", "whether you are the spouse or civil partner of an EU citizen"],
+      ] as const
+    ).map(([partKey, asks]) => ({
+      partKey,
+      rationale: `The form asks ${asks}. This is your own answer to that question.`,
+      expectedShape: "yes or no",
+      parse: yesNo,
+    })),
+    assemble: (answered) => {
+      const claims: Record<string, boolean> = {};
+      for (const key of [
+        "british_passport", "indefinite_leave", "refugee_status", "migrant_worker",
+        "spouse_of_uk_citizen", "eu_passport", "spouse_of_eu_citizen",
+      ]) {
+        const claim = answered.get(key);
+        if (typeof claim !== "boolean") return null;
+        claims[key] = claim;
+      }
+      return claims as unknown as UkStatusClaims;
+    },
+  },
+
+  "immigration.uk_study": {
+    rationale:
+      "The form asks whether you have studied in the UK before, because previous study affects " +
+      "both the application and the visa route. If you have not, that is the whole answer.",
+    parts: [
+      {
+        partKey: "kind",
+        rationale: "Whether you have studied in the UK before at all.",
+        expectedShape: "yes or no",
+        parse: heldOrNone,
+      },
+      {
+        partKey: "onStudentVisa",
+        rationale:
+          "Whether that study was on a student visa. The visa route counts time already spent " +
+          "studying here, so it is asked separately from the study itself.",
+        expectedShape: "yes or no",
+        parse: yesNo,
+        askWhen: (answered) => answered.get("kind") === "held",
+      },
+      {
+        partKey: "highestLevel",
+        rationale: "The highest level you studied at here.",
+        expectedShape:
+          "one of: English language, school, foundation, study abroad or exchange, university, other",
+        parse: ukStudyLevel,
+        askWhen: (answered) => answered.get("kind") === "held",
+      },
+      {
+        partKey: "qualification",
+        rationale: "What the qualification was called, if it had a name. If it did not, say none.",
+        expectedShape: "the qualification's name, or none",
+        parse: trimmed,
+        optional: true,
+        askWhen: (answered) => answered.get("kind") === "held",
+      },
+      {
+        partKey: "timeOnVisa",
+        rationale:
+          "How long you spent here on that visa. The visa route counts it exactly, so tell me the " +
+          "years and months rather than a rough figure — if you are not sure, say none and a " +
+          "person will go through it with you.",
+        expectedShape: "years and months, e.g. 2 years 3 months, or 18 months, or none",
+        parse: yearsAndMonths,
+        optional: true,
+        askWhen: (answered) => answered.get("kind") === "held",
+      },
+      {
+        partKey: "currentVisaExpiry",
+        rationale: "When your current UK visa expires, if you hold one now. If you do not, say none.",
+        expectedShape: "a date, e.g. 2028-09-30, or none",
+        parse: isoDate,
+        optional: true,
+        askWhen: (answered) => answered.get("kind") === "held",
+      },
+    ],
+    assemble: (answered) => {
+      const kind = answered.get("kind");
+      if (kind === "none") return { kind: "none" };
+      if (kind !== "held") return null;
+
+      const onStudentVisa = answered.get("onStudentVisa");
+      const highestLevel = answered.get("highestLevel");
+      if (typeof onStudentVisa !== "boolean" || typeof highestLevel !== "string") return null;
+
+      const qualification = answered.get("qualification");
+      const timeOnVisa = answered.get("timeOnVisa");
+      const currentVisaExpiry = answered.get("currentVisaExpiry");
+      return {
+        kind: "studied",
+        onStudentVisa,
+        highestLevel: highestLevel as UkStudyLevel,
+        ...(typeof qualification === "string" ? { qualification } : {}),
+        ...(timeOnVisa !== undefined && timeOnVisa !== OMITTED
+          ? { timeOnVisa: timeOnVisa as { years: number; months: number } }
+          : {}),
+        ...(currentVisaExpiry instanceof Date ? { currentVisaExpiry } : {}),
+      };
+    },
   },
 
   "study.personal_statement": {

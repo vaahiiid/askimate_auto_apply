@@ -15,6 +15,9 @@ export type {
   ProfileFieldType,
   ProfileFieldTypes,
   Qualification,
+  UkStatusClaims,
+  UkStudy,
+  UkStudyLevel,
 } from "./fields.js";
 export type { ListValuedFieldKey } from "./fields.js";
 export {

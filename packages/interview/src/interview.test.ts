@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { studentId, unwrapConfirmed, provenanceOf, isFieldUnavailable } from "@askimate/aas-domain";
 import { DeterministicModelClient, MeteredModelClient } from "@askimate/aas-llm";
 import type { ProfileFieldKey } from "@askimate/aas-profile";
-import { emptyProfile, resolveField } from "@askimate/aas-profile";
+import { PROFILE_FIELD_KEYS, emptyProfile, resolveField } from "@askimate/aas-profile";
 
 import type { FieldSpec, ScalarFieldSpec } from "./field-specs.js";
 import { FIELD_SPECS, isComposite } from "./field-specs.js";
@@ -343,6 +343,159 @@ describe("a field with several parts is asked part by part (P192)", () => {
     const action = await nextAction(start(["education.highest_qualification"]), model);
     expect(action.kind).toBe("escalate");
     if (action.kind === "escalate") expect(action.reason).toContain("will not improvise");
+  });
+});
+
+/**
+ * P197 — the three remaining composites.
+ *
+ * The machinery is P192's. What is new here is three shapes it had not met: a
+ * record whose keys the student supplies, seven independent claims, and a
+ * `none` arm with five optional parts behind it.
+ */
+describe("the three remaining composites (P197)", () => {
+  it("asks for a language test part by part, and never infers a component from the overall", () => {
+    // Vahid's rule, applied to the part that most invites breaking it: an
+    // IELTS 7.5 overall says NOTHING about the listening score, and a system
+    // that filled one in from the other would be inventing a number that goes
+    // on an application.
+    const spec = FIELD_SPECS["education.english_language_test"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite");
+    expect(spec.parts.map((part) => part.partKey)).toEqual([
+      "test", "overallScore", "componentScores", "testDate", "certificateNumber",
+    ]);
+
+    const components = spec.parts.find((part) => part.partKey === "componentScores");
+    if (components === undefined) return expect.unreachable("componentScores is a part");
+    expect(components.parse("Listening 7.5, Reading 8, Writing 6.5, Speaking 7")).toEqual({
+      Listening: "7.5", Reading: "8", Writing: "6.5", Speaking: "7",
+    });
+    // A bare overall is not a set of components, and must not become one.
+    for (const refused of ["7.5", "good", "", "Listening"]) {
+      expect(components.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("keeps a score as the certificate writes it, rather than making it a number", () => {
+    // IELTS 7.5, TOEFL 102, PTE 65 — three scales. Parsing to a number would
+    // turn 7.5 and 102 into the same kind of thing and lose what `7.5` means.
+    const spec = FIELD_SPECS["education.english_language_test"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite");
+    const overall = spec.parts.find((part) => part.partKey === "overallScore");
+    if (overall === undefined) return expect.unreachable("overallScore is a part");
+    for (const kept of ["7.5", "102", "65", "B2"]) expect(overall.parse(kept), kept).toBe(kept);
+    expect(overall.parse("   ")).toBeNull();
+  });
+
+  it("asks all SEVEN uk_status claims, one at a time, and derives none of them (ADR-0115)", async () => {
+    // *"The history is what they remembered; the answer is what they claim."*
+    // `british_passport` is not read off `identity.passport.issuingCountry`,
+    // and `eu_passport` is not read off nationality: both are signed at the
+    // bottom of an application.
+    const spec = FIELD_SPECS["immigration.uk_status"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite");
+    expect(spec.parts.map((part) => part.partKey)).toEqual([
+      "british_passport", "indefinite_leave", "refugee_status", "migrant_worker",
+      "spouse_of_uk_citizen", "eu_passport", "spouse_of_eu_citizen",
+    ]);
+    // Every one is a yes-or-no with no lean: a hedge is asked again.
+    for (const part of spec.parts) {
+      expect(part.parse("yes"), part.partKey).toBe(true);
+      expect(part.parse("no"), part.partKey).toBe(false);
+      expect(part.parse("I think so"), part.partKey).toBeNull();
+      expect(part.optional, `${part.partKey} is not optional`).not.toBe(true);
+    }
+
+    let state = start(["immigration.uk_status"]);
+    for (const answer of ["no", "no", "no", "yes", "no", "no", "no"]) {
+      const outcome = await receiveAnswer(state, "immigration.uk_status", answer, model);
+      expect(outcome.kind, answer).toBe("understood");
+      state = outcome.state;
+    }
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "immigration.uk_status");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual({
+      british_passport: false, indefinite_leave: false, refugee_status: false,
+      migrant_worker: true, spouse_of_uk_citizen: false, eu_passport: false,
+      spouse_of_eu_citizen: false,
+    });
+  });
+
+  it("ends uk_study at 'none' without asking the five questions behind it (ADR-0117)", async () => {
+    const outcome = await receiveAnswer(
+      start(["immigration.uk_study"]), "immigration.uk_study", "no", model,
+    );
+    expect(outcome.kind).toBe("understood");
+    const next = await nextAction(outcome.state, model);
+    expect(next.kind, "nothing behind a none is asked").toBe("confirm");
+  });
+
+  it("walks uk_study when they HAVE studied here, carrying the optional parts they skip", async () => {
+    let state = start(["immigration.uk_study"]);
+    for (const answer of ["yes", "yes", "university", "BSc Computer Science", "2 years 3 months", "2028-09-30"]) {
+      const outcome = await receiveAnswer(state, "immigration.uk_study", answer, model);
+      expect(outcome.kind, answer).toBe("understood");
+      state = outcome.state;
+    }
+    const confirmed = receiveConfirmation(state, { agreed: true }, NOW);
+    const held = resolveField(confirmed.state.profile, "immigration.uk_study");
+    if (isFieldUnavailable(held)) return expect.unreachable("just confirmed");
+    expect(unwrapConfirmed(held)).toEqual({
+      kind: "studied",
+      onStudentVisa: true,
+      highestLevel: "university",
+      qualification: "BSc Computer Science",
+      timeOnVisa: { years: 2, months: 3 },
+      currentVisaExpiry: new Date("2028-09-30T00:00:00Z"),
+    });
+  });
+
+  it("refuses 'about 3 years' for time on a visa, rather than rounding a student's history", () => {
+    // The Sep/Sept rule again. A visa period is counted by the Home Office;
+    // an approximation of it is a number we made up.
+    const spec = FIELD_SPECS["immigration.uk_study"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite");
+    const time = spec.parts.find((part) => part.partKey === "timeOnVisa");
+    if (time === undefined) return expect.unreachable("timeOnVisa is a part");
+    expect(time.parse("2 years 3 months")).toEqual({ years: 2, months: 3 });
+    expect(time.parse("18 months")).toEqual({ years: 0, months: 18 });
+    expect(time.parse("2 years")).toEqual({ years: 2, months: 0 });
+    for (const refused of ["about 3 years", "3", "a while", "two years", ""]) {
+      expect(time.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("reads a study level only from the options the question listed", () => {
+    // The six are the registry's own closed set, and the question names them.
+    // Matching what the student picked from a list they wereShown is reading,
+    // not guessing — and anything off the list is asked again.
+    const spec = FIELD_SPECS["immigration.uk_study"];
+    if (spec === undefined || !isComposite(spec)) return expect.unreachable("a composite");
+    const level = spec.parts.find((part) => part.partKey === "highestLevel");
+    if (level === undefined) return expect.unreachable("highestLevel is a part");
+    expect(level.expectedShape, "the question lists them").toContain("university");
+    expect(level.parse("university")).toBe("university");
+    expect(level.parse("English language")).toBe("english_language");
+    expect(level.parse(" School ")).toBe("school");
+    for (const refused of ["postgraduate", "a masters", "", "uni"]) {
+      expect(level.parse(refused), refused).toBeNull();
+    }
+  });
+
+  it("can now ask for every ordinary field except the five list-valued ones and the held one", () => {
+    // The phase's own arithmetic, counted rather than claimed.
+    const missing = (PROFILE_FIELD_KEYS as readonly ProfileFieldKey[]).filter(
+      (key) => FIELD_SPECS[key] === undefined,
+    );
+    expect([...missing].sort()).toEqual([
+      "education.highest_qualification",
+      "education.prior_qualifications",
+      "employment.history",
+      "immigration.previous_uk_visas",
+      "immigration.previous_visa_refusals",
+      "residence.history",
+    ]);
   });
 });
 

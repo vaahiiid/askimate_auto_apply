@@ -152,8 +152,14 @@ afterwards:
   what the portal asks for, and ADR-0113 was decided without that page in view."* Giving it parts
   here would settle what he reserved, so it still escalates with *"the agent will not improvise a
   question"*, and a test holds that.
-- **The three remaining composites are not built**: `education.english_language_test`,
-  `immigration.uk_status`, `immigration.uk_study`. The machinery is; they are a next phase.
+- ~~**The three remaining composites are not built**~~ — **built in P197**, and each met a shape the
+  machinery had not: a RECORD whose keys the student supplies (`componentScores` is one part with a
+  pair parser, not four named ones, because the components differ by test and a fixed four would be
+  a half-table for everything that is not IELTS); SEVEN independent claims, none derived —
+  `british_passport` is not read off the passport's issuing country and `eu_passport` is not read
+  off nationality (ADR-0115); and a `none` arm with five optional parts behind it. A score is kept
+  as the certificate writes it — `7.5`, `102`, `B2` — rather than parsed to a number, because a
+  number would make 7.5 and 102 the same kind of thing and lose what either means.
 - **`Address.postalCode` stays required.** A good many countries issue no postcode, so a student in
   one of them cannot complete an address. Fixing it is a registry change, not a spec change —
   [blocker 63](../state-of-the-system.md#6-open-blockers).

@@ -19,6 +19,23 @@ not shipped artefacts.
 
 ---
 
+## [0.193.0] — 2026-09-23
+
+**P197 — the three remaining composites.**
+
+- **Added** specs for `education.english_language_test`, `immigration.uk_status` and
+  `immigration.uk_study` ([ADR-0140](./docs/decisions/0140-a-field-with-several-parts-is-asked-part-by-part.md)).
+- **Added** four parsers, each refusing rather than guessing: `score` keeps a result as the
+  certificate writes it rather than parsing it to a number; `componentScores` reads the pairs the
+  student names and **never infers one from the overall**; `yearsAndMonths` refuses *"about 3
+  years"* and a bare number; `ukStudyLevel` reads only the six levels the question lists.
+- **Added** a coverage test: the ordinary fields still without a question are exactly the five
+  list-valued keys plus `education.highest_qualification`, so the held class cannot shrink by
+  accident.
+- **Changed** `packages/profile` to export `UkStatusClaims`, `UkStudy` and `UkStudyLevel`.
+
+---
+
 ## [0.192.0] — 2026-09-23
 
 **P196 — four records before the composites, and a correction.** Records only; no behaviour changed.
