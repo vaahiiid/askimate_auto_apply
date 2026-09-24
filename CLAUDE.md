@@ -106,6 +106,30 @@ So, before trusting any check — a watcher, a grep that "found no problems", a 
 - **Silence is a reading you have to earn**, not the default. A guard that ran only in tests, a
   grep whose pattern matched itself, a watcher polling for its own process: all three looked calm.
 
+### A cleanup that runs on the failure path destroys evidence
+
+Added 2026-09-25 at Vahid's instruction, after a census went red and the message was gone before
+anyone read it. The stray `rm -rf` was only half of it: `scripts/census.ts` deleted its own report
+directory in a `finally`, on every run, including every red one. The one artefact saying *why* a
+run failed was destroyed by the tool that produced it, as a matter of routine.
+
+In his words: **"clearing the directory before reading it is the same class as the silent checks —
+you took an action that destroyed the evidence of what you were investigating."**
+
+So, of any cleanup that runs regardless of outcome — a `finally`, a trap, a temp-directory sweep,
+a `--rm`:
+
+- **Ask what it deletes when the run FAILED.** If that is the only record of why, the removal
+  belongs in the success branch, not the common one.
+- **Clean up on success only.** A directory left behind after a failure costs a few kilobytes the
+  operating system reclaims. The alternative costs the finding, and you do not get to choose which
+  failure it was.
+- **Say where the kept evidence is.** Something that survives but is never named is only
+  marginally better than something deleted: the next person still has to know to look.
+
+This is the same family as the silence rules above. There, a check said nothing when it should
+have shouted. Here, it shouted and then deleted what it said.
+
 ## Trunk
 
 `main` is the trunk. Branch from it, and open changes against it. See ADR-0029.

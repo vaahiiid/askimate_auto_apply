@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.205.0] — 2026-09-25
+
+**P209 — blocker 71's stop, with its own words; and the census keeps a red run's report.**
+
+- **Added** a `not_derivable` format rule: it always refuses and carries its own reason. The
+  catalogue parser **requires** that reason and rejects a short one — the text is the mechanism.
+- **Replaced** the entry's `degree` option map with it. The reason opens *"BLOCKER 71 — do not add
+  rows here"*, says a level does not determine a title, and names the fix: the registry holding the
+  award title as its own field. Measured: `render_refused` / `not_derivable`, nothing typed, one
+  validator violation, preview `plan_incomplete`.
+- **Entry now `sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd`**, mapping
+  set 0.3.35 → 0.3.36, unsigned; the directory refuses to load it and the test asserts the refusal.
+- **Regenerated** `what-will-be-typed.md` as the refusal it now is. What will be typed today is
+  nothing, and the command exits 1.
+- **Fixed** `scripts/census.ts`: it deleted its own report directory in a `finally`, on every run
+  **including every red one**, since P50 — so the artefact saying why a run failed was destroyed by
+  the tool that produced it. A green run now cleans up; a red run keeps the report and prints its
+  path. Three tests hold it.
+- **Added** to `CLAUDE.md`: *a cleanup that runs on the failure path destroys evidence — clean up
+  on success only.*
+
+---
+
 ## [0.204.0] — 2026-09-25
 
 **P208 — blocker 71: the `degree` map tells a university something untrue, and nothing stops it.**

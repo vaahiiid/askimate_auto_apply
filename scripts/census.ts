@@ -168,9 +168,40 @@ function runSuite(): { readonly report: string; readonly passed: boolean } {
     if (!existsSync(out)) {
       throw new Error("the suite produced no report at all — nothing to count");
     }
-    return { report: readFileSync(out, "utf8"), passed };
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
+    const report = readFileSync(out, "utf8");
+    // ── A RED RUN KEEPS ITS REPORT (P209) ───────────────────────────────
+    //
+    // This used to be an unconditional `finally { rmSync(...) }`, so the one
+    // artefact that says WHY a run failed was destroyed by the tool that
+    // produced it — every time, including the times it mattered.
+    //
+    // It caught us on 2026-09-25: `local-stack-journey.test.ts` failed once in
+    // a census and the message was gone before anyone could read it, so the
+    // only honest thing to record was that we did not know. Vahid: *"clearing
+    // the directory before reading it is the same class as the silent checks —
+    // you took an action that destroyed the evidence of what you were
+    // investigating… Make the report directory survive by default so the
+    // choice never arises again."*
+    //
+    // So: a green run cleans up after itself, because nobody needs the report
+    // of a run where nothing went wrong. A RED run keeps it and says where it
+    // is. The cost is a directory in the temp folder after a failure, which
+    // the operating system clears and which is worth far less than the
+    // evidence.
+    if (passed) {
+      rmSync(directory, { recursive: true, force: true });
+    } else {
+      console.error(`\n  The failing run's report is KEPT, unread by anything: ${out}`);
+      console.error("  Read it before re-running — a second run overwrites nothing, but a");
+      console.error("  cleared directory is a finding nobody can ever recover.\n");
+    }
+    return { report, passed };
+  } catch (error) {
+    // The report is kept here too. This branch is reached when the suite
+    // produced NO report at all, and the directory is then the only evidence
+    // of how far it got.
+    console.error(`\n  No report was produced. The directory is kept: ${directory}\n`);
+    throw error;
   }
 }
 

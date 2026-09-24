@@ -79,7 +79,29 @@ describe("the synthetic profile for Run A (P150)", () => {
       entries: fixture().entries.map((e) => ({ ...e, provenance: { source: "seeded", confirmedAt: now }, revision: 1 })),
     });
     const plan = planFill(blueprint, check.mappingSet, profile);
-    expect(plan.blockers).toEqual([]);
+    // ── ONE blocker now, and it is the point (blocker 71, P209) ─────────
+    //
+    // `degree` refuses BY DESIGN. The box wants an award title; the registry
+    // holds a level; no mapping of a level can be right. Until 2026-09-25 this
+    // field carried `Bachelor's degree → BSc`, which rendered — so this test
+    // asserted `[]` and was TRUE, and every BA student was being told they
+    // hold a BSc. The assertion was right about the code and the code was
+    // wrong about the world.
+    //
+    // Run A's own profile stops here too. That is not a regression: the system
+    // cannot tell which students it would get wrong, which is the finding.
+    expect(plan.blockers.map((blocker) => blocker.kind)).toEqual(["render_refused"]);
+    const refusedDegree = plan.blockers[0];
+    if (refusedDegree?.kind !== "render_refused") expect.unreachable("checked above");
+    expect(refusedDegree.fieldRef).toBe("degree");
+    expect(refusedDegree.refusal.kind, "not `no_matching_option` — no list would help").toBe(
+      "not_derivable",
+    );
+    // The words the next person meets, which are the whole reason this is a
+    // rule rather than an empty option map.
+    expect(refusedDegree.refusal.detail).toContain("BLOCKER 71 — do not add rows here");
+    expect(refusedDegree.refusal.detail).toContain("a level does not determine a title");
+    expect(refusedDegree.refusal.detail).toContain("the registry to hold the award title");
     // ── The validator, which never ran on this entry until Run A stopped ──
     //
     // Found by Vahid at Run A's step 3, 2026-09-17: this test checked the
@@ -90,13 +112,16 @@ describe("the synthetic profile for Run A (P150)", () => {
     // The gap is worth its own line: the plan and the validator are two
     // readings of one page, and only the run compared them.
     const validation = validatePlan(blueprint, plan);
-    expect(validation.violations, "the run authorises only what the validator passes").toEqual([]);
+    // The validator reads the same page independently and reaches the same
+    // stop from the portal's own required marker — a second refusal that does
+    // not depend on the mapping set being right about anything.
+    expect(validation.violations.map((v) => v.fieldRef)).toEqual(["degree"]);
     expect(validation.unknownFields).toEqual([]);
     const typed = new Map(plan.instructions.map((i) => [`${i.fieldRef}${i.item === undefined ? "" : `#${String(i.item.index)}`}`, textOf(i.value)]));
     // The education chain, per P149; the UK-study qualification, per P150.
     expect(typed.get("institutionCountry-ts-control#0")).toBe("UNITED KINGDOM");
     expect(typed.get("institution-ts-control#0")).toBe("SHEFFIELD");
-    expect(typed.get("degree#0")).toBe("BSc");
+    expect(typed.get("degree#0"), "refuses by design — nothing is typed here").toBeUndefined();
     expect(typed.get("subjectSearch#0")).toBe("business");
     expect(typed.get("subject#0")).toBe("Business Management");
     expect(typed.get("gradingSystemId#0")).toBe("7");
@@ -110,8 +135,48 @@ describe("the synthetic profile for Run A (P150)", () => {
     expect(typed.get("endMonth#0"), "a current job's end is empty").toBe("");
     // Nothing is handed to the student but the six document slots.
     expect(plan.handoffs.filter((h) => h.inputType !== "file")).toEqual([]);
-    // What the student reads: the whole preview builds and renders.
-    const preview = buildPreview(blueprint, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });
+    // ── And the THIRD stop: the student is never shown a yes to give ────
+    //
+    // `buildPreview` refuses an incomplete plan, so the run cannot reach the
+    // authorisation at all. Three independent refusals — plan, validator,
+    // preview — three steps before anything could be sent.
+    const refusedPreview = buildPreview(blueprint, plan, new Map(), { portalHost: "www.sheffield.ac.uk" });
+    expect(refusedPreview.built).toBe(false);
+    if (refusedPreview.built) expect.unreachable("expected the incomplete plan to be refused");
+    expect(refusedPreview.refusal.kind).toBe("plan_incomplete");
+
+    // The rest of this test is what the preview WOULD say once blocker 71 is
+    // closed, so the page's other twelve properties stay held rather than
+    // going dark behind one refusing field. Measured against a plan built with
+    // `degree` removed from the blueprint — never with a value put back into
+    // it, which would be re-creating the bug to make a test pass.
+    const withoutDegree = {
+      ...blueprint,
+      pages: blueprint.pages.map((page) => ({
+        ...page,
+        sections: page.sections.map((section) => ({
+          ...section,
+          // `unlistedDegree` goes with it: it is shown or hidden BY `degree`,
+          // and a condition naming a field the page does not have is itself
+          // refused (ADR-0119). Removing the pair is what "this page without
+          // the refusing box" means.
+          fields: section.fields.filter(
+            (field) => field.fieldRef !== "degree" && field.fieldRef !== "unlistedDegree",
+          ),
+        })),
+      })),
+    };
+    // The mapping goes with the field: `checkUsable` refuses a set that names
+    // a field the blueprint does not have, and rightly.
+    const openSet = {
+      ...asIfReviewed,
+      mappings: asIfReviewed.mappings.filter((mapping) => mapping.fieldRef !== "degree"),
+    };
+    const openCheck = checkUsable(openSet, withoutDegree);
+    if (!openCheck.usable) expect.unreachable(openCheck.refusal.detail);
+    const openPlan = planFill(withoutDegree, openCheck.mappingSet, profile);
+    expect(openPlan.blockers, "nothing else on this page blocks").toEqual([]);
+    const preview = buildPreview(withoutDegree, openPlan, new Map(), { portalHost: "www.sheffield.ac.uk" });
     if (!preview.built) expect.unreachable(preview.refusal.kind);
     const text = renderPreview(preview.preview);
     expect(text).toContain("University of Sheffield");
@@ -374,42 +439,44 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    // ── SIGNED A SIXTH TIME, 2026-09-25, commit f67ec69 ─────────────────
+    // ── THE INTERVAL AGAIN (P209): blocker 71's stop is in ──────────────
     //
     //   sha256:baca64a9…  16 September, the entry as first reviewed
     //   sha256:21060fca…  21 September 08:00, the consent notice (ADR-0131)
     //   sha256:3238406a…  21 September 12:00, six save locators by name
     //   sha256:56388e65…  22 September, the education months (ADR-0136)
     //   sha256:e2a10113…  22 September, ADR-0138 and ADR-0139 together
-    //   sha256:f13dff6d…  25 September, THIS one — the country maps
+    //   sha256:f13dff6d…  25 September, the country maps (signed, f67ec69)
+    //   sha256:be3b0ae0…  25 September, THIS one — `degree` refuses by design
     //
-    // What the sixth covers: the nine country option maps from 72 values to
-    // 2,088, derived from the portal's own captured lists or corroborated by
-    // its own code-valued selects, with 24 rulings of his on the
-    // disagreements; nine notes corrected from "PARTIAL map (eight
-    // countries)" to what each now carries; and the mapping set 0.3.34 →
-    // 0.3.35. Nothing else in the entry moved since `e2a10113`.
+    // The `degree` mapping's `option` rule became a `not_derivable` rule
+    // carrying its own reason, and the mapping set went 0.3.35 → 0.3.36. So
+    // the entry no longer hashes to `f13dff6d…` and the directory REFUSES to
+    // load it until Vahid computes `be3b0ae0…` himself.
     //
-    // He computed the hash himself before writing it, and the four spellings
-    // of one country are what he checked first: `IR:O`, `Iran, Islamic
-    // Republic of`, `IRAN:O`, `IRAN` — one country, four fields, the disagreement
-    // that started this line of work, now correct in the entry rather than in
-    // a reviewer's head. The `IR` assertions below are that check, held.
-    expect(labelledHash(toCanonical(value))).toBe("sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59");
+    // The refusal is the assertion, as it has been in every interval. What it
+    // is protecting here is worth naming: the content it refuses to load is
+    // content that STOPPED telling universities something untrue, and the gate
+    // does not care which direction a change goes. That is the property.
+    expect(labelledHash(toCanonical(value))).toBe("sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
-    // ONE approval on file: the voided one is gone, not merely outvoted.
+    expect(load.ok, "REFUSED until he signs the degree stop — ADR-0057 working").toBe(false);
+    if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:be3b0ae0",
+    );
+    // The superseded approval is still the only one on file, and it now
+    // approves content that no longer exists. It goes out in the SAME commit
+    // as the new one comes in — never left beside it.
     const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as {
       contentHash: string;
     }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
-    expect(approvals[0]?.contentHash).toBe(
+    expect(approvals[0]?.contentHash, "still the country one, now void").toBe(
       "sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59",
     );
-    // The four spellings, from the signed entry itself.
+    // The four spellings of Iran, from the entry itself: unchanged by this
+    // edit, and the reason the countries' signature was spent.
     const iranIn = (fieldRef: string): string => {
       const mapping = value.mappingSet.mappings.find((m) => m.fieldRef === fieldRef);
       let rule: unknown = (mapping?.source as { format?: unknown } | undefined)?.format;
@@ -456,19 +523,27 @@ describe("the catalogue entry for Run A (P152)", () => {
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
-    expect(code).toBe(0);
+    // ── EXIT 1, and the file says why (blocker 71, P209) ────────────────
+    //
+    // `degree` refuses by design, so the plan is incomplete and no preview is
+    // built. The command says so and exits non-zero, and the committed file is
+    // that output — because what this file is named for, *what will be typed*,
+    // is now honestly **nothing**: the run stops three steps earlier.
+    //
+    // Keeping a stale page of values here would be the most direct possible
+    // version of the defect this repository keeps finding — a record that says
+    // what was intended rather than what happens. The page-by-page read as it
+    // stood is in git history, and what Run A actually typed is recorded in
+    // `what-run-a-proved.md`.
+    expect(code, "the plan is incomplete, and the command does not pretend otherwise").toBe(1);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.35, reviewed by Vahid Mohammadi.");
-    // P153: the read's four label defects gone — the hidden selects are not
-    // "left empty", the radios read Yes/No, the date selects carry the row's question.
-    expect(output).not.toContain("institutionCode");
-    expect(output).toContain("Have you previously studied in the United Kingdom on a Student Visa?: Yes  (sent as \"yes\")");
-    expect(output).toContain("Date of Birth:*: April");
-    expect(output).not.toContain("dobMonth");
+    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.36, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("The plan has 1 blocker(s)");
+    expect(output).toContain("render_refused: degree");
+    // And it does NOT read as a filled page: nothing that would let someone
+    // skim this and believe the application is ready.
+    expect(output).not.toContain("Please select the qualification you studied:");
     expect(output).not.toContain("exactly what will be submitted");
-    expect(output).not.toContain("Sign in or start an application");
-    expect(output).toContain("Search for an institution...: University of Sheffield");
-    expect(output).toContain("Please select the qualification you studied:: Bachelors Degree");
   });
 });
 
@@ -559,7 +634,10 @@ describe("a country in the absent column, on the current build (P204)", () => {
     const { blueprint } = signed();
     const state = stateFor("IR");
     const plan = planFill(blueprint, (checkUsable(state.inputs.mappingSet, blueprint) as { mappingSet: Parameters<typeof planFill>[1] }).mappingSet, state.profile);
-    expect(plan.blockers).toEqual([]);
+    // No COUNTRY blocker. `degree` blocks on every plan now, by design.
+    expect(plan.blockers.flatMap((b) => (b.kind === "render_refused" ? [b.fieldRef] : []))).toEqual([
+      "degree",
+    ]);
   });
 
   for (const [code, country] of [["CW", "Curaçao"], ["AQ", "Antarctica"], ["BQ", "Caribbean Netherlands"]] as const) {
@@ -571,9 +649,12 @@ describe("a country in the absent column, on the current build (P204)", () => {
       const plan = planFill(blueprint, usableSet.mappingSet, state.profile);
 
       // ── The plan refuses ────────────────────────────────────────────────
-      expect(plan.blockers.map((blocker) => blocker.kind)).toEqual(["render_refused"]);
-      const refused = plan.blockers[0];
-      if (refused?.kind !== "render_refused") expect.unreachable("checked above");
+      // `degree` refuses on every plan now, by design (blocker 71), so this
+      // names the residence blocker rather than counting them.
+      const refused = plan.blockers.find(
+        (blocker) => blocker.kind === "render_refused" && blocker.fieldRef === "permanentResidence",
+      );
+      if (refused?.kind !== "render_refused") expect.unreachable("expected a residence refusal");
       expect(refused.fieldRef).toBe("permanentResidence");
       expect(refused.refusal.detail).toContain(`"${code}" is not one of this field's options`);
       // The standing rule, in the refusal's own words.

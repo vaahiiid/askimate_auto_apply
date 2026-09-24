@@ -4906,6 +4906,87 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P209 — the stop, with its own words; and the tool that ate its own evidence
+
+> *"Make the refusal say what is actually true… Whoever meets that stop should end up reading the
+> blocker, not reaching for the entry."*
+
+## The rule
+
+`not_derivable`: always refuses, carries its own reason. The catalogue parser **requires** that
+reason and rejects a short one — because the text is the mechanism here, not a comment on it.
+
+`degree`'s option map is now that rule. What the next person meets:
+
+```
+BLOCKER 71 — do not add rows here. This box asks for the AWARD TITLE the student
+holds: BA, BEd, BEng, BSc, MSc, one of Sheffield's forty-two. The registry holds a
+qualification's LEVEL ("Bachelor's degree"), and a level does not determine a title:
+a BA and a BSc are both bachelor's degrees. … The fix is not a wider map. The fix is
+for the registry to hold the award title as its own field, stated by the student and
+distinct from level; then this box is the student's recognition of the portal's own
+list, not our derivation. Until that exists this field refuses, and refusing is correct.
+```
+
+Measured on the entry: `render_refused` with `refusal.kind: not_derivable`, nothing typed, one
+validator violation, preview `plan_incomplete`.
+
+## The hash
+
+```
+sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd
+```
+
+Mapping set 0.3.35 → 0.3.36. Unsigned; the directory refuses and the test asserts the refusal. The
+gate does not care that this change makes the system *more* truthful — which is the property.
+
+## What `what-will-be-typed.md` says now
+
+The refusal, and the command exits 1. What will be typed today is **nothing**. Keeping a stale page
+of values under that filename would have been the most direct possible version of the defect this
+repository keeps finding: a record of what was intended rather than what happens.
+
+## The path out, written down
+
+`education.prior_qualifications` needs an **`award_title`** part of its own — the title as awarded,
+**stated by the student, distinct from `level`**. One is what they were given; the other is what
+kind of thing it is; a portal may ask for either. `level` keeps its own uses — `gradingSystemId`
+reads it, and reads it correctly.
+
+## And the census failure I could not read
+
+It was not only my `rm -rf`. **`scripts/census.ts` deleted its own report directory in a
+`finally`** — every run, including every red one, since P50. The artefact saying *why* a run failed
+was destroyed by the tool that made it, as a matter of routine. Nobody could ever have read that
+message.
+
+> *"You took an action that destroyed the evidence of what you were investigating."*
+
+Fixed: a green run cleans up, a red run keeps the report and prints its path. Three tests hold it
+— against source with comments stripped, because the first version matched its own explanation of
+the defect and went red against the fix, which is the same failure one level up. And
+`CLAUDE.md` gains the rule: **a cleanup that runs on the failure path destroys evidence — clean up
+on success only.**
+
+### It paid for itself on the very next red run
+
+The next census went red, kept its report, and the report said what nobody could say the day
+before: **PostgreSQL had died mid-run.** Thirty-one files reported *"No PostgreSQL at …"* and the
+four browser-lane files failed behind it — `local-stack-journey` among them, **the same file as the
+unreadable failure.**
+
+So P208's occurrence was very probably infrastructure dying, not the browser lane's contention, and
+filing it against blocker 67 was a guess dressed as an observation. **Withdrawn there.** A failure
+with no message got attributed to the nearest open blocker, which is how a blocker accumulates
+evidence it never earned.
+
+The green runs since leave no directory behind, which is the behavioural half the source tests
+cannot reach.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P208 — blocker 71: the map that tells a university something untrue
 
 > *"A level does not determine an award title, and the map silently claims it does. Every BA

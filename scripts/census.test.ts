@@ -188,3 +188,49 @@ describe("the test census", () => {
     ).toBeGreaterThan(1000);
   });
 });
+
+describe("a red run keeps its report (P209)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // `runSuite` used to end in `finally { rmSync(directory) }`, so the one
+  // artefact saying WHY a run failed was destroyed by the tool that made it —
+  // every time, including the times it mattered.
+  //
+  // It cost us on 2026-09-25: a census went red on
+  // `local-stack-journey.test.ts`, the report was gone before it could be
+  // read, and the only honest thing to record was that we did not know what
+  // failed. Vahid: *"you took an action that destroyed the evidence of what
+  // you were investigating… Make the report directory survive by default so
+  // the choice never arises again."*
+  //
+  // This reads the source, because the behaviour it guards happens inside a
+  // process that runs the whole suite and cannot be invoked from within it.
+  // A source assertion is weaker than a behavioural one and is said to be:
+  // what it can prove is that the unconditional delete is gone and the
+  // deletion is conditioned on a green run.
+  // ═══════════════════════════════════════════════════════════════════════
+  const raw = readFileSync(join(import.meta.dirname, "census.ts"), "utf8");
+  // COMMENTS STRIPPED, and the first version of this test is why: it matched
+  // its own explanation of the defect and went red against the fix. A check
+  // that reads prose is a check that can pass or fail for the wrong reason.
+  const source = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  it("does not delete the report directory in a `finally`", () => {
+    expect(source).not.toMatch(/finally\s*\{[^}]*rmSync/);
+  });
+
+  it("deletes it only when the run PASSED", () => {
+    const deletes = [...source.matchAll(/rmSync\(/g)];
+    expect(deletes, "exactly one place removes the directory").toHaveLength(1);
+    const before = source.slice(0, deletes[0]?.index ?? 0);
+    expect(before.slice(-120)).toContain("if (passed) {");
+  });
+
+  it("tells the reader where the kept report is, rather than leaving it to be found", () => {
+    // A directory that survives but is never named is only marginally better
+    // than one that is deleted: the next person still has to know to look.
+    expect(source).toContain("The failing run's report is KEPT");
+    expect(source, "and it names the path, not just the fact").toMatch(
+      /The failing run's report is KEPT[^`]*\$\{out\}/,
+    );
+  });
+});

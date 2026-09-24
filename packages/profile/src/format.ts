@@ -121,7 +121,42 @@ export type FormatRule =
   /** Money, as a decimal amount with no currency symbol. */
   | { readonly kind: "money_amount" }
   /** Money's currency code. */
-  | { readonly kind: "money_currency" };
+  | { readonly kind: "money_currency" }
+  /**
+   * A field this portal asks for that the registry HAS NO FACT FOR, so no
+   * rendering of what it does hold could be right. It always refuses, and it
+   * carries the reason it refuses.
+   *
+   * ── Why this exists, and why it is a rule rather than an absence ──────
+   *
+   * Sheffield's `degree` box wants an AWARD TITLE — `BA`, `BEd`, `BSc`, one
+   * of forty-two. The registry holds a qualification's LEVEL — *"Bachelor's
+   * degree"*. A level does not determine a title, and the map that claimed it
+   * did sent every BA student to a university as a BSc, silently: the plan had
+   * no blocker, the validator no violation, the preview built, and the
+   * read-back passed, because the value landed. It was simply wrong (blocker
+   * 71, found 2026-09-25).
+   *
+   * An empty `option` map produces the same STOP. Vahid chose this instead,
+   * and the reason is the whole point of the rule:
+   *
+   *   *"A stop whose message tells the next person to add rows teaches the bug
+   *   to whoever inherits it — and the person most likely to read that message
+   *   is someone under time pressure who will do exactly what it says."*
+   *
+   * An `option` rule with no options reads as an UNFINISHED map, and the
+   * refusal it produces says *"a specialist maps it, or the student is
+   * asked"* — which for this field is false twice over. This rule cannot be
+   * mistaken for unfinished, and its `reason` is carried verbatim into the
+   * refusal, so whoever meets the stop reads why no mapping can be right and
+   * where the fix actually is.
+   *
+   * It is NOT for a field that is merely unmapped, nor for one whose options
+   * a reviewer has not read yet. Those are thin maps, and they refuse for the
+   * students they do not cover while working for the ones they do. This is for
+   * a field where widening the map is the mistake.
+   */
+  | { readonly kind: "not_derivable"; readonly reason: string };
 
 /** The date notations seen on application portals. */
 export type DatePattern =
@@ -157,7 +192,16 @@ export type RenderRefusal =
   /** An item was asked of a value that is not a list (ADR-0103, gap 3). */
   | { readonly kind: "not_a_list"; readonly detail: string }
   /** An item the list does not have. */
-  | { readonly kind: "no_such_item"; readonly detail: string };
+  | { readonly kind: "no_such_item"; readonly detail: string }
+  /**
+   * The portal asks for a fact the registry does not hold (`not_derivable`).
+   *
+   * Separate from `no_matching_option` because the two ask for opposite
+   * things. A missing option says *this value is not in the list* — extend
+   * the list. This says *no list could help*: the value the portal wants was
+   * never collected, and mapping what was collected is the defect.
+   */
+  | { readonly kind: "not_derivable"; readonly detail: string };
 
 export type RenderResult =
   | { readonly rendered: true; readonly value: ConfirmedValue<string> }
@@ -214,6 +258,14 @@ function formatDate(date: Date, pattern: DatePattern): string {
  */
 function applyRule(value: unknown, rule: FormatRule): string | RenderRefusal {
   switch (rule.kind) {
+    // ── Always refuses, and says why (blocker 71) ──────────────────────
+    //
+    // Placed first because it consults the value for nothing: whatever the
+    // student gave, this field wants something else, and rendering what they
+    // gave is the defect this rule exists to stop.
+    case "not_derivable":
+      return { kind: "not_derivable", detail: rule.reason };
+
     case "text":
       return typeof value === "string"
         ? value

@@ -753,6 +753,7 @@ function readFormatRule(value: unknown, path: string): FormatRule {
   const source = record(value, path);
   const kind = oneOf(source, "kind", path, [
     "text", "uppercase", "date", "part", "join", "option", "number", "money_amount", "money_currency", "uk_postcode",
+    "not_derivable",
   ] as const);
 
   switch (kind) {
@@ -790,6 +791,21 @@ function readFormatRule(value: unknown, path: string): FormatRule {
     }
     case "uk_postcode":
       return { kind, part: oneOf(source, "part", path, ["outward", "inward"] as const) };
+    case "not_derivable": {
+      // The reason is REQUIRED and must be substantial. This rule's whole
+      // purpose is that whoever meets the stop reads why no mapping can be
+      // right; an empty or one-word reason would leave them exactly where an
+      // empty option map leaves them, which is what it replaces (blocker 71).
+      const reason = text(source, "reason", path);
+      if (reason.length < 40) {
+        fail(
+          `${path}.reason`,
+          "expected a reason that says what fact is missing and why no mapping can be right — " +
+            "this text is what the next person reads instead of adding rows",
+        );
+      }
+      return { kind, reason };
+    }
     case "text":
     case "uppercase":
     case "number":

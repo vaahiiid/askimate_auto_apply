@@ -229,14 +229,26 @@ describe("the Sheffield drafts, under the real checks", () => {
     expect(valueOf("gradingSystemId")).toBe("7");
     expect(typed("gradingSystemId")?.optionsAfter?.fieldRef).toBe("institution-ts-control");
     expect(valueOf("grade")).toBe("2.1");
-    expect(valueOf("degree")).toBe("BSc");
+    // REFUSES by design since 2026-09-25 (blocker 71): the box wants an award
+    // title and the registry holds a level, so nothing is typed here and the
+    // page cannot be completed. It read "BSc" until then — which is the bug,
+    // not the baseline.
+    expect(valueOf("degree")).toBeUndefined();
+    const refusedDegree = plan.blockers.find((b) => b.fieldRef === "degree");
+    expect(refusedDegree?.kind).toBe("render_refused");
     // The hidden selects are neither typed nor blocking: the boxes set them.
     for (const ref of ["institutionCountry", "institutionCode"]) {
       expect(plan.instructions.some((i) => i.fieldRef === ref), ref).toBe(false);
       expect(plan.blockers.some((b) => b.fieldRef === ref), ref).toBe(false);
     }
     const onPage7 = new Set(blueprint.pages.find((p) => p.pageRef === "page7")?.sections.flatMap((s) => s.fields.map((f) => f.fieldRef)) ?? []);
-    expect(plan.blockers.filter((b) => onPage7.has(b.fieldRef))).toEqual([]);
+    // `degree` is the ONE box on this page that blocks, and by design (blocker
+    // 71). Everything else plans cleanly for this profile — `institution` and
+    // `subject` included, because the synthetic student's values are the one
+    // row each of those maps holds.
+    expect(
+      [...new Set(plan.blockers.filter((b) => onPage7.has(b.fieldRef)).map((b) => b.fieldRef))].sort(),
+    ).toEqual(["degree"]);
     expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCountry");
     expect(plan.unmapped.map((u) => u.fieldRef)).not.toContain("institutionCode");
     // What the maps do not name is a loud blocker on that box, never an
@@ -245,10 +257,15 @@ describe("the Sheffield drafts, under the real checks", () => {
     // grade on a Sheffield entry, a subject the one search did not list.
     const refusedOn = (profile: ReturnType<typeof sheffield>) =>
       planFill(blueprint, check.mappingSet, profile).blockers.filter((b) => b.kind === "render_refused").map((b) => b.fieldRef).sort();
-    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["institution-ts-control"]);
-    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["gradingSystemId"]);
-    expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["grade"]);
-    expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["subject", "subjectSearch"]);
+    // `degree` is in EVERY row below, and that is the point of blocker 71: it
+    // refuses for every student, not only the ones a thin map misses. These
+    // four rows are still what they were — each names the box that its own
+    // change makes unmappable — with the one that refuses unconditionally
+    // alongside.
+    expect(refusedOn(sheffield({ institution: "Sharif University of Technology", countryCode: "IR" }))).toEqual(["degree", "institution-ts-control"]);
+    expect(refusedOn(sheffield({ level: "Master's degree" }))).toEqual(["degree", "gradingSystemId"]);
+    expect(refusedOn(sheffield({ grade: "17.2" }))).toEqual(["degree", "grade"]);
+    expect(refusedOn(sheffield({ subject: "Industrial Engineering" }))).toEqual(["degree", "subject", "subjectSearch"]);
   });
 
   it("fill a qualification's dates once per item — the expected end of one still running, the award boxes empty when there is none (P134, ADR-0112)", () => {
@@ -272,10 +289,19 @@ describe("the Sheffield drafts, under the real checks", () => {
     // P185: "Sep" and "Jun" until attempt 8 met the portal's refusal — this select's
     // own names are Sept and June, as the 2026-09-10 capture recorded (ADR-0136).
     expect(typed(0)).toEqual({ startDateMonth: "Sept", startDateYear: "2018", endDateMonth: "June", endDateYear: "2022", awardDateMonth: "Nov", awardDateYear: "2022" });
-    // P148 (ADR-0119): the degree, required to save, typed per qualification from the
-    // synthetic profile's level onto Sheffield's own award title; the unlisted box hidden.
+    // P148 (ADR-0119) asserted the degree was typed per qualification, from the
+    // profile's LEVEL onto Sheffield's own award title. That mapping was the
+    // defect (blocker 71): a level does not determine a title. It refuses per
+    // item now, and refusing per item is the property worth holding — the
+    // repeat machinery still reaches every entry, it just has nothing honest
+    // to write in this box for any of them.
     const degrees = plan.instructions.filter((i) => i.fieldRef === "degree").map((i) => [i.item?.index, textOf(i.value)]);
-    expect(degrees).toEqual([[0, "BSc"], [1, "MSc"]]);
+    expect(degrees).toEqual([]);
+    // Two blockers, one per qualification — the repeat machinery reaches both
+    // entries. They carry no item index, which is how `render_refused` is
+    // built today; the count is what this asserts, and it is enough to show
+    // the refusal is per item rather than once for the page.
+    expect(plan.blockers.filter((b) => b.fieldRef === "degree")).toHaveLength(2);
     expect(plan.instructions.some((i) => i.fieldRef === "unlistedDegree")).toBe(false);
     expect(plan.hidden.filter((h) => h.fieldRef === "unlistedDegree").map((h) => h.item?.index)).toEqual([0, 1]);
     expect(plan.handoffs.some((h) => h.fieldRef === "degree")).toBe(false);
@@ -391,7 +417,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.28");
-    expect(mappingSet.version).toBe("0.3.35");
+    expect(mappingSet.version).toBe("0.3.36");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");

@@ -333,3 +333,35 @@ describe("a date rendered then mapped (P142)", () => {
     expect(refused.rendered ? "rendered" : refused.refusal.kind).toBe("no_matching_option");
   });
 });
+
+describe("a field the registry has no fact for (not_derivable, blocker 71)", () => {
+  const REASON =
+    "This box asks for the award TITLE (BA, BSc, BEng…). The registry holds the qualification's " +
+    "LEVEL, and a level does not determine a title.";
+
+  it("ALWAYS refuses, whatever the student gave, and carries the reason verbatim", () => {
+    // The value is beside the point: this field wants something the registry
+    // never collected, so rendering what it did collect is the defect.
+    for (const value of ["Bachelor's degree", "Master's degree", "", "BSc"]) {
+      const result = renderConfirmed(confirmed("identity.nationality", value), {
+        kind: "not_derivable",
+        reason: REASON,
+      });
+      if (result.rendered) expect.unreachable(`rendered "${value}" — nothing here may render`);
+      expect(result.refusal.kind).toBe("not_derivable");
+      expect(result.refusal.detail).toBe(REASON);
+    }
+  });
+
+  it("is NOT `no_matching_option` — the two ask for opposite things", () => {
+    // A missing option says "this value is not in the list", and the fix is to
+    // extend the list. This says "no list could help", and extending one is
+    // the mistake. Vahid: "a stop whose message tells the next person to add
+    // rows teaches the bug to whoever inherits it."
+    const result = renderConfirmed(confirmed("identity.nationality", "Bachelor's degree"), {
+      kind: "not_derivable",
+      reason: REASON,
+    });
+    expect(result.rendered ? "rendered" : result.refusal.kind).not.toBe("no_matching_option");
+  });
+});
