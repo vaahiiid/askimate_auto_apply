@@ -3,13 +3,17 @@
     "Vahid's reading of the country-mapping review page, recorded so the derivation stops",
     "asking him what he has answered and can never re-offer what he refused.",
     "",
+    "A HOLD names no option, deliberately: it says this CODE is not applied on this field,",
+    "whichever pass found something for it — the proposer, the portal's own code list, or the",
+    "strict match. P205 found that last one being missed: CY matched two lists EXACTLY and was",
+    "settled as derived, where no decision looked.",
+    "",
     "A REJECT names the option he refused, not just the code: if the derivation ever finds a",
     "DIFFERENT option for that country it is a new proposal and he sees it. A reject is belt",
     "and braces over the raised bar (P203) — the bar already stops both of these, and the",
     "record holds if anyone ever loosens it.",
     "",
-    "Read by scripts/derive-country-mappings.ts. Nothing here is applied to the entry: that",
-    "still takes his signature on the whole set."
+    "Read by scripts/derive-country-mappings.ts."
   ],
   "decidedBy": "Vahid Mohammadi",
   "decisions": [
@@ -156,6 +160,22 @@
       "option": "Virgin Islands (US)",
       "on": "2026-09-24",
       "reason": "\"UM is the Minor Outlying Islands and is not that option — leave UM unproposed rather than finding it something.\""
+    },
+    {
+      "code": "MF",
+      "fieldRef": "fundingNationality",
+      "verdict": "hold",
+      "blocker": 66,
+      "on": "2026-09-25",
+      "reason": "The ISO-valued lists carry \"Saint Martin\" (MF:O) and no Sint Maarten at all; what they offer for that corner is AN:E \"Netherlands Antilles\", a state dissolved in 2010 and not in ISO 3166-1. \"Hold MF on those two as well. Same reason as CY. Applying it there maps the French half and leaves the Dutch half of one island with nothing, on a field my hold does not name only because I did not know the pass reached it. The asymmetry is the defect; its arriving by a different route does not make it a different thing.\""
+    },
+    {
+      "code": "MF",
+      "fieldRef": "countryOfBirth",
+      "verdict": "hold",
+      "blocker": 66,
+      "on": "2026-09-25",
+      "reason": "The ISO-valued lists carry \"Saint Martin\" (MF:O) and no Sint Maarten at all; what they offer for that corner is AN:E \"Netherlands Antilles\", a state dissolved in 2010 and not in ISO 3166-1. \"Hold MF on those two as well. Same reason as CY. Applying it there maps the French half and leaves the Dutch half of one island with nothing, on a field my hold does not name only because I did not know the pass reached it. The asymmetry is the defect; its arriving by a different route does not make it a different thing.\""
     }
   ]
 }

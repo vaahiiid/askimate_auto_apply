@@ -391,7 +391,7 @@ describe("the Sheffield drafts, under the real checks", () => {
 
   it("fill the employment page once per job from the registry group, and leave the end date empty for a current job (P129, ADR-0111)", () => {
     expect(blueprint.version).toBe("0.2.28");
-    expect(mappingSet.version).toBe("0.3.34");
+    expect(mappingSet.version).toBe("0.3.35");
     const employment = blueprint.pages.find((p) => p.pageRef === "page8");
     expect(employment?.repeats?.fieldKey).toBe("employment.history");
     expect(employment?.title).toBe("Employment history");
@@ -621,9 +621,16 @@ describe("the Sheffield drafts, under the real checks", () => {
   it("refuse to render a country the partial map does not name, rather than approximate", () => {
     const check = checkUsable(asIfReviewed, blueprint);
     if (!check.usable) expect.unreachable(check.refusal.kind);
+    // `FR` until P206, which put 231 countries into this map — France among
+    // them. `CY` is the country the map still does not name, and deliberately:
+    // Vahid HELD it on every field under blocker 70, because Sheffield offers
+    // several Cypruses carrying a fee-status marker and only a student can say
+    // which. So this is now the stronger version of the same check — the map
+    // refuses a country it could have guessed at, not merely one nobody
+    // reached yet.
     const elsewhere = withConfirmed([
       ...PROFILE_ENTRIES.filter(([key]) => key !== "contact.address"),
-      ["contact.address", { line1: "1 Rue Example", city: "Lyon", postalCode: "69001", countryCode: "FR" }],
+      ["contact.address", { line1: "1 Leoforos Example", city: "Nicosia", postalCode: "1010", countryCode: "CY" }],
     ]);
     const plan = planFill(blueprint, check.mappingSet, elsewhere);
     const refused = plan.blockers.find((b) => b.kind === "render_refused");

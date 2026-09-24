@@ -651,7 +651,114 @@ function cell(text: string): string {
   return text.replace(/\|/g, "\\|");
 }
 
-export function reviewPage(derivations: readonly Derivation[]): string {
+/** One ruled code on one field, and which pass actually reached it. */
+export interface PassAudit {
+  readonly code: string;
+  readonly name: string;
+  readonly fieldRef: string;
+  readonly verdict: string;
+  /** The pass that found something for it when the decisions are taken away. */
+  readonly reachedBy: "strict match" | "portal corroboration" | "proposer" | "nothing";
+  /** What that pass had found, so a hold that stops nothing is visible as that. */
+  readonly wouldHaveBeen: string;
+  /** What the entry now carries for this code on this field, or null. */
+  readonly applied: string | null;
+  /**
+   * Whether what is applied CONTRADICTS the ruling.
+   *
+   * Not the same as `applied !== null`, and the difference is the whole reason
+   * this column is computed rather than eyeballed. A **hold** names no option,
+   * so anything applied contradicts it. A **reject** names one, so a value is
+   * a contradiction only when it IS that option: `MP` was refused as *Northern
+   * Ireland*, and the portal's own *Northern Mariana Islands* option is a
+   * different fact that the reject was never meant to suppress.
+   *
+   * The first version of this table called all three `MP` rows *WRONG* on
+   * `applied !== null` alone. They are correct. A wrong label is worse than
+   * none, so the judgement is made here, against what was actually ruled.
+   */
+  readonly contradicts: boolean;
+}
+
+/** The portal option a settled submitted value came from, for the audit. */
+function offeredFor(derivation: Derivation, value: string | null): PortalOption | null {
+  if (value === null) return null;
+  const strict = derivation.matched.find((m) => m.option.value === value);
+  if (strict !== undefined) return strict.option;
+  const row = derivation.unmatched.find((u) => u.candidate?.value === value);
+  return row?.candidate ?? null;
+}
+
+/**
+ * Every hold and every reject, and WHICH PASS reached it.
+ *
+ * Vahid asked for this after P205, and the reason is the reason it belongs on
+ * the page rather than in a phase note: his hold on `CY` was bypassed because
+ * the decisions ran over the proposer's output and the strict match never
+ * passed through them. One table where a hold that is not actually stopping
+ * anything shows up as `nothing`, and a hold that IS stopping something names
+ * the pass it stopped.
+ *
+ * Measured by deriving each field TWICE — once with his decisions and once
+ * with none — so `reachedBy` is what the passes really did, not what the
+ * current branch claims.
+ */
+export function passAudit(
+  entryJson: string,
+  decisions: readonly ReviewedDecision[],
+): readonly PassAudit[] {
+  const decided = derivationsFrom(entryJson, decisions);
+  const undecided = derivationsFrom(entryJson, []);
+  const rows: PassAudit[] = [];
+  for (const decision of decisions) {
+    if (decision.verdict !== "hold" && decision.verdict !== "reject") continue;
+    const fields =
+      decision.fieldRef === "*" ? COUNTRY_FIELD_REFS : [decision.fieldRef];
+    for (const fieldRef of fields) {
+      const raw = undecided.find((d) => d.fieldRef === fieldRef);
+      const settled = decided.find((d) => d.fieldRef === fieldRef);
+      if (raw === undefined || settled === undefined) continue;
+      // A field-specific verdict overrides a `*` one, so a `*` row for a field
+      // he later ruled on separately is not this decision's row to report.
+      const governing =
+        decisions.find((d) => d.code === decision.code && d.fieldRef === fieldRef) ??
+        decisions.find((d) => d.code === decision.code && d.fieldRef === "*");
+      if (governing !== decision) continue;
+      const strict = raw.matched.find((m) => m.country.code === decision.code);
+      const candidate = raw.unmatched.find((u) => u.country.code === decision.code);
+      const reachedBy: PassAudit["reachedBy"] =
+        strict !== undefined
+          ? "strict match"
+          : candidate?.kind === "portal_corroborated"
+            ? "portal corroboration"
+            : candidate?.kind === "name_resemblance"
+              ? "proposer"
+              : "nothing";
+      const applied = settledOptions(settled)[decision.code] ?? null;
+      const option = offeredFor(settled, applied);
+      rows.push({
+        code: decision.code,
+        name: strict?.country.name ?? candidate?.country.name ?? decision.code,
+        fieldRef,
+        verdict: decision.verdict,
+        reachedBy,
+        wouldHaveBeen: strict?.option.value ?? candidate?.candidate?.value ?? "—",
+        applied,
+        contradicts:
+          applied !== null &&
+          (decision.verdict === "hold" ||
+            decision.option === undefined ||
+            (option !== null && fold(option.label) === fold(decision.option))),
+      });
+    }
+  }
+  return rows;
+}
+
+export function reviewPage(
+  derivations: readonly Derivation[],
+  audit: readonly PassAudit[] = [],
+): string {
   const out: string[] = [];
   const kindOf = (d: Derivation, kind: CandidateKind): readonly Unmatched[] =>
     d.unmatched.filter((entry) => entry.kind === kind);
@@ -666,6 +773,46 @@ export function reviewPage(derivations: readonly Derivation[]): string {
   out.push("Blocker 69. The signed entry carries **8 countries of 249**. This is what it takes to");
   out.push("carry the rest, split the way you asked: derive the code-valued fields, read the");
   out.push("disagreements on the name-valued ones.");
+  out.push("");
+  out.push("## READ THIS FIRST — what this page does not print, and what that cost");
+  out.push("");
+  out.push("**A zero in the column you are reading is not a zero in the columns you are not.**");
+  out.push("");
+  out.push("On 2026-09-25, one step before the entry was signed, the maps were written and read");
+  out.push("back. Two fields carried `CY` → `CYPRUS`.");
+  out.push("");
+  out.push("Vahid had held `CY` on **every** field under blocker 70, because Sheffield's lists");
+  out.push("encode a fee status the registry has no field for. The hold was not applied.");
+  out.push("`corrCountry` and `institutionCountry` offer **both** `Cyprus` (`CYPRUS`) and `Cyprus");
+  out.push("(European Union)` (`CYPRUS (EUROPEAN UNION)`). The strict pass matched `CYPRUS`");
+  out.push("**exactly** and settled it as *derived* — and the reviewed decisions ran only over the");
+  out.push("proposer's output. **A hold guarded the guesses and had nothing to say about the");
+  out.push("matches.**");
+  out.push("");
+  out.push("What that would have done, plainly: **every Cypriot student sent `CYPRUS`, the option");
+  out.push("that states no fee status, chosen by a string match, on the exact question blocker 70");
+  out.push("exists to say we cannot answer.**");
+  out.push("");
+  out.push("This page said *proposed 0*, and that was true. `CY` was never proposed on those");
+  out.push("fields — it was matched, and matches are the one pass this page prints as a count");
+  out.push("rather than in full. Nothing here was wrong; it was answering a narrower question than");
+  out.push("the one being asked of it.");
+  out.push("");
+  out.push("Two things changed, and both are load-bearing:");
+  out.push("");
+  out.push("- A **hold** now suppresses a strict match as well as a candidate, because a hold names");
+  out.push("  no option and means *this code is not applied on this field*, whichever pass found");
+  out.push("  it. A **reject** still does not, unless the match IS the option it names — a real");
+  out.push("  *Northern Mariana Islands* option is a new fact, not the *Northern Ireland* that was");
+  out.push("  refused.");
+  out.push("- The table below audits every hold and every reject against the pass that reached it,");
+  out.push("  so a hold that is stopping nothing is visible as stopping nothing.");
+  out.push("");
+  out.push("**What is still summarised rather than printed:** the strict matches, ~205–235 rows a");
+  out.push("field, shown as a count plus every 25th row. That was asked for — *\"not 249 lines to");
+  out.push("approve blind\"* — and it remains the shape of what you are trusting rather than");
+  out.push("reading. The defect was never the summary; it was that a decision could not reach what");
+  out.push("the summary covered. It can now.");
   out.push("");
   out.push("## How a row got where it is");
   out.push("");
@@ -706,6 +853,56 @@ export function reviewPage(derivations: readonly Derivation[]): string {
   out.push("no option already taken by another country can be proposed at all, and any option");
   out.push("proposed for two countries is withdrawn from both and shown as a collision.");
   out.push("");
+  if (audit.length > 0) {
+    out.push("## Every hold and every reject, and which pass reached it");
+    out.push("");
+    out.push("Measured by deriving each field twice — once with your decisions, once with none —");
+    out.push("so **reached by** is what the passes actually did. `nothing` means the derivation");
+    out.push("would have found no candidate at all there, so the ruling is stopping nothing on");
+    out.push("that field and is belt and braces.");
+    out.push("");
+    out.push("**applied** is what the entry now carries. A **hold** names no option, so anything");
+    out.push("applied contradicts it. A **reject** names one, so a value is a contradiction only");
+    out.push("when it IS that option — `MP` was refused as *Northern Ireland*, and the portal's own");
+    out.push("*Northern Mariana Islands* option is a different fact the reject was never meant to");
+    out.push("suppress. The first version of this table got that wrong and flagged all three `MP`");
+    out.push("rows; the judgement is now made against what was actually ruled.");
+    out.push("");
+    out.push(
+      table(
+        audit.map((row) => [
+          `\`${cell(row.code)}\``,
+          cell(row.name),
+          `\`${cell(row.fieldRef)}\``,
+          row.verdict,
+          row.reachedBy === "strict match" ? "**strict match**" : row.reachedBy,
+          row.wouldHaveBeen === "—" ? "—" : `\`${cell(row.wouldHaveBeen)}\``,
+          row.applied === null ? "nothing" : `\`${cell(row.applied)}\``,
+          row.contradicts ? "**CONTRADICTS THE RULING**" : "ok",
+        ]),
+        ["code", "country", "field", "verdict", "reached by", "would have carried", "applied", ""],
+      ),
+    );
+    out.push("");
+    const broken = audit.filter((row) => row.contradicts);
+    out.push(
+      broken.length === 0
+        ? "**No ruling is contradicted by what the entry carries.**"
+        : `**${String(broken.length)} RULINGS ARE CONTRADICTED** — ` +
+          `${broken.map((row) => `\`${row.code}\` on \`${row.fieldRef}\``).join(", ")}.`,
+    );
+    out.push("");
+    const strict = audit.filter((row) => row.reachedBy === "strict match");
+    out.push(
+      strict.length === 0
+        ? "No ruling is reached by the strict match on any field."
+        : `**${String(strict.length)}** of these are reached by the strict match — the pass that ` +
+          "bypassed the decisions until P205: " +
+          `${strict.map((row) => `\`${row.code}\` on \`${row.fieldRef}\``).join(", ")}.`,
+    );
+    out.push("");
+  }
+
   out.push("## What the portal has, before a single line is read");
   out.push("");
   out.push(
@@ -1015,8 +1212,9 @@ export function applyToEntry(
 
 function main(): void {
   const entryJson = readFileSync(ENTRY, "utf8");
-  const derivations = derivationsFrom(entryJson, decisionsFrom(readFileSync(DECISIONS, "utf8")));
-  writeFileSync(PAGE, reviewPage(derivations), "utf8");
+  const decisions = decisionsFrom(readFileSync(DECISIONS, "utf8"));
+  const derivations = derivationsFrom(entryJson, decisions);
+  writeFileSync(PAGE, reviewPage(derivations, passAudit(entryJson, decisions)), "utf8");
 
   // `apply` is a separate word because it spends a signature. Deriving and
   // reading are free; writing the maps into the entry moves its content hash,

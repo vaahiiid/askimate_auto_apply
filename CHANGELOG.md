@@ -19,6 +19,37 @@ not shipped artefacts.
 
 ---
 
+## [0.202.0] — 2026-09-25
+
+**P206 — the country maps are in the entry, and the hash is Vahid's to compute.**
+
+- **Recorded** his decision in his own words: `MF` held on `fundingNationality` and
+  `countryOfBirth` as well — *"the asymmetry is the defect; its arriving by a different route does
+  not make it a different thing."* Six `hold` verdicts for `MF`; applied only on
+  `permanentResidence`, the one list that splits the island.
+- **Applied** the settled maps: nine country option maps, **72 → 2,088 values** (net **+2,016**),
+  mapping set **0.3.34 → 0.3.35**. The entry now hashes to
+  `sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59` and the directory
+  **refuses to load it** until that is in `approvals.json` — asserted, not softened.
+- **Corrected** nine mapping notes that still claimed *"PARTIAL map (eight countries)"* before the
+  hash was computed: a signature over a false statement is worse than no signature. The draft in
+  `docs/captures` was brought back in step so the entry cannot drift from it unnoticed.
+- **Added** to the review page a permanent audit of **every hold and every reject against the pass
+  that reached it**, derived twice — once with the decisions, once with none — with a column
+  saying whether what the entry carries contradicts the ruling. **7 of 24 rulings are reached by
+  the strict match.**
+- **Fixed, inside that addition:** its first version judged a contradiction as *anything applied*
+  and flagged all three `MP` rows as wrong. They are correct — a reject names an option, so only
+  that option contradicts it; a hold names none, so anything does.
+- **Recorded** the CY catch as a finding of its own (§4a of the state doc) with the sentence at the
+  top of the review page: *a zero in the column you are reading is not a zero in the columns you
+  are not.*
+- **Measured and recorded against blocker 25:** of 91 mappings, 45 carry an option rule; the review
+  page covers 9. Of the other 36, **29 are complete** and **6 are partial** — 10 values against
+  161 offered, all on the education page, each already carrying a note that says so.
+
+---
+
 ## [0.201.0] — 2026-09-24
 
 **P205 — a hold reaches the strict match too, found one step before the hash.**

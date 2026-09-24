@@ -21,6 +21,7 @@ import {
   optionsFromEntry,
   portalAliases,
   portalLabelsForCodes,
+  passAudit,
   reviewPage,
   settledOptions,
   shapeOf,
@@ -153,7 +154,8 @@ describe("the reviewed Sheffield entry, derived", () => {
 
 describe("the page", () => {
   it("is deterministic — the same derivation writes the same bytes", () => {
-    const derive = (): string => reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS));
+    const derive = (): string =>
+      reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS), passAudit(ENTRY, COMMITTED_DECISIONS));
     expect(derive()).toBe(derive());
   });
 
@@ -165,14 +167,19 @@ describe("the page", () => {
       join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-review.md"),
       "utf8",
     );
-    const fresh = reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS));
+    const fresh = reviewPage(
+      derivationsFrom(ENTRY, COMMITTED_DECISIONS),
+      passAudit(ENTRY, COMMITTED_DECISIONS),
+    );
     expect(committed, "run `pnpm run country-mappings`").toBe(fresh);
   });
 
   it("says what the portal offers before asking him to read anything", () => {
     const page = reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS).slice(0, 1));
     expect(page).toContain("What the portal has, before a single line is read");
-    expect(page).toContain("| `fundingNationality` | ISO codes | 242 | 235 |");
+    // 234, not 235: Vahid held `MF` here on 2026-09-25, because the list
+    // carries Saint Martin and no Sint Maarten at all (blocker 66).
+    expect(page).toContain("| `fundingNationality` | ISO codes | 242 | 234 |");
   });
 });
 
@@ -519,8 +526,13 @@ describe("writing the settled maps into the entry (P205)", () => {
 
   it("changes the nine option maps and NOTHING else in the entry", () => {
     const { text, before, after } = applyToEntry(ENTRY, derivations());
-    expect(before, "the eight-country maps the entry was signed with").toBe(72);
-    expect(after).toBeGreaterThan(2000);
+    // IDEMPOTENT since P206 applied it: the entry already carries the settled
+    // maps, so a re-run must move nothing. Before P206 this read 72 → 2,088;
+    // that it now reads 2,088 → 2,088 is the property worth holding, because
+    // an apply that drifted on a second run would move the hash under a
+    // signature.
+    expect(after, "the settled maps Vahid signed").toBe(2088);
+    expect(before, "applying twice moves nothing").toBe(after);
     // Blank every option map on both sides: what is left must be identical, so
     // the hash this produces differs from the signed one by the countries
     // alone. The whole point of the signature Vahid is spending.
@@ -574,6 +586,68 @@ describe("writing the settled maps into the entry (P205)", () => {
         applied.mappingSet.mappings.some((m) => m.fieldRef === ref),
         ref,
       ).toBe(true);
+    }
+  });
+});
+
+describe("the pass audit — every ruling, and what actually reached it (P206)", () => {
+  const audit = () => passAudit(ENTRY, COMMITTED_DECISIONS);
+
+  it("finds NOTHING that contradicts a ruling", () => {
+    // The whole point of the table. A hold names no option, so anything
+    // applied contradicts it; a reject names one, so only that option does.
+    const broken = audit().filter((row) => row.contradicts);
+    expect(
+      broken.map((row) => `${row.code} on ${row.fieldRef} carries ${String(row.applied)}`),
+    ).toEqual([]);
+  });
+
+  it("covers every hold and every reject on every field they reach", () => {
+    const rows = audit();
+    for (const decision of COMMITTED_DECISIONS) {
+      if (decision.verdict !== "hold" && decision.verdict !== "reject") continue;
+      const fields =
+        decision.fieldRef === "*"
+          ? COUNTRY_FIELD_REFS.filter(
+              (ref) =>
+                !COMMITTED_DECISIONS.some((d) => d.code === decision.code && d.fieldRef === ref),
+            )
+          : [decision.fieldRef];
+      for (const fieldRef of fields) {
+        expect(
+          rows.some((row) => row.code === decision.code && row.fieldRef === fieldRef),
+          `${decision.code} on ${fieldRef}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("still reports rulings reached by the STRICT MATCH, so the column keeps doing work", () => {
+    // If this ever goes to zero it means either the entry changed or the audit
+    // stopped measuring, and the second is the one that matters: a column that
+    // can only ever say one thing is not a check (CLAUDE.md).
+    const strict = audit().filter((row) => row.reachedBy === "strict match");
+    expect(strict.length).toBeGreaterThan(0);
+    // CY on the two lists that offer a bare `Cyprus`, which is the case that
+    // was found applying P204, and MF on the two ISO lists, which is the case
+    // Vahid then ruled on. MP is here too and is CORRECT: a reject on a
+    // different option.
+    const held = strict.filter((row) => row.verdict === "hold").map((row) => `${row.code}/${row.fieldRef}`);
+    expect(held.sort()).toEqual([
+      "CY/corrCountry",
+      "CY/institutionCountry-ts-control",
+      "MF/countryOfBirth",
+      "MF/fundingNationality",
+    ]);
+  });
+
+  it("says a ruling that stops nothing stops nothing, rather than implying it saved something", () => {
+    const rows = audit();
+    const tf = rows.filter((row) => row.code === "TF");
+    expect(tf.length, "TF was refused on every field").toBe(6);
+    for (const row of tf) {
+      expect(row.reachedBy, `${row.fieldRef}`).toBe("nothing");
+      expect(row.wouldHaveBeen).toBe("—");
     }
   });
 });

@@ -4906,6 +4906,108 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P206 — the countries are in, and the hash is his to compute
+
+> *"Hold MF on those two as well. 2,088. Same reason as CY… The asymmetry is the defect; its
+> arriving by a different route does not make it a different thing."*
+
+Six `hold` verdicts for `MF` now, applied only on `permanentResidence` — the one list that splits
+the island.
+
+## The hash
+
+```
+sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59
+```
+
+Check it with `pnpm run catalogue hash docs/run-a/catalogue/entries/sheffield-pgt-2027-09.json`.
+Until it is in `approvals.json` the directory refuses to load the entry, and
+`scripts/run-a-profile.test.ts` asserts that refusal rather than going quiet.
+
+| | |
+|---|---|
+| Country option maps | 9 |
+| Values before | 72 |
+| Values after | **2,088** |
+| Net | **+2,016** |
+| Mapping set | 0.3.34 → **0.3.35** |
+
+**Nine notes were corrected before the hash was computed.** They still said *"PARTIAL map (eight
+countries)"*, which had just stopped being true. A signature over a false statement is worse than
+no signature, so they now say what each map carries and which codes are held under which blocker.
+The draft in `docs/captures` was brought back in step, so the entry still cannot drift from it
+unnoticed.
+
+## Your first question: re-check every hold and reject, and say which pass reached each
+
+Measured by deriving each field twice — once with the decisions, once with none — and now a
+permanent table on the review page rather than an answer in a message. **7 of the 24 rulings are
+reached by the strict match:**
+
+| | |
+|---|---|
+| `CY` on `corrCountry`, `institutionCountry` | hold — **the defect**, now stopped |
+| `MF` on `fundingNationality`, `countryOfBirth` | hold — **what you have just ruled on** |
+| `MP` on `fundingNationality`, `countryOfBirth`, `permanentResidence` | reject — **and correct** |
+
+So the honest restatement: **`CY` was not the only one reached by that pass.** It was the only one
+where being reached by it was a *defect*. `MP` was rejected as *Northern Ireland*; the portal's own
+*Northern Mariana Islands* option is a different fact the rejection was never meant to suppress,
+and it is right that it applies. `MF`'s two were the same shape as `CY` and are now held.
+
+**A correction inside the correction.** The first version of that table judged a contradiction as
+*anything applied* and flagged all three `MP` rows as **WRONG**. They are correct. A hold names no
+option, so anything applied contradicts it; a reject names one, so only that option does. A wrong
+label is worse than none, and the judgement is now made against what was actually ruled. The table
+says **no ruling is contradicted**, and a test holds that.
+
+## Your second question: what else was settled by a pass the page does not print
+
+Two layers, and the second is the one worth your attention.
+
+**Inside the country work — one pass, and it is the biggest.** The strict matches, ~205–234 rows a
+field, printed as a count plus every 25th row. That is what you asked for in P200 — *"not 249 lines
+to approve blind"* — and it was never the defect. The defect was that a decision could not reach
+what the summary covered. It can now, and the audit table above says so per ruling.
+
+**Outside it — the page covers 9 of 91 mappings.** Measured:
+
+| | |
+|---|---|
+| Mappings in the entry | 91 |
+| …carrying an option rule | 45 |
+| …of those, the country maps this page covers | 9 |
+| …other option maps | **36**, carrying 223 values |
+| …of those 36, complete against the portal's captured list | **29** |
+| …**partial** | **6** |
+| Mappings with no option rule at all | 46 — text, dates, parts; no vocabulary to choose from |
+
+The six partial ones, mapped / offered:
+
+| | |
+|---|---|
+| `subject` | 1 / 87 |
+| `degree` | 2 / 42 |
+| `institution-ts-control` | 1 / 11 |
+| `highestQualification(UNIVERSITY_LEVEL)` | 1 / 7 |
+| `gradingSystemId` | 1 / 5 |
+| `grade` | 4 / 9 |
+
+**Ten values against 161 offered, all on the education page.** That is the same shape the country
+maps had at 8 of 249: it works for the synthetic profile and refuses for everyone else — the same
+`render_refused` → specialist a country in the absent column meets.
+
+**But they are recorded, not hidden.** Every one of the six carries a note in the entry saying it
+is partial and why, and several name **blocker 25**, which is exactly this shape. So the answer to
+*"has the page been showing me the guesses and hiding the certainties"* is: for the countries, yes
+— by your own instruction, and the gap that mattered is closed. For the rest of the entry, the page
+was never about them, and what governs them is prose in the notes that nobody re-derives. The
+inventory is now recorded against blocker 25 so it is a list rather than a feeling.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P205 — he approved it, and writing it found what the page could not show him
 
 > *"has the entry already been changed to carry the 2,092 values, or is that change still

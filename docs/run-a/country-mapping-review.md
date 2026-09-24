@@ -9,6 +9,46 @@ Blocker 69. The signed entry carries **8 countries of 249**. This is what it tak
 carry the rest, split the way you asked: derive the code-valued fields, read the
 disagreements on the name-valued ones.
 
+## READ THIS FIRST — what this page does not print, and what that cost
+
+**A zero in the column you are reading is not a zero in the columns you are not.**
+
+On 2026-09-25, one step before the entry was signed, the maps were written and read
+back. Two fields carried `CY` → `CYPRUS`.
+
+Vahid had held `CY` on **every** field under blocker 70, because Sheffield's lists
+encode a fee status the registry has no field for. The hold was not applied.
+`corrCountry` and `institutionCountry` offer **both** `Cyprus` (`CYPRUS`) and `Cyprus
+(European Union)` (`CYPRUS (EUROPEAN UNION)`). The strict pass matched `CYPRUS`
+**exactly** and settled it as *derived* — and the reviewed decisions ran only over the
+proposer's output. **A hold guarded the guesses and had nothing to say about the
+matches.**
+
+What that would have done, plainly: **every Cypriot student sent `CYPRUS`, the option
+that states no fee status, chosen by a string match, on the exact question blocker 70
+exists to say we cannot answer.**
+
+This page said *proposed 0*, and that was true. `CY` was never proposed on those
+fields — it was matched, and matches are the one pass this page prints as a count
+rather than in full. Nothing here was wrong; it was answering a narrower question than
+the one being asked of it.
+
+Two things changed, and both are load-bearing:
+
+- A **hold** now suppresses a strict match as well as a candidate, because a hold names
+  no option and means *this code is not applied on this field*, whichever pass found
+  it. A **reject** still does not, unless the match IS the option it names — a real
+  *Northern Mariana Islands* option is a new fact, not the *Northern Ireland* that was
+  refused.
+- The table below audits every hold and every reject against the pass that reached it,
+  so a hold that is stopping nothing is visible as stopping nothing.
+
+**What is still summarised rather than printed:** the strict matches, ~205–235 rows a
+field, shown as a count plus every 25th row. That was asked for — *"not 249 lines to
+approve blind"* — and it remains the shape of what you are trusting rather than
+reading. The defect was never the summary; it was that a decision could not reach what
+the summary covered. It can now.
+
 ## How a row got where it is
 
 | | what it means | how far to trust it |
@@ -48,12 +88,57 @@ else, which is why a shared leading or trailing word is no longer a resemblance.
 no option already taken by another country can be proposed at all, and any option
 proposed for two countries is withdrawn from both and shown as a collision.
 
+## Every hold and every reject, and which pass reached it
+
+Measured by deriving each field twice — once with your decisions, once with none —
+so **reached by** is what the passes actually did. `nothing` means the derivation
+would have found no candidate at all there, so the ruling is stopping nothing on
+that field and is belt and braces.
+
+**applied** is what the entry now carries. A **hold** names no option, so anything
+applied contradicts it. A **reject** names one, so a value is a contradiction only
+when it IS that option — `MP` was refused as *Northern Ireland*, and the portal's own
+*Northern Mariana Islands* option is a different fact the reject was never meant to
+suppress. The first version of this table got that wrong and flagged all three `MP`
+rows; the judgement is now made against what was actually ruled.
+
+| code | country | field | verdict | reached by | would have carried | applied |  |
+|---|---|---|---|---|---|---|---|
+| `MP` | Northern Mariana Islands | `fundingNationality` | reject | **strict match** | `MP:O` | `MP:O` | ok |
+| `MP` | Northern Mariana Islands | `countryOfBirth` | reject | **strict match** | `MP:O` | `MP:O` | ok |
+| `MP` | Northern Mariana Islands | `corrCountry` | reject | nothing | — | nothing | ok |
+| `MP` | Northern Mariana Islands | `permanentResidence` | reject | **strict match** | `Northern Mariana Islands:O` | `Northern Mariana Islands:O` | ok |
+| `MP` | Northern Mariana Islands | `previousCountry1` | reject | nothing | — | nothing | ok |
+| `MP` | Northern Mariana Islands | `institutionCountry-ts-control` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `fundingNationality` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `countryOfBirth` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `corrCountry` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `permanentResidence` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `previousCountry1` | reject | nothing | — | nothing | ok |
+| `TF` | French Southern Territories | `institutionCountry-ts-control` | reject | nothing | — | nothing | ok |
+| `CY` | Cyprus | `fundingNationality` | hold | proposer | `XA:E` | nothing | ok |
+| `CY` | Cyprus | `countryOfBirth` | hold | proposer | `XA:E` | nothing | ok |
+| `CY` | Cyprus | `corrCountry` | hold | **strict match** | `CYPRUS` | nothing | ok |
+| `CY` | Cyprus | `permanentResidence` | hold | proposer | `Cyprus (European Union):E` | nothing | ok |
+| `CY` | Cyprus | `previousCountry1` | hold | proposer | `CyprusEU:O` | nothing | ok |
+| `CY` | Cyprus | `institutionCountry-ts-control` | hold | **strict match** | `CYPRUS` | nothing | ok |
+| `MF` | St. Martin | `corrCountry` | hold | proposer | `ST MARTIN (NORTH)` | nothing | ok |
+| `MF` | St. Martin | `previousCountry1` | hold | proposer | `ST MARTIN (NORTH):O` | nothing | ok |
+| `MF` | St. Martin | `institutionCountry-ts-control` | hold | proposer | `ST MARTIN (NORTH)` | nothing | ok |
+| `UM` | U.S. Outlying Islands | `permanentResidence` | reject | nothing | — | nothing | ok |
+| `MF` | St. Martin | `fundingNationality` | hold | **strict match** | `MF:O` | nothing | ok |
+| `MF` | St. Martin | `countryOfBirth` | hold | **strict match** | `MF:O` | nothing | ok |
+
+**No ruling is contradicted by what the entry carries.**
+
+**7** of these are reached by the strict match — the pass that bypassed the decisions until P205: `MP` on `fundingNationality`, `MP` on `countryOfBirth`, `MP` on `permanentResidence`, `CY` on `corrCountry`, `CY` on `institutionCountry-ts-control`, `MF` on `fundingNationality`, `MF` on `countryOfBirth`.
+
 ## What the portal has, before a single line is read
 
 | field | options are | offered | derived | corroborated | you decided | to read | absent | collisions |
 |---|---|---|---|---|---|---|---|---|
-| `fundingNationality` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
-| `countryOfBirth` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
+| `fundingNationality` | ISO codes | 242 | 234 | 0 | 3 | **0** | 12 | 0 |
+| `countryOfBirth` | ISO codes | 242 | 234 | 0 | 3 | **0** | 12 | 0 |
 | `corrCountry` | names | 259 | 211 | 15 | 9 | **0** | 14 | 0 |
 | `permanentResidence` | names | 261 | 205 | 23 | 9 | **0** | 12 | 0 |
 | `previousCountry1` | names | 260 | 211 | 15 | 9 | **0** | 14 | 0 |
@@ -66,7 +151,7 @@ anything of you.
 ## `fundingNationality` — DERIVED
 
 The portal submits ISO codes, so the join is the identity on a code the reviewed table
-already holds: **235 of 249**, nothing guessed.
+already holds: **234 of 249**, nothing guessed.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -78,18 +163,19 @@ already holds: **235 of 249**, nothing guessed.
 | `GH` | Ghana | Ghana | `GH:O` |
 | `IT` | Italy | Italy {Includes Sardinia, Sicily} | `IT:E` |
 | `LV` | Latvia | Latvia | `LV:E` |
-| `NC` | New Caledonia | New Caledonia | `NC:E` |
-| `PY` | Paraguay | Paraguay | `PY:O` |
-| `SZ` | Eswatini | Eswatini | `SZ:O` |
-| `VI` | U.S. Virgin Islands | United States Virgin Islands [Virgin Islands, U. S.] | `VI:O` |
+| `NE` | Niger | Niger | `NE:O` |
+| `QA` | Qatar | Qatar | `QA:O` |
+| `TC` | Turks & Caicos Islands | Turks and Caicos Islands | `TC:H` |
+| `VN` | Vietnam | Vietnam [Viet Nam] | `VN:O` |
 
-### Held by you (1)
+### Held by you (2)
 
 Read, and deliberately not settled here.
 
 | code | our name | the portal's option text | what you said |
 |---|---|---|---|
 | `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
+| `MF` | St. Martin | Saint Martin | HELD by Vahid on 2026-09-25 — blocker 66: The ISO-valued lists carry "Saint Martin" (MF:O) and no Sint Maarten at all; what they offer for that corner is AN:E "Netherlands Antilles", a state dissolved in 2010 and not in ISO 3166-1. "Hold MF on those two as well. Same reason as CY. Applying it there maps the French half and leaves the Dutch half of one island with nothing, on a field my hold does not name only because I did not know the pass reached it. The asymmetry is the defect; its arriving by a different route does not make it a different thing." |
 
 ### Refused by you (1)
 
@@ -134,7 +220,7 @@ Read this beside the tables above: between them they are the whole disagreement.
 ## `countryOfBirth` — DERIVED
 
 The portal submits ISO codes, so the join is the identity on a code the reviewed table
-already holds: **235 of 249**, nothing guessed.
+already holds: **234 of 249**, nothing guessed.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -146,18 +232,19 @@ already holds: **235 of 249**, nothing guessed.
 | `GH` | Ghana | Ghana | `GH:O` |
 | `IT` | Italy | Italy {Includes Sardinia, Sicily} | `IT:E` |
 | `LV` | Latvia | Latvia | `LV:E` |
-| `NC` | New Caledonia | New Caledonia | `NC:E` |
-| `PY` | Paraguay | Paraguay | `PY:O` |
-| `SZ` | Eswatini | Eswatini | `SZ:O` |
-| `VI` | U.S. Virgin Islands | United States Virgin Islands [Virgin Islands, U. S.] | `VI:O` |
+| `NE` | Niger | Niger | `NE:O` |
+| `QA` | Qatar | Qatar | `QA:O` |
+| `TC` | Turks & Caicos Islands | Turks and Caicos Islands | `TC:H` |
+| `VN` | Vietnam | Vietnam [Viet Nam] | `VN:O` |
 
-### Held by you (1)
+### Held by you (2)
 
 Read, and deliberately not settled here.
 
 | code | our name | the portal's option text | what you said |
 |---|---|---|---|
 | `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
+| `MF` | St. Martin | Saint Martin | HELD by Vahid on 2026-09-25 — blocker 66: The ISO-valued lists carry "Saint Martin" (MF:O) and no Sint Maarten at all; what they offer for that corner is AN:E "Netherlands Antilles", a state dissolved in 2010 and not in ISO 3166-1. "Hold MF on those two as well. Same reason as CY. Applying it there maps the French half and leaves the Dutch half of one island with nothing, on a field my hold does not name only because I did not know the pass reached it. The asymmetry is the defect; its arriving by a different route does not make it a different thing." |
 
 ### Refused by you (1)
 

@@ -374,15 +374,37 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(value.mappingSet.status).toBe("reviewed");
     expect(value.mappingSet.reviewedBy).toBe("Vahid Mohammadi");
     expect(value.mappingSet.reviewedAt?.toISOString()).toBe("2026-09-16T19:19:35.241Z");
-    expect(labelledHash(toCanonical(value))).toBe("sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080");
+    // ── THE INTERVAL (P206): the countries are in and the hash has moved ──
+    //
+    // The nine country maps went from 72 values to 2,088, nine notes that
+    // claimed "PARTIAL map (eight countries)" were corrected to say what they
+    // now carry, and the mapping set went 0.3.34 → 0.3.35. So the entry no
+    // longer hashes to `e2a10113…`, which Vahid signed on 22 September, and
+    // the directory REFUSES to load it.
+    //
+    // That refusal is the assertion, and it stands until he computes
+    // `f13dff6d…` himself and writes it into approvals.json. Every previous
+    // re-signature has had an interval that looked exactly like this, and each
+    // time the test asserted the refusal rather than being softened: ADR-0057
+    // biting on a real edit to a real signed entry is the property, and a test
+    // that went quiet here would be the thing the property exists to stop.
+    expect(labelledHash(toCanonical(value))).toBe("sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59");
     const load = await loadCatalogueDirectory({ directory: join(ROOT, "docs", "run-a", "catalogue") });
-    if (!load.ok) expect.unreachable(load.problems.map((problem) => problem.detail).join("; "));
-    expect(load.catalogue.size).toBe(1);
-    const loaded = await load.catalogue.find("bp-sheffield-pgt-september-direct");
-    expect(loaded?.admits).toEqual({ kind: "one_account_only", studentId: "af398e01-c154-469d-a086-3e9c8c60a020", signedBy: "Vahid Mohammadi" });
-    // ONE approval on file: the voided one is gone, not merely outvoted.
-    const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as unknown[];
+    expect(load.ok, "REFUSED until he signs the countries — this is ADR-0057 working").toBe(false);
+    if (load.ok) expect.unreachable("expected the unsigned entry to be refused");
+    expect(load.problems.map((problem) => problem.detail).join("; ")).toContain(
+      "No approval exists for sha256:f13dff6d",
+    );
+    // The superseded approval is still the only one on file, and it now
+    // approves content that no longer exists. It goes out in the SAME commit
+    // as the new one comes in — never left beside it.
+    const approvals = JSON.parse(readFileSync(join(ROOT, "docs", "run-a", "catalogue", "approvals.json"), "utf8")) as {
+      contentHash: string;
+    }[];
     expect(approvals, "one signature, and no stale approval beside it").toHaveLength(1);
+    expect(approvals[0]?.contentHash, "still the 22 September one, now void").toBe(
+      "sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080",
+    );
   });
 
   it("goes VOID the moment anything in the signed entry changes — loudly, at load (ADR-0057), never worked around", () => {
@@ -416,7 +438,7 @@ describe("the catalogue entry for Run A (P152)", () => {
     const code = await new Promise<number | null>((resolve) => child.on("close", resolve));
     expect(code).toBe(0);
     expect(output).toBe(readFileSync(READ, "utf8"));
-    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.34, reviewed by Vahid Mohammadi.");
+    expect(output).toContain("REVIEWED — blueprint 0.2.28, mapping set 0.3.35, reviewed by Vahid Mohammadi.");
     // P153: the read's four label defects gone — the hidden selects are not
     // "left empty", the radios read Yes/No, the date selects carry the row's question.
     expect(output).not.toContain("institutionCode");

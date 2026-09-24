@@ -186,7 +186,10 @@ describe("the published demonstrations", () => {
       // The columns Vahid's split turns on, in the command's own output:
       // what derives, what the portal corroborated, and whether any
       // submitted value was proposed for two countries (P202).
-      expect(ran.out).toContain("derived 235/249");
+      // 234, not 235: Vahid held `MF` on the two ISO-valued fields on
+      // 2026-09-25 (blocker 66), because they carry Saint Martin and no
+      // Sint Maarten at all.
+      expect(ran.out).toContain("derived 234/249");
       expect(ran.out, "the second pass ran").toMatch(/corroborated\s+\d+/);
       expect(ran.out, "the collision rule ran and said so").toMatch(/collisions\s+\d+/);
     });
