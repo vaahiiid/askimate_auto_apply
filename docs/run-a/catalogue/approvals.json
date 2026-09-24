@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:e2a10113c9e0f3536c1081cb3f51a7ea682ed6fceec9694d391a708a85f2b080",
+    "contentHash": "sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-22T16:00:00Z",
+    "approvedAt": "2026-09-24T12:00:00Z",
     "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Signed once for two changes: the pre-completion slots asked only of an expected qualification (ADR-0138), and document slots named by the page's own headings (ADR-0139)."
+    "note": "One signature (ADR-0118): my own account only. Signed after reading docs/run-a/country-mapping-review.md — the nine country option maps go from 72 to 2,088 values, derived or corroborated from the portal's own lists, with 24 rulings of mine on the disagreements. CY held on every field (blocker 70), MF and SX held wherever the portal offers only one half of the island (blocker 66). Nothing else in the entry moved since sha256:e2a10113."
   }
 ]
