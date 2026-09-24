@@ -18,17 +18,46 @@ disagreements on the name-valued ones.
 | **proposed** | our name resembles the portal's text | a guess — this is the column to read |
 | **absent** | no option carries this country under any of the portal's own names | the portal does not have it |
 | **withdrawn** | two countries' proposals landed on one submitted value | never shown as a candidate |
+| **accepted · held · refused** | you read it already | your words, quoted, with the date |
+
+## What the proposer actually does
+
+You asked for this, having read a column called UNVERIFIED without knowing how it was
+produced. Here is the whole of it.
+
+**What it compares.** Our name for the country and the portal's text for an option,
+both lowercased, with punctuation — hyphens, slashes, brackets, apostrophes — folded to
+spaces, then cut into words. The words `and`, `the` and `of` are dropped, because they
+join names rather than being part of one.
+
+**The bar.** A pairing is offered only when, of the words that are left, EITHER one
+name's words are the opening of the other's, word for word — `iran` opens `iran islamic
+republic of`, and `niger` does **not** open `nigeria`, because it is word for word and
+never letter for letter — OR the two share **at least two** words, as `cocos keeling
+islands` and `cocos islands` share `cocos` and `islands`. The shortest candidate wins.
+
+**What it ignores.** Everything else. Not the continent, not the region, not what the
+name means, not any list of aliases of ours. It has no idea where anywhere is.
+
+**Why the bar is two words and not one.** It was one until you read the last version:
+`MP` *Northern Mariana Islands* → *Northern Ireland*, and `TF` *French Southern
+Territories* → *French West Indies*. Both came from a single word in common and nothing
+else, which is why a shared leading or trailing word is no longer a resemblance.
+
+**What stands behind it.** Two things, and they are why a bad guess here is survivable:
+no option already taken by another country can be proposed at all, and any option
+proposed for two countries is withdrawn from both and shown as a collision.
 
 ## What the portal has, before a single line is read
 
-| field | options are | offered | derived | corroborated | to read | absent | collisions |
-|---|---|---|---|---|---|---|---|
-| `fundingNationality` | ISO codes | 242 | 235 | 0 | **1** | 13 | 0 |
-| `countryOfBirth` | ISO codes | 242 | 235 | 0 | **1** | 13 | 0 |
-| `corrCountry` | names | 259 | 212 | 14 | **5** | 18 | 0 |
-| `permanentResidence` | names | 261 | 205 | 22 | **5** | 17 | 0 |
-| `previousCountry1` | names | 260 | 211 | 14 | **6** | 18 | 0 |
-| `institutionCountry-ts-control` | names | 255 | 212 | 14 | **4** | 19 | 0 |
+| field | options are | offered | derived | corroborated | you decided | to read | absent | collisions |
+|---|---|---|---|---|---|---|---|---|
+| `fundingNationality` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
+| `countryOfBirth` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
+| `corrCountry` | names | 259 | 212 | 15 | 6 | **2** | 14 | 0 |
+| `permanentResidence` | names | 261 | 205 | 23 | 5 | **2** | 14 | 1 |
+| `previousCountry1` | names | 260 | 211 | 15 | 7 | **2** | 14 | 0 |
+| `institutionCountry-ts-control` | names | 255 | 212 | 15 | 6 | **2** | 14 | 0 |
 
 `offered` counts the portal's own list without its empty first entry. The reviewed
 table holds 249 countries (ADR-0141). **to read** is the only column that asks
@@ -54,15 +83,23 @@ already holds: **235 of 249**, nothing guessed.
 | `SZ` | Eswatini | Eswatini | `SZ:O` |
 | `VI` | U.S. Virgin Islands | United States Virgin Islands [Virgin Islands, U. S.] | `VI:O` |
 
-### To read (1) — a guess from our name against the portal's text
+### Held by you (1)
 
-This is the column that needs you. Nothing acts on it until you say so.
+Read, and deliberately not settled here.
 
-| code | our name | proposed option text (UNVERIFIED) | submitted value |
+| code | our name | the portal's option text | what you said |
 |---|---|---|---|
-| `CY` | Cyprus | Cyprus (European Union) | `XA:E` |
+| `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
 
-### Absent (13) — the portal's list has no trace of these
+### Refused by you (1)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### Absent (12) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -80,7 +117,6 @@ the list does not carry the country, not that the search failed.
 | `MQ` | Martinique | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
 | `SX` | Sint Maarten | no option in the portal's list carries this country under any of the portal's own names |
-| `TF` | French Southern Territories | no option in the portal's list carries this country under any of the portal's own names |
 | `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
 
 ### What the portal offers that nothing claimed (5)
@@ -115,15 +151,23 @@ already holds: **235 of 249**, nothing guessed.
 | `SZ` | Eswatini | Eswatini | `SZ:O` |
 | `VI` | U.S. Virgin Islands | United States Virgin Islands [Virgin Islands, U. S.] | `VI:O` |
 
-### To read (1) — a guess from our name against the portal's text
+### Held by you (1)
 
-This is the column that needs you. Nothing acts on it until you say so.
+Read, and deliberately not settled here.
 
-| code | our name | proposed option text (UNVERIFIED) | submitted value |
+| code | our name | the portal's option text | what you said |
 |---|---|---|---|
-| `CY` | Cyprus | Cyprus (European Union) | `XA:E` |
+| `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
 
-### Absent (13) — the portal's list has no trace of these
+### Refused by you (1)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### Absent (12) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -141,7 +185,6 @@ the list does not carry the country, not that the search failed.
 | `MQ` | Martinique | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
 | `SX` | Sint Maarten | no option in the portal's list carries this country under any of the portal's own names |
-| `TF` | French Southern Territories | no option in the portal's list carries this country under any of the portal's own names |
 | `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
 
 ### What the portal offers that nothing claimed (5)
@@ -159,8 +202,8 @@ Read this beside the tables above: between them they are the whole disagreement.
 ## `corrCountry` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **212 of 249** matched exactly, **14** more were settled from the
-portal's own code list, and **5** are guesses you have to read.
+disagree. **212 of 249** matched exactly, **15** more were settled from the
+portal's own code list, and **2** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -180,13 +223,14 @@ portal's own code list, and **5** are guesses you have to read.
 
 **None.** The rule ran and found no submitted value proposed for two countries.
 
-### Corroborated by the portal itself (14) — read if you want to, not because you must
+### Corroborated by the portal itself (15) — read if you want to, not because you must
 
 The portal's own code-valued select names this code, and that name is in this list.
 No name of ours took part.
 
 | code | our name | the portal's option text | submitted value |
 |---|---|---|---|
+| `BF` | Burkina Faso | Burkina-Faso | `BURKINA-FASO` |
 | `CD` | Congo - Kinshasa | Congo (Democratic Republic) | `CONGO (DEMOCRATIC REPUBLIC)` |
 | `CG` | Congo - Brazzaville | Congo | `CONGO` |
 | `CZ` | Czechia | Czech Republic | `CZECH REPUBLIC` |
@@ -202,19 +246,43 @@ No name of ours took part.
 | `VC` | St. Vincent & Grenadines | St Vincent & the Grenadines | `ST VINCENT & THE GRENADINES` |
 | `YE` | Yemen | Yemen (Republic of) | `YEMEN (REPUBLIC OF)` |
 
-### To read (5) — a guess from our name against the portal's text
+### Accepted by you (3)
+
+Your reading, kept so the page does not ask again.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `CC` | Cocos (Keeling) Islands | Cocos Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `CV` | Cape Verde | Cape Verde Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | ACCEPTED by Vahid on 2026-09-24: The same place under the portal's own abbreviation. |
+
+### Held by you (1)
+
+Read, and deliberately not settled here.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MF` | St. Martin | St Martin (North) | HELD by Vahid on 2026-09-24 — blocker 66: This list carries only "St Martin (North)" and no Sint Maarten at all, so MF is proposed here and SX has nowhere to go. "That is a real student with no honest option, which is blocker 66's case arriving. Do not apply MF on those three until 66 has a shape." |
+
+### Refused by you (2)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MP` | Northern Mariana Islands | — | REFUSED by Vahid on 2026-09-24: Northern Mariana Islands is in the Pacific; Northern Ireland is in the UK. Paired on the word "Northern". A student from Saipan would have had Northern Ireland on their application, and on this portal that carries a fee-status marker. |
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### To read (2) — a guess from our name against the portal's text
 
 This is the column that needs you. Nothing acts on it until you say so.
 
 | code | our name | proposed option text (UNVERIFIED) | submitted value |
 |---|---|---|---|
-| `CC` | Cocos (Keeling) Islands | Cocos Islands | `COCOS ISLANDS` |
-| `CV` | Cape Verde | Cape Verde Islands | `CAPE VERDE ISLANDS` |
-| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | `SOUTH GEORGIA & THE SOUTH SANDWICH IS` |
-| `MF` | St. Martin | St Martin (North) | `ST MARTIN (NORTH)` |
-| `MP` | Northern Mariana Islands | Northern Ireland | `NORTHERN IRELAND` |
+| `KN` | St. Kitts & Nevis | St Kitts Nevis | `ST KITTS NEVIS` |
+| `VI` | U.S. Virgin Islands | Virgin Is (US) | `VIRGIN IS (US)` |
 
-### Absent (18) — the portal's list has no trace of these
+### Absent (14) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -223,24 +291,20 @@ the list does not carry the country, not that the search failed.
 |---|---|---|
 | `AQ` | Antarctica | no option in the portal's list carries this country under any of the portal's own names |
 | `AX` | Åland Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `BF` | Burkina Faso | no option in the portal's list carries this country under any of the portal's own names |
 | `BL` | St. Barthélemy | no option in the portal's list carries this country under any of the portal's own names |
 | `BQ` | Caribbean Netherlands | no option in the portal's list carries this country under any of the portal's own names |
 | `BV` | Bouvet Island | no option in the portal's list carries this country under any of the portal's own names |
 | `CI` | Côte d’Ivoire | no option in the portal's list carries this country under any of the portal's own names |
 | `CW` | Curaçao | no option in the portal's list carries this country under any of the portal's own names |
 | `HM` | Heard & McDonald Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `KN` | St. Kitts & Nevis | no option in the portal's list carries this country under any of the portal's own names |
 | `MK` | North Macedonia | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
 | `SH` | St. Helena | no option in the portal's list carries this country under any of the portal's own names |
 | `SJ` | Svalbard & Jan Mayen | no option in the portal's list carries this country under any of the portal's own names |
 | `SX` | Sint Maarten | no option in the portal's list carries this country under any of the portal's own names |
-| `TF` | French Southern Territories | no option in the portal's list carries this country under any of the portal's own names |
 | `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `VI` | U.S. Virgin Islands | no option in the portal's list carries this country under any of the portal's own names |
 
-### What the portal offers that nothing claimed (28)
+### What the portal offers that nothing claimed (26)
 
 Read this beside the tables above: between them they are the whole disagreement.
 
@@ -248,7 +312,6 @@ Read this beside the tables above: between them they are the whole disagreement.
 |---|---|
 | Azores | `AZORES` |
 | Balearic Islands | `BALEARIC ISLANDS` |
-| Burkina-Faso | `BURKINA-FASO` |
 | Canary Islands | `CANARY ISLANDS` |
 | Ceuta | `CEUTA` |
 | Channel Islands (The) | `CHANNEL ISLANDS (THE)` |
@@ -265,21 +328,20 @@ Read this beside the tables above: between them they are the whole disagreement.
 | Madeira | `MADEIRA` |
 | Melilla | `MELILLA` |
 | Netherlands Antilles | `NETHERLANDS ANTILLES` |
+| Northern Ireland | `NORTHERN IRELAND` |
 | Not Known | `NOT KNOWN` |
 | Reunion | `REUNION` |
 | Scotland | `SCOTLAND` |
-| St Kitts Nevis | `ST KITTS NEVIS` |
 | St Martin (South) | `ST MARTIN (SOUTH)` |
 | Stateless | `STATELESS` |
 | Virgin Is (British) | `VIRGIN IS (BRITISH)` |
-| Virgin Is (US) | `VIRGIN IS (US)` |
 | Wales | `WALES` |
 
 ## `permanentResidence` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **205 of 249** matched exactly, **22** more were settled from the
-portal's own code list, and **5** are guesses you have to read.
+disagree. **205 of 249** matched exactly, **23** more were settled from the
+portal's own code list, and **2** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -297,9 +359,15 @@ portal's own code list, and **5** are guesses you have to read.
 
 ### Withdrawn — one option, two countries
 
-**None.** The rule ran and found no submitted value proposed for two countries.
+Each of these had a proposal, and the proposals landed on the same submitted value.
+None is offered as a candidate: approving one would put a student from one country on
+the other's application.
 
-### Corroborated by the portal itself (22) — read if you want to, not because you must
+| the countries that collided | the one option | submitted value |
+|---|---|---|
+| UM U.S. Outlying Islands · VI U.S. Virgin Islands | Virgin Islands (US) | `Virgin Islands (US):O` |
+
+### Corroborated by the portal itself (23) — read if you want to, not because you must
 
 The portal's own code-valued select names this code, and that name is in this list.
 No name of ours took part.
@@ -327,21 +395,45 @@ No name of ours took part.
 | `TL` | Timor-Leste | East Timor (Timor-Leste) | `East Timor (Timor-Leste):O` |
 | `TR` | Türkiye | Turkey | `Turkey:O` |
 | `TZ` | Tanzania | Tanzania, United Republic of | `Tanzania, United Republic of:O` |
+| `VA` | Vatican City | Holy See (Vatican City State) | `Holy See (Vatican City State):O` |
 | `VE` | Venezuela | Venezuela (Bolivarian Republic of) | `Venezuela (Bolivarian Republic of):O` |
 
-### To read (5) — a guess from our name against the portal's text
+### Accepted by you (3)
+
+Your reading, kept so the page does not ask again.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MF` | St. Martin | St Martin (French part) | ACCEPTED by Vahid on 2026-09-24: One island, two halves, two codes, correctly split: MF is the French part and SX the Dutch. |
+| `SX` | Sint Maarten | Sint Maarten (Dutch Part) | ACCEPTED by Vahid on 2026-09-24: The Dutch half of the same island, and the portal splits it the way the codes do. |
+| `US` | United States | United States of America | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+
+### Held by you (1)
+
+Read, and deliberately not settled here.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
+
+### Refused by you (1)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### To read (2) — a guess from our name against the portal's text
 
 This is the column that needs you. Nothing acts on it until you say so.
 
 | code | our name | proposed option text (UNVERIFIED) | submitted value |
 |---|---|---|---|
-| `CY` | Cyprus | Cyprus (European Union) | `Cyprus (European Union):E` |
-| `MF` | St. Martin | St Martin (French part) | `St Martin (French part):O` |
-| `SX` | Sint Maarten | Sint Maarten (Dutch Part) | `Sint Maarten (Dutch Part):O` |
-| `TF` | French Southern Territories | French West Indies | `French West Indies:E` |
-| `US` | United States | United States of America | `United States of America:O` |
+| `KN` | St. Kitts & Nevis | St. Kitts-Nevis | `St. Kitts-Nevis:O` |
+| `VC` | St. Vincent & Grenadines | Saint Vincent and the Grenadines | `Saint Vincent and the Grenadines:O` |
 
-### Absent (17) — the portal's list has no trace of these
+### Absent (14) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -358,15 +450,12 @@ the list does not carry the country, not that the search failed.
 | `HM` | Heard & McDonald Islands | no option in the portal's list carries this country under any of the portal's own names |
 | `IM` | Isle of Man | no option in the portal's list carries this country under any of the portal's own names |
 | `JE` | Jersey | no option in the portal's list carries this country under any of the portal's own names |
-| `KN` | St. Kitts & Nevis | no option in the portal's list carries this country under any of the portal's own names |
 | `LA` | Laos | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
-| `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `VA` | Vatican City | no option in the portal's list carries this country under any of the portal's own names |
-| `VC` | St. Vincent & Grenadines | no option in the portal's list carries this country under any of the portal's own names |
-| `VI` | U.S. Virgin Islands | no option in the portal's list carries this country under any of the portal's own names |
+| `UM` | U.S. Outlying Islands | WITHDRAWN — the same submitted value was proposed for VI U.S. Virgin Islands, and one option cannot be two countries |
+| `VI` | U.S. Virgin Islands | WITHDRAWN — the same submitted value was proposed for UM U.S. Outlying Islands, and one option cannot be two countries |
 
-### What the portal offers that nothing claimed (27)
+### What the portal offers that nothing claimed (24)
 
 Read this beside the tables above: between them they are the whole disagreement.
 
@@ -379,7 +468,7 @@ Read this beside the tables above: between them they are the whole disagreement.
 | Curacao | `Curacao:O` |
 | Cyprus (Non-European Union) | `Cyprus (Non-European Union):O` |
 | Cyprus (Not otherwise specified) | `Cyprus (Not otherwise specified):O` |
-| Holy See (Vatican City State) | `Holy See (Vatican City State):O` |
+| French West Indies | `French West Indies:E` |
 | Kosovo | `Kosovo:O` |
 | Lao PDR | `Lao PDR:O` |
 | Leeward Islands | `Leeward Islands:O` |
@@ -388,23 +477,20 @@ Read this beside the tables above: between them they are the whole disagreement.
 | Portuguese West Africa | `Portuguese West Africa:O` |
 | Reunion | `Reunion:O` |
 | Sabah | `Sabah:O` |
-| Saint Vincent and the Grenadines | `Saint Vincent and the Grenadines:O` |
 | Sarawak | `Sarawak:O` |
 | Sikkim | `Sikkim:O` |
 | St Barthelemy | `St Barthelemy:O` |
-| St. Kitts-Nevis | `St. Kitts-Nevis:O` |
 | Stateless | `Stateless:O` |
 | Tibet | `Tibet:O` |
 | Vietnam [Viet Nam] | `Vietnam [Viet Nam]:O` |
-| Virgin Islands (US) | `Virgin Islands (US):O` |
 | West Indies | `West Indies:O` |
 | Windward Islands | `Windward Islands:O` |
 
 ## `previousCountry1` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **211 of 249** matched exactly, **14** more were settled from the
-portal's own code list, and **6** are guesses you have to read.
+disagree. **211 of 249** matched exactly, **15** more were settled from the
+portal's own code list, and **2** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -424,13 +510,14 @@ portal's own code list, and **6** are guesses you have to read.
 
 **None.** The rule ran and found no submitted value proposed for two countries.
 
-### Corroborated by the portal itself (14) — read if you want to, not because you must
+### Corroborated by the portal itself (15) — read if you want to, not because you must
 
 The portal's own code-valued select names this code, and that name is in this list.
 No name of ours took part.
 
 | code | our name | the portal's option text | submitted value |
 |---|---|---|---|
+| `BF` | Burkina Faso | Burkina-Faso | `BURKINA-FASO:O` |
 | `CD` | Congo - Kinshasa | Congo (Democratic Republic) | `CONGO (DEMOCRATIC REPUBLIC):O` |
 | `CG` | Congo - Brazzaville | Congo | `CONGO:O` |
 | `CZ` | Czechia | Czech Republic | `CZECH REPUBLIC:E` |
@@ -446,20 +533,44 @@ No name of ours took part.
 | `VC` | St. Vincent & Grenadines | St Vincent & the Grenadines | `ST VINCENT & THE GRENADINES:O` |
 | `YE` | Yemen | Yemen (Republic of) | `YEMEN (REPUBLIC OF):O` |
 
-### To read (6) — a guess from our name against the portal's text
+### Accepted by you (3)
+
+Your reading, kept so the page does not ask again.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `CC` | Cocos (Keeling) Islands | Cocos Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `CV` | Cape Verde | Cape Verde Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | ACCEPTED by Vahid on 2026-09-24: The same place under the portal's own abbreviation. |
+
+### Held by you (2)
+
+Read, and deliberately not settled here.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `CY` | Cyprus | Cyprus (European Union) | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
+| `MF` | St. Martin | St Martin (North) | HELD by Vahid on 2026-09-24 — blocker 66: As corrCountry: "St Martin (North)" with no Sint Maarten, so SX has nowhere to go. |
+
+### Refused by you (2)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MP` | Northern Mariana Islands | — | REFUSED by Vahid on 2026-09-24: Northern Mariana Islands is in the Pacific; Northern Ireland is in the UK. Paired on the word "Northern". A student from Saipan would have had Northern Ireland on their application, and on this portal that carries a fee-status marker. |
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### To read (2) — a guess from our name against the portal's text
 
 This is the column that needs you. Nothing acts on it until you say so.
 
 | code | our name | proposed option text (UNVERIFIED) | submitted value |
 |---|---|---|---|
-| `CC` | Cocos (Keeling) Islands | Cocos Islands | `COCOS ISLANDS:O` |
-| `CV` | Cape Verde | Cape Verde Islands | `CAPE VERDE ISLANDS:O` |
-| `CY` | Cyprus | Cyprus (European Union) | `CyprusEU:O` |
-| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | `SOUTH GEORGIA & THE SOUTH SANDWICH IS:H` |
-| `MF` | St. Martin | St Martin (North) | `ST MARTIN (NORTH):O` |
-| `MP` | Northern Mariana Islands | Northern Ireland | `NORTHERN IRELAND:H` |
+| `KN` | St. Kitts & Nevis | St Kitts Nevis | `ST KITTS NEVIS:O` |
+| `VI` | U.S. Virgin Islands | Virgin Is (US) | `VIRGIN IS (US):O` |
 
-### Absent (18) — the portal's list has no trace of these
+### Absent (14) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -468,24 +579,20 @@ the list does not carry the country, not that the search failed.
 |---|---|---|
 | `AQ` | Antarctica | no option in the portal's list carries this country under any of the portal's own names |
 | `AX` | Åland Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `BF` | Burkina Faso | no option in the portal's list carries this country under any of the portal's own names |
 | `BL` | St. Barthélemy | no option in the portal's list carries this country under any of the portal's own names |
 | `BQ` | Caribbean Netherlands | no option in the portal's list carries this country under any of the portal's own names |
 | `BV` | Bouvet Island | no option in the portal's list carries this country under any of the portal's own names |
 | `CI` | Côte d’Ivoire | no option in the portal's list carries this country under any of the portal's own names |
 | `CW` | Curaçao | no option in the portal's list carries this country under any of the portal's own names |
 | `HM` | Heard & McDonald Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `KN` | St. Kitts & Nevis | no option in the portal's list carries this country under any of the portal's own names |
 | `MK` | North Macedonia | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
 | `SH` | St. Helena | no option in the portal's list carries this country under any of the portal's own names |
 | `SJ` | Svalbard & Jan Mayen | no option in the portal's list carries this country under any of the portal's own names |
 | `SX` | Sint Maarten | no option in the portal's list carries this country under any of the portal's own names |
-| `TF` | French Southern Territories | no option in the portal's list carries this country under any of the portal's own names |
 | `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `VI` | U.S. Virgin Islands | no option in the portal's list carries this country under any of the portal's own names |
 
-### What the portal offers that nothing claimed (29)
+### What the portal offers that nothing claimed (27)
 
 Read this beside the tables above: between them they are the whole disagreement.
 
@@ -493,7 +600,6 @@ Read this beside the tables above: between them they are the whole disagreement.
 |---|---|
 | Azores | `AZORES:O` |
 | Balearic Islands | `BALEARIC ISLANDS:O` |
-| Burkina-Faso | `BURKINA-FASO:O` |
 | Canary Islands | `CANARY ISLANDS:O` |
 | Ceuta | `CEUTA:O` |
 | Channel Islands (The) | `CHANNEL ISLANDS (THE):H` |
@@ -511,21 +617,20 @@ Read this beside the tables above: between them they are the whole disagreement.
 | Madeira | `MADEIRA:O` |
 | Melilla | `MELILLA:O` |
 | Netherlands Antilles | `NETHERLANDS ANTILLES:E` |
+| Northern Ireland | `NORTHERN IRELAND:H` |
 | Not Known | `NOT KNOWN:O` |
 | Reunion | `REUNION:O` |
 | Scotland | `SCOTLAND:H` |
-| St Kitts Nevis | `ST KITTS NEVIS:O` |
 | St Martin (South) | `ST MARTIN (SOUTH):O` |
 | Stateless | `STATELESS:O` |
 | Virgin Is (British) | `VIRGIN IS (BRITISH):H` |
-| Virgin Is (US) | `VIRGIN IS (US):O` |
 | Wales | `WALES:H` |
 
 ## `institutionCountry-ts-control` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **212 of 249** matched exactly, **14** more were settled from the
-portal's own code list, and **4** are guesses you have to read.
+disagree. **212 of 249** matched exactly, **15** more were settled from the
+portal's own code list, and **2** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
 
@@ -545,13 +650,14 @@ portal's own code list, and **4** are guesses you have to read.
 
 **None.** The rule ran and found no submitted value proposed for two countries.
 
-### Corroborated by the portal itself (14) — read if you want to, not because you must
+### Corroborated by the portal itself (15) — read if you want to, not because you must
 
 The portal's own code-valued select names this code, and that name is in this list.
 No name of ours took part.
 
 | code | our name | the portal's option text | submitted value |
 |---|---|---|---|
+| `BF` | Burkina Faso | Burkina-Faso | `BURKINA-FASO` |
 | `CD` | Congo - Kinshasa | Congo (Democratic Republic) | `CONGO (DEMOCRATIC REPUBLIC)` |
 | `CG` | Congo - Brazzaville | Congo | `CONGO` |
 | `CZ` | Czechia | Czech Republic | `CZECH REPUBLIC` |
@@ -567,18 +673,43 @@ No name of ours took part.
 | `VC` | St. Vincent & Grenadines | St Vincent & the Grenadines | `ST VINCENT & THE GRENADINES` |
 | `YE` | Yemen | Yemen (Republic of) | `YEMEN (REPUBLIC OF)` |
 
-### To read (4) — a guess from our name against the portal's text
+### Accepted by you (3)
+
+Your reading, kept so the page does not ask again.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `CC` | Cocos (Keeling) Islands | Cocos Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `CV` | Cape Verde | Cape Verde Islands | ACCEPTED by Vahid on 2026-09-24: The same place under a different name. |
+| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | ACCEPTED by Vahid on 2026-09-24: The same place under the portal's own abbreviation. |
+
+### Held by you (1)
+
+Read, and deliberately not settled here.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MF` | St. Martin | St Martin (North) | HELD by Vahid on 2026-09-24 — blocker 66: As corrCountry: "St Martin (North)" with no Sint Maarten, so SX has nowhere to go. |
+
+### Refused by you (2)
+
+Never offered again, whatever the proposer later thinks.
+
+| code | our name | the portal's option text | what you said |
+|---|---|---|---|
+| `MP` | Northern Mariana Islands | — | REFUSED by Vahid on 2026-09-24: Northern Mariana Islands is in the Pacific; Northern Ireland is in the UK. Paired on the word "Northern". A student from Saipan would have had Northern Ireland on their application, and on this portal that carries a fee-status marker. |
+| `TF` | French Southern Territories | — | REFUSED by Vahid on 2026-09-24: French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on "French". Same rule. |
+
+### To read (2) — a guess from our name against the portal's text
 
 This is the column that needs you. Nothing acts on it until you say so.
 
 | code | our name | proposed option text (UNVERIFIED) | submitted value |
 |---|---|---|---|
-| `CC` | Cocos (Keeling) Islands | Cocos Islands | `COCOS ISLANDS` |
-| `CV` | Cape Verde | Cape Verde Islands | `CAPE VERDE ISLANDS` |
-| `GS` | South Georgia & South Sandwich Islands | South Georgia & the South Sandwich Is | `SOUTH GEORGIA & THE SOUTH SANDWICH IS` |
-| `MF` | St. Martin | St Martin (North) | `ST MARTIN (NORTH)` |
+| `KN` | St. Kitts & Nevis | St Kitts Nevis | `ST KITTS NEVIS` |
+| `VI` | U.S. Virgin Islands | Virgin Is (US) | `VIRGIN IS (US)` |
 
-### Absent (19) — the portal's list has no trace of these
+### Absent (14) — the portal's list has no trace of these
 
 Searched by the portal's own name for the code as well as by ours. A row here means
 the list does not carry the country, not that the search failed.
@@ -587,25 +718,20 @@ the list does not carry the country, not that the search failed.
 |---|---|---|
 | `AQ` | Antarctica | no option in the portal's list carries this country under any of the portal's own names |
 | `AX` | Åland Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `BF` | Burkina Faso | no option in the portal's list carries this country under any of the portal's own names |
 | `BL` | St. Barthélemy | no option in the portal's list carries this country under any of the portal's own names |
 | `BQ` | Caribbean Netherlands | no option in the portal's list carries this country under any of the portal's own names |
 | `BV` | Bouvet Island | no option in the portal's list carries this country under any of the portal's own names |
 | `CI` | Côte d’Ivoire | no option in the portal's list carries this country under any of the portal's own names |
 | `CW` | Curaçao | no option in the portal's list carries this country under any of the portal's own names |
 | `HM` | Heard & McDonald Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `KN` | St. Kitts & Nevis | no option in the portal's list carries this country under any of the portal's own names |
 | `MK` | North Macedonia | no option in the portal's list carries this country under any of the portal's own names |
-| `MP` | Northern Mariana Islands | no option in the portal's list carries this country under any of the portal's own names |
 | `RE` | Réunion | no option in the portal's list carries this country under any of the portal's own names |
 | `SH` | St. Helena | no option in the portal's list carries this country under any of the portal's own names |
 | `SJ` | Svalbard & Jan Mayen | no option in the portal's list carries this country under any of the portal's own names |
 | `SX` | Sint Maarten | no option in the portal's list carries this country under any of the portal's own names |
-| `TF` | French Southern Territories | no option in the portal's list carries this country under any of the portal's own names |
 | `UM` | U.S. Outlying Islands | no option in the portal's list carries this country under any of the portal's own names |
-| `VI` | U.S. Virgin Islands | no option in the portal's list carries this country under any of the portal's own names |
 
-### What the portal offers that nothing claimed (25)
+### What the portal offers that nothing claimed (22)
 
 Read this beside the tables above: between them they are the whole disagreement.
 
@@ -613,7 +739,6 @@ Read this beside the tables above: between them they are the whole disagreement.
 |---|---|
 | Azores | `AZORES` |
 | Balearic Islands | `BALEARIC ISLANDS` |
-| Burkina-Faso | `BURKINA-FASO` |
 | Canary Islands | `CANARY ISLANDS` |
 | Ceuta | `CEUTA` |
 | Channel Islands (The) | `CHANNEL ISLANDS (THE)` |
@@ -631,11 +756,9 @@ Read this beside the tables above: between them they are the whole disagreement.
 | Netherlands Antilles | `NETHERLANDS ANTILLES` |
 | Not Known | `NOT KNOWN` |
 | Reunion | `REUNION` |
-| St Kitts Nevis | `ST KITTS NEVIS` |
 | St Martin (South) | `ST MARTIN (SOUTH)` |
 | Stateless | `STATELESS` |
 | Virgin Is (British) | `VIRGIN IS (BRITISH)` |
-| Virgin Is (US) | `VIRGIN IS (US)` |
 
 ## What happens after you sign
 

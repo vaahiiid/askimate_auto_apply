@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { COUNTRIES } from "@askimate/aas-profile";
 
-import type { Derivation, PortalOption } from "./derive-country-mappings.js";
+import type { Derivation, PortalOption, ReviewedDecision } from "./derive-country-mappings.js";
 import {
   COUNTRY_FIELD_REFS,
   bareValue,
@@ -25,6 +25,15 @@ import {
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+const COMMITTED_DECISIONS: readonly ReviewedDecision[] = (
+  JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-decisions.json"),
+      "utf8",
+    ),
+  ) as { decisions: ReviewedDecision[] }
+).decisions;
 
 const ENTRY = readFileSync(
   join(import.meta.dirname, "..", "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json"),
@@ -141,7 +150,7 @@ describe("the reviewed Sheffield entry, derived", () => {
 
 describe("the page", () => {
   it("is deterministic — the same derivation writes the same bytes", () => {
-    const derive = (): string => reviewPage(derivationsFrom(ENTRY));
+    const derive = (): string => reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS));
     expect(derive()).toBe(derive());
   });
 
@@ -153,12 +162,12 @@ describe("the page", () => {
       join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-review.md"),
       "utf8",
     );
-    const fresh = reviewPage(derivationsFrom(ENTRY));
+    const fresh = reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS));
     expect(committed, "run `pnpm run country-mappings`").toBe(fresh);
   });
 
   it("says what the portal offers before asking him to read anything", () => {
-    const page = reviewPage(derivationsFrom(ENTRY).slice(0, 1));
+    const page = reviewPage(derivationsFrom(ENTRY, COMMITTED_DECISIONS).slice(0, 1));
     expect(page).toContain("What the portal has, before a single line is read");
     expect(page).toContain("| `fundingNationality` | ISO codes | 242 | 235 |");
   });
@@ -260,5 +269,143 @@ describe("the portal corroborating itself (P202)", () => {
     expect([...portalAliases("Ivory Coast [Côte D'ivoire]")]).toContain("ivory coast");
     // Nothing is invented: every alias is text the portal printed.
     expect([...portalAliases("Iran")]).toEqual(["iran"]);
+  });
+});
+
+describe("a shared single word is not a resemblance (P203)", () => {
+  // Vahid, reading the second version, 2026-09-24:
+  //
+  //   *"Northern Mariana Islands is in the Pacific; Northern Ireland is in
+  //   the UK. Paired on the word 'Northern'. A student from Saipan would have
+  //   had Northern Ireland on their application, and on this portal that
+  //   carries a fee-status marker. Do not propose it again — and treat it as
+  //   evidence that a shared leading word is not a resemblance."*
+  //
+  // Both of his rejections came from one word in common and nothing else.
+  it("refuses the two pairings he rejected", () => {
+    const northern = deriveCountryMapping("test", [option("NORTHERN IRELAND", "Northern Ireland")]);
+    expect(northern.unmatched.find((u) => u.country.code === "MP")?.candidate).toBeNull();
+
+    const french = deriveCountryMapping("test", [option("French West Indies:E", "French West Indies")]);
+    expect(french.unmatched.find((u) => u.country.code === "TF")?.candidate).toBeNull();
+  });
+
+  it("refuses a shared TRAILING word too, not just a leading one", () => {
+    // `Solomon Islands` and `Marshall Islands` share only `islands`.
+    const derived = deriveCountryMapping("test", [option("Marshall Islands:O", "Marshall Islands")]);
+    expect(derived.unmatched.find((u) => u.country.code === "SB")?.candidate).toBeNull();
+  });
+
+  it("refuses two saints that share only their title", () => {
+    // `and` and `the` are dropped as joining words, so `St Kitts & Nevis` and
+    // `Saint Vincent and the Grenadines` share `st` alone.
+    const derived = deriveCountryMapping("test", [
+      option("Saint Vincent and the Grenadines:O", "Saint Vincent and the Grenadines"),
+    ]);
+    expect(derived.unmatched.find((u) => u.country.code === "KN")?.candidate).toBeNull();
+  });
+
+  it("keeps the four he accepted, which is the other half of the bar", () => {
+    const pairs: readonly (readonly [string, string])[] = [
+      ["CC", "Cocos Islands"],
+      ["CV", "Cape Verde Islands"],
+      ["GS", "South Georgia & the South Sandwich Is"],
+      ["US", "United States of America"],
+    ];
+    for (const [code, label] of pairs) {
+      const derived = deriveCountryMapping("test", [option(`${label}:O`, label)]);
+      expect(derived.unmatched.find((u) => u.country.code === code)?.candidate?.label, code).toBe(label);
+    }
+  });
+
+  it("opens word for word, never letter for letter", () => {
+    // `niger` is a letter-prefix of `nigeria` and not a word of it.
+    const derived = deriveCountryMapping("test", [option("Nigeria:O", "Nigeria")]);
+    expect(derived.unmatched.find((u) => u.country.code === "NE")?.candidate).toBeNull();
+  });
+});
+
+describe("a hyphen between two words of a name is not a different name (P203)", () => {
+  // Vahid: *"BF, Burkina Faso, is recorded as absent from at least one portal
+  // list. Every UK university lists Burkina Faso and its name is the same in
+  // every language."* Sheffield's three uppercase lists spell it
+  // `BURKINA-FASO`; the pass had failed exactly the way Czechia's did.
+  it("corroborates Burkina Faso across the lists that hyphenate it", () => {
+    for (const d of derivationsFrom(ENTRY)) {
+      const bf = d.unmatched.find((u) => u.country.code === "BF");
+      if (bf === undefined) continue; // matched strictly on that field
+      expect(bf.kind, d.fieldRef).toBe("portal_corroborated");
+      expect(bf.candidate?.label, d.fieldRef).toBe("Burkina-Faso");
+    }
+  });
+
+  it("was the ONLY country hiding behind punctuation, across every absent row", () => {
+    // Measured when the fold was widened: if this ever fails, another country
+    // has started hiding the same way and the absent column is lying again.
+    const stillAbsent = derivationsFrom(ENTRY).flatMap((d) =>
+      d.unmatched.filter((u) => u.kind === "absent").map((u) => `${d.fieldRef}:${u.country.code}`),
+    );
+    expect(stillAbsent.filter((row) => row.endsWith(":BF"))).toEqual([]);
+  });
+});
+
+describe("what he decided is not asked again (P203)", () => {
+  const DECIDED = JSON.parse(
+    readFileSync(join(import.meta.dirname, "..", "docs", "run-a", "country-mapping-decisions.json"), "utf8"),
+  ) as { decisions: ReviewedDecision[] };
+
+  it("never offers a pairing he refused, and says who refused it", () => {
+    const derived = deriveCountryMapping(
+      "corrCountry",
+      [option("NORTHERN IRELAND", "Northern Ireland")],
+      new Map(),
+      DECIDED.decisions,
+    );
+    const mp = derived.unmatched.find((u) => u.country.code === "MP");
+    expect(mp?.candidate).toBeNull();
+    expect(mp?.kind).toBe("rejected");
+    expect(mp?.why).toContain("REFUSED by Vahid");
+    expect(mp?.why).toContain("in the Pacific");
+  });
+
+  it("does NOT suppress a different option for a country he refused once", () => {
+    // He refused MP → Northern Ireland. If the portal ever offered a real
+    // Northern Mariana Islands option, that is a new proposal and he sees it.
+    const derived = deriveCountryMapping(
+      "corrCountry",
+      [option("NORTHERN MARIANA ISLANDS", "Northern Mariana Islands")],
+      new Map(),
+      DECIDED.decisions,
+    );
+    // It matches strictly, in fact — which is the strongest form of not suppressed.
+    expect(derived.matched.some((m) => m.country.code === "MP")).toBe(true);
+  });
+
+  it("marks what he accepted and what he held, with his words and the blocker", () => {
+    const derived = derivationsFrom(ENTRY, DECIDED.decisions);
+    const residence = derived.find((d) => d.fieldRef === "permanentResidence");
+    const sx = residence?.unmatched.find((u) => u.country.code === "SX");
+    expect(sx?.kind).toBe("accepted");
+    expect(sx?.why).toContain("ACCEPTED by Vahid");
+
+    const cy = residence?.unmatched.find((u) => u.country.code === "CY");
+    expect(cy?.kind).toBe("held");
+    expect(cy?.why).toContain("blocker 70");
+
+    const mfHeld = derived
+      .find((d) => d.fieldRef === "corrCountry")
+      ?.unmatched.find((u) => u.country.code === "MF");
+    expect(mfHeld?.kind).toBe("held");
+    expect(mfHeld?.why).toContain("blocker 66");
+  });
+
+  it("leaves only what he has not read in the column that asks for him", () => {
+    for (const d of derivationsFrom(ENTRY, DECIDED.decisions)) {
+      const toRead = d.unmatched.filter((u) => u.kind === "name_resemblance");
+      expect(toRead.length, d.fieldRef).toBeLessThanOrEqual(2);
+      for (const row of toRead) {
+        expect(["KN", "VI", "VC"], `${d.fieldRef} ${row.country.code}`).toContain(row.country.code);
+      }
+    }
   });
 });

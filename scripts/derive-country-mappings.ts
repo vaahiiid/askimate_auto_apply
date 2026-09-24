@@ -87,7 +87,37 @@ export interface Matched {
  * the portal's OWN names for it — the Antarctica case, which is a different
  * fact from "the proposer failed" and is printed as one.
  */
-export type CandidateKind = "portal_corroborated" | "name_resemblance" | "absent";
+export type CandidateKind =
+  | "portal_corroborated"
+  | "name_resemblance"
+  | "absent"
+  /** He read it and said yes. */
+  | "accepted"
+  /** He read it and said not here, not yet — with a blocker. */
+  | "held"
+  /** He read it and said no. It can never be offered again. */
+  | "rejected";
+
+/**
+ * What Vahid decided reading a previous version of the page.
+ *
+ * Recorded in `docs/run-a/country-mapping-decisions.json` so the derivation
+ * stops asking what he has answered, and so a refusal is permanent: *"Do not
+ * propose it again."* A reject names the OPTION as well as the code, because
+ * a different option for the same country is a new proposal and he should see
+ * it rather than have it silently suppressed.
+ */
+export interface ReviewedDecision {
+  readonly code: string;
+  /** A field's ref, or `*` for every field. */
+  readonly fieldRef: string;
+  readonly verdict: "accept" | "reject" | "hold";
+  /** The option's LABEL as he read it. Absent on a hold, which is about the country. */
+  readonly option?: string;
+  readonly blocker?: number;
+  readonly on: string;
+  readonly reason: string;
+}
 
 export interface Unmatched {
   readonly country: Country;
@@ -183,15 +213,27 @@ export function portalAliases(label: string): readonly string[] {
  * The comparison fold for PORTAL text.
  *
  * `normaliseCountryText` is the registry's, and it stays as it is — it decides
- * what a STUDENT's answer means and must not drift. This one is wider by
- * exactly one character: the capture contains `Korea, Democratic People¿s
- * Republic of`, where `¿` sits between letters in the place of an apostrophe.
- * Whether Sheffield serves that byte or the capture mangled it is unread, so
- * it is folded away here — in the portal-quirk layer — rather than taught to
- * the registry.
+ * what a STUDENT's answer means and must not drift. This one is wider in two
+ * ways, both of them punctuation rather than meaning, and both live here in
+ * the portal-quirk layer rather than being taught to the registry:
+ *
+ *   `¿`  the capture contains `Korea, Democratic People¿s Republic of`, where
+ *        that byte sits between letters in the place of an apostrophe.
+ *        Whether Sheffield serves it or the capture mangled it is unread.
+ *
+ *   `-` and friends — P203, and Vahid found it: *"BF, Burkina Faso, is
+ *        recorded as absent from at least one portal list. Every UK university
+ *        lists Burkina Faso and its name is the same in every language."*
+ *        Sheffield's three uppercase lists spell it **`BURKINA-FASO`**, and
+ *        ours has a space, so the pass failed exactly the way Czechia's had.
+ *        A hyphen between two words of a name is not a different name.
+ *
+ * Every other country in the absent column was re-checked against this wider
+ * fold when it was written: **Burkina Faso was the only one hiding behind
+ * punctuation**, across all 98 absent rows of the six fields.
  */
 function fold(text: string): string {
-  return normaliseCountryText(text.replace(/¿/g, ""));
+  return normaliseCountryText(text.replace(/¿/g, "").replace(/[-–—/()[\]]/g, " "));
 }
 
 /**
@@ -236,25 +278,70 @@ function corroborate(
 }
 
 /**
- * PASS 3 — our name against the portal's text, and DELIBERATELY WEAK.
+ * PASS 3 — our name against the portal's text.
  *
- * It offers an option whose text starts with our name, or whose first word is
- * our first word — enough to put *Iran, Islamic Republic of* next to *Iran*,
- * and not enough to pair *Côte d'Ivoire* with *Ivory Coast*, which pass 2 now
- * does properly from the portal's own list. The shortest candidate wins.
+ * ── WHAT IT COMPARES, WHAT IT IGNORES, AND THE BAR ───────────────────────
+ *
+ * Both names are lowercased, their punctuation is folded to spaces, and they
+ * are cut into words. The words `and`, `the` and `of` are dropped, because
+ * they join names rather than being part of one. Then a pairing is offered
+ * only when, of the words that are left:
+ *
+ *   EITHER one name's words are the OPENING of the other's, word for word —
+ *          `iran` opens `iran islamic republic of`; `united states` opens
+ *          `united states of america`. Word for word, never letter for
+ *          letter, so `niger` does not open `nigeria`.
+ *
+ *   OR     the two share at least TWO words — `cocos keeling islands` and
+ *          `cocos islands` share `cocos` and `islands`.
+ *
+ * The shortest candidate wins, and nothing else is looked at: not the
+ * continent, not the region, not what the name means.
+ *
+ * ── WHY THE BAR IS TWO WORDS AND NOT ONE (P203) ──────────────────────────
+ *
+ * It was one word until 2026-09-24, and Vahid caught what that produced while
+ * reading the page:
+ *
+ *   MP  Northern Mariana Islands  →  Northern Ireland
+ *   TF  French Southern Territories  →  French West Indies
+ *
+ *   *"Northern Mariana Islands is in the Pacific; Northern Ireland is in the
+ *   UK. Paired on the word 'Northern'. A student from Saipan would have had
+ *   Northern Ireland on their application, and on this portal that carries a
+ *   fee-status marker… treat it as evidence that a shared leading word is not
+ *   a resemblance."*
+ *
+ * Both came from one word in common and nothing else. So one word in common
+ * is no longer a resemblance — leading, trailing or anywhere.
  */
 function propose(country: Country, available: readonly PortalOption[]): PortalOption | null {
-  const ours = normaliseCountryText(country.name);
-  const ourFirst = ours.split(" ")[0] ?? "";
+  const ours = words(country.name);
   const fits = available
-    .map((option) => ({ option, text: normaliseCountryText(option.label || bareValue(option.value)) }))
-    .filter(({ text }) => {
-      if (text.startsWith(ours) || ours.startsWith(text)) return true;
-      const theirFirst = text.split(" ")[0] ?? "";
-      return ourFirst.length >= 4 && theirFirst === ourFirst;
-    })
-    .sort((a, b) => a.text.length - b.text.length);
+    .map((option) => ({ option, theirs: words(option.label || bareValue(option.value)) }))
+    .filter(({ theirs }) => opens(ours, theirs) || opens(theirs, ours) || shared(ours, theirs) >= 2)
+    .sort((a, b) => a.theirs.join(" ").length - b.theirs.join(" ").length);
   return fits[0]?.option ?? null;
+}
+
+/** Words that join names rather than being part of one. */
+const JOINING: ReadonlySet<string> = new Set(["and", "the", "of"]);
+
+function words(text: string): readonly string[] {
+  return fold(text)
+    .split(" ")
+    .filter((word) => word.length > 0 && !JOINING.has(word));
+}
+
+/** Word for word, never letter for letter: `niger` does not open `nigeria`. */
+function opens(shorter: readonly string[], longer: readonly string[]): boolean {
+  if (shorter.length === 0 || shorter.length > longer.length) return false;
+  return shorter.every((word, index) => longer[index] === word);
+}
+
+function shared(a: readonly string[], b: readonly string[]): number {
+  const theirs = new Set(b);
+  return new Set(a.filter((word) => theirs.has(word))).size;
 }
 
 /**
@@ -276,7 +363,14 @@ export function deriveCountryMapping(
   options: readonly PortalOption[],
   /** What the portal's own code-valued selects call each code (pass 2). */
   portalLabels: ReadonlyMap<string, string> = new Map(),
+  /** What he has already read and decided. */
+  decisions: readonly ReviewedDecision[] = [],
 ): Derivation {
+  const decisionFor = (code: string): ReviewedDecision | undefined =>
+    decisions.find(
+      (decision) =>
+        decision.code === code && (decision.fieldRef === "*" || decision.fieldRef === fieldRef),
+    );
   const shape = shapeOf(options);
   const offered = options.filter((option) => option.value !== "");
 
@@ -343,6 +437,45 @@ export function deriveCountryMapping(
   }
 
   const unmatched: Unmatched[] = proposed.map(({ country, option, kind }) => {
+    // ── What he already decided comes first ─────────────────────────────
+    //
+    // A REJECT is matched on the option too: if the derivation now names a
+    // different one, that is a new proposal and he sees it.
+    const decided = decisionFor(country.code);
+    if (decided !== undefined) {
+      const sameOption =
+        decided.option === undefined ||
+        (option !== null && fold(option.label) === fold(decided.option));
+      // A refusal is shown when the proposer offers the same option again AND
+      // when it now offers nothing: his words are the reason there is no
+      // candidate, and burying them under "absent" would say the portal has
+      // no such option, which is false — it has one, and he refused it.
+      const refused = decided.verdict === "reject" && (sameOption || option === null);
+      if (refused) {
+        return {
+          country,
+          candidate: null,
+          kind: "rejected",
+          why: `REFUSED by Vahid on ${decided.on}: ${decided.reason}`,
+        };
+      }
+      if (decided.verdict === "hold") {
+        return {
+          country,
+          candidate: option,
+          kind: "held",
+          why: `HELD by Vahid on ${decided.on}${decided.blocker === undefined ? "" : ` — blocker ${String(decided.blocker)}`}: ${decided.reason}`,
+        };
+      }
+      if (decided.verdict === "accept" && sameOption && option !== null) {
+        return {
+          country,
+          candidate: option,
+          kind: "accepted",
+          why: `ACCEPTED by Vahid on ${decided.on}: ${decided.reason}`,
+        };
+      }
+    }
     if (option !== null && collided.has(option.value)) {
       const others = (collided.get(option.value)?.countries ?? [])
         .filter((other) => other.code !== country.code)
@@ -429,6 +562,7 @@ export function optionMapOf(derivation: Derivation): Record<string, string> {
 const ROOT = join(import.meta.dirname, "..");
 const ENTRY = join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json");
 const PAGE = join(ROOT, "docs", "run-a", "country-mapping-review.md");
+const DECISIONS = join(ROOT, "docs", "run-a", "country-mapping-decisions.json");
 
 /** The country-typed target fields of the reviewed entry, in the order it lists them. */
 export const COUNTRY_FIELD_REFS: readonly string[] = [
@@ -496,6 +630,35 @@ export function reviewPage(derivations: readonly Derivation[]): string {
   out.push("| **proposed** | our name resembles the portal's text | a guess — this is the column to read |");
   out.push("| **absent** | no option carries this country under any of the portal's own names | the portal does not have it |");
   out.push("| **withdrawn** | two countries' proposals landed on one submitted value | never shown as a candidate |");
+  out.push("| **accepted · held · refused** | you read it already | your words, quoted, with the date |");
+  out.push("");
+  out.push("## What the proposer actually does");
+  out.push("");
+  out.push("You asked for this, having read a column called UNVERIFIED without knowing how it was");
+  out.push("produced. Here is the whole of it.");
+  out.push("");
+  out.push("**What it compares.** Our name for the country and the portal's text for an option,");
+  out.push("both lowercased, with punctuation — hyphens, slashes, brackets, apostrophes — folded to");
+  out.push("spaces, then cut into words. The words `and`, `the` and `of` are dropped, because they");
+  out.push("join names rather than being part of one.");
+  out.push("");
+  out.push("**The bar.** A pairing is offered only when, of the words that are left, EITHER one");
+  out.push("name's words are the opening of the other's, word for word — `iran` opens `iran islamic");
+  out.push("republic of`, and `niger` does **not** open `nigeria`, because it is word for word and");
+  out.push("never letter for letter — OR the two share **at least two** words, as `cocos keeling");
+  out.push("islands` and `cocos islands` share `cocos` and `islands`. The shortest candidate wins.");
+  out.push("");
+  out.push("**What it ignores.** Everything else. Not the continent, not the region, not what the");
+  out.push("name means, not any list of aliases of ours. It has no idea where anywhere is.");
+  out.push("");
+  out.push("**Why the bar is two words and not one.** It was one until you read the last version:");
+  out.push("`MP` *Northern Mariana Islands* → *Northern Ireland*, and `TF` *French Southern");
+  out.push("Territories* → *French West Indies*. Both came from a single word in common and nothing");
+  out.push("else, which is why a shared leading or trailing word is no longer a resemblance.");
+  out.push("");
+  out.push("**What stands behind it.** Two things, and they are why a bad guess here is survivable:");
+  out.push("no option already taken by another country can be proposed at all, and any option");
+  out.push("proposed for two countries is withdrawn from both and shown as a collision.");
   out.push("");
   out.push("## What the portal has, before a single line is read");
   out.push("");
@@ -507,11 +670,14 @@ export function reviewPage(derivations: readonly Derivation[]): string {
         String(d.offered),
         String(d.matched.length),
         String(kindOf(d, "portal_corroborated").length),
+        String(
+          kindOf(d, "accepted").length + kindOf(d, "held").length + kindOf(d, "rejected").length,
+        ),
         `**${String(kindOf(d, "name_resemblance").length)}**`,
         String(kindOf(d, "absent").length),
         String(d.collisions.length),
       ]),
-      ["field", "options are", "offered", "derived", "corroborated", "to read", "absent", "collisions"],
+      ["field", "options are", "offered", "derived", "corroborated", "you decided", "to read", "absent", "collisions"],
     ),
   );
   out.push("");
@@ -595,6 +761,32 @@ export function reviewPage(derivations: readonly Derivation[]): string {
       out.push("");
     }
 
+    const decidedSections: readonly (readonly [CandidateKind, string, string])[] = [
+      ["accepted", "Accepted by you", "Your reading, kept so the page does not ask again."],
+      ["held", "Held by you", "Read, and deliberately not settled here."],
+      ["rejected", "Refused by you", "Never offered again, whatever the proposer later thinks."],
+    ];
+    for (const [kind, heading, blurb] of decidedSections) {
+      const rows = kindOf(derivation, kind);
+      if (rows.length === 0) continue;
+      out.push(`### ${heading} (${String(rows.length)})`);
+      out.push("");
+      out.push(blurb);
+      out.push("");
+      out.push(
+        table(
+          rows.map((u) => [
+            `\`${u.country.code}\``,
+            cell(u.country.name),
+            u.candidate === null ? "—" : cell(u.candidate.label),
+            cell(u.why),
+          ]),
+          ["code", "our name", "the portal's option text", "what you said"],
+        ),
+      );
+      out.push("");
+    }
+
     if (proposed.length > 0) {
       out.push(`### To read (${String(proposed.length)}) — a guess from our name against the portal's text`);
       out.push("");
@@ -660,17 +852,25 @@ export function reviewPage(derivations: readonly Derivation[]): string {
  * the name-valued ones: a field cannot be derived in isolation from the portal
  * it belongs to.
  */
-export function derivationsFrom(entryJson: string): readonly Derivation[] {
+export function derivationsFrom(
+  entryJson: string,
+  decisions: readonly ReviewedDecision[] = [],
+): readonly Derivation[] {
   const selects = COUNTRY_FIELD_REFS.map((ref) => optionsFromEntry(entryJson, ref));
   const portalLabels = portalLabelsForCodes(selects);
   return COUNTRY_FIELD_REFS.map((fieldRef, index) =>
-    deriveCountryMapping(fieldRef, selects[index] ?? [], portalLabels),
+    deriveCountryMapping(fieldRef, selects[index] ?? [], portalLabels, decisions),
   );
+}
+
+/** His recorded reading, or none if the file is not there. */
+export function decisionsFrom(json: string): readonly ReviewedDecision[] {
+  return (JSON.parse(json) as { decisions: ReviewedDecision[] }).decisions;
 }
 
 function main(): void {
   const entryJson = readFileSync(ENTRY, "utf8");
-  const derivations = derivationsFrom(entryJson);
+  const derivations = derivationsFrom(entryJson, decisionsFrom(readFileSync(DECISIONS, "utf8")));
   writeFileSync(PAGE, reviewPage(derivations), "utf8");
   for (const d of derivations) {
     console.log(

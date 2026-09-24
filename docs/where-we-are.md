@@ -4906,6 +4906,96 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P203 — two pairings that would have put the wrong country on an application
+
+He read the page a second time.
+
+> *"Two of the twenty-two are wrong, and they are exactly what the page was built to catch."*
+
+```
+MP  Northern Mariana Islands      → Northern Ireland
+TF  French Southern Territories   → French West Indies
+```
+
+Saipan is in the Pacific; Northern Ireland is in the UK. The Kerguelen Islands are in the
+Antarctic; Guadeloupe and Martinique are in the Caribbean. Each pairing came from **one word in
+common and nothing else** — and on this portal every one of those options carries a fee-status
+marker, so the wrong country is also the wrong fee.
+
+## The bar
+
+One shared word is no longer a resemblance, leading, trailing or anywhere. A pairing is offered
+only when, after punctuation is folded to spaces and `and`, `the` and `of` are dropped:
+
+- one name's words **open** the other's, word for word — `iran` opens `iran islamic republic of`,
+  and `niger` does **not** open `nigeria`, because it is word for word and never letter for letter;
+- **or** the two share **at least two** words — `cocos keeling islands` and `cocos islands` share
+  `cocos` and `islands`.
+
+Six tests fail if the bar goes back to one word. Both of his rejections disappear; all four of his
+accepts survive, which is the other half of the test.
+
+And the bar found something on its own: raising it changed the tokenisation enough that `UM` *U.S.
+Outlying Islands* and `VI` *U.S. Virgin Islands* both proposed *Virgin Islands (US)* on residence.
+The collision rule from P202 withdrew both. One of them is right; neither is guessed at.
+
+## Saying what the proposer does
+
+> *"I have been reading a column called UNVERIFIED without knowing how it was produced… A reviewer
+> who cannot see how a guess was made cannot judge it — and I nearly approved Northern Ireland."*
+
+The page now carries four short paragraphs before any table: **what it compares** (both names,
+lowercased, punctuation folded, cut into words, joining words dropped), **the bar** (as above),
+**what it ignores** (everything else — it has no idea where anywhere is), and **what stands behind
+it** (no option another country already took, and any option proposed twice is withdrawn).
+
+## Burkina Faso was the pass failing
+
+> *"Every UK university lists Burkina Faso and its name is the same in every language. Check whether
+> it is genuinely missing from that list or whether the pass failed on it, the way Czechia did."*
+
+The pass failed. Sheffield's three uppercase lists spell it **`BURKINA-FASO`**; ours has a space;
+the fold did not touch hyphens. Fixed in the portal-quirk layer — where `¿` already lives — and not
+in the registry's own normaliser, which decides what a student's answer means and must not drift.
+
+He asked whether more were hiding the same way. **Measured across all 98 absent rows of the six
+fields: Burkina Faso was the only one.** A test holds that, so if another country ever starts
+hiding behind punctuation the absent column stops lying about it.
+
+## His verdicts are a file now, not a memory
+
+Twelve of them, in `docs/run-a/country-mapping-decisions.json`, read by the derivation:
+
+- **two refusals** that can never be re-offered. A refusal names the option as well as the country,
+  so if the portal ever grows a real *Northern Mariana Islands* option that is a new proposal and he
+  sees it — and a refusal is shown even when the raised bar already refuses the pairing, because his
+  words are the reason there is no candidate and *absent* would say the portal has no such option,
+  which is false;
+- **four accepts** — CC, CV, GS, US — and two more for MF and SX on residence, where the portal
+  splits the island the way the codes do;
+- **the holds**: CY against blocker 70, and MF on the three lists that carry no Sint Maarten at all,
+  against blocker 66 — which is that blocker's first concrete instance, and it is recorded there.
+
+So the page stops asking what he has answered. **Eight rows are left for him** — `KN`, `VI`, `VC`
+across six fields, and the one `UM`/`VI` collision — from 37–44 a field two phases ago.
+
+## One correction
+
+He named three fields for `MP`. The version he read proposed it on **two**: `corrCountry` and
+`previousCountry1`. On `institutionCountry` it was already absent, and `permanentResidence` carries
+its own *Northern Mariana Islands* option and matched it strictly. His rule is applied to every
+field regardless.
+
+## And the machine, again
+
+Postgres and Redis were killed by the container a fourth time this session, mid-run, and the suite
+went red with `No PostgreSQL at …`. Restarted; the count is recorded because anyone running the
+census locally will meet it.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P202 — he read the page and found the trap in it
 
 > *"The page is exactly the right shape — I read the disagreements, not 249 lines. Two things

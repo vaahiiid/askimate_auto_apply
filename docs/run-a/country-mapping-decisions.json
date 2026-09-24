@@ -1,0 +1,113 @@
+{
+  "$comment": [
+    "Vahid's reading of the country-mapping review page, recorded so the derivation stops",
+    "asking him what he has answered and can never re-offer what he refused.",
+    "",
+    "A REJECT names the option he refused, not just the code: if the derivation ever finds a",
+    "DIFFERENT option for that country it is a new proposal and he sees it. A reject is belt",
+    "and braces over the raised bar (P203) — the bar already stops both of these, and the",
+    "record holds if anyone ever loosens it.",
+    "",
+    "Read by scripts/derive-country-mappings.ts. Nothing here is applied to the entry: that",
+    "still takes his signature on the whole set."
+  ],
+  "decidedBy": "Vahid Mohammadi",
+  "decisions": [
+    {
+      "code": "MP",
+      "fieldRef": "*",
+      "verdict": "reject",
+      "option": "Northern Ireland",
+      "on": "2026-09-24",
+      "reason": "Northern Mariana Islands is in the Pacific; Northern Ireland is in the UK. Paired on the word \"Northern\". A student from Saipan would have had Northern Ireland on their application, and on this portal that carries a fee-status marker."
+    },
+    {
+      "code": "TF",
+      "fieldRef": "*",
+      "verdict": "reject",
+      "option": "French West Indies",
+      "on": "2026-09-24",
+      "reason": "French Southern Territories are in the Antarctic; the French West Indies are in the Caribbean. Paired on \"French\". Same rule."
+    },
+    {
+      "code": "CC",
+      "fieldRef": "*",
+      "verdict": "accept",
+      "option": "Cocos Islands",
+      "on": "2026-09-24",
+      "reason": "The same place under a different name."
+    },
+    {
+      "code": "CV",
+      "fieldRef": "*",
+      "verdict": "accept",
+      "option": "Cape Verde Islands",
+      "on": "2026-09-24",
+      "reason": "The same place under a different name."
+    },
+    {
+      "code": "GS",
+      "fieldRef": "*",
+      "verdict": "accept",
+      "option": "South Georgia & the South Sandwich Is",
+      "on": "2026-09-24",
+      "reason": "The same place under the portal's own abbreviation."
+    },
+    {
+      "code": "US",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "United States of America",
+      "on": "2026-09-24",
+      "reason": "The same place under a different name."
+    },
+    {
+      "code": "MF",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "St Martin (French part)",
+      "on": "2026-09-24",
+      "reason": "One island, two halves, two codes, correctly split: MF is the French part and SX the Dutch."
+    },
+    {
+      "code": "SX",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "Sint Maarten (Dutch Part)",
+      "on": "2026-09-24",
+      "reason": "The Dutch half of the same island, and the portal splits it the way the codes do."
+    },
+    {
+      "code": "CY",
+      "fieldRef": "*",
+      "verdict": "hold",
+      "blocker": 70,
+      "on": "2026-09-24",
+      "reason": "\"That is blocker 70 and I am not settling it here.\" One code, several options, and what they ask for is a distinction the registry does not hold."
+    },
+    {
+      "code": "MF",
+      "fieldRef": "corrCountry",
+      "verdict": "hold",
+      "blocker": 66,
+      "on": "2026-09-24",
+      "reason": "This list carries only \"St Martin (North)\" and no Sint Maarten at all, so MF is proposed here and SX has nowhere to go. \"That is a real student with no honest option, which is blocker 66's case arriving. Do not apply MF on those three until 66 has a shape.\""
+    },
+    {
+      "code": "MF",
+      "fieldRef": "previousCountry1",
+      "verdict": "hold",
+      "blocker": 66,
+      "on": "2026-09-24",
+      "reason": "As corrCountry: \"St Martin (North)\" with no Sint Maarten, so SX has nowhere to go."
+    },
+    {
+      "code": "MF",
+      "fieldRef": "institutionCountry-ts-control",
+      "verdict": "hold",
+      "blocker": 66,
+      "on": "2026-09-24",
+      "reason": "As corrCountry: \"St Martin (North)\" with no Sint Maarten, so SX has nowhere to go."
+    }
+  ]
+}

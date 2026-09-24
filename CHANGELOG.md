@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.199.0] — 2026-09-24
+
+**P203 — the two pairings Vahid rejected, and the rules they became.**
+
+- **Raised** the proposer's bar: a pairing is offered only when one name's words open the other's
+  word for word, or the two share at least two words, with `and`, `the` and `of` dropped. One shared
+  word — leading, trailing or anywhere — is no longer a resemblance. It had offered
+  `MP` *Northern Mariana Islands* → *Northern Ireland* and `TF` *French Southern Territories* →
+  *French West Indies*. Six tests fail if the bar goes back.
+- **Added** four paragraphs to the page saying what the proposer compares, the bar it uses, what it
+  ignores and what stands behind it — *"a reviewer who cannot see how a guess was made cannot judge
+  it"*.
+- **Fixed** the portal-quirk fold to treat punctuation as a space: Sheffield spells Burkina Faso
+  `BURKINA-FASO` in three lists, and the pass had failed on it the way Czechia's did. **A re-check
+  of all 98 absent rows found BF was the only one hiding that way**, and a test holds it.
+- **Added** `docs/run-a/country-mapping-decisions.json` — his twelve verdicts, read by the
+  derivation. A refusal can never be re-offered; accepts and holds leave the column that asks for
+  him. **Eight rows remain**, from 37–44 a field two phases ago.
+- **Recorded** blocker 66's first concrete instance: MF/SX are one island split two ways, and three
+  of the six lists carry no Sint Maarten at all.
+
+---
+
 ## [0.198.0] — 2026-09-23
 
 **P202 — the two defects Vahid found reading the review page.**
