@@ -1,10 +1,10 @@
 [
   {
-    "contentHash": "sha256:f13dff6d1427658631e8cc6d394f156c24bd77632bccc456b15a0f07d15acf59",
+    "contentHash": "sha256:be3b0ae0ae64adf93c31384e0f10f53d31e28fb11b2b07fc5f8deb9e1900bfdd",
     "authoredBy": "Vahid Mohammadi",
     "approvedBy": "Vahid Mohammadi",
-    "approvedAt": "2026-09-24T12:00:00Z",
+    "approvedAt": "2026-09-24T16:00:00Z",
     "ownAccountOnly": { "studentId": "af398e01-c154-469d-a086-3e9c8c60a020" },
-    "note": "One signature (ADR-0118): my own account only. Signed after reading docs/run-a/country-mapping-review.md — the nine country option maps go from 72 to 2,088 values, derived or corroborated from the portal's own lists, with 24 rulings of mine on the disagreements. CY held on every field (blocker 70), MF and SX held wherever the portal offers only one half of the island (blocker 66). Nothing else in the entry moved since sha256:e2a10113."
+    "note": "One signature (ADR-0118): my own account only. Signed to STOP the run, not to enable it: the degree map read a qualification's level and wrote an award title, so every BA student would have been told to Sheffield as a BSc, silently. It now refuses (not_derivable, blocker 71) and no education page can be filled until the registry holds the award title as the student's own stated field. what-will-be-typed.md is that refusal. I am signing a system that does less and lies less."
   }
 ]
