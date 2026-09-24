@@ -19,6 +19,31 @@ not shipped artefacts.
 
 ---
 
+## [0.203.0] — 2026-09-25
+
+**P207 — the entry is signed; the six partial maps are costed, not planned.**
+
+- **Took down the interval assertion.** Vahid signed `sha256:f13dff6d…` as `f67ec69` from his own
+  hash computation, so `run-a-profile.test.ts` now asserts that the directory **loads**, that one
+  approval is on file, and — new — that the four spellings of Iran are what the signed entry
+  carries: `IR:O`, `Iran, Islamic Republic of`, `IRAN:O`, `IRAN`. What he checked by eye before
+  signing is checked by the suite.
+- **Recorded**, at his instruction, that **four of the six partial maps hold exactly one row** and
+  Run A's value is that row. Run A did not pass despite a thin map; it passed along one.
+- **Added** [`docs/decision-sheet-the-six-partial-maps.md`](./docs/decision-sheet-the-six-partial-maps.md):
+  per map, whether it can be derived, needs a person reading a list, or is the wrong shape for an
+  option map at all — with costs and no plan.
+- **Found while costing:** `degree` is not partial, it is **wrong**. It maps a *level* onto an
+  *award title*, so `Bachelor's degree → BSc` renders silently wrong for every student holding a
+  BA. Widening it to 42 rows is 42 rows of the same mistake.
+- **Corrected** P206's own inventory: `institution-ts-control` is not *1 of 11* — the 11 are one
+  typeahead search's results, and its denominator is unbounded (blocker 25).
+- **Costed the discipline question** three ways and recommended the one that generalises: a single
+  accounting page over **all 45** option-carrying mappings — the half of the country page that
+  needs no standard behind the vocabulary — rather than a page per map or a page over the six.
+
+---
+
 ## [0.202.0] — 2026-09-25
 
 **P206 — the country maps are in the entry, and the hash is Vahid's to compute.**

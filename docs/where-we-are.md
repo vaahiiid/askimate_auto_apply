@@ -4906,6 +4906,108 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P207 — signed; and what the other six maps would actually cost
+
+`f67ec69`, `sha256:f13dff6d…`, from his own hash computation. What he checked before signing:
+
+```
+fundingNationality   IR:O
+permanentResidence   Iran, Islamic Republic of:O
+previousCountry1     IRAN:O
+corrCountry          IRAN
+```
+
+> *"Four spellings, one country, each on its own field — the thing that started this whole line of
+> work, now correct in the entry."*
+
+The interval assertion in `run-a-profile.test.ts` is now its opposite: the directory loads, one
+approval is on file, and **those four spellings are asserted from the signed entry**, so what he
+checked by eye is checked by the suite.
+
+## Run A passed along a map that holds one row
+
+He asked for this to be explicit in the record, and it is sharper than the framing he offered:
+
+| map | rows it holds | Run A typed |
+|---|---|---|
+| `subject` | **1** | `Business Management` — the only row |
+| `institution-ts-control` | **1** | `SHEFFIELD` — the only row |
+| `gradingSystemId` | **1** | `7` — the only row |
+| `highestQualification(UNIVERSITY_LEVEL)` | **1** | `UG DEGREE` — the only row |
+| `degree` | 2 | `BSc` |
+| `grade` | 4 | `2.1` |
+
+**Four of the six hold exactly one row, and Run A's value is that row.** All six were touched. The
+run proved the page walk, the save-and-read-back and the hand-over — portal mechanics, which do not
+depend on how many rows a vocabulary has. *"Run A filled the education page"* and *"the education
+page is mapped"* are different sentences and only the first is true.
+
+## Costs, per map — [the sheet](./decision-sheet-the-six-partial-maps.md)
+
+| map | offered | mapped | verdict |
+|---|---|---|---|
+| `highestQualification` | 7 | 1 | **derivable** once the registry holds a level; no escape exists, so everyone must land on one of seven |
+| `gradingSystemId` | 5 | 1 | **derivable by rule** from level and country — but the list is *per institution*, so the rule's output needs a read per institution |
+| `grade` | 9 | 4 | **a person reads five rows** — and three are states, not grades: *Still waiting*, *Failed to complete*, the placeholder |
+| `degree` | 42 | 2 | **wrong shape** |
+| `subject` | 87 | 1 | **wrong shape** |
+| `institution-ts-control` | unbounded | 1 | **wrong shape** — blocker 25 |
+
+### The finding inside the costing: `degree` is not partial, it is wrong
+
+It reads `education.prior_qualifications.level` — *"Bachelor's degree"* — and writes one of the
+portal's 42 **award titles**: BA, BEd, BEng, BMedSci, BSc… A level does not determine a title.
+**`Bachelor's degree → BSc` is wrong for every student holding a BA**, and it is wrong *silently*:
+the map renders, the plan succeeds, and Sheffield is told they have a BSc.
+
+A 42-row level→title map is 42 rows of the same mistake. The registry would have to hold the award
+title as awarded, and then it is the student's recognition, not our derivation.
+
+### And a correction to P206's own inventory
+
+`institution-ts-control` was reported as **1 of 11**. The 11 are what one typeahead search for
+*"Sheffield"* returned — not a list the portal has. Its denominator is unbounded, which is exactly
+blocker 25.
+
+### The one piece of leverage
+
+`subject`, `degree` and `institution` all point at the same missing capability: **an interview step
+that can offer a portal's own list and take the portal's own escape.** Sheffield offers the escape
+in all three — `Not in list` plus `unlistedSubject`, `unlistedDegree`, `unlistedInstitution` — so
+ADR-0102's route exists and ADR-0107 already says the escape is the student's to choose, never
+ours. Built once, it serves all three and the four per-level qualification selects behind them.
+
+## The discipline, and why neither obvious shape is the answer
+
+The country page has two halves, and only one of them needs a standard behind the vocabulary.
+
+- **The derivation** — joining our 249-country table against the portal's list. This is what makes
+  countries special and **cannot** be copied: there is no table to join a subject list against.
+- **The accounting** — what is offered, what is mapped, what is unreachable, which pass reached a
+  ruling. This needs **no** standard. It is arithmetic over the blueprint's captured options and
+  the mapping set's option rules, both already in the entry.
+
+| | cost | verdict |
+|---|---|---|
+| A page per map | ~3 days | Six generators and six drift tests for maps of one to four rows |
+| One page over the six | ~1 day | Invents a category — they share a portal page and nothing else, and the next portal has different six |
+| **One accounting page over all 45 option maps** | **~1 day** | **Recommended** |
+
+The third reads the entry rather than a hand-written list, so the next entry gets it free; it makes
+no claim to derive anything, so it does not pretend a subject list is a country table; and it turns
+*"notes nobody re-derives"* into a table that regenerates **without needing a single decision about
+any of the six first**.
+
+Stated so it is not mistaken for more: **it finds nothing that is wrong today.** Every one of the
+six already carries a note saying it is partial, and the judgements above came from reading the
+entry, not from a gap in tooling. What it buys is that the *next* thin map is a row on a page
+rather than a sentence in a note, and that the count moves on its own when a portal's list changes
+under us.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P206 — the countries are in, and the hash is his to compute
 
 > *"Hold MF on those two as well. 2,088. Same reason as CY… The asymmetry is the defect; its
