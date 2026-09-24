@@ -19,6 +19,35 @@ not shipped artefacts.
 
 ---
 
+## [0.204.0] — 2026-09-25
+
+**P208 — blocker 71: the `degree` map tells a university something untrue, and nothing stops it.**
+
+- **Raised** the `degree` map as **blocker 71**, at the top of the list rather than as one of six
+  partial maps. It reads a *level* and writes an *award title*, so `Bachelor's degree → BSc` is a
+  guess that renders. **Measured on the signed entry:** plan blockers 0, validator violations 0,
+  preview builds, `BSc` typed, read-back passes — because the value lands; it is simply the wrong
+  value. **Run A passed through it**: the synthetic profile holds a BSc and agreed with the bug.
+- **Measured the stop.** Emptying the map's options, with no code changed, produces **three
+  independent refusals**: one `render_refused` → `specialist` (the absent-country path), one
+  validator violation from the portal's own required marker, and a preview refusing
+  `plan_incomplete` — three steps before anything could be sent.
+- **Added** [`docs/decision-sheet-blocker-71-stopping-the-degree-guess.md`](./docs/decision-sheet-blocker-71-stopping-the-degree-guess.md):
+  what it breaks (one signature, four assertions, the committed read; nothing in any deployable),
+  the real cost (every education page stops, Run A's own profile included), and the one wording
+  change it needs — the generic refusal says *"a specialist maps it, or the student is asked"* and
+  for `degree` both halves are false.
+- **Recorded** in `what-run-a-proved.md`, at Vahid's instruction: **Run A filled the education page;
+  the education page is not mapped.** Four of the six maps hold exactly one row and Run A's value is
+  that row.
+- **Corrected** the `institution-ts-control` count beside it: **a typeahead has no list to be
+  partial against.** The *1 of 11* was one search's results from an unbounded remote lookup, and
+  calling it partial invited exactly the wrong fix.
+- **Not started, deliberately:** the accounting page over all 45 option maps, agreed and ranked
+  behind this blocker.
+
+---
+
 ## [0.203.0] — 2026-09-25
 
 **P207 — the entry is signed; the six partial maps are costed, not planned.**

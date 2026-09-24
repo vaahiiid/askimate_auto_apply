@@ -4906,6 +4906,117 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P208 — blocker 71: the map that tells a university something untrue
+
+> *"A level does not determine an award title, and the map silently claims it does. Every BA
+> student is told they hold a BSc, the plan succeeds, and nothing anywhere says otherwise. Run A did
+> not catch it because Niloofar happens to hold a BSc — the synthetic profile agreed with the bug."*
+
+Raised as **blocker 71**, at the top of the list, not as one of six partial maps.
+
+## What it does, and why nothing catches it
+
+Measured on the signed entry, the real `planFill`, the real validator, the real preview:
+
+```
+──── TODAY — the two rows ────
+  plan blockers: 0
+  degree instruction: BSc
+  validator violations: 0
+  preview: built
+```
+
+The map **renders**. The plan **succeeds**. The preview **builds**. The student authorises it, the
+runner types it, and the **read-back passes** — because the value did land. It is just the wrong
+value. There is no refusal anywhere on the path, because nothing on the path knows a level is not
+an award title.
+
+**Run A passed straight through it.** Its qualification is a BSc, so the guess happened to be
+right and the run agreed with the bug.
+
+Why it outranks the other five: they are thin maps that **refuse** for anyone outside them — loud,
+a specialist called, nothing sent. This one **succeeds** and sends a false statement about what
+someone studied to a university's record of it.
+
+## Stopping it today: buildable, and the cheapest form needs no code
+
+Emptying the map's options to `{}` and changing nothing else:
+
+```
+──── EMPTIED — options {} ────
+  plan blockers: 1   render_refused  field=degree
+  degree instruction: — none —
+  validator violations: 1   "Qualification:" is required and the plan has nothing for it
+  preview: REFUSED plan_incomplete
+```
+
+**Three independent stops, none of which needed a line of code:**
+
+1. `planFill` → `render_refused`, a *structural* blocker, so `nextStep` answers `specialist` — the
+   same path an absent country takes (P204), which the driver turns into a durable intervention and
+   one message to the student.
+2. `validatePlan` → required-and-missing, from the portal's own observed marker. An independent
+   second reading.
+3. `buildPreview` → `plan_incomplete`, so **the run never reaches the authorisation.** The student
+   is not shown a yes to give.
+
+So the honest answer to his instinct is stronger than *yes*: **the machinery to refuse rather than
+guess already exists and is exercised. `degree` simply is not using it**, because it holds two rows
+that render.
+
+## What it breaks
+
+One signature. Four assertions across `run-a-profile.test.ts` and `sheffield-draft.test.ts`, all of
+which become false *correctly* and should be rewritten carrying the reversal. The committed
+`what-will-be-typed.md`, regenerated. **Nothing in any deployable** — no process reads this entry,
+and the fixture portal's `degree` is its own map (checked: the only other `BSc` references are the
+fixture portal's entries and a `format.test.ts` fixture).
+
+**The real cost is the one he already named and accepted:** every education page stops until the
+registry carries an award title — Run A's own profile included, because the map would hold nothing
+for `Bachelor's degree` either. There is no "stop only for the ones it would get wrong": the system
+cannot tell which those are, and that is the finding.
+
+## One thing must change with it, or the stop teaches the bug
+
+The refusal that fires is the generic option-map one:
+
+> *"Bachelor's degree" is not one of this field's options… **a specialist maps it, or the student
+> is asked.***
+
+For `degree` **both halves are false.** A specialist cannot map it — no level→title map can be
+right — and the student cannot be asked, because there is no question and nowhere to put the
+answer. Left as it is, the stop tells the next person to fix it by adding rows.
+
+| | cost | |
+|---|---|---|
+| Empty the map, leave the wording | zero code, one signature | An `option` rule with no options reads as *unfinished*, and the refusal invites finishing it |
+| Empty it **and** give the refusal its own words — a `not_derivable` rule carrying the reason | **~½ day**, one signature | **Recommended** — cannot be mistaken for unfinished, and the intent is structural rather than an absence |
+
+Both produce the identical stop; the difference is only what the next person reads. Doing the first
+now and the second later costs **two** signatures, which is worth saying before the choice is made.
+
+[The sheet](./decision-sheet-blocker-71-stopping-the-degree-guess.md) carries both in full.
+
+## The two record corrections
+
+`what-run-a-proved.md` §3 now carries, in his words and mine: **Run A filled the education page;
+the education page is not mapped.** With the table — four of the six maps hold exactly one row and
+Run A's value is that row — and the note that one of the six is worse than thin.
+
+And beside it, the correction: `institution-ts-control` is **not** *1 of 11*. **A typeahead has no
+list to be partial against.** The 11 were one search's results from an unbounded remote lookup, and
+calling it partial invited exactly the wrong fix.
+
+## Not started, deliberately
+
+The accounting page over all 45 option maps is agreed and **not begun**. His ranking, and it is
+right: *"a page that finds nothing wrong today can wait a day behind a map that is wrong today."*
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P207 — signed; and what the other six maps would actually cost
 
 `f67ec69`, `sha256:f13dff6d…`, from his own hash computation. What he checked before signing:

@@ -152,6 +152,42 @@ Stated in the same place, and with the same weight.
   the interview stops rather than improvising one. That is Run B.
 - **Bedrock.** No model ran. The adapter is built, idle and unwired.
 
+### The education page, stated plainly (added 2026-09-25, P208, at Vahid's instruction)
+
+**Run A filled the education page. The education page is not mapped.** Those are different
+sentences and until now this file carried only the first.
+
+Six option maps fill that page, and between them they name **ten values**:
+
+| map | rows it holds | what Run A typed |
+|---|---|---|
+| `subject` | **1** | `Business Management` — the only row |
+| `institution-ts-control` | **1** | `SHEFFIELD` — the only row |
+| `gradingSystemId` | **1** | `7` — the only row |
+| `highestQualification(UNIVERSITY_LEVEL)` | **1** | `UG DEGREE` — the only row |
+| `degree` | 2 | `BSc` |
+| `grade` | 4 | `2.1` |
+
+**Four of the six hold exactly one row, and Run A's value is that row.** The run did not pass
+*despite* a thin map; it passed *along* one. What it proved on that page is portal mechanics — the
+repeating entry, the typeahead, the options that arrive after another field is set, the save and the
+read-back — none of which depends on how many rows a vocabulary has. What it did **not** prove is
+that a second student reaches the same page and gets through it.
+
+**And one of those six is worse than thin — see blocker 71.** `degree` maps a *level* onto an
+*award title*, so `Bachelor's degree → BSc` is a guess that renders. **Run A passed through it
+because Niloofar holds a BSc and the synthetic profile agreed with the bug.** Nothing on the path
+caught it: the plan had no blocker, the validator no violation, the preview built, and the
+read-back passed, because the value landed — it was simply the wrong value.
+
+### A correction to how one of those was counted
+
+`institution-ts-control` was reported in P206 as **1 of 11**. That is wrong, and the wrongness
+matters more than the number: **a typeahead has no list to be partial against.** The 11 are what a
+single search for *"Sheffield"* returned from an unbounded remote lookup, not options the portal
+holds. Calling it *partial* invited exactly the wrong fix — widen the map to 11 — when the shape of
+the question is blocker 25's: a typeahead is the student's recognition of a list we never see.
+
 ---
 
 ## 4 · The mixture on the account is real, and is not being reversed
