@@ -397,7 +397,29 @@ export function deriveCountryMapping(
       shape === "iso_code"
         ? byKey.get(country.code)
         : byKey.get(normaliseCountryText(country.name));
-    if (option === undefined) missed.push(country);
+    // ── A HOLD reaches the strict match too (P205) ─────────────────────
+    //
+    // Found applying P204's result: `CY` was held on every field under
+    // blocker 70, and `corrCountry` offers BOTH `Cyprus` and `Cyprus
+    // (European Union)`. The strict pass matched the first exactly and
+    // settled it as derived, so the hold — which until now guarded only
+    // CANDIDATES — never saw it, and the entry would have sent every Cypriot
+    // student `CYPRUS`, choosing the fee status the portal is asking about.
+    //
+    // A hold names no option, deliberately: it says this CODE is not to be
+    // applied on this field, whichever pass found something for it. A reject
+    // names one, so it suppresses a strict match only when the match IS that
+    // option — a real Northern Mariana Islands option is a new fact, not the
+    // Northern Ireland he refused.
+    const decided = option === undefined ? undefined : decisionFor(country.code);
+    const stopped =
+      decided !== undefined &&
+      (decided.verdict === "hold" ||
+        (decided.verdict === "reject" &&
+          decided.option !== undefined &&
+          option !== undefined &&
+          fold(option.label) === fold(decided.option)));
+    if (option === undefined || stopped) missed.push(country);
     else {
       matched.push({ country, option });
       claimed.add(option.value);
@@ -892,10 +914,123 @@ export function decisionsFrom(json: string): readonly ReviewedDecision[] {
   return (JSON.parse(json) as { decisions: ReviewedDecision[] }).decisions;
 }
 
+/**
+ * The nine country option maps in the entry, and whose settled set each carries.
+ *
+ * `previousCountry2`–`4` are the same question asked four times — the portal
+ * repeats the residence-history row — and the reviewer read `previousCountry1`.
+ * They take its set rather than being derived again, because deriving a field
+ * whose options nobody read would be exactly the join Vahid refused to sign.
+ * If the portal ever spells one of the four differently, `optionsFromEntry`
+ * would have to be read for it and this list is where that shows up.
+ */
+export const COUNTRY_MAPS: readonly (readonly [mapping: string, from: string])[] = [
+  ["corrCountry", "corrCountry"],
+  ["permanentResidence", "permanentResidence"],
+  ["previousCountry1", "previousCountry1"],
+  ["previousCountry2", "previousCountry1"],
+  ["previousCountry3", "previousCountry1"],
+  ["previousCountry4", "previousCountry1"],
+  ["fundingNationality", "fundingNationality"],
+  ["countryOfBirth", "countryOfBirth"],
+  ["institutionCountry-ts-control", "institutionCountry-ts-control"],
+];
+
+/**
+ * What a derivation SETTLES: code → the value the portal submits.
+ *
+ * Three kinds and no others. `derived` is the identity on a code the portal
+ * itself submits, or a name spelled exactly as the reviewed table spells it.
+ * `portal_corroborated` is the portal's own code list naming the option.
+ * `accepted` is Vahid's word, quoted in the page and in
+ * `country-mapping-decisions.json`.
+ *
+ * What is deliberately NOT here: `held` (blockers 66 and 70 — a candidate
+ * exists and he stopped it), `rejected` (he read it and said no), `absent`
+ * (the portal has no such option), and `name_resemblance` (a guess; there are
+ * none left, and if one returned it would land in the page for him rather than
+ * in the entry behind him). Sorted by ISO code so the file is stable across
+ * runs and a diff shows what changed rather than how a Map was ordered.
+ */
+export function settledOptions(derivation: Derivation): Record<string, string> {
+  const pairs: [string, string][] = derivation.matched.map(({ country, option }) => [
+    country.code,
+    option.value,
+  ]);
+  for (const row of derivation.unmatched) {
+    if (row.candidate === null) continue;
+    if (row.kind !== "portal_corroborated" && row.kind !== "accepted") continue;
+    pairs.push([row.country.code, row.candidate.value]);
+  }
+  pairs.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return Object.fromEntries(pairs);
+}
+
+/** The `option` rule inside a mapping's format chain, or null if it has none. */
+function optionRuleOf(mapping: unknown): { options: Record<string, string> } | null {
+  const source = (mapping as { source?: { format?: unknown } }).source;
+  let rule: unknown = source?.format;
+  while (rule !== undefined && rule !== null && typeof rule === "object") {
+    if ((rule as { kind?: string }).kind === "option") {
+      return rule as { options: Record<string, string> };
+    }
+    rule = (rule as { then?: unknown }).then;
+  }
+  return null;
+}
+
+/**
+ * Writes the settled maps into the entry, and nothing else.
+ *
+ * Returns the new text and what it moved, so the caller reports what happened
+ * rather than that it ran. Only the nine `options` objects change: the
+ * blueprint, the refs, the locators and every other mapping are untouched, so
+ * the hash this produces differs from the signed one by the countries alone.
+ * A mapping this cannot find, or one with no `option` rule, throws — silently
+ * skipping one would leave a field short and nothing would say so.
+ */
+export function applyToEntry(
+  entryJson: string,
+  derivations: readonly Derivation[],
+): { readonly text: string; readonly before: number; readonly after: number } {
+  const entry = JSON.parse(entryJson) as {
+    mappingSet: { mappings: { fieldRef: string }[] };
+  };
+  let before = 0;
+  let after = 0;
+  for (const [ref, from] of COUNTRY_MAPS) {
+    const mapping = entry.mappingSet.mappings.find((m) => m.fieldRef === ref);
+    if (mapping === undefined) throw new Error(`no mapping for ${ref} in the entry`);
+    const rule = optionRuleOf(mapping);
+    if (rule === null) throw new Error(`the mapping for ${ref} carries no option rule`);
+    const derivation = derivations.find((d) => d.fieldRef === from);
+    if (derivation === undefined) throw new Error(`nothing derived for ${from}`);
+    const settled = settledOptions(derivation);
+    before += Object.keys(rule.options).length;
+    after += Object.keys(settled).length;
+    rule.options = settled;
+  }
+  return { text: `${JSON.stringify(entry, null, 2)}\n`, before, after };
+}
+
 function main(): void {
   const entryJson = readFileSync(ENTRY, "utf8");
   const derivations = derivationsFrom(entryJson, decisionsFrom(readFileSync(DECISIONS, "utf8")));
   writeFileSync(PAGE, reviewPage(derivations), "utf8");
+
+  // `apply` is a separate word because it spends a signature. Deriving and
+  // reading are free; writing the maps into the entry moves its content hash,
+  // and from that moment the directory REFUSES to load it until Vahid computes
+  // the new hash himself and writes it into `approvals.json` (ADR-0057).
+  if (process.argv.includes("apply")) {
+    const applied = applyToEntry(entryJson, derivations);
+    writeFileSync(ENTRY, applied.text, "utf8");
+    console.log(
+      `\nApplied to the entry: ${String(applied.before)} values -> ${String(applied.after)}` +
+        ` (net +${String(applied.after - applied.before)}) across ${String(COUNTRY_MAPS.length)} maps.`,
+    );
+    console.log("The entry's content hash has MOVED. It does not load until it is signed again.");
+  }
   for (const d of derivations) {
     console.log(
       `${d.fieldRef.padEnd(30)} ${d.shape.padEnd(9)} offered ${String(d.offered).padStart(3)}` +

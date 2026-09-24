@@ -12,6 +12,8 @@ import { COUNTRIES } from "@askimate/aas-profile";
 import type { Derivation, PortalOption, ReviewedDecision } from "./derive-country-mappings.js";
 import {
   COUNTRY_FIELD_REFS,
+  COUNTRY_MAPS,
+  applyToEntry,
   bareValue,
   derivationsFrom,
   deriveCountryMapping,
@@ -20,6 +22,7 @@ import {
   portalAliases,
   portalLabelsForCodes,
   reviewPage,
+  settledOptions,
   shapeOf,
 } from "./derive-country-mappings.js";
 
@@ -381,6 +384,45 @@ describe("what he decided is not asked again (P203)", () => {
     expect(derived.matched.some((m) => m.country.code === "MP")).toBe(true);
   });
 
+  it("HOLDS a code the strict pass matched exactly, not only one it proposed (P205)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Found applying P204's result, one step before the hash would have been
+    // computed. He held `CY` on every field under blocker 70. `corrCountry`
+    // offers BOTH `Cyprus` and `Cyprus (European Union)`, so the strict
+    // name pass matched `Cyprus` EXACTLY and settled it as derived — and the
+    // decisions only ever ran over candidates, so his hold never saw it.
+    //
+    // The entry would have carried `CY → CYPRUS` on two fields: every Cypriot
+    // student sent the option that does not state a fee status, chosen by a
+    // string match, on the one question blocker 70 exists to say we cannot
+    // answer.
+    // ═══════════════════════════════════════════════════════════════════
+    const derived = derivationsFrom(ENTRY, DECIDED.decisions);
+    for (const field of derived) {
+      expect(
+        field.matched.some((m) => m.country.code === "CY"),
+        `CY is not derived on ${field.fieldRef}`,
+      ).toBe(false);
+      const cy = field.unmatched.find((u) => u.country.code === "CY");
+      expect(cy?.kind, `CY is held on ${field.fieldRef}`).toBe("held");
+      expect(cy?.why).toContain("blocker 70");
+    }
+  });
+
+  it("does NOT let a REJECT suppress a strict match on a different option (P205)", () => {
+    // The other half of the same rule, and why a hold and a reject are not
+    // treated alike. A hold names no option — the code is not to be applied
+    // at all. A reject names one, so a real Northern Mariana Islands option
+    // is a new fact he has not read, not the Northern Ireland he refused.
+    const derived = deriveCountryMapping(
+      "corrCountry",
+      [option("NORTHERN MARIANA ISLANDS", "Northern Mariana Islands")],
+      new Map(),
+      DECIDED.decisions,
+    );
+    expect(derived.matched.some((m) => m.country.code === "MP")).toBe(true);
+  });
+
   it("lets an ACCEPT settle a collision, because his word is not a guess (P204)", () => {
     // ═══════════════════════════════════════════════════════════════════
     // `UM` and `VI` both proposed *Virgin Islands (US)* on residence. He
@@ -443,6 +485,95 @@ describe("what he decided is not asked again (P203)", () => {
       for (const row of toRead) {
         expect(["KN", "VI", "VC"], `${d.fieldRef} ${row.country.code}`).toContain(row.country.code);
       }
+    }
+  });
+});
+
+describe("writing the settled maps into the entry (P205)", () => {
+  const derivations = () => derivationsFrom(ENTRY, COMMITTED_DECISIONS);
+
+  it("carries only what is DERIVED, CORROBORATED or ACCEPTED — never a hold, a rejection or a guess", () => {
+    for (const derivation of derivations()) {
+      const settled = settledOptions(derivation);
+      for (const row of derivation.unmatched) {
+        if (row.kind === "portal_corroborated" || row.kind === "accepted") {
+          expect(settled[row.country.code], `${derivation.fieldRef} ${row.country.code}`).toBe(
+            row.candidate?.value,
+          );
+          continue;
+        }
+        expect(
+          Object.hasOwn(settled, row.country.code),
+          `${derivation.fieldRef} ${row.country.code} is ${row.kind} and must not be written`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("is sorted by ISO code, so a re-run diffs as what changed and not as how a Map was ordered", () => {
+    for (const derivation of derivations()) {
+      const codes = Object.keys(settledOptions(derivation));
+      expect(codes, derivation.fieldRef).toEqual([...codes].sort());
+    }
+  });
+
+  it("changes the nine option maps and NOTHING else in the entry", () => {
+    const { text, before, after } = applyToEntry(ENTRY, derivations());
+    expect(before, "the eight-country maps the entry was signed with").toBe(72);
+    expect(after).toBeGreaterThan(2000);
+    // Blank every option map on both sides: what is left must be identical, so
+    // the hash this produces differs from the signed one by the countries
+    // alone. The whole point of the signature Vahid is spending.
+    const blanked = (json: string): unknown => {
+      const value: unknown = JSON.parse(json);
+      const walk = (node: unknown): void => {
+        if (Array.isArray(node)) {
+          for (const item of node) walk(item);
+          return;
+        }
+        if (typeof node !== "object" || node === null) return;
+        const record = node as Record<string, unknown>;
+        if (record["kind"] === "option") record["options"] = {};
+        for (const child of Object.values(record)) walk(child);
+      };
+      walk(value);
+      return value;
+    };
+    expect(blanked(text)).toEqual(blanked(ENTRY));
+  });
+
+  it("gives the four residence-history maps the ONE field a person actually read", () => {
+    // previousCountry2-4 are the same question repeated, and nobody read their
+    // option lists. They take previousCountry1's set rather than being derived
+    // from lists no reviewer saw.
+    const applied = JSON.parse(applyToEntry(ENTRY, derivations()).text) as {
+      mappingSet: { mappings: { fieldRef: string; source: unknown }[] };
+    };
+    const optionsFor = (ref: string): Record<string, string> => {
+      const mapping = applied.mappingSet.mappings.find((m) => m.fieldRef === ref);
+      let rule: unknown = (mapping?.source as { format?: unknown } | undefined)?.format;
+      while (rule !== null && typeof rule === "object") {
+        if ((rule as { kind?: string }).kind === "option") {
+          return (rule as { options: Record<string, string> }).options;
+        }
+        rule = (rule as { then?: unknown }).then;
+      }
+      expect.unreachable(`no option rule for ${ref}`);
+    };
+    const first = optionsFor("previousCountry1");
+    for (const ref of ["previousCountry2", "previousCountry3", "previousCountry4"]) {
+      expect(optionsFor(ref), ref).toEqual(first);
+    }
+  });
+
+  it("names nine maps, and every one of them is in the entry", () => {
+    const applied = JSON.parse(ENTRY) as { mappingSet: { mappings: { fieldRef: string }[] } };
+    expect(COUNTRY_MAPS).toHaveLength(9);
+    for (const [ref] of COUNTRY_MAPS) {
+      expect(
+        applied.mappingSet.mappings.some((m) => m.fieldRef === ref),
+        ref,
+      ).toBe(true);
     }
   });
 });

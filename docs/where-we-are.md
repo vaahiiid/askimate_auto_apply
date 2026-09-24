@@ -4906,6 +4906,93 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P205 — he approved it, and writing it found what the page could not show him
+
+> *"has the entry already been changed to carry the 2,092 values, or is that change still
+> unwritten and waiting on me? … If it is unwritten, write it, then give me the hash — I am
+> approving the change, and I will compute the hash myself before I write it into
+> approvals.json."*
+
+It was unwritten. Nothing in the entry had moved; P204 produced the derivation, the page and the
+decisions file and stopped there, because writing it spends the signature.
+
+## Then I wrote it, and read the file back
+
+The nine maps went from 72 values to 2,092, and everything outside the option maps was byte for
+byte identical. Then I spot-checked the codes he had ruled on, which is the only reason this was
+caught:
+
+```
+corrCountry                      CY = 'CYPRUS'
+institutionCountry-ts-control    CY = 'CYPRUS'
+```
+
+He held `CY` on **every** field, under blocker 70, because Sheffield's lists encode a fee status
+our registry has no field for — *"one code, several options, and the portal is asking something
+the registry does not hold."*
+
+The hold was not reached. `corrCountry` and `institutionCountry` offer **both** `Cyprus`
+(`CYPRUS`) and `Cyprus (European Union)` (`CYPRUS (EUROPEAN UNION)`). The strict name pass matched
+`CYPRUS` exactly and settled it as *derived* — and the decisions only ever ran over **candidates**.
+A hold guarded the guesses and had nothing to say about the matches.
+
+So the entry I had just written would have sent every Cypriot student `CYPRUS`: the option that
+states no fee status, chosen by a string match, on the one question the blocker exists to say we
+cannot answer. On this portal that marker is not cosmetic.
+
+## Why the page could not have shown him this
+
+The review page reports *proposed 0, collisions 0* and that is true. It lists what the derivation
+**offers**; `CY` was never offered on those fields, it was matched. A zero in the column you are
+reading is not a zero in the columns you are not, and the only thing that surfaced this was
+reading the written file for the codes he had ruled on.
+
+## Fixed, and the reject half deliberately left alone
+
+A hold names no option — it says this **code** is not to be applied on this field, whichever pass
+found something. A reject names one, so it suppresses a strict match only when the match **is**
+that option: a real *Northern Mariana Islands* option is a new fact he has not read, not the
+*Northern Ireland* he refused. Both halves are tested, and the first fails against the old code:
+
+```
+× HOLDS a code the strict pass matched exactly, not only one it proposed (P205)
+  → CY is not derived on corrCountry: expected true to be false
+```
+
+Every code he ruled on was then checked for the same hole. `CY` was the only one.
+
+## What this changes about the number
+
+| | |
+|---|---|
+| Values today | 72 |
+| Values settled — P204's figure | 2,092 |
+| Values settled — corrected | **2,090** |
+| Net | **+2,018** |
+
+The two that went were the two `CY` entries, which were never his to give.
+
+## And a second instance of blocker 66, measured and NOT decided
+
+`MF` *Saint Martin* derives on `fundingNationality` and `countryOfBirth` from the ISO code
+(`MF:O`), and **`SX` is offered by neither list**. That is the same asymmetry his hold protects
+against on the three name-valued fields — the French half mapped, the Dutch half of the same
+island with nothing — arriving on the two fields his hold does not name, through the pass the page
+does not print.
+
+What those lists carry for that corner instead is `AN:E` *Netherlands Antilles {Comprises Curacao,
+Bonaire, Saba, St Eustatius, St Martin (South)}* — a state dissolved in 2010, not in ISO 3166-1
+today, and so not one of the reviewed table's 249. `CW` and `BQ` are absent from them too.
+
+His hold names three fields. Extending it to two more is a decision, and a decision is his only if
+he typed it. So it is recorded as a question against blocker 66 and **nothing is applied**: the
+entry is unchanged, and no hash has been computed, because a hash of content that is not settled
+is a hash of nothing.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P204 — blocker 69 closed from his side, and what an absent country meets today
 
 He read the eight rows and signed off the last three.

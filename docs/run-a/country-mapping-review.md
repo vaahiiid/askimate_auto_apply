@@ -54,10 +54,10 @@ proposed for two countries is withdrawn from both and shown as a collision.
 |---|---|---|---|---|---|---|---|---|
 | `fundingNationality` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
 | `countryOfBirth` | ISO codes | 242 | 235 | 0 | 2 | **0** | 12 | 0 |
-| `corrCountry` | names | 259 | 212 | 15 | 8 | **0** | 14 | 0 |
+| `corrCountry` | names | 259 | 211 | 15 | 9 | **0** | 14 | 0 |
 | `permanentResidence` | names | 261 | 205 | 23 | 9 | **0** | 12 | 0 |
 | `previousCountry1` | names | 260 | 211 | 15 | 9 | **0** | 14 | 0 |
-| `institutionCountry-ts-control` | names | 255 | 212 | 15 | 8 | **0** | 14 | 0 |
+| `institutionCountry-ts-control` | names | 255 | 211 | 15 | 9 | **0** | 14 | 0 |
 
 `offered` counts the portal's own list without its empty first entry. The reviewed
 table holds 249 countries (ADR-0141). **to read** is the only column that asks
@@ -202,7 +202,7 @@ Read this beside the tables above: between them they are the whole disagreement.
 ## `corrCountry` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **212 of 249** matched exactly, **15** more were settled from the
+disagree. **211 of 249** matched exactly, **15** more were settled from the
 portal's own code list, and **0** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
@@ -211,13 +211,13 @@ portal's own code list, and **0** are guesses you have to read.
 |---|---|---|---|
 | `AD` | Andorra | Andorra | `ANDORRA` |
 | `BR` | Brazil | Brazil | `BRAZIL` |
-| `EE` | Estonia | Estonia | `ESTONIA` |
-| `GT` | Guatemala | Guatemala | `GUATEMALA` |
-| `KM` | Comoros | Comoros | `COMOROS` |
-| `MQ` | Martinique | Martinique | `MARTINIQUE` |
-| `PF` | French Polynesia | French Polynesia | `FRENCH POLYNESIA` |
-| `SM` | San Marino | San Marino | `SAN MARINO` |
-| `UZ` | Uzbekistan | Uzbekistan | `UZBEKISTAN` |
+| `EG` | Egypt | Egypt | `EGYPT` |
+| `GU` | Guam | Guam | `GUAM` |
+| `KP` | North Korea | North Korea | `NORTH KOREA` |
+| `MR` | Mauritania | Mauritania | `MAURITANIA` |
+| `PG` | Papua New Guinea | Papua New Guinea | `PAPUA NEW GUINEA` |
+| `SN` | Senegal | Senegal | `SENEGAL` |
+| `VA` | Vatican City | Vatican City | `VATICAN CITY` |
 
 ### Withdrawn — one option, two countries
 
@@ -258,12 +258,13 @@ Your reading, kept so the page does not ask again.
 | `KN` | St. Kitts & Nevis | St Kitts Nevis | ACCEPTED by Vahid on 2026-09-24: Same country; the portal drops the "and". |
 | `VI` | U.S. Virgin Islands | Virgin Is (US) | ACCEPTED by Vahid on 2026-09-24: Same territory, abbreviated. |
 
-### Held by you (1)
+### Held by you (2)
 
 Read, and deliberately not settled here.
 
 | code | our name | the portal's option text | what you said |
 |---|---|---|---|
+| `CY` | Cyprus | Cyprus | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
 | `MF` | St. Martin | St Martin (North) | HELD by Vahid on 2026-09-24 — blocker 66: This list carries only "St Martin (North)" and no Sint Maarten at all, so MF is proposed here and SX has nowhere to go. "That is a real student with no honest option, which is blocker 66's case arriving. Do not apply MF on those three until 66 has a shape." |
 
 ### Refused by you (2)
@@ -602,7 +603,7 @@ Read this beside the tables above: between them they are the whole disagreement.
 ## `institutionCountry-ts-control` — NEEDS YOUR READING
 
 The portal submits names, so the join is a comparison between two authorities that
-disagree. **212 of 249** matched exactly, **15** more were settled from the
+disagree. **211 of 249** matched exactly, **15** more were settled from the
 portal's own code list, and **0** are guesses you have to read.
 
 **Spot-check** — every 25th derived match, so it is the same rows every run:
@@ -611,13 +612,13 @@ portal's own code list, and **0** are guesses you have to read.
 |---|---|---|---|
 | `AD` | Andorra | Andorra | `ANDORRA` |
 | `BR` | Brazil | Brazil | `BRAZIL` |
-| `EE` | Estonia | Estonia | `ESTONIA` |
-| `GT` | Guatemala | Guatemala | `GUATEMALA` |
-| `KM` | Comoros | Comoros | `COMOROS` |
-| `MQ` | Martinique | Martinique | `MARTINIQUE` |
-| `PF` | French Polynesia | French Polynesia | `FRENCH POLYNESIA` |
-| `SM` | San Marino | San Marino | `SAN MARINO` |
-| `UZ` | Uzbekistan | Uzbekistan | `UZBEKISTAN` |
+| `EG` | Egypt | Egypt | `EGYPT` |
+| `GU` | Guam | Guam | `GUAM` |
+| `KP` | North Korea | North Korea | `NORTH KOREA` |
+| `MR` | Mauritania | Mauritania | `MAURITANIA` |
+| `PG` | Papua New Guinea | Papua New Guinea | `PAPUA NEW GUINEA` |
+| `SN` | Senegal | Senegal | `SENEGAL` |
+| `VA` | Vatican City | Vatican City | `VATICAN CITY` |
 
 ### Withdrawn — one option, two countries
 
@@ -658,12 +659,13 @@ Your reading, kept so the page does not ask again.
 | `KN` | St. Kitts & Nevis | St Kitts Nevis | ACCEPTED by Vahid on 2026-09-24: Same country; the portal drops the "and". |
 | `VI` | U.S. Virgin Islands | Virgin Is (US) | ACCEPTED by Vahid on 2026-09-24: Same territory, abbreviated. |
 
-### Held by you (1)
+### Held by you (2)
 
 Read, and deliberately not settled here.
 
 | code | our name | the portal's option text | what you said |
 |---|---|---|---|
+| `CY` | Cyprus | Cyprus | HELD by Vahid on 2026-09-24 — blocker 70: "That is blocker 70 and I am not settling it here." One code, several options, and what they ask for is a distinction the registry does not hold. |
 | `MF` | St. Martin | St Martin (North) | HELD by Vahid on 2026-09-24 — blocker 66: As corrCountry: "St Martin (North)" with no Sint Maarten, so SX has nowhere to go. |
 
 ### Refused by you (2)

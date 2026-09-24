@@ -19,6 +19,29 @@ not shipped artefacts.
 
 ---
 
+## [0.201.0] — 2026-09-24
+
+**P205 — a hold reaches the strict match too, found one step before the hash.**
+
+- **Fixed** a hole in the reviewed decisions: they ran only over CANDIDATES, so `CY` — held on
+  every field under blocker 70 — was settled as *derived* on `corrCountry` and
+  `institutionCountry`, whose lists offer both `Cyprus` and `Cyprus (European Union)`. An entry
+  written from that would have sent every Cypriot student `CYPRUS`, the option that states no fee
+  status, chosen by a string match. A hold now suppresses a strict match; a reject still does not
+  unless the match is the option it names. Two tests, the first red against the old code.
+- **Corrected** the settled arithmetic from **2,092** to **2,090** (net **+2,018**): the two `CY`
+  entries were never Vahid's to give.
+- **Added** `pnpm run country-mappings apply`, which writes the settled maps into the entry — a
+  separate word because it spends a signature. Held by a test that blanks every option map on both
+  sides and requires the rest of the entry to be byte-identical, so the hash it produces differs
+  from the signed one by the countries alone.
+- **Raised, not decided:** a second instance of blocker 66. `MF` derives on `fundingNationality`
+  and `countryOfBirth` while `SX` is offered by neither — the same asymmetry as the three fields
+  Vahid held, on the two his hold does not name. The entry is unchanged and no hash is computed
+  until he says which.
+
+---
+
 ## [0.200.0] — 2026-09-24
 
 **P204 — blocker 69 closed from Vahid's side, and what an absent country meets today.**
