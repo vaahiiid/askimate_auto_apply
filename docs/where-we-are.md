@@ -4906,6 +4906,125 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P204 — blocker 69 closed from his side, and what an absent country meets today
+
+He read the eight rows and signed off the last three.
+
+> *"All three accepted. None of them is a Northern Ireland."*
+
+`KN` → *"St Kitts Nevis"* and, on residence, *"St. Kitts-Nevis"*. `VC` → *"Saint Vincent and
+the Grenadines"*. `VI` → *"Virgin Is (US)"* — and with it he settled the collision himself
+rather than letting the proposer settle it:
+
+> *"Same territory, abbreviated. And that settles the UM/VI collision: the option says US, and
+> the US Virgin Islands are VI. UM is the Minor Outlying Islands and is not that option — leave
+> UM unproposed rather than finding it something."*
+
+## What the derivation had to change to carry that
+
+Six new decisions took the file to eighteen, and applying them exposed an ordering defect of
+mine. The collision rule ran **before** the decisions did, so an accept could not resolve a
+collision — `VI` would be withdrawn from both sides for colliding with `UM`, and then his
+acceptance of it would be read against a candidate that no longer existed. Decisions now settle
+first: an accept resolves a collision, a reject removes one side of it, and only what is left
+over collides. A field-specific verdict beats a `*` one, which is what lets `KN` and `VI` carry
+one spelling everywhere and a different one on residence.
+
+The regenerated page:
+
+```
+fundingNationality             iso_code  offered 242  derived 235/249  corroborated  0  proposed 0  absent 12  collisions 0
+countryOfBirth                 iso_code  offered 242  derived 235/249  corroborated  0  proposed 0  absent 12  collisions 0
+corrCountry                    name      offered 259  derived 212/249  corroborated 15  proposed 0  absent 14  collisions 0
+permanentResidence             name      offered 261  derived 205/249  corroborated 23  proposed 0  absent 12  collisions 0
+previousCountry1               name      offered 260  derived 211/249  corroborated 15  proposed 0  absent 14  collisions 0
+institutionCountry-ts-control  name      offered 255  derived 212/249  corroborated 15  proposed 0  absent 14  collisions 0
+```
+
+**Proposed 0, collisions 0, on every field.** The first run of this page that asks him for
+nothing.
+
+## What the entry needs now, and what it costs
+
+He asked how many values move, because this is the one signature he has been saving.
+
+| | |
+|---|---|
+| Country option maps in the signed entry | **9** — `corrCountry`, `permanentResidence`, `previousCountry1`–`4`, `fundingNationality`, `countryOfBirth`, `institutionCountry` |
+| Values they carry today | **72** — eight each |
+| Values they carry settled | **2,092** |
+| Net | **+2,020** |
+
+`previousCountry2`–`4` take `previousCountry1`'s set, so one field's reading pays for four maps.
+
+Held back, deliberately: `CY` on every field (**blocker 70**) and `MF`/`SX` on `corrCountry`,
+`previousCountry1` and `institutionCountry` (**blocker 66**) — accepted only on
+`permanentResidence`, the one list that splits the island.
+
+The entry still hashes to `sha256:e2a10113…`, the hash he signed on 22 September, and
+`scripts/run-a-profile.test.ts` asserts it. So nothing else has moved since that signature, and
+this one would carry the countries and nothing else.
+
+## And the thing he asked me to check before spending it
+
+> *"What a student from a country in the absent column meets today. Not the shape 66 will give
+> them — what happens now… If the answer is 'the plan refuses and a person is called', say so.
+> If it is anything quieter than that, it is the same class as the silent seven and it should be
+> a blocker of its own before the signature."*
+
+Traced through the real `planFill` and the real `nextStep` against the **signed** entry, with
+`residence.country` set to `CW`, `AQ` and `BQ` in turn:
+
+```
+──── Curaçao (CW) ────
+plan blockers: 1
+   kind=render_refused  field=permanentResidence
+   detail: "CW" is not one of this field's options. The system will not choose the
+           closest one — a specialist maps it, or the student is asked.
+nextStep -> kind=specialist   reason=render_refused
+```
+
+Identical for Antarctica and the Caribbean Netherlands. `IR`, the control, produces no country
+blocker at all, so the harness is not simply blocking everything.
+
+From there the driver takes over. `render_refused` is **structural**, so `nextStep` takes the
+branch above the interview's — it is not a value the student failed to give, and asking them to
+name a different country would be handing them our problem. The driver recognises the hand-over
+through `specialistHandoverOf`, the orchestrator's own narrowing rather than a comparison on the
+reason, and `#stopForSpecialist` (ADR-0065) raises a durable intervention keyed
+`specialist:render_refused`, moves the run to `escalated`, and tells the student once, in words
+that name no field:
+
+> *"I have had to pass your University of Sheffield application to a member of the team. There is
+> something about it I cannot complete on my own, and I would rather a person looked at it than
+> guess. Nothing you have given me is lost, and nothing has been submitted."*
+
+**So it is the loud answer.** The plan refuses and a person is called. No new blocker.
+
+What is still wrong about it is blocker 66's, already decided and not yet built: the refusal's
+words say *"a specialist maps it, or the student is asked"*, and for a country the portal
+genuinely does not offer, both are false.
+
+## The trace is now a test, and it fails first
+
+A hand trace answers the question once and guards nothing. Four tests in
+`scripts/run-a-profile.test.ts` hold it: three absent countries and one control. The model
+client is a stub that **throws**, so a run walking into the interview branch cannot pass
+unnoticed.
+
+Made to fail on purpose, as the rule requires: changing the option rule to
+`rule.options[key] ?? Object.values(rule.options)[0]` — a system that picks the closest thing to
+hand — turns all three red and leaves the control green. Reverted, and green again.
+
+One more failure worth recording, because it was the test catching me rather than the code: the
+first version built the state from the **drafts**, and `nextStep` refuses a draft blueprint
+before it ever looks at a plan. It answered `blueprint_not_executable` and would have proved
+nothing about a country at all.
+
+## Declared-but-unreachable surface
+
+**Four** — unchanged.
+
 # P203 — two pairings that would have put the wrong country on an application
 
 He read the page a second time.

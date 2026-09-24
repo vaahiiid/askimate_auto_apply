@@ -381,6 +381,43 @@ describe("what he decided is not asked again (P203)", () => {
     expect(derived.matched.some((m) => m.country.code === "MP")).toBe(true);
   });
 
+  it("lets an ACCEPT settle a collision, because his word is not a guess (P204)", () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // `UM` and `VI` both proposed *Virgin Islands (US)* on residence. He
+    // settled it himself: *"the option says US, and the US Virgin Islands are
+    // VI. UM is the Minor Outlying Islands and is not that option — leave UM
+    // unproposed rather than finding it something."*
+    //
+    // Until P204 the collision rule ran BEFORE his decisions, so `VI` was
+    // withdrawn for colliding with `UM` and his acceptance was then read
+    // against a candidate that no longer existed. Run it the right way round
+    // and only GUESSES collide: an accepted pairing is his word.
+    // ═══════════════════════════════════════════════════════════════════
+    const derived = derivationsFrom(ENTRY, DECIDED.decisions);
+    const residence = derived.find((d) => d.fieldRef === "permanentResidence");
+    const vi = residence?.unmatched.find((u) => u.country.code === "VI");
+    expect(vi?.kind).toBe("accepted");
+    expect(vi?.candidate?.label).toContain("Virgin Islands (US)");
+    // And UM is left with nothing rather than found something.
+    const um = residence?.unmatched.find((u) => u.country.code === "UM");
+    expect(um?.candidate).toBeNull();
+    // Nothing is left fighting over that option.
+    expect(residence?.collisions).toEqual([]);
+  });
+
+  it("prefers a verdict naming THIS field over one naming every field (P204)", () => {
+    // He accepted `VI` → *Virgin Is (US)* everywhere and *Virgin Islands (US)*
+    // on residence: the same territory under two of the portal's spellings.
+    // Reading whichever verdict came first in the file would have left one of
+    // the two rows unsettled, and which one would depend on the file's order.
+    const derived = derivationsFrom(ENTRY, DECIDED.decisions);
+    for (const field of derived) {
+      const vi = field.unmatched.find((u) => u.country.code === "VI");
+      if (vi === undefined) continue;
+      expect(vi.kind, `VI is settled on ${field.fieldRef}`).toBe("accepted");
+    }
+  });
+
   it("marks what he accepted and what he held, with his words and the blocker", () => {
     const derived = derivationsFrom(ENTRY, DECIDED.decisions);
     const residence = derived.find((d) => d.fieldRef === "permanentResidence");

@@ -19,6 +19,33 @@ not shipped artefacts.
 
 ---
 
+## [0.200.0] — 2026-09-24
+
+**P204 — blocker 69 closed from Vahid's side, and what an absent country meets today.**
+
+- **Recorded** his last six verdicts, taking the decisions file to eighteen: `KN`, `VC` and `VI`
+  accepted, and the `UM`/`VI` collision settled by him rather than by the proposer — *"UM is the
+  Minor Outlying Islands and is not that option — leave UM unproposed rather than finding it
+  something."*
+- **Fixed** the order the derivation settles in: reviewed decisions now apply **before** the
+  collision rule, so an accept resolves a collision and a reject removes one side of it. They ran
+  the other way round, which meant an accepted candidate could be withdrawn for colliding with one
+  he had just rejected.
+- **Fixed** decision precedence: a verdict naming a field beats a `*` verdict, so `KN` and `VI`
+  carry one spelling on five fields and another on `permanentResidence`.
+- **Regenerated** `docs/run-a/country-mapping-review.md`: **proposed 0, collisions 0** on all six
+  fields — the first run that asks him for nothing.
+- **Measured** what the signature would carry: nine country option maps holding **72** values
+  today, **2,092** settled, net **+2,020**. The entry still hashes to `e2a10113`, so the signature
+  covers the countries and nothing else.
+- **Added** four tests pinning what a student from a country the portal does not offer meets on the
+  current build: `CW`, `AQ` and `BQ` each produce one `render_refused` plan blocker and a
+  `specialist` step, which the run driver stops on (ADR-0065) with a durable intervention and one
+  message to the student. A control for a code the portal does offer, and a model stub that throws.
+  Made to fail first by letting the option rule pick the first option.
+
+---
+
 ## [0.199.0] — 2026-09-24
 
 **P203 — the two pairings Vahid rejected, and the rules they became.**

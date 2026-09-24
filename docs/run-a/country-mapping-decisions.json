@@ -108,6 +108,54 @@
       "blocker": 66,
       "on": "2026-09-24",
       "reason": "As corrCountry: \"St Martin (North)\" with no Sint Maarten, so SX has nowhere to go."
+    },
+    {
+      "code": "KN",
+      "fieldRef": "*",
+      "verdict": "accept",
+      "option": "St Kitts Nevis",
+      "on": "2026-09-24",
+      "reason": "Same country; the portal drops the \"and\"."
+    },
+    {
+      "code": "KN",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "St. Kitts-Nevis",
+      "on": "2026-09-24",
+      "reason": "Same country; this list hyphenates it instead."
+    },
+    {
+      "code": "VC",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "Saint Vincent and the Grenadines",
+      "on": "2026-09-24",
+      "reason": "Same country, written out in full."
+    },
+    {
+      "code": "VI",
+      "fieldRef": "*",
+      "verdict": "accept",
+      "option": "Virgin Is (US)",
+      "on": "2026-09-24",
+      "reason": "Same territory, abbreviated."
+    },
+    {
+      "code": "VI",
+      "fieldRef": "permanentResidence",
+      "verdict": "accept",
+      "option": "Virgin Islands (US)",
+      "on": "2026-09-24",
+      "reason": "Same territory. \"That settles the UM/VI collision: the option says US, and the US Virgin Islands are VI.\""
+    },
+    {
+      "code": "UM",
+      "fieldRef": "permanentResidence",
+      "verdict": "reject",
+      "option": "Virgin Islands (US)",
+      "on": "2026-09-24",
+      "reason": "\"UM is the Minor Outlying Islands and is not that option — leave UM unproposed rather than finding it something.\""
     }
   ]
 }

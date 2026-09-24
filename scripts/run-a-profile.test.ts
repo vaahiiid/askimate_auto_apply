@@ -22,6 +22,11 @@ import { labelledHash, loadCatalogueDirectory, parseBlueprint, parseMappingSet, 
 import { MIGRATIONS_DIR as CONVERSATION_MIGRATIONS, PostgresConfirmedProfileStore } from "@askimate/aas-conversation-service";
 import { checkUsable, planFill, textOf } from "@askimate/aas-mapping";
 import { migrate } from "@askimate/aas-migrate";
+import type { ModelClient } from "@askimate/aas-llm";
+import { beginRun, nextStep, requiredFieldsFor, specialistHandoverOf } from "@askimate/aas-orchestrator";
+import type { RunState } from "@askimate/aas-orchestrator";
+import { newInterview } from "@askimate/aas-interview";
+import { studentId } from "@askimate/aas-domain";
 import { announceSkip, databaseReachable, TEST_DATABASE_URL } from "@askimate/aas-migrate/testing";
 import { buildPreview, renderPreview, validatePlan } from "@askimate/aas-preparation";
 import { rehydrateProfile } from "@askimate/aas-profile";
@@ -423,4 +428,138 @@ describe("the catalogue entry for Run A (P152)", () => {
     expect(output).toContain("Search for an institution...: University of Sheffield");
     expect(output).toContain("Please select the qualification you studied:: Bachelors Degree");
   });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// What a student from a country the portal's list does not offer meets TODAY
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a country in the absent column, on the current build (P204)", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // Vahid, 2026-09-24, after signing off blocker 69's three name-keyed
+  // fields: *"what a student from a country in the absent column meets
+  // today. Not the shape 66 will give them — what happens now… If the answer
+  // is 'the plan refuses and a person is called', say so. If it is anything
+  // quieter than that, it is the same class as the silent seven and it should
+  // be a blocker of its own before the signature."*
+  //
+  // The absent column of `docs/run-a/country-mapping-review.md` is the codes
+  // the derivation could find NOTHING for in the portal's own list — not a
+  // weak candidate rejected, an option that is not there. Curaçao, Antarctica
+  // and the Caribbean Netherlands are three of them.
+  //
+  // This was traced once by hand to answer him. It is a test because a hand
+  // trace answers the question once and guards nothing: the quiet failure he
+  // is asking about is exactly the kind that would arrive later, by someone
+  // making `planFill` fall back to the closest option or the orchestrator
+  // treat a `render_refused` as a value the interview could ask for.
+  //
+  // The model is a stub that THROWS. Nothing about a country the portal does
+  // not offer is a question for a model, and a stub that answers would hide
+  // the run walking into the interview branch.
+  // ═══════════════════════════════════════════════════════════════════════
+  const NOW = new Date("2026-09-24T12:00:00Z");
+  const REFUSING_MODEL = {
+    composeQuestion: () => Promise.reject(new Error("the model must not be consulted")),
+    composeDocumentRequest: () => Promise.reject(new Error("the model must not be consulted")),
+    readDocument: () => Promise.reject(new Error("the model must not be consulted")),
+  } as unknown as ModelClient;
+
+  // The SIGNED entry, not the drafts: `nextStep` refuses a draft blueprint
+  // before it ever looks at a plan, so a draft here would answer
+  // `blueprint_not_executable` and prove nothing about a country. Found by
+  // this test failing exactly that way on its first run.
+  function signed() {
+    const parsed = parseReviewedEntryText(
+      readFileSync(join(ROOT, "docs", "run-a", "catalogue", "entries", "sheffield-pgt-2027-09.json"), "utf8"),
+    );
+    if (!parsed.ok) expect.unreachable(`${parsed.refusal.path}: ${parsed.refusal.detail}`);
+    return { blueprint: parsed.value.blueprint, mappingSet: parsed.value.mappingSet };
+  }
+
+  function stateFor(code: string): RunState {
+    const { blueprint, mappingSet } = signed();
+    const asIfReviewed = mappingSet;
+    const check = checkUsable(asIfReviewed, blueprint);
+    if (!check.usable) expect.unreachable(check.refusal.detail);
+    const profile = rehydrateProfile({
+      studentId: "run-a",
+      updatedAt: NOW,
+      entries: fixture().entries.map((e) => ({
+        ...e,
+        ...(e.key === "residence.country" ? { value: code } : {}),
+        provenance: { source: "seeded", confirmedAt: NOW },
+        revision: 1,
+      })),
+    });
+    return beginRun({
+      inputs: {
+        caseId: "case-absent",
+        studentRef: studentId("run-a"),
+        blueprint,
+        mappingSet: asIfReviewed,
+        documents: new Map(),
+      },
+      profile,
+      interview: newInterview({
+        studentRef: "run-a",
+        profile,
+        requiredFields: requiredFieldsFor(blueprint, check.mappingSet),
+        requiredDocuments: [],
+      }),
+    });
+  }
+
+  // The control. Iran IS in every one of the six country maps, so the same
+  // construction has to produce no country blocker at all — otherwise the
+  // three below would prove only that this harness blocks everything.
+  it("plans without a country blocker for a code the portal DOES offer", () => {
+    const { blueprint } = signed();
+    const state = stateFor("IR");
+    const plan = planFill(blueprint, (checkUsable(state.inputs.mappingSet, blueprint) as { mappingSet: Parameters<typeof planFill>[1] }).mappingSet, state.profile);
+    expect(plan.blockers).toEqual([]);
+  });
+
+  for (const [code, country] of [["CW", "Curaçao"], ["AQ", "Antarctica"], ["BQ", "Caribbean Netherlands"]] as const) {
+    it(`refuses to write ${country} (${code}) and hands the run to a person — it does not guess the closest country`, async () => {
+      const { blueprint } = signed();
+      const state = stateFor(code);
+      const usableSet = checkUsable(state.inputs.mappingSet, blueprint);
+      if (!usableSet.usable) expect.unreachable(usableSet.refusal.detail);
+      const plan = planFill(blueprint, usableSet.mappingSet, state.profile);
+
+      // ── The plan refuses ────────────────────────────────────────────────
+      expect(plan.blockers.map((blocker) => blocker.kind)).toEqual(["render_refused"]);
+      const refused = plan.blockers[0];
+      if (refused?.kind !== "render_refused") expect.unreachable("checked above");
+      expect(refused.fieldRef).toBe("permanentResidence");
+      expect(refused.refusal.detail).toContain(`"${code}" is not one of this field's options`);
+      // The standing rule, in the refusal's own words.
+      expect(refused.refusal.detail).toContain("will not choose the closest one");
+      // And nothing was written for that field regardless.
+      expect(plan.instructions.some((instruction) => instruction.fieldRef === "permanentResidence")).toBe(false);
+
+      // ── And a PERSON is called, not the student ─────────────────────────
+      //
+      // `render_refused` is structural, so `nextStep` takes the branch above
+      // the interview's: it is not a value the student failed to give, and
+      // asking them to pick a different country would be handing them our
+      // problem (ADR-0007).
+      const step = await nextStep(state, REFUSING_MODEL);
+      expect(step.kind).toBe("specialist");
+      if (step.kind !== "specialist") expect.unreachable("checked above");
+      expect(step.reason).toBe("render_refused");
+      expect(step.detail).toContain(`"${code}" is not one of this field's options`);
+
+      // The run driver recognises the hand-over by the orchestrator's OWN
+      // narrowing (ADR-0065), not by a comparison on `reason` — so every
+      // reason reaches `#stopForSpecialist`, which raises the intervention
+      // and tells the student once. This is the join between the two halves:
+      // if `specialistHandoverOf` stopped narrowing this step, the driver
+      // would fall through and the run would go quiet.
+      const handover = specialistHandoverOf(step);
+      expect(handover, "the driver's ADR-0065 stop sees this step").not.toBeNull();
+      expect(handover?.reason).toBe("render_refused");
+    });
+  }
 });

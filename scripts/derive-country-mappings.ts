@@ -366,11 +366,14 @@ export function deriveCountryMapping(
   /** What he has already read and decided. */
   decisions: readonly ReviewedDecision[] = [],
 ): Derivation {
+  // A decision naming THIS field beats one naming every field, whatever order
+  // they sit in the file. He accepted `VI` → *Virgin Is (US)* everywhere and
+  // *Virgin Islands (US)* on residence, which is the same territory under two
+  // of the portal's spellings; taking the first match found would have left
+  // the residence row unsettled.
   const decisionFor = (code: string): ReviewedDecision | undefined =>
-    decisions.find(
-      (decision) =>
-        decision.code === code && (decision.fieldRef === "*" || decision.fieldRef === fieldRef),
-    );
+    decisions.find((decision) => decision.code === code && decision.fieldRef === fieldRef) ??
+    decisions.find((decision) => decision.code === code && decision.fieldRef === "*");
   const shape = shapeOf(options);
   const offered = options.filter((option) => option.value !== "");
 
@@ -417,16 +420,74 @@ export function deriveCountryMapping(
     });
   }
 
-  // ── The collision rule ────────────────────────────────────────────────
+  // ── What he decided comes FIRST (P204) ────────────────────────────────
+  //
+  // Before the collision rule, because a decision SETTLES a collision. He read
+  // `UM` and `VI` both proposing *Virgin Islands (US)* and wrote: *"the option
+  // says US, and the US Virgin Islands are VI. UM is the Minor Outlying
+  // Islands and is not that option — leave UM unproposed rather than finding
+  // it something."* So VI is accepted, UM's guess is no longer a proposal, and
+  // there is no collision left to withdraw. Run the other way round — as this
+  // did until P204 — and his acceptance is read against a candidate the
+  // collision rule has already taken away.
+  const settled = proposed.map(
+    ({ country, option, kind }): {
+      country: Country;
+      option: PortalOption | null;
+      kind: CandidateKind;
+      why: string;
+    } => {
+      const decided = decisionFor(country.code);
+      if (decided === undefined) return { country, option, kind, why: "" };
+      // A REJECT is matched on the option too: if the derivation now names a
+      // different one, that is a new proposal and he sees it.
+      const sameOption =
+        decided.option === undefined ||
+        (option !== null && fold(option.label) === fold(decided.option));
+      // A refusal is shown when the proposer offers the same option again AND
+      // when it now offers nothing: his words are the reason there is no
+      // candidate, and burying them under "absent" would say the portal has no
+      // such option, which is false — it has one, and he refused it.
+      if (decided.verdict === "reject" && (sameOption || option === null)) {
+        return {
+          country,
+          option: null,
+          kind: "rejected",
+          why: `REFUSED by Vahid on ${decided.on}: ${decided.reason}`,
+        };
+      }
+      if (decided.verdict === "hold") {
+        return {
+          country,
+          option,
+          kind: "held",
+          why: `HELD by Vahid on ${decided.on}${decided.blocker === undefined ? "" : ` — blocker ${String(decided.blocker)}`}: ${decided.reason}`,
+        };
+      }
+      if (decided.verdict === "accept" && sameOption && option !== null) {
+        return {
+          country,
+          option,
+          kind: "accepted",
+          why: `ACCEPTED by Vahid on ${decided.on}: ${decided.reason}`,
+        };
+      }
+      return { country, option, kind, why: "" };
+    },
+  );
+
+  // ── The collision rule, over what he has NOT settled ──────────────────
   //
   // Congo is why this exists. The portal offers `Congo` and `Congo
-  // (Democratic Republic)`; pass 3 offered `Congo` to BOTH `CG` and `CD`,
-  // and approving that would have put one country on the other's
-  // application. Pass 2 now settles Congo from the portal's own code list,
-  // but the rule stands over every pass: one option, one country.
+  // (Democratic Republic)`; an early proposer offered `Congo` to BOTH `CG` and
+  // `CD`, and approving that would have put one country on the other's
+  // application. Pass 2 now settles Congo from the portal's own code list, but
+  // the rule stands over every pass: one option, one country. Only GUESSES can
+  // collide — an accepted pairing is his word, a refused one is no longer a
+  // proposal, and a corroborated one is the portal's own code list.
   const byOption = new Map<string, Country[]>();
-  for (const { country, option } of proposed) {
-    if (option === null) continue;
+  for (const { country, option, kind } of settled) {
+    if (option === null || kind !== "name_resemblance") continue;
     byOption.set(option.value, [...(byOption.get(option.value) ?? []), country]);
   }
   const collided = new Map<string, Collision>();
@@ -436,46 +497,9 @@ export function deriveCountryMapping(
     if (option !== undefined) collided.set(value, { option, countries });
   }
 
-  const unmatched: Unmatched[] = proposed.map(({ country, option, kind }) => {
-    // ── What he already decided comes first ─────────────────────────────
-    //
-    // A REJECT is matched on the option too: if the derivation now names a
-    // different one, that is a new proposal and he sees it.
-    const decided = decisionFor(country.code);
-    if (decided !== undefined) {
-      const sameOption =
-        decided.option === undefined ||
-        (option !== null && fold(option.label) === fold(decided.option));
-      // A refusal is shown when the proposer offers the same option again AND
-      // when it now offers nothing: his words are the reason there is no
-      // candidate, and burying them under "absent" would say the portal has
-      // no such option, which is false — it has one, and he refused it.
-      const refused = decided.verdict === "reject" && (sameOption || option === null);
-      if (refused) {
-        return {
-          country,
-          candidate: null,
-          kind: "rejected",
-          why: `REFUSED by Vahid on ${decided.on}: ${decided.reason}`,
-        };
-      }
-      if (decided.verdict === "hold") {
-        return {
-          country,
-          candidate: option,
-          kind: "held",
-          why: `HELD by Vahid on ${decided.on}${decided.blocker === undefined ? "" : ` — blocker ${String(decided.blocker)}`}: ${decided.reason}`,
-        };
-      }
-      if (decided.verdict === "accept" && sameOption && option !== null) {
-        return {
-          country,
-          candidate: option,
-          kind: "accepted",
-          why: `ACCEPTED by Vahid on ${decided.on}: ${decided.reason}`,
-        };
-      }
-    }
+  const unmatched: Unmatched[] = settled.map(({ country, option, kind, why }) => {
+    // Anything he settled carries his words and is not reconsidered here.
+    if (why !== "") return { country, candidate: option, kind, why };
     if (option !== null && collided.has(option.value)) {
       const others = (collided.get(option.value)?.countries ?? [])
         .filter((other) => other.code !== country.code)
