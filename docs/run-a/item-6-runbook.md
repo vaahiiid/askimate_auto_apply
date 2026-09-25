@@ -23,7 +23,22 @@ actually did goes in `what-run-a-proved.md`, not here.
 
 ## The run — his answers in the chat, and the system's acts
 
-5. **The interview.** He answers as himself. Where his institution, subject or grading system lies
+5. **The interview.** Each answer is played back with "Is that right?" and a "Yes, that's right"
+   button in the panel below the chat; a typed *yes* is a correction, not a confirmation, and is
+   refused as one. If the button is not there while a playback is open (P221, row 90), the same
+   act from the console on the page, with the hash the server itself names:
+
+   ```js
+   const id = "<conversation id>";
+   const r = await (await fetch(`/v1/conversations/${id}/runs`)).json();   // r.pending.decision === "confirm_value"
+   await fetch(`/v1/conversations/${id}/runs/${r.run.runId}/decision`, {
+     method: "POST", headers: { "content-type": "application/json" },
+     body: JSON.stringify({ kind: "confirm_value", contentHash: r.pending.contentHash }) });
+   ```
+
+   `r.pending` is `null` when no reading is open — after a typed *yes*, which closed it. The
+   hash is also on the `value_proposed` event in `GET /v1/conversations/${id}/events?limit=500`.
+   He answers as himself. Where his institution, subject or grading system lies
    outside the lists on file, the plan refuses by name and one read of that list closes it (P218);
    nothing is guessed.
 6. **The yes.** The preview shows what will be typed; he authorises it. The run starts. He has not

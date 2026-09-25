@@ -4906,6 +4906,36 @@ slot, from the page's text, since no `accept` attribute was ever captured.
 
 **Four** — unchanged.
 
+# P221 — the run's first question, and the button that was not there
+
+> *"So the page asks a yes/no question with nothing to answer it, and a typed yes is read as a
+> correction and refused by the parser."*
+
+## What the code says
+
+The page draws "Yes, that's right" whenever the server's run reading says `confirm_value`, and the
+server says so whenever the log holds an open reading. The page test types an e-mail and waits for
+that button, and it is green. So the button was drawn or never delivered, and the code has one way
+to take a drawn button away: the message route answers before the driver has read the message, the
+page refreshes on that answer and again on every streamed event, and the earliest read can finish
+last carrying `pending: null`. Held back four seconds on the fixture, that read left the panel
+saying *interview (running)* with no button — his screen, reproduced. A refresh overtaken by a
+newer one now throws its reads away.
+
+## What the code cannot say
+
+Whether his three misses were that race. A run read that failed during the playback shows the
+same absence, with a notice. Row 90 names the two reads on his machine that tell them apart, and
+the runbook carries the console call that confirms a value while the page is in doubt.
+
+## The two sentences
+
+"I've recorded your your personal email address" came from a label that carried its own "Your"
+inside a sentence that supplied one; two labels did, and neither does now. "Sorry — I didn't quite
+catch that" was the deterministic client's only second-attempt sentence, used equally for a
+message nobody could read and for a message taken as a correction to a playback. The second case
+is now told as what it was: the reading was set aside because of what they wrote.
+
 # P220 — the consent heading on the student page names neither step
 
 One line. The heading over the consent buttons said the notice stood before the sign-in; since

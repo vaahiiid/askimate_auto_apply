@@ -989,6 +989,74 @@ describeIfDatabase("the student's page", () => {
     );
   }, 300_000);
 
+  it("keeps the confirmation button when an OLDER run reading lands after a newer one (P221)", async () => {
+    // ═══════════════════════════════════════════════════════════════════
+    // Vahid's item-6 run, 2026-09-25: the playback asked "Is that right?"
+    // and the page showed nothing to answer it with. The message route
+    // answers before the driver has read the answer; the page refreshes on
+    // that answer AND on each event the stream delivers, so three reads of
+    // the run are in flight for one message, and the first to start — the
+    // one that can carry `pending: null` — is free to finish last. This
+    // holds the first run reading after the send back until the stream's
+    // reads have drawn the button, then lets it land carrying no decision,
+    // as a read that started before the reading was written would.
+    // ═══════════════════════════════════════════════════════════════════
+    const stale = await pool.query<{ id: string }>(
+      "INSERT INTO students (subject, email_verified) VALUES ('p221-stale-read', true) RETURNING id",
+    );
+    await visitAs(stale.rows[0]!.id);
+    await page.waitForFunction(
+      () => document.querySelectorAll("#targets .target").length > 0,
+      undefined,
+      { timeout: 15_000 },
+    );
+    await chooseCourse("MSc Example Studies");
+    await textOf("#offer pre");
+    await page.locator("#statement").fill("Please apply to this one for me.");
+    await page.locator("#offer button").first().click();
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("interview"),
+      undefined,
+      { timeout: 20_000 },
+    );
+
+    // The FIRST run read after the send is the page's own, started as the
+    // send returns. Its answer is fetched at once — so what the server said
+    // is what a read at that moment says — held for four seconds, and then
+    // delivered with nothing pending, which is what such a read carries when
+    // it beats the driver to the log.
+    let held = 0;
+    let landed = false as boolean;
+    await page.route(/\/v1\/conversations\/[^/]+\/runs$/, async (route) => {
+      if (held > 0) {
+        await route.continue();
+        return;
+      }
+      held += 1;
+      const response = await route.fetch();
+      const body = (await response.json()) as Record<string, unknown>;
+      await new Promise((resolve) => setTimeout(resolve, 4_000));
+      landed = true;
+      await route.fulfill({ response, json: { ...body, pending: null } });
+    });
+    await page.locator("#say").fill("stale@example.test");
+    await page.locator("#composer button").click();
+
+    // The stream's refreshes draw the button…
+    await page.waitForFunction(
+      () => (document.querySelector("#pending")?.textContent ?? "").includes("Yes, that's right"),
+      undefined,
+      { timeout: 20_000 },
+    );
+    // …and the older reading, landing after them, does not take it away.
+    const until = Date.now() + 8_000;
+    while (!landed && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(landed, "the held reading was delivered").toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(await textOf("#pending")).toContain("Yes, that's right");
+    await page.unroute(/\/v1\/conversations\/[^/]+\/runs$/);
+  }, 300_000);
+
   it("offers a stop at every step, and it needs no hash", async () => {
     await visitAs(student);
     await page.waitForFunction(

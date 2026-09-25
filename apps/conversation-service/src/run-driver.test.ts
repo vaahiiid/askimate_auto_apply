@@ -109,7 +109,8 @@ import { PostgresDocumentRecordStore } from "./document-record-store.js";
 import { S3DocumentVault } from "./s3-document-vault.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { b2Register } from "@askimate/aas-disclosure";
-import { previewDocumentsOf } from "./run-driver.js";
+import type { ConversationEvent } from "@askimate/aas-contracts";
+import { previewDocumentsOf, rejectedFrom } from "./run-driver.js";
 import { MIGRATIONS_DIR } from "./index.js";
 import { StudentIdentityStore } from "./identity-store.js";
 import { PostgresConfirmedProfileStore } from "./profile-store.js";
@@ -13324,4 +13325,24 @@ describeIfDatabase("content the portal would reject, that the interview cannot a
       await instance.pool.end();
     }
   }, 300_000);
+});
+
+describe("the fields whose last reading was set aside (P221)", () => {
+  const at = (kind: "value_proposed" | "value_rejected" | "value_confirmed", fieldKey: string): ConversationEvent =>
+    ({
+      kind,
+      fieldKey,
+      ...(kind === "value_proposed" ? { proposal: {}, playbackHash: "sha256:0" } : {}),
+      ...(kind === "value_confirmed" ? { playbackHash: "sha256:0" } : {}),
+    }) as unknown as ConversationEvent;
+
+  it("names a field rejected and not since proposed or confirmed, and nothing else", () => {
+    expect([...rejectedFrom([at("value_proposed", "contact.email"), at("value_rejected", "contact.email")])]).toEqual(["contact.email"]);
+    // A new reading for the field clears it; so does a confirmation.
+    expect([...rejectedFrom([at("value_rejected", "contact.email"), at("value_proposed", "contact.email")])]).toEqual([]);
+    expect([...rejectedFrom([at("value_rejected", "contact.email"), at("value_confirmed", "contact.email")])]).toEqual([]);
+    // Per field: another field's rejection is its own.
+    expect([...rejectedFrom([at("value_rejected", "identity.given_name"), at("value_proposed", "contact.email")])]).toEqual(["identity.given_name"]);
+    expect([...rejectedFrom([])]).toEqual([]);
+  });
 });

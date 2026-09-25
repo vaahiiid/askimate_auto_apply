@@ -58,6 +58,14 @@ export interface QuestionRequest {
    * A second attempt should be phrased differently, not repeated verbatim.
    */
   readonly previousAttempts: number;
+  /**
+   * The student's last message was read as a CORRECTION to a value already
+   * played back to them, and no value could be read from it (P221). The
+   * question that follows must say so: the reading was set aside because of
+   * what they wrote, not because nothing was caught. A student told "I didn't
+   * catch that" retypes the same value, and Vahid did, twice.
+   */
+  readonly previousReadingRejected?: boolean;
 }
 
 /** What the agent needs interpreted. */

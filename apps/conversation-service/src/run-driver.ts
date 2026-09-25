@@ -1357,6 +1357,9 @@ function interviewFrom(input: {
     // than lost with the request that read it (ADR-0140).
     partial: partsReadFrom(input.events),
     attempts: attemptsFrom(input.events),
+    // P221: a reading set aside as an unreadable correction is asked about
+    // as what it was, not as something nobody caught.
+    rejected: rejectedFrom(input.events),
     // The last few turns, so a re-asked question fits the conversation. Only
     // messages: a proposal is not something anybody said.
     transcript: input.events
@@ -1374,6 +1377,29 @@ function interviewFrom(input: {
           },
         }),
   };
+}
+
+/**
+ * The fields whose LAST reading was rejected — a `value_rejected` with no
+ * `value_proposed` or `value_confirmed` for that field after it (P221).
+ *
+ * `#correct` writes the rejection whenever a student message arrives while a
+ * reading is open, readable or not. When it was not readable the field is
+ * asked again, and the question has to say that the message was taken as a
+ * correction and set the reading aside — Vahid, on being told "I didn't quite
+ * catch that" after typing "yes" to a playback: *"It did catch it; it refused
+ * it as a correction. A student reading that will retype the same address, as
+ * I did twice."*
+ */
+export function rejectedFrom(events: readonly ConversationEvent[]): ReadonlySet<ProfileFieldKey> {
+  const rejected = new Set<ProfileFieldKey>();
+  for (const event of events) {
+    if (event.kind === "value_rejected") rejected.add(event.fieldKey as ProfileFieldKey);
+    else if (event.kind === "value_proposed" || event.kind === "value_confirmed") {
+      rejected.delete(event.fieldKey as ProfileFieldKey);
+    }
+  }
+  return rejected;
 }
 
 /**

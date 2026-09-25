@@ -147,6 +147,13 @@ export interface InterviewState {
   readonly attempts: ReadonlyMap<string, number>;
   /** Recent turns, so questions fit the conversation. */
   readonly transcript: readonly string[];
+  /**
+   * Fields whose LAST reading was set aside as a correction that could not be
+   * read (P221) — nothing proposed or confirmed for them since. The next
+   * question for such a field says what happened rather than "I didn't catch
+   * that". Derived from the log by the driver; absent in a fresh interview.
+   */
+  readonly rejected?: ReadonlySet<ProfileFieldKey>;
 }
 
 /**
@@ -447,6 +454,7 @@ export async function nextAction(
       rationale: question.kind === "part" ? question.part.rationale : question.spec.rationale,
       conversationContext: state.transcript.slice(-6),
       previousAttempts: state.attempts.get(questionKey(fieldKey, partKey)) ?? 0,
+      ...(state.rejected?.has(fieldKey) === true ? { previousReadingRejected: true } : {}),
     });
 
     return { kind: "ask", say, fieldKey, ...(partKey === undefined ? {} : { partKey }) };

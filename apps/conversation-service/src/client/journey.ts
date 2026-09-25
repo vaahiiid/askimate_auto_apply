@@ -151,15 +151,37 @@ function button(
  * the right screen then so can every update, and there is one code path to be
  * right about rather than two.
  */
+/**
+ * Which refresh is the latest one started. A refresh that finds it has been
+ * overtaken throws its reads away (P221).
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Three refreshes can be in flight for one answer: the one this page starts
+ * when the send returns, and one per durable event the stream then delivers
+ * (the reading, then the playback). The message route answers BEFORE the
+ * driver has read the answer, so the first refresh can read a run with
+ * nothing pending and land LAST — after the stream's refreshes have drawn the
+ * "Yes, that's right" button — and take the button away. The page then shows
+ * a playback asking "Is that right?" with nothing to answer it. The last read
+ * to START is the one that says where things stand; the last to FINISH is not.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+let latestRefresh = 0;
+
 async function refresh(): Promise<void> {
   const id = view.conversationId;
   if (id === null) return;
+  latestRefresh += 1;
+  const mine = latestRefresh;
 
   const [events, run, documents] = await Promise.all([
     api.readEvents(id),
     api.readRun(id),
     api.readDocuments(id),
   ]);
+  // Overtaken: a newer refresh has started since these reads were asked for,
+  // and its answer is the one that describes the run now.
+  if (mine !== latestRefresh) return;
   view.documents = documents.ok ? documents.value : null;
 
   // A read that FAILED is not a read, and the previous answer is not a

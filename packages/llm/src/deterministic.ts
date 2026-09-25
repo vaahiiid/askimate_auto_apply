@@ -30,16 +30,30 @@ export class DeterministicModelClient implements ModelClient {
   public composeQuestion(request: QuestionRequest): Promise<ModelText> {
     // A second attempt is rephrased rather than repeated verbatim — asking the
     // identical question again is how a conversation stops feeling like one.
+    const label = request.label.toLowerCase();
+    // P221: the reading was set aside because the student's message was taken
+    // as a correction and could not be read as one. Said as what happened —
+    // "I didn't catch that" would be untrue, and a student told so retypes
+    // the same value.
+    if (request.previousReadingRejected === true) {
+      return Promise.resolve(
+        modelText(
+          `I read your last message as a correction to what I had recorded, and I could not make ` +
+            `a ${label} out of it, so I have set that reading aside. If what I recorded was right, ` +
+            `tell me it again; if it was not, tell me the right one. What's your ${label}?`,
+        ),
+      );
+    }
     if (request.previousAttempts > 0) {
       return Promise.resolve(
         modelText(
           `Sorry — I didn't quite catch that. ${request.rationale} ` +
-            `Could you tell me your ${request.label.toLowerCase()}?`,
+            `Could you tell me your ${label}?`,
         ),
       );
     }
     return Promise.resolve(
-      modelText(`${request.rationale} What's your ${request.label.toLowerCase()}?`),
+      modelText(`${request.rationale} What's your ${label}?`),
     );
   }
 

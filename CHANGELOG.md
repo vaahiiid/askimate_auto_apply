@@ -19,6 +19,25 @@ not shipped artefacts.
 
 ---
 
+## [0.217.0] — 2026-09-25
+
+**P221 — the item-6 run stopped on its first question: the page lost the "Yes, that's right" button to an older read landing last; and two sentences said what had not happened.**
+
+- **Fixed** the student page: a refresh overtaken by a newer one throws its reads away. The
+  message route answers before the driver has read the answer, so the page's own refresh could
+  carry `pending: null` and land after the stream's refreshes had drawn the confirmation button,
+  taking it away and leaving a playback with nothing to answer it. Reproduced fail-first on the
+  page test by holding the first run read back; green with the guard.
+- **Fixed** the re-ask after a correction that could not be read: the question now says the
+  message was taken as a correction and the reading set aside, never "I didn't quite catch
+  that". Derived from the log (`rejectedFrom`), carried on `QuestionRequest.previousReadingRejected`,
+  worded in the deterministic client and in the Bedrock prompt.
+- **Fixed** the two labels that carried their own possessive ("Your personal email address",
+  "Your status in the UK"), which every sentence built around them doubled: "your your".
+- **Recorded** row 90.
+
+---
+
 ## [0.216.0] — 2026-09-25
 
 **P220 — the student page's consent heading named the sign-in; it names neither step now.**

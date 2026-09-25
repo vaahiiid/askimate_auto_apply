@@ -79,6 +79,26 @@ describe("one question at a time", () => {
     }
   });
 
+  it("says the reading was set aside when the last one was rejected as an unreadable correction (P221)", async () => {
+    // Vahid, on typing "yes" to a playback and being told "I didn't quite
+    // catch that": *"It did catch it; it refused it as a correction. A student
+    // reading that will retype the same address, as I did twice."*
+    const state: InterviewState = {
+      ...start(["contact.email"]),
+      attempts: new Map([["contact.email", 1]]),
+      rejected: new Set(["contact.email"]),
+    };
+    const again = await nextAction(state, model);
+    expect(again.kind).toBe("ask");
+    if (again.kind === "ask") {
+      expect(again.say).toContain("I read your last message as a correction");
+      expect(again.say).toContain("set that reading aside");
+      expect(again.say).toContain("personal email address");
+      expect(again.say).not.toContain("didn't quite catch");
+      expect(again.say, "the label carries no possessive of its own").not.toContain("your your");
+    }
+  });
+
   it("rephrases on a second attempt rather than repeating verbatim", async () => {
     const first = await nextAction(start(), model);
     const afterFailure = await receiveAnswer(start(), "identity.given_name", "12345", model);

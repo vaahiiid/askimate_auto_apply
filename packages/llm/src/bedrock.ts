@@ -184,11 +184,18 @@ export class BedrockModelClient implements ModelClient {
 
   public async composeQuestion(request: QuestionRequest): Promise<ModelText> {
     const rephrase =
-      request.previousAttempts > 0
-        ? `\n\nYou have already asked this ${String(request.previousAttempts)} time(s) and the ` +
-          `answer was not usable. Ask differently — do not repeat yourself, and do not make the ` +
-          `student feel they got it wrong.`
-        : "";
+      request.previousReadingRejected === true
+        ? // P221: what happened is that their message was read as a correction
+          // to a value already played back. Say that; never say nothing was caught.
+          `\n\nThe student's last message was taken as a correction to a value you had already ` +
+          `played back to them, and no ${request.label} could be read from it, so that reading has ` +
+          `been set aside. Say exactly that — do not say you did not catch or understand them — and ` +
+          `ask them to give the value again, the same one if it was right.`
+        : request.previousAttempts > 0
+          ? `\n\nYou have already asked this ${String(request.previousAttempts)} time(s) and the ` +
+            `answer was not usable. Ask differently — do not repeat yourself, and do not make the ` +
+            `student feel they got it wrong.`
+          : "";
 
     const text = await this.#text("interview", [
       {
