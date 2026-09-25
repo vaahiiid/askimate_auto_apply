@@ -863,7 +863,7 @@ answered and 15 was done in P40. The ADR re-audit that used to sit here was done
 
 ## 7 · Test and verification state
 
-**2,919 tests · 147 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
+**2,939 tests · 147 files · zero skipped · zero pending**, run against real PostgreSQL 16 and real
 Redis (`--save "" --appendonly no --maxmemory-policy noeviction`). `pnpm run verify` chains
 typecheck → lint → dependency boundaries → version check → tests; CI runs it plus a separate
 integration job.
